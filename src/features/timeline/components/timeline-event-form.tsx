@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import {
   createTimelineEventAction,
   type TimelineActionState,
+  updateTimelineEventAction,
 } from "@/features/timeline/actions";
 import type {
+  TimelineEvent,
   TimelineEventType,
   TimelinePropertyOption,
   TimelineUnitOption,
@@ -17,21 +18,31 @@ import { Input } from "@/components/ui/input";
 const initialState: TimelineActionState = {};
 
 type TimelineEventFormProps = {
+  event?: TimelineEvent | null;
   eventTypes: TimelineEventType[];
+  mode?: "create" | "edit";
   onClose: () => void;
+  onSuccess?: (message: string) => void;
   properties: TimelinePropertyOption[];
   units: TimelineUnitOption[];
 };
 
 export function TimelineEventForm({
+  event,
   eventTypes,
+  mode = "create",
   onClose,
+  onSuccess,
   properties,
   units,
 }: TimelineEventFormProps) {
-  const [selectedPropertyId, setSelectedPropertyId] = useState("");
+  const isEditMode = mode === "edit";
+  const [selectedPropertyId, setSelectedPropertyId] = useState(
+    event?.propertyId ?? "",
+  );
+  const [selectedUnitId, setSelectedUnitId] = useState(event?.unitId ?? "");
   const [state, action, pending] = useActionState(
-    createTimelineEventAction,
+    isEditMode ? updateTimelineEventAction : createTimelineEventAction,
     initialState,
   );
   const availableUnits = useMemo(
@@ -39,33 +50,37 @@ export function TimelineEventForm({
     [selectedPropertyId, units],
   );
 
-  return (
-    <form
-      action={action}
-      className="border-b border-border bg-surface px-8 py-5"
-    >
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="text-base font-semibold tracking-tight">Add timeline event</h2>
-        <Button aria-label="Close form" onClick={onClose} type="button" variant="ghost">
-          <X size={16} />
-        </Button>
-      </div>
+  useEffect(() => {
+    if (state.status === "success") {
+      onSuccess?.(state.message ?? "Timeline event saved.");
+      onClose();
+    }
+  }, [onClose, onSuccess, state.message, state.status]);
 
+  return (
+    <form action={action} className="space-y-5 py-5">
       {state.message ? (
         <p
-          className="mb-4 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+          className="mx-5 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
           role={state.status === "error" ? "alert" : "status"}
         >
           {state.message}
         </p>
       ) : null}
 
-      <div className="grid grid-cols-4 gap-4">
+      {isEditMode && event ? (
+        <input name="eventId" type="hidden" value={event.id} />
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-4 px-5">
         <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
           <select
             className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
             name="propertyId"
-            onChange={(event) => setSelectedPropertyId(event.target.value)}
+            onChange={(changeEvent) => {
+              setSelectedPropertyId(changeEvent.target.value);
+              setSelectedUnitId("");
+            }}
             required
             value={selectedPropertyId}
           >
@@ -83,6 +98,8 @@ export function TimelineEventForm({
             className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
             disabled={!selectedPropertyId}
             name="unitId"
+            onChange={(changeEvent) => setSelectedUnitId(changeEvent.target.value)}
+            value={selectedUnitId}
           >
             <option value="">Property level</option>
             {availableUnits.map((unit) => (
@@ -96,6 +113,7 @@ export function TimelineEventForm({
         <Field label="Event type" error={state.fieldErrors?.eventType?.[0]}>
           <select
             className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            defaultValue={event?.eventType ?? eventTypes[0]}
             name="eventType"
             required
           >
@@ -108,22 +126,41 @@ export function TimelineEventForm({
         </Field>
 
         <Field label="Event date" error={state.fieldErrors?.eventDate?.[0]}>
-          <Input name="eventDate" required type="date" />
+          <Input
+            defaultValue={event?.eventDate ?? ""}
+            name="eventDate"
+            required
+            type="date"
+          />
         </Field>
       </div>
 
-      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_160px_120px] gap-4">
+      <div className="grid grid-cols-[minmax(0,1fr)_128px_112px] gap-4 px-5">
         <Field label="Title" error={state.fieldErrors?.title?.[0]}>
-          <Input name="title" placeholder="Short record title" required type="text" />
+          <Input
+            defaultValue={event?.title ?? ""}
+            name="title"
+            placeholder="Short record title"
+            required
+            type="text"
+          />
         </Field>
 
         <Field label="Cost" error={state.fieldErrors?.costAmount?.[0]}>
-          <Input min="0" name="costAmount" placeholder="0.00" step="0.01" type="number" />
+          <Input
+            defaultValue={event?.cost ?? ""}
+            min="0"
+            name="costAmount"
+            placeholder="0.00"
+            step="0.01"
+            type="number"
+          />
         </Field>
 
         <Field label="Currency" error={state.fieldErrors?.costCurrency?.[0]}>
           <select
             className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            defaultValue={event?.currency ?? ""}
             name="costCurrency"
           >
             <option value="">None</option>
@@ -134,23 +171,30 @@ export function TimelineEventForm({
       </div>
 
       <Field
-        className="mt-4"
+        className="px-5"
         label="Description"
         error={state.fieldErrors?.description?.[0]}
       >
         <textarea
           className="min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          defaultValue={event?.description ?? ""}
           name="description"
           placeholder="Operational notes"
         />
       </Field>
 
-      <div className="mt-4 flex justify-end gap-2">
+      <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
         <Button onClick={onClose} type="button">
           Cancel
         </Button>
         <Button disabled={pending} type="submit" variant="primary">
-          {pending ? "Adding..." : "Add event"}
+          {pending
+            ? isEditMode
+              ? "Saving..."
+              : "Adding..."
+            : isEditMode
+              ? "Save changes"
+              : "Add event"}
         </Button>
       </div>
     </form>

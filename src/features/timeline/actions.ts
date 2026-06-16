@@ -11,6 +11,7 @@ type TimelineFieldErrors = {
   costAmount?: string[];
   costCurrency?: string[];
   description?: string[];
+  eventId?: string[];
   eventDate?: string[];
   eventType?: string[];
   propertyId?: string[];
@@ -97,6 +98,8 @@ const createTimelineEventSchema = z
     }
   });
 
+const timelineEventIdSchema = z.uuid("Choose a timeline event.");
+
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
@@ -163,4 +166,117 @@ export async function createTimelineEventAction(
     message: "Timeline event added.",
     status: "success",
   };
+}
+
+export async function updateTimelineEventAction(
+  _state: TimelineActionState,
+  formData: FormData,
+): Promise<TimelineActionState> {
+  const context = await requireAdminContext();
+  const parsedEventId = timelineEventIdSchema.safeParse(
+    readString(formData, "eventId"),
+  );
+  const parsed = createTimelineEventSchema.safeParse({
+    costAmount: readString(formData, "costAmount"),
+    costCurrency: readString(formData, "costCurrency"),
+    description: readString(formData, "description"),
+    eventDate: readString(formData, "eventDate"),
+    eventType: readString(formData, "eventType"),
+    propertyId: readString(formData, "propertyId"),
+    title: readString(formData, "title"),
+    unitId: readString(formData, "unitId"),
+  });
+
+  if (!parsedEventId.success) {
+    return {
+      fieldErrors: { eventId: ["Choose a timeline event."] },
+      status: "error",
+    };
+  }
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const costAmount =
+    parsed.data.costAmount.length > 0 ? Number(parsed.data.costAmount) : null;
+  const costCurrency =
+    parsed.data.costCurrency.length > 0
+      ? (parsed.data.costCurrency as CurrencyCode)
+      : null;
+  const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_timeline_event", {
+    p_cost_amount: costAmount,
+    p_cost_currency: costCurrency,
+    p_description: parsed.data.description,
+    p_event_date: parsed.data.eventDate,
+    p_event_id: parsedEventId.data,
+    p_event_type: parsed.data.eventType,
+    p_organization_id: context.organizationId,
+    p_property_id: parsed.data.propertyId,
+    p_title: parsed.data.title,
+    p_unit_id: unitId,
+  });
+
+  if (error) {
+    return {
+      message: timelineActionErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidatePath("/timeline");
+  revalidatePath("/properties");
+
+  return {
+    message: "Timeline event updated.",
+    status: "success",
+  };
+}
+
+export async function archiveTimelineEventAction(
+  _state: TimelineActionState,
+  formData: FormData,
+): Promise<TimelineActionState> {
+  const context = await requireAdminContext();
+  const parsedEventId = timelineEventIdSchema.safeParse(
+    readString(formData, "eventId"),
+  );
+
+  if (!parsedEventId.success) {
+    return {
+      fieldErrors: { eventId: ["Choose a timeline event."] },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("archive_timeline_event", {
+    p_event_id: parsedEventId.data,
+    p_organization_id: context.organizationId,
+  });
+
+  if (error) {
+    return {
+      message: timelineActionErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidatePath("/timeline");
+  revalidatePath("/properties");
+
+  return {
+    message: "Timeline event archived.",
+    status: "success",
+  };
+}
+
+function timelineActionErrorMessage(message: string) {
+  if (message.includes("Ledger-linked")) {
+    return "This timeline event is linked to a ledger entry. Edit or archive it from Ledger.";
+  }
+
+  return "We could not save the timeline event. Please check the fields and try again.";
 }

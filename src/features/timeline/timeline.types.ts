@@ -22,10 +22,12 @@ export type TimelineEvent = {
   propertyId: string;
   propertyName: string;
   propertyCode: string;
+  unitId?: string;
   unitNumber?: string;
   cost?: number;
   currency?: CurrencyCode;
   hasAttachment: boolean;
+  ledgerEntryId?: string;
   createdBy: string;
   relatedDocument?: string;
   relatedLease?: string;

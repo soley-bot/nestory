@@ -31,31 +31,44 @@ type LedgerEntryRow = {
   unit_id: string | null;
 };
 
+type TimelineEventRow = {
+  id: string;
+  ledger_entry_id: string | null;
+  title: string;
+};
+
 export async function getLedgerScreenData(organizationId: string) {
   const supabase = await createSupabaseServerClient();
 
-  const [ledgerResult, propertiesResult, unitsResult] = await Promise.all([
-    supabase
-      .from("ledger_entries")
-      .select(
-        "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description",
-      )
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .order("transaction_date", { ascending: false })
-      .limit(100),
-    supabase
-      .from("properties")
-      .select("id, name, code")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .order("name", { ascending: true }),
-    supabase
-      .from("units")
-      .select("id, property_id, unit_number")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null),
-  ]);
+  const [ledgerResult, propertiesResult, unitsResult, timelineEventsResult] =
+    await Promise.all([
+      supabase
+        .from("ledger_entries")
+        .select(
+          "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description",
+        )
+        .eq("organization_id", organizationId)
+        .is("archived_at", null)
+        .order("transaction_date", { ascending: false })
+        .limit(100),
+      supabase
+        .from("properties")
+        .select("id, name, code")
+        .eq("organization_id", organizationId)
+        .is("archived_at", null)
+        .order("name", { ascending: true }),
+      supabase
+        .from("units")
+        .select("id, property_id, unit_number")
+        .eq("organization_id", organizationId)
+        .is("archived_at", null),
+      supabase
+        .from("timeline_events")
+        .select("id, ledger_entry_id, title")
+        .eq("organization_id", organizationId)
+        .not("ledger_entry_id", "is", null)
+        .is("archived_at", null),
+    ]);
 
   if (ledgerResult.error) {
     throw new Error(`Could not load ledger entries: ${ledgerResult.error.message}`);
@@ -69,12 +82,22 @@ export async function getLedgerScreenData(organizationId: string) {
     throw new Error(`Could not load ledger units: ${unitsResult.error.message}`);
   }
 
+  if (timelineEventsResult.error) {
+    throw new Error(
+      `Could not load linked ledger timeline events: ${timelineEventsResult.error.message}`,
+    );
+  }
+
   const propertiesById = indexById(propertiesResult.data ?? []);
   const unitsById = indexById(unitsResult.data ?? []);
+  const timelineEventsByLedgerEntryId = indexTimelineEventsByLedgerEntryId(
+    timelineEventsResult.data ?? [],
+  );
   const entries = (ledgerResult.data ?? []).map((entry) =>
     toLedgerEntry({
       entry,
       property: propertiesById.get(entry.property_id),
+      relatedTimelineEvent: timelineEventsByLedgerEntryId.get(entry.id),
       unit: entry.unit_id ? unitsById.get(entry.unit_id) : undefined,
     }),
   );
@@ -103,27 +126,48 @@ export async function getLedgerScreenData(organizationId: string) {
 function toLedgerEntry({
   entry,
   property,
+  relatedTimelineEvent,
   unit,
 }: {
   entry: LedgerEntryRow;
   property?: PropertyRow;
+  relatedTimelineEvent?: TimelineEventRow;
   unit?: UnitRow;
 }): LedgerEntry {
   return {
     amount: entry.amount,
     category: entry.category,
     currency: entry.currency,
-    description: entry.description ?? "No description recorded.",
+    description: entry.description ?? "",
     direction: entry.direction === "expense" ? "expense" : "income",
     id: entry.id,
     propertyCode: property?.code ?? "Unknown",
     propertyId: entry.property_id,
     propertyName: property?.name ?? "Unknown property",
+    relatedTimelineEvent: relatedTimelineEvent
+      ? {
+          id: relatedTimelineEvent.id,
+          title: relatedTimelineEvent.title,
+        }
+      : undefined,
     transactionDate: entry.transaction_date,
+    unitId: entry.unit_id ?? undefined,
     unitNumber: unit?.unit_number,
   };
 }
 
 function indexById<T extends { id: string }>(rows: T[]) {
   return new Map(rows.map((row) => [row.id, row]));
+}
+
+function indexTimelineEventsByLedgerEntryId(rows: TimelineEventRow[]) {
+  const index = new Map<string, TimelineEventRow>();
+
+  rows.forEach((row) => {
+    if (row.ledger_entry_id) {
+      index.set(row.ledger_entry_id, row);
+    }
+  });
+
+  return index;
 }

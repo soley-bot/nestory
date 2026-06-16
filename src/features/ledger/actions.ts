@@ -14,6 +14,7 @@ type LedgerFieldErrors = {
   currency?: string[];
   description?: string[];
   direction?: string[];
+  entryId?: string[];
   propertyId?: string[];
   transactionDate?: string[];
   unitId?: string[];
@@ -69,6 +70,8 @@ const createLedgerEntrySchema = z
       }
     }
   });
+
+const ledgerEntryIdSchema = z.uuid("Choose a ledger entry.");
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -130,6 +133,108 @@ export async function createLedgerEntryAction(
 
   return {
     message: "Ledger entry added.",
+    status: "success",
+  };
+}
+
+export async function updateLedgerEntryAction(
+  _state: LedgerActionState,
+  formData: FormData,
+): Promise<LedgerActionState> {
+  const context = await requireAdminContext();
+  const parsedEntryId = ledgerEntryIdSchema.safeParse(
+    readString(formData, "entryId"),
+  );
+  const parsed = createLedgerEntrySchema.safeParse({
+    amount: readString(formData, "amount"),
+    category: readString(formData, "category"),
+    currency: readString(formData, "currency"),
+    description: readString(formData, "description"),
+    direction: readString(formData, "direction"),
+    propertyId: readString(formData, "propertyId"),
+    transactionDate: readString(formData, "transactionDate"),
+    unitId: readString(formData, "unitId"),
+  });
+
+  if (!parsedEntryId.success) {
+    return {
+      fieldErrors: { entryId: ["Choose a ledger entry."] },
+      status: "error",
+    };
+  }
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_ledger_entry", {
+    p_amount: Number(parsed.data.amount),
+    p_category: parsed.data.category,
+    p_currency: parsed.data.currency as CurrencyCode,
+    p_description: parsed.data.description,
+    p_direction: parsed.data.direction as LedgerDirection,
+    p_entry_id: parsedEntryId.data,
+    p_organization_id: context.organizationId,
+    p_property_id: parsed.data.propertyId,
+    p_transaction_date: parsed.data.transactionDate,
+    p_unit_id: unitId,
+  });
+
+  if (error) {
+    return {
+      message:
+        "We could not update the ledger entry. Please check the fields and try again.",
+      status: "error",
+    };
+  }
+
+  revalidatePath("/ledger");
+  revalidatePath("/timeline");
+  revalidatePath("/properties");
+
+  return {
+    message: "Ledger entry updated.",
+    status: "success",
+  };
+}
+
+export async function archiveLedgerEntryAction(
+  _state: LedgerActionState,
+  formData: FormData,
+): Promise<LedgerActionState> {
+  const context = await requireAdminContext();
+  const parsedEntryId = ledgerEntryIdSchema.safeParse(
+    readString(formData, "entryId"),
+  );
+
+  if (!parsedEntryId.success) {
+    return {
+      fieldErrors: { entryId: ["Choose a ledger entry."] },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("archive_ledger_entry", {
+    p_entry_id: parsedEntryId.data,
+    p_organization_id: context.organizationId,
+  });
+
+  if (error) {
+    return {
+      message: "We could not archive the ledger entry. Please try again.",
+      status: "error",
+    };
+  }
+
+  revalidatePath("/ledger");
+  revalidatePath("/timeline");
+  revalidatePath("/properties");
+
+  return {
+    message: "Ledger entry archived.",
     status: "success",
   };
 }

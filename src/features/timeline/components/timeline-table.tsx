@@ -17,8 +17,8 @@ export function TimelineTable({
   onSelectEvent,
 }: TimelineTableProps) {
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-surface">
-      <table className="w-full border-collapse text-left text-sm">
+    <div className="overflow-x-auto rounded-md border border-border bg-surface">
+      <table className="min-w-[760px] w-full border-collapse text-left text-sm">
         <thead className="bg-surface-muted text-xs uppercase tracking-[0.06em] text-muted">
           <tr>
             <th className="w-32 px-4 py-3 font-semibold">Date</th>
@@ -56,7 +56,7 @@ export function TimelineTable({
                   <div>
                     <p className="font-medium text-foreground">{event.title}</p>
                     <p className="mt-1 line-clamp-1 text-muted">
-                      {event.description}
+                      {event.description || "No description recorded."}
                     </p>
                   </div>
                   {event.hasAttachment ? (
@@ -71,7 +71,7 @@ export function TimelineTable({
                 </p>
               </td>
               <td className="px-4 py-3 text-right font-medium">
-                {event.cost && event.currency
+                {event.cost !== undefined && event.currency
                   ? formatMoney(event.cost, event.currency)
                   : "-"}
               </td>

@@ -1,11 +1,33 @@
-import { CalendarDays, FileText, Landmark, Link2, UserRound } from "lucide-react";
+import Link from "next/link";
+import {
+  Archive,
+  CalendarDays,
+  FileText,
+  Landmark,
+  Link2,
+  Pencil,
+  UserRound,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
 import type { TimelineEvent } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoney } from "@/lib/money/format";
 
-export function TimelineInspector({ event }: { event: TimelineEvent | null }) {
+type TimelineInspectorProps = {
+  archiveDisabled?: boolean;
+  event: TimelineEvent | null;
+  onArchive?: (event: TimelineEvent) => void;
+  onEdit?: (event: TimelineEvent) => void;
+};
+
+export function TimelineInspector({
+  archiveDisabled = false,
+  event,
+  onArchive,
+  onEdit,
+}: TimelineInspectorProps) {
   if (!event) {
     return (
       <aside className="rounded-md border border-border bg-surface p-5">
@@ -18,6 +40,8 @@ export function TimelineInspector({ event }: { event: TimelineEvent | null }) {
     );
   }
 
+  const isLedgerLinked = Boolean(event.ledgerEntryId);
+
   return (
     <aside className="rounded-md border border-border bg-surface">
       <div className="border-b border-border p-5">
@@ -28,8 +52,48 @@ export function TimelineInspector({ event }: { event: TimelineEvent | null }) {
         <h2 className="mt-4 text-lg font-semibold tracking-tight">
           {event.title}
         </h2>
-        <p className="mt-2 text-sm leading-6 text-muted">{event.description}</p>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          {event.description || "No description recorded."}
+        </p>
       </div>
+
+      {isLedgerLinked ? (
+        <div className="border-b border-border p-5">
+          <p className="text-sm leading-6 text-muted">
+            This event is linked to a ledger entry. Edit or archive it from
+            Ledger so totals and timeline history stay in sync.
+          </p>
+          <Link
+            className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium transition-colors hover:bg-surface-muted"
+            href="/ledger"
+          >
+            <Landmark size={15} />
+            Open Ledger
+          </Link>
+        </div>
+      ) : (
+        <div className="flex gap-2 border-b border-border p-5">
+          <Button
+            className="flex-1"
+            onClick={() => onEdit?.(event)}
+            type="button"
+            variant="secondary"
+          >
+            <Pencil size={15} />
+            Edit
+          </Button>
+          <Button
+            className="flex-1 border-danger/40 text-danger hover:bg-surface-muted"
+            disabled={archiveDisabled}
+            onClick={() => onArchive?.(event)}
+            type="button"
+            variant="secondary"
+          >
+            <Archive size={15} />
+            Archive
+          </Button>
+        </div>
+      )}
 
       <div className="space-y-5 p-5 text-sm">
         <InspectorRow icon={<CalendarDays size={16} />} label="Event date">
@@ -45,7 +109,7 @@ export function TimelineInspector({ event }: { event: TimelineEvent | null }) {
           {event.createdBy}
         </InspectorRow>
         <InspectorRow icon={<Landmark size={16} />} label="Cost">
-          {event.cost && event.currency
+          {event.cost !== undefined && event.currency
             ? formatMoney(event.cost, event.currency)
             : "No cost recorded"}
         </InspectorRow>
@@ -65,7 +129,7 @@ export function TimelineInspector({ event }: { event: TimelineEvent | null }) {
           {event.relatedLedgerEntry ? (
             <LinkedRecord
               icon={<Landmark size={15} />}
-              label={event.relatedLedgerEntry}
+              label={`Ledger entry: ${event.relatedLedgerEntry}`}
             />
           ) : null}
           {!event.relatedDocument &&

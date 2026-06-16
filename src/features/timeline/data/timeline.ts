@@ -189,7 +189,7 @@ function toTimelineEvent({
     cost: event.cost_amount ?? undefined,
     createdBy: event.created_by ? "Admin" : "System",
     currency: event.cost_currency ?? undefined,
-    description: event.description ?? "No description recorded.",
+    description: event.description ?? "",
     eventDate: event.event_date,
     eventType: event.event_type,
     hasAttachment: documents.length > 0,
@@ -204,6 +204,8 @@ function toTimelineEvent({
         }`
       : undefined,
     title: event.title,
+    ledgerEntryId: event.ledger_entry_id ?? undefined,
+    unitId: event.unit_id ?? undefined,
     unitNumber: unit?.unit_number,
   };
 }

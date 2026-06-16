@@ -12,7 +12,12 @@ export type LedgerEntry = {
   propertyCode: string;
   propertyId: string;
   propertyName: string;
+  relatedTimelineEvent?: {
+    id: string;
+    title: string;
+  };
   transactionDate: string;
+  unitId?: string;
   unitNumber?: string;
 };
 

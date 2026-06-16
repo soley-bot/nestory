@@ -604,6 +604,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      archive_ledger_entry: {
+        Args: {
+          p_entry_id: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
+      archive_timeline_event: {
+        Args: {
+          p_event_id: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
       bootstrap_admin_organization: {
         Args: { organization_name: string }
         Returns: {
@@ -635,6 +649,36 @@ export type Database = {
           p_organization_id: string
           p_property_id: string
           p_transaction_date: string
+          p_unit_id: string | null
+        }
+        Returns: string
+      }
+      update_ledger_entry: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_description: string | null
+          p_direction: string
+          p_entry_id: string
+          p_organization_id: string
+          p_property_id: string
+          p_transaction_date: string
+          p_unit_id: string | null
+        }
+        Returns: string
+      }
+      update_timeline_event: {
+        Args: {
+          p_cost_amount: number | null
+          p_cost_currency: Database["public"]["Enums"]["currency_code"] | null
+          p_description: string | null
+          p_event_date: string
+          p_event_id: string
+          p_event_type: Database["public"]["Enums"]["timeline_event_type"]
+          p_organization_id: string
+          p_property_id: string
+          p_title: string
           p_unit_id: string | null
         }
         Returns: string
