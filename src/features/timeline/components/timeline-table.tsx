@@ -19,7 +19,7 @@ export function TimelineTable({
 }: TimelineTableProps) {
   return (
     <div className="overflow-x-auto rounded-md border border-border bg-surface">
-      <table className="min-w-[760px] w-full border-collapse text-left text-sm">
+      <table className="w-full min-w-[720px] border-collapse text-left text-sm">
         <thead className="bg-surface-muted text-xs uppercase tracking-[0.06em] text-muted">
           <tr>
             <th className="w-32 px-4 py-3 font-semibold">Date</th>
@@ -55,8 +55,10 @@ export function TimelineTable({
               </td>
               <td className="px-4 py-3">
                 <div className="flex items-start gap-3">
-                  <div>
-                    <p className="font-medium text-foreground">{event.title}</p>
+                  <div className="min-w-0">
+                    <p className="break-words font-medium text-foreground">
+                      {event.title}
+                    </p>
                     <p className="mt-1 line-clamp-1 text-muted">
                       {event.description || "No description recorded."}
                     </p>
@@ -66,7 +68,7 @@ export function TimelineTable({
                   ) : null}
                 </div>
                 {event.archivedAt || event.isLocked ? (
-                  <div className="mt-2 flex items-center gap-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     {event.archivedAt ? <Badge tone="warning">Archived</Badge> : null}
                     {event.isLocked ? (
                       <Badge tone="warning">

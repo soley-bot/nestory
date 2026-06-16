@@ -19,6 +19,30 @@ These rules should guide architecture, UI, database design, feature scope, and r
 - Use neutral colors and minimal accents.
 - Less is more.
 
+## Timeline And Ledger UX Rules
+
+- Timeline and Ledger are primary working surfaces, not dashboards or landing pages.
+- Keep the main record table visible as early as possible in the first viewport.
+- Use side drawers for create, edit, archive, restore, attachment, period-lock, and activity-detail workflows.
+- Do not push the table down with expanded secondary panels.
+- Recent changes is useful audit context, but it is secondary to the records. On Timeline and Ledger it should stay collapsed by default; use the activity detail drawer when someone needs to inspect a specific change.
+- For larger audit history, add a dedicated Activity page or drawer with filtering and pagination instead of paginating inside the compact Recent changes panel.
+- Activity detail should show field-level before and after values, and must remain readable on mobile by stacking values when needed.
+- Linked Timeline/Ledger behavior should be explicit in the inspector. Ledger-owned timeline events should be edited, archived, and restored from Ledger.
+- Archive views should be available through filters, and archived records should be clearly labeled without affecting normal active totals.
+- Accounting period locks should be visible in Ledger and enforced by the database, not only by disabled UI controls.
+
+## Responsive UI Rules
+
+- Design mobile-first even though desktop is the primary operating context.
+- Filters should stack on small screens and become dense horizontal controls on desktop.
+- Drawer forms should collapse to one column on narrow screens.
+- Button groups should wrap or stack instead of shrinking text.
+- Long titles, descriptions, file names, and linked-record labels must wrap or truncate deliberately; text should not overflow its container.
+- Tables may use horizontal scrolling for dense operational data, but surrounding cards, drawers, headers, and filters should not force page-level horizontal overflow.
+- Use stable spacing such as `px-4 sm:px-6 lg:px-8` for major page regions unless a local design reason requires something different.
+- The desktop sidebar should not consume phone viewport width. Use a compact mobile app header/nav below the desktop breakpoint.
+
 ## Recommended Stack
 
 - Next.js App Router.

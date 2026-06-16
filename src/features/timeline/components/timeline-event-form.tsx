@@ -61,7 +61,7 @@ export function TimelineEventForm({
     <form action={action} className="space-y-5 py-5">
       {state.message ? (
         <p
-          className="mx-5 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+          className="mx-4 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm sm:mx-5"
           role={state.status === "error" ? "alert" : "status"}
         >
           {state.message}
@@ -72,7 +72,7 @@ export function TimelineEventForm({
         <input name="eventId" type="hidden" value={event.id} />
       ) : null}
 
-      <div className="grid grid-cols-2 gap-4 px-5">
+      <div className="grid gap-4 px-4 sm:grid-cols-2 sm:px-5">
         <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
           <select
             className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
@@ -135,7 +135,7 @@ export function TimelineEventForm({
         </Field>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_128px_112px] gap-4 px-5">
+      <div className="grid gap-4 px-4 sm:grid-cols-[minmax(0,1fr)_128px_112px] sm:px-5">
         <Field label="Title" error={state.fieldErrors?.title?.[0]}>
           <Input
             defaultValue={event?.title ?? ""}
@@ -171,7 +171,7 @@ export function TimelineEventForm({
       </div>
 
       <Field
-        className="px-5"
+        className="px-4 sm:px-5"
         label="Description"
         error={state.fieldErrors?.description?.[0]}
       >
@@ -183,11 +183,16 @@ export function TimelineEventForm({
         />
       </Field>
 
-      <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
-        <Button onClick={onClose} type="button">
+      <div className="flex flex-col-reverse gap-2 border-t border-border px-4 py-4 sm:flex-row sm:justify-end sm:px-5">
+        <Button className="w-full sm:w-auto" onClick={onClose} type="button">
           Cancel
         </Button>
-        <Button disabled={pending} type="submit" variant="primary">
+        <Button
+          className="w-full sm:w-auto"
+          disabled={pending}
+          type="submit"
+          variant="primary"
+        >
           {pending
             ? isEditMode
               ? "Saving..."
@@ -213,7 +218,11 @@ function Field({
   label: string;
 }) {
   return (
-    <label className={className ? `block text-sm font-medium ${className}` : "block text-sm font-medium"}>
+    <label
+      className={
+        className ? `block min-w-0 text-sm font-medium ${className}` : "block min-w-0 text-sm font-medium"
+      }
+    >
       {label}
       <div className="mt-2">{children}</div>
       {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}

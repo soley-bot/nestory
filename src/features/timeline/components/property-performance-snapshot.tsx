@@ -8,7 +8,7 @@ export function PropertyPerformanceSnapshot({
   snapshot: TimelineSnapshot;
 }) {
   return (
-    <div className="grid grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <MetricTile
         helper="Selected context"
         icon={<BadgeDollarSign size={16} />}

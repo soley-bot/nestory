@@ -34,9 +34,9 @@ export function SideDrawer({
         onClick={onClose}
         type="button"
       />
-      <aside className="relative flex h-full w-full max-w-[560px] flex-col border-l border-border bg-surface shadow-xl">
-        <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-          <div>
+      <aside className="relative flex h-full w-full max-w-[min(100vw,640px)] flex-col border-l border-border bg-surface shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4 sm:px-6 sm:py-5">
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
             {description ? (
               <p className="mt-1 text-sm leading-6 text-muted">{description}</p>

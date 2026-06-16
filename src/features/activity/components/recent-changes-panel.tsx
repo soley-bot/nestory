@@ -26,7 +26,7 @@ export function RecentChangesPanel({
 
   return (
     <section className="rounded-md border border-border bg-surface">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-2">
           <History size={16} className="text-muted" />
           <h2 className="text-sm font-semibold tracking-tight">Recent changes</h2>
@@ -52,10 +52,7 @@ export function RecentChangesPanel({
       ) : (
         <ul className="divide-y divide-border">
           {visibleChanges.map((change) => (
-            <li
-              className="px-5 py-3"
-              key={change.id}
-            >
+            <li className="px-4 py-3 sm:px-5" key={change.id}>
               <button
                 className="flex w-full flex-col gap-2 text-left sm:flex-row sm:items-center sm:justify-between"
                 disabled={!onSelectChange}
@@ -63,7 +60,7 @@ export function RecentChangesPanel({
                 type="button"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-foreground">
+                  <span className="block text-sm font-medium text-foreground sm:truncate">
                     {change.recordLabel}
                   </span>
                   <span className="mt-1 block text-xs text-muted">

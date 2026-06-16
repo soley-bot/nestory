@@ -56,7 +56,7 @@ export function LedgerEntryForm({
 
   return (
     <form action={action} className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {state.message ? (
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
@@ -70,7 +70,7 @@ export function LedgerEntryForm({
           <input name="entryId" type="hidden" value={entry.id} />
         ) : null}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
             <select
               className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
@@ -133,7 +133,7 @@ export function LedgerEntryForm({
           </Field>
         </div>
 
-        <div className="grid grid-cols-[minmax(0,1fr)_140px_100px] gap-4">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_140px_100px]">
           <Field label="Category" error={state.fieldErrors?.category?.[0]}>
             <Input
               defaultValue={entry?.category}
@@ -183,12 +183,13 @@ export function LedgerEntryForm({
         </Field>
       </div>
 
-      <div className="border-t border-border px-5 py-4">
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose} type="button">
+      <div className="border-t border-border px-4 py-4 sm:px-5">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
             Cancel
           </Button>
           <Button
+            className="w-full sm:w-auto"
             disabled={pending}
             type="submit"
             variant="primary"
@@ -221,7 +222,9 @@ function Field({
   return (
     <label
       className={
-        className ? `block text-sm font-medium ${className}` : "block text-sm font-medium"
+        className
+          ? `block min-w-0 text-sm font-medium ${className}`
+          : "block min-w-0 text-sm font-medium"
       }
     >
       {label}

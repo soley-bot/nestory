@@ -53,10 +53,10 @@ export function TimelineInspector({
 
   return (
     <aside className="rounded-md border border-border bg-surface">
-      <div className="border-b border-border p-5">
-        <div className="flex items-center justify-between gap-3">
+      <div className="border-b border-border p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <EventTypeBadge type={event.eventType} />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isArchived ? <Badge tone="warning">Archived</Badge> : null}
             {event.isLocked ? (
               <Badge tone="warning">
@@ -67,23 +67,23 @@ export function TimelineInspector({
             <Badge>{event.propertyCode}</Badge>
           </div>
         </div>
-        <h2 className="mt-4 text-lg font-semibold tracking-tight">
+        <h2 className="mt-4 break-words text-lg font-semibold tracking-tight">
           {event.title}
         </h2>
-        <p className="mt-2 text-sm leading-6 text-muted">
+        <p className="mt-2 break-words text-sm leading-6 text-muted">
           {event.description || "No description recorded."}
         </p>
       </div>
 
       {isLedgerLinked ? (
-        <div className="border-b border-border p-5">
+        <div className="border-b border-border p-4 sm:p-5">
           <p className="text-sm leading-6 text-muted">
             This event is linked to a ledger entry. Edit, archive, or restore it
             from Ledger so totals and timeline history stay in sync.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
             <Link
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium transition-colors hover:bg-surface-muted"
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:bg-surface-muted"
               href={`/ledger?entryId=${encodeURIComponent(
                 event.ledgerEntryId ?? "",
               )}`}
@@ -100,13 +100,15 @@ export function TimelineInspector({
           </div>
         </div>
       ) : (
-        <div className="border-b border-border p-5">
+        <div className="border-b border-border p-4 sm:p-5">
           {isArchived ? (
             <Button
               className="w-full"
               disabled={isDisabled}
               onClick={() => onRestore?.(event)}
-              title={event.isLocked ? "This accounting period is locked." : undefined}
+              title={
+                event.isLocked ? "This accounting period is locked." : undefined
+              }
               type="button"
               variant="primary"
             >
@@ -114,7 +116,7 @@ export function TimelineInspector({
               Restore
             </Button>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid gap-2 sm:grid-cols-3">
               <Button
                 onClick={() => onAttachDocument?.(event)}
                 type="button"
@@ -159,7 +161,7 @@ export function TimelineInspector({
         </div>
       )}
 
-      <div className="space-y-5 p-5 text-sm">
+      <div className="space-y-5 p-4 text-sm sm:p-5">
         <InspectorRow icon={<CalendarDays size={16} />} label="Event date">
           {formatDate(event.eventDate)}
         </InspectorRow>
@@ -184,7 +186,7 @@ export function TimelineInspector({
         ) : null}
       </div>
 
-      <div className="border-t border-border p-5">
+      <div className="border-t border-border p-4 sm:p-5">
         <div className="mb-5">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
             Documents
@@ -248,19 +250,19 @@ function LinkedRecord({
   if (href) {
     return (
       <Link
-        className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
+        className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
         href={href}
       >
         <span className="text-muted">{icon}</span>
-        <span>{label}</span>
+        <span className="min-w-0 break-words">{label}</span>
       </Link>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+    <div className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-sm">
       <span className="text-muted">{icon}</span>
-      <span>{label}</span>
+      <span className="min-w-0 break-words">{label}</span>
     </div>
   );
 }

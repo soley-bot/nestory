@@ -28,8 +28,8 @@ export function LedgerFilters({
   query,
 }: LedgerFiltersProps) {
   return (
-    <div className="border-b border-border bg-surface px-8 py-4">
-      <div className="grid grid-cols-[minmax(260px,1fr)_220px_180px_160px] gap-3">
+    <div className="border-b border-border bg-surface px-4 py-4 sm:px-6 lg:px-8">
+      <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_minmax(180px,240px)_minmax(150px,180px)_minmax(130px,160px)]">
         <label className="relative block">
           <span className="sr-only">Search ledger entries</span>
           <Search

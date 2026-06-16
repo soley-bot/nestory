@@ -51,10 +51,11 @@ export function AppShell({
   userEmail,
 }: AppShellProps) {
   const pathname = usePathname();
+  const navItems = navGroups.flatMap((group) => group.items);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="fixed inset-y-0 left-0 flex w-64 flex-col border-r border-border bg-surface">
+    <div className="min-h-screen bg-background">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-border bg-surface lg:flex">
         <div className="flex h-16 items-center gap-3 border-b border-border px-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-white">
             <LayoutDashboard size={18} />
@@ -115,7 +116,57 @@ export function AppShell({
         </div>
       </aside>
 
-      <main className="ml-64 min-h-screen flex-1">{children}</main>
+      <main className="min-h-screen lg:ml-64">
+        <div className="border-b border-border bg-surface lg:hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent text-white">
+                <LayoutDashboard size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold tracking-tight">Nestory</p>
+                <p className="truncate text-xs text-muted">
+                  {userEmail ?? organizationName}
+                </p>
+              </div>
+            </div>
+            <form action={signOutAction} className="shrink-0">
+              <button
+                aria-label="Sign out"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                type="submit"
+              >
+                <LogOut size={16} />
+              </button>
+            </form>
+          </div>
+          <nav className="flex gap-2 overflow-x-auto px-4 pb-3">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+              return (
+                <Link
+                  className={cn(
+                    "flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
+                    isActive
+                      ? "bg-accent-soft text-accent"
+                      : "hover:bg-surface-muted hover:text-foreground",
+                  )}
+                  href={item.href}
+                  key={item.href}
+                  prefetch={false}
+                >
+                  <Icon size={15} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+        {children}
+      </main>
     </div>
   );
 }

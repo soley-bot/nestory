@@ -30,8 +30,8 @@ export function TimelineFilters({
   onQueryChange,
 }: TimelineFiltersProps) {
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface px-8 py-4">
-      <label className="relative min-w-72 flex-1">
+    <div className="grid gap-3 border-b border-border bg-surface px-4 py-4 sm:px-6 lg:grid-cols-[minmax(260px,1fr)_minmax(180px,240px)_minmax(170px,220px)_minmax(130px,160px)] lg:px-8">
+      <label className="relative min-w-0">
         <Search
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
           size={16}
@@ -45,7 +45,7 @@ export function TimelineFilters({
       </label>
 
       <select
-        className="h-9 rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+        className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
         onChange={(event) => onPropertyChange(event.target.value)}
         value={property}
       >
@@ -58,7 +58,7 @@ export function TimelineFilters({
       </select>
 
       <select
-        className="h-9 rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+        className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
         onChange={(event) => onEventTypeChange(event.target.value)}
         value={eventType}
       >
@@ -71,7 +71,7 @@ export function TimelineFilters({
       </select>
 
       <select
-        className="h-9 rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+        className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
         onChange={(event) =>
           onArchiveStateChange(event.target.value as ArchiveState)
         }

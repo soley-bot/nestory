@@ -32,7 +32,7 @@ export function LedgerTable({
 }: LedgerTableProps) {
   return (
     <div className="overflow-x-auto rounded-md border border-border bg-surface">
-      <table className="min-w-[840px] w-full border-collapse text-left text-sm">
+      <table className="w-full min-w-[800px] border-collapse text-left text-sm">
         <thead className="bg-surface-muted text-xs uppercase tracking-[0.06em] text-muted">
           <tr>
             <th className="w-32 px-4 py-3 font-semibold">Date</th>
@@ -68,11 +68,13 @@ export function LedgerTable({
                 <DirectionBadge direction={entry.direction} />
               </td>
               <td className="px-4 py-3">
-                <p className="font-medium text-foreground">{entry.category}</p>
+                <p className="break-words font-medium text-foreground">
+                  {entry.category}
+                </p>
                 <p className="mt-1 line-clamp-1 text-muted">
                   {entry.description || "No description recorded."}
                 </p>
-                <div className="mt-2 flex items-center gap-1 text-xs text-muted">
+                <div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-muted">
                   <ExternalLink size={13} />
                   {entry.relatedTimelineEvent
                     ? "Timeline linked"
@@ -113,7 +115,11 @@ export function LedgerTable({
                         event.stopPropagation();
                         onRestoreEntry(entry);
                       }}
-                      title={entry.isLocked ? "This accounting period is locked." : undefined}
+                      title={
+                        entry.isLocked
+                          ? "This accounting period is locked."
+                          : undefined
+                      }
                       type="button"
                     >
                       <RotateCcw size={15} />

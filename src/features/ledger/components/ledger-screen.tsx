@@ -125,7 +125,7 @@ export function LedgerScreen({
       />
 
       {statusMessage ? (
-        <div className="px-8 pt-5">
+        <div className="px-4 pt-5 sm:px-6 lg:px-8">
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
             role="status"
@@ -147,16 +147,17 @@ export function LedgerScreen({
         query={query}
       />
 
-      <div className="space-y-5 p-8">
+      <div className="space-y-5 px-4 py-5 sm:px-6 lg:p-8">
         <LedgerSummary snapshot={snapshot} />
         <RecentChangesPanel
           changes={recentChanges}
+          defaultCollapsed
           onSelectChange={(change) => {
             setStatusMessage(null);
             setDrawerState({ change, mode: "activity" });
           }}
         />
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
           <LedgerTable
             entries={filteredEntries}
             onArchiveEntry={(entry) => {
@@ -207,7 +208,9 @@ export function LedgerScreen({
             <ArchivePanel
               entry={drawerState.entry}
               onClose={() => setDrawerState(null)}
-              onEdit={() => setDrawerState({ entry: drawerState.entry, mode: "edit" })}
+              onEdit={() =>
+                setDrawerState({ entry: drawerState.entry, mode: "edit" })
+              }
               onSuccess={setStatusMessage}
             />
           ) : drawerState.mode === "restore" ? (
@@ -329,7 +332,7 @@ function ArchivePanel({
   return (
     <form action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
-      <div className="flex-1 space-y-4 px-5 py-5">
+      <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="flex items-center gap-2 text-danger">
           <Archive size={16} />
           <p className="text-sm font-semibold">Archive confirmation</p>
@@ -355,12 +358,17 @@ function ArchivePanel({
         ) : null}
       </div>
 
-      <div className="border-t border-border px-5 py-4">
-        <div className="flex justify-end gap-2">
-          <Button onClick={onEdit}>
+      <div className="border-t border-border px-4 py-4 sm:px-5">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button className="w-full sm:w-auto" onClick={onEdit}>
             Edit instead
           </Button>
-          <Button disabled={pending} type="submit" variant="primary">
+          <Button
+            className="w-full sm:w-auto"
+            disabled={pending}
+            type="submit"
+            variant="primary"
+          >
             <Archive size={15} />
             {pending ? "Archiving..." : "Archive entry"}
           </Button>
@@ -394,7 +402,7 @@ function RestorePanel({
   return (
     <form action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
-      <div className="flex-1 space-y-4 px-5 py-5">
+      <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="flex items-center gap-2 text-accent">
           <RotateCcw size={16} />
           <p className="text-sm font-semibold">Restore confirmation</p>
@@ -420,12 +428,17 @@ function RestorePanel({
         ) : null}
       </div>
 
-      <div className="border-t border-border px-5 py-4">
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose} type="button">
+      <div className="border-t border-border px-4 py-4 sm:px-5">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button disabled={pending} type="submit" variant="primary">
+          <Button
+            className="w-full sm:w-auto"
+            disabled={pending}
+            type="submit"
+            variant="primary"
+          >
             <RotateCcw size={15} />
             {pending ? "Restoring..." : "Restore entry"}
           </Button>
@@ -457,9 +470,13 @@ function ReceiptPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col" encType="multipart/form-data">
+    <form
+      action={action}
+      className="flex h-full flex-col"
+      encType="multipart/form-data"
+    >
       <input name="entryId" type="hidden" value={entry.id} />
-      <div className="flex-1 space-y-4 px-5 py-5">
+      <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
           <p className="text-sm font-medium">{entry.category}</p>
           <p className="mt-1 text-sm text-muted">
@@ -499,12 +516,17 @@ function ReceiptPanel({
         ) : null}
       </div>
 
-      <div className="border-t border-border px-5 py-4">
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose} type="button">
+      <div className="border-t border-border px-4 py-4 sm:px-5">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button disabled={pending} type="submit" variant="primary">
+          <Button
+            className="w-full sm:w-auto"
+            disabled={pending}
+            type="submit"
+            variant="primary"
+          >
             <Upload size={15} />
             {pending ? "Uploading..." : "Attach receipt"}
           </Button>
@@ -537,8 +559,8 @@ function PeriodLockPanel({
 
   return (
     <form action={action} className="flex h-full flex-col">
-      <div className="flex-1 space-y-5 px-5 py-5">
-        <div className="grid grid-cols-[minmax(0,1fr)_150px] gap-4">
+      <div className="flex-1 space-y-5 px-4 py-5 sm:px-5">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
           <label className="block text-sm font-medium">
             Accounting month
             <Input
@@ -621,12 +643,17 @@ function PeriodLockPanel({
         </section>
       </div>
 
-      <div className="border-t border-border px-5 py-4">
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose} type="button">
+      <div className="border-t border-border px-4 py-4 sm:px-5">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button disabled={pending} type="submit" variant="primary">
+          <Button
+            className="w-full sm:w-auto"
+            disabled={pending}
+            type="submit"
+            variant="primary"
+          >
             <Lock size={15} />
             {pending ? "Updating..." : "Update period"}
           </Button>

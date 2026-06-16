@@ -50,10 +50,10 @@ export function LedgerInspector({
 
   return (
     <aside className="rounded-md border border-border bg-surface">
-      <div className="border-b border-border p-5">
-        <div className="flex items-center justify-between gap-3">
+      <div className="border-b border-border p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <DirectionBadge direction={entry.direction} />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isArchived ? <Badge tone="warning">Archived</Badge> : null}
             {entry.isLocked ? (
               <Badge tone="warning">
@@ -64,19 +64,19 @@ export function LedgerInspector({
             <Badge>{entry.propertyCode}</Badge>
           </div>
         </div>
-        <h2 className="mt-4 text-lg font-semibold tracking-tight">
+        <h2 className="mt-4 break-words text-lg font-semibold tracking-tight">
           {entry.category}
         </h2>
-        <p className="mt-2 text-sm leading-6 text-muted">
+        <p className="mt-2 break-words text-sm leading-6 text-muted">
           {entry.description || "No description recorded."}
         </p>
-        <p className="mt-4 text-2xl font-semibold tracking-tight">
+        <p className="mt-4 break-words text-2xl font-semibold tracking-tight">
           {entry.direction === "expense" ? "-" : ""}
           {formatMoney(entry.amount, entry.currency)}
         </p>
       </div>
 
-      <div className="space-y-5 p-5 text-sm">
+      <div className="space-y-5 p-4 text-sm sm:p-5">
         <InspectorRow icon={<CalendarDays size={16} />} label="Transaction date">
           {formatDate(entry.transactionDate)}
         </InspectorRow>
@@ -98,21 +98,23 @@ export function LedgerInspector({
         ) : null}
       </div>
 
-      <div className="border-t border-border p-5">
+      <div className="border-t border-border p-4 sm:p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
           Linked timeline
         </p>
         <div className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
           {entry.relatedTimelineEvent ? (
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="font-medium">{entry.relatedTimelineEvent.title}</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="break-words font-medium">
+                  {entry.relatedTimelineEvent.title}
+                </p>
                 <p className="mt-1 text-xs text-muted">
                   Edits and archives from Ledger keep this timeline event in sync.
                 </p>
               </div>
               <Link
-                className="inline-flex h-8 items-center gap-2 rounded-md px-2 text-xs font-medium text-accent transition-colors hover:bg-accent-soft"
+                className="inline-flex min-h-8 items-center justify-center gap-2 rounded-md px-2 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft"
                 href={`/timeline?eventId=${encodeURIComponent(
                   entry.relatedTimelineEvent.id,
                 )}`}
@@ -130,9 +132,9 @@ export function LedgerInspector({
         </div>
       </div>
 
-      <div className="border-t border-border p-5">
+      <div className="border-t border-border p-4 sm:p-5">
         <div className="mb-5">
-          <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
               Receipts
             </p>
@@ -150,8 +152,8 @@ export function LedgerInspector({
         </div>
       </div>
 
-      <div className="border-t border-border p-5">
-        <div className="grid grid-cols-2 gap-2">
+      <div className="border-t border-border p-4 sm:p-5">
+        <div className="grid gap-2 sm:grid-cols-2">
           {isArchived ? (
             <Button
               className="col-span-2"

@@ -31,7 +31,9 @@ function DocumentListItem({ document }: { document: LinkedDocument }) {
         <FileText size={15} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">{document.fileName}</span>
+        <span className="block break-words font-medium sm:truncate">
+          {document.fileName}
+        </span>
         <span className="mt-1 block text-xs text-muted">
           {document.category} - {formatFileSize(document.sizeBytes)} -{" "}
           {formatDate(document.uploadedAt)}
