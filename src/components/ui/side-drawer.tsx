@@ -25,8 +25,9 @@ export function SideDrawer({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 flex justify-end bg-foreground/20"
+      className="fixed bottom-0 left-0 top-0 z-50 flex justify-end bg-foreground/20"
       role="dialog"
+      style={{ right: "var(--removed-body-scroll-bar-size, 0px)" }}
     >
       <button
         aria-label="Close drawer"
