@@ -10,70 +10,7 @@ import {
 export default function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <section className="relative isolate min-h-[92vh] overflow-hidden border-b border-border">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(217,221,229,0.7)_1px,transparent_1px),linear-gradient(180deg,rgba(217,221,229,0.7)_1px,transparent_1px)] bg-[size:72px_72px]"
-        />
-        <div
-          aria-hidden="true"
-          className="landing-preview pointer-events-none absolute inset-x-0 bottom-0 top-24 -z-10 overflow-hidden opacity-45"
-        >
-          <div className="mx-auto w-[1120px] max-w-[calc(100vw-32px)] rounded-t-md border border-border bg-surface shadow-sm">
-            <div className="grid grid-cols-[220px_1fr] border-b border-border">
-              <div className="border-r border-border p-4">
-                <div className="mb-5 flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-white">
-                    <ListTree size={17} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">Nestory</p>
-                    <p className="text-xs text-muted">Record room</p>
-                  </div>
-                </div>
-                {["Timeline", "Properties", "Units", "Documents"].map((item) => (
-                  <div
-                    className="mb-2 rounded-md border border-border bg-background px-3 py-2 text-xs text-muted"
-                    key={item}
-                  >
-                    {item}
-                  </div>
-                ))}
-              </div>
-              <div className="p-5">
-                <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
-                      Property timeline
-                    </p>
-                    <h2 className="mt-1 text-lg font-semibold">Central Residence</h2>
-                  </div>
-                  <p className="rounded-md border border-border px-3 py-1 text-xs text-muted">
-                    USD / KHR
-                  </p>
-                </div>
-                <div className="divide-y divide-border">
-                  {[
-                    ["2026-06-12", "Renovation", "Unit 12B bathroom refit completed"],
-                    ["2026-06-08", "Inspection", "Quarterly unit inspection recorded"],
-                    ["2026-05-25", "Document", "Owner agreement added"],
-                    ["2026-05-19", "Lease", "New lease started after handover"],
-                  ].map(([date, type, detail]) => (
-                    <div
-                      className="grid grid-cols-[110px_120px_1fr] gap-4 py-3 text-sm"
-                      key={detail}
-                    >
-                      <span className="font-mono text-xs text-muted">{date}</span>
-                      <span className="text-xs font-medium text-accent">{type}</span>
-                      <span className="text-muted">{detail}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
+      <section className="border-b border-border bg-background">
         <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link className="text-sm font-semibold tracking-tight" href="/">
             Nestory
@@ -94,8 +31,8 @@ export default function Home() {
           </nav>
         </header>
 
-        <div className="mx-auto flex max-w-6xl px-6 pb-20 pt-20">
-          <div className="max-w-2xl">
+        <div className="mx-auto grid max-w-6xl gap-10 px-6 pb-16 pt-14 lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[minmax(0,0.86fr)_minmax(460px,1.14fr)] lg:items-center lg:pb-20 lg:pt-10">
+          <div className="max-w-2xl lg:pb-10">
             <p className="mb-4 inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
               <ClipboardCheck size={14} />
               Admin access and the record room
@@ -122,6 +59,64 @@ export default function Home() {
               >
                 Sign in
               </Link>
+            </div>
+          </div>
+
+          <div
+            aria-label="Nestory product preview"
+            className="overflow-hidden rounded-md border border-border bg-surface shadow-sm"
+          >
+            <div className="grid grid-cols-[180px_1fr] border-b border-border max-md:grid-cols-1">
+              <div className="border-r border-border bg-surface-muted/45 p-4 max-md:hidden">
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-white">
+                    <ListTree size={17} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">Nestory</p>
+                    <p className="text-xs text-muted">Record room</p>
+                  </div>
+                </div>
+                {["Timeline", "Properties", "Units", "Documents"].map((item) => (
+                  <div
+                    className="mb-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted"
+                    key={item}
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+
+              <div className="min-w-0 p-5">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
+                      Property timeline
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold">Central Residence</h2>
+                  </div>
+                  <p className="rounded-md border border-border px-3 py-1 text-xs text-muted">
+                    USD / KHR
+                  </p>
+                </div>
+                <div className="divide-y divide-border">
+                  {[
+                    ["2026-06-12", "Renovation", "Unit 12B bathroom refit completed"],
+                    ["2026-06-08", "Inspection", "Quarterly unit inspection recorded"],
+                    ["2026-05-25", "Document", "Owner agreement added"],
+                    ["2026-05-19", "Lease", "New lease started after handover"],
+                  ].map(([date, type, detail]) => (
+                    <div
+                      className="grid grid-cols-[96px_110px_minmax(0,1fr)] gap-4 py-3 text-sm max-sm:grid-cols-1 max-sm:gap-1"
+                      key={detail}
+                    >
+                      <span className="font-mono text-xs text-muted">{date}</span>
+                      <span className="text-xs font-medium text-accent">{type}</span>
+                      <span className="min-w-0 text-muted">{detail}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
