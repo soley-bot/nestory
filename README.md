@@ -41,7 +41,9 @@ npm run db:reset
 npm run db:types
 ```
 
-Copy `.env.example` to `.env.local` and fill in the Supabase values from the local start output or from the hosted Supabase project.
+Copy `.env.example` to `.env.local` and fill in `NEXT_PUBLIC_SUPABASE_URL` plus a Supabase publishable key. Use server-only keys only in server-only code.
+
+Phase 1 auth uses email/password, a single admin role, and a first workspace setup flow.
 
 Hosted Supabase project:
 

@@ -10,9 +10,11 @@ import {
   Landmark,
   LayoutDashboard,
   ListTree,
+  LogOut,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { signOutAction } from "@/features/auth/actions";
 
 const navGroups = [
   {
@@ -37,7 +39,17 @@ const navGroups = [
   },
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+type AppShellProps = {
+  children: React.ReactNode;
+  organizationName?: string;
+  userEmail?: string;
+};
+
+export function AppShell({
+  children,
+  organizationName = "Admin workspace",
+  userEmail,
+}: AppShellProps) {
   const pathname = usePathname();
 
   return (
@@ -49,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <p className="text-sm font-semibold tracking-tight">Nestory</p>
-            <p className="text-xs text-muted">Admin workspace</p>
+            <p className="max-w-40 truncate text-xs text-muted">{organizationName}</p>
           </div>
         </div>
 
@@ -85,6 +97,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
+
+        <div className="border-t border-border p-3">
+          {userEmail ? (
+            <p className="mb-2 truncate px-2 text-xs text-muted">{userEmail}</p>
+          ) : null}
+          <form action={signOutAction}>
+            <button
+              className="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+              type="submit"
+            >
+              <LogOut size={16} />
+              Sign out
+            </button>
+          </form>
+        </div>
       </aside>
 
       <main className="ml-64 min-h-screen flex-1">{children}</main>

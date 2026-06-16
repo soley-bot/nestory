@@ -604,7 +604,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      bootstrap_admin_organization: {
+        Args: { organization_name: string }
+        Returns: {
+          membership_id: string
+          organization_id: string
+        }[]
+      }
     }
     Enums: {
       currency_code: "USD" | "KHR"
