@@ -65,10 +65,10 @@ export function TimelineInspector({
           </p>
           <Link
             className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium transition-colors hover:bg-surface-muted"
-            href="/ledger"
+            href={`/ledger?entryId=${encodeURIComponent(event.ledgerEntryId ?? "")}`}
           >
             <Landmark size={15} />
-            Open Ledger
+            Open linked ledger entry
           </Link>
         </div>
       ) : (
@@ -130,6 +130,7 @@ export function TimelineInspector({
             <LinkedRecord
               icon={<Landmark size={15} />}
               label={`Ledger entry: ${event.relatedLedgerEntry}`}
+              href={`/ledger?entryId=${encodeURIComponent(event.ledgerEntryId ?? "")}`}
             />
           ) : null}
           {!event.relatedDocument &&
@@ -166,12 +167,26 @@ function InspectorRow({
 }
 
 function LinkedRecord({
+  href,
   icon,
   label,
 }: {
+  href?: string;
   icon: React.ReactNode;
   label: string;
 }) {
+  if (href) {
+    return (
+      <Link
+        className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
+        href={href}
+      >
+        <span className="text-muted">{icon}</span>
+        <span>{label}</span>
+      </Link>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
       <span className="text-muted">{icon}</span>

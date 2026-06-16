@@ -89,10 +89,12 @@ export function LedgerInspector({
               </div>
               <Link
                 className="inline-flex h-8 items-center gap-2 rounded-md px-2 text-xs font-medium text-accent transition-colors hover:bg-accent-soft"
-                href="/timeline"
+                href={`/timeline?eventId=${encodeURIComponent(
+                  entry.relatedTimelineEvent.id,
+                )}`}
               >
                 <ExternalLink size={14} />
-                View
+                View exact event
               </Link>
             </div>
           ) : (

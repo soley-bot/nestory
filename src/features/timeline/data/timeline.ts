@@ -1,4 +1,5 @@
 import { Constants } from "@/types/database";
+import { toRecentChange } from "@/features/activity/recent-changes";
 import { getPropertySummaries } from "@/features/properties/data/properties";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { formatMoneyTotals } from "@/lib/money/totals";
@@ -64,6 +65,7 @@ export async function getTimelineScreenData(organizationId: string) {
     leasesResult,
     ledgerResult,
     documentsResult,
+    recentActivityResult,
     propertySummaries,
   ] = await Promise.all([
     supabase
@@ -102,6 +104,13 @@ export async function getTimelineScreenData(organizationId: string) {
       .eq("organization_id", organizationId)
       .not("timeline_event_id", "is", null)
       .is("archived_at", null),
+    supabase
+      .from("activity_logs")
+      .select("id, entity_type, action, previous_values, new_values, created_at")
+      .eq("organization_id", organizationId)
+      .in("entity_type", ["timeline_event", "ledger_entry"])
+      .order("created_at", { ascending: false })
+      .limit(6),
     getPropertySummaries(organizationId),
   ]);
 
@@ -127,6 +136,12 @@ export async function getTimelineScreenData(organizationId: string) {
 
   if (documentsResult.error) {
     throw new Error(`Could not load timeline documents: ${documentsResult.error.message}`);
+  }
+
+  if (recentActivityResult.error) {
+    throw new Error(
+      `Could not load recent timeline activity: ${recentActivityResult.error.message}`,
+    );
   }
 
   const propertiesById = indexById(propertiesResult.data ?? []);
@@ -156,6 +171,7 @@ export async function getTimelineScreenData(organizationId: string) {
         label: `${property.code} - ${property.name}`,
       }),
     ),
+    recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
     snapshot: buildSnapshot(propertySummaries, ledgerResult.data ?? [], events),
     unitOptions: (unitsResult.data ?? []).map((unit): TimelineUnitOption => {
       const property = propertiesById.get(unit.property_id);

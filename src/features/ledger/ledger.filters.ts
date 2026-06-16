@@ -27,6 +27,7 @@ export function filterLedgerEntries(
       entry.direction,
       entry.propertyCode,
       entry.propertyName,
+      entry.relatedTimelineEvent?.title ?? "",
       entry.unitNumber ?? "",
     ]
       .join(" ")

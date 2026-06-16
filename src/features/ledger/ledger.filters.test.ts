@@ -26,6 +26,10 @@ const entries: LedgerEntry[] = [
     propertyCode: "NB",
     propertyId: "property-2",
     propertyName: "Nestory Building",
+    relatedTimelineEvent: {
+      id: "timeline-1",
+      title: "Expense - Air-conditioner service",
+    },
     transactionDate: "2026-06-04",
   },
 ];
@@ -47,6 +51,16 @@ describe("filterLedgerEntries", () => {
         direction: "all",
         propertyId: "all",
         query: "service NB",
+      }),
+    ).toEqual([entries[1]]);
+  });
+
+  it("matches linked timeline event titles", () => {
+    expect(
+      filterLedgerEntries(entries, {
+        direction: "all",
+        propertyId: "all",
+        query: "expense air-conditioner",
       }),
     ).toEqual([entries[1]]);
   });

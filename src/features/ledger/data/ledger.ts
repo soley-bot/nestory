@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { toRecentChange } from "@/features/activity/recent-changes";
 import { buildLedgerSnapshot } from "@/features/ledger/data/ledger-summary";
 import type {
   LedgerEntry,
@@ -40,7 +41,13 @@ type TimelineEventRow = {
 export async function getLedgerScreenData(organizationId: string) {
   const supabase = await createSupabaseServerClient();
 
-  const [ledgerResult, propertiesResult, unitsResult, timelineEventsResult] =
+  const [
+    ledgerResult,
+    propertiesResult,
+    unitsResult,
+    timelineEventsResult,
+    recentActivityResult,
+  ] =
     await Promise.all([
       supabase
         .from("ledger_entries")
@@ -68,6 +75,13 @@ export async function getLedgerScreenData(organizationId: string) {
         .eq("organization_id", organizationId)
         .not("ledger_entry_id", "is", null)
         .is("archived_at", null),
+      supabase
+        .from("activity_logs")
+        .select("id, entity_type, action, previous_values, new_values, created_at")
+        .eq("organization_id", organizationId)
+        .in("entity_type", ["timeline_event", "ledger_entry"])
+        .order("created_at", { ascending: false })
+        .limit(6),
     ]);
 
   if (ledgerResult.error) {
@@ -85,6 +99,12 @@ export async function getLedgerScreenData(organizationId: string) {
   if (timelineEventsResult.error) {
     throw new Error(
       `Could not load linked ledger timeline events: ${timelineEventsResult.error.message}`,
+    );
+  }
+
+  if (recentActivityResult.error) {
+    throw new Error(
+      `Could not load recent ledger activity: ${recentActivityResult.error.message}`,
     );
   }
 
@@ -110,6 +130,7 @@ export async function getLedgerScreenData(organizationId: string) {
         label: `${property.code} - ${property.name}`,
       }),
     ),
+    recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
     snapshot: buildLedgerSnapshot(ledgerResult.data ?? []),
     unitOptions: (unitsResult.data ?? []).map((unit): LedgerUnitOption => {
       const property = propertiesById.get(unit.property_id);

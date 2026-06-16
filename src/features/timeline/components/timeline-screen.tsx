@@ -5,6 +5,8 @@ import { Archive, Download, Plus, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
+import { RecentChangesPanel } from "@/features/activity/components/recent-changes-panel";
+import type { RecentChange } from "@/features/activity/activity.types";
 import {
   archiveTimelineEventAction,
   type TimelineActionState,
@@ -33,7 +35,9 @@ type DrawerState =
 type TimelineScreenProps = {
   eventTypes: TimelineEventType[];
   events: TimelineEvent[];
+  initialEventId?: string;
   propertyOptions: TimelinePropertyOption[];
+  recentChanges: RecentChange[];
   snapshot: TimelineSnapshot;
   unitOptions: TimelineUnitOption[];
 };
@@ -41,7 +45,9 @@ type TimelineScreenProps = {
 export function TimelineScreen({
   eventTypes,
   events,
+  initialEventId,
   propertyOptions,
+  recentChanges,
   snapshot,
   unitOptions,
 }: TimelineScreenProps) {
@@ -49,7 +55,9 @@ export function TimelineScreen({
   const [eventType, setEventType] = useState("all");
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [property, setProperty] = useState("all");
-  const [selectedEventId, setSelectedEventId] = useState(events[0]?.id ?? "");
+  const [selectedEventId, setSelectedEventId] = useState(
+    initialEventId ?? events[0]?.id ?? "",
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const filteredEvents = useMemo(() => {
@@ -118,6 +126,7 @@ export function TimelineScreen({
 
       <div className="space-y-5 p-8">
         <PropertyPerformanceSnapshot snapshot={snapshot} />
+        <RecentChangesPanel changes={recentChanges} />
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <TimelineTable
             events={filteredEvents}

@@ -26,6 +26,7 @@ const events: TimelineEvent[] = [
     propertyCode: "NTH",
     propertyId: "property-2",
     propertyName: "Northline Mixed Use",
+    relatedLedgerEntry: "Income - Rent",
     title: "Rent review",
     unitNumber: "04C",
   },
@@ -48,6 +49,16 @@ describe("filterTimelineEvents", () => {
         eventType: "all",
         propertyId: "all",
         query: "04c renewal",
+      }),
+    ).toEqual([events[1]]);
+  });
+
+  it("matches linked ledger labels", () => {
+    expect(
+      filterTimelineEvents(events, {
+        eventType: "all",
+        propertyId: "all",
+        query: "income rent",
       }),
     ).toEqual([events[1]]);
   });

@@ -5,6 +5,8 @@ import { Archive, Download, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
+import { RecentChangesPanel } from "@/features/activity/components/recent-changes-panel";
+import type { RecentChange } from "@/features/activity/activity.types";
 import {
   archiveLedgerEntryAction,
   type LedgerActionState,
@@ -31,14 +33,18 @@ type DrawerState =
 
 type LedgerScreenProps = {
   entries: LedgerEntry[];
+  initialEntryId?: string;
   propertyOptions: LedgerPropertyOption[];
+  recentChanges: RecentChange[];
   snapshot: LedgerSnapshot;
   unitOptions: LedgerUnitOption[];
 };
 
 export function LedgerScreen({
   entries,
+  initialEntryId,
   propertyOptions,
+  recentChanges,
   snapshot,
   unitOptions,
 }: LedgerScreenProps) {
@@ -46,7 +52,9 @@ export function LedgerScreen({
   const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
   const [property, setProperty] = useState("all");
   const [query, setQuery] = useState("");
-  const [selectedEntryId, setSelectedEntryId] = useState(entries[0]?.id ?? "");
+  const [selectedEntryId, setSelectedEntryId] = useState(
+    initialEntryId ?? entries[0]?.id ?? "",
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const filteredEntries = useMemo(() => {
@@ -110,6 +118,7 @@ export function LedgerScreen({
 
       <div className="space-y-5 p-8">
         <LedgerSummary snapshot={snapshot} />
+        <RecentChangesPanel changes={recentChanges} />
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <LedgerTable
             entries={filteredEntries}
