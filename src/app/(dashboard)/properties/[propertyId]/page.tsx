@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
-import { properties } from "@/features/properties/data/properties.mock";
+import { getPropertySummary } from "@/features/properties/data/properties";
+import { requireAdminContext } from "@/lib/auth/context";
 
 type PropertyPageProps = {
   params: Promise<{ propertyId: string }>;
@@ -9,7 +10,8 @@ type PropertyPageProps = {
 
 export default async function PropertyPage({ params }: PropertyPageProps) {
   const { propertyId } = await params;
-  const property = properties.find((item) => item.id === propertyId);
+  const context = await requireAdminContext();
+  const property = await getPropertySummary(context.organizationId, propertyId);
 
   if (!property) {
     notFound();
@@ -18,7 +20,7 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
   return (
     <div>
       <PageHeader
-        description={`${property.code} · ${property.type} · ${property.address}`}
+        description={`${property.code} / ${property.type} / ${property.address}`}
         title={property.name}
       />
       <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-5 p-8">

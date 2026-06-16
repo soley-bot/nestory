@@ -5,7 +5,19 @@ import type { TimelineEvent } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoney } from "@/lib/money/format";
 
-export function TimelineInspector({ event }: { event: TimelineEvent }) {
+export function TimelineInspector({ event }: { event: TimelineEvent | null }) {
+  if (!event) {
+    return (
+      <aside className="rounded-md border border-border bg-surface p-5">
+        <h2 className="text-base font-semibold tracking-tight">No record selected</h2>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          Select a timeline record to inspect its property, unit, cost, and linked
+          records.
+        </p>
+      </aside>
+    );
+  }
+
   return (
     <aside className="rounded-md border border-border bg-surface">
       <div className="border-b border-border p-5">

@@ -29,6 +29,13 @@ export function TimelineTable({
           </tr>
         </thead>
         <tbody>
+          {events.length === 0 ? (
+            <tr className="border-t border-border">
+              <td className="px-4 py-8 text-center text-muted" colSpan={5}>
+                No timeline records match the current filters.
+              </td>
+            </tr>
+          ) : null}
           {events.map((event) => (
             <tr
               className={cn(

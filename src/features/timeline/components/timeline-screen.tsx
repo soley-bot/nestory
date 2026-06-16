@@ -8,26 +8,39 @@ import { PropertyPerformanceSnapshot } from "@/features/timeline/components/prop
 import { TimelineFilters } from "@/features/timeline/components/timeline-filters";
 import { TimelineInspector } from "@/features/timeline/components/timeline-inspector";
 import { TimelineTable } from "@/features/timeline/components/timeline-table";
-import {
-  eventTypes,
-  propertyOptions,
-  timelineEvents,
-} from "@/features/timeline/data/timeline.mock";
+import type {
+  TimelineEvent,
+  TimelineEventType,
+  TimelinePropertyOption,
+  TimelineSnapshot,
+} from "@/features/timeline/timeline.types";
 
-export function TimelineScreen() {
+type TimelineScreenProps = {
+  eventTypes: TimelineEventType[];
+  events: TimelineEvent[];
+  propertyOptions: TimelinePropertyOption[];
+  snapshot: TimelineSnapshot;
+};
+
+export function TimelineScreen({
+  eventTypes,
+  events,
+  propertyOptions,
+  snapshot,
+}: TimelineScreenProps) {
   const [query, setQuery] = useState("");
   const [eventType, setEventType] = useState("all");
   const [property, setProperty] = useState("all");
-  const [selectedEventId, setSelectedEventId] = useState(timelineEvents[0].id);
+  const [selectedEventId, setSelectedEventId] = useState(events[0]?.id ?? "");
 
   const filteredEvents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return timelineEvents.filter((event) => {
+    return events.filter((event) => {
       const matchesEventType =
         eventType === "all" || event.eventType === eventType;
       const matchesProperty =
-        property === "all" || event.propertyName === property;
+        property === "all" || event.propertyId === property;
       const searchable = [
         event.title,
         event.description,
@@ -48,12 +61,12 @@ export function TimelineScreen() {
         (!normalizedQuery || searchable.includes(normalizedQuery))
       );
     });
-  }, [eventType, property, query]);
+  }, [eventType, events, property, query]);
 
   const selectedEvent =
     filteredEvents.find((event) => event.id === selectedEventId) ??
     filteredEvents[0] ??
-    timelineEvents[0];
+    null;
 
   return (
     <div className="min-h-screen">
@@ -90,12 +103,12 @@ export function TimelineScreen() {
       />
 
       <div className="space-y-5 p-8">
-        <PropertyPerformanceSnapshot />
+        <PropertyPerformanceSnapshot snapshot={snapshot} />
         <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-5">
           <TimelineTable
             events={filteredEvents}
             onSelectEvent={setSelectedEventId}
-            selectedEventId={selectedEvent.id}
+            selectedEventId={selectedEvent?.id ?? ""}
           />
           <TimelineInspector event={selectedEvent} />
         </div>

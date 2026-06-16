@@ -8,6 +8,7 @@ export const timelineEvents: TimelineEvent[] = [
     title: "Bathroom renovation completed",
     description:
       "Unit 12B bathroom refit completed with new tiles, sink, waterproofing, and fixtures.",
+    propertyId: "central-residence",
     propertyName: "Central Residence",
     propertyCode: "CTR-RES-018",
     unitNumber: "12B",
@@ -25,6 +26,7 @@ export const timelineEvents: TimelineEvent[] = [
     title: "Quarterly unit inspection",
     description:
       "Minor paint marks noted in living area. Air conditioner and water pressure passed inspection.",
+    propertyId: "central-residence",
     propertyName: "Central Residence",
     propertyCode: "CTR-RES-018",
     unitNumber: "09A",
@@ -39,6 +41,7 @@ export const timelineEvents: TimelineEvent[] = [
     title: "Rent increased at renewal",
     description:
       "Monthly rent updated after lease renewal based on market review and owner approval.",
+    propertyId: "northline-mixed-use",
     propertyName: "Northline Mixed Use",
     propertyCode: "NTH-MU-006",
     unitNumber: "04C",
@@ -55,6 +58,7 @@ export const timelineEvents: TimelineEvent[] = [
     title: "Air conditioner service",
     description:
       "Cleaned filters, checked gas pressure, and replaced worn drain pipe in bedroom unit.",
+    propertyId: "canal-view-apartments",
     propertyName: "Canal View Apartments",
     propertyCode: "CNV-APT-003",
     unitNumber: "07D",
@@ -72,6 +76,7 @@ export const timelineEvents: TimelineEvent[] = [
     title: "New lease started",
     description:
       "Tenant moved in after deposit confirmation and handover checklist completion.",
+    propertyId: "central-residence",
     propertyName: "Central Residence",
     propertyCode: "CTR-RES-018",
     unitNumber: "03A",
@@ -86,6 +91,7 @@ export const timelineEvents: TimelineEvent[] = [
     title: "Updated owner agreement uploaded",
     description:
       "Signed owner agreement added to property document record after renewal.",
+    propertyId: "garden-lane-townhouse",
     propertyName: "Garden Lane Townhouse",
     propertyCode: "GL-TH-011",
     hasAttachment: true,

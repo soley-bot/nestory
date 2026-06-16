@@ -1,9 +1,10 @@
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import type { TimelinePropertyOption } from "@/features/timeline/timeline.types";
 
 type TimelineFiltersProps = {
   eventTypes: string[];
-  properties: string[];
+  properties: TimelinePropertyOption[];
   eventType: string;
   property: string;
   query: string;
@@ -44,8 +45,8 @@ export function TimelineFilters({
       >
         <option value="all">All properties</option>
         {properties.map((item) => (
-          <option key={item} value={item}>
-            {item}
+          <option key={item.id} value={item.id}>
+            {item.label}
           </option>
         ))}
       </select>

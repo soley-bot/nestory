@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { properties } from "@/features/properties/data/properties.mock";
+import type { PropertySummary } from "@/features/properties/data/properties";
 
-export function PropertiesTable() {
+export function PropertiesTable({
+  properties,
+}: {
+  properties: PropertySummary[];
+}) {
   return (
     <div className="rounded-md border border-border bg-surface">
       <table className="w-full border-collapse text-left text-sm">
@@ -17,6 +21,13 @@ export function PropertiesTable() {
           </tr>
         </thead>
         <tbody>
+          {properties.length === 0 ? (
+            <tr className="border-t border-border">
+              <td className="px-4 py-8 text-center text-muted" colSpan={6}>
+                No active properties yet.
+              </td>
+            </tr>
+          ) : null}
           {properties.map((property) => (
             <tr className="border-t border-border" key={property.id}>
               <td className="px-4 py-3">
@@ -27,7 +38,7 @@ export function PropertiesTable() {
                   {property.name}
                 </Link>
                 <p className="mt-1 text-xs text-muted">
-                  {property.code} · {property.type}
+                  {property.code} / {property.type}
                 </p>
               </td>
               <td className="px-4 py-3">{property.owner}</td>

@@ -19,6 +19,7 @@ export type TimelineEvent = {
   eventType: TimelineEventType;
   title: string;
   description: string;
+  propertyId: string;
   propertyName: string;
   propertyCode: string;
   unitNumber?: string;
@@ -29,4 +30,16 @@ export type TimelineEvent = {
   relatedDocument?: string;
   relatedLease?: string;
   relatedLedgerEntry?: string;
+};
+
+export type TimelinePropertyOption = {
+  id: string;
+  label: string;
+};
+
+export type TimelineSnapshot = {
+  netIncome: string;
+  occupancy: string;
+  maintenance: string;
+  propertyCount: string;
 };
