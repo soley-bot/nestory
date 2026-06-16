@@ -625,6 +625,20 @@ export type Database = {
         }
         Returns: string
       }
+      create_ledger_entry: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_description: string | null
+          p_direction: string
+          p_organization_id: string
+          p_property_id: string
+          p_transaction_date: string
+          p_unit_id: string | null
+        }
+        Returns: string
+      }
     }
     Enums: {
       currency_code: "USD" | "KHR"
