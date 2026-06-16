@@ -1,0 +1,185 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import * as Popover from "@radix-ui/react-popover";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const monthNames = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+type MonthPickerFieldProps = {
+  ariaLabel?: string;
+  className?: string;
+  defaultValue?: string;
+  name: string;
+  required?: boolean;
+};
+
+export function MonthPickerField({
+  ariaLabel,
+  className,
+  defaultValue,
+  name,
+  required = false,
+}: MonthPickerFieldProps) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(defaultValue ?? getCurrentMonthValue());
+  const [visibleYear, setVisibleYear] = useState(() => getYearFromMonth(value));
+  const selectedMonth = useMemo(() => parseMonthValue(value), [value]);
+
+  return (
+    <>
+      <input name={name} required={required} type="hidden" value={value} />
+      <Popover.Root onOpenChange={setOpen} open={open}>
+        <Popover.Trigger asChild>
+          <button
+            aria-label={ariaLabel}
+            className={cn(
+              "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 text-left text-sm outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent-soft",
+              className,
+            )}
+            type="button"
+          >
+            <span className={value ? "text-foreground" : "text-muted"}>
+              {value ? formatMonthLabel(value) : "Select month"}
+            </span>
+            <CalendarDays className="shrink-0 text-muted" size={16} />
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            align="start"
+            className="z-[80] w-[300px] rounded-md border border-border bg-surface p-3 shadow-lg"
+            sideOffset={4}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <button
+                aria-label="Previous year"
+                className="flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                onClick={() => setVisibleYear((year) => year - 1)}
+                type="button"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <p className="text-sm font-semibold">{visibleYear}</p>
+              <button
+                aria-label="Next year"
+                className="flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                onClick={() => setVisibleYear((year) => year + 1)}
+                type="button"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {monthNames.map((month, index) => {
+                const monthNumber = index + 1;
+                const monthValue = toMonthValue(visibleYear, monthNumber);
+                const isSelected =
+                  selectedMonth?.year === visibleYear &&
+                  selectedMonth.month === monthNumber;
+
+                return (
+                  <button
+                    className={cn(
+                      "h-9 rounded-md text-sm font-medium transition-colors hover:bg-surface-muted",
+                      isSelected
+                        ? "bg-accent text-white hover:bg-accent"
+                        : "text-foreground",
+                    )}
+                    key={month}
+                    onClick={() => {
+                      setValue(monthValue);
+                      setOpen(false);
+                    }}
+                    type="button"
+                  >
+                    {month}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+              <button
+                className="rounded-md px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                onClick={() => {
+                  setValue("");
+                  setOpen(false);
+                }}
+                type="button"
+              >
+                Clear
+              </button>
+              <button
+                className="rounded-md px-2 py-1 text-sm font-medium text-accent transition-colors hover:bg-accent-soft"
+                onClick={() => {
+                  const currentMonth = getCurrentMonthValue();
+                  setValue(currentMonth);
+                  setVisibleYear(getYearFromMonth(currentMonth));
+                  setOpen(false);
+                }}
+                type="button"
+              >
+                This month
+              </button>
+            </div>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    </>
+  );
+}
+
+function formatMonthLabel(value: string) {
+  const parsed = parseMonthValue(value);
+
+  if (!parsed) {
+    return "Select month";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(parsed.year, parsed.month - 1, 1));
+}
+
+function getCurrentMonthValue() {
+  const now = new Date();
+  return toMonthValue(now.getFullYear(), now.getMonth() + 1);
+}
+
+function getYearFromMonth(value: string) {
+  return parseMonthValue(value)?.year ?? new Date().getFullYear();
+}
+
+function parseMonthValue(value: string) {
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    month: Number(match[2]),
+    year: Number(match[1]),
+  };
+}
+
+function toMonthValue(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}

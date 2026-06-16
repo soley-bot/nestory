@@ -3,7 +3,8 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { Archive, Download, Lock, Plus, RotateCcw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MonthPickerField } from "@/components/ui/month-picker-field";
+import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
@@ -563,12 +564,11 @@ function PeriodLockPanel({
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
           <label className="block text-sm font-medium">
             Accounting month
-            <Input
+            <MonthPickerField
+              ariaLabel="Accounting month"
               className="mt-2"
-              defaultValue={new Date().toISOString().slice(0, 7)}
               name="periodStart"
               required
-              type="month"
             />
             {state.fieldErrors?.periodStart?.[0] ? (
               <p className="mt-1 text-xs text-danger">
@@ -579,14 +579,16 @@ function PeriodLockPanel({
 
           <label className="block text-sm font-medium">
             State
-            <select
-              className="mt-2 h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            <SelectControl
+              ariaLabel="State"
+              className="mt-2"
               defaultValue="locked"
               name="lockState"
-            >
-              <option value="locked">Lock</option>
-              <option value="unlocked">Unlock</option>
-            </select>
+              options={[
+                { label: "Lock", value: "locked" },
+                { label: "Unlock", value: "unlocked" },
+              ]}
+            />
           </label>
         </div>
 

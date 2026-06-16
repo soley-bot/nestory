@@ -1,5 +1,6 @@
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { SelectControl } from "@/components/ui/select-control";
 import type { LedgerPropertyOption } from "@/features/ledger/ledger.types";
 
 type ArchiveState = "active" | "archived" | "all";
@@ -47,46 +48,48 @@ export function LedgerFilters({
 
         <label>
           <span className="sr-only">Filter by property</span>
-          <select
-            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            onChange={(event) => onPropertyChange(event.target.value)}
+          <SelectControl
+            ariaLabel="Filter by property"
+            onValueChange={onPropertyChange}
+            options={[
+              { label: "All properties", value: "all" },
+              ...properties.map((propertyOption) => ({
+                label: propertyOption.label,
+                value: propertyOption.id,
+              })),
+            ]}
             value={property}
-          >
-            <option value="all">All properties</option>
-            {properties.map((propertyOption) => (
-              <option key={propertyOption.id} value={propertyOption.id}>
-                {propertyOption.label}
-              </option>
-            ))}
-          </select>
+          />
         </label>
 
         <label>
           <span className="sr-only">Filter by direction</span>
-          <select
-            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            onChange={(event) => onDirectionChange(event.target.value)}
+          <SelectControl
+            ariaLabel="Filter by direction"
+            onValueChange={onDirectionChange}
+            options={[
+              { label: "All directions", value: "all" },
+              { label: "Income", value: "income" },
+              { label: "Expense", value: "expense" },
+            ]}
             value={direction}
-          >
-            <option value="all">All directions</option>
-            <option value="income">Income</option>
-            <option value="expense">Expense</option>
-          </select>
+          />
         </label>
 
         <label>
           <span className="sr-only">Filter by archive state</span>
-          <select
-            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            onChange={(event) =>
-              onArchiveStateChange(event.target.value as ArchiveState)
+          <SelectControl
+            ariaLabel="Filter by archive state"
+            onValueChange={(value) =>
+              onArchiveStateChange(value as ArchiveState)
             }
+            options={[
+              { label: "Active", value: "active" },
+              { label: "Archived", value: "archived" },
+              { label: "All records", value: "all" },
+            ]}
             value={archiveState}
-          >
-            <option value="active">Active</option>
-            <option value="archived">Archived</option>
-            <option value="all">All records</option>
-          </select>
+          />
         </label>
       </div>
     </div>

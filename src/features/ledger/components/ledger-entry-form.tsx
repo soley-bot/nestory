@@ -7,7 +7,9 @@ import {
   updateLedgerEntryAction,
 } from "@/features/ledger/actions";
 import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { SelectControl } from "@/components/ui/select-control";
 import type {
   LedgerEntry,
   LedgerPropertyOption,
@@ -72,63 +74,64 @@ export function LedgerEntryForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
-            <select
-              className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            <SelectControl
+              ariaLabel="Property"
               name="propertyId"
-              onChange={(event) => {
-                setSelectedPropertyId(event.target.value);
+              onValueChange={(value) => {
+                setSelectedPropertyId(value);
                 setSelectedUnitId("");
               }}
+              options={[
+                { label: "Select property", value: "" },
+                ...properties.map((property) => ({
+                  label: property.label,
+                  value: property.id,
+                })),
+              ]}
               required
               value={selectedPropertyId}
-            >
-              <option value="">Select property</option>
-              {properties.map((property) => (
-                <option key={property.id} value={property.id}>
-                  {property.label}
-                </option>
-              ))}
-            </select>
+            />
           </Field>
 
           <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
-            <select
-              className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            <SelectControl
+              ariaLabel="Unit"
               disabled={!selectedPropertyId}
               name="unitId"
-              onChange={(event) => setSelectedUnitId(event.target.value)}
+              onValueChange={setSelectedUnitId}
+              options={[
+                { label: "Property level", value: "" },
+                ...availableUnits.map((unit) => ({
+                  label: unit.label,
+                  value: unit.id,
+                })),
+              ]}
               value={selectedUnitId}
-            >
-              <option value="">Property level</option>
-              {availableUnits.map((unit) => (
-                <option key={unit.id} value={unit.id}>
-                  {unit.label}
-                </option>
-              ))}
-            </select>
+            />
           </Field>
 
           <Field label="Direction" error={state.fieldErrors?.direction?.[0]}>
-            <select
-              className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            <SelectControl
+              ariaLabel="Direction"
               defaultValue={entry?.direction ?? "income"}
               name="direction"
+              options={[
+                { label: "Income", value: "income" },
+                { label: "Expense", value: "expense" },
+              ]}
               required
-            >
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-            </select>
+            />
           </Field>
 
           <Field
             label="Transaction date"
             error={state.fieldErrors?.transactionDate?.[0]}
           >
-            <Input
+            <DatePickerField
+              ariaLabel="Transaction date"
               defaultValue={entry?.transactionDate}
               name="transactionDate"
               required
-              type="date"
             />
           </Field>
         </div>
@@ -157,15 +160,16 @@ export function LedgerEntryForm({
           </Field>
 
           <Field label="Currency" error={state.fieldErrors?.currency?.[0]}>
-            <select
-              className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            <SelectControl
+              ariaLabel="Currency"
               defaultValue={entry?.currency ?? "USD"}
               name="currency"
+              options={[
+                { label: "USD", value: "USD" },
+                { label: "KHR", value: "KHR" },
+              ]}
               required
-            >
-              <option value="USD">USD</option>
-              <option value="KHR">KHR</option>
-            </select>
+            />
           </Field>
         </div>
 

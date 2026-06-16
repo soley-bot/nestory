@@ -1,5 +1,6 @@
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { SelectControl } from "@/components/ui/select-control";
 import type { TimelinePropertyOption } from "@/features/timeline/timeline.types";
 
 type ArchiveState = "active" | "archived" | "all";
@@ -44,43 +45,39 @@ export function TimelineFilters({
         />
       </label>
 
-      <select
-        className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
-        onChange={(event) => onPropertyChange(event.target.value)}
+      <SelectControl
+        ariaLabel="Filter by property"
+        onValueChange={onPropertyChange}
+        options={[
+          { label: "All properties", value: "all" },
+          ...properties.map((item) => ({
+            label: item.label,
+            value: item.id,
+          })),
+        ]}
         value={property}
-      >
-        <option value="all">All properties</option>
-        {properties.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.label}
-          </option>
-        ))}
-      </select>
+      />
 
-      <select
-        className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
-        onChange={(event) => onEventTypeChange(event.target.value)}
+      <SelectControl
+        ariaLabel="Filter by event type"
+        onValueChange={onEventTypeChange}
+        options={[
+          { label: "All event types", value: "all" },
+          ...eventTypes.map((item) => ({ label: item, value: item })),
+        ]}
         value={eventType}
-      >
-        <option value="all">All event types</option>
-        {eventTypes.map((item) => (
-          <option key={item} value={item}>
-            {item}
-          </option>
-        ))}
-      </select>
+      />
 
-      <select
-        className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
-        onChange={(event) =>
-          onArchiveStateChange(event.target.value as ArchiveState)
-        }
+      <SelectControl
+        ariaLabel="Filter by archive state"
+        onValueChange={(value) => onArchiveStateChange(value as ArchiveState)}
+        options={[
+          { label: "Active", value: "active" },
+          { label: "Archived", value: "archived" },
+          { label: "All records", value: "all" },
+        ]}
         value={archiveState}
-      >
-        <option value="active">Active</option>
-        <option value="archived">Archived</option>
-        <option value="all">All records</option>
-      </select>
+      />
     </div>
   );
 }

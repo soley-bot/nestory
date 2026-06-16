@@ -44,6 +44,7 @@ These rules should guide architecture, UI, database design, feature scope, and r
 - Tables may use horizontal scrolling for dense operational data, but surrounding cards, drawers, headers, and filters should not force page-level horizontal overflow.
 - Use stable spacing such as `px-4 sm:px-6 lg:px-8` for major page regions unless a local design reason requires something different.
 - The desktop sidebar should not consume phone viewport width. Use a compact mobile app header/nav below the desktop breakpoint.
+- Use shared Nestory/Radix controls for selects, dates, and accounting months instead of native browser popups when the control is part of a polished workflow.
 
 ## Recommended Stack
 

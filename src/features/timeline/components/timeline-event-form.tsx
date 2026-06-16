@@ -13,7 +13,9 @@ import type {
   TimelineUnitOption,
 } from "@/features/timeline/timeline.types";
 import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { SelectControl } from "@/components/ui/select-control";
 
 const initialState: TimelineActionState = {};
 
@@ -74,63 +76,61 @@ export function TimelineEventForm({
 
       <div className="grid gap-4 px-4 sm:grid-cols-2 sm:px-5">
         <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
-          <select
-            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          <SelectControl
+            ariaLabel="Property"
             name="propertyId"
-            onChange={(changeEvent) => {
-              setSelectedPropertyId(changeEvent.target.value);
+            onValueChange={(value) => {
+              setSelectedPropertyId(value);
               setSelectedUnitId("");
             }}
+            options={[
+              { label: "Select property", value: "" },
+              ...properties.map((property) => ({
+                label: property.label,
+                value: property.id,
+              })),
+            ]}
             required
             value={selectedPropertyId}
-          >
-            <option value="">Select property</option>
-            {properties.map((property) => (
-              <option key={property.id} value={property.id}>
-                {property.label}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
-          <select
-            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          <SelectControl
+            ariaLabel="Unit"
             disabled={!selectedPropertyId}
             name="unitId"
-            onChange={(changeEvent) => setSelectedUnitId(changeEvent.target.value)}
+            onValueChange={setSelectedUnitId}
+            options={[
+              { label: "Property level", value: "" },
+              ...availableUnits.map((unit) => ({
+                label: unit.label,
+                value: unit.id,
+              })),
+            ]}
             value={selectedUnitId}
-          >
-            <option value="">Property level</option>
-            {availableUnits.map((unit) => (
-              <option key={unit.id} value={unit.id}>
-                {unit.label}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="Event type" error={state.fieldErrors?.eventType?.[0]}>
-          <select
-            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          <SelectControl
+            ariaLabel="Event type"
             defaultValue={event?.eventType ?? eventTypes[0]}
             name="eventType"
+            options={eventTypes.map((eventType) => ({
+              label: eventType,
+              value: eventType,
+            }))}
             required
-          >
-            {eventTypes.map((eventType) => (
-              <option key={eventType} value={eventType}>
-                {eventType}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="Event date" error={state.fieldErrors?.eventDate?.[0]}>
-          <Input
+          <DatePickerField
+            ariaLabel="Event date"
             defaultValue={event?.eventDate ?? ""}
             name="eventDate"
             required
-            type="date"
           />
         </Field>
       </div>
@@ -158,15 +158,16 @@ export function TimelineEventForm({
         </Field>
 
         <Field label="Currency" error={state.fieldErrors?.costCurrency?.[0]}>
-          <select
-            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          <SelectControl
+            ariaLabel="Currency"
             defaultValue={event?.currency ?? ""}
             name="costCurrency"
-          >
-            <option value="">None</option>
-            <option value="USD">USD</option>
-            <option value="KHR">KHR</option>
-          </select>
+            options={[
+              { label: "None", value: "" },
+              { label: "USD", value: "USD" },
+              { label: "KHR", value: "KHR" },
+            ]}
+          />
         </Field>
       </div>
 
