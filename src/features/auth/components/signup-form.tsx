@@ -35,18 +35,6 @@ export function SignupForm() {
       ) : null}
 
       <label className="block text-sm font-medium">
-        Company name
-        <Input
-          autoComplete="organization"
-          className="mt-2"
-          name="organizationName"
-          placeholder="Enter company name"
-          type="text"
-        />
-        <FieldError errors={state.fieldErrors?.organizationName} />
-      </label>
-
-      <label className="block text-sm font-medium">
         Email
         <Input
           autoComplete="email"
@@ -73,6 +61,10 @@ export function SignupForm() {
       <Button className="w-full" disabled={pending || isSuccess} type="submit" variant="primary">
         {pending ? "Creating..." : "Create account"}
       </Button>
+
+      <p className="text-xs leading-5 text-muted">
+        Use an email inbox you can access. Workspace setup starts after confirmation.
+      </p>
     </form>
   );
 }

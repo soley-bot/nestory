@@ -4,7 +4,9 @@ import { getSupabaseEnv } from "@/lib/db/env";
 import type { Database } from "@/types/database";
 
 const AUTH_ROUTES = new Set(["/login", "/signup"]);
-const PUBLIC_ROUTES = new Set(["/", ...AUTH_ROUTES]);
+const AUTH_CALLBACK_ROUTE = "/auth/callback";
+const PUBLIC_ROUTES = new Set(["/", AUTH_CALLBACK_ROUTE, ...AUTH_ROUTES]);
+const REDIRECT_AUTHENTICATED_ROUTES = new Set(["/", ...AUTH_ROUTES]);
 
 function redirectToLogin(request: NextRequest) {
   const url = request.nextUrl.clone();
@@ -59,7 +61,10 @@ export async function proxy(request: NextRequest) {
     return redirectToLogin(request);
   }
 
-  if (isAuthenticated && isPublicRoute) {
+  if (
+    isAuthenticated &&
+    REDIRECT_AUTHENTICATED_ROUTES.has(request.nextUrl.pathname)
+  ) {
     return redirectToTimeline(request);
   }
 

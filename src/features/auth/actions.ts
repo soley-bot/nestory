@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
@@ -27,16 +28,19 @@ const loginSchema = z.object({
   password: z.string().min(1, "Enter your password."),
 });
 
-const signupSchema = loginSchema.extend({
+const organizationSchema = z.object({
   organizationName: z
     .string()
     .trim()
     .min(2, "Enter the company name.")
     .max(120, "Keep the company name under 120 characters."),
+});
+
+const signupSchema = loginSchema.extend({
   password: z.string().min(8, "Use at least 8 characters."),
 });
 
-const setupSchema = signupSchema.pick({ organizationName: true });
+const setupSchema = organizationSchema;
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -48,6 +52,17 @@ function invalidFormState(error: z.ZodError): AuthActionState {
     fieldErrors: error.flatten().fieldErrors as AuthFieldErrors,
     status: "error",
   };
+}
+
+async function getAuthCallbackUrl() {
+  const requestHeaders = await headers();
+  const origin =
+    requestHeaders.get("origin") ??
+    (process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000");
+
+  return new URL("/auth/callback", origin).toString();
 }
 
 async function bootstrapAdminOrganization(
@@ -102,7 +117,6 @@ export async function signupAction(
 ): Promise<AuthActionState> {
   const parsed = signupSchema.safeParse({
     email: readString(formData, "email"),
-    organizationName: readString(formData, "organizationName"),
     password: readString(formData, "password"),
   });
 
@@ -111,8 +125,12 @@ export async function signupAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const emailRedirectTo = await getAuthCallbackUrl();
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
+    options: {
+      emailRedirectTo,
+    },
     password: parsed.data.password,
   });
 
@@ -124,20 +142,11 @@ export async function signupAction(
   }
 
   if (data.session) {
-    const bootstrapError = await bootstrapAdminOrganization(
-      parsed.data.organizationName,
-      supabase,
-    );
-
-    if (bootstrapError) {
-      return bootstrapError;
-    }
-
-    redirect("/timeline");
+    redirect("/setup");
   }
 
   return {
-    message: "Account created. Confirm the email address, then sign in.",
+    message: "Account created. Confirm the email address to continue setup.",
     status: "success",
   };
 }
