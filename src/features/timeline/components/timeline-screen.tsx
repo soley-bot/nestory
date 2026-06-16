@@ -142,6 +142,7 @@ export function TimelineScreen({
         <PropertyPerformanceSnapshot snapshot={snapshot} />
         <RecentChangesPanel
           changes={recentChanges}
+          defaultCollapsed
           onSelectChange={(change) => {
             setStatusMessage(null);
             setDrawer({ change, mode: "activity" });
