@@ -5,9 +5,13 @@ import { formatDate } from "@/lib/dates/format";
 
 type RecentChangesPanelProps = {
   changes: RecentChange[];
+  onSelectChange?: (change: RecentChange) => void;
 };
 
-export function RecentChangesPanel({ changes }: RecentChangesPanelProps) {
+export function RecentChangesPanel({
+  changes,
+  onSelectChange,
+}: RecentChangesPanelProps) {
   return (
     <section className="rounded-md border border-border bg-surface">
       <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
@@ -26,20 +30,27 @@ export function RecentChangesPanel({ changes }: RecentChangesPanelProps) {
         <ul className="divide-y divide-border">
           {changes.map((change) => (
             <li
-              className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between"
+              className="px-5 py-3"
               key={change.id}
             >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">
-                  {change.recordLabel}
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  {change.entityLabel} - {formatDate(change.createdAt)}
-                </p>
-              </div>
-              <Badge className="shrink-0" tone={change.tone}>
-                {change.actionLabel}
-              </Badge>
+              <button
+                className="flex w-full flex-col gap-2 text-left sm:flex-row sm:items-center sm:justify-between"
+                disabled={!onSelectChange}
+                onClick={() => onSelectChange?.(change)}
+                type="button"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-foreground">
+                    {change.recordLabel}
+                  </span>
+                  <span className="mt-1 block text-xs text-muted">
+                    {change.entityLabel} - {formatDate(change.createdAt)}
+                  </span>
+                </span>
+                <Badge className="shrink-0" tone={change.tone}>
+                  {change.actionLabel}
+                </Badge>
+              </button>
             </li>
           ))}
         </ul>

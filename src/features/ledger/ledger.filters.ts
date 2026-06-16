@@ -1,6 +1,7 @@
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
 
 type LedgerFilterOptions = {
+  archiveState?: "active" | "archived" | "all";
   direction: string;
   propertyId: string;
   query: string;
@@ -8,7 +9,7 @@ type LedgerFilterOptions = {
 
 export function filterLedgerEntries(
   entries: LedgerEntry[],
-  { direction, propertyId, query }: LedgerFilterOptions,
+  { archiveState = "active", direction, propertyId, query }: LedgerFilterOptions,
 ) {
   const tokens = query
     .trim()
@@ -21,6 +22,11 @@ export function filterLedgerEntries(
       direction === "all" || entry.direction === direction;
     const matchesProperty =
       propertyId === "all" || entry.propertyId === propertyId;
+    const matchesArchiveState =
+      archiveState === "all" ||
+      (archiveState === "archived"
+        ? Boolean(entry.archivedAt)
+        : !entry.archivedAt);
     const haystack = [
       entry.category,
       entry.description,
@@ -34,6 +40,6 @@ export function filterLedgerEntries(
       .toLowerCase();
     const matchesQuery = tokens.every((token) => haystack.includes(token));
 
-    return matchesDirection && matchesProperty && matchesQuery;
+    return matchesArchiveState && matchesDirection && matchesProperty && matchesQuery;
   });
 }

@@ -2,23 +2,29 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { TimelinePropertyOption } from "@/features/timeline/timeline.types";
 
+type ArchiveState = "active" | "archived" | "all";
+
 type TimelineFiltersProps = {
+  archiveState: ArchiveState;
   eventTypes: string[];
   properties: TimelinePropertyOption[];
   eventType: string;
   property: string;
   query: string;
+  onArchiveStateChange: (value: ArchiveState) => void;
   onEventTypeChange: (value: string) => void;
   onPropertyChange: (value: string) => void;
   onQueryChange: (value: string) => void;
 };
 
 export function TimelineFilters({
+  archiveState,
   eventTypes,
   properties,
   eventType,
   property,
   query,
+  onArchiveStateChange,
   onEventTypeChange,
   onPropertyChange,
   onQueryChange,
@@ -62,6 +68,18 @@ export function TimelineFilters({
             {item}
           </option>
         ))}
+      </select>
+
+      <select
+        className="h-9 rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+        onChange={(event) =>
+          onArchiveStateChange(event.target.value as ArchiveState)
+        }
+        value={archiveState}
+      >
+        <option value="active">Active</option>
+        <option value="archived">Archived</option>
+        <option value="all">All records</option>
       </select>
     </div>
   );

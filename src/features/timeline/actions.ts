@@ -11,6 +11,7 @@ type TimelineFieldErrors = {
   costAmount?: string[];
   costCurrency?: string[];
   description?: string[];
+  document?: string[];
   eventId?: string[];
   eventDate?: string[];
   eventType?: string[];
@@ -99,6 +100,12 @@ const createTimelineEventSchema = z
   });
 
 const timelineEventIdSchema = z.uuid("Choose a timeline event.");
+const documentMimeTypes = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -154,7 +161,7 @@ export async function createTimelineEventAction(
 
   if (error) {
     return {
-      message: "We could not add the timeline event. Please check the fields and try again.",
+      message: timelineActionErrorMessage(error.message),
       status: "error",
     };
   }
@@ -273,7 +280,181 @@ export async function archiveTimelineEventAction(
   };
 }
 
+export async function restoreTimelineEventAction(
+  _state: TimelineActionState,
+  formData: FormData,
+): Promise<TimelineActionState> {
+  const context = await requireAdminContext();
+  const parsedEventId = timelineEventIdSchema.safeParse(
+    readString(formData, "eventId"),
+  );
+
+  if (!parsedEventId.success) {
+    return {
+      fieldErrors: { eventId: ["Choose a timeline event."] },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("restore_timeline_event", {
+    p_event_id: parsedEventId.data,
+    p_organization_id: context.organizationId,
+  });
+
+  if (error) {
+    return {
+      message: timelineActionErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidatePath("/timeline");
+  revalidatePath("/properties");
+
+  return {
+    message: "Timeline event restored.",
+    status: "success",
+  };
+}
+
+export async function attachTimelineDocumentAction(
+  _state: TimelineActionState,
+  formData: FormData,
+): Promise<TimelineActionState> {
+  const context = await requireAdminContext();
+  const parsedEventId = timelineEventIdSchema.safeParse(
+    readString(formData, "eventId"),
+  );
+  const file = formData.get("document");
+
+  if (!parsedEventId.success) {
+    return {
+      fieldErrors: { eventId: ["Choose a timeline event."] },
+      status: "error",
+    };
+  }
+
+  if (!(file instanceof File) || file.size === 0) {
+    return {
+      fieldErrors: { document: ["Choose a document file."] },
+      status: "error",
+    };
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    return {
+      fieldErrors: { document: ["Documents must be 10 MB or smaller."] },
+      status: "error",
+    };
+  }
+
+  if (!documentMimeTypes.has(file.type)) {
+    return {
+      fieldErrors: { document: ["Upload a PDF, JPG, PNG, or WebP document."] },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: event, error: eventError } = await supabase
+    .from("timeline_events")
+    .select("id, property_id, unit_id, ledger_entry_id")
+    .eq("id", parsedEventId.data)
+    .eq("organization_id", context.organizationId)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (eventError || !event) {
+    return {
+      message: "We could not find that active timeline event.",
+      status: "error",
+    };
+  }
+
+  const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const storagePath = `${context.organizationId}/timeline/${parsedEventId.data}/${crypto.randomUUID()}-${safeFileName}`;
+  const { error: uploadError } = await supabase.storage
+    .from("nestory-documents")
+    .upload(storagePath, file, {
+      cacheControl: "3600",
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return {
+      message: "We could not upload the document. Please try again.",
+      status: "error",
+    };
+  }
+
+  const { data: document, error: documentError } = await supabase
+    .from("documents")
+    .insert({
+      category: "Timeline Document",
+      file_name: file.name,
+      ledger_entry_id: event.ledger_entry_id,
+      mime_type: file.type,
+      organization_id: context.organizationId,
+      property_id: event.property_id,
+      size_bytes: file.size,
+      storage_path: storagePath,
+      timeline_event_id: parsedEventId.data,
+      unit_id: event.unit_id,
+      uploaded_by: context.userId,
+    })
+    .select("id")
+    .single();
+
+  if (documentError || !document) {
+    await supabase.storage.from("nestory-documents").remove([storagePath]);
+
+    return {
+      message: "We could not save the document record. Please try again.",
+      status: "error",
+    };
+  }
+
+  const { error: logError } = await supabase.from("activity_logs").insert({
+    action: "document_attached",
+    actor_id: context.userId,
+    entity_id: parsedEventId.data,
+    entity_type: "timeline_event",
+    new_values: {
+      document_id: document.id,
+      file_name: file.name,
+      ledger_entry_id: event.ledger_entry_id,
+    },
+    organization_id: context.organizationId,
+  });
+
+  if (logError) {
+    return {
+      message: "Document attached, but the activity log could not be saved.",
+      status: "error",
+    };
+  }
+
+  revalidatePath("/timeline");
+  revalidatePath("/ledger");
+  revalidatePath("/documents");
+
+  return {
+    message: "Document attached.",
+    status: "success",
+  };
+}
+
 function timelineActionErrorMessage(message: string) {
+  if (message.includes("Accounting period is locked")) {
+    return "This accounting period is locked. Unlock the period before changing this record.";
+  }
+
+  if (message.includes("restored from ledger")) {
+    return "This timeline event is linked to a ledger entry. Restore it from Ledger.";
+  }
+
   if (message.includes("Ledger-linked")) {
     return "This timeline event is linked to a ledger entry. Edit or archive it from Ledger.";
   }

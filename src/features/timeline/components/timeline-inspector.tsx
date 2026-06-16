@@ -2,14 +2,17 @@ import Link from "next/link";
 import {
   Archive,
   CalendarDays,
-  FileText,
   Landmark,
   Link2,
+  Lock,
   Pencil,
+  RotateCcw,
+  Upload,
   UserRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DocumentList } from "@/features/documents/components/document-list";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
 import type { TimelineEvent } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
@@ -18,15 +21,19 @@ import { formatMoney } from "@/lib/money/format";
 type TimelineInspectorProps = {
   archiveDisabled?: boolean;
   event: TimelineEvent | null;
+  onAttachDocument?: (event: TimelineEvent) => void;
   onArchive?: (event: TimelineEvent) => void;
   onEdit?: (event: TimelineEvent) => void;
+  onRestore?: (event: TimelineEvent) => void;
 };
 
 export function TimelineInspector({
   archiveDisabled = false,
   event,
+  onAttachDocument,
   onArchive,
   onEdit,
+  onRestore,
 }: TimelineInspectorProps) {
   if (!event) {
     return (
@@ -41,13 +48,24 @@ export function TimelineInspector({
   }
 
   const isLedgerLinked = Boolean(event.ledgerEntryId);
+  const isArchived = Boolean(event.archivedAt);
+  const isDisabled = event.isLocked || archiveDisabled;
 
   return (
     <aside className="rounded-md border border-border bg-surface">
       <div className="border-b border-border p-5">
         <div className="flex items-center justify-between gap-3">
           <EventTypeBadge type={event.eventType} />
-          <Badge>{event.propertyCode}</Badge>
+          <div className="flex items-center gap-2">
+            {isArchived ? <Badge tone="warning">Archived</Badge> : null}
+            {event.isLocked ? (
+              <Badge tone="warning">
+                <Lock size={12} />
+                Locked
+              </Badge>
+            ) : null}
+            <Badge>{event.propertyCode}</Badge>
+          </div>
         </div>
         <h2 className="mt-4 text-lg font-semibold tracking-tight">
           {event.title}
@@ -60,38 +78,84 @@ export function TimelineInspector({
       {isLedgerLinked ? (
         <div className="border-b border-border p-5">
           <p className="text-sm leading-6 text-muted">
-            This event is linked to a ledger entry. Edit or archive it from
-            Ledger so totals and timeline history stay in sync.
+            This event is linked to a ledger entry. Edit, archive, or restore it
+            from Ledger so totals and timeline history stay in sync.
           </p>
-          <Link
-            className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium transition-colors hover:bg-surface-muted"
-            href={`/ledger?entryId=${encodeURIComponent(event.ledgerEntryId ?? "")}`}
-          >
-            <Landmark size={15} />
-            Open linked ledger entry
-          </Link>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium transition-colors hover:bg-surface-muted"
+              href={`/ledger?entryId=${encodeURIComponent(
+                event.ledgerEntryId ?? "",
+              )}`}
+            >
+              <Landmark size={15} />
+              Open linked ledger entry
+            </Link>
+            {!isArchived ? (
+              <Button onClick={() => onAttachDocument?.(event)}>
+                <Upload size={15} />
+                Attach document
+              </Button>
+            ) : null}
+          </div>
         </div>
       ) : (
-        <div className="flex gap-2 border-b border-border p-5">
-          <Button
-            className="flex-1"
-            onClick={() => onEdit?.(event)}
-            type="button"
-            variant="secondary"
-          >
-            <Pencil size={15} />
-            Edit
-          </Button>
-          <Button
-            className="flex-1 border-danger/40 text-danger hover:bg-surface-muted"
-            disabled={archiveDisabled}
-            onClick={() => onArchive?.(event)}
-            type="button"
-            variant="secondary"
-          >
-            <Archive size={15} />
-            Archive
-          </Button>
+        <div className="border-b border-border p-5">
+          {isArchived ? (
+            <Button
+              className="w-full"
+              disabled={isDisabled}
+              onClick={() => onRestore?.(event)}
+              title={event.isLocked ? "This accounting period is locked." : undefined}
+              type="button"
+              variant="primary"
+            >
+              <RotateCcw size={15} />
+              Restore
+            </Button>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                onClick={() => onAttachDocument?.(event)}
+                type="button"
+                variant="secondary"
+              >
+                <Upload size={15} />
+                Attach
+              </Button>
+              <Button
+                disabled={isDisabled}
+                onClick={() => onEdit?.(event)}
+                title={
+                  event.isLocked ? "This accounting period is locked." : undefined
+                }
+                type="button"
+                variant="secondary"
+              >
+                <Pencil size={15} />
+                Edit
+              </Button>
+              <Button
+                className="border-danger/40 text-danger hover:bg-surface-muted"
+                disabled={isDisabled}
+                onClick={() => onArchive?.(event)}
+                title={
+                  event.isLocked ? "This accounting period is locked." : undefined
+                }
+                type="button"
+                variant="secondary"
+              >
+                <Archive size={15} />
+                Archive
+              </Button>
+            </div>
+          )}
+          {event.isLocked ? (
+            <p className="mt-3 text-xs leading-5 text-muted">
+              This record belongs to a locked accounting period. Unlock the
+              period before editing, archiving, or restoring it.
+            </p>
+          ) : null}
         </div>
       )}
 
@@ -113,16 +177,24 @@ export function TimelineInspector({
             ? formatMoney(event.cost, event.currency)
             : "No cost recorded"}
         </InspectorRow>
+        {event.archivedAt ? (
+          <InspectorRow icon={<Archive size={16} />} label="Archived">
+            {formatDate(event.archivedAt)}
+          </InspectorRow>
+        ) : null}
       </div>
 
       <div className="border-t border-border p-5">
+        <div className="mb-5">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+            Documents
+          </p>
+          <DocumentList documents={event.documents} />
+        </div>
         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
           Linked records
         </p>
         <div className="mt-3 space-y-2">
-          {event.relatedDocument ? (
-            <LinkedRecord icon={<FileText size={15} />} label={event.relatedDocument} />
-          ) : null}
           {event.relatedLease ? (
             <LinkedRecord icon={<Link2 size={15} />} label={event.relatedLease} />
           ) : null}
@@ -133,9 +205,7 @@ export function TimelineInspector({
               href={`/ledger?entryId=${encodeURIComponent(event.ledgerEntryId ?? "")}`}
             />
           ) : null}
-          {!event.relatedDocument &&
-          !event.relatedLease &&
-          !event.relatedLedgerEntry ? (
+          {!event.relatedLease && !event.relatedLedgerEntry ? (
             <p className="text-sm text-muted">No linked records yet.</p>
           ) : null}
         </div>

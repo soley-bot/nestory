@@ -1,5 +1,6 @@
 import { Constants } from "@/types/database";
 import { toRecentChange } from "@/features/activity/recent-changes";
+import type { LinkedDocument } from "@/features/documents/document.types";
 import { getPropertySummaries } from "@/features/properties/data/properties";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { formatMoneyTotals } from "@/lib/money/totals";
@@ -29,6 +30,7 @@ type LeaseRow = {
 
 type LedgerEntryRow = {
   amount: number;
+  archived_at: string | null;
   category: string;
   currency: "USD" | "KHR";
   direction: string;
@@ -36,11 +38,18 @@ type LedgerEntryRow = {
 };
 
 type DocumentRow = {
+  category: string;
   file_name: string;
+  id: string;
+  mime_type: string;
+  size_bytes: number;
+  storage_path: string;
   timeline_event_id: string | null;
+  uploaded_at: string;
 };
 
 type TimelineEventRow = {
+  archived_at: string | null;
   cost_amount: number | null;
   cost_currency: "USD" | "KHR" | null;
   created_by: string | null;
@@ -55,6 +64,17 @@ type TimelineEventRow = {
   unit_id: string | null;
 };
 
+type PeriodLockRow = {
+  id: string;
+  locked_at: string | null;
+  period_start: string;
+  reason: string | null;
+};
+
+type TimelineDocumentWithLink = LinkedDocument & {
+  timelineEventId?: string;
+};
+
 export async function getTimelineScreenData(organizationId: string) {
   const supabase = await createSupabaseServerClient();
 
@@ -65,16 +85,16 @@ export async function getTimelineScreenData(organizationId: string) {
     leasesResult,
     ledgerResult,
     documentsResult,
+    periodLocksResult,
     recentActivityResult,
     propertySummaries,
   ] = await Promise.all([
     supabase
       .from("timeline_events")
       .select(
-        "id, property_id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency, created_by",
+        "id, property_id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency, created_by, archived_at",
       )
       .eq("organization_id", organizationId)
-      .is("archived_at", null)
       .order("event_date", { ascending: false })
       .limit(100),
     supabase
@@ -95,20 +115,28 @@ export async function getTimelineScreenData(organizationId: string) {
       .is("archived_at", null),
     supabase
       .from("ledger_entries")
-      .select("id, category, direction, amount, currency")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null),
+      .select("id, category, direction, amount, currency, archived_at")
+      .eq("organization_id", organizationId),
     supabase
       .from("documents")
-      .select("timeline_event_id, file_name")
+      .select(
+        "id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at",
+      )
       .eq("organization_id", organizationId)
       .not("timeline_event_id", "is", null)
       .is("archived_at", null),
     supabase
+      .from("ledger_period_locks")
+      .select("id, period_start, locked_at, reason")
+      .eq("organization_id", organizationId)
+      .not("locked_at", "is", null)
+      .order("period_start", { ascending: false })
+      .limit(24),
+    supabase
       .from("activity_logs")
       .select("id, entity_type, action, previous_values, new_values, created_at")
       .eq("organization_id", organizationId)
-      .in("entity_type", ["timeline_event", "ledger_entry"])
+      .in("entity_type", ["timeline_event", "ledger_entry", "ledger_period"])
       .order("created_at", { ascending: false })
       .limit(6),
     getPropertySummaries(organizationId),
@@ -138,6 +166,12 @@ export async function getTimelineScreenData(organizationId: string) {
     throw new Error(`Could not load timeline documents: ${documentsResult.error.message}`);
   }
 
+  if (periodLocksResult.error) {
+    throw new Error(
+      `Could not load timeline period locks: ${periodLocksResult.error.message}`,
+    );
+  }
+
   if (recentActivityResult.error) {
     throw new Error(
       `Could not load recent timeline activity: ${recentActivityResult.error.message}`,
@@ -148,11 +182,17 @@ export async function getTimelineScreenData(organizationId: string) {
   const unitsById = indexById(unitsResult.data ?? []);
   const leasesById = indexById(leasesResult.data ?? []);
   const ledgerById = indexById(ledgerResult.data ?? []);
-  const documentsByEventId = groupDocumentsByEventId(documentsResult.data ?? []);
+  const periodLocks = periodLocksResult.data ?? [];
+  const documentsWithUrls = await addSignedDocumentUrls(
+    documentsResult.data ?? [],
+    supabase,
+  );
+  const documentsByEventId = groupDocumentsByEventId(documentsWithUrls);
   const events = (eventsResult.data ?? []).map((event) =>
     toTimelineEvent({
       documents: documentsByEventId.get(event.id) ?? [],
       event,
+      isLocked: isTimelineEventLocked(event, periodLocks),
       ledgerEntry: event.ledger_entry_id
         ? ledgerById.get(event.ledger_entry_id)
         : undefined,
@@ -172,7 +212,11 @@ export async function getTimelineScreenData(organizationId: string) {
       }),
     ),
     recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
-    snapshot: buildSnapshot(propertySummaries, ledgerResult.data ?? [], events),
+    snapshot: buildSnapshot(
+      propertySummaries,
+      (ledgerResult.data ?? []).filter((entry) => entry.archived_at === null),
+      events.filter((event) => !event.archivedAt),
+    ),
     unitOptions: (unitsResult.data ?? []).map((unit): TimelineUnitOption => {
       const property = propertiesById.get(unit.property_id);
 
@@ -188,31 +232,36 @@ export async function getTimelineScreenData(organizationId: string) {
 function toTimelineEvent({
   documents,
   event,
+  isLocked,
   ledgerEntry,
   lease,
   property,
   unit,
 }: {
-  documents: DocumentRow[];
+  documents: LinkedDocument[];
   event: TimelineEventRow;
+  isLocked: boolean;
   ledgerEntry?: LedgerEntryRow;
   lease?: LeaseRow;
   property?: PropertyRow;
   unit?: UnitRow;
 }): TimelineEvent {
   return {
+    archivedAt: event.archived_at ?? undefined,
     id: event.id,
     cost: event.cost_amount ?? undefined,
     createdBy: event.created_by ? "Admin" : "System",
     currency: event.cost_currency ?? undefined,
     description: event.description ?? "",
+    documents,
     eventDate: event.event_date,
     eventType: event.event_type,
     hasAttachment: documents.length > 0,
+    isLocked,
     propertyCode: property?.code ?? "Unknown",
     propertyId: event.property_id,
     propertyName: property?.name ?? "Unknown property",
-    relatedDocument: documents[0]?.file_name,
+    relatedDocument: documents[0]?.fileName,
     relatedLease: lease ? `Lease - ${lease.tenant_name}` : undefined,
     relatedLedgerEntry: ledgerEntry
       ? `${ledgerEntry.direction === "expense" ? "Expense" : "Income"} - ${
@@ -259,18 +308,58 @@ function indexById<T extends { id: string }>(rows: T[]) {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
-function groupDocumentsByEventId(rows: DocumentRow[]) {
-  const grouped = new Map<string, DocumentRow[]>();
+async function addSignedDocumentUrls(
+  rows: DocumentRow[],
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+): Promise<TimelineDocumentWithLink[]> {
+  return Promise.all(
+    rows.map(async (row) => {
+      const { data } = await supabase.storage
+        .from("nestory-documents")
+        .createSignedUrl(row.storage_path, 60 * 60);
+
+      return {
+        category: row.category,
+        fileName: row.file_name,
+        id: row.id,
+        mimeType: row.mime_type,
+        sizeBytes: row.size_bytes,
+        timelineEventId: row.timeline_event_id ?? undefined,
+        uploadedAt: row.uploaded_at,
+        url: data?.signedUrl,
+      };
+    }),
+  );
+}
+
+function groupDocumentsByEventId(rows: TimelineDocumentWithLink[]) {
+  const grouped = new Map<string, LinkedDocument[]>();
 
   for (const row of rows) {
-    if (!row.timeline_event_id) {
+    if (!row.timelineEventId) {
       continue;
     }
 
-    const group = grouped.get(row.timeline_event_id) ?? [];
+    const group = grouped.get(row.timelineEventId) ?? [];
     group.push(row);
-    grouped.set(row.timeline_event_id, group);
+    grouped.set(row.timelineEventId, group);
   }
 
   return grouped;
+}
+
+function isTimelineEventLocked(
+  event: TimelineEventRow,
+  periodLocks: PeriodLockRow[],
+) {
+  if (event.cost_amount === null && event.ledger_entry_id === null) {
+    return false;
+  }
+
+  const periodStart = `${event.event_date.slice(0, 7)}-01`;
+
+  return periodLocks.some(
+    (periodLock) =>
+      periodLock.period_start === periodStart && Boolean(periodLock.locked_at),
+  );
 }

@@ -1,5 +1,9 @@
 import type { Json, Database } from "@/types/database";
-import type { RecentChange, RecentChangeTone } from "@/features/activity/activity.types";
+import type {
+  ActivityChangeDetail,
+  RecentChange,
+  RecentChangeTone,
+} from "@/features/activity/activity.types";
 
 export type ActivityLogSnapshot = Pick<
   Database["public"]["Tables"]["activity_logs"]["Row"],
@@ -17,6 +21,12 @@ const actionLabels: Record<string, string> = {
   created: "Created",
   created_from_ledger: "Created from ledger",
   created_from_ledger_update: "Recreated from ledger",
+  document_attached: "Document attached",
+  locked: "Period locked",
+  receipt_attached: "Receipt attached",
+  restored: "Restored",
+  restored_from_ledger: "Restored from ledger",
+  unlocked: "Period unlocked",
   updated: "Updated",
   updated_from_ledger: "Synced from ledger",
 };
@@ -26,6 +36,7 @@ export function toRecentChange(log: ActivityLogSnapshot): RecentChange {
     action: log.action,
     actionLabel: actionLabels[log.action] ?? toReadableAction(log.action),
     createdAt: log.created_at,
+    details: getChangeDetails(log),
     entityLabel: getEntityLabel(log.entity_type),
     id: log.id,
     recordLabel: getRecordLabel(log),
@@ -58,11 +69,23 @@ function getEntityLabel(entityType: string) {
     return "Timeline";
   }
 
+  if (entityType === "ledger_period") {
+    return "Period lock";
+  }
+
   return toReadableAction(entityType);
 }
 
 function getTone(action: string): RecentChangeTone {
   if (action.includes("archive")) {
+    return "warning";
+  }
+
+  if (action.includes("restore") || action.includes("unlock")) {
+    return "accent";
+  }
+
+  if (action.includes("lock")) {
     return "warning";
   }
 
@@ -75,6 +98,24 @@ function getTone(action: string): RecentChangeTone {
   }
 
   return "neutral";
+}
+
+function getChangeDetails(log: ActivityLogSnapshot): ActivityChangeDetail[] {
+  const nextValues = toRecord(log.new_values);
+  const previousValues = toRecord(log.previous_values);
+  const keys = new Set([
+    ...Object.keys(previousValues),
+    ...Object.keys(nextValues),
+  ]);
+
+  return Array.from(keys)
+    .sort()
+    .map((key) => ({
+      after: formatJsonValue(nextValues[key]),
+      before: formatJsonValue(previousValues[key]),
+      field: toReadableAction(key),
+    }))
+    .filter((detail) => detail.before !== detail.after);
 }
 
 function getString(record: Record<string, Json | undefined>, key: string) {
@@ -93,6 +134,18 @@ function toRecord(value: Json | null): Record<string, Json | undefined> {
   }
 
   return value;
+}
+
+function formatJsonValue(value: Json | undefined) {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return JSON.stringify(value);
 }
 
 function toReadableAction(value: string) {

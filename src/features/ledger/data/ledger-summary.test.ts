@@ -13,6 +13,7 @@ describe("buildLedgerSnapshot", () => {
     expect(snapshot.totalExpense).toBe("$150.00");
     expect(normalizeSpaces(snapshot.netIncome)).toBe("$850.00 / KHR 400,000");
     expect(snapshot.entryCount).toBe("3");
+    expect(snapshot.lockedPeriodCount).toBe("0");
   });
 });
 

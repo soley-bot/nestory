@@ -2,8 +2,12 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { LedgerPropertyOption } from "@/features/ledger/ledger.types";
 
+type ArchiveState = "active" | "archived" | "all";
+
 type LedgerFiltersProps = {
+  archiveState: ArchiveState;
   direction: string;
+  onArchiveStateChange: (value: ArchiveState) => void;
   onDirectionChange: (value: string) => void;
   onPropertyChange: (value: string) => void;
   onQueryChange: (value: string) => void;
@@ -13,7 +17,9 @@ type LedgerFiltersProps = {
 };
 
 export function LedgerFilters({
+  archiveState,
   direction,
+  onArchiveStateChange,
   onDirectionChange,
   onPropertyChange,
   onQueryChange,
@@ -23,7 +29,7 @@ export function LedgerFilters({
 }: LedgerFiltersProps) {
   return (
     <div className="border-b border-border bg-surface px-8 py-4">
-      <div className="grid grid-cols-[minmax(260px,1fr)_220px_180px] gap-3">
+      <div className="grid grid-cols-[minmax(260px,1fr)_220px_180px_160px] gap-3">
         <label className="relative block">
           <span className="sr-only">Search ledger entries</span>
           <Search
@@ -65,6 +71,21 @@ export function LedgerFilters({
             <option value="all">All directions</option>
             <option value="income">Income</option>
             <option value="expense">Expense</option>
+          </select>
+        </label>
+
+        <label>
+          <span className="sr-only">Filter by archive state</span>
+          <select
+            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            onChange={(event) =>
+              onArchiveStateChange(event.target.value as ArchiveState)
+            }
+            value={archiveState}
+          >
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+            <option value="all">All records</option>
           </select>
         </label>
       </div>

@@ -18,6 +18,13 @@ describe("toRecentChange", () => {
       action: "updated_from_ledger",
       actionLabel: "Synced from ledger",
       createdAt: "2026-06-16T10:15:00.000Z",
+      details: [
+        {
+          after: "Expense - Maintenance",
+          before: "-",
+          field: "Title",
+        },
+      ],
       entityLabel: "Timeline",
       id: "log-1",
       recordLabel: "Expense - Maintenance",

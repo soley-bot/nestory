@@ -4,11 +4,15 @@ import {
   CalendarDays,
   ExternalLink,
   Landmark,
+  Lock,
   Pencil,
   ReceiptText,
+  RotateCcw,
+  Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DocumentList } from "@/features/documents/components/document-list";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoney } from "@/lib/money/format";
@@ -16,13 +20,17 @@ import { formatMoney } from "@/lib/money/format";
 type LedgerInspectorProps = {
   entry: LedgerEntry | null;
   onArchiveEntry: (entry: LedgerEntry) => void;
+  onAttachReceipt: (entry: LedgerEntry) => void;
   onEditEntry: (entry: LedgerEntry) => void;
+  onRestoreEntry: (entry: LedgerEntry) => void;
 };
 
 export function LedgerInspector({
   entry,
   onArchiveEntry,
+  onAttachReceipt,
   onEditEntry,
+  onRestoreEntry,
 }: LedgerInspectorProps) {
   if (!entry) {
     return (
@@ -38,12 +46,23 @@ export function LedgerInspector({
     );
   }
 
+  const isArchived = Boolean(entry.archivedAt);
+
   return (
     <aside className="rounded-md border border-border bg-surface">
       <div className="border-b border-border p-5">
         <div className="flex items-center justify-between gap-3">
           <DirectionBadge direction={entry.direction} />
-          <Badge>{entry.propertyCode}</Badge>
+          <div className="flex items-center gap-2">
+            {isArchived ? <Badge tone="warning">Archived</Badge> : null}
+            {entry.isLocked ? (
+              <Badge tone="warning">
+                <Lock size={12} />
+                Locked
+              </Badge>
+            ) : null}
+            <Badge>{entry.propertyCode}</Badge>
+          </div>
         </div>
         <h2 className="mt-4 text-lg font-semibold tracking-tight">
           {entry.category}
@@ -72,6 +91,11 @@ export function LedgerInspector({
         <InspectorRow icon={<ReceiptText size={16} />} label="Ledger id">
           <span className="font-mono text-xs">{entry.id}</span>
         </InspectorRow>
+        {entry.archivedAt ? (
+          <InspectorRow icon={<Archive size={16} />} label="Archived">
+            {formatDate(entry.archivedAt)}
+          </InspectorRow>
+        ) : null}
       </div>
 
       <div className="border-t border-border p-5">
@@ -107,19 +131,69 @@ export function LedgerInspector({
       </div>
 
       <div className="border-t border-border p-5">
+        <div className="mb-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+              Receipts
+            </p>
+            {!isArchived ? (
+              <Button onClick={() => onAttachReceipt(entry)} variant="ghost">
+                <Upload size={15} />
+                Attach
+              </Button>
+            ) : null}
+          </div>
+          <DocumentList
+            documents={entry.documents}
+            emptyLabel="No receipts attached yet."
+          />
+        </div>
+      </div>
+
+      <div className="border-t border-border p-5">
         <div className="grid grid-cols-2 gap-2">
-          <Button onClick={() => onEditEntry(entry)}>
-            <Pencil size={15} />
-            Edit
-          </Button>
-          <Button onClick={() => onArchiveEntry(entry)}>
-            <Archive size={15} />
-            Archive
-          </Button>
+          {isArchived ? (
+            <Button
+              className="col-span-2"
+              disabled={entry.isLocked}
+              onClick={() => onRestoreEntry(entry)}
+              title={
+                entry.isLocked ? "This accounting period is locked." : undefined
+              }
+              variant="primary"
+            >
+              <RotateCcw size={15} />
+              Restore
+            </Button>
+          ) : (
+            <>
+              <Button
+                disabled={entry.isLocked}
+                onClick={() => onEditEntry(entry)}
+                title={
+                  entry.isLocked ? "This accounting period is locked." : undefined
+                }
+              >
+                <Pencil size={15} />
+                Edit
+              </Button>
+              <Button
+                disabled={entry.isLocked}
+                onClick={() => onArchiveEntry(entry)}
+                title={
+                  entry.isLocked ? "This accounting period is locked." : undefined
+                }
+              >
+                <Archive size={15} />
+                Archive
+              </Button>
+            </>
+          )}
         </div>
         <p className="mt-3 text-xs leading-5 text-muted">
-          Archiving from Ledger hides this entry from totals and archives the
-          linked timeline event when one exists.
+          {entry.isLocked
+            ? "This entry belongs to a locked accounting period. Unlock the period before editing, archiving, or restoring it."
+            : "Archiving from Ledger hides this entry from totals and archives the linked timeline event when one exists."}
         </p>
       </div>
     </aside>

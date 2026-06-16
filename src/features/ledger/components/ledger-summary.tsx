@@ -1,10 +1,16 @@
-import { ArrowDownCircle, ArrowUpCircle, Landmark, ReceiptText } from "lucide-react";
+import {
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Landmark,
+  Lock,
+  ReceiptText,
+} from "lucide-react";
 import { MetricTile } from "@/components/data/metric-tile";
 import type { LedgerSnapshot } from "@/features/ledger/ledger.types";
 
 export function LedgerSummary({ snapshot }: { snapshot: LedgerSnapshot }) {
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <MetricTile
         helper="Income minus expenses"
         icon={<Landmark size={18} />}
@@ -28,6 +34,12 @@ export function LedgerSummary({ snapshot }: { snapshot: LedgerSnapshot }) {
         icon={<ReceiptText size={18} />}
         label="Entries"
         value={snapshot.entryCount}
+      />
+      <MetricTile
+        helper="Closed accounting months"
+        icon={<Lock size={18} />}
+        label="Locked periods"
+        value={snapshot.lockedPeriodCount}
       />
     </div>
   );

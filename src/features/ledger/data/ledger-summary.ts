@@ -16,6 +16,7 @@ export function buildLedgerSnapshot(
 ): LedgerSnapshot {
   return {
     entryCount: String(entries.length),
+    lockedPeriodCount: "0",
     netIncome: formatMoneyTotals(entries),
     totalExpense: formatDirectionTotal(entries, "expense"),
     totalIncome: formatDirectionTotal(entries, "income"),

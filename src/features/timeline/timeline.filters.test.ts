@@ -6,10 +6,12 @@ const events: TimelineEvent[] = [
   {
     createdBy: "Admin",
     description: "Bathroom work completed",
+    documents: [],
     eventDate: "2026-06-12",
     eventType: "Renovation",
     hasAttachment: true,
     id: "event-1",
+    isLocked: false,
     propertyCode: "CTR",
     propertyId: "property-1",
     propertyName: "Central Residence",
@@ -17,12 +19,15 @@ const events: TimelineEvent[] = [
     unitNumber: "12B",
   },
   {
+    archivedAt: "2026-06-16T09:00:00.000Z",
     createdBy: "Admin",
     description: "Lease renewal discussion",
+    documents: [],
     eventDate: "2026-05-31",
     eventType: "Rent Increase",
     hasAttachment: false,
     id: "event-2",
+    isLocked: false,
     propertyCode: "NTH",
     propertyId: "property-2",
     propertyName: "Northline Mixed Use",
@@ -36,6 +41,7 @@ describe("filterTimelineEvents", () => {
   it("filters by property and event type", () => {
     expect(
       filterTimelineEvents(events, {
+        archiveState: "all",
         eventType: "Renovation",
         propertyId: "property-1",
         query: "",
@@ -46,6 +52,7 @@ describe("filterTimelineEvents", () => {
   it("searches across property, unit, title, and description fields", () => {
     expect(
       filterTimelineEvents(events, {
+        archiveState: "all",
         eventType: "all",
         propertyId: "all",
         query: "04c renewal",
@@ -56,9 +63,29 @@ describe("filterTimelineEvents", () => {
   it("matches linked ledger labels", () => {
     expect(
       filterTimelineEvents(events, {
+        archiveState: "all",
         eventType: "all",
         propertyId: "all",
         query: "income rent",
+      }),
+    ).toEqual([events[1]]);
+  });
+
+  it("hides archived rows by default and can filter to archive view", () => {
+    expect(
+      filterTimelineEvents(events, {
+        eventType: "all",
+        propertyId: "all",
+        query: "",
+      }),
+    ).toEqual([events[0]]);
+
+    expect(
+      filterTimelineEvents(events, {
+        archiveState: "archived",
+        eventType: "all",
+        propertyId: "all",
+        query: "",
       }),
     ).toEqual([events[1]]);
   });

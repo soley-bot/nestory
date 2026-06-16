@@ -60,6 +60,7 @@ export type Database = {
           category: string
           file_name: string
           id: string
+          ledger_entry_id: string | null
           lease_id: string | null
           mime_type: string
           organization_id: string
@@ -77,6 +78,7 @@ export type Database = {
           category: string
           file_name: string
           id?: string
+          ledger_entry_id?: string | null
           lease_id?: string | null
           mime_type: string
           organization_id: string
@@ -94,6 +96,7 @@ export type Database = {
           category?: string
           file_name?: string
           id?: string
+          ledger_entry_id?: string | null
           lease_id?: string | null
           mime_type?: string
           organization_id?: string
@@ -106,6 +109,13 @@ export type Database = {
           uploaded_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "documents_ledger_entry_id_fkey"
+            columns: ["ledger_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "documents_lease_id_fkey"
             columns: ["lease_id"]
@@ -139,6 +149,47 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ledger_period_locks: {
+        Row: {
+          created_at: string
+          id: string
+          locked_at: string | null
+          locked_by: string | null
+          organization_id: string
+          period_start: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          organization_id: string
+          period_start: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          organization_id?: string
+          period_start?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_period_locks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -650,6 +701,29 @@ export type Database = {
           p_property_id: string
           p_transaction_date: string
           p_unit_id: string | null
+        }
+        Returns: string
+      }
+      restore_ledger_entry: {
+        Args: {
+          p_entry_id: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
+      restore_timeline_event: {
+        Args: {
+          p_event_id: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
+      set_ledger_period_lock: {
+        Args: {
+          p_locked: boolean
+          p_organization_id: string
+          p_period_start: string
+          p_reason: string
         }
         Returns: string
       }

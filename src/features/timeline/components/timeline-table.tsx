@@ -1,4 +1,5 @@
-import { FileText } from "lucide-react";
+import { FileText, Lock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
 import type { TimelineEvent } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
@@ -41,6 +42,7 @@ export function TimelineTable({
               className={cn(
                 "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70",
                 selectedEventId === event.id && "bg-accent-soft",
+                event.archivedAt && "text-muted",
               )}
               key={event.id}
               onClick={() => onSelectEvent(event.id)}
@@ -63,6 +65,17 @@ export function TimelineTable({
                     <FileText className="mt-0.5 shrink-0 text-muted" size={15} />
                   ) : null}
                 </div>
+                {event.archivedAt || event.isLocked ? (
+                  <div className="mt-2 flex items-center gap-2">
+                    {event.archivedAt ? <Badge tone="warning">Archived</Badge> : null}
+                    {event.isLocked ? (
+                      <Badge tone="warning">
+                        <Lock size={12} />
+                        Locked
+                      </Badge>
+                    ) : null}
+                  </div>
+                ) : null}
               </td>
               <td className="px-4 py-3">
                 <p className="font-medium">{event.propertyCode}</p>

@@ -1,4 +1,5 @@
 import type { CurrencyCode } from "@/lib/money/format";
+import type { LinkedDocument } from "@/features/documents/document.types";
 
 export type TimelineEventType =
   | "Lease Started"
@@ -15,6 +16,7 @@ export type TimelineEventType =
 
 export type TimelineEvent = {
   id: string;
+  archivedAt?: string;
   eventDate: string;
   eventType: TimelineEventType;
   title: string;
@@ -26,7 +28,9 @@ export type TimelineEvent = {
   unitNumber?: string;
   cost?: number;
   currency?: CurrencyCode;
+  documents: LinkedDocument[];
   hasAttachment: boolean;
+  isLocked: boolean;
   ledgerEntryId?: string;
   createdBy: string;
   relatedDocument?: string;

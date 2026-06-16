@@ -3,7 +3,9 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   ExternalLink,
+  Lock,
   Pencil,
+  RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/dates/format";
@@ -15,6 +17,7 @@ type LedgerTableProps = {
   entries: LedgerEntry[];
   onArchiveEntry: (entry: LedgerEntry) => void;
   onEditEntry: (entry: LedgerEntry) => void;
+  onRestoreEntry: (entry: LedgerEntry) => void;
   onSelectEntry: (id: string) => void;
   selectedEntryId: string;
 };
@@ -23,6 +26,7 @@ export function LedgerTable({
   entries,
   onArchiveEntry,
   onEditEntry,
+  onRestoreEntry,
   onSelectEntry,
   selectedEntryId,
 }: LedgerTableProps) {
@@ -52,6 +56,7 @@ export function LedgerTable({
               className={cn(
                 "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70",
                 selectedEntryId === entry.id && "bg-accent-soft",
+                entry.archivedAt && "text-muted",
               )}
               key={entry.id}
               onClick={() => onSelectEntry(entry.id)}
@@ -72,6 +77,19 @@ export function LedgerTable({
                   {entry.relatedTimelineEvent
                     ? "Timeline linked"
                     : "Timeline link pending"}
+                  {entry.archivedAt ? (
+                    <>
+                      <span aria-hidden="true">-</span>
+                      <span>Archived</span>
+                    </>
+                  ) : null}
+                  {entry.isLocked ? (
+                    <>
+                      <span aria-hidden="true">-</span>
+                      <Lock size={12} />
+                      <span>Locked</span>
+                    </>
+                  ) : null}
                 </div>
               </td>
               <td className="px-4 py-3">
@@ -86,28 +104,54 @@ export function LedgerTable({
               </td>
               <td className="px-4 py-3">
                 <div className="flex justify-end gap-1">
-                  <button
-                    aria-label={`Edit ${entry.category}`}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onEditEntry(entry);
-                    }}
-                    type="button"
-                  >
-                    <Pencil size={15} />
-                  </button>
-                  <button
-                    aria-label={`Archive ${entry.category}`}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-danger"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onArchiveEntry(entry);
-                    }}
-                    type="button"
-                  >
-                    <Archive size={15} />
-                  </button>
+                  {entry.archivedAt ? (
+                    <button
+                      aria-label={`Restore ${entry.category}`}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-accent disabled:pointer-events-none disabled:opacity-50"
+                      disabled={entry.isLocked}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRestoreEntry(entry);
+                      }}
+                      title={entry.isLocked ? "This accounting period is locked." : undefined}
+                      type="button"
+                    >
+                      <RotateCcw size={15} />
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        aria-label={`Edit ${entry.category}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                        disabled={entry.isLocked}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onEditEntry(entry);
+                        }}
+                        title={
+                          entry.isLocked ? "This accounting period is locked." : undefined
+                        }
+                        type="button"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        aria-label={`Archive ${entry.category}`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-danger disabled:pointer-events-none disabled:opacity-50"
+                        disabled={entry.isLocked}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onArchiveEntry(entry);
+                        }}
+                        title={
+                          entry.isLocked ? "This accounting period is locked." : undefined
+                        }
+                        type="button"
+                      >
+                        <Archive size={15} />
+                      </button>
+                    </>
+                  )}
                 </div>
               </td>
             </tr>

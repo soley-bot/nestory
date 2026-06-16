@@ -1,14 +1,17 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { Archive, Download, Plus, Save } from "lucide-react";
+import { Archive, Download, Plus, RotateCcw, Save, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
+import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
 import { RecentChangesPanel } from "@/features/activity/components/recent-changes-panel";
 import type { RecentChange } from "@/features/activity/activity.types";
 import {
   archiveTimelineEventAction,
+  attachTimelineDocumentAction,
+  restoreTimelineEventAction,
   type TimelineActionState,
 } from "@/features/timeline/actions";
 import { PropertyPerformanceSnapshot } from "@/features/timeline/components/property-performance-snapshot";
@@ -26,11 +29,16 @@ import type {
 } from "@/features/timeline/timeline.types";
 
 const archiveInitialState: TimelineActionState = {};
+const documentInitialState: TimelineActionState = {};
+const restoreInitialState: TimelineActionState = {};
 
 type DrawerState =
   | { mode: "create"; event: null }
   | { mode: "edit"; event: TimelineEvent }
-  | { mode: "archive"; event: TimelineEvent };
+  | { mode: "archive"; event: TimelineEvent }
+  | { mode: "restore"; event: TimelineEvent }
+  | { mode: "document"; event: TimelineEvent }
+  | { mode: "activity"; change: RecentChange };
 
 type TimelineScreenProps = {
   eventTypes: TimelineEventType[];
@@ -51,6 +59,9 @@ export function TimelineScreen({
   snapshot,
   unitOptions,
 }: TimelineScreenProps) {
+  const [archiveState, setArchiveState] = useState<
+    "active" | "archived" | "all"
+  >("active");
   const [query, setQuery] = useState("");
   const [eventType, setEventType] = useState("all");
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
@@ -62,11 +73,12 @@ export function TimelineScreen({
 
   const filteredEvents = useMemo(() => {
     return filterTimelineEvents(events, {
+      archiveState,
       eventType,
       propertyId: property,
       query,
     });
-  }, [eventType, events, property, query]);
+  }, [archiveState, eventType, events, property, query]);
 
   const selectedEvent =
     filteredEvents.find((event) => event.id === selectedEventId) ??
@@ -114,8 +126,10 @@ export function TimelineScreen({
       ) : null}
 
       <TimelineFilters
+        archiveState={archiveState}
         eventType={eventType}
         eventTypes={eventTypes}
+        onArchiveStateChange={setArchiveState}
         onEventTypeChange={setEventType}
         onPropertyChange={setProperty}
         onQueryChange={setQuery}
@@ -126,7 +140,13 @@ export function TimelineScreen({
 
       <div className="space-y-5 p-8">
         <PropertyPerformanceSnapshot snapshot={snapshot} />
-        <RecentChangesPanel changes={recentChanges} />
+        <RecentChangesPanel
+          changes={recentChanges}
+          onSelectChange={(change) => {
+            setStatusMessage(null);
+            setDrawer({ change, mode: "activity" });
+          }}
+        />
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <TimelineTable
             events={filteredEvents}
@@ -134,8 +154,11 @@ export function TimelineScreen({
             selectedEventId={selectedEvent?.id ?? ""}
           />
           <TimelineInspector
-            archiveDisabled={false}
             event={selectedEvent}
+            onAttachDocument={(event) => {
+              setStatusMessage(null);
+              setDrawer({ event, mode: "document" });
+            }}
             onArchive={(event) => {
               setStatusMessage(null);
               setDrawer({ event, mode: "archive" });
@@ -143,6 +166,10 @@ export function TimelineScreen({
             onEdit={(event) => {
               setStatusMessage(null);
               setDrawer({ event, mode: "edit" });
+            }}
+            onRestore={(event) => {
+              setStatusMessage(null);
+              setDrawer({ event, mode: "restore" });
             }}
           />
         </div>
@@ -161,6 +188,20 @@ export function TimelineScreen({
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
             />
+          ) : drawer.mode === "restore" ? (
+            <RestoreTimelineEventPanel
+              event={drawer.event}
+              onClose={() => setDrawer(null)}
+              onSuccess={setStatusMessage}
+            />
+          ) : drawer.mode === "document" ? (
+            <TimelineDocumentPanel
+              event={drawer.event}
+              onClose={() => setDrawer(null)}
+              onSuccess={setStatusMessage}
+            />
+          ) : drawer.mode === "activity" ? (
+            <ActivityDetailPanel change={drawer.change} />
           ) : (
             <TimelineEventForm
               event={drawer.event}
@@ -188,6 +229,18 @@ function getTimelineDrawerTitle(drawer: DrawerState) {
     return "Edit timeline event";
   }
 
+  if (drawer.mode === "restore") {
+    return "Restore timeline event";
+  }
+
+  if (drawer.mode === "document") {
+    return "Attach document";
+  }
+
+  if (drawer.mode === "activity") {
+    return "Change detail";
+  }
+
   return "Archive timeline event";
 }
 
@@ -198,6 +251,18 @@ function getTimelineDrawerDescription(drawer: DrawerState) {
 
   if (drawer.mode === "edit") {
     return "Review and update the selected historical record.";
+  }
+
+  if (drawer.mode === "restore") {
+    return "Return this archived record to normal timeline views.";
+  }
+
+  if (drawer.mode === "document") {
+    return "Attach a PDF or image to this historical record.";
+  }
+
+  if (drawer.mode === "activity") {
+    return "Review the before and after values recorded in the activity log.";
   }
 
   return "Hide this record from normal timeline views while keeping audit history.";
@@ -254,6 +319,144 @@ function ArchiveTimelineEventPanel({
         </Button>
         <Button disabled={pending} type="submit" variant="primary">
           {pending ? "Archiving..." : "Archive event"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function RestoreTimelineEventPanel({
+  event,
+  onClose,
+  onSuccess,
+}: {
+  event: TimelineEvent;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const [state, action, pending] = useActionState(
+    restoreTimelineEventAction,
+    restoreInitialState,
+  );
+
+  useEffect(() => {
+    if (state.status === "success") {
+      onSuccess(state.message ?? "Timeline event restored.");
+      onClose();
+    }
+  }, [onClose, onSuccess, state.message, state.status]);
+
+  return (
+    <form action={action} className="flex h-full flex-col">
+      <input name="eventId" type="hidden" value={event.id} />
+      <div className="flex-1 px-5 py-5">
+        <div className="mb-4 flex items-center gap-2 text-accent">
+          <RotateCcw size={16} />
+          <p className="text-sm font-semibold">Restore confirmation</p>
+        </div>
+        <div className="rounded-md border border-border bg-surface-muted p-4">
+          <p className="text-sm font-medium text-foreground">{event.title}</p>
+          <p className="mt-1 text-sm text-muted">
+            {event.propertyCode}
+            {event.unitNumber ? ` / Unit ${event.unitNumber}` : ""}
+          </p>
+        </div>
+        <p className="mt-4 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+          Restoring makes this record visible in normal timeline views again.
+        </p>
+        {state.message ? (
+          <p
+            className="mt-4 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            role={state.status === "error" ? "alert" : "status"}
+          >
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
+        <Button onClick={onClose} type="button">
+          Cancel
+        </Button>
+        <Button disabled={pending} type="submit" variant="primary">
+          <RotateCcw size={15} />
+          {pending ? "Restoring..." : "Restore event"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function TimelineDocumentPanel({
+  event,
+  onClose,
+  onSuccess,
+}: {
+  event: TimelineEvent;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const [state, action, pending] = useActionState(
+    attachTimelineDocumentAction,
+    documentInitialState,
+  );
+
+  useEffect(() => {
+    if (state.status === "success") {
+      onSuccess(state.message ?? "Document attached.");
+      onClose();
+    }
+  }, [onClose, onSuccess, state.message, state.status]);
+
+  return (
+    <form action={action} className="flex h-full flex-col" encType="multipart/form-data">
+      <input name="eventId" type="hidden" value={event.id} />
+      <div className="flex-1 space-y-4 px-5 py-5">
+        <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
+          <p className="text-sm font-medium">{event.title}</p>
+          <p className="mt-1 text-sm text-muted">
+            {event.ledgerEntryId
+              ? "This document will also appear on the linked ledger entry."
+              : "This document is attached to the timeline event."}
+          </p>
+        </div>
+
+        <label className="block text-sm font-medium">
+          Document file
+          <input
+            accept="application/pdf,image/jpeg,image/png,image/webp"
+            className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none file:mr-3 file:rounded-md file:border-0 file:bg-surface-muted file:px-3 file:py-1.5 file:text-sm file:font-medium focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            name="document"
+            required
+            type="file"
+          />
+          {state.fieldErrors?.document?.[0] ? (
+            <p className="mt-1 text-xs text-danger">
+              {state.fieldErrors.document[0]}
+            </p>
+          ) : null}
+        </label>
+
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs leading-5 text-muted">
+          Accepted files: PDF, JPG, PNG, and WebP up to 10 MB.
+        </p>
+
+        {state.message ? (
+          <p
+            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            role={state.status === "error" ? "alert" : "status"}
+          >
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
+        <Button onClick={onClose} type="button">
+          Cancel
+        </Button>
+        <Button disabled={pending} type="submit" variant="primary">
+          <Upload size={15} />
+          {pending ? "Uploading..." : "Attach document"}
         </Button>
       </div>
     </form>

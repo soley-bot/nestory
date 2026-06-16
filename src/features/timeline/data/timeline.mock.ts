@@ -1,6 +1,6 @@
 import type { TimelineEvent } from "@/features/timeline/timeline.types";
 
-export const timelineEvents: TimelineEvent[] = [
+const timelineEventRows: Omit<TimelineEvent, "documents" | "isLocked">[] = [
   {
     id: "evt_001",
     eventDate: "2026-06-12",
@@ -99,6 +99,12 @@ export const timelineEvents: TimelineEvent[] = [
     relatedDocument: "Owner Agreement 2026",
   },
 ];
+
+export const timelineEvents: TimelineEvent[] = timelineEventRows.map((event) => ({
+  ...event,
+  documents: [],
+  isLocked: false,
+}));
 
 export const eventTypes = Array.from(
   new Set(timelineEvents.map((event) => event.eventType)),
