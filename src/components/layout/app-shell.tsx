@@ -87,6 +87,7 @@ export function AppShell({
                       )}
                       href={item.href}
                       key={item.href}
+                      prefetch={false}
                     >
                       <Icon size={16} />
                       {item.label}
