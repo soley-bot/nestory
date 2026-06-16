@@ -38,9 +38,20 @@ Validate and reset the local database:
 ```bash
 npm run db:lint
 npm run db:reset
+npm run db:types
 ```
 
 Copy `.env.example` to `.env.local` and fill in the Supabase values from the local start output or from the hosted Supabase project.
+
+Hosted Supabase project:
+
+- Organization: SOLEY
+- Project: nestory
+- Region: ap-southeast-1, Singapore
+- Project ref: `pfvmztxktkwyewvxfgot`
+- Public URL: `https://pfvmztxktkwyewvxfgot.supabase.co`
+
+Codex Supabase MCP is authenticated for hosted project work. Supabase CLI hosted login is not required for local development; if we later want `supabase link` or `supabase db push`, log in with a fresh Supabase personal access token.
 
 ## Project Rules
 

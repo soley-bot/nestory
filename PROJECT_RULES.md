@@ -47,6 +47,21 @@ Local Supabase foundation verified on 2026-06-16:
 - `npx supabase db advisors --local --type all --level warn --fail-on error` passed with no issues.
 - Seed smoke query confirmed 1 organization, 2 properties, 2 units, and 2 timeline events.
 
+Hosted Supabase foundation verified on 2026-06-16:
+
+- Organization: `SOLEY`
+- Project: `nestory`
+- Project ref: `pfvmztxktkwyewvxfgot`
+- Region: `ap-southeast-1` / Singapore
+- Public URL: `https://pfvmztxktkwyewvxfgot.supabase.co`
+- Applied migrations: `initial_schema`, `add_foreign_key_indexes`, `grant_authenticated_data_api_access`
+- Hosted security advisors returned no lints.
+- Hosted performance advisors only returned `unused_index` INFO notices on the new empty database; keep those indexes until real usage data says otherwise.
+- Hosted database intentionally has no seed data.
+- Public schema tables have explicit Data API grants for `authenticated` plus server-only `service_role`; no broad anonymous table grants.
+- Codex Supabase MCP is authenticated and can manage the hosted project.
+- Supabase CLI hosted auth still needs a fresh personal access token if we later use `supabase link` or `supabase db push`; local CLI commands work without hosted auth.
+
 Use the Vercel CLI for deployment work, especially `vercel env pull`, `vercel deploy`, and `vercel logs`.
 
 Do not install Supabase CLI globally with npm. Use `npx supabase ...` before the app is scaffolded, then install it as a local dev dependency after `package.json` exists:
