@@ -23,6 +23,8 @@ npm run lint
 npm run build
 ```
 
+For the auth, Supabase, and Vercel smoke checklist, see `docs/foundation-checklist.md`.
+
 ## Supabase
 
 Supabase CLI is installed as a local dev dependency. Docker Desktop must be running before local Supabase commands work.

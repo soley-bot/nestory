@@ -55,13 +55,16 @@ Hosted Supabase foundation verified on 2026-06-16:
 - Region: `ap-southeast-1` / Singapore
 - Public URL: `https://pfvmztxktkwyewvxfgot.supabase.co`
 - Applied migrations: `initial_schema`, `add_foreign_key_indexes`, `grant_authenticated_data_api_access`, `bootstrap_admin_organization`, `fix_bootstrap_admin_organization`, `move_bootstrap_admin_organization_private`
-- Hosted security advisors returned no lints.
-- Hosted performance advisors only returned `unused_index` INFO notices on the new empty database; keep those indexes until real usage data says otherwise.
+- Hosted auth data check on 2026-06-16 found 2 confirmed users, 2 organizations, and 2 admin memberships. There were no pending confirmation users or orphaned memberships to clean up.
+- Hosted security advisors currently return one auth hardening warning: leaked password protection is disabled. Enable it in Supabase Auth password settings when the project plan supports it.
+- Hosted performance advisors only returned `unused_index` INFO notices on the new low-usage database; keep those indexes until real usage data says otherwise.
 - Hosted database intentionally has no seed data.
 - Public schema tables have explicit Data API grants for `authenticated` plus server-only `service_role`; no broad anonymous table grants.
 - First-admin workspace bootstrap is exposed through `public.bootstrap_admin_organization(text)`, which delegates to `app_private.bootstrap_admin_organization(text)` so organization and self-admin membership are created in one database transaction without exposing a public `SECURITY DEFINER` function.
 - Codex Supabase MCP is authenticated and can manage the hosted project.
 - Supabase CLI hosted auth still needs a fresh personal access token if we later use `supabase link` or `supabase db push`; local CLI commands work without hosted auth.
+
+Use `docs/foundation-checklist.md` before adding new product modules or after changing auth, routing, Supabase policies, Vercel config, or environment variables.
 
 Use the Vercel CLI for deployment work, especially `vercel env pull`, `vercel deploy`, and `vercel logs`.
 
