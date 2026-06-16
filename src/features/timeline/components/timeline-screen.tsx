@@ -5,14 +5,17 @@ import { Download, Plus, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/page-header";
 import { PropertyPerformanceSnapshot } from "@/features/timeline/components/property-performance-snapshot";
+import { TimelineEventForm } from "@/features/timeline/components/timeline-event-form";
 import { TimelineFilters } from "@/features/timeline/components/timeline-filters";
 import { TimelineInspector } from "@/features/timeline/components/timeline-inspector";
 import { TimelineTable } from "@/features/timeline/components/timeline-table";
+import { filterTimelineEvents } from "@/features/timeline/timeline.filters";
 import type {
   TimelineEvent,
   TimelineEventType,
   TimelinePropertyOption,
   TimelineSnapshot,
+  TimelineUnitOption,
 } from "@/features/timeline/timeline.types";
 
 type TimelineScreenProps = {
@@ -20,6 +23,7 @@ type TimelineScreenProps = {
   events: TimelineEvent[];
   propertyOptions: TimelinePropertyOption[];
   snapshot: TimelineSnapshot;
+  unitOptions: TimelineUnitOption[];
 };
 
 export function TimelineScreen({
@@ -27,39 +31,19 @@ export function TimelineScreen({
   events,
   propertyOptions,
   snapshot,
+  unitOptions,
 }: TimelineScreenProps) {
   const [query, setQuery] = useState("");
   const [eventType, setEventType] = useState("all");
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [property, setProperty] = useState("all");
   const [selectedEventId, setSelectedEventId] = useState(events[0]?.id ?? "");
 
   const filteredEvents = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    return events.filter((event) => {
-      const matchesEventType =
-        eventType === "all" || event.eventType === eventType;
-      const matchesProperty =
-        property === "all" || event.propertyId === property;
-      const searchable = [
-        event.title,
-        event.description,
-        event.propertyName,
-        event.propertyCode,
-        event.unitNumber,
-        event.relatedDocument,
-        event.relatedLease,
-        event.relatedLedgerEntry,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return (
-        matchesEventType &&
-        matchesProperty &&
-        (!normalizedQuery || searchable.includes(normalizedQuery))
-      );
+    return filterTimelineEvents(events, {
+      eventType,
+      propertyId: property,
+      query,
     });
   }, [eventType, events, property, query]);
 
@@ -81,7 +65,7 @@ export function TimelineScreen({
               <Download size={15} />
               Export
             </Button>
-            <Button variant="primary">
+            <Button onClick={() => setIsFormOpen(true)} variant="primary">
               <Plus size={15} />
               Add event
             </Button>
@@ -90,6 +74,15 @@ export function TimelineScreen({
         description="Search, filter, and inspect the full historical record across properties and units."
         title="Timeline History"
       />
+
+      {isFormOpen ? (
+        <TimelineEventForm
+          eventTypes={eventTypes}
+          onClose={() => setIsFormOpen(false)}
+          properties={propertyOptions}
+          units={unitOptions}
+        />
+      ) : null}
 
       <TimelineFilters
         eventType={eventType}

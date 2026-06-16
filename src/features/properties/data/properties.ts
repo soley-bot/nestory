@@ -1,18 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
-import { formatMoneyTotals } from "@/lib/money/totals";
+import {
+  buildPropertySummary,
+  type PropertySummary,
+} from "@/features/properties/data/property-summary";
 
-export type PropertySummary = {
-  id: string;
-  name: string;
-  code: string;
-  type: string;
-  owner: string;
-  address: string;
-  status: string;
-  units: number;
-  occupiedUnits: number;
-  netIncome: string;
-};
+export type { PropertySummary } from "@/features/properties/data/property-summary";
 
 export async function getPropertySummaries(organizationId: string) {
   const supabase = await createSupabaseServerClient();
@@ -57,18 +49,7 @@ export async function getPropertySummaries(organizationId: string) {
     const units = unitsByProperty.get(property.id) ?? [];
     const ledgerEntries = ledgerByProperty.get(property.id) ?? [];
 
-    return {
-      id: property.id,
-      name: property.name,
-      code: property.code,
-      type: property.property_type,
-      owner: property.owner ?? "Unassigned",
-      address: property.address ?? "No address recorded",
-      status: formatPropertyStatus(property.status),
-      units: units.length,
-      occupiedUnits: units.filter((unit) => unit.status === "occupied").length,
-      netIncome: formatMoneyTotals(ledgerEntries),
-    };
+    return buildPropertySummary({ ledgerEntries, property, units });
   });
 }
 
@@ -90,26 +71,4 @@ function groupByProperty<T extends { property_id: string }>(rows: T[]) {
   }
 
   return grouped;
-}
-
-function formatPropertyStatus(status: string) {
-  const normalized = status.trim().toLowerCase().replace(/[_-]+/g, " ");
-
-  if (normalized === "active") {
-    return "Active";
-  }
-
-  if (normalized === "archived") {
-    return "Archived";
-  }
-
-  if (normalized === "under renovation" || normalized === "renovation") {
-    return "Under Renovation";
-  }
-
-  return normalized
-    .split(" ")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
 }

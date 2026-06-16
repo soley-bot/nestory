@@ -1,0 +1,54 @@
+import { describe, expect, it } from "vitest";
+import { filterTimelineEvents } from "@/features/timeline/timeline.filters";
+import type { TimelineEvent } from "@/features/timeline/timeline.types";
+
+const events: TimelineEvent[] = [
+  {
+    createdBy: "Admin",
+    description: "Bathroom work completed",
+    eventDate: "2026-06-12",
+    eventType: "Renovation",
+    hasAttachment: true,
+    id: "event-1",
+    propertyCode: "CTR",
+    propertyId: "property-1",
+    propertyName: "Central Residence",
+    title: "Renovation completed",
+    unitNumber: "12B",
+  },
+  {
+    createdBy: "Admin",
+    description: "Lease renewal discussion",
+    eventDate: "2026-05-31",
+    eventType: "Rent Increase",
+    hasAttachment: false,
+    id: "event-2",
+    propertyCode: "NTH",
+    propertyId: "property-2",
+    propertyName: "Northline Mixed Use",
+    title: "Rent review",
+    unitNumber: "04C",
+  },
+];
+
+describe("filterTimelineEvents", () => {
+  it("filters by property and event type", () => {
+    expect(
+      filterTimelineEvents(events, {
+        eventType: "Renovation",
+        propertyId: "property-1",
+        query: "",
+      }),
+    ).toEqual([events[0]]);
+  });
+
+  it("searches across property, unit, title, and description fields", () => {
+    expect(
+      filterTimelineEvents(events, {
+        eventType: "all",
+        propertyId: "all",
+        query: "04c renewal",
+      }),
+    ).toEqual([events[1]]);
+  });
+});

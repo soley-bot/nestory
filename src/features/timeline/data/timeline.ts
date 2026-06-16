@@ -7,6 +7,7 @@ import type {
   TimelineEventType,
   TimelinePropertyOption,
   TimelineSnapshot,
+  TimelineUnitOption,
 } from "@/features/timeline/timeline.types";
 
 type PropertyRow = {
@@ -82,7 +83,7 @@ export async function getTimelineScreenData(organizationId: string) {
       .order("name", { ascending: true }),
     supabase
       .from("units")
-      .select("id, unit_number")
+      .select("id, property_id, unit_number")
       .eq("organization_id", organizationId)
       .is("archived_at", null),
     supabase
@@ -156,6 +157,15 @@ export async function getTimelineScreenData(organizationId: string) {
       }),
     ),
     snapshot: buildSnapshot(propertySummaries, ledgerResult.data ?? [], events),
+    unitOptions: (unitsResult.data ?? []).map((unit): TimelineUnitOption => {
+      const property = propertiesById.get(unit.property_id);
+
+      return {
+        id: unit.id,
+        label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+        propertyId: unit.property_id,
+      };
+    }),
   };
 }
 

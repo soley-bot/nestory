@@ -611,6 +611,20 @@ export type Database = {
           organization_id: string
         }[]
       }
+      create_timeline_event: {
+        Args: {
+          p_cost_amount: number | null
+          p_cost_currency: Database["public"]["Enums"]["currency_code"] | null
+          p_description: string | null
+          p_event_date: string
+          p_event_type: Database["public"]["Enums"]["timeline_event_type"]
+          p_organization_id: string
+          p_property_id: string
+          p_title: string
+          p_unit_id: string | null
+        }
+        Returns: string
+      }
     }
     Enums: {
       currency_code: "USD" | "KHR"

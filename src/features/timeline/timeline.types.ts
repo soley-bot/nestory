@@ -37,6 +37,12 @@ export type TimelinePropertyOption = {
   label: string;
 };
 
+export type TimelineUnitOption = {
+  id: string;
+  label: string;
+  propertyId: string;
+};
+
 export type TimelineSnapshot = {
   netIncome: string;
   occupancy: string;
