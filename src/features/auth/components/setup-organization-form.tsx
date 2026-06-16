@@ -33,7 +33,7 @@ export function SetupOrganizationForm() {
           autoComplete="organization"
           className="mt-2"
           name="organizationName"
-          placeholder="IPS Cambodia"
+          placeholder="Enter company name"
           type="text"
         />
         {state.fieldErrors?.organizationName?.length ? (

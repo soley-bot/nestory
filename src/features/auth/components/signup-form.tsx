@@ -40,7 +40,7 @@ export function SignupForm() {
           autoComplete="organization"
           className="mt-2"
           name="organizationName"
-          placeholder="IPS Cambodia"
+          placeholder="Enter company name"
           type="text"
         />
         <FieldError errors={state.fieldErrors?.organizationName} />

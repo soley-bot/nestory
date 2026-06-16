@@ -4,6 +4,7 @@ import { getSupabaseEnv } from "@/lib/db/env";
 import type { Database } from "@/types/database";
 
 const AUTH_ROUTES = new Set(["/login", "/signup"]);
+const PUBLIC_ROUTES = new Set(["/", ...AUTH_ROUTES]);
 
 function redirectToLogin(request: NextRequest) {
   const url = request.nextUrl.clone();
@@ -20,7 +21,7 @@ function redirectToTimeline(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
-  const isAuthRoute = AUTH_ROUTES.has(request.nextUrl.pathname);
+  const isPublicRoute = PUBLIC_ROUTES.has(request.nextUrl.pathname);
   let response = NextResponse.next({ request });
 
   let supabaseUrl: string;
@@ -29,7 +30,7 @@ export async function proxy(request: NextRequest) {
   try {
     ({ supabaseKey, supabaseUrl } = getSupabaseEnv());
   } catch {
-    return isAuthRoute ? response : redirectToLogin(request);
+    return isPublicRoute ? response : redirectToLogin(request);
   }
 
   const supabase = createServerClient<Database>(supabaseUrl, supabaseKey, {
@@ -54,11 +55,11 @@ export async function proxy(request: NextRequest) {
   const { data, error } = await supabase.auth.getClaims();
   const isAuthenticated = !error && typeof data?.claims?.sub === "string";
 
-  if (!isAuthenticated && !isAuthRoute) {
+  if (!isAuthenticated && !isPublicRoute) {
     return redirectToLogin(request);
   }
 
-  if (isAuthenticated && isAuthRoute) {
+  if (isAuthenticated && isPublicRoute) {
     return redirectToTimeline(request);
   }
 

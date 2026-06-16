@@ -233,7 +233,7 @@ Phase 1 can start with on-screen summaries and export-ready structure, without n
 
 ## Import
 
-IPS Cambodia may need to import existing property, unit, lease, and ledger data from Excel.
+Property teams may need to import existing property, unit, lease, and ledger data from Excel.
 
 Design with import in mind:
 

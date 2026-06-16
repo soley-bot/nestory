@@ -1,5 +1,5 @@
 INSERT INTO public.organizations (id, name)
-VALUES ('00000000-0000-0000-0000-000000000001', 'IPS Cambodia')
+VALUES ('00000000-0000-0000-0000-000000000001', 'Sample Property Group')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.properties (
@@ -17,22 +17,22 @@ VALUES
   (
     '10000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000001',
-    'BKK1 Serviced Residence',
-    'BKK1-SR-018',
+    'Central Residence',
+    'CTR-RES-018',
     'Serviced Apartment',
-    'IPS Managed Portfolio',
-    'BKK1, Phnom Penh',
+    'Owner Group A',
+    'District A',
     'active',
     '2021-03-15'
   ),
   (
     '10000000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000001',
-    'Toul Kork Mixed Use Building',
-    'TK-MU-006',
+    'Northline Mixed Use',
+    'NTH-MU-006',
     'Mixed Use',
-    'Sokha Holdings',
-    'Toul Kork, Phnom Penh',
+    'Owner Group B',
+    'District B',
     'active',
     '2020-10-01'
   )

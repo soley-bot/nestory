@@ -42,3 +42,9 @@ select,
 textarea {
   font: inherit;
 }
+
+@media (max-width: 767px) {
+  .landing-preview {
+    display: none;
+  }
+}
