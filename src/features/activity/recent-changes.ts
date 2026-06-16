@@ -4,6 +4,7 @@ import type {
   RecentChange,
   RecentChangeTone,
 } from "@/features/activity/activity.types";
+import { formatDate } from "@/lib/dates/format";
 
 export type ActivityLogSnapshot = Pick<
   Database["public"]["Tables"]["activity_logs"]["Row"],
@@ -30,6 +31,50 @@ const actionLabels: Record<string, string> = {
   updated: "Updated",
   updated_from_ledger: "Synced from ledger",
 };
+
+const hiddenDetailFields = new Set([
+  "actor_id",
+  "created_by",
+  "id",
+  "organization_id",
+]);
+
+const fieldLabels: Record<string, string> = {
+  amount: "Amount",
+  archived_at: "Archived",
+  category: "Category",
+  cost_amount: "Cost",
+  cost_currency: "Currency",
+  currency: "Currency",
+  description: "Description",
+  direction: "Direction",
+  document_id: "Document",
+  event_date: "Event date",
+  event_type: "Event type",
+  lease_id: "Lease",
+  ledger_entry_id: "Ledger link",
+  property_id: "Property",
+  timeline_event_id: "Timeline link",
+  title: "Title",
+  transaction_date: "Transaction date",
+  unit_id: "Unit",
+};
+
+const referenceFields = new Set([
+  "document_id",
+  "lease_id",
+  "ledger_entry_id",
+  "property_id",
+  "timeline_event_id",
+  "unit_id",
+]);
+
+const linkReferenceFields = new Set([
+  "document_id",
+  "lease_id",
+  "ledger_entry_id",
+  "timeline_event_id",
+]);
 
 export function toRecentChange(log: ActivityLogSnapshot): RecentChange {
   return {
@@ -109,13 +154,10 @@ function getChangeDetails(log: ActivityLogSnapshot): ActivityChangeDetail[] {
   ]);
 
   return Array.from(keys)
+    .filter((key) => !hiddenDetailFields.has(key))
     .sort()
-    .map((key) => ({
-      after: formatJsonValue(nextValues[key]),
-      before: formatJsonValue(previousValues[key]),
-      field: toReadableAction(key),
-    }))
-    .filter((detail) => detail.before !== detail.after);
+    .map((key) => toChangeDetail(key, previousValues[key], nextValues[key]))
+    .filter((detail): detail is ActivityChangeDetail => Boolean(detail));
 }
 
 function getString(record: Record<string, Json | undefined>, key: string) {
@@ -136,16 +178,100 @@ function toRecord(value: Json | null): Record<string, Json | undefined> {
   return value;
 }
 
-function formatJsonValue(value: Json | undefined) {
+function toChangeDetail(
+  key: string,
+  beforeValue: Json | undefined,
+  afterValue: Json | undefined,
+): ActivityChangeDetail | null {
+  if (isSameJsonValue(beforeValue, afterValue)) {
+    return null;
+  }
+
+  if (referenceFields.has(key)) {
+    return {
+      after: formatReferenceValue(
+        key,
+        afterValue,
+        "after",
+        beforeValue,
+        afterValue,
+      ),
+      before: formatReferenceValue(
+        key,
+        beforeValue,
+        "before",
+        beforeValue,
+        afterValue,
+      ),
+      field: fieldLabels[key] ?? toReadableAction(key),
+    };
+  }
+
+  return {
+    after: formatJsonValue(key, afterValue),
+    before: formatJsonValue(key, beforeValue),
+    field: fieldLabels[key] ?? toReadableAction(key),
+  };
+}
+
+function formatJsonValue(key: string, value: Json | undefined) {
   if (value === undefined || value === null || value === "") {
     return "-";
   }
 
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  if (typeof value === "string" && isDateField(key)) {
+    return formatDate(value);
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
     return String(value);
   }
 
   return JSON.stringify(value);
+}
+
+function formatReferenceValue(
+  key: string,
+  value: Json | undefined,
+  side: "before" | "after",
+  beforeValue: Json | undefined,
+  afterValue: Json | undefined,
+) {
+  const isLink = linkReferenceFields.has(key);
+
+  if (!hasReferenceValue(value)) {
+    return isLink ? "Not linked" : "Not set";
+  }
+
+  if (
+    hasReferenceValue(beforeValue) &&
+    hasReferenceValue(afterValue) &&
+    !isSameJsonValue(beforeValue, afterValue)
+  ) {
+    if (isLink) {
+      return side === "before" ? "Previous link" : "New link";
+    }
+
+    return side === "before" ? "Previous selection" : "New selection";
+  }
+
+  return isLink ? "Linked" : "Selected";
+}
+
+function hasReferenceValue(value: Json | undefined) {
+  return value !== undefined && value !== null && value !== "";
+}
+
+function isDateField(key: string) {
+  return key.endsWith("_at") || key.endsWith("_date");
+}
+
+function isSameJsonValue(left: Json | undefined, right: Json | undefined) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 }
 
 function toReadableAction(value: string) {

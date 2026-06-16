@@ -23,11 +23,13 @@ These rules should guide architecture, UI, database design, feature scope, and r
 
 - Timeline and Ledger are primary working surfaces, not dashboards or landing pages.
 - Keep the main record table visible as early as possible in the first viewport.
+- Size operational table columns by expected content length and scan value. Dates, type badges, amounts, status, and actions should stay compact; record/category/description context should get the flexible width.
 - Use side drawers for create, edit, archive, restore, attachment, period-lock, and activity-detail workflows.
 - Do not push the table down with expanded secondary panels.
 - Recent changes is useful audit context, but it is secondary to the records. On Timeline and Ledger it should stay collapsed by default; use the activity detail drawer when someone needs to inspect a specific change.
 - For larger audit history, add a dedicated Activity page or drawer with filtering and pagination instead of paginating inside the compact Recent changes panel.
 - Activity detail should show field-level before and after values, and must remain readable on mobile by stacking values when needed.
+- Activity detail should not show raw UUIDs for normal operators. Hide pure system fields and summarize reference changes in user language.
 - Linked Timeline/Ledger behavior should be explicit in the inspector. Ledger-owned timeline events should be edited, archived, and restored from Ledger.
 - Archive views should be available through filters, and archived records should be clearly labeled without affecting normal active totals.
 - Accounting period locks should be visible in Ledger and enforced by the database, not only by disabled UI controls.

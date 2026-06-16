@@ -6,7 +6,6 @@ import {
   Landmark,
   Lock,
   Pencil,
-  ReceiptText,
   RotateCcw,
   Upload,
 } from "lucide-react";
@@ -88,8 +87,10 @@ export function LedgerInspector({
             <span className="block text-muted">Property level</span>
           )}
         </InspectorRow>
-        <InspectorRow icon={<ReceiptText size={16} />} label="Ledger id">
-          <span className="font-mono text-xs">{entry.id}</span>
+        <InspectorRow icon={<ExternalLink size={16} />} label="Timeline sync">
+          {entry.relatedTimelineEvent
+            ? "Linked and kept in sync"
+            : "Timeline link pending"}
         </InspectorRow>
         {entry.archivedAt ? (
           <InspectorRow icon={<Archive size={16} />} label="Archived">
@@ -120,7 +121,7 @@ export function LedgerInspector({
                 )}`}
               >
                 <ExternalLink size={14} />
-                View exact event
+                Open timeline event
               </Link>
             </div>
           ) : (

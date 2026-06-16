@@ -73,4 +73,43 @@ describe("toRecentChange", () => {
       tone: "warning",
     });
   });
+
+  it("hides system IDs and summarizes reference changes", () => {
+    expect(
+      toRecentChange({
+        action: "updated",
+        created_at: "2026-06-16T13:00:00.000Z",
+        entity_type: "ledger_entry",
+        id: "log-4",
+        new_values: {
+          id: "1b02731d-0e8d-4c36-9273-754ba8321c71",
+          property_id: "new-property-id",
+          timeline_event_id: "linked-timeline-id",
+          transaction_date: "2026-06-16",
+        },
+        previous_values: {
+          id: "1b02731d-0e8d-4c36-9273-754ba8321c71",
+          property_id: "old-property-id",
+          timeline_event_id: null,
+          transaction_date: "2026-06-15",
+        },
+      }).details,
+    ).toEqual([
+      {
+        after: "New selection",
+        before: "Previous selection",
+        field: "Property",
+      },
+      {
+        after: "Linked",
+        before: "Not linked",
+        field: "Timeline link",
+      },
+      {
+        after: "16 Jun 2026",
+        before: "15 Jun 2026",
+        field: "Transaction date",
+      },
+    ]);
+  });
 });

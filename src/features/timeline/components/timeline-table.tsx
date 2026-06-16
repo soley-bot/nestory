@@ -19,14 +19,21 @@ export function TimelineTable({
 }: TimelineTableProps) {
   return (
     <div className="overflow-x-auto rounded-md border border-border bg-surface">
-      <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-sm">
+        <colgroup>
+          <col className="w-[104px]" />
+          <col className="w-[124px]" />
+          <col />
+          <col className="w-[136px]" />
+          <col className="w-[112px]" />
+        </colgroup>
         <thead className="bg-surface-muted text-xs uppercase tracking-[0.06em] text-muted">
           <tr>
-            <th className="w-32 px-4 py-3 font-semibold">Date</th>
-            <th className="w-40 px-4 py-3 font-semibold">Type</th>
+            <th className="px-3 py-3 font-semibold">Date</th>
+            <th className="px-3 py-3 font-semibold">Type</th>
             <th className="px-4 py-3 font-semibold">Record</th>
-            <th className="w-44 px-4 py-3 font-semibold">Property</th>
-            <th className="w-28 px-4 py-3 text-right font-semibold">Cost</th>
+            <th className="px-3 py-3 font-semibold">Property</th>
+            <th className="px-3 py-3 text-right font-semibold">Cost</th>
           </tr>
         </thead>
         <tbody>
@@ -47,10 +54,10 @@ export function TimelineTable({
               key={event.id}
               onClick={() => onSelectEvent(event.id)}
             >
-              <td className="whitespace-nowrap px-4 py-3 text-muted">
+              <td className="whitespace-nowrap px-3 py-3 text-muted">
                 {formatDate(event.eventDate)}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-3 py-3">
                 <EventTypeBadge type={event.eventType} />
               </td>
               <td className="px-4 py-3">
@@ -79,13 +86,15 @@ export function TimelineTable({
                   </div>
                 ) : null}
               </td>
-              <td className="px-4 py-3">
-                <p className="font-medium">{event.propertyCode}</p>
+              <td className="px-3 py-3">
+                <p className="truncate font-medium" title={event.propertyCode}>
+                  {event.propertyCode}
+                </p>
                 <p className="mt-1 text-xs text-muted">
                   {event.unitNumber ? `Unit ${event.unitNumber}` : "Property"}
                 </p>
               </td>
-              <td className="px-4 py-3 text-right font-medium">
+              <td className="whitespace-nowrap px-3 py-3 text-right font-medium">
                 {event.cost !== undefined && event.currency
                   ? formatMoney(event.cost, event.currency)
                   : "-"}

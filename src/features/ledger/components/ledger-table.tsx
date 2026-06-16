@@ -32,15 +32,23 @@ export function LedgerTable({
 }: LedgerTableProps) {
   return (
     <div className="overflow-x-auto rounded-md border border-border bg-surface">
-      <table className="w-full min-w-[800px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[740px] table-fixed border-collapse text-left text-sm">
+        <colgroup>
+          <col className="w-[104px]" />
+          <col className="w-[96px]" />
+          <col />
+          <col className="w-[136px]" />
+          <col className="w-[120px]" />
+          <col className="w-[84px]" />
+        </colgroup>
         <thead className="bg-surface-muted text-xs uppercase tracking-[0.06em] text-muted">
           <tr>
-            <th className="w-32 px-4 py-3 font-semibold">Date</th>
-            <th className="w-32 px-4 py-3 font-semibold">Type</th>
+            <th className="px-3 py-3 font-semibold">Date</th>
+            <th className="px-3 py-3 font-semibold">Type</th>
             <th className="px-4 py-3 font-semibold">Category</th>
-            <th className="w-44 px-4 py-3 font-semibold">Property</th>
-            <th className="w-36 px-4 py-3 text-right font-semibold">Amount</th>
-            <th className="w-28 px-4 py-3 text-right font-semibold">Actions</th>
+            <th className="px-3 py-3 font-semibold">Property</th>
+            <th className="px-3 py-3 text-right font-semibold">Amount</th>
+            <th className="px-2 py-3 text-right font-semibold">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -61,10 +69,10 @@ export function LedgerTable({
               key={entry.id}
               onClick={() => onSelectEntry(entry.id)}
             >
-              <td className="whitespace-nowrap px-4 py-3 text-muted">
+              <td className="whitespace-nowrap px-3 py-3 text-muted">
                 {formatDate(entry.transactionDate)}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-3 py-3">
                 <DirectionBadge direction={entry.direction} />
               </td>
               <td className="px-4 py-3">
@@ -94,17 +102,19 @@ export function LedgerTable({
                   ) : null}
                 </div>
               </td>
-              <td className="px-4 py-3">
-                <p className="font-medium">{entry.propertyCode}</p>
+              <td className="px-3 py-3">
+                <p className="truncate font-medium" title={entry.propertyCode}>
+                  {entry.propertyCode}
+                </p>
                 <p className="mt-1 text-xs text-muted">
                   {entry.unitNumber ? `Unit ${entry.unitNumber}` : "Property"}
                 </p>
               </td>
-              <td className="px-4 py-3 text-right font-medium">
+              <td className="whitespace-nowrap px-3 py-3 text-right font-medium">
                 {entry.direction === "expense" ? "-" : ""}
                 {formatMoney(entry.amount, entry.currency)}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-2 py-3">
                 <div className="flex justify-end gap-1">
                   {entry.archivedAt ? (
                     <button
