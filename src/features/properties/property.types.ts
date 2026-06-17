@@ -4,6 +4,8 @@ export type PropertySortKey = "code_asc" | "name_asc" | "status_asc" | "net_desc
 
 export type PropertyStatusValue = "active" | "under_renovation" | "inactive";
 
+export type PropertyDisplayMode = "table" | "cards";
+
 export type PropertyBadgeTone =
   | "neutral"
   | "success"

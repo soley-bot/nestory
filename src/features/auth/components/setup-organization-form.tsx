@@ -17,33 +17,38 @@ export function SetupOrganizationForm() {
   );
 
   return (
-    <form action={action} className="mt-6 space-y-4">
+    <form action={action} className="mt-6 space-y-5">
       {state.message ? (
         <p
-          className="rounded-md border border-danger/30 bg-white px-3 py-2 text-sm text-danger"
+          className="rounded-md border border-danger/25 bg-[#fff7f7] px-3.5 py-3 text-sm leading-5 text-danger"
           role="alert"
         >
           {state.message}
         </p>
       ) : null}
 
-      <label className="block text-sm font-medium">
+      <label className="block text-sm font-semibold text-[#2e3540]">
         Company name
         <Input
           autoComplete="organization"
-          className="mt-2"
+          className="mt-2 h-11 border-[#dfe4ea] bg-white text-[15px] text-[#080b12] placeholder:text-[#9aa0aa] focus:border-[#b8c0cb] focus:ring-[#f1f3f6]"
           name="organizationName"
           placeholder="Enter company name"
           type="text"
         />
         {state.fieldErrors?.organizationName?.length ? (
-          <p className="mt-1 text-xs text-danger">
+          <p className="mt-2 text-xs leading-5 text-danger">
             {state.fieldErrors.organizationName[0]}
           </p>
         ) : null}
       </label>
 
-      <Button className="w-full" disabled={pending} type="submit" variant="primary">
+      <Button
+        className="h-11 w-full bg-[#080b12] text-[12px] font-semibold uppercase tracking-[0.14em] hover:bg-[#16181d]"
+        disabled={pending}
+        type="submit"
+        variant="primary"
+      >
         {pending ? "Creating workspace..." : "Create workspace"}
       </Button>
     </form>

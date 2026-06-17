@@ -4,6 +4,7 @@ import {
   requireUser,
 } from "@/lib/auth/context";
 import { signOutAction } from "@/features/auth/actions";
+import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
 import { SetupOrganizationForm } from "@/features/auth/components/setup-organization-form";
 
 export const dynamic = "force-dynamic";
@@ -17,19 +18,22 @@ export default async function SetupPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-6">
-      <section className="w-full max-w-sm rounded-md border border-border bg-surface p-6">
-        <p className="text-sm text-muted">{user.email}</p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">
-          Create workspace
-        </h1>
+    <AuthPageShell
+      description="Add your company name to continue."
+      title="Create workspace"
+    >
+      <div>
+        <p className="text-sm leading-6 text-[#6e7681]">{user.email}</p>
         <SetupOrganizationForm />
-        <form action={signOutAction} className="mt-4">
-          <button className="text-sm font-medium text-accent" type="submit">
+        <form action={signOutAction} className="mt-5 border-t border-[#edf0f3] pt-4">
+          <button
+            className="text-sm font-semibold text-[#6e7681] transition-colors hover:text-[#080b12]"
+            type="submit"
+          >
             Sign out
           </button>
         </form>
-      </section>
-    </main>
+      </div>
+    </AuthPageShell>
   );
 }

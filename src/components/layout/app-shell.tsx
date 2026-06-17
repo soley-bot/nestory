@@ -12,7 +12,6 @@ import {
   FolderOpen,
   Home,
   Landmark,
-  LayoutDashboard,
   ListTree,
   LogOut,
   MessageSquare,
@@ -96,24 +95,34 @@ export function AppShell({
     <div className="min-h-screen bg-background">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 hidden flex-col border-r border-border bg-surface transition-[width] duration-200 lg:flex",
-          sidebarCollapsed ? "w-16" : "w-64",
+          "fixed inset-y-0 left-0 hidden flex-col border-r border-border bg-white transition-[width] duration-200 lg:flex",
+          sidebarCollapsed ? "w-16" : "w-56",
         )}
       >
         <div
           className={cn(
-            "flex h-16 items-center border-b border-border",
-            sidebarCollapsed ? "justify-center px-2" : "gap-3 px-4",
+            "flex border-b border-border",
+            sidebarCollapsed
+              ? "h-16 items-center justify-center px-2"
+              : "h-32 items-start gap-3 px-4 pt-6",
           )}
         >
           {sidebarCollapsed ? null : (
             <>
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-white">
-                <LayoutDashboard size={18} />
-              </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold tracking-tight">Nestory</p>
-                <p className="truncate text-xs text-muted">{organizationName}</p>
+                <Link
+                  className="font-display block w-fit leading-none text-foreground"
+                  href="/overview"
+                  prefetch={false}
+                >
+                  <span className="block text-2xl font-semibold">NESTORY</span>
+                  <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-[0.24em] text-muted">
+                    Property Management
+                  </span>
+                </Link>
+                <p className="mt-3 max-w-full truncate text-sm font-semibold text-foreground">
+                  {organizationName}
+                </p>
               </div>
             </>
           )}
@@ -163,7 +172,7 @@ export function AppShell({
                           ? "items-center justify-center px-0"
                           : "items-center gap-3 px-2",
                         isActive
-                          ? "bg-accent-soft text-accent"
+                          ? "bg-accent-soft text-foreground"
                           : "hover:bg-surface-muted hover:text-foreground",
                       )}
                       href={item.href}
@@ -190,7 +199,7 @@ export function AppShell({
                 ? "items-center justify-center px-0"
                 : "items-center gap-3 px-2",
               isSettingsActive
-                ? "bg-accent-soft text-accent"
+                ? "bg-accent-soft text-foreground"
                 : "hover:bg-surface-muted hover:text-foreground",
             )}
             href={settingsItem.href}
@@ -225,17 +234,16 @@ export function AppShell({
       <main
         className={cn(
           "min-h-screen transition-[margin-left] duration-200",
-          sidebarCollapsed ? "lg:ml-16" : "lg:ml-64",
+          sidebarCollapsed ? "lg:ml-16" : "lg:ml-56",
         )}
       >
-        <div className="border-b border-border bg-surface lg:hidden">
+        <div className="border-b border-border bg-white lg:hidden">
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent text-white">
-                <LayoutDashboard size={18} />
-              </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold tracking-tight">Nestory</p>
+                <p className="font-display text-xl font-semibold leading-none tracking-normal">
+                  NESTORY
+                </p>
                 <p className="truncate text-xs text-muted">
                   {userEmail ?? organizationName}
                 </p>
@@ -262,7 +270,7 @@ export function AppShell({
                   className={cn(
                     "flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
                     isActive
-                      ? "bg-accent-soft text-accent"
+                      ? "bg-accent-soft text-foreground"
                       : "hover:bg-surface-muted hover:text-foreground",
                   )}
                   href={item.href}

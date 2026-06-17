@@ -16,6 +16,7 @@ import { PropertyInspector } from "@/features/properties/components/property-ins
 import { PropertiesTable } from "@/features/properties/components/properties-table";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
+  PropertyDisplayMode,
   PropertyPagination,
   PropertyViewQuery,
 } from "@/features/properties/property.types";
@@ -38,6 +39,8 @@ export function PropertyScreen({
   viewQuery,
 }: PropertyScreenProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const [displayMode, setDisplayMode] =
+    useState<PropertyDisplayMode>("table");
   const [selectedPropertyId, setSelectedPropertyId] = useState(
     properties[0]?.id ?? "",
   );
@@ -77,12 +80,17 @@ export function PropertyScreen({
         </div>
       ) : null}
 
-      <PropertyFilters viewQuery={viewQuery} />
+      <PropertyFilters
+        onDisplayModeChange={setDisplayMode}
+        displayMode={displayMode}
+        viewQuery={viewQuery}
+      />
 
       <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-3">
             <PropertiesTable
+              displayMode={displayMode}
               onArchiveProperty={(property) => {
                 setStatusMessage(null);
                 setDrawer({ mode: "archive", property });

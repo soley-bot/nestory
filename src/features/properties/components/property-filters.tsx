@@ -4,7 +4,13 @@ import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal } from "lucide-react";
+import {
+  LayoutGrid,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  Table2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
@@ -13,13 +19,23 @@ import {
   DEFAULT_PROPERTY_SORT,
   PROPERTY_PAGE_SIZE_OPTIONS,
 } from "@/features/properties/property.filters";
-import type { PropertyViewQuery } from "@/features/properties/property.types";
+import type {
+  PropertyDisplayMode,
+  PropertyViewQuery,
+} from "@/features/properties/property.types";
+import { cn } from "@/lib/utils";
 
 type PropertyFiltersProps = {
+  displayMode: PropertyDisplayMode;
+  onDisplayModeChange: (mode: PropertyDisplayMode) => void;
   viewQuery: PropertyViewQuery;
 };
 
-export function PropertyFilters({ viewQuery }: PropertyFiltersProps) {
+export function PropertyFilters({
+  displayMode,
+  onDisplayModeChange,
+  viewQuery,
+}: PropertyFiltersProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -64,8 +80,11 @@ export function PropertyFilters({ viewQuery }: PropertyFiltersProps) {
   return (
     <div className="border-b border-border bg-surface px-4 py-4 sm:px-6 lg:px-8">
       <div className="space-y-3">
-        <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_auto_auto]">
-          <form className="flex min-w-0 gap-2" onSubmit={handleSearchSubmit}>
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <form
+            className="flex min-w-0 flex-1 gap-2"
+            onSubmit={handleSearchSubmit}
+          >
             <label className="relative min-w-0 flex-1">
               <span className="sr-only">Search properties</span>
               <Search
@@ -85,28 +104,42 @@ export function PropertyFilters({ viewQuery }: PropertyFiltersProps) {
                 value={query}
               />
             </label>
-            <Button disabled={isPending} type="submit">
-              Search
+            <Button
+              aria-label="Search properties"
+              className="h-9 w-9 shrink-0 px-0"
+              disabled={isPending}
+              title="Search properties"
+              type="submit"
+            >
+              <Search size={15} />
             </Button>
           </form>
 
-          <Button
-            aria-controls="property-advanced-search"
-            aria-expanded={advancedOpen}
-            className="w-full lg:w-auto"
-            onClick={() => setAdvancedOpen((open) => !open)}
-            type="button"
-          >
-            <SlidersHorizontal size={15} />
-            Advanced search
-          </Button>
-          <Link
-            className="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-            href={pathname}
-            scroll={false}
-          >
-            Reset
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewModeToggle
+              displayMode={displayMode}
+              onDisplayModeChange={onDisplayModeChange}
+            />
+            <Button
+              aria-controls="property-advanced-search"
+              aria-expanded={advancedOpen}
+              className="w-full sm:w-auto"
+              onClick={() => setAdvancedOpen((open) => !open)}
+              type="button"
+            >
+              <SlidersHorizontal size={15} />
+              Filters
+            </Button>
+            <Link
+              aria-label="Reset property filters"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+              href={pathname}
+              scroll={false}
+              title="Reset filters"
+            >
+              <RotateCcw size={15} />
+            </Link>
+          </div>
         </div>
 
         {advancedOpen ? (
@@ -168,5 +201,62 @@ export function PropertyFilters({ viewQuery }: PropertyFiltersProps) {
         ) : null}
       </div>
     </div>
+  );
+}
+
+function ViewModeToggle({
+  displayMode,
+  onDisplayModeChange,
+}: {
+  displayMode: PropertyDisplayMode;
+  onDisplayModeChange: (mode: PropertyDisplayMode) => void;
+}) {
+  return (
+    <div
+      aria-label="Property view"
+      className="inline-flex h-9 rounded-md border border-border bg-surface-muted p-1"
+      role="group"
+    >
+      <ViewModeButton
+        active={displayMode === "table"}
+        icon={<Table2 size={14} />}
+        label="Table"
+        onClick={() => onDisplayModeChange("table")}
+      />
+      <ViewModeButton
+        active={displayMode === "cards"}
+        icon={<LayoutGrid size={14} />}
+        label="Cards"
+        onClick={() => onDisplayModeChange("cards")}
+      />
+    </div>
+  );
+}
+
+function ViewModeButton({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-pressed={active}
+      className={cn(
+        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted transition-colors hover:text-foreground",
+        active && "bg-surface text-foreground shadow-sm",
+      )}
+      onClick={onClick}
+      title={`${label} view`}
+      type="button"
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
   );
 }

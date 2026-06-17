@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { Archive, Building2, ExternalLink, Pencil, RotateCcw } from "lucide-react";
+import {
+  Archive,
+  Building2,
+  ExternalLink,
+  Home,
+  MapPin,
+  Pencil,
+  RotateCcw,
+  UserRound,
+} from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +29,7 @@ export function PropertyInspector({
 }: PropertyInspectorProps) {
   if (!property) {
     return (
-      <aside className="rounded-md border border-border bg-surface p-5">
+      <aside className="rounded-md border border-border bg-surface p-5 2xl:sticky 2xl:top-5">
         <div className="flex items-center gap-2">
           <Building2 className="text-muted" size={16} />
           <h2 className="text-base font-semibold">Property inspector</h2>
@@ -34,8 +43,8 @@ export function PropertyInspector({
   }
 
   return (
-    <aside className="rounded-md border border-border bg-surface">
-      <div className="border-b border-border p-5">
+    <aside className="rounded-md border border-border bg-surface 2xl:sticky 2xl:top-5 2xl:max-h-[calc(100vh-170px)] 2xl:overflow-auto">
+      <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
@@ -53,48 +62,60 @@ export function PropertyInspector({
         </div>
       </div>
 
-      <div className="space-y-5 p-5">
+      <div className="space-y-4 p-4">
         <dl className="grid grid-cols-2 gap-4 text-sm">
-          <Detail label="Units" value={property.unitSummary} />
-          <Detail label="Owner" value={property.owner} />
-          <Detail label="Address" value={property.address} wide />
+          <Detail icon={<Home size={14} />} label="Units" value={property.unitSummary} />
+          <Detail icon={<UserRound size={14} />} label="Owner" value={property.owner} />
+          <Detail icon={<MapPin size={14} />} label="Address" value={property.address} wide />
           <Detail label="Net income" wide>
             <MoneyDisplay value={property.netIncome} />
           </Detail>
         </dl>
 
-        <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="grid grid-cols-3 gap-2 text-sm">
           <Link
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border px-3 font-medium text-foreground transition-colors hover:bg-surface-muted"
+            aria-label={`Open ${property.name}`}
+            className="inline-flex h-9 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted"
             href={`/properties/${property.id}`}
             prefetch={false}
+            title="Open property"
           >
             <ExternalLink size={15} />
-            Open
           </Link>
           {property.isArchived ? (
-            <Button onClick={() => onRestoreProperty(property)} variant="primary">
+            <Button
+              aria-label={`Restore ${property.name}`}
+              className="px-0"
+              onClick={() => onRestoreProperty(property)}
+              title="Restore property"
+              variant="primary"
+            >
               <RotateCcw size={15} />
-              Restore
             </Button>
           ) : (
-            <Button onClick={() => onEditProperty(property)}>
+            <Button
+              aria-label={`Edit ${property.name}`}
+              className="px-0"
+              onClick={() => onEditProperty(property)}
+              title="Edit property"
+            >
               <Pencil size={15} />
-              Edit
             </Button>
           )}
+          {!property.isArchived ? (
+            <Button
+              aria-label={`Archive ${property.name}`}
+              className="px-0 text-danger hover:text-danger"
+              onClick={() => onArchiveProperty(property)}
+              title="Archive property"
+              variant="ghost"
+            >
+              <Archive size={15} />
+            </Button>
+          ) : (
+            <span aria-hidden="true" />
+          )}
         </div>
-
-        {!property.isArchived ? (
-          <Button
-            className="w-full text-danger hover:text-danger"
-            onClick={() => onArchiveProperty(property)}
-            variant="ghost"
-          >
-            <Archive size={15} />
-            Archive property
-          </Button>
-        ) : null}
       </div>
     </aside>
   );
@@ -102,18 +123,21 @@ export function PropertyInspector({
 
 function Detail({
   children,
+  icon,
   label,
   value,
   wide = false,
 }: {
   children?: React.ReactNode;
+  icon?: React.ReactNode;
   label: string;
   value?: string;
   wide?: boolean;
 }) {
   return (
     <div className={wide ? "col-span-2 min-w-0" : "min-w-0"}>
-      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.06em] text-muted">
+        {icon ? <span>{icon}</span> : null}
         {label}
       </dt>
       <dd className="mt-1 break-words font-medium">{children ?? value}</dd>

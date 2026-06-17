@@ -12,7 +12,7 @@ const tones: Record<BadgeTone, string> = {
   success: "border-green-200 bg-green-50 text-success",
   warning: "border-amber-200 bg-amber-50 text-warning",
   danger: "border-red-200 bg-red-50 text-danger",
-  accent: "border-emerald-200 bg-accent-soft text-accent",
+  accent: "border-border bg-accent-soft text-accent",
 };
 
 export function Badge({ className, tone = "neutral", ...props }: BadgeProps) {
