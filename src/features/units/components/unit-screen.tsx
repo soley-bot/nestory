@@ -15,6 +15,7 @@ import { UnitFilters } from "@/features/units/components/unit-filters";
 import { UnitInspector } from "@/features/units/components/unit-inspector";
 import { UnitsTable } from "@/features/units/components/units-table";
 import type {
+  UnitDisplayMode,
   UnitPagination,
   UnitPropertyOption,
   UnitSummary,
@@ -41,6 +42,7 @@ export function UnitScreen({
   viewQuery,
 }: UnitScreenProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const [displayMode, setDisplayMode] = useState<UnitDisplayMode>("table");
   const [selectedUnitId, setSelectedUnitId] = useState(units[0]?.id ?? "");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedUnit =
@@ -76,13 +78,19 @@ export function UnitScreen({
         </div>
       ) : null}
 
-      <UnitFilters properties={propertyOptions} viewQuery={viewQuery} />
+      <UnitFilters
+        displayMode={displayMode}
+        onDisplayModeChange={setDisplayMode}
+        properties={propertyOptions}
+        viewQuery={viewQuery}
+      />
 
       <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 space-y-3">
             <UnitsTable
               archiveState={viewQuery.archiveState}
+              displayMode={displayMode}
               onArchiveUnit={(unit) => {
                 setStatusMessage(null);
                 setDrawer({ mode: "archive", unit });
