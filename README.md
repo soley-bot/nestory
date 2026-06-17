@@ -75,3 +75,5 @@ Codex Supabase MCP is authenticated for hosted project work. Supabase CLI hosted
 ## Project Rules
 
 Read `PROJECT_RULES.md` before making architecture, database, UI, or refactoring decisions.
+
+For authenticated app polish, read `docs/operational-ui-handoff.md` before changing list pages, tables, card views, inspectors, or photo-ready record cards.

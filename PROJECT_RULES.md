@@ -19,6 +19,8 @@ These rules should guide architecture, UI, database design, feature scope, and r
 - Use neutral colors and minimal accents.
 - Less is more.
 
+Use `docs/operational-ui-handoff.md` when applying the current authenticated app design system to additional pages. It captures the Properties and Units list/table/card/inspector pattern, including the photo-ready card rule that readable text must not sit on top of real property or unit photos.
+
 ## Long-Term Product Direction
 
 - Broad PMS capability is allowed as the larger ambition, but Nestory should grow from the record-room foundation instead of copying every competitor module at once.
