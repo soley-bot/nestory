@@ -52,6 +52,7 @@ export function PropertyFilters({
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+  const compactSelectClassName = "h-8 px-2 text-[13px]";
 
   function replaceParam(name: string, value: string, defaultValue: string) {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -78,9 +79,9 @@ export function PropertyFilters({
   }
 
   return (
-    <div className="border-b border-border bg-surface px-4 py-4 sm:px-6 lg:px-8">
-      <div className="space-y-3">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+    <div className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-8">
+      <div className="space-y-2.5">
+        <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
           <form
             className="flex min-w-0 flex-1 gap-2"
             onSubmit={handleSearchSubmit}
@@ -92,7 +93,7 @@ export function PropertyFilters({
                 size={16}
               />
               <Input
-                className="pl-9"
+                className="h-8 pl-9"
                 onChange={(event) =>
                   setQueryState({
                     source: viewQuery.query,
@@ -106,12 +107,12 @@ export function PropertyFilters({
             </label>
             <Button
               aria-label="Search properties"
-              className="h-9 w-9 shrink-0 px-0"
+              className="h-8 w-8 shrink-0 px-0"
               disabled={isPending}
               title="Search properties"
               type="submit"
             >
-              <Search size={15} />
+              <Search size={14} />
             </Button>
           </form>
 
@@ -123,32 +124,33 @@ export function PropertyFilters({
             <Button
               aria-controls="property-advanced-search"
               aria-expanded={advancedOpen}
-              className="w-full sm:w-auto"
+              className="h-8 w-full gap-1.5 px-2.5 sm:w-auto"
               onClick={() => setAdvancedOpen((open) => !open)}
               type="button"
             >
-              <SlidersHorizontal size={15} />
+              <SlidersHorizontal size={14} />
               Filters
             </Button>
             <Link
               aria-label="Reset property filters"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
               href={pathname}
               scroll={false}
               title="Reset filters"
             >
-              <RotateCcw size={15} />
+              <RotateCcw size={14} />
             </Link>
           </div>
         </div>
 
         {advancedOpen ? (
           <div
-            className="grid gap-3 rounded-md border border-border bg-surface-muted p-3 lg:grid-cols-[minmax(150px,180px)_minmax(150px,180px)_minmax(150px,190px)_minmax(104px,120px)]"
+            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(132px,160px)_minmax(132px,160px)_minmax(132px,170px)_minmax(84px,104px)]"
             id="property-advanced-search"
           >
             <SelectControl
               ariaLabel="Filter by status"
+              className={compactSelectClassName}
               onValueChange={(value) => replaceParam("status", value, "all")}
               options={[
                 { label: "All statuses", value: "all" },
@@ -161,6 +163,7 @@ export function PropertyFilters({
 
             <SelectControl
               ariaLabel="Filter by archive state"
+              className={compactSelectClassName}
               onValueChange={(value) =>
                 replaceParam("archiveState", value, "active")
               }
@@ -174,6 +177,7 @@ export function PropertyFilters({
 
             <SelectControl
               ariaLabel="Sort properties"
+              className={compactSelectClassName}
               onValueChange={(value) =>
                 replaceParam("sort", value, DEFAULT_PROPERTY_SORT)
               }
@@ -188,6 +192,7 @@ export function PropertyFilters({
 
             <SelectControl
               ariaLabel="Rows per page"
+              className={compactSelectClassName}
               onValueChange={(value) =>
                 replaceParam("pageSize", value, String(DEFAULT_PROPERTY_PAGE_SIZE))
               }
@@ -214,7 +219,7 @@ function ViewModeToggle({
   return (
     <div
       aria-label="Property view"
-      className="inline-flex h-9 rounded-md border border-border bg-surface-muted p-1"
+      className="inline-flex h-8 rounded-md border border-border bg-surface-muted p-0.5 text-xs"
       role="group"
     >
       <ViewModeButton

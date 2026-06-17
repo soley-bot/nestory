@@ -75,15 +75,17 @@ export function PropertiesTable({
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <th className="px-2.5 py-2.5 font-semibold">Property</th>
-                  <th className="px-1.5 py-2.5 font-semibold">Status</th>
+                  <th className="px-1.5 py-2.5 text-center font-semibold">
+                    Status
+                  </th>
                   <th className="px-1.5 py-2.5 font-semibold">Owner</th>
                   <th className="px-1.5 py-2.5 font-semibold">Address</th>
                   <th className="px-1.5 py-2.5 text-right font-semibold">
                     Units
                   </th>
                   <th className="px-2 py-2.5 text-right font-semibold">Net</th>
-                  <th className="px-1.5 py-2.5 text-right font-semibold">
-                    <span className="sr-only">Actions</span>
+                  <th className="px-1.5 py-2.5 text-center font-semibold">
+                    Actions
                   </th>
                 </tr>
               </thead>
@@ -253,7 +255,12 @@ function PropertyStatusBadges({
   const badgeClassName = compact ? "px-2 text-xs" : undefined;
 
   return (
-    <div className="flex shrink-0 flex-wrap gap-1.5">
+    <div
+      className={cn(
+        "flex shrink-0 flex-wrap gap-1.5",
+        compact && "justify-center",
+      )}
+    >
       <Badge className={badgeClassName} tone={property.statusTone}>
         {property.status}
       </Badge>
@@ -279,7 +286,7 @@ function PropertyActions({
   onRestoreProperty: (property: PropertySummary) => void;
   property: PropertySummary;
 }) {
-  const wrapperClassName = cn("flex justify-end gap-0.5", className);
+  const wrapperClassName = cn("flex justify-center gap-0.5", className);
   const buttonClassName =
     "inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50";
 
