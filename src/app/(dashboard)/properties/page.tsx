@@ -21,7 +21,7 @@ export default async function PropertiesPage() {
         description="Active property records with unit counts, ownership, and simple performance context."
         title="Properties"
       />
-      <div className="p-8">
+      <div className="px-4 py-5 sm:px-6 lg:p-8">
         <PropertiesTable properties={properties} />
       </div>
     </div>
