@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { formatUnitTimelineContext } from "@/features/units/data/unit-summary";
 import type { UnitSummary } from "@/features/units/unit.types";
 
@@ -29,7 +28,7 @@ export function UnitInspector({
 }: UnitInspectorProps) {
   if (!unit) {
     return (
-      <aside className="rounded-md border border-border bg-surface p-5">
+      <aside className="rounded-md border border-border bg-surface p-4 2xl:sticky 2xl:top-5">
         <div className="flex items-center gap-2">
           <Building2 className="text-muted" size={16} />
           <h2 className="text-base font-semibold">Unit inspector</h2>
@@ -42,9 +41,14 @@ export function UnitInspector({
     );
   }
 
+  const iconButtonClassName =
+    "inline-flex h-9 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted";
+  const primaryIconButtonClassName =
+    "inline-flex h-9 items-center justify-center rounded-md border border-accent bg-accent text-white transition-colors hover:bg-[#16181d]";
+
   return (
-    <aside className="rounded-md border border-border bg-surface">
-      <div className="border-b border-border p-5">
+    <aside className="rounded-md border border-border bg-surface 2xl:sticky 2xl:top-5 2xl:max-h-[calc(100vh-170px)] 2xl:overflow-auto">
+      <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
@@ -64,7 +68,7 @@ export function UnitInspector({
         </div>
       </div>
 
-      <div className="space-y-5 p-5">
+      <div className="space-y-4 p-4">
         <dl className="grid grid-cols-2 gap-4 text-sm">
           <Detail label="Floor" value={unit.floorLabel} />
           <Detail label="Lease" value={unit.leaseLabel} />
@@ -80,7 +84,7 @@ export function UnitInspector({
           </Detail>
         </dl>
 
-        <section className="rounded-md border border-border bg-surface-muted px-3 py-3">
+        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
           <div className="flex items-center gap-2 text-muted">
             <ListTree size={15} />
             <p className="text-xs font-medium uppercase tracking-[0.06em]">
@@ -88,7 +92,7 @@ export function UnitInspector({
             </p>
           </div>
           {unit.latestTimelineEvent ? (
-            <div className="mt-2 text-sm">
+            <div className="mt-2 text-sm leading-5">
               <p className="line-clamp-2 font-medium">
                 {unit.latestTimelineEvent.title}
               </p>
@@ -101,57 +105,72 @@ export function UnitInspector({
           )}
         </section>
 
-        <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="grid grid-cols-3 gap-2 text-sm">
           <Link
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border px-3 font-medium text-foreground transition-colors hover:bg-surface-muted"
+            aria-label={`Open unit ${unit.unitNumber}`}
+            className={iconButtonClassName}
             href={`/units/${unit.id}`}
             prefetch={false}
+            title="Open unit"
           >
             <ExternalLink size={15} />
-            Open
           </Link>
           {unit.isArchived ? (
-            <Button onClick={() => onRestoreUnit(unit)} variant="primary">
+            <button
+              aria-label={`Restore unit ${unit.unitNumber}`}
+              className={primaryIconButtonClassName}
+              onClick={() => onRestoreUnit(unit)}
+              title="Restore unit"
+              type="button"
+            >
               <RotateCcw size={15} />
-              Restore
-            </Button>
+            </button>
           ) : (
-            <Button onClick={() => onEditUnit(unit)}>
+            <button
+              aria-label={`Edit unit ${unit.unitNumber}`}
+              className={iconButtonClassName}
+              onClick={() => onEditUnit(unit)}
+              title="Edit unit"
+              type="button"
+            >
               <Pencil size={15} />
-              Edit
-            </Button>
+            </button>
+          )}
+          {!unit.isArchived ? (
+            <button
+              aria-label={`Archive unit ${unit.unitNumber}`}
+              className={`${iconButtonClassName} text-danger hover:text-danger`}
+              onClick={() => onArchiveUnit(unit)}
+              title="Archive unit"
+              type="button"
+            >
+              <Archive size={15} />
+            </button>
+          ) : (
+            <span aria-hidden="true" />
           )}
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           <Link
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border px-3 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            aria-label={`Open timeline filtered to unit ${unit.unitNumber}`}
+            className="inline-flex h-9 items-center justify-center rounded-md border border-border text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/timeline?unitId=${unit.id}`}
+            title="Open unit timeline"
           >
             <ListTree size={15} />
-            Timeline
           </Link>
           <Link
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border px-3 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            aria-label={`Open ledger filtered to unit ${unit.unitNumber}`}
+            className="inline-flex h-9 items-center justify-center rounded-md border border-border text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/ledger?propertyId=${unit.propertyId}&query=${encodeURIComponent(
               unit.unitNumber,
             )}`}
+            title="Open unit ledger"
           >
             <Landmark size={15} />
-            Ledger
           </Link>
         </div>
-
-        {!unit.isArchived ? (
-          <Button
-            className="w-full text-danger hover:text-danger"
-            onClick={() => onArchiveUnit(unit)}
-            variant="ghost"
-          >
-            <Archive size={15} />
-            Archive unit
-          </Button>
-        ) : null}
       </div>
     </aside>
   );

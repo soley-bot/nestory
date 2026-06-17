@@ -1,14 +1,17 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Archive, ExternalLink, Pencil, RotateCcw } from "lucide-react";
-import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { formatUnitTimelineContext } from "@/features/units/data/unit-summary";
 import type {
   UnitArchiveState,
   UnitSummary,
 } from "@/features/units/unit.types";
+import type {
+  CurrencyCode,
+  MoneyDisplayValue,
+} from "@/lib/money/format";
+import { cn } from "@/lib/utils";
 
 type UnitsTableProps = {
   onArchiveUnit: (unit: UnitSummary) => void;
@@ -82,7 +85,7 @@ export function UnitsTable({
                 label="Rent"
                 value={
                   unit.rentDisplay ? (
-                    <MoneyDisplay align="right" value={unit.rentDisplay} />
+                    <TableMoneyDisplay value={unit.rentDisplay} />
                   ) : (
                     unit.rentLabel
                   )
@@ -92,7 +95,7 @@ export function UnitsTable({
               <UnitCardDetail label="Lease" value={unit.leaseLabel} />
               <UnitCardDetail
                 label="Ledger net"
-                value={<MoneyDisplay align="right" value={unit.ledgerNetDisplay} />}
+                value={<TableMoneyDisplay value={unit.ledgerNetDisplay} />}
                 align="right"
               />
             </dl>
@@ -110,27 +113,31 @@ export function UnitsTable({
 
       <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
         <div className="max-h-[min(680px,calc(100vh-260px))] overflow-auto">
-        <table className="w-full min-w-[1040px] table-fixed border-collapse text-left text-sm">
+          <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
-            <col className="w-[188px]" />
-            <col className="w-[104px]" />
-            <col className="w-[76px]" />
-            <col className="w-[118px]" />
-            <col className="w-[132px]" />
-            <col className="w-[170px]" />
-            <col />
-            <col className="w-[94px]" />
+            <col className="w-[16%]" />
+            <col className="w-[7%]" />
+            <col className="w-[6%]" />
+            <col className="w-[10%]" />
+            <col className="w-[18%]" />
+            <col className="w-[15%]" />
+            <col className="w-[18%]" />
+            <col className="w-[10%]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-xs uppercase tracking-[0.06em] text-muted shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
-              <th className="px-4 py-3 font-semibold">Property</th>
-              <th className="px-4 py-3 font-semibold">Unit</th>
-              <th className="px-4 py-3 font-semibold">Floor</th>
-              <th className="px-4 py-3 font-semibold">Status</th>
-              <th className="px-4 py-3 text-right font-semibold">Rent</th>
-              <th className="px-4 py-3 font-semibold">Lease / Tenant</th>
-              <th className="px-4 py-3 font-semibold">Records</th>
-              <th className="px-2 py-3 text-right font-semibold">Actions</th>
+              <th className="px-2.5 py-2.5 font-semibold">Property</th>
+              <th className="px-1.5 py-2.5 font-semibold">Unit</th>
+              <th className="px-1.5 py-2.5 text-center font-semibold">Floor</th>
+              <th className="px-1.5 py-2.5 text-center font-semibold">
+                Status
+              </th>
+              <th className="px-2 py-2.5 text-right font-semibold">Rent</th>
+              <th className="px-1.5 py-2.5 font-semibold">Lease / Tenant</th>
+              <th className="px-1.5 py-2.5 font-semibold">Records</th>
+              <th className="px-1.5 py-2.5 text-center font-semibold">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -160,52 +167,62 @@ export function UnitsTable({
                 }}
                 tabIndex={0}
               >
-                <td className="px-4 py-2.5">
+                <td className="px-2.5 py-2">
                   <p className="truncate font-medium" title={unit.propertyCode}>
                     {unit.propertyCode}
                   </p>
-                  <p className="mt-1 truncate text-xs text-muted" title={unit.propertyName}>
+                  <p
+                    className="mt-0.5 truncate text-xs text-muted"
+                    title={unit.propertyName}
+                  >
                     {unit.propertyName}
                   </p>
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="px-1.5 py-2">
                   <Link
-                    className="break-words font-medium text-accent hover:underline"
+                    className="block truncate font-medium text-accent hover:underline"
                     href={`/units/${unit.id}`}
                     onClick={(event) => event.stopPropagation()}
                     prefetch={false}
+                    title={`Unit ${unit.unitNumber}`}
                   >
                     {unit.unitNumber}
                   </Link>
                 </td>
-                <td className="px-3 py-2.5 text-muted">{unit.floorLabel}</td>
-                <td className="px-3 py-2.5">
-                  <div className="flex flex-wrap gap-1.5">
-                    <Badge tone={unit.statusTone}>{unit.statusLabel}</Badge>
+                <td className="px-1.5 py-2 text-center text-muted">
+                  {unit.floorLabel}
+                </td>
+                <td className="px-1.5 py-2">
+                  <div className="flex flex-wrap justify-center gap-1.5">
+                    <Badge className="px-2 text-xs" tone={unit.statusTone}>
+                      {unit.statusLabel}
+                    </Badge>
                     {unit.isArchived ? (
-                      <Badge tone="warning">Archived</Badge>
+                      <Badge className="px-2 text-xs" tone="warning">
+                        Archived
+                      </Badge>
                     ) : null}
                   </div>
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-2 py-2">
                   {unit.rentDisplay ? (
-                    <MoneyDisplay align="right" value={unit.rentDisplay} />
+                    <TableMoneyDisplay value={unit.rentDisplay} />
                   ) : (
                     <span className="block text-right font-medium">
                       {unit.rentLabel}
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-2.5">
-                  <p className="line-clamp-2 break-words">{unit.leaseLabel}</p>
+                <td className="px-1.5 py-2">
+                  <p className="line-clamp-2 break-words leading-[18px]">
+                    {unit.leaseLabel}
+                  </p>
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-1.5 py-2">
                   <UnitRecordContext unit={unit} />
                 </td>
-                <td className="px-2 py-2.5">
+                <td className="px-1.5 py-2">
                   <UnitActions
-                    align="right"
-                    compact
                     onArchiveUnit={onArchiveUnit}
                     onEditUnit={onEditUnit}
                     onRestoreUnit={onRestoreUnit}
@@ -215,7 +232,7 @@ export function UnitsTable({
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
         </div>
       </div>
     </div>
@@ -235,30 +252,21 @@ function getEmptyMessage(archiveState: UnitArchiveState) {
 }
 
 function UnitActions({
-  align = "left",
   className,
   onArchiveUnit,
   onEditUnit,
   onRestoreUnit,
   unit,
 }: {
-  align?: "left" | "right";
   className?: string;
-  compact?: boolean;
   onArchiveUnit: (unit: UnitSummary) => void;
   onEditUnit: (unit: UnitSummary) => void;
   onRestoreUnit: (unit: UnitSummary) => void;
   unit: UnitSummary;
 }) {
-  const baseClassName = [
-    "flex gap-1",
-    align === "right" ? "justify-end" : "justify-start",
-    className,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const baseClassName = cn("flex justify-center gap-0.5", className);
   const buttonClassName =
-    "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50";
+    "inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50";
 
   if (unit.isArchived) {
     return (
@@ -269,21 +277,22 @@ function UnitActions({
           href={`/units/${unit.id}`}
           onClick={(event) => event.stopPropagation()}
           prefetch={false}
+          title="Open unit"
         >
-          <ExternalLink size={15} />
+          <ExternalLink size={14} />
         </Link>
-        <Button
+        <button
           aria-label={`Restore unit ${unit.unitNumber}`}
           className={`${buttonClassName} hover:text-accent`}
           onClick={(event) => {
             event.stopPropagation();
             onRestoreUnit(unit);
           }}
+          title="Restore unit"
           type="button"
-          variant="ghost"
         >
-          <RotateCcw size={15} />
-        </Button>
+          <RotateCcw size={14} />
+        </button>
       </div>
     );
   }
@@ -296,33 +305,34 @@ function UnitActions({
         href={`/units/${unit.id}`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
+        title="Open unit"
       >
-        <ExternalLink size={15} />
+        <ExternalLink size={14} />
       </Link>
-      <Button
+      <button
         aria-label={`Edit unit ${unit.unitNumber}`}
         className={`${buttonClassName} hover:text-foreground`}
         onClick={(event) => {
           event.stopPropagation();
           onEditUnit(unit);
         }}
+        title="Edit unit"
         type="button"
-        variant="ghost"
       >
-        <Pencil size={15} />
-      </Button>
-      <Button
+        <Pencil size={14} />
+      </button>
+      <button
         aria-label={`Archive unit ${unit.unitNumber}`}
         className={`${buttonClassName} hover:text-danger`}
         onClick={(event) => {
           event.stopPropagation();
           onArchiveUnit(unit);
         }}
+        title="Archive unit"
         type="button"
-        variant="ghost"
       >
-        <Archive size={15} />
-      </Button>
+        <Archive size={14} />
+      </button>
     </div>
   );
 }
@@ -367,14 +377,64 @@ function UnitRecordContext({
       ) : (
         <p className="text-xs text-muted">No timeline events yet.</p>
       )}
-      <div className="mt-1 text-xs text-muted">
-        <span>Ledger net</span>
-        <MoneyDisplay
-          className="mt-0.5"
-          value={unit.ledgerNetDisplay}
+      <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-xs text-muted">
+        <span className="shrink-0">Ledger net</span>
+        <TableMoneyDisplay
+          compact
           showSecondary={false}
+          value={unit.ledgerNetDisplay}
         />
       </div>
     </div>
   );
+}
+
+function TableMoneyDisplay({
+  compact = false,
+  showSecondary = true,
+  value,
+}: {
+  compact?: boolean;
+  showSecondary?: boolean;
+  value: MoneyDisplayValue;
+}) {
+  const primary = formatMoneyWithSymbol(value.primary, value.primaryCurrency);
+  const secondary = formatMoneyWithSymbol(
+    value.secondary,
+    value.secondaryCurrency,
+  );
+
+  return (
+    <span
+      className={cn(
+        "flex min-w-0 items-center justify-end whitespace-nowrap text-right tabular-nums",
+        compact ? "gap-1 text-xs leading-4" : "gap-1.5 text-sm leading-5",
+      )}
+      title={showSecondary ? `${primary} / ${secondary}` : primary}
+    >
+      <span className="font-semibold text-foreground">{primary}</span>
+      {showSecondary ? (
+        <>
+          <span className="text-muted">/</span>
+          <span
+            className={compact ? "text-xs text-muted" : "text-[13px] text-muted"}
+          >
+            {secondary}
+          </span>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
+function formatMoneyWithSymbol(label: string, currency: CurrencyCode) {
+  const isNegative = label.startsWith("-");
+  const unsignedLabel = isNegative ? label.slice(1) : label;
+  const codePrefix = `${currency} `;
+  const amount = unsignedLabel.startsWith(codePrefix)
+    ? unsignedLabel.slice(codePrefix.length)
+    : unsignedLabel;
+  const symbol = currency === "USD" ? "$" : "\u17db";
+
+  return `${isNegative ? "-" : ""}${symbol}${amount}`;
 }

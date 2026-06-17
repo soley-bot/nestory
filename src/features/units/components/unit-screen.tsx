@@ -79,7 +79,7 @@ export function UnitScreen({
       <UnitFilters properties={propertyOptions} viewQuery={viewQuery} />
 
       <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 space-y-3">
             <UnitsTable
               archiveState={viewQuery.archiveState}
