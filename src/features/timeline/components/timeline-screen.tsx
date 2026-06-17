@@ -1,7 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import { Archive, Download, Plus, RotateCcw, Save, Upload } from "lucide-react";
+import { useActionState, useEffect, useState } from "react";
+import {
+  Archive,
+  Download,
+  Plus,
+  RotateCcw,
+  Save,
+  Upload,
+} from "lucide-react";
+import { PaginationControls } from "@/components/data/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
@@ -19,13 +27,14 @@ import { TimelineEventForm } from "@/features/timeline/components/timeline-event
 import { TimelineFilters } from "@/features/timeline/components/timeline-filters";
 import { TimelineInspector } from "@/features/timeline/components/timeline-inspector";
 import { TimelineTable } from "@/features/timeline/components/timeline-table";
-import { filterTimelineEvents } from "@/features/timeline/timeline.filters";
 import type {
   TimelineEvent,
   TimelineEventType,
+  TimelinePagination,
   TimelinePropertyOption,
   TimelineSnapshot,
   TimelineUnitOption,
+  TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
 
 const archiveInitialState: TimelineActionState = {};
@@ -44,46 +53,34 @@ type TimelineScreenProps = {
   eventTypes: TimelineEventType[];
   events: TimelineEvent[];
   initialEventId?: string;
+  pagination: TimelinePagination;
   propertyOptions: TimelinePropertyOption[];
   recentChanges: RecentChange[];
   snapshot: TimelineSnapshot;
   unitOptions: TimelineUnitOption[];
+  viewQuery: TimelineViewQuery;
 };
 
 export function TimelineScreen({
   eventTypes,
   events,
   initialEventId,
+  pagination,
   propertyOptions,
   recentChanges,
   snapshot,
   unitOptions,
+  viewQuery,
 }: TimelineScreenProps) {
-  const [archiveState, setArchiveState] = useState<
-    "active" | "archived" | "all"
-  >("active");
-  const [query, setQuery] = useState("");
-  const [eventType, setEventType] = useState("all");
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
-  const [property, setProperty] = useState("all");
-  const [selectedEventId, setSelectedEventId] = useState(
-    initialEventId ?? events[0]?.id ?? "",
-  );
+  const [selectedEventId, setSelectedEventId] = useState(initialEventId ?? "");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const filteredEvents = useMemo(() => {
-    return filterTimelineEvents(events, {
-      archiveState,
-      eventType,
-      propertyId: property,
-      query,
-    });
-  }, [archiveState, eventType, events, property, query]);
-
   const selectedEvent =
-    filteredEvents.find((event) => event.id === selectedEventId) ??
-    filteredEvents[0] ??
-    null;
+    (initialEventId
+      ? events.find((event) => event.id === initialEventId)
+      : null) ??
+    events.find((event) => event.id === selectedEventId) ?? events[0] ?? null;
 
   return (
     <div className="min-h-screen">
@@ -126,16 +123,9 @@ export function TimelineScreen({
       ) : null}
 
       <TimelineFilters
-        archiveState={archiveState}
-        eventType={eventType}
         eventTypes={eventTypes}
-        onArchiveStateChange={setArchiveState}
-        onEventTypeChange={setEventType}
-        onPropertyChange={setProperty}
-        onQueryChange={setQuery}
         properties={propertyOptions}
-        property={property}
-        query={query}
+        viewQuery={viewQuery}
       />
 
       <div className="space-y-5 px-4 py-5 sm:px-6 lg:p-8">
@@ -149,11 +139,15 @@ export function TimelineScreen({
           }}
         />
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
-          <TimelineTable
-            events={filteredEvents}
-            onSelectEvent={setSelectedEventId}
-            selectedEventId={selectedEvent?.id ?? ""}
-          />
+          <div className="min-w-0 space-y-3">
+            <TimelineTable
+              events={events}
+              onSelectEvent={setSelectedEventId}
+              pagination={pagination}
+              selectedEventId={selectedEvent?.id ?? ""}
+            />
+            <PaginationControls pagination={pagination} />
+          </div>
           <TimelineInspector
             event={selectedEvent}
             onAttachDocument={(event) => {

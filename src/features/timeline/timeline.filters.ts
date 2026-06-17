@@ -1,11 +1,42 @@
-import type { TimelineEvent } from "@/features/timeline/timeline.types";
+import type {
+  TimelineArchiveState,
+  TimelineEvent,
+  TimelineEventType,
+  TimelinePagination,
+  TimelineSortKey,
+  TimelineViewQuery,
+} from "@/features/timeline/timeline.types";
+import { normalizePageSize } from "@/lib/query/screen-query";
+
+export const DEFAULT_TIMELINE_PAGE_SIZE = 50;
+export const TIMELINE_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+export const DEFAULT_TIMELINE_SORT: TimelineSortKey = "date_desc";
+
+const TIMELINE_EVENT_TYPE_VALUES: readonly TimelineEventType[] = [
+  "Lease Started",
+  "Lease Ended",
+  "Tenant Move In",
+  "Tenant Move Out",
+  "Rent Increase",
+  "Maintenance",
+  "Repair",
+  "Renovation",
+  "Inspection",
+  "Document Added",
+  "General Note",
+];
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type TimelineFilterInput = {
-  archiveState?: "active" | "archived" | "all";
+  archiveState?: TimelineArchiveState;
   eventType: string;
   propertyId: string;
   query: string;
 };
+
+type TimelineSearchParams = Record<string, string | string[] | undefined>;
+type TimelineSearchParamUpdate = Record<string, string | number | null | undefined>;
 
 export function filterTimelineEvents(
   events: TimelineEvent[],
@@ -46,4 +77,204 @@ export function filterTimelineEvents(
         queryTokens.every((token) => searchable.includes(token)))
     );
   });
+}
+
+export function parseTimelineSearchParams(
+  params: TimelineSearchParams,
+): TimelineViewQuery {
+  return {
+    archiveState: parseArchiveState(params.archiveState),
+    eventType: parseEventType(params.eventType),
+    page: parsePositiveInteger(params.page, 1),
+    pageSize: parsePageSize(params.pageSize),
+    propertyId: parseUuidFilter(params.propertyId),
+    query: (getFirstValue(params.query) || "").trim().slice(0, 120),
+    sort: parseSort(params.sort),
+    unitId: parseUuidFilter(params.unitId),
+  };
+}
+
+export function sortTimelineEvents(
+  events: TimelineEvent[],
+  sort: TimelineSortKey,
+) {
+  return [...events].sort((left, right) => {
+    if (sort === "date_asc") {
+      return compareDate(left.eventDate, right.eventDate);
+    }
+
+    if (sort === "type_asc") {
+      return (
+        left.eventType.localeCompare(right.eventType) ||
+        compareDate(right.eventDate, left.eventDate)
+      );
+    }
+
+    if (sort === "property_asc") {
+      return (
+        left.propertyCode.localeCompare(right.propertyCode) ||
+        (left.unitNumber ?? "").localeCompare(right.unitNumber ?? "") ||
+        compareDate(right.eventDate, left.eventDate)
+      );
+    }
+
+    return compareDate(right.eventDate, left.eventDate);
+  });
+}
+
+export function paginateTimelineEvents(
+  events: TimelineEvent[],
+  query: Pick<TimelineViewQuery, "page" | "pageSize">,
+) {
+  const totalCount = events.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
+  const page = Math.min(Math.max(query.page, 1), totalPages);
+  const fromIndex = (page - 1) * query.pageSize;
+  const toIndex = fromIndex + query.pageSize;
+
+  return {
+    events: events.slice(fromIndex, toIndex),
+    pagination: buildTimelinePagination({
+      page,
+      pageSize: query.pageSize,
+      totalCount,
+    }),
+  };
+}
+
+export function buildTimelinePagination({
+  page,
+  pageSize,
+  totalCount,
+}: {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}): TimelinePagination {
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+  const from = totalCount === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const to = totalCount === 0 ? 0 : Math.min(safePage * pageSize, totalCount);
+
+  return {
+    from,
+    page: safePage,
+    pageSize,
+    to,
+    totalCount,
+    totalPages,
+  };
+}
+
+export function buildTimelineSearchString(
+  currentSearch: string | URLSearchParams,
+  updates: TimelineSearchParamUpdate,
+) {
+  const params = new URLSearchParams(currentSearch);
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === null || value === undefined || value === "") {
+      params.delete(key);
+      continue;
+    }
+
+    params.set(key, String(value));
+  }
+
+  stripDefaultTimelineParams(params);
+
+  const queryString = params.toString();
+
+  return queryString ? `?${queryString}` : "";
+}
+
+function parseArchiveState(
+  value: string | string[] | undefined,
+): TimelineArchiveState {
+  const candidate = getFirstValue(value);
+
+  return candidate === "archived" || candidate === "all" ? candidate : "active";
+}
+
+function parseEventType(value: string | string[] | undefined): TimelineEventType | "all" {
+  const candidate = getFirstValue(value);
+
+  return candidate && TIMELINE_EVENT_TYPE_VALUES.includes(candidate as TimelineEventType)
+    ? (candidate as TimelineEventType)
+    : "all";
+}
+
+function parseUuidFilter(value: string | string[] | undefined) {
+  const candidate = getFirstValue(value);
+
+  return candidate && uuidPattern.test(candidate) ? candidate : "all";
+}
+
+function parseSort(value: string | string[] | undefined): TimelineSortKey {
+  const candidate = getFirstValue(value);
+
+  return candidate === "date_asc" ||
+    candidate === "type_asc" ||
+    candidate === "property_asc"
+    ? candidate
+    : DEFAULT_TIMELINE_SORT;
+}
+
+function parsePageSize(value: string | string[] | undefined) {
+  const candidate = normalizePageSize(parseOptionalInteger(value));
+
+  return TIMELINE_PAGE_SIZE_OPTIONS.includes(
+    candidate as (typeof TIMELINE_PAGE_SIZE_OPTIONS)[number],
+  )
+    ? candidate
+    : DEFAULT_TIMELINE_PAGE_SIZE;
+}
+
+function parseOptionalInteger(value: string | string[] | undefined) {
+  const parsed = Number.parseInt(getFirstValue(value) ?? "", 10);
+
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parsePositiveInteger(
+  value: string | string[] | undefined,
+  fallback: number,
+) {
+  const parsed = Number.parseInt(getFirstValue(value) ?? "", 10);
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getFirstValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function compareDate(left: string, right: string) {
+  return left.localeCompare(right);
+}
+
+function stripDefaultTimelineParams(params: URLSearchParams) {
+  if (params.get("archiveState") === "active") {
+    params.delete("archiveState");
+  }
+
+  if (params.get("eventType") === "all") {
+    params.delete("eventType");
+  }
+
+  if (params.get("propertyId") === "all") {
+    params.delete("propertyId");
+  }
+
+  if (params.get("page") === "1") {
+    params.delete("page");
+  }
+
+  if (params.get("pageSize") === String(DEFAULT_TIMELINE_PAGE_SIZE)) {
+    params.delete("pageSize");
+  }
+
+  if (params.get("sort") === DEFAULT_TIMELINE_SORT) {
+    params.delete("sort");
+  }
 }

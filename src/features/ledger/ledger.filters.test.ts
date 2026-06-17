@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { filterLedgerEntries } from "@/features/ledger/ledger.filters";
+import {
+  buildLedgerPagination,
+  buildLedgerSnapshotFromEntries,
+  filterLedgerEntries,
+  parseLedgerSearchParams,
+  sortLedgerEntries,
+} from "@/features/ledger/ledger.filters";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
 
 const entries: LedgerEntry[] = [
@@ -90,5 +96,79 @@ describe("filterLedgerEntries", () => {
         query: "",
       }),
     ).toEqual([entries[1]]);
+  });
+});
+
+describe("parseLedgerSearchParams", () => {
+  it("normalizes URL state for server-backed ledger views", () => {
+    expect(
+      parseLedgerSearchParams({
+        archiveState: "archived",
+        direction: "expense",
+        page: "3",
+        pageSize: "50",
+        propertyId: "11111111-1111-4111-8111-111111111111",
+        query: "  roof   repair  ",
+        sort: "amount_desc",
+      }),
+    ).toEqual({
+      archiveState: "archived",
+      direction: "expense",
+      page: 3,
+      pageSize: 50,
+      propertyId: "11111111-1111-4111-8111-111111111111",
+      query: "roof   repair",
+      sort: "amount_desc",
+    });
+  });
+
+  it("falls back when params are invalid", () => {
+    expect(
+      parseLedgerSearchParams({
+        archiveState: "deleted",
+        direction: "transfer",
+        page: "-1",
+        pageSize: "500",
+        propertyId: "not-a-uuid",
+        sort: "category_desc",
+      }),
+    ).toMatchObject({
+      archiveState: "active",
+      direction: "all",
+      page: 1,
+      pageSize: 25,
+      propertyId: "all",
+      sort: "date_desc",
+    });
+  });
+});
+
+describe("ledger list helpers", () => {
+  it("sorts rows and builds display pagination", () => {
+    const sorted = sortLedgerEntries(entries, "amount_desc");
+    const pagination = buildLedgerPagination({
+      page: 2,
+      pageSize: 1,
+      totalCount: sorted.length,
+    });
+
+    expect(sorted.map((entry) => entry.id)).toEqual(["rent-1", "maintenance-1"]);
+    expect(pagination).toMatchObject({
+      from: 2,
+      page: 2,
+      pageSize: 1,
+      to: 2,
+      totalCount: 2,
+      totalPages: 2,
+    });
+  });
+
+  it("summarizes the filtered rows, not only a visible page", () => {
+    const snapshot = buildLedgerSnapshotFromEntries(entries, "2");
+
+    expect(snapshot.entryCount).toBe("2");
+    expect(snapshot.totalIncome).toBe("$850.00");
+    expect(snapshot.totalExpense).toBe("$120.00");
+    expect(snapshot.lockedPeriodCount).toBe("2");
   });
 });

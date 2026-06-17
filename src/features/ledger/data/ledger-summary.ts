@@ -13,9 +13,10 @@ type LedgerSummaryEntry = {
 
 export function buildLedgerSnapshot(
   entries: LedgerSummaryEntry[],
+  options: { entryCount?: number } = {},
 ): LedgerSnapshot {
   return {
-    entryCount: String(entries.length),
+    entryCount: String(options.entryCount ?? entries.length),
     lockedPeriodCount: "0",
     netIncome: formatMoneyTotals(entries),
     totalExpense: formatDirectionTotal(entries, "expense"),

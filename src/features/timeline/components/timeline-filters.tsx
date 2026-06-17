@@ -1,83 +1,167 @@
+"use client";
+
+import type { FormEvent } from "react";
+import { useState, useTransition } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
-import type { TimelinePropertyOption } from "@/features/timeline/timeline.types";
-
-type ArchiveState = "active" | "archived" | "all";
+import {
+  DEFAULT_TIMELINE_PAGE_SIZE,
+  DEFAULT_TIMELINE_SORT,
+  TIMELINE_PAGE_SIZE_OPTIONS,
+} from "@/features/timeline/timeline.filters";
+import type {
+  TimelinePropertyOption,
+  TimelineViewQuery,
+} from "@/features/timeline/timeline.types";
 
 type TimelineFiltersProps = {
-  archiveState: ArchiveState;
   eventTypes: string[];
   properties: TimelinePropertyOption[];
-  eventType: string;
-  property: string;
-  query: string;
-  onArchiveStateChange: (value: ArchiveState) => void;
-  onEventTypeChange: (value: string) => void;
-  onPropertyChange: (value: string) => void;
-  onQueryChange: (value: string) => void;
+  viewQuery: TimelineViewQuery;
 };
 
 export function TimelineFilters({
-  archiveState,
   eventTypes,
   properties,
-  eventType,
-  property,
-  query,
-  onArchiveStateChange,
-  onEventTypeChange,
-  onPropertyChange,
-  onQueryChange,
+  viewQuery,
 }: TimelineFiltersProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const [queryState, setQueryState] = useState({
+    source: viewQuery.query,
+    value: viewQuery.query,
+  });
+  const query =
+    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+
+  function replaceParam(name: string, value: string, defaultValue: string) {
+    const nextParams = new URLSearchParams(searchParams.toString());
+
+    if (value === defaultValue || value.trim() === "") {
+      nextParams.delete(name);
+    } else {
+      nextParams.set(name, value);
+    }
+
+    nextParams.delete("page");
+    nextParams.delete("eventId");
+    const queryString = nextParams.toString();
+
+    startTransition(() => {
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+        scroll: false,
+      });
+    });
+  }
+
+  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    replaceParam("query", query.trim(), "");
+  }
+
   return (
-    <div className="grid gap-3 border-b border-border bg-surface px-4 py-4 sm:px-6 lg:grid-cols-[minmax(260px,1fr)_minmax(180px,240px)_minmax(170px,220px)_minmax(130px,160px)] lg:px-8">
-      <label className="relative min-w-0">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-          size={16}
+    <div className="border-b border-border bg-surface px-4 py-4 sm:px-6 lg:px-8">
+      <div className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_minmax(180px,240px)_minmax(170px,220px)_minmax(130px,160px)_minmax(130px,170px)_minmax(104px,120px)]">
+        <form className="flex min-w-0 gap-2" onSubmit={handleSearchSubmit}>
+          <label className="relative min-w-0 flex-1">
+            <span className="sr-only">Search timeline records</span>
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+              size={16}
+            />
+            <Input
+              className="pl-9"
+              onChange={(event) =>
+                setQueryState({
+                  source: viewQuery.query,
+                  value: event.target.value,
+                })
+              }
+              placeholder="Search title or notes"
+              type="search"
+              value={query}
+            />
+          </label>
+          <Button disabled={isPending} type="submit">
+            Search
+          </Button>
+        </form>
+
+        <SelectControl
+          ariaLabel="Filter by property"
+          onValueChange={(value) => replaceParam("propertyId", value, "all")}
+          options={[
+            { label: "All properties", value: "all" },
+            ...properties.map((item) => ({
+              label: item.label,
+              value: item.id,
+            })),
+          ]}
+          value={viewQuery.propertyId}
         />
-        <Input
-          className="pl-9"
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search history, property, unit, document"
-          value={query}
+
+        <SelectControl
+          ariaLabel="Filter by event type"
+          onValueChange={(value) => replaceParam("eventType", value, "all")}
+          options={[
+            { label: "All event types", value: "all" },
+            ...eventTypes.map((item) => ({ label: item, value: item })),
+          ]}
+          value={viewQuery.eventType}
         />
-      </label>
 
-      <SelectControl
-        ariaLabel="Filter by property"
-        onValueChange={onPropertyChange}
-        options={[
-          { label: "All properties", value: "all" },
-          ...properties.map((item) => ({
-            label: item.label,
-            value: item.id,
-          })),
-        ]}
-        value={property}
-      />
+        <SelectControl
+          ariaLabel="Filter by archive state"
+          onValueChange={(value) =>
+            replaceParam("archiveState", value, "active")
+          }
+          options={[
+            { label: "Active", value: "active" },
+            { label: "Archived", value: "archived" },
+            { label: "All records", value: "all" },
+          ]}
+          value={viewQuery.archiveState}
+        />
 
-      <SelectControl
-        ariaLabel="Filter by event type"
-        onValueChange={onEventTypeChange}
-        options={[
-          { label: "All event types", value: "all" },
-          ...eventTypes.map((item) => ({ label: item, value: item })),
-        ]}
-        value={eventType}
-      />
+        <SelectControl
+          ariaLabel="Sort timeline records"
+          onValueChange={(value) => replaceParam("sort", value, DEFAULT_TIMELINE_SORT)}
+          options={[
+            { label: "Newest first", value: "date_desc" },
+            { label: "Oldest first", value: "date_asc" },
+            { label: "Type", value: "type_asc" },
+            { label: "Property", value: "property_asc" },
+          ]}
+          value={viewQuery.sort}
+        />
 
-      <SelectControl
-        ariaLabel="Filter by archive state"
-        onValueChange={(value) => onArchiveStateChange(value as ArchiveState)}
-        options={[
-          { label: "Active", value: "active" },
-          { label: "Archived", value: "archived" },
-          { label: "All records", value: "all" },
-        ]}
-        value={archiveState}
-      />
+        <div className="flex gap-2">
+          <SelectControl
+            ariaLabel="Rows per page"
+            onValueChange={(value) =>
+              replaceParam("pageSize", value, String(DEFAULT_TIMELINE_PAGE_SIZE))
+            }
+            options={TIMELINE_PAGE_SIZE_OPTIONS.map((pageSize) => ({
+              label: String(pageSize),
+              value: String(pageSize),
+            }))}
+            value={String(viewQuery.pageSize)}
+          />
+          <Link
+            className="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            href={pathname}
+            scroll={false}
+          >
+            Reset
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Archive, Download, Lock, Plus, RotateCcw, Upload } from "lucide-react";
+import { PaginationControls } from "@/components/data/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { SelectControl } from "@/components/ui/select-control";
@@ -22,13 +23,14 @@ import { LedgerFilters } from "@/features/ledger/components/ledger-filters";
 import { LedgerInspector } from "@/features/ledger/components/ledger-inspector";
 import { LedgerSummary } from "@/features/ledger/components/ledger-summary";
 import { LedgerTable } from "@/features/ledger/components/ledger-table";
-import { filterLedgerEntries } from "@/features/ledger/ledger.filters";
 import type {
   LedgerEntry,
+  LedgerPagination as LedgerPaginationMeta,
   LedgerPeriodLock,
   LedgerPropertyOption,
   LedgerSnapshot,
   LedgerUnitOption,
+  LedgerViewQuery,
 } from "@/features/ledger/ledger.types";
 import { formatDate } from "@/lib/dates/format";
 
@@ -49,47 +51,34 @@ type DrawerState =
 type LedgerScreenProps = {
   entries: LedgerEntry[];
   initialEntryId?: string;
+  pagination: LedgerPaginationMeta;
   periodLocks: LedgerPeriodLock[];
   propertyOptions: LedgerPropertyOption[];
   recentChanges: RecentChange[];
   snapshot: LedgerSnapshot;
   unitOptions: LedgerUnitOption[];
+  viewQuery: LedgerViewQuery;
 };
 
 export function LedgerScreen({
   entries,
   initialEntryId,
+  pagination,
   periodLocks,
   propertyOptions,
   recentChanges,
   snapshot,
   unitOptions,
+  viewQuery,
 }: LedgerScreenProps) {
-  const [archiveState, setArchiveState] = useState<
-    "active" | "archived" | "all"
-  >("active");
-  const [direction, setDirection] = useState("all");
   const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
-  const [property, setProperty] = useState("all");
-  const [query, setQuery] = useState("");
   const [selectedEntryId, setSelectedEntryId] = useState(
     initialEntryId ?? entries[0]?.id ?? "",
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const filteredEntries = useMemo(() => {
-    return filterLedgerEntries(entries, {
-      direction,
-      archiveState,
-      propertyId: property,
-      query,
-    });
-  }, [archiveState, direction, entries, property, query]);
-
   const selectedEntry =
-    filteredEntries.find((entry) => entry.id === selectedEntryId) ??
-    filteredEntries[0] ??
-    null;
+    entries.find((entry) => entry.id === selectedEntryId) ?? entries[0] ?? null;
 
   return (
     <div className="min-h-screen">
@@ -136,20 +125,13 @@ export function LedgerScreen({
         </div>
       ) : null}
 
-      <LedgerFilters
-        archiveState={archiveState}
-        direction={direction}
-        onArchiveStateChange={setArchiveState}
-        onDirectionChange={setDirection}
-        onPropertyChange={setProperty}
-        onQueryChange={setQuery}
-        properties={propertyOptions}
-        property={property}
-        query={query}
-      />
+      <LedgerFilters properties={propertyOptions} viewQuery={viewQuery} />
 
       <div className="space-y-5 px-4 py-5 sm:px-6 lg:p-8">
-        <LedgerSummary snapshot={snapshot} />
+        <LedgerSummary
+          resultScope="Filtered ledger rows"
+          snapshot={snapshot}
+        />
         <RecentChangesPanel
           changes={recentChanges}
           defaultCollapsed
@@ -159,23 +141,26 @@ export function LedgerScreen({
           }}
         />
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
-          <LedgerTable
-            entries={filteredEntries}
-            onArchiveEntry={(entry) => {
-              setStatusMessage(null);
-              setDrawerState({ entry, mode: "archive" });
-            }}
-            onEditEntry={(entry) => {
-              setStatusMessage(null);
-              setDrawerState({ entry, mode: "edit" });
-            }}
-            onRestoreEntry={(entry) => {
-              setStatusMessage(null);
-              setDrawerState({ entry, mode: "restore" });
-            }}
-            onSelectEntry={setSelectedEntryId}
-            selectedEntryId={selectedEntry?.id ?? ""}
-          />
+          <div className="space-y-3">
+            <LedgerTable
+              entries={entries}
+              onArchiveEntry={(entry) => {
+                setStatusMessage(null);
+                setDrawerState({ entry, mode: "archive" });
+              }}
+              onEditEntry={(entry) => {
+                setStatusMessage(null);
+                setDrawerState({ entry, mode: "edit" });
+              }}
+              onRestoreEntry={(entry) => {
+                setStatusMessage(null);
+                setDrawerState({ entry, mode: "restore" });
+              }}
+              onSelectEntry={setSelectedEntryId}
+              selectedEntryId={selectedEntry?.id ?? ""}
+            />
+            <PaginationControls pagination={pagination} />
+          </div>
           <LedgerInspector
             entry={selectedEntry}
             onArchiveEntry={(entry) => {

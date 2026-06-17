@@ -1,6 +1,21 @@
 # Nestory
 
-Nestory is a web-first Property History and Performance Hub for property management companies in Cambodia.
+Nestory starts as a web-first Property History and Performance Hub for property management companies in Cambodia, with a phased path toward a broader property management system.
+
+## Product Direction
+
+Nestory should grow from a timeline and ledger record-room foundation before expanding into broader PMS workflows. The next backbone module is Leases & Tenants.
+
+Roadmap order:
+
+1. Timeline/Ledger foundation
+2. Leases & Tenants
+3. Units and property dashboards
+4. Maintenance/tasks
+5. Reports/accounting expansion
+6. Tenant portal/payments/integrations later
+
+Future module database design should follow `docs/enterprise-lite-database-roadmap.md`.
 
 ## Local Development
 

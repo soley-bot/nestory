@@ -1,6 +1,6 @@
 # Nestory Project Rules
 
-Nestory is a web-first Property History and Performance Hub for property management companies in Cambodia. It is not a full property management system, accounting platform, CRM, marketing tool, or tenant portal.
+Nestory starts as a web-first Property History and Performance Hub for property management companies in Cambodia, with a phased path toward a broader property management system.
 
 The product goal is simple:
 
@@ -18,6 +18,15 @@ These rules should guide architecture, UI, database design, feature scope, and r
 - Avoid decorative visuals, loud dashboards, gradients, oversized cards, and marketing-style layouts.
 - Use neutral colors and minimal accents.
 - Less is more.
+
+## Long-Term Product Direction
+
+- Broad PMS capability is allowed as the larger ambition, but Nestory should grow from the record-room foundation instead of copying every competitor module at once.
+- Leases & Tenants is the next backbone module after the Timeline/Ledger foundation.
+- Leases & Tenants should connect occupants, lease terms, move-in and move-out history, rent obligations, documents, and unit status back to the property and unit record.
+- Later PMS phases can include Tasks/Maintenance, deeper Accounting/Reports, Tenant Portal, Payments, Communications, and Workflows.
+- Keep Phase 1 constraints intact until explicitly changed: one Admin role, simple UI, archive-over-delete, activity logging, USD/KHR support, reusable components, and minimal operational screens.
+- Future module database design should follow `docs/enterprise-lite-database-roadmap.md` before new PMS migrations are added.
 
 ## Timeline And Ledger UX Rules
 

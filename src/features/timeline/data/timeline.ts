@@ -2,15 +2,31 @@ import { Constants } from "@/types/database";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import type { LinkedDocument } from "@/features/documents/document.types";
 import { getPropertySummaries } from "@/features/properties/data/properties";
-import { createSupabaseServerClient } from "@/lib/db/server";
-import { formatMoneyTotals } from "@/lib/money/totals";
+import {
+  buildTimelinePagination,
+  DEFAULT_TIMELINE_PAGE_SIZE,
+  DEFAULT_TIMELINE_SORT,
+} from "@/features/timeline/timeline.filters";
 import type {
   TimelineEvent,
   TimelineEventType,
   TimelinePropertyOption,
   TimelineSnapshot,
   TimelineUnitOption,
+  TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
+import { createSupabaseServerClient } from "@/lib/db/server";
+import { formatMoneyTotals } from "@/lib/money/totals";
+
+const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
+  archiveState: "active",
+  eventType: "all",
+  page: 1,
+  pageSize: DEFAULT_TIMELINE_PAGE_SIZE,
+  propertyId: "all",
+  query: "",
+  sort: DEFAULT_TIMELINE_SORT,
+};
 
 type PropertyRow = {
   code: string;
@@ -20,6 +36,7 @@ type PropertyRow = {
 
 type UnitRow = {
   id: string;
+  property_id: string;
   unit_number: string;
 };
 
@@ -64,6 +81,14 @@ type TimelineEventRow = {
   unit_id: string | null;
 };
 
+type TimelineEventSummaryRow = {
+  archived_at: string | null;
+  cost_amount: number | null;
+  cost_currency: "USD" | "KHR" | null;
+  event_date: string;
+  event_type: TimelineEventType;
+};
+
 type PeriodLockRow = {
   id: string;
   locked_at: string | null;
@@ -75,28 +100,50 @@ type TimelineDocumentWithLink = LinkedDocument & {
   timelineEventId?: string;
 };
 
-export async function getTimelineScreenData(organizationId: string) {
+type FilterableQuery<TQuery> = {
+  eq: (column: string, value: string) => TQuery;
+  is: (column: string, value: null) => TQuery;
+  not: (column: string, operator: string, value: null) => TQuery;
+  or: (filters: string) => TQuery;
+};
+
+type SortableQuery<TQuery> = {
+  order: (column: string, options?: { ascending?: boolean }) => TQuery;
+};
+
+export async function getTimelineScreenData(
+  organizationId: string,
+  viewQuery: TimelineViewQuery = DEFAULT_TIMELINE_VIEW_QUERY,
+) {
   const supabase = await createSupabaseServerClient();
 
-  const [
-    eventsResult,
-    propertiesResult,
-    unitsResult,
-    leasesResult,
-    ledgerResult,
-    documentsResult,
-    periodLocksResult,
-    recentActivityResult,
-    propertySummaries,
-  ] = await Promise.all([
-    supabase
+  const fetchEventsPage = (page: number) => {
+    const { from, to } = getRange(page, viewQuery.pageSize);
+    let query = supabase
       .from("timeline_events")
       .select(
         "id, property_id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency, created_by, archived_at",
+        { count: "exact" },
       )
-      .eq("organization_id", organizationId)
-      .order("event_date", { ascending: false })
-      .limit(100),
+      .eq("organization_id", organizationId);
+
+    query = applyTimelineFilters(query, viewQuery);
+    query = applyTimelineSort(query, viewQuery.sort);
+
+    return query.range(from, to);
+  };
+
+  const [
+    firstEventsResult,
+    propertiesResult,
+    unitsResult,
+    periodLocksResult,
+    recentActivityResult,
+    propertySummaries,
+    snapshotLedgerResult,
+    snapshotEventsResult,
+  ] = await Promise.all([
+    fetchEventsPage(viewQuery.page),
     supabase
       .from("properties")
       .select("id, name, code")
@@ -107,23 +154,6 @@ export async function getTimelineScreenData(organizationId: string) {
       .from("units")
       .select("id, property_id, unit_number")
       .eq("organization_id", organizationId)
-      .is("archived_at", null),
-    supabase
-      .from("leases")
-      .select("id, tenant_name")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null),
-    supabase
-      .from("ledger_entries")
-      .select("id, category, direction, amount, currency, archived_at")
-      .eq("organization_id", organizationId),
-    supabase
-      .from("documents")
-      .select(
-        "id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at",
-      )
-      .eq("organization_id", organizationId)
-      .not("timeline_event_id", "is", null)
       .is("archived_at", null),
     supabase
       .from("ledger_period_locks")
@@ -140,7 +170,21 @@ export async function getTimelineScreenData(organizationId: string) {
       .order("created_at", { ascending: false })
       .limit(6),
     getPropertySummaries(organizationId),
+    fetchSnapshotLedgerRows(supabase, organizationId, viewQuery),
+    fetchSnapshotTimelineRows(supabase, organizationId, viewQuery),
   ]);
+
+  if (firstEventsResult.error) {
+    throw new Error(
+      `Could not load timeline events: ${firstEventsResult.error.message}`,
+    );
+  }
+
+  const totalCount = firstEventsResult.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / viewQuery.pageSize));
+  const page = Math.min(Math.max(viewQuery.page, 1), totalPages);
+  const eventsResult =
+    page === viewQuery.page ? firstEventsResult : await fetchEventsPage(page);
 
   if (eventsResult.error) {
     throw new Error(`Could not load timeline events: ${eventsResult.error.message}`);
@@ -152,18 +196,6 @@ export async function getTimelineScreenData(organizationId: string) {
 
   if (unitsResult.error) {
     throw new Error(`Could not load timeline units: ${unitsResult.error.message}`);
-  }
-
-  if (leasesResult.error) {
-    throw new Error(`Could not load timeline leases: ${leasesResult.error.message}`);
-  }
-
-  if (ledgerResult.error) {
-    throw new Error(`Could not load timeline ledger entries: ${ledgerResult.error.message}`);
-  }
-
-  if (documentsResult.error) {
-    throw new Error(`Could not load timeline documents: ${documentsResult.error.message}`);
   }
 
   if (periodLocksResult.error) {
@@ -178,6 +210,64 @@ export async function getTimelineScreenData(organizationId: string) {
     );
   }
 
+  if (snapshotLedgerResult.error) {
+    throw new Error(
+      `Could not load timeline ledger summary: ${snapshotLedgerResult.error.message}`,
+    );
+  }
+
+  if (snapshotEventsResult.error) {
+    throw new Error(
+      `Could not load timeline maintenance summary: ${snapshotEventsResult.error.message}`,
+    );
+  }
+
+  const eventRows = eventsResult.data ?? [];
+  const eventIds = eventRows.map((event) => event.id);
+  const leaseIds = unique(eventRows.flatMap((event) => event.lease_id ?? []));
+  const ledgerEntryIds = unique(
+    eventRows.flatMap((event) => event.ledger_entry_id ?? []),
+  );
+
+  const [leasesResult, ledgerResult, documentsResult] = await Promise.all([
+    leaseIds.length > 0
+      ? supabase
+          .from("leases")
+          .select("id, tenant_name")
+          .eq("organization_id", organizationId)
+          .in("id", leaseIds)
+      : Promise.resolve({ data: [] as LeaseRow[], error: null }),
+    ledgerEntryIds.length > 0
+      ? supabase
+          .from("ledger_entries")
+          .select("id, category, direction, amount, currency, archived_at")
+          .eq("organization_id", organizationId)
+          .in("id", ledgerEntryIds)
+      : Promise.resolve({ data: [] as LedgerEntryRow[], error: null }),
+    eventIds.length > 0
+      ? supabase
+          .from("documents")
+          .select(
+            "id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at",
+          )
+          .eq("organization_id", organizationId)
+          .in("timeline_event_id", eventIds)
+          .is("archived_at", null)
+      : Promise.resolve({ data: [] as DocumentRow[], error: null }),
+  ]);
+
+  if (leasesResult.error) {
+    throw new Error(`Could not load timeline leases: ${leasesResult.error.message}`);
+  }
+
+  if (ledgerResult.error) {
+    throw new Error(`Could not load timeline ledger entries: ${ledgerResult.error.message}`);
+  }
+
+  if (documentsResult.error) {
+    throw new Error(`Could not load timeline documents: ${documentsResult.error.message}`);
+  }
+
   const propertiesById = indexById(propertiesResult.data ?? []);
   const unitsById = indexById(unitsResult.data ?? []);
   const leasesById = indexById(leasesResult.data ?? []);
@@ -188,7 +278,7 @@ export async function getTimelineScreenData(organizationId: string) {
     supabase,
   );
   const documentsByEventId = groupDocumentsByEventId(documentsWithUrls);
-  const events = (eventsResult.data ?? []).map((event) =>
+  const events = eventRows.map((event) =>
     toTimelineEvent({
       documents: documentsByEventId.get(event.id) ?? [],
       event,
@@ -201,10 +291,19 @@ export async function getTimelineScreenData(organizationId: string) {
       unit: event.unit_id ? unitsById.get(event.unit_id) : undefined,
     }),
   );
+  const selectedPropertySummaries =
+    viewQuery.propertyId === "all"
+      ? propertySummaries
+      : propertySummaries.filter((property) => property.id === viewQuery.propertyId);
 
   return {
     eventTypes: [...Constants.public.Enums.timeline_event_type],
     events,
+    pagination: buildTimelinePagination({
+      page,
+      pageSize: viewQuery.pageSize,
+      totalCount,
+    }),
     propertyOptions: (propertiesResult.data ?? []).map(
       (property): TimelinePropertyOption => ({
         id: property.id,
@@ -213,9 +312,9 @@ export async function getTimelineScreenData(organizationId: string) {
     ),
     recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
     snapshot: buildSnapshot(
-      propertySummaries,
-      (ledgerResult.data ?? []).filter((entry) => entry.archived_at === null),
-      events.filter((event) => !event.archivedAt),
+      selectedPropertySummaries,
+      snapshotLedgerResult.data ?? [],
+      snapshotEventsResult.data ?? [],
     ),
     unitOptions: (unitsResult.data ?? []).map((unit): TimelineUnitOption => {
       const property = propertiesById.get(unit.property_id);
@@ -226,6 +325,7 @@ export async function getTimelineScreenData(organizationId: string) {
         propertyId: unit.property_id,
       };
     }),
+    viewQuery,
   };
 }
 
@@ -278,7 +378,7 @@ function toTimelineEvent({
 function buildSnapshot(
   properties: Awaited<ReturnType<typeof getPropertySummaries>>,
   ledgerEntries: LedgerEntryRow[],
-  events: TimelineEvent[],
+  events: TimelineEventSummaryRow[],
 ): TimelineSnapshot {
   const unitCount = properties.reduce((total, property) => total + property.units, 0);
   const occupiedUnitCount = properties.reduce(
@@ -289,11 +389,11 @@ function buildSnapshot(
     unitCount > 0 ? `${Math.round((occupiedUnitCount / unitCount) * 100)}%` : "0%";
   const maintenanceEvents = events
     .filter((event) =>
-      ["Maintenance", "Repair", "Renovation"].includes(event.eventType),
+      ["Maintenance", "Repair", "Renovation"].includes(event.event_type),
     )
     .map((event) => ({
-      amount: event.cost ?? null,
-      currency: event.currency ?? null,
+      amount: event.cost_amount,
+      currency: event.cost_currency,
     }));
 
   return {
@@ -301,6 +401,114 @@ function buildSnapshot(
     netIncome: formatMoneyTotals(ledgerEntries),
     occupancy,
     propertyCount: String(properties.length),
+  };
+}
+
+function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
+  query: TQuery,
+  viewQuery: TimelineViewQuery,
+) {
+  let nextQuery = query;
+
+  if (viewQuery.archiveState === "active") {
+    nextQuery = nextQuery.is("archived_at", null);
+  } else if (viewQuery.archiveState === "archived") {
+    nextQuery = nextQuery.not("archived_at", "is", null);
+  }
+
+  if (viewQuery.propertyId !== "all") {
+    nextQuery = nextQuery.eq("property_id", viewQuery.propertyId);
+  }
+
+  if (viewQuery.eventType !== "all") {
+    nextQuery = nextQuery.eq("event_type", viewQuery.eventType);
+  }
+
+  const searchPattern = getSearchPattern(viewQuery.query);
+
+  if (searchPattern) {
+    nextQuery = nextQuery.or(
+      `title.ilike.${searchPattern},description.ilike.${searchPattern}`,
+    );
+  }
+
+  return nextQuery;
+}
+
+function applyTimelineSort<TQuery extends SortableQuery<TQuery>>(
+  query: TQuery,
+  sort: TimelineViewQuery["sort"],
+) {
+  if (sort === "date_asc") {
+    return query.order("event_date", { ascending: true }).order("id", {
+      ascending: true,
+    });
+  }
+
+  if (sort === "type_asc") {
+    return query.order("event_type", { ascending: true }).order("event_date", {
+      ascending: false,
+    });
+  }
+
+  if (sort === "property_asc") {
+    return query.order("property_id", { ascending: true }).order("event_date", {
+      ascending: false,
+    });
+  }
+
+  return query.order("event_date", { ascending: false }).order("id", {
+    ascending: false,
+  });
+}
+
+function fetchSnapshotLedgerRows(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  viewQuery: TimelineViewQuery,
+) {
+  let query = supabase
+    .from("ledger_entries")
+    .select("id, category, direction, amount, currency, archived_at")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null);
+
+  if (viewQuery.propertyId !== "all") {
+    query = query.eq("property_id", viewQuery.propertyId);
+  }
+
+  return query;
+}
+
+function fetchSnapshotTimelineRows(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  viewQuery: TimelineViewQuery,
+) {
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setUTCFullYear(twelveMonthsAgo.getUTCFullYear() - 1);
+
+  let query = supabase
+    .from("timeline_events")
+    .select("event_date, event_type, cost_amount, cost_currency, archived_at")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .gte("event_date", twelveMonthsAgo.toISOString().slice(0, 10))
+    .in("event_type", ["Maintenance", "Repair", "Renovation"]);
+
+  if (viewQuery.propertyId !== "all") {
+    query = query.eq("property_id", viewQuery.propertyId);
+  }
+
+  return query;
+}
+
+function getRange(page: number, pageSize: number) {
+  const from = (page - 1) * pageSize;
+
+  return {
+    from,
+    to: from + pageSize - 1,
   };
 }
 
@@ -362,4 +570,17 @@ function isTimelineEventLocked(
     (periodLock) =>
       periodLock.period_start === periodStart && Boolean(periodLock.locked_at),
   );
+}
+
+function getSearchPattern(value: string) {
+  const normalized = value
+    .replace(/[,%()]/g, " ")
+    .trim()
+    .replace(/\s+/g, "%");
+
+  return normalized ? `%${normalized}%` : "";
+}
+
+function unique(values: string[]) {
+  return [...new Set(values)];
 }

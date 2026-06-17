@@ -50,3 +50,31 @@ export type LedgerSnapshot = {
   totalExpense: string;
   totalIncome: string;
 };
+
+export type LedgerArchiveState = "active" | "archived" | "all";
+
+export type LedgerSortKey =
+  | "date_desc"
+  | "date_asc"
+  | "amount_desc"
+  | "amount_asc"
+  | "property_asc";
+
+export type LedgerViewQuery = {
+  archiveState: LedgerArchiveState;
+  direction: "all" | LedgerDirection;
+  page: number;
+  pageSize: number;
+  propertyId: string;
+  query: string;
+  sort: LedgerSortKey;
+};
+
+export type LedgerPagination = {
+  from: number;
+  page: number;
+  pageSize: number;
+  to: number;
+  totalCount: number;
+  totalPages: number;
+};

@@ -55,3 +55,31 @@ export type TimelineSnapshot = {
   maintenance: string;
   propertyCount: string;
 };
+
+export type TimelineArchiveState = "active" | "archived" | "all";
+
+export type TimelineSortKey =
+  | "date_desc"
+  | "date_asc"
+  | "type_asc"
+  | "property_asc";
+
+export type TimelineViewQuery = {
+  archiveState: TimelineArchiveState;
+  eventType: TimelineEventType | "all";
+  page: number;
+  pageSize: number;
+  propertyId: string;
+  query: string;
+  sort: TimelineSortKey;
+  unitId?: string;
+};
+
+export type TimelinePagination = {
+  from: number;
+  page: number;
+  pageSize: number;
+  to: number;
+  totalCount: number;
+  totalPages: number;
+};
