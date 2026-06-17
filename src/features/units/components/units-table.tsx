@@ -45,12 +45,12 @@ export function UnitsTable({
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-2"
+            ? "grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
             : "space-y-3 md:hidden",
         )}
       >
         {units.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted sm:col-span-2 xl:col-span-3 2xl:col-span-2">
+          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted sm:col-span-2 xl:col-span-3">
             {getEmptyMessage(archiveState)}
           </p>
         ) : null}
@@ -231,45 +231,38 @@ function UnitCard({
       }}
       tabIndex={0}
     >
-      <div className="relative h-24 overflow-hidden bg-[#eef0f4]">
+      <div className="relative aspect-[4/3] overflow-hidden border-b border-border bg-[#eef0f4]">
         <div className={cn("absolute inset-0", getUnitCardTone(unit.statusValue))} />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,11,18,0.04),rgba(8,11,18,0.32))]" />
-        <div className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-md bg-white/82 text-[#363c47] shadow-sm backdrop-blur">
-          <Building2 size={15} />
-        </div>
-        <div className="absolute right-3 top-3">
-          <UnitStatusBadges unit={unit} />
-        </div>
-        <div className="absolute bottom-3 left-3 right-3 min-w-0 text-white">
-          <p className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-white/75">
-            {unit.propertyCode}
-          </p>
-          <Link
-            className="mt-1 block truncate text-base font-semibold leading-5 text-white hover:underline"
-            href={`/units/${unit.id}`}
-            onClick={(event) => event.stopPropagation()}
-            prefetch={false}
-            title={`Unit ${unit.unitNumber}`}
-          >
-            Unit {unit.unitNumber}
-          </Link>
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.26),rgba(255,255,255,0)_42%,rgba(8,11,18,0.1))]" />
+        <div className="absolute inset-0 flex items-center justify-center text-[#69717d]/70">
+          <Building2 size={26} strokeWidth={1.6} />
         </div>
       </div>
 
-      <div className="px-3.5 py-3">
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <p className="truncate text-sm font-medium" title={unit.propertyName}>
-            {unit.propertyName}
-          </p>
-          <span className="shrink-0 text-xs font-medium text-muted">
-            Floor {unit.floorLabel}
-          </span>
+      <div className="space-y-3 px-3.5 py-3.5">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Link
+              className="block truncate text-base font-semibold leading-5 text-accent hover:underline"
+              href={`/units/${unit.id}`}
+              onClick={(event) => event.stopPropagation()}
+              prefetch={false}
+              title={`Unit ${unit.unitNumber}`}
+            >
+              Unit {unit.unitNumber}
+            </Link>
+            <p className="mt-1 truncate text-sm font-medium" title={unit.propertyName}>
+              {unit.propertyName}
+            </p>
+            <p className="mt-0.5 truncate text-xs text-muted" title={unit.propertyCode}>
+              {unit.propertyCode}
+            </p>
+          </div>
+          <UnitStatusBadges unit={unit} />
         </div>
-        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-          <UnitCardDetail
-            label="Lease"
-            value={<span className="line-clamp-1">{unit.leaseLabel}</span>}
-          />
+
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <UnitCardDetail label="Floor" value={unit.floorLabel} />
           <UnitCardDetail
             align="right"
             label="Rent"
@@ -280,6 +273,11 @@ function UnitCard({
                 unit.rentLabel
               )
             }
+          />
+          <UnitCardDetail
+            className="col-span-2"
+            label="Lease"
+            value={<span className="line-clamp-1">{unit.leaseLabel}</span>}
           />
         </dl>
       </div>
@@ -384,15 +382,22 @@ function UnitStatusBadges({ unit }: { unit: UnitSummary }) {
 
 function UnitCardDetail({
   align = "left",
+  className,
   label,
   value,
 }: {
   align?: "left" | "right";
+  className?: string;
   label: string;
   value: ReactNode;
 }) {
   return (
-    <div className={align === "right" ? "min-w-0 text-right" : "min-w-0"}>
+    <div
+      className={cn(
+        align === "right" ? "min-w-0 text-right" : "min-w-0",
+        className,
+      )}
+    >
       <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
         {label}
       </dt>

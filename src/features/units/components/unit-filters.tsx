@@ -239,7 +239,7 @@ function ViewModeToggle({
   return (
     <div
       aria-label="Unit view"
-      className="inline-flex h-8 rounded-md border border-border bg-surface-muted p-0.5 text-xs"
+      className="hidden h-8 rounded-md border border-border bg-surface-muted p-0.5 text-xs md:inline-flex"
       role="group"
     >
       <ViewModeButton
