@@ -1,0 +1,213 @@
+"use client";
+
+import { useActionState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SelectControl } from "@/components/ui/select-control";
+import {
+  createPropertyAction,
+  type PropertyActionState,
+  updatePropertyAction,
+} from "@/features/properties/actions";
+import type { PropertySummary } from "@/features/properties/data/properties";
+import type {
+  PropertyFormValues,
+  PropertyStatusValue,
+} from "@/features/properties/property.types";
+
+const initialState: PropertyActionState = {};
+
+const statusOptions: { label: string; value: PropertyStatusValue }[] = [
+  { label: "Active", value: "active" },
+  { label: "Under renovation", value: "under_renovation" },
+  { label: "Inactive", value: "inactive" },
+];
+
+type PropertyFormProps = {
+  mode?: "create" | "edit";
+  onClose: () => void;
+  onSuccess?: (message: string) => void;
+  property?: PropertySummary | null;
+};
+
+export function PropertyForm({
+  mode = "create",
+  onClose,
+  onSuccess,
+  property,
+}: PropertyFormProps) {
+  const isEditMode = mode === "edit";
+  const [state, action, pending] = useActionState(
+    isEditMode ? updatePropertyAction : createPropertyAction,
+    initialState,
+  );
+  const defaults = getPropertyDefaults(property);
+
+  useEffect(() => {
+    if (state.status === "success") {
+      onSuccess?.(state.message ?? "Property saved.");
+      onClose();
+    }
+  }, [onClose, onSuccess, state.message, state.status]);
+
+  return (
+    <form action={action} className="flex h-full flex-col">
+      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
+        {state.message ? (
+          <p
+            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            role={state.status === "error" ? "alert" : "status"}
+          >
+            {state.message}
+          </p>
+        ) : null}
+
+        {isEditMode && property ? (
+          <input name="propertyId" type="hidden" value={property.id} />
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_132px]">
+          <Field label="Property name" error={state.fieldErrors?.name?.[0]}>
+            <Input
+              defaultValue={defaults.name}
+              name="name"
+              placeholder="Central Residence"
+              required
+              type="text"
+            />
+          </Field>
+
+          <Field label="Code" error={state.fieldErrors?.code?.[0]}>
+            <Input
+              defaultValue={defaults.code}
+              name="code"
+              placeholder="CTR"
+              required
+              type="text"
+            />
+          </Field>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Property type"
+            error={state.fieldErrors?.propertyType?.[0]}
+          >
+            <Input
+              defaultValue={defaults.propertyType}
+              name="propertyType"
+              placeholder="Serviced apartment"
+              required
+              type="text"
+            />
+          </Field>
+
+          <Field label="Status" error={state.fieldErrors?.status?.[0]}>
+            <SelectControl
+              ariaLabel="Status"
+              defaultValue={defaults.status}
+              name="status"
+              options={statusOptions}
+              required
+            />
+          </Field>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
+          <Field label="Owner" error={state.fieldErrors?.owner?.[0]}>
+            <Input
+              defaultValue={defaults.owner ?? ""}
+              name="owner"
+              placeholder="Owner group"
+              type="text"
+            />
+          </Field>
+
+          <Field
+            label="Acquisition date"
+            error={state.fieldErrors?.acquisitionDate?.[0]}
+          >
+            <Input
+              defaultValue={defaults.acquisitionDate ?? ""}
+              name="acquisitionDate"
+              type="date"
+            />
+          </Field>
+        </div>
+
+        <Field label="Address" error={state.fieldErrors?.address?.[0]}>
+          <Input
+            defaultValue={defaults.address ?? ""}
+            name="address"
+            placeholder="Street, district, city"
+            type="text"
+          />
+        </Field>
+
+        <Field label="Notes" error={state.fieldErrors?.notes?.[0]}>
+          <textarea
+            className="min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft"
+            defaultValue={defaults.notes ?? ""}
+            name="notes"
+            placeholder="Internal operating notes"
+          />
+        </Field>
+      </div>
+
+      <div className="border-t border-border px-4 py-4 sm:px-5">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
+            Cancel
+          </Button>
+          <Button
+            className="w-full sm:w-auto"
+            disabled={pending}
+            type="submit"
+            variant="primary"
+          >
+            {isEditMode
+              ? pending
+                ? "Saving..."
+                : "Save changes"
+              : pending
+                ? "Adding..."
+                : "Add property"}
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+function Field({
+  children,
+  error,
+  label,
+}: {
+  children: React.ReactNode;
+  error?: string;
+  label: string;
+}) {
+  return (
+    <label className="block min-w-0 text-sm font-medium">
+      {label}
+      <div className="mt-2">{children}</div>
+      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
+    </label>
+  );
+}
+
+function getPropertyDefaults(
+  property?: PropertySummary | null,
+): PropertyFormValues {
+  return {
+    acquisitionDate: property?.formValues.acquisitionDate ?? "",
+    address: property?.formValues.address ?? "",
+    code: property?.formValues.code ?? "",
+    name: property?.formValues.name ?? "",
+    notes: property?.formValues.notes ?? "",
+    owner: property?.formValues.owner ?? "",
+    propertyType: property?.formValues.propertyType ?? "",
+    status: property?.formValues.status ?? "active",
+  };
+}

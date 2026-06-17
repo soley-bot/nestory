@@ -1,4 +1,5 @@
 import { BadgeDollarSign, Building2, Hammer, Percent } from "lucide-react";
+import { MoneyDisplay } from "@/components/data/money-display";
 import { MetricTile } from "@/components/data/metric-tile";
 import type { TimelineSnapshot } from "@/features/timeline/timeline.types";
 
@@ -13,7 +14,7 @@ export function PropertyPerformanceSnapshot({
         helper="Selected context"
         icon={<BadgeDollarSign size={16} />}
         label="Net income"
-        value={snapshot.netIncome}
+        value={<MoneyDisplay value={snapshot.netIncome} size="large" />}
       />
       <MetricTile
         helper="Across active units"
@@ -25,7 +26,7 @@ export function PropertyPerformanceSnapshot({
         helper="Last 12 months"
         icon={<Hammer size={16} />}
         label="Maintenance"
-        value={snapshot.maintenance}
+        value={<MoneyDisplay value={snapshot.maintenance} size="large" />}
       />
       <MetricTile
         helper="Active records"

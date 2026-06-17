@@ -25,7 +25,10 @@ describe("buildPropertySummary", () => {
       }),
     ).toMatchObject({
       address: "No address recorded",
-      netIncome: "$875.00",
+      netIncome: {
+        primary: "USD 875.00",
+        secondary: "KHR 3,587,500",
+      },
       occupiedUnits: 1,
       owner: "Unassigned",
       status: "Under Renovation",

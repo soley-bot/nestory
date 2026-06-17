@@ -1,4 +1,5 @@
 import type { CurrencyCode } from "@/lib/money/format";
+import type { MoneyDisplayValue } from "@/lib/money/format";
 import type { LinkedDocument } from "@/features/documents/document.types";
 
 export type TimelineEventType =
@@ -50,9 +51,9 @@ export type TimelineUnitOption = {
 };
 
 export type TimelineSnapshot = {
-  netIncome: string;
+  netIncome: MoneyDisplayValue;
   occupancy: string;
-  maintenance: string;
+  maintenance: MoneyDisplayValue;
   propertyCount: string;
 };
 

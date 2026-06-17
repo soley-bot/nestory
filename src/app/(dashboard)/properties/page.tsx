@@ -1,29 +1,32 @@
-import { Plus } from "lucide-react";
-import { PageHeader } from "@/components/layout/page-header";
-import { Button } from "@/components/ui/button";
-import { PropertiesTable } from "@/features/properties/components/properties-table";
-import { getPropertySummaries } from "@/features/properties/data/properties";
+import { PropertyScreen } from "@/features/properties/components/property-screen";
+import { getPropertiesScreenData } from "@/features/properties/data/properties";
+import { parsePropertySearchParams } from "@/features/properties/property.filters";
+import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import { requireAdminContext } from "@/lib/auth/context";
 
-export default async function PropertiesPage() {
+type PropertiesPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function PropertiesPage({
+  searchParams,
+}: PropertiesPageProps) {
   const context = await requireAdminContext();
-  const properties = await getPropertySummaries(context.organizationId);
+  const viewQuery = parsePropertySearchParams(await searchParams);
+  const currencySettings = await getOrganizationCurrencySettings(
+    context.organizationId,
+  );
+  const { pagination, properties } = await getPropertiesScreenData(
+    context.organizationId,
+    currencySettings,
+    viewQuery,
+  );
 
   return (
-    <div>
-      <PageHeader
-        actions={
-          <Button variant="primary">
-            <Plus size={15} />
-            Add property
-          </Button>
-        }
-        description="Active property records with unit counts, ownership, and simple performance context."
-        title="Properties"
-      />
-      <div className="px-4 py-5 sm:px-6 lg:p-8">
-        <PropertiesTable properties={properties} />
-      </div>
-    </div>
+    <PropertyScreen
+      pagination={pagination}
+      properties={properties}
+      viewQuery={viewQuery}
+    />
   );
 }

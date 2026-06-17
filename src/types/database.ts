@@ -394,19 +394,25 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          khr_per_usd: number
           name: string
+          preferred_currency: Database["public"]["Enums"]["currency_code"]
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
+          khr_per_usd?: number
           name: string
+          preferred_currency?: Database["public"]["Enums"]["currency_code"]
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
+          khr_per_usd?: number
           name?: string
+          preferred_currency?: Database["public"]["Enums"]["currency_code"]
           updated_at?: string
         }
         Relationships: []
@@ -662,6 +668,20 @@ export type Database = {
         }
         Returns: string
       }
+      archive_property: {
+        Args: {
+          p_organization_id: string
+          p_property_id: string
+        }
+        Returns: string
+      }
+      archive_unit: {
+        Args: {
+          p_organization_id: string
+          p_unit_id: string
+        }
+        Returns: string
+      }
       archive_timeline_event: {
         Args: {
           p_event_id: string
@@ -675,6 +695,35 @@ export type Database = {
           membership_id: string
           organization_id: string
         }[]
+      }
+      create_property: {
+        Args: {
+          p_acquisition_date: string | null
+          p_address: string | null
+          p_code: string
+          p_name: string
+          p_notes: string | null
+          p_organization_id: string
+          p_owner: string | null
+          p_property_type: string
+          p_status: string
+        }
+        Returns: string
+      }
+      create_unit: {
+        Args: {
+          p_current_rent_amount: number | null
+          p_current_rent_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          p_floor: string | null
+          p_organization_id: string
+          p_property_id: string
+          p_size_sqm: number | null
+          p_status: string
+          p_unit_number: string
+        }
+        Returns: string
       }
       create_timeline_event: {
         Args: {
@@ -711,6 +760,20 @@ export type Database = {
         }
         Returns: string
       }
+      restore_property: {
+        Args: {
+          p_organization_id: string
+          p_property_id: string
+        }
+        Returns: string
+      }
+      restore_unit: {
+        Args: {
+          p_organization_id: string
+          p_unit_id: string
+        }
+        Returns: string
+      }
       restore_timeline_event: {
         Args: {
           p_event_id: string
@@ -739,6 +802,37 @@ export type Database = {
           p_property_id: string
           p_transaction_date: string
           p_unit_id: string | null
+        }
+        Returns: string
+      }
+      update_property: {
+        Args: {
+          p_acquisition_date: string | null
+          p_address: string | null
+          p_code: string
+          p_name: string
+          p_notes: string | null
+          p_organization_id: string
+          p_owner: string | null
+          p_property_id: string
+          p_property_type: string
+          p_status: string
+        }
+        Returns: string
+      }
+      update_unit: {
+        Args: {
+          p_current_rent_amount: number | null
+          p_current_rent_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          p_floor: string | null
+          p_organization_id: string
+          p_property_id: string
+          p_size_sqm: number | null
+          p_status: string
+          p_unit_id: string
+          p_unit_number: string
         }
         Returns: string
       }

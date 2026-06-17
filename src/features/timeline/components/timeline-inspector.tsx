@@ -10,16 +10,21 @@ import {
   Upload,
   UserRound,
 } from "lucide-react";
+import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DocumentList } from "@/features/documents/components/document-list";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
 import type { TimelineEvent } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
-import { formatMoney } from "@/lib/money/format";
+import {
+  formatMoneyDisplay,
+  type CurrencyDisplaySettings,
+} from "@/lib/money/format";
 
 type TimelineInspectorProps = {
   archiveDisabled?: boolean;
+  currencySettings: CurrencyDisplaySettings;
   event: TimelineEvent | null;
   onAttachDocument?: (event: TimelineEvent) => void;
   onArchive?: (event: TimelineEvent) => void;
@@ -29,6 +34,7 @@ type TimelineInspectorProps = {
 
 export function TimelineInspector({
   archiveDisabled = false,
+  currencySettings,
   event,
   onAttachDocument,
   onArchive,
@@ -176,7 +182,15 @@ export function TimelineInspector({
         </InspectorRow>
         <InspectorRow icon={<Landmark size={16} />} label="Cost">
           {event.cost !== undefined && event.currency
-            ? formatMoney(event.cost, event.currency)
+            ? (
+                <MoneyDisplay
+                  value={formatMoneyDisplay(
+                    event.cost,
+                    event.currency,
+                    currencySettings,
+                  )}
+                />
+              )
             : "No cost recorded"}
         </InspectorRow>
         {event.archivedAt ? (

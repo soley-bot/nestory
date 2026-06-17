@@ -1,0 +1,417 @@
+import { createSupabaseServerClient } from "@/lib/db/server";
+import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
+import {
+  buildUnitDetail,
+  buildUnitSummary,
+  selectCurrentLease,
+  type UnitTimelineRecord,
+} from "@/features/units/data/unit-summary";
+import {
+  DEFAULT_UNIT_SORT,
+  parseUnitSearchParams,
+} from "@/features/units/unit.filters";
+import type {
+  UnitPagination,
+  UnitSummary,
+  UnitViewQuery,
+} from "@/features/units/unit.types";
+
+const unitSelect =
+  "id, property_id, unit_number, floor, size_sqm, status, current_rent_amount, current_rent_currency, archived_at";
+const propertySelect = "id, code, name";
+const leaseSelect =
+  "id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
+const timelineContextSelect = "id, unit_id, event_date, event_type, title";
+const ledgerTotalsSelect = "unit_id, direction, amount, currency";
+const recentLedgerSelect =
+  "id, unit_id, transaction_date, direction, category, amount, currency, description";
+const listTimelineContextLimit = 1000;
+const detailRecordLimit = 8;
+
+export async function getUnitsScreenData(
+  organizationId: string,
+  viewQuery: UnitViewQuery = parseUnitSearchParams({}),
+) {
+  const supabase = await createSupabaseServerClient();
+  let unitsQuery = supabase
+    .from("units")
+    .select(unitSelect)
+    .eq("organization_id", organizationId)
+    .order("property_id", { ascending: true })
+    .order("unit_number", { ascending: true });
+
+  if (viewQuery.archiveState === "active") {
+    unitsQuery = unitsQuery.is("archived_at", null);
+  } else if (viewQuery.archiveState === "archived") {
+    unitsQuery = unitsQuery.not("archived_at", "is", null);
+  }
+
+  const [
+    unitsResult,
+    propertiesResult,
+    leasesResult,
+    timelineContextResult,
+    ledgerTotalsResult,
+    currencySettings,
+  ] = await Promise.all([
+    unitsQuery,
+    supabase
+      .from("properties")
+      .select(propertySelect)
+      .eq("organization_id", organizationId)
+      .is("archived_at", null),
+    supabase
+      .from("leases")
+      .select(leaseSelect)
+      .eq("organization_id", organizationId)
+      .not("unit_id", "is", null)
+      .is("archived_at", null)
+      .order("lease_start_date", { ascending: false }),
+    supabase
+      .from("timeline_events")
+      .select(timelineContextSelect)
+      .eq("organization_id", organizationId)
+      .not("unit_id", "is", null)
+      .is("archived_at", null)
+      .order("event_date", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(listTimelineContextLimit),
+    supabase
+      .from("ledger_entries")
+      .select(ledgerTotalsSelect)
+      .eq("organization_id", organizationId)
+      .not("unit_id", "is", null)
+      .is("archived_at", null),
+    getOrganizationCurrencySettings(organizationId),
+  ]);
+
+  if (unitsResult.error) {
+    throw new Error(`Could not load units: ${unitsResult.error.message}`);
+  }
+
+  if (propertiesResult.error) {
+    throw new Error(`Could not load unit properties: ${propertiesResult.error.message}`);
+  }
+
+  if (leasesResult.error) {
+    throw new Error(`Could not load unit leases: ${leasesResult.error.message}`);
+  }
+
+  if (timelineContextResult.error) {
+    throw new Error(
+      `Could not load unit timeline context: ${timelineContextResult.error.message}`,
+    );
+  }
+
+  if (ledgerTotalsResult.error) {
+    throw new Error(
+      `Could not load unit ledger context: ${ledgerTotalsResult.error.message}`,
+    );
+  }
+
+  const propertiesById = indexById(propertiesResult.data ?? []);
+  const leasesByUnitId = groupByUnitId(leasesResult.data ?? []);
+  const ledgerByUnitId = groupByUnitId(ledgerTotalsResult.data ?? []);
+  const latestTimelineByUnitId = indexLatestTimelineByUnitId(
+    timelineContextResult.data ?? [],
+  );
+  const units = (unitsResult.data ?? [])
+    .map((unit) =>
+      buildUnitSummary({
+        activeLease: selectCurrentLease(leasesByUnitId.get(unit.id) ?? []),
+        currencySettings,
+        latestTimelineEvent: latestTimelineByUnitId.get(unit.id),
+        ledgerEntries: ledgerByUnitId.get(unit.id) ?? [],
+        property: propertiesById.get(unit.property_id),
+        unit,
+      }),
+    )
+    .toSorted(compareUnitSummaries);
+  const filteredUnits = filterUnitSummaries(units, viewQuery);
+  const sortedUnits = sortUnitSummaries(filteredUnits, viewQuery.sort);
+  const pagination = buildUnitPagination({
+    page: viewQuery.page,
+    pageSize: viewQuery.pageSize,
+    totalCount: sortedUnits.length,
+  });
+
+  return {
+    pagination,
+    units: getUnitPageSummaries(sortedUnits, pagination),
+  };
+}
+
+export async function getUnitDetail(organizationId: string, unitId: string) {
+  const supabase = await createSupabaseServerClient();
+
+  const unitResult = await supabase
+    .from("units")
+    .select(unitSelect)
+    .eq("organization_id", organizationId)
+    .eq("id", unitId)
+    .maybeSingle();
+
+  if (unitResult.error) {
+    throw new Error(`Could not load unit: ${unitResult.error.message}`);
+  }
+
+  if (!unitResult.data) {
+    return null;
+  }
+
+  const unit = unitResult.data;
+  const [
+    propertyResult,
+    leasesResult,
+    timelineResult,
+    ledgerResult,
+    ledgerTotalsResult,
+    documentsResult,
+  ] = await Promise.all([
+    supabase
+      .from("properties")
+      .select(propertySelect)
+      .eq("organization_id", organizationId)
+      .eq("id", unit.property_id)
+      .maybeSingle(),
+    supabase
+      .from("leases")
+      .select(leaseSelect)
+      .eq("organization_id", organizationId)
+      .eq("unit_id", unit.id)
+      .is("archived_at", null)
+      .order("lease_start_date", { ascending: false }),
+    supabase
+      .from("timeline_events")
+      .select(timelineContextSelect, { count: "exact" })
+      .eq("organization_id", organizationId)
+      .eq("unit_id", unit.id)
+      .is("archived_at", null)
+      .order("event_date", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(detailRecordLimit),
+    supabase
+      .from("ledger_entries")
+      .select(recentLedgerSelect, { count: "exact" })
+      .eq("organization_id", organizationId)
+      .eq("unit_id", unit.id)
+      .is("archived_at", null)
+      .order("transaction_date", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(detailRecordLimit),
+    supabase
+      .from("ledger_entries")
+      .select(ledgerTotalsSelect)
+      .eq("organization_id", organizationId)
+      .eq("unit_id", unit.id)
+      .is("archived_at", null),
+    supabase
+      .from("documents")
+      .select("id", { count: "exact" })
+      .eq("organization_id", organizationId)
+      .eq("unit_id", unit.id)
+      .is("archived_at", null)
+      .limit(1),
+  ]);
+
+  if (propertyResult.error) {
+    throw new Error(`Could not load unit property: ${propertyResult.error.message}`);
+  }
+
+  if (leasesResult.error) {
+    throw new Error(`Could not load unit leases: ${leasesResult.error.message}`);
+  }
+
+  if (timelineResult.error) {
+    throw new Error(`Could not load unit timeline events: ${timelineResult.error.message}`);
+  }
+
+  if (ledgerResult.error) {
+    throw new Error(`Could not load unit ledger entries: ${ledgerResult.error.message}`);
+  }
+
+  if (ledgerTotalsResult.error) {
+    throw new Error(`Could not load unit ledger totals: ${ledgerTotalsResult.error.message}`);
+  }
+
+  if (documentsResult.error) {
+    throw new Error(`Could not load unit documents: ${documentsResult.error.message}`);
+  }
+
+  const activeLease = selectCurrentLease(leasesResult.data ?? []);
+  const currencySettings = await getOrganizationCurrencySettings(organizationId);
+
+  return buildUnitDetail({
+    activeLease,
+    counts: {
+      documents: documentsResult.count ?? 0,
+      ledgerEntries: ledgerResult.count ?? ledgerResult.data?.length ?? 0,
+      timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
+    },
+    currencySettings,
+    ledgerEntries: ledgerTotalsResult.data ?? [],
+    property: propertyResult.data ?? undefined,
+    recentLedgerEntries: ledgerResult.data ?? [],
+    recentTimelineEvents: timelineResult.data ?? [],
+    unit,
+  });
+}
+
+function indexById<T extends { id: string }>(rows: T[]) {
+  return new Map(rows.map((row) => [row.id, row]));
+}
+
+function groupByUnitId<T extends { unit_id: string | null }>(rows: T[]) {
+  const grouped = new Map<string, T[]>();
+
+  for (const row of rows) {
+    if (!row.unit_id) {
+      continue;
+    }
+
+    const group = grouped.get(row.unit_id) ?? [];
+    group.push(row);
+    grouped.set(row.unit_id, group);
+  }
+
+  return grouped;
+}
+
+function indexLatestTimelineByUnitId(rows: UnitTimelineRecord[]) {
+  const index = new Map<string, UnitTimelineRecord>();
+
+  for (const row of rows) {
+    if (row.unit_id && !index.has(row.unit_id)) {
+      index.set(row.unit_id, row);
+    }
+  }
+
+  return index;
+}
+
+function compareUnitSummaries(
+  first: ReturnType<typeof buildUnitSummary>,
+  second: ReturnType<typeof buildUnitSummary>,
+) {
+  return (
+    Number(first.isArchived) - Number(second.isArchived) ||
+    first.propertyCode.localeCompare(second.propertyCode, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }) ||
+    first.propertyName.localeCompare(second.propertyName, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }) ||
+    first.unitNumber.localeCompare(second.unitNumber, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    })
+  );
+}
+
+function filterUnitSummaries(units: UnitSummary[], viewQuery: UnitViewQuery) {
+  const tokens = viewQuery.query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return units.filter((unit) => {
+    const matchesProperty =
+      viewQuery.propertyId === "all" || unit.propertyId === viewQuery.propertyId;
+    const matchesStatus =
+      viewQuery.status === "all" || unit.statusValue === viewQuery.status;
+    const haystack = [
+      unit.unitNumber,
+      unit.propertyCode,
+      unit.propertyName,
+      unit.floorLabel,
+      unit.statusLabel,
+      unit.leaseLabel,
+      unit.latestTimelineEvent?.title ?? "",
+    ]
+      .join(" ")
+      .toLowerCase();
+    const matchesQuery = tokens.every((token) => haystack.includes(token));
+
+    return matchesProperty && matchesStatus && matchesQuery;
+  });
+}
+
+function sortUnitSummaries(
+  units: UnitSummary[],
+  sort: UnitViewQuery["sort"] = DEFAULT_UNIT_SORT,
+) {
+  return [...units].sort((first, second) => {
+    if (sort === "unit_asc") {
+      return (
+        compareStrings(first.unitNumber, second.unitNumber) ||
+        compareStrings(first.propertyCode, second.propertyCode)
+      );
+    }
+
+    if (sort === "status_asc") {
+      return (
+        compareStrings(first.statusLabel, second.statusLabel) ||
+        compareStrings(first.propertyCode, second.propertyCode) ||
+        compareStrings(first.unitNumber, second.unitNumber)
+      );
+    }
+
+    if (sort === "rent_desc") {
+      return (
+        second.rentUsd - first.rentUsd ||
+        compareStrings(first.propertyCode, second.propertyCode) ||
+        compareStrings(first.unitNumber, second.unitNumber)
+      );
+    }
+
+    if (sort === "net_desc") {
+      return (
+        second.ledgerNetUsd - first.ledgerNetUsd ||
+        compareStrings(first.propertyCode, second.propertyCode) ||
+        compareStrings(first.unitNumber, second.unitNumber)
+      );
+    }
+
+    return compareUnitSummaries(first, second);
+  });
+}
+
+function buildUnitPagination({
+  page,
+  pageSize,
+  totalCount,
+}: {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}): UnitPagination {
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+  const from = totalCount === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const to = totalCount === 0 ? 0 : Math.min(safePage * pageSize, totalCount);
+
+  return {
+    from,
+    page: safePage,
+    pageSize,
+    to,
+    totalCount,
+    totalPages,
+  };
+}
+
+function getUnitPageSummaries(units: UnitSummary[], pagination: UnitPagination) {
+  const start = pagination.totalCount === 0 ? 0 : pagination.from - 1;
+
+  return units.slice(start, pagination.to);
+}
+
+function compareStrings(first: string, second: string) {
+  return first.localeCompare(second, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}

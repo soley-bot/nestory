@@ -68,11 +68,13 @@ export function SelectControl({
         <Select.Trigger
           aria-label={ariaLabel}
           className={cn(
-            "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 text-left text-sm outline-none transition-colors data-[placeholder]:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60",
+            "flex h-9 w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-md border border-border bg-surface px-3 text-left text-sm outline-none transition-colors data-[placeholder]:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60",
             className,
           )}
         >
-          <Select.Value placeholder={placeholder} />
+          <span className="min-w-0 flex-1 truncate whitespace-nowrap">
+            <Select.Value placeholder={placeholder} />
+          </span>
           <Select.Icon asChild>
             <ChevronDown className="shrink-0 text-muted" size={16} />
           </Select.Icon>

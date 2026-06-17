@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import { buildLedgerSnapshot } from "@/features/ledger/data/ledger-summary";
+import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import {
   DEFAULT_LEDGER_VIEW_QUERY,
   buildLedgerPagination,
@@ -90,6 +91,7 @@ export async function getLedgerScreenData(
     unitsResult,
     periodLocksResult,
     recentActivityResult,
+    currencySettings,
   ] = await Promise.all([
     supabase
       .from("properties")
@@ -116,6 +118,7 @@ export async function getLedgerScreenData(
       .in("entity_type", ["timeline_event", "ledger_entry", "ledger_period"])
       .order("created_at", { ascending: false })
       .limit(6),
+    getOrganizationCurrencySettings(organizationId),
   ]);
 
   if (propertiesResult.error) {
@@ -266,6 +269,7 @@ export async function getLedgerScreenData(
     recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
     snapshot: {
       ...buildLedgerSnapshot(summaryResult.data ?? [], {
+        currencySettings,
         entryCount: summaryResult.count ?? summaryResult.data?.length ?? 0,
       }),
       lockedPeriodCount: String(periodLocks.length),
@@ -280,6 +284,7 @@ export async function getLedgerScreenData(
       };
     }),
     viewQuery,
+    currencySettings,
   };
 }
 

@@ -15,12 +15,14 @@ import type {
   LedgerPropertyOption,
   LedgerUnitOption,
 } from "@/features/ledger/ledger.types";
+import type { CurrencyCode } from "@/lib/money/format";
 
 const initialState: LedgerActionState = {};
 
 type LedgerEntryFormProps = {
   entry?: LedgerEntry;
   mode?: "add" | "edit";
+  defaultCurrency?: CurrencyCode;
   onClose: () => void;
   onSuccess?: (message: string) => void;
   properties: LedgerPropertyOption[];
@@ -30,6 +32,7 @@ type LedgerEntryFormProps = {
 export function LedgerEntryForm({
   entry,
   mode = "add",
+  defaultCurrency = "USD",
   onClose,
   onSuccess,
   properties,
@@ -162,7 +165,7 @@ export function LedgerEntryForm({
           <Field label="Currency" error={state.fieldErrors?.currency?.[0]}>
             <SelectControl
               ariaLabel="Currency"
-              defaultValue={entry?.currency ?? "USD"}
+              defaultValue={entry?.currency ?? defaultCurrency}
               name="currency"
               options={[
                 { label: "USD", value: "USD" },

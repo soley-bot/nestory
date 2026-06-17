@@ -112,4 +112,30 @@ describe("toRecentChange", () => {
       },
     ]);
   });
+
+  it("labels unit activity from unit number snapshots", () => {
+    expect(
+      toRecentChange({
+        action: "unit_archived",
+        created_at: "2026-06-17T09:00:00.000Z",
+        entity_type: "unit",
+        id: "log-5",
+        new_values: {
+          archived_at: "2026-06-17T09:00:00.000Z",
+          status: "vacant",
+          unit_number: "04-02",
+        },
+        previous_values: {
+          archived_at: null,
+          status: "vacant",
+          unit_number: "04-02",
+        },
+      }),
+    ).toMatchObject({
+      actionLabel: "Archived",
+      entityLabel: "Unit",
+      recordLabel: "04-02",
+      tone: "warning",
+    });
+  });
 });

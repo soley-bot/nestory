@@ -9,14 +9,19 @@ import {
   RotateCcw,
   Upload,
 } from "lucide-react";
+import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DocumentList } from "@/features/documents/components/document-list";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
 import { formatDate } from "@/lib/dates/format";
-import { formatMoney } from "@/lib/money/format";
+import {
+  formatMoneyDisplay,
+  type CurrencyDisplaySettings,
+} from "@/lib/money/format";
 
 type LedgerInspectorProps = {
+  currencySettings: CurrencyDisplaySettings;
   entry: LedgerEntry | null;
   onArchiveEntry: (entry: LedgerEntry) => void;
   onAttachReceipt: (entry: LedgerEntry) => void;
@@ -25,6 +30,7 @@ type LedgerInspectorProps = {
 };
 
 export function LedgerInspector({
+  currencySettings,
   entry,
   onArchiveEntry,
   onAttachReceipt,
@@ -69,10 +75,16 @@ export function LedgerInspector({
         <p className="mt-2 break-words text-sm leading-6 text-muted">
           {entry.description || "No description recorded."}
         </p>
-        <p className="mt-4 break-words text-2xl font-semibold tracking-tight">
-          {entry.direction === "expense" ? "-" : ""}
-          {formatMoney(entry.amount, entry.currency)}
-        </p>
+        <div className="mt-4">
+          <MoneyDisplay
+            value={formatMoneyDisplay(
+              entry.direction === "expense" ? -entry.amount : entry.amount,
+              entry.currency,
+              currencySettings,
+            )}
+            size="large"
+          />
+        </div>
       </div>
 
       <div className="space-y-5 p-4 text-sm sm:p-5">

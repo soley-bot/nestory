@@ -6,9 +6,10 @@ import type {
   LedgerSortKey,
   LedgerViewQuery,
 } from "@/features/ledger/ledger.types";
-import { formatMoneyTotals } from "@/lib/money/totals";
+import type { CurrencyDisplaySettings } from "@/lib/money/format";
+import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
-export const DEFAULT_LEDGER_PAGE_SIZE = 25;
+export const DEFAULT_LEDGER_PAGE_SIZE = 50;
 export const LEDGER_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 export const DEFAULT_LEDGER_SORT: LedgerSortKey = "date_desc";
 export const DEFAULT_LEDGER_VIEW_QUERY: LedgerViewQuery = {
@@ -181,20 +182,23 @@ export function getLedgerPageEntries(
 export function buildLedgerSnapshotFromEntries(
   entries: LedgerEntry[],
   lockedPeriodCount: string,
+  currencySettings?: Partial<CurrencyDisplaySettings> | null,
 ): LedgerSnapshot {
   return {
     entryCount: String(entries.length),
     lockedPeriodCount,
-    netIncome: formatMoneyTotals(entries),
-    totalExpense: formatMoneyTotals(
+    netIncome: formatMoneyTotalsDisplay(entries, currencySettings),
+    totalExpense: formatMoneyTotalsDisplay(
       entries
         .filter((entry) => entry.direction === "expense")
         .map((entry) => ({ amount: entry.amount, currency: entry.currency })),
+      currencySettings,
     ),
-    totalIncome: formatMoneyTotals(
+    totalIncome: formatMoneyTotalsDisplay(
       entries
         .filter((entry) => entry.direction === "income")
         .map((entry) => ({ amount: entry.amount, currency: entry.currency })),
+      currencySettings,
     ),
   };
 }

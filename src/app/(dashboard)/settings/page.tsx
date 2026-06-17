@@ -1,16 +1,22 @@
 import { PageHeader } from "@/components/layout/page-header";
+import { CurrencySettingsForm } from "@/features/settings/components/currency-settings-form";
+import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
+import { requireAdminContext } from "@/lib/auth/context";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const context = await requireAdminContext();
+  const currencySettings = await getOrganizationCurrencySettings(
+    context.organizationId,
+  );
+
   return (
     <div>
       <PageHeader
-        description="Phase 1 keeps access simple with one admin role."
+        description="Phase 1 keeps access simple while preserving organization-wide defaults."
         title="Settings"
       />
-      <div className="p-8">
-        <div className="rounded-md border border-border bg-surface p-6 text-sm text-muted">
-          Organization and admin settings will stay minimal in Phase 1.
-        </div>
+      <div className="space-y-5 px-4 py-5 sm:px-6 lg:p-8">
+        <CurrencySettingsForm settings={currencySettings} />
       </div>
     </div>
   );

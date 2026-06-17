@@ -1,4 +1,5 @@
 import type { CurrencyCode } from "@/lib/money/format";
+import type { MoneyDisplayValue } from "@/lib/money/format";
 import type { LinkedDocument } from "@/features/documents/document.types";
 
 export type LedgerDirection = "income" | "expense";
@@ -46,9 +47,9 @@ export type LedgerUnitOption = {
 export type LedgerSnapshot = {
   entryCount: string;
   lockedPeriodCount: string;
-  netIncome: string;
-  totalExpense: string;
-  totalIncome: string;
+  netIncome: MoneyDisplayValue;
+  totalExpense: MoneyDisplayValue;
+  totalIncome: MoneyDisplayValue;
 };
 
 export type LedgerArchiveState = "active" | "archived" | "all";

@@ -9,14 +9,19 @@ describe("buildLedgerSnapshot", () => {
       { amount: 400000, currency: "KHR", direction: "income" },
     ]);
 
-    expect(normalizeSpaces(snapshot.totalIncome)).toBe("$1,000.00 / KHR 400,000");
-    expect(snapshot.totalExpense).toBe("$150.00");
-    expect(normalizeSpaces(snapshot.netIncome)).toBe("$850.00 / KHR 400,000");
+    expect(snapshot.totalIncome).toMatchObject({
+      primary: "USD 1,097.56",
+      secondary: "KHR 4,500,000",
+    });
+    expect(snapshot.totalExpense).toMatchObject({
+      primary: "USD 150.00",
+      secondary: "KHR 615,000",
+    });
+    expect(snapshot.netIncome).toMatchObject({
+      primary: "USD 947.56",
+      secondary: "KHR 3,885,000",
+    });
     expect(snapshot.entryCount).toBe("3");
     expect(snapshot.lockedPeriodCount).toBe("0");
   });
 });
-
-function normalizeSpaces(value: string) {
-  return value.replace(/\s/g, " ");
-}

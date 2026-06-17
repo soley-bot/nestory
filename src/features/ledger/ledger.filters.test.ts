@@ -136,7 +136,7 @@ describe("parseLedgerSearchParams", () => {
       archiveState: "active",
       direction: "all",
       page: 1,
-      pageSize: 25,
+      pageSize: 50,
       propertyId: "all",
       sort: "date_desc",
     });
@@ -167,8 +167,8 @@ describe("ledger list helpers", () => {
     const snapshot = buildLedgerSnapshotFromEntries(entries, "2");
 
     expect(snapshot.entryCount).toBe("2");
-    expect(snapshot.totalIncome).toBe("$850.00");
-    expect(snapshot.totalExpense).toBe("$120.00");
+    expect(snapshot.totalIncome.primary).toBe("USD 850.00");
+    expect(snapshot.totalExpense.primary).toBe("USD 120.00");
     expect(snapshot.lockedPeriodCount).toBe("2");
   });
 });

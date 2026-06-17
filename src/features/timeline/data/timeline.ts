@@ -2,6 +2,7 @@ import { Constants } from "@/types/database";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import type { LinkedDocument } from "@/features/documents/document.types";
 import { getPropertySummaries } from "@/features/properties/data/properties";
+import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import {
   buildTimelinePagination,
   DEFAULT_TIMELINE_PAGE_SIZE,
@@ -16,7 +17,8 @@ import type {
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import { formatMoneyTotals } from "@/lib/money/totals";
+import type { CurrencyDisplaySettings } from "@/lib/money/format";
+import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
 const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
   archiveState: "active",
@@ -139,7 +141,7 @@ export async function getTimelineScreenData(
     unitsResult,
     periodLocksResult,
     recentActivityResult,
-    propertySummaries,
+    currencySettings,
     snapshotLedgerResult,
     snapshotEventsResult,
   ] = await Promise.all([
@@ -169,10 +171,15 @@ export async function getTimelineScreenData(
       .in("entity_type", ["timeline_event", "ledger_entry", "ledger_period"])
       .order("created_at", { ascending: false })
       .limit(6),
-    getPropertySummaries(organizationId),
+    getOrganizationCurrencySettings(organizationId),
     fetchSnapshotLedgerRows(supabase, organizationId, viewQuery),
     fetchSnapshotTimelineRows(supabase, organizationId, viewQuery),
   ]);
+
+  const resolvedPropertySummaries = await getPropertySummaries(
+    organizationId,
+    currencySettings,
+  );
 
   if (firstEventsResult.error) {
     throw new Error(
@@ -293,8 +300,10 @@ export async function getTimelineScreenData(
   );
   const selectedPropertySummaries =
     viewQuery.propertyId === "all"
-      ? propertySummaries
-      : propertySummaries.filter((property) => property.id === viewQuery.propertyId);
+      ? resolvedPropertySummaries
+      : resolvedPropertySummaries.filter(
+          (property) => property.id === viewQuery.propertyId,
+        );
 
   return {
     eventTypes: [...Constants.public.Enums.timeline_event_type],
@@ -315,6 +324,7 @@ export async function getTimelineScreenData(
       selectedPropertySummaries,
       snapshotLedgerResult.data ?? [],
       snapshotEventsResult.data ?? [],
+      currencySettings,
     ),
     unitOptions: (unitsResult.data ?? []).map((unit): TimelineUnitOption => {
       const property = propertiesById.get(unit.property_id);
@@ -326,6 +336,7 @@ export async function getTimelineScreenData(
       };
     }),
     viewQuery,
+    currencySettings,
   };
 }
 
@@ -379,6 +390,7 @@ function buildSnapshot(
   properties: Awaited<ReturnType<typeof getPropertySummaries>>,
   ledgerEntries: LedgerEntryRow[],
   events: TimelineEventSummaryRow[],
+  currencySettings?: Partial<CurrencyDisplaySettings> | null,
 ): TimelineSnapshot {
   const unitCount = properties.reduce((total, property) => total + property.units, 0);
   const occupiedUnitCount = properties.reduce(
@@ -397,8 +409,8 @@ function buildSnapshot(
     }));
 
   return {
-    maintenance: formatMoneyTotals(maintenanceEvents),
-    netIncome: formatMoneyTotals(ledgerEntries),
+    maintenance: formatMoneyTotalsDisplay(maintenanceEvents, currencySettings),
+    netIncome: formatMoneyTotalsDisplay(ledgerEntries, currencySettings),
     occupancy,
     propertyCount: String(properties.length),
   };

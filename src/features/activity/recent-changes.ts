@@ -27,6 +27,10 @@ const actionLabels: Record<string, string> = {
   receipt_attached: "Receipt attached",
   restored: "Restored",
   restored_from_ledger: "Restored from ledger",
+  unit_archived: "Archived",
+  unit_created: "Created",
+  unit_restored: "Restored",
+  unit_updated: "Updated",
   unlocked: "Period unlocked",
   updated: "Updated",
   updated_from_ledger: "Synced from ledger",
@@ -34,9 +38,11 @@ const actionLabels: Record<string, string> = {
 
 const hiddenDetailFields = new Set([
   "actor_id",
+  "archived_by",
   "created_by",
   "id",
   "organization_id",
+  "updated_by",
 ]);
 
 const fieldLabels: Record<string, string> = {
@@ -45,19 +51,25 @@ const fieldLabels: Record<string, string> = {
   category: "Category",
   cost_amount: "Cost",
   cost_currency: "Currency",
+  current_rent_amount: "Current rent",
+  current_rent_currency: "Currency",
   currency: "Currency",
   description: "Description",
   direction: "Direction",
   document_id: "Document",
   event_date: "Event date",
   event_type: "Event type",
+  floor: "Floor",
   lease_id: "Lease",
   ledger_entry_id: "Ledger link",
   property_id: "Property",
+  size_sqm: "Size",
+  status: "Status",
   timeline_event_id: "Timeline link",
   title: "Title",
   transaction_date: "Transaction date",
   unit_id: "Unit",
+  unit_number: "Unit number",
 };
 
 const referenceFields = new Set([
@@ -95,6 +107,8 @@ function getRecordLabel(log: ActivityLogSnapshot) {
   const label =
     getString(nextValues, "title") ??
     getString(previousValues, "title") ??
+    getString(nextValues, "unit_number") ??
+    getString(previousValues, "unit_number") ??
     getString(nextValues, "category") ??
     getString(previousValues, "category");
 
@@ -102,7 +116,15 @@ function getRecordLabel(log: ActivityLogSnapshot) {
     return label;
   }
 
-  return log.entity_type === "ledger_entry" ? "Ledger entry" : "Timeline event";
+  if (log.entity_type === "ledger_entry") {
+    return "Ledger entry";
+  }
+
+  if (log.entity_type === "unit") {
+    return "Unit";
+  }
+
+  return "Timeline event";
 }
 
 function getEntityLabel(entityType: string) {
@@ -116,6 +138,10 @@ function getEntityLabel(entityType: string) {
 
   if (entityType === "ledger_period") {
     return "Period lock";
+  }
+
+  if (entityType === "unit") {
+    return "Unit";
   }
 
   return toReadableAction(entityType);

@@ -36,6 +36,7 @@ import type {
   TimelineUnitOption,
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
+import type { CurrencyDisplaySettings } from "@/lib/money/format";
 
 const archiveInitialState: TimelineActionState = {};
 const documentInitialState: TimelineActionState = {};
@@ -50,6 +51,7 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange };
 
 type TimelineScreenProps = {
+  currencySettings: CurrencyDisplaySettings;
   eventTypes: TimelineEventType[];
   events: TimelineEvent[];
   initialEventId?: string;
@@ -62,6 +64,7 @@ type TimelineScreenProps = {
 };
 
 export function TimelineScreen({
+  currencySettings,
   eventTypes,
   events,
   initialEventId,
@@ -141,6 +144,7 @@ export function TimelineScreen({
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="min-w-0 space-y-3">
             <TimelineTable
+              currencySettings={currencySettings}
               events={events}
               onSelectEvent={setSelectedEventId}
               pagination={pagination}
@@ -149,6 +153,7 @@ export function TimelineScreen({
             <PaginationControls pagination={pagination} />
           </div>
           <TimelineInspector
+            currencySettings={currencySettings}
             event={selectedEvent}
             onAttachDocument={(event) => {
               setStatusMessage(null);

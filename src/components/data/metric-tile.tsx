@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 type MetricTileProps = {
   label: string;
-  value: string;
+  value: ReactNode;
   helper?: string;
   icon?: ReactNode;
 };
@@ -16,9 +16,9 @@ export function MetricTile({ label, value, helper, icon }: MetricTileProps) {
         </p>
         {icon ? <div className="shrink-0 text-muted">{icon}</div> : null}
       </div>
-      <p className="mt-3 min-w-0 break-words text-2xl font-semibold tracking-tight">
+      <div className="mt-3 min-w-0 break-words text-2xl font-semibold tracking-tight">
         {value}
-      </p>
+      </div>
       {helper ? (
         <p className="mt-1 min-w-0 break-words text-xs text-muted">{helper}</p>
       ) : null}

@@ -1,4 +1,5 @@
 import { FileText, Lock } from "lucide-react";
+import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
 import type {
@@ -6,10 +7,14 @@ import type {
   TimelinePagination,
 } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
-import { formatMoney } from "@/lib/money/format";
+import {
+  formatMoneyDisplay,
+  type CurrencyDisplaySettings,
+} from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 type TimelineTableProps = {
+  currencySettings: CurrencyDisplaySettings;
   events: TimelineEvent[];
   selectedEventId: string;
   onSelectEvent: (id: string) => void;
@@ -17,6 +22,7 @@ type TimelineTableProps = {
 };
 
 export function TimelineTable({
+  currencySettings,
   events,
   selectedEventId,
   onSelectEvent,
@@ -125,9 +131,18 @@ export function TimelineTable({
                     {event.unitNumber ? `Unit ${event.unitNumber}` : "Property"}
                   </p>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right font-medium">
+                <td className="px-3 py-2.5 text-right font-medium">
                   {event.cost !== undefined && event.currency
-                    ? formatMoney(event.cost, event.currency)
+                    ? (
+                        <MoneyDisplay
+                          align="right"
+                          value={formatMoneyDisplay(
+                            event.cost,
+                            event.currency,
+                            currencySettings,
+                          )}
+                        />
+                      )
                     : "-"}
                 </td>
               </tr>

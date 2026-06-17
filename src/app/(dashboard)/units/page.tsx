@@ -1,17 +1,37 @@
-import { PageHeader } from "@/components/layout/page-header";
+import { UnitScreen } from "@/features/units/components/unit-screen";
+import { getPropertySummaries } from "@/features/properties/data/properties";
+import { getUnitsScreenData } from "@/features/units/data/units";
+import { parseUnitSearchParams } from "@/features/units/unit.filters";
+import type { UnitPropertyOption } from "@/features/units/unit.types";
+import { requireAdminContext } from "@/lib/auth/context";
 
-export default function UnitsPage() {
+type UnitsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function UnitsPage({ searchParams }: UnitsPageProps) {
+  const context = await requireAdminContext();
+  const viewQuery = parseUnitSearchParams(await searchParams);
+  const [{ pagination, units }, properties] = await Promise.all([
+    getUnitsScreenData(context.organizationId, viewQuery),
+    getPropertySummaries(context.organizationId),
+  ]);
+
   return (
-    <div>
-      <PageHeader
-        description="Unit records will connect to properties, leases, ledger entries, documents, and timeline events."
-        title="Units"
-      />
-      <div className="p-8">
-        <div className="rounded-md border border-border bg-surface p-6 text-sm text-muted">
-          Unit table starts in the next implementation pass.
-        </div>
-      </div>
-    </div>
+    <UnitScreen
+      pagination={pagination}
+      propertyOptions={toPropertyOptions(properties)}
+      units={units}
+      viewQuery={viewQuery}
+    />
   );
+}
+
+function toPropertyOptions(
+  properties: Awaited<ReturnType<typeof getPropertySummaries>>,
+): UnitPropertyOption[] {
+  return properties.map((property) => ({
+    id: property.id,
+    label: `${property.code} - ${property.name}`,
+  }));
 }

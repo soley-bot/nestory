@@ -7,13 +7,18 @@ import {
   Pencil,
   RotateCcw,
 } from "lucide-react";
+import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/dates/format";
-import { formatMoney } from "@/lib/money/format";
+import {
+  formatMoneyDisplay,
+  type CurrencyDisplaySettings,
+} from "@/lib/money/format";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
 import { cn } from "@/lib/utils";
 
 type LedgerTableProps = {
+  currencySettings: CurrencyDisplaySettings;
   entries: LedgerEntry[];
   onArchiveEntry: (entry: LedgerEntry) => void;
   onEditEntry: (entry: LedgerEntry) => void;
@@ -23,6 +28,7 @@ type LedgerTableProps = {
 };
 
 export function LedgerTable({
+  currencySettings,
   entries,
   onArchiveEntry,
   onEditEntry,
@@ -118,9 +124,15 @@ export function LedgerTable({
                   {entry.unitNumber ? `Unit ${entry.unitNumber}` : "Property"}
                 </p>
               </td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-right font-medium">
-                {entry.direction === "expense" ? "-" : ""}
-                {formatMoney(entry.amount, entry.currency)}
+              <td className="px-3 py-2.5">
+                <MoneyDisplay
+                  align="right"
+                  value={formatMoneyDisplay(
+                    entry.direction === "expense" ? -entry.amount : entry.amount,
+                    entry.currency,
+                    currencySettings,
+                  )}
+                />
               </td>
               <td className="px-2 py-2.5">
                 <div className="flex justify-end gap-1">

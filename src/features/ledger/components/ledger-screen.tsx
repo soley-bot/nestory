@@ -33,6 +33,7 @@ import type {
   LedgerViewQuery,
 } from "@/features/ledger/ledger.types";
 import { formatDate } from "@/lib/dates/format";
+import type { CurrencyDisplaySettings } from "@/lib/money/format";
 
 const archiveInitialState: LedgerActionState = {};
 const receiptInitialState: LedgerActionState = {};
@@ -49,6 +50,7 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange };
 
 type LedgerScreenProps = {
+  currencySettings: CurrencyDisplaySettings;
   entries: LedgerEntry[];
   initialEntryId?: string;
   pagination: LedgerPaginationMeta;
@@ -61,6 +63,7 @@ type LedgerScreenProps = {
 };
 
 export function LedgerScreen({
+  currencySettings,
   entries,
   initialEntryId,
   pagination,
@@ -128,10 +131,7 @@ export function LedgerScreen({
       <LedgerFilters properties={propertyOptions} viewQuery={viewQuery} />
 
       <div className="space-y-5 px-4 py-5 sm:px-6 lg:p-8">
-        <LedgerSummary
-          resultScope="Filtered ledger rows"
-          snapshot={snapshot}
-        />
+        <LedgerSummary snapshot={snapshot} />
         <RecentChangesPanel
           changes={recentChanges}
           defaultCollapsed
@@ -143,6 +143,7 @@ export function LedgerScreen({
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-3">
             <LedgerTable
+              currencySettings={currencySettings}
               entries={entries}
               onArchiveEntry={(entry) => {
                 setStatusMessage(null);
@@ -162,6 +163,7 @@ export function LedgerScreen({
             <PaginationControls pagination={pagination} />
           </div>
           <LedgerInspector
+            currencySettings={currencySettings}
             entry={selectedEntry}
             onArchiveEntry={(entry) => {
               setStatusMessage(null);
@@ -227,6 +229,7 @@ export function LedgerScreen({
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
               properties={propertyOptions}
+              defaultCurrency={currencySettings.preferredCurrency}
               units={unitOptions}
             />
           )}
