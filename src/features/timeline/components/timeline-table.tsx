@@ -29,10 +29,10 @@ export function TimelineTable({
   pagination,
 }: TimelineTableProps) {
   return (
-    <div className="rounded-md border border-border bg-surface">
-      <div className="flex flex-col gap-1 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="overflow-hidden rounded-md border border-border bg-surface">
+      <div className="flex flex-col gap-1 border-b border-border px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">
+          <h2 className="text-[13px] font-semibold text-foreground">
             Timeline records
           </h2>
           <p className="text-xs text-muted">
@@ -42,16 +42,16 @@ export function TimelineTable({
           </p>
         </div>
       </div>
-      <div className="max-h-[680px] overflow-auto">
-        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm">
+      <div className="max-h-[min(680px,calc(100vh-260px))] overflow-auto">
+        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
-            <col className="w-[104px]" />
-            <col className="w-[124px]" />
+            <col className="w-[100px]" />
+            <col className="w-[120px]" />
             <col />
-            <col className="w-[136px]" />
-            <col className="w-[118px]" />
+            <col className="w-[132px]" />
+            <col className="w-[112px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-xs uppercase tracking-[0.06em] text-muted shadow-[0_1px_0_0_var(--color-border)]">
+          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
               <th className="px-3 py-2.5 font-semibold">Type</th>
@@ -86,13 +86,13 @@ export function TimelineTable({
                 }}
                 tabIndex={0}
               >
-                <td className="whitespace-nowrap px-3 py-2.5 text-muted">
+                <td className="whitespace-nowrap px-3 py-2 text-muted">
                   {formatDate(event.eventDate)}
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2">
                   <EventTypeBadge type={event.eventType} />
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="px-4 py-2">
                   <div className="flex items-start gap-3">
                     <div className="min-w-0">
                       <p className="break-words font-medium text-foreground">
@@ -110,12 +110,14 @@ export function TimelineTable({
                     ) : null}
                   </div>
                   {event.archivedAt || event.isLocked ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       {event.archivedAt ? (
-                        <Badge tone="warning">Archived</Badge>
+                        <Badge className="px-2 text-xs" tone="warning">
+                          Archived
+                        </Badge>
                       ) : null}
                       {event.isLocked ? (
-                        <Badge tone="warning">
+                        <Badge className="px-2 text-xs" tone="warning">
                           <Lock size={12} />
                           Locked
                         </Badge>
@@ -123,7 +125,7 @@ export function TimelineTable({
                     </div>
                   ) : null}
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2">
                   <p className="truncate font-medium" title={event.propertyCode}>
                     {event.propertyCode}
                   </p>
@@ -131,7 +133,7 @@ export function TimelineTable({
                     {event.unitNumber ? `Unit ${event.unitNumber}` : "Property"}
                   </p>
                 </td>
-                <td className="px-3 py-2.5 text-right font-medium">
+                <td className="px-3 py-2 text-right font-medium">
                   {event.cost !== undefined && event.currency
                     ? (
                         <MoneyDisplay

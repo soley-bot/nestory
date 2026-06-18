@@ -43,7 +43,7 @@ export function TimelineInspector({
 }: TimelineInspectorProps) {
   if (!event) {
     return (
-      <aside className="rounded-md border border-border bg-surface p-5">
+      <aside className="rounded-md border border-border bg-surface p-4 2xl:sticky 2xl:top-5">
         <h2 className="text-base font-semibold tracking-tight">No record selected</h2>
         <p className="mt-2 text-sm leading-6 text-muted">
           Select a timeline record to inspect its property, unit, cost, and linked
@@ -58,11 +58,19 @@ export function TimelineInspector({
   const isDisabled = event.isLocked || archiveDisabled;
 
   return (
-    <aside className="rounded-md border border-border bg-surface">
-      <div className="border-b border-border p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <EventTypeBadge type={event.eventType} />
-          <div className="flex flex-wrap items-center gap-2">
+    <aside className="rounded-md border border-border bg-surface 2xl:sticky 2xl:top-5 2xl:max-h-[calc(100vh-170px)] 2xl:overflow-auto">
+      <div className="border-b border-border p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <EventTypeBadge type={event.eventType} />
+            <h2 className="mt-3 break-words text-base font-semibold">
+              {event.title}
+            </h2>
+            <p className="mt-1 break-words text-sm leading-6 text-muted">
+              {event.description || "No description recorded."}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1">
             {isArchived ? <Badge tone="warning">Archived</Badge> : null}
             {event.isLocked ? (
               <Badge tone="warning">
@@ -73,16 +81,10 @@ export function TimelineInspector({
             <Badge>{event.propertyCode}</Badge>
           </div>
         </div>
-        <h2 className="mt-4 break-words text-lg font-semibold tracking-tight">
-          {event.title}
-        </h2>
-        <p className="mt-2 break-words text-sm leading-6 text-muted">
-          {event.description || "No description recorded."}
-        </p>
       </div>
 
       {isLedgerLinked ? (
-        <div className="border-b border-border p-4 sm:p-5">
+        <div className="border-b border-border p-4">
           <p className="text-sm leading-6 text-muted">
             This event is linked to a ledger entry. Edit, archive, or restore it
             from Ledger so totals and timeline history stay in sync.
@@ -106,55 +108,62 @@ export function TimelineInspector({
           </div>
         </div>
       ) : (
-        <div className="border-b border-border p-4 sm:p-5">
+        <div className="border-b border-border p-4">
           {isArchived ? (
             <Button
-              className="w-full"
+              aria-label="Restore timeline record"
+              className="w-full px-0"
               disabled={isDisabled}
               onClick={() => onRestore?.(event)}
               title={
-                event.isLocked ? "This accounting period is locked." : undefined
+                event.isLocked
+                  ? "This accounting period is locked."
+                  : "Restore record"
               }
               type="button"
               variant="primary"
             >
               <RotateCcw size={15} />
-              Restore
             </Button>
           ) : (
             <div className="grid gap-2 sm:grid-cols-3">
               <Button
+                aria-label="Attach document"
+                className="px-0"
                 onClick={() => onAttachDocument?.(event)}
+                title="Attach document"
                 type="button"
                 variant="secondary"
               >
                 <Upload size={15} />
-                Attach
               </Button>
               <Button
+                aria-label="Edit timeline record"
+                className="px-0"
                 disabled={isDisabled}
                 onClick={() => onEdit?.(event)}
                 title={
-                  event.isLocked ? "This accounting period is locked." : undefined
+                  event.isLocked ? "This accounting period is locked." : "Edit record"
                 }
                 type="button"
                 variant="secondary"
               >
                 <Pencil size={15} />
-                Edit
               </Button>
               <Button
-                className="border-danger/40 text-danger hover:bg-surface-muted"
+                aria-label="Archive timeline record"
+                className="border-danger/40 px-0 text-danger hover:bg-surface-muted"
                 disabled={isDisabled}
                 onClick={() => onArchive?.(event)}
                 title={
-                  event.isLocked ? "This accounting period is locked." : undefined
+                  event.isLocked
+                    ? "This accounting period is locked."
+                    : "Archive record"
                 }
                 type="button"
                 variant="secondary"
               >
                 <Archive size={15} />
-                Archive
               </Button>
             </div>
           )}
@@ -167,7 +176,7 @@ export function TimelineInspector({
         </div>
       )}
 
-      <div className="space-y-5 p-4 text-sm sm:p-5">
+      <div className="space-y-4 p-4 text-sm">
         <InspectorRow icon={<CalendarDays size={16} />} label="Event date">
           {formatDate(event.eventDate)}
         </InspectorRow>
@@ -200,8 +209,8 @@ export function TimelineInspector({
         ) : null}
       </div>
 
-      <div className="border-t border-border p-4 sm:p-5">
-        <div className="mb-5">
+      <div className="border-t border-border p-4">
+        <div className="mb-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
             Documents
           </p>

@@ -4,7 +4,7 @@ import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
@@ -46,6 +46,7 @@ export function TimelineFilters({
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+  const compactSelectClassName = "h-8 px-2 text-[13px]";
 
   function replaceParam(name: string, value: string, defaultValue: string) {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -73,10 +74,13 @@ export function TimelineFilters({
   }
 
   return (
-    <div className="border-b border-border bg-surface px-4 py-4 sm:px-6 lg:px-8">
-      <div className="space-y-3">
-        <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_auto_auto]">
-          <form className="flex min-w-0 gap-2" onSubmit={handleSearchSubmit}>
+    <div className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-8">
+      <div className="space-y-2.5">
+        <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
+          <form
+            className="flex min-w-0 flex-1 gap-2"
+            onSubmit={handleSearchSubmit}
+          >
             <label className="relative min-w-0 flex-1">
               <span className="sr-only">Search timeline records</span>
               <Search
@@ -84,7 +88,7 @@ export function TimelineFilters({
                 size={16}
               />
               <Input
-                className="pl-9"
+                className="h-8 pl-9"
                 onChange={(event) =>
                   setQueryState({
                     source: viewQuery.query,
@@ -96,37 +100,48 @@ export function TimelineFilters({
                 value={query}
               />
             </label>
-            <Button disabled={isPending} type="submit">
-              Search
+            <Button
+              aria-label="Search timeline records"
+              className="h-8 w-8 shrink-0 px-0"
+              disabled={isPending}
+              title="Search timeline records"
+              type="submit"
+            >
+              <Search size={14} />
             </Button>
           </form>
 
-          <Button
-            aria-controls="timeline-advanced-search"
-            aria-expanded={advancedOpen}
-            className="w-full lg:w-auto"
-            onClick={() => setAdvancedOpen((open) => !open)}
-            type="button"
-          >
-            <SlidersHorizontal size={15} />
-            Advanced search
-          </Button>
-          <Link
-            className="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-            href={pathname}
-            scroll={false}
-          >
-            Reset
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              aria-controls="timeline-advanced-search"
+              aria-expanded={advancedOpen}
+              className="h-8 w-full gap-1.5 px-2.5 sm:w-auto"
+              onClick={() => setAdvancedOpen((open) => !open)}
+              type="button"
+            >
+              <SlidersHorizontal size={14} />
+              Filters
+            </Button>
+            <Link
+              aria-label="Reset timeline filters"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+              href={pathname}
+              scroll={false}
+              title="Reset filters"
+            >
+              <RotateCcw size={14} />
+            </Link>
+          </div>
         </div>
 
         {advancedOpen ? (
           <div
-            className="grid gap-3 rounded-md border border-border bg-surface-muted p-3 lg:grid-cols-[minmax(180px,240px)_minmax(170px,220px)_minmax(130px,160px)_minmax(130px,170px)_minmax(104px,120px)]"
+            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(160px,210px)_minmax(132px,170px)_minmax(132px,150px)_minmax(132px,160px)_minmax(84px,104px)]"
             id="timeline-advanced-search"
           >
             <SelectControl
               ariaLabel="Filter by property"
+              className={compactSelectClassName}
               onValueChange={(value) => replaceParam("propertyId", value, "all")}
               options={[
                 { label: "All properties", value: "all" },
@@ -140,6 +155,7 @@ export function TimelineFilters({
 
             <SelectControl
               ariaLabel="Filter by event type"
+              className={compactSelectClassName}
               onValueChange={(value) => replaceParam("eventType", value, "all")}
               options={[
                 { label: "All event types", value: "all" },
@@ -150,11 +166,12 @@ export function TimelineFilters({
 
             <SelectControl
               ariaLabel="Filter by archive state"
+              className={compactSelectClassName}
               onValueChange={(value) =>
                 replaceParam("archiveState", value, "active")
               }
               options={[
-                { label: "Active", value: "active" },
+                { label: "Active records", value: "active" },
                 { label: "Archived", value: "archived" },
                 { label: "All records", value: "all" },
               ]}
@@ -163,6 +180,7 @@ export function TimelineFilters({
 
             <SelectControl
               ariaLabel="Sort timeline records"
+              className={compactSelectClassName}
               onValueChange={(value) =>
                 replaceParam("sort", value, DEFAULT_TIMELINE_SORT)
               }
@@ -177,6 +195,7 @@ export function TimelineFilters({
 
             <SelectControl
               ariaLabel="Rows per page"
+              className={compactSelectClassName}
               onValueChange={(value) =>
                 replaceParam("pageSize", value, String(DEFAULT_TIMELINE_PAGE_SIZE))
               }

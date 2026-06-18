@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Archive, Download, Lock, Plus, RotateCcw, Upload } from "lucide-react";
+import { Archive, Lock, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
@@ -9,7 +9,7 @@ import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
-import { RecentChangesPanel } from "@/features/activity/components/recent-changes-panel";
+import { RecentChangesPopover } from "@/features/activity/components/recent-changes-popover";
 import type { RecentChange } from "@/features/activity/activity.types";
 import {
   archiveLedgerEntryAction,
@@ -88,10 +88,13 @@ export function LedgerScreen({
       <PageHeader
         actions={
           <>
-            <Button>
-              <Download size={15} />
-              Export
-            </Button>
+            <RecentChangesPopover
+              changes={recentChanges}
+              onSelectChange={(change) => {
+                setStatusMessage(null);
+                setDrawerState({ change, mode: "activity" });
+              }}
+            />
             <Button
               onClick={() => {
                 setStatusMessage(null);
@@ -130,17 +133,9 @@ export function LedgerScreen({
 
       <LedgerFilters properties={propertyOptions} viewQuery={viewQuery} />
 
-      <div className="space-y-5 px-4 py-5 sm:px-6 lg:p-8">
+      <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
         <LedgerSummary snapshot={snapshot} />
-        <RecentChangesPanel
-          changes={recentChanges}
-          defaultCollapsed
-          onSelectChange={(change) => {
-            setStatusMessage(null);
-            setDrawerState({ change, mode: "activity" });
-          }}
-        />
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
             <LedgerTable
               currencySettings={currencySettings}

@@ -1,20 +1,13 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import {
-  Archive,
-  Download,
-  Plus,
-  RotateCcw,
-  Save,
-  Upload,
-} from "lucide-react";
+import { Archive, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
-import { RecentChangesPanel } from "@/features/activity/components/recent-changes-panel";
+import { RecentChangesPopover } from "@/features/activity/components/recent-changes-popover";
 import type { RecentChange } from "@/features/activity/activity.types";
 import {
   archiveTimelineEventAction,
@@ -90,14 +83,13 @@ export function TimelineScreen({
       <PageHeader
         actions={
           <>
-            <Button>
-              <Save size={15} />
-              Save filter
-            </Button>
-            <Button>
-              <Download size={15} />
-              Export
-            </Button>
+            <RecentChangesPopover
+              changes={recentChanges}
+              onSelectChange={(change) => {
+                setStatusMessage(null);
+                setDrawer({ change, mode: "activity" });
+              }}
+            />
             <Button
               onClick={() => {
                 setStatusMessage(null);
@@ -131,17 +123,9 @@ export function TimelineScreen({
         viewQuery={viewQuery}
       />
 
-      <div className="space-y-5 px-4 py-5 sm:px-6 lg:p-8">
+      <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
         <PropertyPerformanceSnapshot snapshot={snapshot} />
-        <RecentChangesPanel
-          changes={recentChanges}
-          defaultCollapsed
-          onSelectChange={(change) => {
-            setStatusMessage(null);
-            setDrawer({ change, mode: "activity" });
-          }}
-        />
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 space-y-3">
             <TimelineTable
               currencySettings={currencySettings}
