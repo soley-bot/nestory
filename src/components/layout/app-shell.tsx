@@ -40,7 +40,7 @@ const navGroups = [
     label: "Leasing",
     items: [
       { href: "/leases", label: "Leases", icon: ScrollText },
-      { href: "/tenants", label: "Tenants", icon: Users },
+      { href: "/people", label: "People", icon: Users },
     ],
   },
   {

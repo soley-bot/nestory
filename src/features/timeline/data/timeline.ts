@@ -1,7 +1,6 @@
 import { Constants } from "@/types/database";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import type { LinkedDocument } from "@/features/documents/document.types";
-import { getPropertySummaries } from "@/features/properties/data/properties";
 import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import {
   buildTimelinePagination,
@@ -12,13 +11,10 @@ import type {
   TimelineEvent,
   TimelineEventType,
   TimelinePropertyOption,
-  TimelineSnapshot,
   TimelineUnitOption,
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import type { CurrencyDisplaySettings } from "@/lib/money/format";
-import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
 const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
   archiveState: "active",
@@ -83,14 +79,6 @@ type TimelineEventRow = {
   unit_id: string | null;
 };
 
-type TimelineEventSummaryRow = {
-  archived_at: string | null;
-  cost_amount: number | null;
-  cost_currency: "USD" | "KHR" | null;
-  event_date: string;
-  event_type: TimelineEventType;
-};
-
 type PeriodLockRow = {
   id: string;
   locked_at: string | null;
@@ -142,8 +130,6 @@ export async function getTimelineScreenData(
     periodLocksResult,
     recentActivityResult,
     currencySettings,
-    snapshotLedgerResult,
-    snapshotEventsResult,
   ] = await Promise.all([
     fetchEventsPage(viewQuery.page),
     supabase
@@ -172,14 +158,7 @@ export async function getTimelineScreenData(
       .order("created_at", { ascending: false })
       .limit(6),
     getOrganizationCurrencySettings(organizationId),
-    fetchSnapshotLedgerRows(supabase, organizationId, viewQuery),
-    fetchSnapshotTimelineRows(supabase, organizationId, viewQuery),
   ]);
-
-  const resolvedPropertySummaries = await getPropertySummaries(
-    organizationId,
-    currencySettings,
-  );
 
   if (firstEventsResult.error) {
     throw new Error(
@@ -214,18 +193,6 @@ export async function getTimelineScreenData(
   if (recentActivityResult.error) {
     throw new Error(
       `Could not load recent timeline activity: ${recentActivityResult.error.message}`,
-    );
-  }
-
-  if (snapshotLedgerResult.error) {
-    throw new Error(
-      `Could not load timeline ledger summary: ${snapshotLedgerResult.error.message}`,
-    );
-  }
-
-  if (snapshotEventsResult.error) {
-    throw new Error(
-      `Could not load timeline maintenance summary: ${snapshotEventsResult.error.message}`,
     );
   }
 
@@ -298,13 +265,6 @@ export async function getTimelineScreenData(
       unit: event.unit_id ? unitsById.get(event.unit_id) : undefined,
     }),
   );
-  const selectedPropertySummaries =
-    viewQuery.propertyId === "all"
-      ? resolvedPropertySummaries
-      : resolvedPropertySummaries.filter(
-          (property) => property.id === viewQuery.propertyId,
-        );
-
   return {
     eventTypes: [...Constants.public.Enums.timeline_event_type],
     events,
@@ -320,12 +280,6 @@ export async function getTimelineScreenData(
       }),
     ),
     recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
-    snapshot: buildSnapshot(
-      selectedPropertySummaries,
-      snapshotLedgerResult.data ?? [],
-      snapshotEventsResult.data ?? [],
-      currencySettings,
-    ),
     unitOptions: (unitsResult.data ?? []).map((unit): TimelineUnitOption => {
       const property = propertiesById.get(unit.property_id);
 
@@ -386,36 +340,6 @@ function toTimelineEvent({
   };
 }
 
-function buildSnapshot(
-  properties: Awaited<ReturnType<typeof getPropertySummaries>>,
-  ledgerEntries: LedgerEntryRow[],
-  events: TimelineEventSummaryRow[],
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-): TimelineSnapshot {
-  const unitCount = properties.reduce((total, property) => total + property.units, 0);
-  const occupiedUnitCount = properties.reduce(
-    (total, property) => total + property.occupiedUnits,
-    0,
-  );
-  const occupancy =
-    unitCount > 0 ? `${Math.round((occupiedUnitCount / unitCount) * 100)}%` : "0%";
-  const maintenanceEvents = events
-    .filter((event) =>
-      ["Maintenance", "Repair", "Renovation"].includes(event.event_type),
-    )
-    .map((event) => ({
-      amount: event.cost_amount,
-      currency: event.cost_currency,
-    }));
-
-  return {
-    maintenance: formatMoneyTotalsDisplay(maintenanceEvents, currencySettings),
-    netIncome: formatMoneyTotalsDisplay(ledgerEntries, currencySettings),
-    occupancy,
-    propertyCount: String(properties.length),
-  };
-}
-
 function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
   query: TQuery,
   viewQuery: TimelineViewQuery,
@@ -472,47 +396,6 @@ function applyTimelineSort<TQuery extends SortableQuery<TQuery>>(
   return query.order("event_date", { ascending: false }).order("id", {
     ascending: false,
   });
-}
-
-function fetchSnapshotLedgerRows(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  organizationId: string,
-  viewQuery: TimelineViewQuery,
-) {
-  let query = supabase
-    .from("ledger_entries")
-    .select("id, category, direction, amount, currency, archived_at")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null);
-
-  if (viewQuery.propertyId !== "all") {
-    query = query.eq("property_id", viewQuery.propertyId);
-  }
-
-  return query;
-}
-
-function fetchSnapshotTimelineRows(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  organizationId: string,
-  viewQuery: TimelineViewQuery,
-) {
-  const twelveMonthsAgo = new Date();
-  twelveMonthsAgo.setUTCFullYear(twelveMonthsAgo.getUTCFullYear() - 1);
-
-  let query = supabase
-    .from("timeline_events")
-    .select("event_date, event_type, cost_amount, cost_currency, archived_at")
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .gte("event_date", twelveMonthsAgo.toISOString().slice(0, 10))
-    .in("event_type", ["Maintenance", "Repair", "Renovation"]);
-
-  if (viewQuery.propertyId !== "all") {
-    query = query.eq("property_id", viewQuery.propertyId);
-  }
-
-  return query;
 }
 
 function getRange(page: number, pageSize: number) {

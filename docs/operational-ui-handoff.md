@@ -8,6 +8,16 @@ Use this handoff when continuing authenticated Nestory UI polish. It captures th
 - Authenticated pages should stay white, neutral, dense, and work-focused.
 - Use minimal accent color, no teal-heavy controls, no oversized decorative cards, and no marketing-style dashboard sections.
 - Primary list pages should optimize for scanning, selection, and repeated operator work.
+- Overview is not a primary list page. Treat it as the portfolio decision dashboard: stronger visual hierarchy is allowed when it helps the operator see what needs attention first.
+
+## Overview Dashboard Pattern
+
+- Overview should answer "what needs attention and why?" before it offers record navigation.
+- Use one clear portfolio summary, four or fewer primary KPI cards, and no more than three chart views on the first dashboard pass.
+- Keep the chart set purposeful: property comparison, cash trend, and lease runway are the current recommended views.
+- Use color as an alert and grouping cue, not decoration. Neutral UI should carry the page; warning, danger, and success should only signal status.
+- Keep exact rows, CRUD forms, and long audit detail in the module pages. Overview should link into Units, Leases, People, Ledger, and Timeline rather than becoming another table surface.
+- Remove broad portfolio snapshot panels from Timeline and Ledger once Overview carries that summary layer. Those pages should focus on their own records and inspectors.
 
 ## List Page Pattern
 

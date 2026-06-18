@@ -15,7 +15,6 @@ import {
   restoreTimelineEventAction,
   type TimelineActionState,
 } from "@/features/timeline/actions";
-import { PropertyPerformanceSnapshot } from "@/features/timeline/components/property-performance-snapshot";
 import { TimelineEventForm } from "@/features/timeline/components/timeline-event-form";
 import { TimelineFilters } from "@/features/timeline/components/timeline-filters";
 import { TimelineInspector } from "@/features/timeline/components/timeline-inspector";
@@ -25,7 +24,6 @@ import type {
   TimelineEventType,
   TimelinePagination,
   TimelinePropertyOption,
-  TimelineSnapshot,
   TimelineUnitOption,
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
@@ -51,7 +49,6 @@ type TimelineScreenProps = {
   pagination: TimelinePagination;
   propertyOptions: TimelinePropertyOption[];
   recentChanges: RecentChange[];
-  snapshot: TimelineSnapshot;
   unitOptions: TimelineUnitOption[];
   viewQuery: TimelineViewQuery;
 };
@@ -64,7 +61,6 @@ export function TimelineScreen({
   pagination,
   propertyOptions,
   recentChanges,
-  snapshot,
   unitOptions,
   viewQuery,
 }: TimelineScreenProps) {
@@ -124,7 +120,6 @@ export function TimelineScreen({
       />
 
       <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
-        <PropertyPerformanceSnapshot snapshot={snapshot} />
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 space-y-3">
             <TimelineTable

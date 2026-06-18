@@ -1,6 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { toRecentChange } from "@/features/activity/recent-changes";
-import { buildLedgerSnapshot } from "@/features/ledger/data/ledger-summary";
 import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import {
   DEFAULT_LEDGER_VIEW_QUERY,
@@ -16,14 +15,12 @@ import type {
 import type { LinkedDocument } from "@/features/documents/document.types";
 import type { CurrencyCode } from "@/lib/money/format";
 import {
-  SUMMARY_ROW_LIMIT,
   getQueryTokens,
   textMatchesToken,
 } from "@/lib/query/screen-query";
 
 const ledgerEntrySelect =
   "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, archived_at";
-const ledgerSummarySelect = "amount, archived_at, currency, direction";
 const maxRelatedSearchIds = 100;
 
 type PropertyRow = {
@@ -168,32 +165,23 @@ export async function getLedgerScreenData(
     .from("ledger_entries")
     .select(ledgerEntrySelect, { count: "exact" })
     .eq("organization_id", organizationId);
-  let summaryQuery = supabase
-    .from("ledger_entries")
-    .select(ledgerSummarySelect, { count: "exact" })
-    .eq("organization_id", organizationId);
 
   if (viewQuery.archiveState === "active") {
     ledgerQuery = ledgerQuery.is("archived_at", null);
-    summaryQuery = summaryQuery.is("archived_at", null);
   } else if (viewQuery.archiveState === "archived") {
     ledgerQuery = ledgerQuery.not("archived_at", "is", null);
-    summaryQuery = summaryQuery.not("archived_at", "is", null);
   }
 
   if (viewQuery.direction !== "all") {
     ledgerQuery = ledgerQuery.eq("direction", viewQuery.direction);
-    summaryQuery = summaryQuery.eq("direction", viewQuery.direction);
   }
 
   if (viewQuery.propertyId !== "all") {
     ledgerQuery = ledgerQuery.eq("property_id", viewQuery.propertyId);
-    summaryQuery = summaryQuery.eq("property_id", viewQuery.propertyId);
   }
 
   for (const searchGroup of searchGroups) {
     ledgerQuery = ledgerQuery.or(searchGroup);
-    summaryQuery = summaryQuery.or(searchGroup);
   }
 
   if (viewQuery.sort === "date_asc") {
@@ -218,17 +206,10 @@ export async function getLedgerScreenData(
       .order("created_at", { ascending: false });
   }
 
-  const [ledgerResult, summaryResult] = await Promise.all([
-    ledgerQuery.range(from, to),
-    summaryQuery.limit(SUMMARY_ROW_LIMIT),
-  ]);
+  const ledgerResult = await ledgerQuery.range(from, to);
 
   if (ledgerResult.error) {
     throw new Error(`Could not load ledger entries: ${ledgerResult.error.message}`);
-  }
-
-  if (summaryResult.error) {
-    throw new Error(`Could not load ledger summary: ${summaryResult.error.message}`);
   }
 
   const entriesPage = ledgerResult.data ?? [];
@@ -267,13 +248,6 @@ export async function getLedgerScreenData(
       }),
     ),
     recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
-    snapshot: {
-      ...buildLedgerSnapshot(summaryResult.data ?? [], {
-        currencySettings,
-        entryCount: summaryResult.count ?? summaryResult.data?.length ?? 0,
-      }),
-      lockedPeriodCount: String(periodLocks.length),
-    },
     unitOptions: units.map((unit): LedgerUnitOption => {
       const property = propertiesById.get(unit.property_id);
 

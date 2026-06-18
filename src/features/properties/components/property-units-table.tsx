@@ -45,64 +45,69 @@ export function PropertyUnitsTable({
         ))}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-md border border-border bg-surface md:block">
-        <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-sm">
-          <colgroup>
-            <col className="w-[180px]" />
-            <col className="w-[96px]" />
-            <col className="w-[160px]" />
-            <col className="w-[150px]" />
-            <col />
-          </colgroup>
-          <thead className="bg-surface-muted text-xs uppercase tracking-[0.06em] text-muted">
-            <tr>
-              <th className="px-4 py-3 font-semibold">Unit</th>
-              <th className="px-3 py-3 font-semibold">Floor</th>
-              <th className="px-3 py-3 font-semibold">Status</th>
-              <th className="px-3 py-3 text-right font-semibold">
-                Current rent
-              </th>
-              <th className="px-3 py-3 font-semibold">Archive</th>
-            </tr>
-          </thead>
-          <tbody>
-            {units.map((unit) => (
-              <tr
-                className={cn(
-                  "border-t border-border",
-                  unit.isArchived && "text-muted",
-                )}
-                key={unit.id}
-              >
-                <td className="px-4 py-3">
-                  <UnitLabel unit={unit} />
-                </td>
-                <td className="px-3 py-3 break-words text-muted">
-                  {unit.floor}
-                </td>
-                <td className="px-3 py-3">
-                  <StatusBadge status={unit.status} />
-                </td>
-                <td className="px-3 py-3">
-                  {unit.currentRentDisplay ? (
-                    <MoneyDisplay align="right" value={unit.currentRentDisplay} />
-                  ) : (
-                    <span className="block text-right font-medium">
-                      {unit.currentRent}
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-3">
-                  {unit.isArchived ? (
-                    <Badge tone="warning">Archived</Badge>
-                  ) : (
-                    <span className="text-muted">Active</span>
-                  )}
-                </td>
+      <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
+        <div className="overflow-auto">
+          <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-[13px]">
+            <colgroup>
+              <col className="w-[28%]" />
+              <col className="w-[12%]" />
+              <col className="w-[16%]" />
+              <col className="w-[24%]" />
+              <col className="w-[20%]" />
+            </colgroup>
+            <thead className="bg-surface-muted text-[11px] uppercase tracking-[0] text-muted">
+              <tr>
+                <th className="px-3 py-2.5 font-semibold">Unit</th>
+                <th className="px-2 py-2.5 font-semibold">Floor</th>
+                <th className="px-2 py-2.5 font-semibold">Status</th>
+                <th className="px-2 py-2.5 text-right font-semibold">
+                  Current rent
+                </th>
+                <th className="px-2 py-2.5 font-semibold">Archive</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {units.map((unit) => (
+                <tr
+                  className={cn(
+                    "border-t border-border",
+                    unit.isArchived && "text-muted",
+                  )}
+                  key={unit.id}
+                >
+                  <td className="px-3 py-2">
+                    <UnitLabel unit={unit} />
+                  </td>
+                  <td className="px-2 py-2 break-words text-muted">
+                    {unit.floor}
+                  </td>
+                  <td className="px-2 py-2">
+                    <StatusBadge status={unit.status} />
+                  </td>
+                  <td className="px-2 py-2">
+                    {unit.currentRentDisplay ? (
+                      <MoneyDisplay
+                        align="right"
+                        value={unit.currentRentDisplay}
+                      />
+                    ) : (
+                      <span className="block text-right font-medium">
+                        {unit.currentRent}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    {unit.isArchived ? (
+                      <Badge tone="warning">Archived</Badge>
+                    ) : (
+                      <span className="text-muted">Active</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

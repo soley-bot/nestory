@@ -15,7 +15,8 @@ These rules should guide architecture, UI, database design, feature scope, and r
 - Use the Timeline-First Record Room direction as the product north star.
 - Keep the UI simple, quiet, and operational.
 - Prefer dense tables, useful filters, clear icons, and readable records.
-- Avoid decorative visuals, loud dashboards, gradients, oversized cards, and marketing-style layouts.
+- Avoid decorative visuals, loud dashboards, gradients, oversized cards, and marketing-style layouts on working record pages.
+- Overview is the exception: it is a decision dashboard, not a table page. It may use a stronger visual hierarchy, KPI cards, and 2-3 restrained graphs, but it should still stay calm, action-oriented, and free of decorative noise.
 - Use neutral colors and minimal accents.
 - Less is more.
 

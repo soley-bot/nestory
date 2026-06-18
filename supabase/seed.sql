@@ -3,6 +3,8 @@
 -- Timeline, Ledger, Properties, Units, filters, summaries, and period locks.
 -- Login for local Supabase: nestory@gmail.com / 123456789
 
+SELECT set_config('app.people_leases_skip_sync', 'on', false);
+
 INSERT INTO auth.users (
   instance_id,
   id,
@@ -250,6 +252,429 @@ SELECT
   CASE WHEN lease_number % 23 = 0 THEN '00000000-0000-0000-0000-000000000101'::uuid ELSE NULL END
 FROM lease_seed;
 
+WITH seeded_leases AS (
+  SELECT
+    id,
+    organization_id,
+    tenant_name,
+    lease_start_date,
+    lease_end_date,
+    monthly_rent_amount,
+    monthly_rent_currency,
+    deposit_amount,
+    deposit_currency,
+    status,
+    created_by,
+    updated_by,
+    created_at,
+    updated_at,
+    archived_at,
+    archived_by,
+    split_part(id::text, '-', 5) AS seed_suffix
+  FROM public.leases
+  WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+    AND id::text LIKE '30000000-0000-0000-0000-%'
+)
+INSERT INTO public.people (
+  id,
+  organization_id,
+  display_name,
+  legal_name,
+  party_type,
+  primary_email,
+  primary_phone,
+  notes,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+)
+SELECT
+  ('80000000-0000-0000-0000-' || seed_suffix)::uuid,
+  organization_id,
+  tenant_name,
+  tenant_name,
+  'individual',
+  format('tenant%s@example.test', seed_suffix),
+  format('+855 12 %s', right(seed_suffix, 6)),
+  'Seeded from the lease tenant_name compatibility path.',
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  NULL::timestamptz,
+  NULL::uuid
+FROM seeded_leases
+ON CONFLICT (id) DO UPDATE
+SET
+  display_name = EXCLUDED.display_name,
+  legal_name = EXCLUDED.legal_name,
+  primary_email = EXCLUDED.primary_email,
+  primary_phone = EXCLUDED.primary_phone,
+  notes = EXCLUDED.notes,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = EXCLUDED.updated_at,
+  archived_at = NULL,
+  archived_by = NULL;
+
+WITH seeded_people AS (
+  SELECT
+    leases.*,
+    ('80000000-0000-0000-0000-' || split_part(leases.id::text, '-', 5))::uuid AS person_id,
+    split_part(leases.id::text, '-', 5) AS seed_suffix
+  FROM public.leases AS leases
+  WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND leases.id::text LIKE '30000000-0000-0000-0000-%'
+)
+INSERT INTO public.person_roles (
+  id,
+  organization_id,
+  person_id,
+  role,
+  status,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+)
+SELECT
+  ('81000000-0000-0000-0000-' || seed_suffix)::uuid,
+  organization_id,
+  person_id,
+  'tenant',
+  'active',
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  NULL::timestamptz,
+  NULL::uuid
+FROM seeded_people
+ON CONFLICT (id) DO UPDATE
+SET
+  status = EXCLUDED.status,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = EXCLUDED.updated_at,
+  archived_at = NULL,
+  archived_by = NULL;
+
+WITH seeded_people AS (
+  SELECT
+    leases.*,
+    ('80000000-0000-0000-0000-' || split_part(leases.id::text, '-', 5))::uuid AS person_id,
+    split_part(leases.id::text, '-', 5) AS seed_suffix
+  FROM public.leases AS leases
+  WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND leases.id::text LIKE '30000000-0000-0000-0000-%'
+)
+INSERT INTO public.person_contacts (
+  id,
+  organization_id,
+  person_id,
+  contact_name,
+  contact_type,
+  email,
+  phone,
+  is_primary,
+  notes,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+)
+SELECT
+  ('81100000-0000-0000-0000-' || seed_suffix)::uuid,
+  organization_id,
+  person_id,
+  tenant_name,
+  'general',
+  format('tenant%s@example.test', seed_suffix),
+  format('+855 12 %s', right(seed_suffix, 6)),
+  true,
+  'Primary local seed contact.',
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  NULL::timestamptz,
+  NULL::uuid
+FROM seeded_people
+ON CONFLICT (id) DO UPDATE
+SET
+  contact_name = EXCLUDED.contact_name,
+  email = EXCLUDED.email,
+  phone = EXCLUDED.phone,
+  is_primary = EXCLUDED.is_primary,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = EXCLUDED.updated_at,
+  archived_at = NULL,
+  archived_by = NULL;
+
+WITH seeded_people AS (
+  SELECT
+    leases.id AS lease_id,
+    leases.organization_id,
+    leases.lease_start_date,
+    leases.lease_end_date,
+    leases.monthly_rent_amount,
+    leases.monthly_rent_currency,
+    leases.deposit_amount,
+    leases.deposit_currency,
+    leases.status,
+    leases.created_by,
+    leases.updated_by,
+    leases.created_at,
+    leases.updated_at,
+    leases.archived_at,
+    leases.archived_by,
+    ('80000000-0000-0000-0000-' || split_part(leases.id::text, '-', 5))::uuid AS person_id,
+    split_part(leases.id::text, '-', 5) AS seed_suffix
+  FROM public.leases AS leases
+  WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND leases.id::text LIKE '30000000-0000-0000-0000-%'
+)
+UPDATE public.leases AS leases
+SET
+  primary_tenant_person_id = seeded_people.person_id,
+  updated_by = seeded_people.updated_by
+FROM seeded_people
+WHERE leases.id = seeded_people.lease_id;
+
+WITH seeded_leases AS (
+  SELECT
+    leases.*,
+    ('80000000-0000-0000-0000-' || split_part(leases.id::text, '-', 5))::uuid AS person_id,
+    split_part(leases.id::text, '-', 5) AS seed_suffix
+  FROM public.leases AS leases
+  WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND leases.id::text LIKE '30000000-0000-0000-0000-%'
+)
+INSERT INTO public.lease_parties (
+  id,
+  organization_id,
+  lease_id,
+  person_id,
+  party_role,
+  is_primary,
+  started_on,
+  ended_on,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+)
+SELECT
+  ('82000000-0000-0000-0000-' || seed_suffix)::uuid,
+  organization_id,
+  id,
+  person_id,
+  'primary_tenant',
+  true,
+  lease_start_date,
+  CASE WHEN status = 'ended' THEN lease_end_date ELSE NULL END,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+FROM seeded_leases
+ON CONFLICT (id) DO UPDATE
+SET
+  person_id = EXCLUDED.person_id,
+  party_role = EXCLUDED.party_role,
+  is_primary = EXCLUDED.is_primary,
+  started_on = EXCLUDED.started_on,
+  ended_on = EXCLUDED.ended_on,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = EXCLUDED.updated_at,
+  archived_at = EXCLUDED.archived_at,
+  archived_by = EXCLUDED.archived_by;
+
+WITH seeded_leases AS (
+  SELECT
+    leases.*,
+    split_part(leases.id::text, '-', 5) AS seed_suffix
+  FROM public.leases AS leases
+  WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND leases.id::text LIKE '30000000-0000-0000-0000-%'
+)
+INSERT INTO public.lease_terms (
+  id,
+  organization_id,
+  lease_id,
+  term_sequence,
+  start_date,
+  end_date,
+  rent_amount,
+  rent_currency,
+  rent_due_day,
+  payment_frequency,
+  status,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+)
+SELECT
+  ('83000000-0000-0000-0000-' || seed_suffix)::uuid,
+  organization_id,
+  id,
+  1,
+  lease_start_date,
+  lease_end_date,
+  monthly_rent_amount,
+  monthly_rent_currency,
+  extract(day from lease_start_date)::integer,
+  'monthly',
+  CASE WHEN status = 'ended' THEN 'expired' ELSE 'active' END,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+FROM seeded_leases
+ON CONFLICT (id) DO UPDATE
+SET
+  start_date = EXCLUDED.start_date,
+  end_date = EXCLUDED.end_date,
+  rent_amount = EXCLUDED.rent_amount,
+  rent_currency = EXCLUDED.rent_currency,
+  rent_due_day = EXCLUDED.rent_due_day,
+  status = EXCLUDED.status,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = EXCLUDED.updated_at,
+  archived_at = EXCLUDED.archived_at,
+  archived_by = EXCLUDED.archived_by;
+
+WITH seeded_leases AS (
+  SELECT
+    leases.*,
+    split_part(leases.id::text, '-', 5) AS seed_suffix
+  FROM public.leases AS leases
+  WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND leases.id::text LIKE '30000000-0000-0000-0000-%'
+)
+INSERT INTO public.lease_occupancies (
+  id,
+  organization_id,
+  lease_id,
+  property_id,
+  unit_id,
+  status,
+  scheduled_move_in_date,
+  actual_move_in_date,
+  notice_date,
+  scheduled_move_out_date,
+  actual_move_out_date,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+)
+SELECT
+  ('84000000-0000-0000-0000-' || seed_suffix)::uuid,
+  organization_id,
+  id,
+  property_id,
+  unit_id,
+  CASE
+    WHEN status = 'notice_given' THEN 'notice_given'
+    WHEN status = 'ended' THEN 'vacated'
+    ELSE 'occupied'
+  END,
+  lease_start_date,
+  lease_start_date,
+  CASE WHEN status = 'notice_given' THEN least(current_date, lease_end_date) ELSE NULL END,
+  lease_end_date,
+  CASE WHEN status = 'ended' THEN lease_end_date ELSE NULL END,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+FROM seeded_leases
+ON CONFLICT (id) DO UPDATE
+SET
+  property_id = EXCLUDED.property_id,
+  unit_id = EXCLUDED.unit_id,
+  status = EXCLUDED.status,
+  scheduled_move_in_date = EXCLUDED.scheduled_move_in_date,
+  actual_move_in_date = EXCLUDED.actual_move_in_date,
+  notice_date = EXCLUDED.notice_date,
+  scheduled_move_out_date = EXCLUDED.scheduled_move_out_date,
+  actual_move_out_date = EXCLUDED.actual_move_out_date,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = EXCLUDED.updated_at,
+  archived_at = EXCLUDED.archived_at,
+  archived_by = EXCLUDED.archived_by;
+
+WITH seeded_leases AS (
+  SELECT
+    leases.*,
+    split_part(leases.id::text, '-', 5) AS seed_suffix
+  FROM public.leases AS leases
+  WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND leases.id::text LIKE '30000000-0000-0000-0000-%'
+    AND leases.deposit_amount IS NOT NULL
+)
+INSERT INTO public.lease_deposits (
+  id,
+  organization_id,
+  lease_id,
+  deposit_type,
+  amount,
+  currency,
+  status,
+  received_on,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+)
+SELECT
+  ('85000000-0000-0000-0000-' || seed_suffix)::uuid,
+  organization_id,
+  id,
+  'security',
+  deposit_amount,
+  coalesce(deposit_currency, monthly_rent_currency),
+  'held',
+  lease_start_date,
+  created_by,
+  updated_by,
+  created_at,
+  updated_at,
+  archived_at,
+  archived_by
+FROM seeded_leases
+ON CONFLICT (id) DO UPDATE
+SET
+  amount = EXCLUDED.amount,
+  currency = EXCLUDED.currency,
+  status = EXCLUDED.status,
+  received_on = EXCLUDED.received_on,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = EXCLUDED.updated_at,
+  archived_at = EXCLUDED.archived_at,
+  archived_by = EXCLUDED.archived_by;
+
 WITH ledger_seed AS (
   SELECT
     entry_number,
@@ -443,3 +868,5 @@ SELECT
   jsonb_build_object('seed_index', log_number, 'source', 'local stress seed'),
   now() - (log_number * interval '1 hour')
 FROM log_seed;
+
+SELECT set_config('app.people_leases_skip_sync', 'off', false);

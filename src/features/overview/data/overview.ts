@@ -1,0 +1,750 @@
+import { toRecentChange } from "@/features/activity/recent-changes";
+import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
+import type {
+  OverviewAttentionItem,
+  OverviewLedgerPoint,
+  OverviewMetric,
+  OverviewOccupancyPoint,
+  OverviewScreenData,
+} from "@/features/overview/overview.types";
+import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  convertMoney,
+  normalizeCurrencyDisplaySettings,
+  type CurrencyCode,
+} from "@/lib/money/format";
+import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
+
+const activeLeaseStatuses = new Set(["active", "notice_given"]);
+const monthLabelFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+});
+
+type PropertyRow = {
+  archived_at: string | null;
+  code: string;
+  id: string;
+  name: string;
+  owner: string | null;
+};
+
+type UnitRow = {
+  archived_at: string | null;
+  id: string;
+  property_id: string;
+  status: string;
+  unit_number: string;
+};
+
+type LeaseRow = {
+  archived_at: string | null;
+  id: string;
+  lease_end_date: string;
+  property_id: string;
+  status: string;
+  tenant_name: string;
+  unit_id: string | null;
+};
+
+type LedgerRow = {
+  amount: number;
+  archived_at: string | null;
+  category: string;
+  currency: CurrencyCode;
+  description: string | null;
+  direction: string;
+  id: string;
+  property_id: string;
+  transaction_date: string;
+  unit_id: string | null;
+};
+
+type PersonRow = {
+  archived_at: string | null;
+  display_name: string;
+  id: string;
+  primary_email: string | null;
+  primary_phone: string | null;
+};
+
+type PersonRoleRow = {
+  archived_at: string | null;
+  person_id: string;
+  role: "owner" | "tenant" | "vendor";
+  status: string;
+};
+
+type PersonContactRow = {
+  archived_at: string | null;
+  contact_name: string | null;
+  email: string | null;
+  is_primary: boolean;
+  person_id: string;
+  phone: string | null;
+};
+
+type PropertyOwnerRow = {
+  archived_at: string | null;
+  ended_on: string | null;
+  is_primary: boolean;
+  person_id: string;
+  property_id: string;
+};
+
+export async function getOverviewScreenData(
+  organizationId: string,
+): Promise<OverviewScreenData> {
+  const supabase = await createSupabaseServerClient();
+  const now = new Date();
+  const currentMonthStart = startOfMonth(now);
+  const ledgerStart = addMonths(currentMonthStart, -5);
+  const recentExpenseStart = addDays(now, -30);
+
+  const [
+    propertiesResult,
+    unitsResult,
+    leasesResult,
+    ledgerResult,
+    peopleResult,
+    rolesResult,
+    contactsResult,
+    propertyOwnersResult,
+    recentActivityResult,
+    currencySettings,
+  ] = await Promise.all([
+    supabase
+      .from("properties")
+      .select("id, code, name, owner, archived_at")
+      .eq("organization_id", organizationId)
+      .order("code", { ascending: true }),
+    supabase
+      .from("units")
+      .select("id, property_id, unit_number, status, archived_at")
+      .eq("organization_id", organizationId),
+    supabase
+      .from("leases")
+      .select(
+        "id, property_id, unit_id, tenant_name, lease_end_date, status, archived_at",
+      )
+      .eq("organization_id", organizationId),
+    supabase
+      .from("ledger_entries")
+      .select(
+        "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, archived_at",
+      )
+      .eq("organization_id", organizationId)
+      .gte("transaction_date", toDateInput(ledgerStart)),
+    supabase
+      .from("people")
+      .select("id, display_name, primary_email, primary_phone, archived_at")
+      .eq("organization_id", organizationId),
+    supabase
+      .from("person_roles")
+      .select("person_id, role, status, archived_at")
+      .eq("organization_id", organizationId),
+    supabase
+      .from("person_contacts")
+      .select("person_id, contact_name, email, phone, is_primary, archived_at")
+      .eq("organization_id", organizationId),
+    supabase
+      .from("property_owners")
+      .select("property_id, person_id, is_primary, ended_on, archived_at")
+      .eq("organization_id", organizationId),
+    supabase
+      .from("activity_logs")
+      .select("id, entity_type, action, previous_values, new_values, created_at")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
+      .limit(8),
+    getOrganizationCurrencySettings(organizationId),
+  ]);
+
+  assertNoError(propertiesResult.error, "overview properties");
+  assertNoError(unitsResult.error, "overview units");
+  assertNoError(leasesResult.error, "overview leases");
+  assertNoError(ledgerResult.error, "overview ledger");
+  assertNoError(peopleResult.error, "overview people");
+  assertNoError(rolesResult.error, "overview person roles");
+  assertNoError(contactsResult.error, "overview person contacts");
+  assertNoError(propertyOwnersResult.error, "overview property owners");
+  assertNoError(recentActivityResult.error, "overview activity");
+
+  const normalizedSettings = normalizeCurrencyDisplaySettings(currencySettings);
+  const properties = (propertiesResult.data ?? []) as PropertyRow[];
+  const units = (unitsResult.data ?? []) as UnitRow[];
+  const leases = (leasesResult.data ?? []) as LeaseRow[];
+  const ledgerRows = (ledgerResult.data ?? []) as LedgerRow[];
+  const people = (peopleResult.data ?? []) as PersonRow[];
+  const roles = (rolesResult.data ?? []) as PersonRoleRow[];
+  const contacts = (contactsResult.data ?? []) as PersonContactRow[];
+  const propertyOwners = (propertyOwnersResult.data ?? []) as PropertyOwnerRow[];
+  const activeProperties = properties.filter((property) => !property.archived_at);
+  const operationalUnits = units.filter(
+    (unit) => !unit.archived_at && unit.status !== "inactive",
+  );
+  const currentLeases = leases.filter(
+    (lease) =>
+      !lease.archived_at && activeLeaseStatuses.has(lease.status.toLowerCase()),
+  );
+  const currentLeasedUnitIds = new Set(
+    currentLeases.flatMap((lease) => (lease.unit_id ? [lease.unit_id] : [])),
+  );
+  const occupiedUnits = operationalUnits.filter(
+    (unit) =>
+      currentLeasedUnitIds.has(unit.id) || unit.status.toLowerCase() === "occupied",
+  );
+  const vacantUnits = operationalUnits.filter(
+    (unit) => !currentLeasedUnitIds.has(unit.id),
+  );
+  const activePeople = people.filter((person) => !person.archived_at);
+  const roleCounts = getRoleCounts(roles);
+  const currentPropertyOwnerIds = new Set(
+    propertyOwners
+      .filter((owner) => owner.is_primary && !owner.archived_at && !owner.ended_on)
+      .map((owner) => owner.property_id),
+  );
+  const missingOwnerLinks = activeProperties.filter(
+    (property) => !currentPropertyOwnerIds.has(property.id),
+  );
+  const peopleMissingContacts = activePeople.filter((person) =>
+    isMissingContact(person, contacts),
+  );
+  const peopleWithoutRoles = activePeople.filter(
+    (person) => !hasActiveRole(person.id, roles),
+  );
+  const leasesEndingSoon = getLeasesEndingSoon(currentLeases, now);
+  const largeRecentExpenses = getLargeRecentExpenses({
+    ledgerRows,
+    normalizedSettings,
+    recentExpenseStart,
+  });
+  const mtdLedgerRows = ledgerRows.filter(
+    (entry) => !entry.archived_at && entry.transaction_date >= toDateInput(currentMonthStart),
+  );
+  const occupancyRate =
+    operationalUnits.length > 0
+      ? `${Math.round((occupiedUnits.length / operationalUnits.length) * 100)}%`
+      : "0%";
+  const attentionItems = buildAttentionItems({
+    largeRecentExpenses,
+    leasesEndingSoon,
+    missingOwnerLinks,
+    peopleMissingContacts,
+    peopleWithoutRoles,
+    vacantUnits,
+  });
+
+  return {
+    attentionItems,
+    attentionTotal: attentionItems.reduce((total, item) => total + item.count, 0),
+    dashboardSummary: buildDashboardSummary({
+      attentionItems,
+      largeRecentExpenses,
+      leasesEndingSoon,
+      missingOwnerLinks,
+      peopleMissingContacts,
+      peopleWithoutRoles,
+      vacantUnits,
+    }),
+    leaseEndings: buildLeaseEndingsChart(currentLeases, currentMonthStart),
+    leaseRiskCount: leasesEndingSoon.length,
+    ledgerCurrency: normalizedSettings.preferredCurrency,
+    ledgerFlow: buildLedgerFlowChart({
+      ledgerRows,
+      monthStart: ledgerStart,
+      normalizedSettings,
+    }),
+    metrics: buildMetrics({
+      activeLeaseCount: currentLeases.length,
+      attentionItems,
+      mtdLedgerRows,
+      occupancyRate,
+      peopleCount: activePeople.length,
+      roleCounts,
+      vacantUnitCount: vacantUnits.length,
+      currencySettings,
+    }),
+    occupancyByProperty: buildOccupancyByProperty({
+      activeProperties,
+      currentLeasedUnitIds,
+      operationalUnits,
+    }),
+    quickActions: [
+      { href: "/properties", label: "Add property" },
+      { href: "/units", label: "Add unit" },
+      { href: "/leases", label: "Add lease" },
+      { href: "/people", label: "Add person" },
+      { href: "/timeline", label: "Add event" },
+      { href: "/ledger", label: "Add ledger entry" },
+    ],
+    recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
+  };
+}
+
+function buildDashboardSummary({
+  attentionItems,
+  largeRecentExpenses,
+  leasesEndingSoon,
+  missingOwnerLinks,
+  peopleMissingContacts,
+  peopleWithoutRoles,
+  vacantUnits,
+}: {
+  attentionItems: OverviewAttentionItem[];
+  largeRecentExpenses: LedgerRow[];
+  leasesEndingSoon: LeaseRow[];
+  missingOwnerLinks: PropertyRow[];
+  peopleMissingContacts: PersonRow[];
+  peopleWithoutRoles: PersonRow[];
+  vacantUnits: UnitRow[];
+}) {
+  const attentionTotal = attentionItems.reduce((total, item) => total + item.count, 0);
+
+  if (peopleWithoutRoles.length > 0) {
+    return {
+      actionHref: "/people?status=no_role",
+      actionLabel: "Review people",
+      detail: `${peopleWithoutRoles.length} people need a tenant, owner, or vendor role before their records can be trusted in workflows.`,
+      headline: "People records need cleanup first.",
+      tone: "danger" as const,
+    };
+  }
+
+  if (vacantUnits.length > 0) {
+    return {
+      actionHref: "/units?status=vacant",
+      actionLabel: "Review units",
+      detail: `${vacantUnits.length} units do not have an active lease link. Check whether they are truly vacant or missing lease data.`,
+      headline: "Vacancy and lease links are the main operating risk.",
+      tone: "warning" as const,
+    };
+  }
+
+  if (leasesEndingSoon.length > 0) {
+    return {
+      actionHref: "/leases?sort=end_asc",
+      actionLabel: "Review leases",
+      detail: `${leasesEndingSoon.length} leases end in the next 60 days. Renewal and move-out planning should start here.`,
+      headline: "Lease renewals need attention.",
+      tone: "warning" as const,
+    };
+  }
+
+  if (missingOwnerLinks.length > 0) {
+    return {
+      actionHref: "/properties",
+      actionLabel: "Review owners",
+      detail: `${missingOwnerLinks.length} properties are missing a current primary owner relationship.`,
+      headline: "Owner relationships need cleanup.",
+      tone: "warning" as const,
+    };
+  }
+
+  if (peopleMissingContacts.length > 0) {
+    return {
+      actionHref: "/people?query=No%20contact",
+      actionLabel: "Review contacts",
+      detail: `${peopleMissingContacts.length} people are missing usable contact information.`,
+      headline: "Contact records need review.",
+      tone: "warning" as const,
+    };
+  }
+
+  if (largeRecentExpenses.length > 0) {
+    return {
+      actionHref: "/ledger?direction=expense&sort=amount_desc",
+      actionLabel: "Review expenses",
+      detail: `${largeRecentExpenses.length} recent expenses are above the review threshold.`,
+      headline: "Recent expenses deserve a closer look.",
+      tone: "warning" as const,
+    };
+  }
+
+  return {
+    actionHref: "/timeline",
+    actionLabel: attentionTotal > 0 ? "Review records" : "Open timeline",
+    detail:
+      attentionTotal > 0
+        ? `${attentionTotal} operating checks are open across the portfolio.`
+        : "No high-priority operating checks are open from the current data.",
+    headline:
+      attentionTotal > 0
+        ? "Portfolio needs a light operating review."
+        : "Portfolio is clear from the current checks.",
+    tone: attentionTotal > 0 ? ("warning" as const) : ("success" as const),
+  };
+}
+
+function buildMetrics({
+  activeLeaseCount,
+  attentionItems,
+  currencySettings,
+  mtdLedgerRows,
+  occupancyRate,
+  peopleCount,
+  roleCounts,
+  vacantUnitCount,
+}: {
+  activeLeaseCount: number;
+  attentionItems: OverviewAttentionItem[];
+  currencySettings: Awaited<ReturnType<typeof getOrganizationCurrencySettings>>;
+  mtdLedgerRows: LedgerRow[];
+  occupancyRate: string;
+  peopleCount: number;
+  roleCounts: Map<PersonRoleRow["role"], number>;
+  vacantUnitCount: number;
+}): OverviewMetric[] {
+  const attentionTotal = attentionItems.reduce((total, item) => total + item.count, 0);
+
+  return [
+    {
+      helper: "Occupied units",
+      label: "Occupancy",
+      tone: "success",
+      value: occupancyRate,
+    },
+    {
+      helper: "Current tenant agreements",
+      label: "Active leases",
+      tone: "neutral",
+      value: String(activeLeaseCount),
+    },
+    {
+      helper: "Units without active lease",
+      label: "Vacant units",
+      tone: vacantUnitCount > 0 ? "warning" : "success",
+      value: String(vacantUnitCount),
+    },
+    {
+      helper: "Tenants, owners, vendors",
+      label: "People",
+      tone: "neutral",
+      value: `${peopleCount} / ${roleCounts.get("tenant") ?? 0} tenants`,
+    },
+    {
+      helper: "Month to date",
+      label: "Ledger net",
+      tone: "neutral",
+      value: formatMoneyTotalsDisplay(mtdLedgerRows, currencySettings),
+    },
+    {
+      helper: "Open operating checks",
+      label: "Attention",
+      tone: attentionTotal > 0 ? "warning" : "success",
+      value: String(attentionTotal),
+    },
+  ];
+}
+
+function buildAttentionItems({
+  largeRecentExpenses,
+  leasesEndingSoon,
+  missingOwnerLinks,
+  peopleMissingContacts,
+  peopleWithoutRoles,
+  vacantUnits,
+}: {
+  largeRecentExpenses: LedgerRow[];
+  leasesEndingSoon: LeaseRow[];
+  missingOwnerLinks: PropertyRow[];
+  peopleMissingContacts: PersonRow[];
+  peopleWithoutRoles: PersonRow[];
+  vacantUnits: UnitRow[];
+}): OverviewAttentionItem[] {
+  return [
+    leasesEndingSoon.length > 0
+      ? {
+          count: leasesEndingSoon.length,
+          helper: "Next 60 days",
+          href: "/leases?sort=end_asc",
+          label: "Leases ending soon",
+          tone: "warning",
+        }
+      : null,
+    vacantUnits.length > 0
+      ? {
+          count: vacantUnits.length,
+          helper: "No active lease link",
+          href: "/units?status=vacant",
+          label: "Units without active lease",
+          tone: "warning",
+        }
+      : null,
+    missingOwnerLinks.length > 0
+      ? {
+          count: missingOwnerLinks.length,
+          helper: "Needs ownership relationship",
+          href: "/properties",
+          label: "Properties without owner link",
+          tone: "warning",
+        }
+      : null,
+    peopleMissingContacts.length > 0
+      ? {
+          count: peopleMissingContacts.length,
+          helper: "No primary contact value",
+          href: "/people?query=No%20contact",
+          label: "People missing contact",
+          tone: "warning",
+        }
+      : null,
+    peopleWithoutRoles.length > 0
+      ? {
+          count: peopleWithoutRoles.length,
+          helper: "Needs tenant, owner, or vendor role",
+          href: "/people?status=no_role",
+          label: "People without role",
+          tone: "danger",
+        }
+      : null,
+    largeRecentExpenses.length > 0
+      ? {
+          count: largeRecentExpenses.length,
+          helper: "Last 30 days above review threshold",
+          href: "/ledger?direction=expense&sort=amount_desc",
+          label: "Large recent expenses",
+          tone: "warning",
+        }
+      : null,
+  ].filter((item): item is OverviewAttentionItem => Boolean(item));
+}
+
+function buildOccupancyByProperty({
+  activeProperties,
+  currentLeasedUnitIds,
+  operationalUnits,
+}: {
+  activeProperties: PropertyRow[];
+  currentLeasedUnitIds: Set<string>;
+  operationalUnits: UnitRow[];
+}): OverviewOccupancyPoint[] {
+  const unitsByProperty = groupBy(operationalUnits, (unit) => unit.property_id);
+
+  return activeProperties
+    .map((property) => {
+      const propertyUnits = unitsByProperty.get(property.id) ?? [];
+      const occupiedUnits = propertyUnits.filter(
+        (unit) =>
+          currentLeasedUnitIds.has(unit.id) ||
+          unit.status.toLowerCase() === "occupied",
+      ).length;
+
+      return {
+        href: `/units?propertyId=${property.id}`,
+        label: `${property.code} / ${property.name}`,
+        occupiedUnits,
+        percent:
+          propertyUnits.length > 0
+            ? Math.round((occupiedUnits / propertyUnits.length) * 100)
+            : 0,
+        totalUnits: propertyUnits.length,
+      };
+    })
+    .toSorted(
+      (first, second) =>
+        first.percent - second.percent ||
+        second.totalUnits - first.totalUnits ||
+        first.label.localeCompare(second.label),
+    )
+    .slice(0, 8);
+}
+
+function buildLedgerFlowChart({
+  ledgerRows,
+  monthStart,
+  normalizedSettings,
+}: {
+  ledgerRows: LedgerRow[];
+  monthStart: Date;
+  normalizedSettings: ReturnType<typeof normalizeCurrencyDisplaySettings>;
+}): OverviewLedgerPoint[] {
+  const months = Array.from({ length: 6 }, (_, index) => addMonths(monthStart, index));
+  const points = new Map(
+    months.map((month) => [
+      getMonthKey(month),
+      {
+        expense: 0,
+        income: 0,
+        label: monthLabelFormatter.format(month),
+        net: 0,
+      },
+    ]),
+  );
+
+  for (const row of ledgerRows) {
+    if (row.archived_at) {
+      continue;
+    }
+
+    const point = points.get(row.transaction_date.slice(0, 7));
+
+    if (!point) {
+      continue;
+    }
+
+    const amount = convertMoney(
+      Number(row.amount),
+      row.currency,
+      normalizedSettings.preferredCurrency,
+      normalizedSettings.khrPerUsd,
+    );
+
+    if (row.direction === "expense") {
+      point.expense += amount;
+      point.net -= amount;
+    } else {
+      point.income += amount;
+      point.net += amount;
+    }
+  }
+
+  return Array.from(points.values());
+}
+
+function buildLeaseEndingsChart(
+  currentLeases: LeaseRow[],
+  currentMonthStart: Date,
+) {
+  const months = Array.from({ length: 6 }, (_, index) =>
+    addMonths(currentMonthStart, index),
+  );
+  const points = new Map(
+    months.map((month) => [
+      getMonthKey(month),
+      {
+        count: 0,
+        href: "/leases?sort=end_asc",
+        label: monthLabelFormatter.format(month),
+      },
+    ]),
+  );
+
+  for (const lease of currentLeases) {
+    const point = points.get(lease.lease_end_date.slice(0, 7));
+
+    if (point) {
+      point.count += 1;
+    }
+  }
+
+  return Array.from(points.values());
+}
+
+function getLeasesEndingSoon(currentLeases: LeaseRow[], now: Date) {
+  const today = toDateInput(now);
+  const soon = toDateInput(addDays(now, 60));
+
+  return currentLeases.filter(
+    (lease) => lease.lease_end_date >= today && lease.lease_end_date <= soon,
+  );
+}
+
+function getLargeRecentExpenses({
+  ledgerRows,
+  normalizedSettings,
+  recentExpenseStart,
+}: {
+  ledgerRows: LedgerRow[];
+  normalizedSettings: ReturnType<typeof normalizeCurrencyDisplaySettings>;
+  recentExpenseStart: Date;
+}) {
+  const threshold =
+    normalizedSettings.preferredCurrency === "USD" ? 1000 : 4_100_000;
+  const since = toDateInput(recentExpenseStart);
+
+  return ledgerRows.filter((row) => {
+    if (row.archived_at || row.direction !== "expense" || row.transaction_date < since) {
+      return false;
+    }
+
+    return (
+      convertMoney(
+        Number(row.amount),
+        row.currency,
+        normalizedSettings.preferredCurrency,
+        normalizedSettings.khrPerUsd,
+      ) >= threshold
+    );
+  });
+}
+
+function getRoleCounts(roles: PersonRoleRow[]) {
+  const counts = new Map<PersonRoleRow["role"], number>();
+
+  for (const role of roles) {
+    if (role.archived_at || role.status !== "active") {
+      continue;
+    }
+
+    counts.set(role.role, (counts.get(role.role) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
+function hasActiveRole(personId: string, roles: PersonRoleRow[]) {
+  return roles.some(
+    (role) =>
+      role.person_id === personId && !role.archived_at && role.status === "active",
+  );
+}
+
+function isMissingContact(person: PersonRow, contacts: PersonContactRow[]) {
+  if (hasText(person.primary_email) || hasText(person.primary_phone)) {
+    return false;
+  }
+
+  return !contacts.some(
+    (contact) =>
+      contact.person_id === person.id &&
+      !contact.archived_at &&
+      (hasText(contact.email) ||
+        hasText(contact.phone) ||
+        hasText(contact.contact_name)),
+  );
+}
+
+function hasText(value: string | null) {
+  return Boolean(value?.trim());
+}
+
+function groupBy<T>(rows: T[], getKey: (row: T) => string) {
+  const groups = new Map<string, T[]>();
+
+  for (const row of rows) {
+    const key = getKey(row);
+    const group = groups.get(key) ?? [];
+    group.push(row);
+    groups.set(key, group);
+  }
+
+  return groups;
+}
+
+function startOfMonth(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
+}
+
+function addMonths(value: Date, amount: number) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + amount, 1));
+}
+
+function addDays(value: Date, days: number) {
+  const next = new Date(value);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function getMonthKey(value: Date) {
+  return toDateInput(value).slice(0, 7);
+}
+
+function toDateInput(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function assertNoError(error: { message: string } | null, label: string) {
+  if (error) {
+    throw new Error(`Could not load ${label}: ${error.message}`);
+  }
+}

@@ -60,8 +60,8 @@ export type Database = {
           category: string
           file_name: string
           id: string
-          ledger_entry_id: string | null
           lease_id: string | null
+          ledger_entry_id: string | null
           mime_type: string
           organization_id: string
           property_id: string | null
@@ -78,8 +78,8 @@ export type Database = {
           category: string
           file_name: string
           id?: string
-          ledger_entry_id?: string | null
           lease_id?: string | null
+          ledger_entry_id?: string | null
           mime_type: string
           organization_id: string
           property_id?: string | null
@@ -96,8 +96,8 @@ export type Database = {
           category?: string
           file_name?: string
           id?: string
-          ledger_entry_id?: string | null
           lease_id?: string | null
+          ledger_entry_id?: string | null
           mime_type?: string
           organization_id?: string
           property_id?: string | null
@@ -110,17 +110,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "documents_ledger_entry_id_fkey"
-            columns: ["ledger_entry_id"]
-            isOneToOne: false
-            referencedRelation: "ledger_entries"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "documents_lease_id_fkey"
             columns: ["lease_id"]
             isOneToOne: false
             referencedRelation: "leases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_ledger_entry_id_fkey"
+            columns: ["ledger_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_entries"
             referencedColumns: ["id"]
           },
           {
@@ -153,40 +153,311 @@ export type Database = {
           },
         ]
       }
-      ledger_period_locks: {
+      lease_deposits: {
         Row: {
+          amount: number
+          archived_at: string | null
+          archived_by: string | null
           created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          deposit_type: string
           id: string
-          locked_at: string | null
-          locked_by: string | null
+          lease_id: string
+          notes: string | null
           organization_id: string
-          period_start: string
-          reason: string | null
+          received_on: string | null
+          returned_on: string | null
+          status: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
+          amount: number
+          archived_at?: string | null
+          archived_by?: string | null
           created_at?: string
+          created_by?: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          deposit_type?: string
           id?: string
-          locked_at?: string | null
-          locked_by?: string | null
+          lease_id: string
+          notes?: string | null
           organization_id: string
-          period_start: string
-          reason?: string | null
+          received_on?: string | null
+          returned_on?: string | null
+          status?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
+          amount?: number
+          archived_at?: string | null
+          archived_by?: string | null
           created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          deposit_type?: string
           id?: string
-          locked_at?: string | null
-          locked_by?: string | null
+          lease_id?: string
+          notes?: string | null
           organization_id?: string
-          period_start?: string
-          reason?: string | null
+          received_on?: string | null
+          returned_on?: string | null
+          status?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "ledger_period_locks_organization_id_fkey"
+            foreignKeyName: "lease_deposits_lease_fk"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_deposits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lease_occupancies: {
+        Row: {
+          actual_move_in_date: string | null
+          actual_move_out_date: string | null
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          lease_id: string
+          notice_date: string | null
+          organization_id: string
+          property_id: string
+          scheduled_move_in_date: string | null
+          scheduled_move_out_date: string | null
+          status: string
+          unit_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          actual_move_in_date?: string | null
+          actual_move_out_date?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lease_id: string
+          notice_date?: string | null
+          organization_id: string
+          property_id: string
+          scheduled_move_in_date?: string | null
+          scheduled_move_out_date?: string | null
+          status?: string
+          unit_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          actual_move_in_date?: string | null
+          actual_move_out_date?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lease_id?: string
+          notice_date?: string | null
+          organization_id?: string
+          property_id?: string
+          scheduled_move_in_date?: string | null
+          scheduled_move_out_date?: string | null
+          status?: string
+          unit_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_occupancies_lease_fk"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_occupancies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_occupancies_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_occupancies_unit_fk"
+            columns: ["organization_id", "unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      lease_parties: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string | null
+          ended_on: string | null
+          id: string
+          is_primary: boolean
+          lease_id: string
+          organization_id: string
+          party_role: string
+          person_id: string
+          started_on: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          ended_on?: string | null
+          id?: string
+          is_primary?: boolean
+          lease_id: string
+          organization_id: string
+          party_role: string
+          person_id: string
+          started_on?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          ended_on?: string | null
+          id?: string
+          is_primary?: boolean
+          lease_id?: string
+          organization_id?: string
+          party_role?: string
+          person_id?: string
+          started_on?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_parties_lease_fk"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_parties_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_parties_person_fk"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      lease_terms: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          lease_id: string
+          notice_date: string | null
+          organization_id: string
+          payment_frequency: string
+          rent_amount: number
+          rent_currency: Database["public"]["Enums"]["currency_code"]
+          rent_due_day: number | null
+          start_date: string
+          status: string
+          term_sequence: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          lease_id: string
+          notice_date?: string | null
+          organization_id: string
+          payment_frequency?: string
+          rent_amount: number
+          rent_currency: Database["public"]["Enums"]["currency_code"]
+          rent_due_day?: number | null
+          start_date: string
+          status?: string
+          term_sequence: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          lease_id?: string
+          notice_date?: string | null
+          organization_id?: string
+          payment_frequency?: string
+          rent_amount?: number
+          rent_currency?: Database["public"]["Enums"]["currency_code"]
+          rent_due_day?: number | null
+          start_date?: string
+          status?: string
+          term_sequence?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_terms_lease_fk"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_terms_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -208,6 +479,7 @@ export type Database = {
           monthly_rent_amount: number
           monthly_rent_currency: Database["public"]["Enums"]["currency_code"]
           organization_id: string
+          primary_tenant_person_id: string | null
           property_id: string
           status: string
           tenant_name: string
@@ -228,6 +500,7 @@ export type Database = {
           monthly_rent_amount: number
           monthly_rent_currency?: Database["public"]["Enums"]["currency_code"]
           organization_id: string
+          primary_tenant_person_id?: string | null
           property_id: string
           status?: string
           tenant_name: string
@@ -248,6 +521,7 @@ export type Database = {
           monthly_rent_amount?: number
           monthly_rent_currency?: Database["public"]["Enums"]["currency_code"]
           organization_id?: string
+          primary_tenant_person_id?: string | null
           property_id?: string
           status?: string
           tenant_name?: string
@@ -262,6 +536,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leases_primary_tenant_person_fk"
+            columns: ["organization_id", "primary_tenant_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "leases_property_id_fkey"
@@ -358,6 +639,47 @@ export type Database = {
           },
         ]
       }
+      ledger_period_locks: {
+        Row: {
+          created_at: string
+          id: string
+          locked_at: string | null
+          locked_by: string | null
+          organization_id: string
+          period_start: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          organization_id: string
+          period_start: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          organization_id?: string
+          period_start?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_period_locks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -416,6 +738,194 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      people: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string | null
+          display_name: string
+          id: string
+          legal_name: string | null
+          notes: string | null
+          organization_id: string
+          party_type: string
+          primary_email: string | null
+          primary_phone: string | null
+          tax_identifier: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          id?: string
+          legal_name?: string | null
+          notes?: string | null
+          organization_id: string
+          party_type?: string
+          primary_email?: string | null
+          primary_phone?: string | null
+          tax_identifier?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          id?: string
+          legal_name?: string | null
+          notes?: string | null
+          organization_id?: string
+          party_type?: string
+          primary_email?: string | null
+          primary_phone?: string | null
+          tax_identifier?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "people_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      person_contacts: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          contact_name: string | null
+          contact_type: string
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          is_primary: boolean
+          notes: string | null
+          organization_id: string
+          person_id: string
+          phone: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          contact_name?: string | null
+          contact_type?: string
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          is_primary?: boolean
+          notes?: string | null
+          organization_id: string
+          person_id: string
+          phone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          contact_name?: string | null
+          contact_type?: string
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          is_primary?: boolean
+          notes?: string | null
+          organization_id?: string
+          person_id?: string
+          phone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_contacts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_contacts_person_fk"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      person_roles: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          person_id: string
+          role: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          person_id: string
+          role: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          person_id?: string
+          role?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_roles_person_fk"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
       }
       properties: {
         Row: {
@@ -479,6 +989,82 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_owners: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string | null
+          ended_on: string | null
+          id: string
+          is_primary: boolean
+          organization_id: string
+          ownership_label: string | null
+          ownership_percent: number | null
+          person_id: string
+          property_id: string
+          started_on: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          ended_on?: string | null
+          id?: string
+          is_primary?: boolean
+          organization_id: string
+          ownership_label?: string | null
+          ownership_percent?: number | null
+          person_id: string
+          property_id: string
+          started_on?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          ended_on?: string | null
+          id?: string
+          is_primary?: boolean
+          organization_id?: string
+          ownership_label?: string | null
+          ownership_percent?: number | null
+          person_id?: string
+          property_id?: string
+          started_on?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_owners_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_owners_person_fk"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "property_owners_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -656,37 +1242,88 @@ export type Database = {
           },
         ]
       }
+      vendor_profiles: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          person_id: string
+          preferred: boolean
+          service_area: string | null
+          service_category: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          person_id: string
+          preferred?: boolean
+          service_area?: string | null
+          service_category?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          person_id?: string
+          preferred?: boolean
+          service_area?: string | null
+          service_category?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_profiles_person_fk"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: true
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       archive_ledger_entry: {
-        Args: {
-          p_entry_id: string
-          p_organization_id: string
-        }
+        Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
       }
       archive_property: {
-        Args: {
-          p_organization_id: string
-          p_property_id: string
-        }
-        Returns: string
-      }
-      archive_unit: {
-        Args: {
-          p_organization_id: string
-          p_unit_id: string
-        }
+        Args: { p_organization_id: string; p_property_id: string }
         Returns: string
       }
       archive_timeline_event: {
-        Args: {
-          p_event_id: string
-          p_organization_id: string
-        }
+        Args: { p_event_id: string; p_organization_id: string }
+        Returns: string
+      }
+      archive_unit: {
+        Args: { p_organization_id: string; p_unit_id: string }
         Returns: string
       }
       bootstrap_admin_organization: {
@@ -695,6 +1332,20 @@ export type Database = {
           membership_id: string
           organization_id: string
         }[]
+      }
+      create_ledger_entry: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_description: string | null
+          p_direction: string
+          p_organization_id: string
+          p_property_id: string
+          p_transaction_date: string
+          p_unit_id: string | null
+        }
+        Returns: string
       }
       create_property: {
         Args: {
@@ -707,6 +1358,20 @@ export type Database = {
           p_owner: string | null
           p_property_type: string
           p_status: string
+        }
+        Returns: string
+      }
+      create_timeline_event: {
+        Args: {
+          p_cost_amount: number | null
+          p_cost_currency: Database["public"]["Enums"]["currency_code"] | null
+          p_description: string | null
+          p_event_date: string
+          p_event_type: Database["public"]["Enums"]["timeline_event_type"]
+          p_organization_id: string
+          p_property_id: string
+          p_title: string
+          p_unit_id: string | null
         }
         Returns: string
       }
@@ -725,60 +1390,20 @@ export type Database = {
         }
         Returns: string
       }
-      create_timeline_event: {
-        Args: {
-          p_cost_amount: number | null
-          p_cost_currency: Database["public"]["Enums"]["currency_code"] | null
-          p_description: string | null
-          p_event_date: string
-          p_event_type: Database["public"]["Enums"]["timeline_event_type"]
-          p_organization_id: string
-          p_property_id: string
-          p_title: string
-          p_unit_id: string | null
-        }
-        Returns: string
-      }
-      create_ledger_entry: {
-        Args: {
-          p_amount: number
-          p_category: string
-          p_currency: Database["public"]["Enums"]["currency_code"]
-          p_description: string | null
-          p_direction: string
-          p_organization_id: string
-          p_property_id: string
-          p_transaction_date: string
-          p_unit_id: string | null
-        }
-        Returns: string
-      }
       restore_ledger_entry: {
-        Args: {
-          p_entry_id: string
-          p_organization_id: string
-        }
+        Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
       }
       restore_property: {
-        Args: {
-          p_organization_id: string
-          p_property_id: string
-        }
-        Returns: string
-      }
-      restore_unit: {
-        Args: {
-          p_organization_id: string
-          p_unit_id: string
-        }
+        Args: { p_organization_id: string; p_property_id: string }
         Returns: string
       }
       restore_timeline_event: {
-        Args: {
-          p_event_id: string
-          p_organization_id: string
-        }
+        Args: { p_event_id: string; p_organization_id: string }
+        Returns: string
+      }
+      restore_unit: {
+        Args: { p_organization_id: string; p_unit_id: string }
         Returns: string
       }
       set_ledger_period_lock: {
@@ -820,6 +1445,21 @@ export type Database = {
         }
         Returns: string
       }
+      update_timeline_event: {
+        Args: {
+          p_cost_amount: number | null
+          p_cost_currency: Database["public"]["Enums"]["currency_code"] | null
+          p_description: string | null
+          p_event_date: string
+          p_event_id: string
+          p_event_type: Database["public"]["Enums"]["timeline_event_type"]
+          p_organization_id: string
+          p_property_id: string
+          p_title: string
+          p_unit_id: string | null
+        }
+        Returns: string
+      }
       update_unit: {
         Args: {
           p_current_rent_amount: number | null
@@ -833,21 +1473,6 @@ export type Database = {
           p_status: string
           p_unit_id: string
           p_unit_number: string
-        }
-        Returns: string
-      }
-      update_timeline_event: {
-        Args: {
-          p_cost_amount: number | null
-          p_cost_currency: Database["public"]["Enums"]["currency_code"] | null
-          p_description: string | null
-          p_event_date: string
-          p_event_id: string
-          p_event_type: Database["public"]["Enums"]["timeline_event_type"]
-          p_organization_id: string
-          p_property_id: string
-          p_title: string
-          p_unit_id: string | null
         }
         Returns: string
       }
@@ -1010,4 +1635,3 @@ export const Constants = {
     },
   },
 } as const
-

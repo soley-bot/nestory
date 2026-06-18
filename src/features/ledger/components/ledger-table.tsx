@@ -2,7 +2,6 @@ import {
   Archive,
   ArrowDownCircle,
   ArrowUpCircle,
-  ExternalLink,
   Lock,
   Pencil,
   RotateCcw,
@@ -39,23 +38,23 @@ export function LedgerTable({
   return (
     <div className="overflow-hidden rounded-md border border-border bg-surface">
       <div className="max-h-[min(680px,calc(100vh-260px))] overflow-auto">
-        <table className="w-full min-w-[740px] table-fixed border-collapse text-left text-sm">
+        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
+            <col className="w-[100px]" />
             <col className="w-[104px]" />
-            <col className="w-[96px]" />
             <col />
-            <col className="w-[136px]" />
-            <col className="w-[120px]" />
-            <col className="w-[84px]" />
+            <col className="w-[132px]" />
+            <col className="w-[132px]" />
+            <col className="w-[72px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-xs uppercase tracking-[0.06em] text-muted shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
-              <th className="px-3 py-3 font-semibold">Date</th>
-              <th className="px-3 py-3 font-semibold">Type</th>
-              <th className="px-4 py-3 font-semibold">Category</th>
-              <th className="px-3 py-3 font-semibold">Property</th>
-              <th className="px-3 py-3 text-right font-semibold">Amount</th>
-              <th className="px-2 py-3 text-right font-semibold">Actions</th>
+              <th className="px-3 py-2.5 font-semibold">Date</th>
+              <th className="px-3 py-2.5 font-semibold">Type</th>
+              <th className="px-4 py-2.5 font-semibold">Category</th>
+              <th className="px-3 py-2.5 font-semibold">Property</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
+              <th className="px-1.5 py-2.5 text-center font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -83,63 +82,59 @@ export function LedgerTable({
                 }}
                 tabIndex={0}
               >
-              <td className="whitespace-nowrap px-3 py-2.5 text-muted">
-                {formatDate(entry.transactionDate)}
-              </td>
-              <td className="px-3 py-2.5">
-                <DirectionBadge direction={entry.direction} />
-              </td>
-              <td className="px-4 py-2.5">
-                <p className="break-words font-medium text-foreground">
-                  {entry.category}
-                </p>
-                <p className="mt-1 line-clamp-1 text-muted">
-                  {entry.description || "No description recorded."}
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-muted">
-                  <ExternalLink size={13} />
-                  {entry.relatedTimelineEvent
-                    ? "Timeline linked"
-                    : "Timeline link pending"}
-                  {entry.archivedAt ? (
-                    <>
-                      <span aria-hidden="true">-</span>
-                      <span>Archived</span>
-                    </>
+                <td className="whitespace-nowrap px-3 py-2 text-muted">
+                  {formatDate(entry.transactionDate)}
+                </td>
+                <td className="px-3 py-2">
+                  <DirectionBadge direction={entry.direction} />
+                </td>
+                <td className="px-4 py-2">
+                  <p className="line-clamp-1 break-words font-medium text-foreground">
+                    {entry.category}
+                  </p>
+                  <p className="mt-1 line-clamp-1 text-muted">
+                    {entry.description || "No description recorded."}
+                  </p>
+                  {entry.archivedAt || entry.isLocked ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {entry.archivedAt ? (
+                        <Badge className="px-2 text-xs" tone="warning">
+                          Archived
+                        </Badge>
+                      ) : null}
+                      {entry.isLocked ? (
+                        <Badge className="px-2 text-xs" tone="warning">
+                          <Lock size={12} />
+                          Locked
+                        </Badge>
+                      ) : null}
+                    </div>
                   ) : null}
-                  {entry.isLocked ? (
-                    <>
-                      <span aria-hidden="true">-</span>
-                      <Lock size={12} />
-                      <span>Locked</span>
-                    </>
-                  ) : null}
-                </div>
-              </td>
-              <td className="px-3 py-2.5">
-                <p className="truncate font-medium" title={entry.propertyCode}>
-                  {entry.propertyCode}
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  {entry.unitNumber ? `Unit ${entry.unitNumber}` : "Property"}
-                </p>
-              </td>
-              <td className="px-3 py-2.5">
-                <MoneyDisplay
-                  align="right"
-                  value={formatMoneyDisplay(
-                    entry.direction === "expense" ? -entry.amount : entry.amount,
-                    entry.currency,
-                    currencySettings,
-                  )}
-                />
-              </td>
-              <td className="px-2 py-2.5">
-                <div className="flex justify-end gap-1">
+                </td>
+                <td className="px-3 py-2">
+                  <p className="truncate font-medium" title={entry.propertyCode}>
+                    {entry.propertyCode}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    {entry.unitNumber ? `Unit ${entry.unitNumber}` : "Property"}
+                  </p>
+                </td>
+                <td className="px-3 py-2">
+                  <MoneyDisplay
+                    align="right"
+                    value={formatMoneyDisplay(
+                      entry.direction === "expense" ? -entry.amount : entry.amount,
+                      entry.currency,
+                      currencySettings,
+                    )}
+                  />
+                </td>
+                <td className="px-1.5 py-2">
+                  <div className="flex justify-center gap-0.5">
                   {entry.archivedAt ? (
                     <button
                       aria-label={`Restore ${entry.category}`}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-accent disabled:pointer-events-none disabled:opacity-50"
+                      className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-accent disabled:pointer-events-none disabled:opacity-50"
                       disabled={entry.isLocked}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -152,13 +147,13 @@ export function LedgerTable({
                       }
                       type="button"
                     >
-                      <RotateCcw size={15} />
+                      <RotateCcw size={14} />
                     </button>
                   ) : (
                     <>
                       <button
                         aria-label={`Edit ${entry.category}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                        className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                         disabled={entry.isLocked}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -169,11 +164,11 @@ export function LedgerTable({
                         }
                         type="button"
                       >
-                        <Pencil size={15} />
+                        <Pencil size={14} />
                       </button>
                       <button
                         aria-label={`Archive ${entry.category}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-danger disabled:pointer-events-none disabled:opacity-50"
+                        className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-danger disabled:pointer-events-none disabled:opacity-50"
                         disabled={entry.isLocked}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -184,16 +179,16 @@ export function LedgerTable({
                         }
                         type="button"
                       >
-                        <Archive size={15} />
+                        <Archive size={14} />
                       </button>
                     </>
                   )}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

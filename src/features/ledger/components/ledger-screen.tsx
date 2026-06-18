@@ -21,14 +21,12 @@ import {
 import { LedgerEntryForm } from "@/features/ledger/components/ledger-entry-form";
 import { LedgerFilters } from "@/features/ledger/components/ledger-filters";
 import { LedgerInspector } from "@/features/ledger/components/ledger-inspector";
-import { LedgerSummary } from "@/features/ledger/components/ledger-summary";
 import { LedgerTable } from "@/features/ledger/components/ledger-table";
 import type {
   LedgerEntry,
   LedgerPagination as LedgerPaginationMeta,
   LedgerPeriodLock,
   LedgerPropertyOption,
-  LedgerSnapshot,
   LedgerUnitOption,
   LedgerViewQuery,
 } from "@/features/ledger/ledger.types";
@@ -57,7 +55,6 @@ type LedgerScreenProps = {
   periodLocks: LedgerPeriodLock[];
   propertyOptions: LedgerPropertyOption[];
   recentChanges: RecentChange[];
-  snapshot: LedgerSnapshot;
   unitOptions: LedgerUnitOption[];
   viewQuery: LedgerViewQuery;
 };
@@ -70,7 +67,6 @@ export function LedgerScreen({
   periodLocks,
   propertyOptions,
   recentChanges,
-  snapshot,
   unitOptions,
   viewQuery,
 }: LedgerScreenProps) {
@@ -134,7 +130,6 @@ export function LedgerScreen({
       <LedgerFilters properties={propertyOptions} viewQuery={viewQuery} />
 
       <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
-        <LedgerSummary snapshot={snapshot} />
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
             <LedgerTable

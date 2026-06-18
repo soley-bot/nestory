@@ -1,11 +1,33 @@
-import { PlannedPage } from "@/components/layout/planned-page";
+import { LeaseScreen } from "@/features/leases/components/lease-screen";
+import { getLeasesScreenData } from "@/features/leases/data/leases";
+import { parseLeaseSearchParams } from "@/features/leases/lease.filters";
+import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
+import { requireAdminContext } from "@/lib/auth/context";
 
-export default function LeasesPage() {
+type LeasesPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function LeasesPage({ searchParams }: LeasesPageProps) {
+  const context = await requireAdminContext();
+  const viewQuery = parseLeaseSearchParams(await searchParams);
+  const currencySettings = await getOrganizationCurrencySettings(
+    context.organizationId,
+  );
+  const { leases, pagination, propertyOptions, unitOptions } =
+    await getLeasesScreenData(
+      context.organizationId,
+      currencySettings,
+      viewQuery,
+    );
+
   return (
-    <PlannedPage
-      description="Lease records will become the next backbone for occupancy, rent obligations, and move history."
-      message="Lease management is planned next, but no lease workflow has been added in this placeholder."
-      title="Leases"
+    <LeaseScreen
+      leases={leases}
+      pagination={pagination}
+      propertyOptions={propertyOptions}
+      unitOptions={unitOptions}
+      viewQuery={viewQuery}
     />
   );
 }
