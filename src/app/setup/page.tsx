@@ -19,8 +19,8 @@ export default async function SetupPage() {
 
   return (
     <AuthPageShell
-      description="Add your company name to continue."
-      title="Create workspace"
+      description="Name the company this workspace belongs to."
+      title="Finish workspace"
     >
       <div>
         <p className="text-sm leading-6 text-[#6e7681]">{user.email}</p>

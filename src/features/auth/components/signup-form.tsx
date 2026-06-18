@@ -38,7 +38,7 @@ export function SignupForm() {
         Email
         <Input
           autoComplete="email"
-          className="mt-2 h-11 border-[#dfe4ea] bg-white text-[15px] text-[#080b12] placeholder:text-[#9aa0aa] focus:border-[#b8c0cb] focus:ring-[#f1f3f6]"
+          className="mt-2 box-border h-11 border-[#dfe4ea] bg-white text-[15px] text-[#080b12] placeholder:text-[#9aa0aa] focus:border-[#b8c0cb] focus:ring-[#f1f3f6]"
           name="email"
           placeholder="admin@example.com"
           type="email"
@@ -50,7 +50,7 @@ export function SignupForm() {
         Password
         <Input
           autoComplete="new-password"
-          className="mt-2 h-11 border-[#dfe4ea] bg-white text-[15px] text-[#080b12] placeholder:text-[#9aa0aa] focus:border-[#b8c0cb] focus:ring-[#f1f3f6]"
+          className="mt-2 box-border h-11 border-[#dfe4ea] bg-white text-[15px] text-[#080b12] placeholder:text-[#9aa0aa] focus:border-[#b8c0cb] focus:ring-[#f1f3f6]"
           name="password"
           placeholder="Create password"
           type="password"
@@ -59,16 +59,16 @@ export function SignupForm() {
       </label>
 
       <Button
-        className="h-11 w-full bg-[#080b12] text-[12px] font-semibold uppercase tracking-[0.14em] hover:bg-[#16181d]"
+        className="box-border h-11 w-full bg-[#080b12] text-[12px] font-semibold uppercase tracking-[0.14em] hover:bg-[#16181d]"
         disabled={pending || isSuccess}
         type="submit"
         variant="primary"
       >
-        {pending ? "Creating..." : "Create account"}
+        {pending ? "Creating..." : "Create workspace"}
       </Button>
 
       <p className="text-xs leading-5 text-[#6e7681]">
-        Use an email inbox you can access. Workspace setup starts after confirmation.
+        Use an inbox you can access. Setup starts after confirmation.
       </p>
     </form>
   );

@@ -33,7 +33,7 @@ export function LoginForm() {
         Email
         <Input
           autoComplete="email"
-          className="mt-2 h-11 border-[#dfe4ea] bg-white text-[15px] text-[#080b12] placeholder:text-[#9aa0aa] focus:border-[#b8c0cb] focus:ring-[#f1f3f6]"
+          className="mt-2 box-border h-11 border-[#dfe4ea] bg-white text-[15px] text-[#080b12] placeholder:text-[#9aa0aa] focus:border-[#b8c0cb] focus:ring-[#f1f3f6]"
           name="email"
           placeholder="admin@example.com"
           type="email"
@@ -45,7 +45,7 @@ export function LoginForm() {
         Password
         <Input
           autoComplete="current-password"
-          className="mt-2 h-11 border-[#dfe4ea] bg-white text-[15px] text-[#080b12] placeholder:text-[#9aa0aa] focus:border-[#b8c0cb] focus:ring-[#f1f3f6]"
+          className="mt-2 box-border h-11 border-[#dfe4ea] bg-white text-[15px] text-[#080b12] placeholder:text-[#9aa0aa] focus:border-[#b8c0cb] focus:ring-[#f1f3f6]"
           name="password"
           placeholder="Enter password"
           type="password"
@@ -54,7 +54,7 @@ export function LoginForm() {
       </label>
 
       <Button
-        className="h-11 w-full bg-[#080b12] text-[12px] font-semibold uppercase tracking-[0.14em] hover:bg-[#16181d]"
+        className="box-border h-11 w-full bg-[#080b12] text-[12px] font-semibold uppercase tracking-[0.14em] hover:bg-[#16181d]"
         disabled={pending}
         type="submit"
         variant="primary"

@@ -4,10 +4,10 @@ import { LoginForm } from "@/features/auth/components/login-form";
 export default function LoginPage() {
   return (
     <AuthPageShell
-      description="Access your Nestory workspace."
+      description="Open your Nestory workspace."
       switchHref="/signup"
-      switchLabel="Create account"
-      switchText="Need access?"
+      switchLabel="Create workspace"
+      switchText="New to Nestory?"
       title="Sign in"
     >
       <LoginForm />
