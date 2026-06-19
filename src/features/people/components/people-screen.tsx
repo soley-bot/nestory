@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
@@ -28,6 +29,7 @@ type DrawerState =
   | { mode: "restore"; person: PeopleSummary };
 
 type PeopleScreenProps = {
+  initialPersonId?: string;
   pagination: PeoplePagination;
   people: PeopleSummary[];
   schemaNotice?: string;
@@ -35,17 +37,28 @@ type PeopleScreenProps = {
 };
 
 export function PeopleScreen({
+  initialPersonId,
   pagination,
   people,
   schemaNotice,
   viewQuery,
 }: PeopleScreenProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [displayMode, setDisplayMode] = useState<PeopleDisplayMode>("table");
-  const [selectedPersonId, setSelectedPersonId] = useState(people[0]?.id ?? "");
+  const [selectedPersonId, setSelectedPersonId] = useState(() =>
+    getInitialRecordId(people, initialPersonId),
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedPerson =
     people.find((person) => person.id === selectedPersonId) ?? people[0] ?? null;
+  const getPersonRecordHref = (personId: string) =>
+    getFocusedRecordHref(pathname, searchParams, "personId", personId);
+  const openPersonRecord = (personId: string) => {
+    router.push(getPersonRecordHref(personId), { scroll: false });
+  };
 
   return (
     <div className="min-h-screen">
@@ -101,6 +114,8 @@ export function PeopleScreen({
                 setStatusMessage(null);
                 setDrawer({ mode: "restore", person });
               }}
+              getPersonHref={getPersonRecordHref}
+              onOpenPerson={openPersonRecord}
               onSelectPerson={setSelectedPersonId}
               people={people}
               schemaNotice={schemaNotice}
@@ -121,6 +136,7 @@ export function PeopleScreen({
               setStatusMessage(null);
               setDrawer({ mode: "restore", person });
             }}
+            getPersonHref={getPersonRecordHref}
             person={selectedPerson}
           />
         </div>
@@ -158,6 +174,27 @@ export function PeopleScreen({
       ) : null}
     </div>
   );
+}
+
+function getInitialRecordId<TRecord extends { id: string }>(
+  records: TRecord[],
+  initialId?: string,
+) {
+  return initialId && records.some((record) => record.id === initialId)
+    ? initialId
+    : records[0]?.id ?? "";
+}
+
+function getFocusedRecordHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  key: string,
+  value: string,
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+  nextParams.set(key, value);
+
+  return `${pathname}?${nextParams.toString()}`;
 }
 
 function getPeopleDrawerTitle(drawer: DrawerState) {

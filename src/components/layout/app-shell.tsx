@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   BarChart3,
   Building2,
+  ChevronDown,
   ClipboardList,
   CreditCard,
   FileText,
@@ -15,6 +16,7 @@ import {
   ListTree,
   LogOut,
   MessageSquare,
+  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   ScrollText,
@@ -22,62 +24,161 @@ import {
   Users,
   Workflow,
   Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOutAction } from "@/features/auth/actions";
 
-const navGroups = [
+type NavBadge = "Draft" | "Planned";
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: NavBadge;
+  activeHrefs?: string[];
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+const futureModuleHrefs = [
+  "/payments",
+  "/maintenance",
+  "/tenant-portal",
+  "/communications",
+  "/workflows",
+];
+
+const navGroups: NavGroup[] = [
   {
-    label: "Workspace",
+    label: "Home",
+    items: [{ href: "/overview", label: "Overview", icon: BarChart3 }],
+  },
+  {
+    label: "Record room",
     items: [
-      { href: "/overview", label: "Overview", icon: BarChart3 },
-      { href: "/timeline", label: "Timeline", icon: ListTree },
       { href: "/properties", label: "Properties", icon: Building2 },
       { href: "/units", label: "Units", icon: Home },
+      { href: "/timeline", label: "Timeline", icon: ListTree },
+      { href: "/documents", label: "Documents", icon: FolderOpen, badge: "Draft" },
     ],
   },
   {
-    label: "Leasing",
+    label: "People & leases",
     items: [
       { href: "/leases", label: "Leases", icon: ScrollText },
-      { href: "/people", label: "People", icon: Users },
+      {
+        href: "/people",
+        label: "People",
+        icon: Users,
+        activeHrefs: ["/tenants"],
+      },
     ],
   },
   {
-    label: "Financial",
+    label: "Money",
     items: [
       { href: "/ledger", label: "Ledger", icon: Landmark },
-      { href: "/payments", label: "Payments", icon: CreditCard },
-      { href: "/reports", label: "Reports", icon: FileText },
+      { href: "/reports", label: "Reports", icon: FileText, badge: "Draft" },
     ],
   },
   {
-    label: "Operations",
+    label: "Build plan",
     items: [
-      { href: "/maintenance", label: "Tasks & maintenance", icon: Wrench },
-      { href: "/documents", label: "Documents", icon: FolderOpen },
+      {
+        href: "/roadmap",
+        label: "Roadmap",
+        icon: ClipboardList,
+        badge: "Planned",
+        activeHrefs: futureModuleHrefs,
+      },
     ],
-  },
-  {
-    label: "Tenant experience",
-    items: [
-      { href: "/tenant-portal", label: "Tenant portal", icon: ClipboardList },
-      { href: "/communications", label: "Communications", icon: MessageSquare },
-    ],
-  },
-  {
-    label: "Automation",
-    items: [{ href: "/workflows", label: "Workflows", icon: Workflow }],
   },
 ];
 
-const settingsItem = { href: "/settings", label: "Settings", icon: Settings };
+const plannedModuleItems: NavItem[] = [
+  { href: "/payments", label: "Payments", icon: CreditCard, badge: "Planned" },
+  {
+    href: "/maintenance",
+    label: "Tasks & maintenance",
+    icon: Wrench,
+    badge: "Planned",
+  },
+  {
+    href: "/tenant-portal",
+    label: "Tenant portal",
+    icon: ClipboardList,
+    badge: "Planned",
+  },
+  {
+    href: "/communications",
+    label: "Communications",
+    icon: MessageSquare,
+    badge: "Planned",
+  },
+  { href: "/workflows", label: "Workflows", icon: Workflow, badge: "Planned" },
+];
+
+const settingsItem: NavItem = {
+  href: "/settings",
+  label: "Settings",
+  icon: Settings,
+};
+
+const mobilePrimaryItems = [
+  { href: "/overview", label: "Overview", icon: BarChart3 },
+  { href: "/properties", label: "Properties", icon: Building2 },
+  { href: "/units", label: "Units", icon: Home },
+  { href: "/timeline", label: "Timeline", icon: ListTree },
+  { href: "/leases", label: "Leases", icon: ScrollText },
+  {
+    href: "/roadmap",
+    label: "More",
+    icon: MoreHorizontal,
+    activeHrefs: [
+      "/people",
+      "/tenants",
+      "/ledger",
+      "/documents",
+      "/reports",
+      ...futureModuleHrefs,
+    ],
+  },
+] satisfies NavItem[];
 
 type AppShellProps = {
   children: React.ReactNode;
   organizationName?: string;
   userEmail?: string;
 };
+
+function isNavItemActive(pathname: string, item: NavItem) {
+  return (
+    pathname === item.href ||
+    pathname.startsWith(`${item.href}/`) ||
+    item.activeHrefs?.some(
+      (href) => pathname === href || pathname.startsWith(`${href}/`),
+    ) === true
+  );
+}
+
+function NavBadgeLabel({ badge }: { badge: NavBadge }) {
+  return (
+    <span
+      className={cn(
+        "ml-auto rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+        badge === "Draft"
+          ? "border-foreground/15 bg-surface text-foreground"
+          : "border-border bg-surface-muted text-muted",
+      )}
+    >
+      {badge}
+    </span>
+  );
+}
 
 export function AppShell({
   children,
@@ -86,9 +187,7 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const navItems = [...navGroups.flatMap((group) => group.items), settingsItem];
-  const isSettingsActive =
-    pathname === settingsItem.href || pathname.startsWith(`${settingsItem.href}/`);
+  const isSettingsActive = isNavItemActive(pathname, settingsItem);
   const sidebarToggleLabel = sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
 
   return (
@@ -117,7 +216,7 @@ export function AppShell({
                 >
                   <span className="block text-2xl font-semibold">NESTORY</span>
                   <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-[0.24em] text-muted">
-                    Property Management
+                    Record room
                   </span>
                 </Link>
                 <p className="mt-3 max-w-full truncate text-sm font-semibold text-foreground">
@@ -160,8 +259,7 @@ export function AppShell({
               <div className="space-y-1">
                 {group.items.map((item) => {
                   const Icon = item.icon;
-                  const isActive =
-                    pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  const isActive = isNavItemActive(pathname, item);
 
                   return (
                     <Link
@@ -180,14 +278,57 @@ export function AppShell({
                       prefetch={false}
                       title={sidebarCollapsed ? item.label : undefined}
                     >
-                      <Icon size={16} />
-                      {sidebarCollapsed ? null : item.label}
+                      <Icon className="shrink-0" size={16} />
+                      {sidebarCollapsed ? null : (
+                        <>
+                          <span className="min-w-0 truncate">{item.label}</span>
+                          {item.badge ? <NavBadgeLabel badge={item.badge} /> : null}
+                        </>
+                      )}
                     </Link>
                   );
                 })}
               </div>
             </div>
           ))}
+          {sidebarCollapsed ? null : (
+            <details className="group">
+              <summary className="flex h-8 cursor-pointer list-none items-center gap-3 rounded-md px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground">
+                <MoreHorizontal size={16} />
+                <span className="min-w-0 flex-1 truncate">Future modules</span>
+                <span className="rounded-sm border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] font-semibold leading-none text-muted">
+                  {plannedModuleItems.length}
+                </span>
+                <ChevronDown
+                  className="transition-transform group-open:rotate-180"
+                  size={14}
+                />
+              </summary>
+              <div className="mt-1 space-y-1 border-l border-border/80 pl-3">
+                {plannedModuleItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = isNavItemActive(pathname, item);
+
+                  return (
+                    <Link
+                      className={cn(
+                        "flex h-8 items-center gap-2 rounded-md px-2 text-sm font-medium text-muted transition-colors",
+                        isActive
+                          ? "bg-accent-soft text-foreground"
+                          : "hover:bg-surface-muted hover:text-foreground",
+                      )}
+                      href={item.href}
+                      key={item.href}
+                      prefetch={false}
+                    >
+                      <Icon className="shrink-0" size={15} />
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </details>
+          )}
         </nav>
 
         <div className={cn("border-t border-border", sidebarCollapsed ? "p-2" : "p-3")}>
@@ -249,21 +390,33 @@ export function AppShell({
                 </p>
               </div>
             </div>
-            <form action={signOutAction} className="shrink-0">
-              <button
-                aria-label="Sign out"
-                className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-                type="submit"
+            <div className="flex shrink-0 items-center gap-1">
+              <Link
+                aria-label="Settings"
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+                  isSettingsActive ? "bg-accent-soft text-foreground" : null,
+                )}
+                href={settingsItem.href}
+                prefetch={false}
               >
-                <LogOut size={16} />
-              </button>
-            </form>
+                <Settings size={16} />
+              </Link>
+              <form action={signOutAction}>
+                <button
+                  aria-label="Sign out"
+                  className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                  type="submit"
+                >
+                  <LogOut size={16} />
+                </button>
+              </form>
+            </div>
           </div>
           <nav className="flex gap-2 overflow-x-auto px-4 pb-3">
-            {navItems.map((item) => {
+            {mobilePrimaryItems.map((item) => {
               const Icon = item.icon;
-              const isActive =
-                pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isActive = isNavItemActive(pathname, item);
 
               return (
                 <Link

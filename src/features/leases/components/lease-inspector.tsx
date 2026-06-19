@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import type { LeaseSummary } from "@/features/leases/lease.types";
 
 type LeaseInspectorProps = {
+  getLeaseHref: (id: string) => string;
   lease: LeaseSummary | null;
   onArchiveLease: (lease: LeaseSummary) => void;
   onEditLease: (lease: LeaseSummary) => void;
@@ -21,6 +22,7 @@ type LeaseInspectorProps = {
 };
 
 export function LeaseInspector({
+  getLeaseHref,
   lease,
   onArchiveLease,
   onEditLease,
@@ -110,7 +112,16 @@ export function LeaseInspector({
           </p>
         </section>
 
-        <div className="grid grid-cols-3 gap-2 text-sm">
+        <div className="grid grid-cols-4 gap-2 text-sm">
+          <Link
+            aria-label={`Open lease for ${lease.tenantName}`}
+            className={iconButtonClassName}
+            href={getLeaseHref(lease.id)}
+            prefetch={false}
+            title="Open lease"
+          >
+            <ExternalLink size={15} />
+          </Link>
           {lease.unitId ? (
             <Link
               aria-label={`Open ${lease.unitLabel}`}

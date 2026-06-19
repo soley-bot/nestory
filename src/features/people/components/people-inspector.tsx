@@ -16,6 +16,7 @@ import { formatRole } from "@/features/people/people.labels";
 import type { PeopleSummary } from "@/features/people/people.types";
 
 type PeopleInspectorProps = {
+  getPersonHref: (id: string) => string;
   onArchivePerson: (person: PeopleSummary) => void;
   onEditPerson: (person: PeopleSummary) => void;
   onRestorePerson: (person: PeopleSummary) => void;
@@ -23,6 +24,7 @@ type PeopleInspectorProps = {
 };
 
 export function PeopleInspector({
+  getPersonHref,
   onArchivePerson,
   onEditPerson,
   onRestorePerson,
@@ -133,14 +135,23 @@ export function PeopleInspector({
           </p>
         </section>
 
-        <div className="grid grid-cols-3 gap-2 text-sm">
+        <div className="grid grid-cols-4 gap-2 text-sm">
+          <Link
+            aria-label={`Open ${person.displayName}`}
+            className={iconButtonClassName}
+            href={getPersonHref(person.id)}
+            prefetch={false}
+            title="Open person"
+          >
+            <ExternalLink size={15} />
+          </Link>
           <Link
             aria-label={`Open leases filtered to ${person.displayName}`}
             className={iconButtonClassName}
             href={`/leases?query=${encodeURIComponent(person.displayName)}`}
             title="Open related leases"
           >
-            <ExternalLink size={15} />
+            <FileText size={15} />
           </Link>
           {person.isArchived ? (
             <button

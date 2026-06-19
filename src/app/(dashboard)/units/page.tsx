@@ -4,6 +4,7 @@ import { getUnitsScreenData } from "@/features/units/data/units";
 import { parseUnitSearchParams } from "@/features/units/unit.filters";
 import type { UnitPropertyOption } from "@/features/units/unit.types";
 import { requireAdminContext } from "@/lib/auth/context";
+import { getUuidSearchParam } from "@/lib/validation/search-params";
 
 type UnitsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -11,14 +12,18 @@ type UnitsPageProps = {
 
 export default async function UnitsPage({ searchParams }: UnitsPageProps) {
   const context = await requireAdminContext();
-  const viewQuery = parseUnitSearchParams(await searchParams);
+  const params = await searchParams;
+  const viewQuery = parseUnitSearchParams(params);
   const [{ pagination, units }, properties] = await Promise.all([
     getUnitsScreenData(context.organizationId, viewQuery),
     getPropertySummaries(context.organizationId),
   ]);
+  const initialUnitId = getUuidSearchParam(params.unitId);
 
   return (
     <UnitScreen
+      key={initialUnitId ?? "units"}
+      initialUnitId={initialUnitId}
       pagination={pagination}
       propertyOptions={toPropertyOptions(properties)}
       units={units}

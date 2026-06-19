@@ -8,9 +8,11 @@ import { cn } from "@/lib/utils";
 
 type LeasesTableProps = {
   archiveState: LeaseArchiveState;
+  getLeaseHref: (id: string) => string;
   leases: LeaseSummary[];
   onArchiveLease: (lease: LeaseSummary) => void;
   onEditLease: (lease: LeaseSummary) => void;
+  onOpenLease: (id: string) => void;
   onRestoreLease: (lease: LeaseSummary) => void;
   onSelectLease: (id: string) => void;
   selectedLeaseId: string;
@@ -18,9 +20,11 @@ type LeasesTableProps = {
 
 export function LeasesTable({
   archiveState,
+  getLeaseHref,
   leases,
   onArchiveLease,
   onEditLease,
+  onOpenLease,
   onRestoreLease,
   onSelectLease,
   selectedLeaseId,
@@ -35,8 +39,10 @@ export function LeasesTable({
         ) : null}
         {leases.map((lease) => (
           <LeaseCard
+            getLeaseHref={getLeaseHref}
             key={lease.id}
             lease={lease}
+            onOpenLease={onOpenLease}
             onSelectLease={onSelectLease}
             selected={selectedLeaseId === lease.id}
           />
@@ -91,6 +97,7 @@ export function LeasesTable({
                   )}
                   key={lease.id}
                   onClick={() => onSelectLease(lease.id)}
+                  onDoubleClick={() => onOpenLease(lease.id)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
@@ -100,9 +107,15 @@ export function LeasesTable({
                   tabIndex={0}
                 >
                   <td className="px-2.5 py-2">
-                    <p className="truncate font-medium" title={lease.propertyCode}>
+                    <Link
+                      className="block truncate font-medium text-accent hover:underline"
+                      href={getLeaseHref(lease.id)}
+                      onClick={(event) => event.stopPropagation()}
+                      prefetch={false}
+                      title={`Open lease for ${lease.tenantName}`}
+                    >
                       {lease.propertyCode}
-                    </p>
+                    </Link>
                     <p className="mt-0.5 truncate text-xs text-muted">
                       {lease.startDateLabel}
                     </p>
@@ -187,11 +200,15 @@ function getEmptyMessage(archiveState: LeaseArchiveState) {
 }
 
 function LeaseCard({
+  getLeaseHref,
   lease,
+  onOpenLease,
   onSelectLease,
   selected,
 }: {
+  getLeaseHref: (id: string) => string;
   lease: LeaseSummary;
+  onOpenLease: (id: string) => void;
   onSelectLease: (id: string) => void;
   selected: boolean;
 }) {
@@ -203,6 +220,7 @@ function LeaseCard({
         lease.isArchived && "text-muted",
       )}
       onClick={() => onSelectLease(lease.id)}
+      onDoubleClick={() => onOpenLease(lease.id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -213,9 +231,15 @@ function LeaseCard({
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="line-clamp-2 text-base font-semibold leading-5">
+          <Link
+            className="line-clamp-2 text-base font-semibold leading-5 text-accent hover:underline"
+            href={getLeaseHref(lease.id)}
+            onClick={(event) => event.stopPropagation()}
+            prefetch={false}
+            title={`Open lease for ${lease.tenantName}`}
+          >
             {lease.tenantName}
-          </h2>
+          </Link>
           <p className="mt-1 truncate text-sm text-muted" title={lease.unitLabel}>
             {lease.unitLabel}
           </p>
@@ -264,7 +288,10 @@ function LeaseActions({
 
   if (lease.isArchived) {
     return (
-      <div className={baseClassName}>
+      <div
+        className={baseClassName}
+        onDoubleClick={(event) => event.stopPropagation()}
+      >
         {lease.unitId ? (
           <Link
             aria-label={`Open ${lease.unitLabel}`}
@@ -294,7 +321,10 @@ function LeaseActions({
   }
 
   return (
-    <div className={baseClassName}>
+    <div
+      className={baseClassName}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
       {lease.unitId ? (
         <Link
           aria-label={`Open ${lease.unitLabel}`}

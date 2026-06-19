@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
@@ -28,27 +29,33 @@ type DrawerState =
   | { mode: "restore"; property: PropertySummary };
 
 type PropertyScreenProps = {
+  initialPropertyId?: string;
   pagination: PropertyPagination;
   properties: PropertySummary[];
   viewQuery: PropertyViewQuery;
 };
 
 export function PropertyScreen({
+  initialPropertyId,
   pagination,
   properties,
   viewQuery,
 }: PropertyScreenProps) {
+  const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [displayMode, setDisplayMode] =
     useState<PropertyDisplayMode>("table");
-  const [selectedPropertyId, setSelectedPropertyId] = useState(
-    properties[0]?.id ?? "",
+  const [selectedPropertyId, setSelectedPropertyId] = useState(() =>
+    getInitialRecordId(properties, initialPropertyId),
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedProperty =
     properties.find((property) => property.id === selectedPropertyId) ??
     properties[0] ??
     null;
+  const openPropertyRecord = (propertyId: string) => {
+    router.push(`/properties/${propertyId}`);
+  };
 
   return (
     <div className="min-h-screen">
@@ -103,6 +110,7 @@ export function PropertyScreen({
                 setStatusMessage(null);
                 setDrawer({ mode: "restore", property });
               }}
+              onOpenProperty={openPropertyRecord}
               onSelectProperty={setSelectedPropertyId}
               properties={properties}
               selectedPropertyId={selectedProperty?.id ?? ""}
@@ -159,6 +167,15 @@ export function PropertyScreen({
       ) : null}
     </div>
   );
+}
+
+function getInitialRecordId<TRecord extends { id: string }>(
+  records: TRecord[],
+  initialId?: string,
+) {
+  return initialId && records.some((record) => record.id === initialId)
+    ? initialId
+    : records[0]?.id ?? "";
 }
 
 function getPropertyDrawerTitle(drawer: DrawerState) {

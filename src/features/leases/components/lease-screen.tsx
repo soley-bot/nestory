@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
@@ -29,6 +30,7 @@ type DrawerState =
   | { lease: LeaseSummary; mode: "restore" };
 
 type LeaseScreenProps = {
+  initialLeaseId?: string;
   leases: LeaseSummary[];
   pagination: LeasePagination;
   propertyOptions: LeasePropertyOption[];
@@ -37,17 +39,28 @@ type LeaseScreenProps = {
 };
 
 export function LeaseScreen({
+  initialLeaseId,
   leases,
   pagination,
   propertyOptions,
   unitOptions,
   viewQuery,
 }: LeaseScreenProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
-  const [selectedLeaseId, setSelectedLeaseId] = useState(leases[0]?.id ?? "");
+  const [selectedLeaseId, setSelectedLeaseId] = useState(() =>
+    getInitialRecordId(leases, initialLeaseId),
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedLease =
     leases.find((lease) => lease.id === selectedLeaseId) ?? leases[0] ?? null;
+  const getLeaseRecordHref = (leaseId: string) =>
+    getFocusedRecordHref(pathname, searchParams, "leaseId", leaseId);
+  const openLeaseRecord = (leaseId: string) => {
+    router.push(getLeaseRecordHref(leaseId), { scroll: false });
+  };
 
   return (
     <div className="min-h-screen">
@@ -99,6 +112,8 @@ export function LeaseScreen({
                 setStatusMessage(null);
                 setDrawer({ lease, mode: "restore" });
               }}
+              getLeaseHref={getLeaseRecordHref}
+              onOpenLease={openLeaseRecord}
               onSelectLease={setSelectedLeaseId}
               selectedLeaseId={selectedLease?.id ?? ""}
             />
@@ -118,6 +133,7 @@ export function LeaseScreen({
               setStatusMessage(null);
               setDrawer({ lease, mode: "restore" });
             }}
+            getLeaseHref={getLeaseRecordHref}
           />
         </div>
       </div>
@@ -156,6 +172,27 @@ export function LeaseScreen({
       ) : null}
     </div>
   );
+}
+
+function getInitialRecordId<TRecord extends { id: string }>(
+  records: TRecord[],
+  initialId?: string,
+) {
+  return initialId && records.some((record) => record.id === initialId)
+    ? initialId
+    : records[0]?.id ?? "";
+}
+
+function getFocusedRecordHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  key: string,
+  value: string,
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+  nextParams.set(key, value);
+
+  return `${pathname}?${nextParams.toString()}`;
 }
 
 function getLeaseDrawerTitle(drawer: DrawerState) {

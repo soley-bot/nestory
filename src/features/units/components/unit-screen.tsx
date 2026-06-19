@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
@@ -29,6 +30,7 @@ type DrawerState =
   | { mode: "restore"; unit: UnitSummary };
 
 type UnitScreenProps = {
+  initialUnitId?: string;
   pagination: UnitPagination;
   propertyOptions: UnitPropertyOption[];
   units: UnitSummary[];
@@ -36,17 +38,24 @@ type UnitScreenProps = {
 };
 
 export function UnitScreen({
+  initialUnitId,
   pagination,
   propertyOptions,
   units,
   viewQuery,
 }: UnitScreenProps) {
+  const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [displayMode, setDisplayMode] = useState<UnitDisplayMode>("table");
-  const [selectedUnitId, setSelectedUnitId] = useState(units[0]?.id ?? "");
+  const [selectedUnitId, setSelectedUnitId] = useState(() =>
+    getInitialRecordId(units, initialUnitId),
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedUnit =
     units.find((unit) => unit.id === selectedUnitId) ?? units[0] ?? null;
+  const openUnitRecord = (unitId: string) => {
+    router.push(`/units/${unitId}`);
+  };
 
   return (
     <div className="min-h-screen">
@@ -103,6 +112,7 @@ export function UnitScreen({
                 setStatusMessage(null);
                 setDrawer({ mode: "restore", unit });
               }}
+              onOpenUnit={openUnitRecord}
               onSelectUnit={setSelectedUnitId}
               selectedUnitId={selectedUnit?.id ?? ""}
               units={units}
@@ -160,6 +170,15 @@ export function UnitScreen({
       ) : null}
     </div>
   );
+}
+
+function getInitialRecordId<TRecord extends { id: string }>(
+  records: TRecord[],
+  initialId?: string,
+) {
+  return initialId && records.some((record) => record.id === initialId)
+    ? initialId
+    : records[0]?.id ?? "";
 }
 
 function getUnitDrawerTitle(drawer: DrawerState) {

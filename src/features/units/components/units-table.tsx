@@ -24,6 +24,7 @@ type UnitsTableProps = {
   onArchiveUnit: (unit: UnitSummary) => void;
   onEditUnit: (unit: UnitSummary) => void;
   onRestoreUnit: (unit: UnitSummary) => void;
+  onOpenUnit: (id: string) => void;
   onSelectUnit: (id: string) => void;
   selectedUnitId: string;
   archiveState: UnitArchiveState;
@@ -36,6 +37,7 @@ export function UnitsTable({
   onArchiveUnit,
   onEditUnit,
   onRestoreUnit,
+  onOpenUnit,
   onSelectUnit,
   selectedUnitId,
   units,
@@ -57,6 +59,7 @@ export function UnitsTable({
         {units.map((unit) => (
           <UnitCard
             key={unit.id}
+            onOpenUnit={onOpenUnit}
             onSelectUnit={onSelectUnit}
             selected={selectedUnitId === unit.id}
             unit={unit}
@@ -113,6 +116,7 @@ export function UnitsTable({
                     )}
                     key={unit.id}
                     onClick={() => onSelectUnit(unit.id)}
+                    onDoubleClick={() => onOpenUnit(unit.id)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
@@ -207,10 +211,12 @@ function getEmptyMessage(archiveState: UnitArchiveState) {
 }
 
 function UnitCard({
+  onOpenUnit,
   onSelectUnit,
   selected,
   unit,
 }: {
+  onOpenUnit: (id: string) => void;
   onSelectUnit: (id: string) => void;
   selected: boolean;
   unit: UnitSummary;
@@ -223,6 +229,7 @@ function UnitCard({
         unit.isArchived && "text-muted",
       )}
       onClick={() => onSelectUnit(unit.id)}
+      onDoubleClick={() => onOpenUnit(unit.id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -304,7 +311,10 @@ function UnitActions({
 
   if (unit.isArchived) {
     return (
-      <div className={baseClassName}>
+      <div
+        className={baseClassName}
+        onDoubleClick={(event) => event.stopPropagation()}
+      >
         <Link
           aria-label={`Open unit ${unit.unitNumber}`}
           className={`${buttonClassName} hover:text-foreground`}
@@ -332,7 +342,10 @@ function UnitActions({
   }
 
   return (
-    <div className={baseClassName}>
+    <div
+      className={baseClassName}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
       <Link
         aria-label={`Open unit ${unit.unitNumber}`}
         className={`${buttonClassName} hover:text-foreground`}

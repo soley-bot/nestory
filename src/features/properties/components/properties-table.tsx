@@ -21,6 +21,7 @@ type PropertiesTableProps = {
   onArchiveProperty: (property: PropertySummary) => void;
   onEditProperty: (property: PropertySummary) => void;
   onRestoreProperty: (property: PropertySummary) => void;
+  onOpenProperty: (id: string) => void;
   onSelectProperty: (id: string) => void;
   properties: PropertySummary[];
   selectedPropertyId: string;
@@ -31,6 +32,7 @@ export function PropertiesTable({
   onArchiveProperty,
   onEditProperty,
   onRestoreProperty,
+  onOpenProperty,
   onSelectProperty,
   properties,
   selectedPropertyId,
@@ -52,6 +54,7 @@ export function PropertiesTable({
         {properties.map((property) => (
           <PropertyCard
             key={property.id}
+            onOpenProperty={onOpenProperty}
             onSelectProperty={onSelectProperty}
             property={property}
             selected={selectedPropertyId === property.id}
@@ -106,6 +109,7 @@ export function PropertiesTable({
                     )}
                     key={property.id}
                     onClick={() => onSelectProperty(property.id)}
+                    onDoubleClick={() => onOpenProperty(property.id)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
@@ -176,10 +180,12 @@ export function PropertiesTable({
 }
 
 function PropertyCard({
+  onOpenProperty,
   onSelectProperty,
   property,
   selected,
 }: {
+  onOpenProperty: (id: string) => void;
   onSelectProperty: (id: string) => void;
   property: PropertySummary;
   selected: boolean;
@@ -192,6 +198,7 @@ function PropertyCard({
         property.isArchived && "text-muted",
       )}
       onClick={() => onSelectProperty(property.id)}
+      onDoubleClick={() => onOpenProperty(property.id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -291,7 +298,10 @@ function PropertyActions({
     "inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50";
 
   return (
-    <div className={wrapperClassName}>
+    <div
+      className={wrapperClassName}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
       <Link
         aria-label={`Open ${property.name}`}
         className={cn(buttonClassName, "hover:text-foreground")}

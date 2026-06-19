@@ -1,7 +1,9 @@
+import Link from "next/link";
 import {
   Archive,
   BriefcaseBusiness,
   Building2,
+  ExternalLink,
   Mail,
   Pencil,
   RotateCcw,
@@ -23,6 +25,8 @@ type PeopleTableProps = {
   onArchivePerson: (person: PeopleSummary) => void;
   onEditPerson: (person: PeopleSummary) => void;
   onRestorePerson: (person: PeopleSummary) => void;
+  getPersonHref: (id: string) => string;
+  onOpenPerson: (id: string) => void;
   onSelectPerson: (id: string) => void;
   people: PeopleSummary[];
   schemaNotice?: string;
@@ -35,6 +39,8 @@ export function PeopleTable({
   onArchivePerson,
   onEditPerson,
   onRestorePerson,
+  getPersonHref,
+  onOpenPerson,
   onSelectPerson,
   people,
   schemaNotice,
@@ -58,7 +64,9 @@ export function PeopleTable({
         ) : null}
         {people.map((person) => (
           <PersonCard
+            getPersonHref={getPersonHref}
             key={person.id}
+            onOpenPerson={onOpenPerson}
             onSelectPerson={onSelectPerson}
             person={person}
             selected={selectedPersonId === person.id}
@@ -111,6 +119,7 @@ export function PeopleTable({
                     )}
                     key={person.id}
                     onClick={() => onSelectPerson(person.id)}
+                    onDoubleClick={() => onOpenPerson(person.id)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
@@ -120,12 +129,15 @@ export function PeopleTable({
                     tabIndex={0}
                   >
                     <td className="px-2.5 py-2">
-                      <p
-                        className="truncate font-medium text-accent"
+                      <Link
+                        className="block truncate font-medium text-accent hover:underline"
+                        href={getPersonHref(person.id)}
+                        onClick={(event) => event.stopPropagation()}
+                        prefetch={false}
                         title={person.displayName}
                       >
                         {person.displayName}
-                      </p>
+                      </Link>
                       <p
                         className="mt-0.5 truncate text-xs text-muted"
                         title={person.legalName ?? person.partyTypeLabel}
@@ -147,6 +159,7 @@ export function PeopleTable({
                     </td>
                     <td className="px-1.5 py-2">
                       <PeopleActions
+                        getPersonHref={getPersonHref}
                         onArchivePerson={onArchivePerson}
                         onEditPerson={onEditPerson}
                         onRestorePerson={onRestorePerson}
@@ -165,10 +178,14 @@ export function PeopleTable({
 }
 
 function PersonCard({
+  getPersonHref,
+  onOpenPerson,
   onSelectPerson,
   person,
   selected,
 }: {
+  getPersonHref: (id: string) => string;
+  onOpenPerson: (id: string) => void;
   onSelectPerson: (id: string) => void;
   person: PeopleSummary;
   selected: boolean;
@@ -181,6 +198,7 @@ function PersonCard({
         person.isArchived && "text-muted",
       )}
       onClick={() => onSelectPerson(person.id)}
+      onDoubleClick={() => onOpenPerson(person.id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -200,9 +218,15 @@ function PersonCard({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-base font-semibold leading-5 text-accent">
+              <Link
+                className="block truncate text-base font-semibold leading-5 text-accent hover:underline"
+                href={getPersonHref(person.id)}
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+                title={person.displayName}
+              >
                 {person.displayName}
-              </p>
+              </Link>
               <p className="mt-1 truncate text-xs text-muted">
                 {person.legalName ?? person.partyTypeLabel}
               </p>
@@ -311,12 +335,14 @@ function StatusBadges({
 
 function PeopleActions({
   className,
+  getPersonHref,
   onArchivePerson,
   onEditPerson,
   onRestorePerson,
   person,
 }: {
   className?: string;
+  getPersonHref: (id: string) => string;
   onArchivePerson: (person: PeopleSummary) => void;
   onEditPerson: (person: PeopleSummary) => void;
   onRestorePerson: (person: PeopleSummary) => void;
@@ -328,7 +354,20 @@ function PeopleActions({
 
   if (person.isArchived) {
     return (
-      <div className={baseClassName}>
+      <div
+        className={baseClassName}
+        onDoubleClick={(event) => event.stopPropagation()}
+      >
+        <Link
+          aria-label={`Open ${person.displayName}`}
+          className={`${buttonClassName} hover:text-foreground`}
+          href={getPersonHref(person.id)}
+          onClick={(event) => event.stopPropagation()}
+          prefetch={false}
+          title="Open person"
+        >
+          <ExternalLink size={14} />
+        </Link>
         <button
           aria-label={`Restore ${person.displayName}`}
           className={`${buttonClassName} hover:text-accent`}
@@ -346,7 +385,20 @@ function PeopleActions({
   }
 
   return (
-    <div className={baseClassName}>
+    <div
+      className={baseClassName}
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
+      <Link
+        aria-label={`Open ${person.displayName}`}
+        className={`${buttonClassName} hover:text-foreground`}
+        href={getPersonHref(person.id)}
+        onClick={(event) => event.stopPropagation()}
+        prefetch={false}
+        title="Open person"
+      >
+        <ExternalLink size={14} />
+      </Link>
       <button
         aria-label={`Edit ${person.displayName}`}
         className={`${buttonClassName} hover:text-foreground`}
