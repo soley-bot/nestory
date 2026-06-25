@@ -1,17 +1,16 @@
-import { PageHeader } from "@/components/layout/page-header";
+import { ReportsScreen } from "@/features/reports/components/reports-screen";
+import { getReportsScreenData } from "@/features/reports/data/reports";
+import { parseReportSearchParams } from "@/features/reports/reports.filters";
+import { requireAdminContext } from "@/lib/auth/context";
 
-export default function ReportsPage() {
-  return (
-    <div>
-      <PageHeader
-        description="Reports will begin as on-screen summaries, then expand to PDF and spreadsheet exports."
-        title="Reports"
-      />
-      <div className="p-8">
-        <div className="rounded-md border border-border bg-surface p-6 text-sm text-muted">
-          Property summary reports are planned after core records exist.
-        </div>
-      </div>
-    </div>
-  );
+type ReportsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function ReportsPage({ searchParams }: ReportsPageProps) {
+  const context = await requireAdminContext();
+  const viewQuery = parseReportSearchParams(await searchParams);
+  const data = await getReportsScreenData(context.organizationId, viewQuery);
+
+  return <ReportsScreen {...data} organizationName={context.organizationName} />;
 }

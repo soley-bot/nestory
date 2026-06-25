@@ -8,8 +8,10 @@ import {
   CalendarClock,
   CheckCircle2,
   CircleDollarSign,
+  FileText,
   type LucideIcon,
   Plus,
+  Upload,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +53,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
   const attentionMetric = getMetric(data.metrics, "Attention");
   const primaryMetrics: PrimaryMetric[] = [
     {
-      href: "/units",
+      href: "/reports?report=occupancy&status=vacant",
       icon: Building2,
       metric: occupancyMetric,
     },
@@ -97,8 +99,8 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
 
       <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
         <ChartPanel
-          actionHref="/units"
-          actionLabel="Open units"
+          actionHref="/reports?report=occupancy&status=vacant"
+          actionLabel="Open report"
           description="Lowest occupancy properties first"
           priority="primary"
           title="Portfolio health by property"
@@ -166,13 +168,29 @@ function DashboardSummaryPanel({
             {summary.detail}
           </p>
         </div>
-        <Link
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-accent px-3 text-sm font-medium text-white transition-colors hover:bg-foreground"
-          href={summary.actionHref}
-        >
-          <span>{summary.actionLabel}</span>
-          <ArrowRight size={15} />
-        </Link>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+            href="/reports?report=profit-loss"
+          >
+            <FileText size={15} />
+            <span>P&amp;L report</span>
+          </Link>
+          <Link
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+            href="/import"
+          >
+            <Upload size={15} />
+            <span>Import data</span>
+          </Link>
+          <Link
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-accent px-3 text-sm font-medium text-white transition-colors hover:bg-foreground"
+            href={summary.actionHref}
+          >
+            <span>{summary.actionLabel}</span>
+            <ArrowRight size={15} />
+          </Link>
+        </div>
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-3 2xl:grid-cols-4">

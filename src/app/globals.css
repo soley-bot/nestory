@@ -7,8 +7,9 @@
   --surface-muted: #f5f6f8;
   --border: #e0e4eb;
   --muted: #6e7681;
-  --accent: #080b12;
-  --accent-soft: #eef0f4;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: #eff6ff;
   --danger: #a23b3b;
   --warning: #8a5a12;
   --success: #25734d;
@@ -22,6 +23,7 @@
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --color-warning: var(--warning);
@@ -42,4 +44,19 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }

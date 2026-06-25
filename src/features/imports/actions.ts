@@ -1,0 +1,306 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { Constants } from "@/types/database";
+import { requireAdminContext } from "@/lib/auth/context";
+import { createSupabaseServerClient } from "@/lib/db/server";
+import type { UnitImportCommitRow } from "@/features/imports/import.types";
+import type { CurrencyCode } from "@/lib/money/format";
+
+export type UnitImportActionState = {
+  message?: string;
+  status?: "error" | "success";
+  summary?: {
+    created: number;
+    updated: number;
+  };
+};
+
+const unitStatusSchema = z.enum([
+  "vacant",
+  "occupied",
+  "reserved",
+  "maintenance",
+  "inactive",
+]);
+
+const currencySchema = z.enum(Constants.public.Enums.currency_code);
+
+const importRowSchema = z
+  .object({
+    currentRentAmount: z.number().nonnegative().nullable(),
+    currentRentCurrency: currencySchema.nullable(),
+    floor: z.string().trim().max(40),
+    propertyId: z.uuid(),
+    sizeSqm: z.number().nonnegative().nullable(),
+    sourceRowNumber: z.number().int().positive(),
+    status: unitStatusSchema,
+    unitNumber: z.string().trim().min(1).max(40),
+  })
+  .superRefine((row, context) => {
+    if ((row.currentRentAmount === null) !== (row.currentRentCurrency === null)) {
+      context.addIssue({
+        code: "custom",
+        message: "Price and currency must be provided together.",
+        path: ["currentRentAmount"],
+      });
+    }
+  });
+
+const importRowsSchema = z.array(importRowSchema).min(1).max(500);
+
+export async function commitUnitImportAction(
+  _state: UnitImportActionState,
+  formData: FormData,
+): Promise<UnitImportActionState> {
+  const rowsPayload = formData.get("rows");
+
+  if (typeof rowsPayload !== "string") {
+    return {
+      message: "No import rows were submitted.",
+      status: "error",
+    };
+  }
+
+  let rawRows: unknown;
+
+  try {
+    rawRows = JSON.parse(rowsPayload);
+  } catch {
+    return {
+      message: "The import payload could not be read.",
+      status: "error",
+    };
+  }
+
+  const parsed = importRowsSchema.safeParse(rawRows);
+
+  if (!parsed.success) {
+    return {
+      message: "Review the import rows before committing them.",
+      status: "error",
+    };
+  }
+
+  const duplicateMessage = findDuplicateRowMessage(parsed.data);
+
+  if (duplicateMessage) {
+    return {
+      message: duplicateMessage,
+      status: "error",
+    };
+  }
+
+  const context = await requireAdminContext();
+  const supabase = await createSupabaseServerClient();
+  const propertyIds = [...new Set(parsed.data.map((row) => row.propertyId))];
+  const propertiesResult = await supabase
+    .from("properties")
+    .select("id")
+    .eq("organization_id", context.organizationId)
+    .in("id", propertyIds)
+    .is("archived_at", null);
+
+  if (propertiesResult.error) {
+    return {
+      message: `Could not verify properties: ${propertiesResult.error.message}`,
+      status: "error",
+    };
+  }
+
+  const propertyIdSet = new Set((propertiesResult.data ?? []).map((row) => row.id));
+
+  if (propertyIdSet.size !== propertyIds.length) {
+    return {
+      message: "One or more properties no longer exist or are archived.",
+      status: "error",
+    };
+  }
+
+  const existingUnitsResult = await supabase
+    .from("units")
+    .select("id, property_id, unit_number")
+    .eq("organization_id", context.organizationId)
+    .in("property_id", propertyIds)
+    .is("archived_at", null);
+
+  if (existingUnitsResult.error) {
+    return {
+      message: `Could not verify existing units: ${existingUnitsResult.error.message}`,
+      status: "error",
+    };
+  }
+
+  const existingUnits = new Map(
+    (existingUnitsResult.data ?? []).map((unit) => [
+      getUnitKey(unit.property_id, unit.unit_number),
+      unit.id,
+    ]),
+  );
+  const affectedPropertyIds = new Set<string>();
+  const affectedUnitIds = new Set<string>();
+  let created = 0;
+  let updated = 0;
+
+  for (const row of parsed.data) {
+    const existingUnitId = existingUnits.get(
+      getUnitKey(row.propertyId, row.unitNumber),
+    );
+    const mutation = existingUnitId
+      ? await updateImportedUnit({
+          organizationId: context.organizationId,
+          row,
+          supabase,
+          unitId: existingUnitId,
+        })
+      : await createImportedUnit({
+          organizationId: context.organizationId,
+          row,
+          supabase,
+        });
+
+    if (mutation.error) {
+      return {
+        message: `Row ${row.sourceRowNumber}: ${unitImportErrorMessage(
+          mutation.error.message,
+        )}`,
+        status: "error",
+        summary: { created, updated },
+      };
+    }
+
+    affectedPropertyIds.add(row.propertyId);
+
+    if (existingUnitId) {
+      affectedUnitIds.add(existingUnitId);
+      updated += 1;
+    } else if (typeof mutation.data === "string") {
+      existingUnits.set(getUnitKey(row.propertyId, row.unitNumber), mutation.data);
+      affectedUnitIds.add(mutation.data);
+      created += 1;
+    }
+  }
+
+  revalidateImportPaths(affectedPropertyIds, affectedUnitIds);
+
+  return {
+    message: `Imported ${created + updated} unit row${
+      created + updated === 1 ? "" : "s"
+    }.`,
+    status: "success",
+    summary: { created, updated },
+  };
+}
+
+function createImportedUnit({
+  organizationId,
+  row,
+  supabase,
+}: {
+  organizationId: string;
+  row: UnitImportCommitRow;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+}) {
+  return supabase.rpc("create_unit", {
+    p_current_rent_amount: row.currentRentAmount,
+    p_current_rent_currency: row.currentRentCurrency as CurrencyCode | null,
+    p_floor: nullableString(row.floor),
+    p_organization_id: organizationId,
+    p_property_id: row.propertyId,
+    p_size_sqm: row.sizeSqm,
+    p_status: row.status,
+    p_unit_number: row.unitNumber,
+  });
+}
+
+function updateImportedUnit({
+  organizationId,
+  row,
+  supabase,
+  unitId,
+}: {
+  organizationId: string;
+  row: UnitImportCommitRow;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  unitId: string;
+}) {
+  return supabase.rpc("update_unit", {
+    p_current_rent_amount: row.currentRentAmount,
+    p_current_rent_currency: row.currentRentCurrency as CurrencyCode | null,
+    p_floor: nullableString(row.floor),
+    p_organization_id: organizationId,
+    p_property_id: row.propertyId,
+    p_size_sqm: row.sizeSqm,
+    p_status: row.status,
+    p_unit_id: unitId,
+    p_unit_number: row.unitNumber,
+  });
+}
+
+function findDuplicateRowMessage(rows: UnitImportCommitRow[]) {
+  const seen = new Map<string, number>();
+
+  for (const row of rows) {
+    const key = getUnitKey(row.propertyId, row.unitNumber);
+    const previousRowNumber = seen.get(key);
+
+    if (previousRowNumber) {
+      return `Rows ${previousRowNumber} and ${row.sourceRowNumber} contain the same property and unit number.`;
+    }
+
+    seen.set(key, row.sourceRowNumber);
+  }
+
+  return null;
+}
+
+function nullableString(value: string) {
+  return value.trim().length > 0 ? value.trim() : null;
+}
+
+function getUnitKey(propertyId: string, unitNumber: string) {
+  return `${propertyId}:${unitNumber.trim().toLowerCase()}`;
+}
+
+function revalidateImportPaths(
+  propertyIds: Set<string>,
+  unitIds: Set<string>,
+) {
+  revalidatePath("/import");
+  revalidatePath("/overview");
+  revalidatePath("/reports");
+  revalidatePath("/units");
+  revalidatePath("/properties");
+  revalidatePath("/timeline");
+  revalidatePath("/ledger");
+
+  for (const propertyId of propertyIds) {
+    revalidatePath(`/properties/${propertyId}`);
+  }
+
+  for (const unitId of unitIds) {
+    revalidatePath(`/units/${unitId}`);
+  }
+}
+
+function unitImportErrorMessage(message: string) {
+  if (message.includes("duplicate key")) {
+    return "A unit with this number already exists for that property.";
+  }
+
+  if (message.includes("Property not found")) {
+    return "Choose an active property for every row.";
+  }
+
+  if (message.includes("Unit not found")) {
+    return "The existing unit could not be found.";
+  }
+
+  if (message.includes("Unit property cannot be changed")) {
+    return "An existing unit cannot be moved to another property through import.";
+  }
+
+  return "The unit row could not be saved.";
+}
+

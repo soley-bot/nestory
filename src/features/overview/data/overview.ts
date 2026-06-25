@@ -270,6 +270,9 @@ export async function getOverviewScreenData(
       operationalUnits,
     }),
     quickActions: [
+      { href: "/reports?report=occupancy&status=vacant", label: "Vacant report" },
+      { href: "/reports?report=profit-loss", label: "P&L report" },
+      { href: "/import", label: "Import data" },
       { href: "/properties", label: "Add property" },
       { href: "/units", label: "Add unit" },
       { href: "/leases", label: "Add lease" },
@@ -312,8 +315,8 @@ function buildDashboardSummary({
 
   if (vacantUnits.length > 0) {
     return {
-      actionHref: "/units?status=vacant",
-      actionLabel: "Review units",
+      actionHref: "/reports?report=occupancy&status=vacant",
+      actionLabel: "Open vacancy report",
       detail: `${vacantUnits.length} units do not have an active lease link. Check whether they are truly vacant or missing lease data.`,
       headline: "Vacancy and lease links are the main operating risk.",
       tone: "warning" as const,
@@ -465,7 +468,7 @@ function buildAttentionItems({
       ? {
           count: vacantUnits.length,
           helper: "No active lease link",
-          href: "/units?status=vacant",
+          href: "/reports?report=occupancy&status=vacant",
           label: "Units without active lease",
           tone: "warning",
         }
@@ -530,7 +533,7 @@ function buildOccupancyByProperty({
       ).length;
 
       return {
-        href: `/units?propertyId=${property.id}`,
+        href: `/reports?report=occupancy&status=vacant&propertyId=${property.id}`,
         label: `${property.code} / ${property.name}`,
         occupiedUnits,
         percent:

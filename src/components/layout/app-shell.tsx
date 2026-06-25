@@ -21,6 +21,7 @@ import {
   PanelLeftOpen,
   ScrollText,
   Settings,
+  Upload,
   Users,
   Workflow,
   Wrench,
@@ -64,6 +65,7 @@ const navGroups: NavGroup[] = [
       { href: "/units", label: "Units", icon: Home },
       { href: "/timeline", label: "Timeline", icon: ListTree },
       { href: "/documents", label: "Documents", icon: FolderOpen, badge: "Draft" },
+      { href: "/import", label: "Import data", icon: Upload },
     ],
   },
   {
@@ -143,6 +145,7 @@ const mobilePrimaryItems = [
       "/tenants",
       "/ledger",
       "/documents",
+      "/import",
       "/reports",
       ...futureModuleHrefs,
     ],
@@ -194,7 +197,7 @@ export function AppShell({
     <div className="min-h-screen bg-background">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 hidden flex-col border-r border-border bg-white transition-[width] duration-200 lg:flex",
+          "fixed inset-y-0 left-0 hidden flex-col border-r border-border bg-white transition-[width] duration-200 print:hidden lg:flex",
           sidebarCollapsed ? "w-16" : "w-56",
         )}
       >
@@ -374,11 +377,11 @@ export function AppShell({
 
       <main
         className={cn(
-          "min-h-screen transition-[margin-left] duration-200",
+          "min-h-screen transition-[margin-left] duration-200 print:ml-0",
           sidebarCollapsed ? "lg:ml-16" : "lg:ml-56",
         )}
       >
-        <div className="border-b border-border bg-white lg:hidden">
+        <div className="border-b border-border bg-white print:hidden lg:hidden">
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <div className="flex min-w-0 items-center gap-3">
               <div className="min-w-0">
