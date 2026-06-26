@@ -245,7 +245,7 @@ DECLARE
   normalized_direction text := lower(trim(p_direction));
   timeline_cost_amount numeric;
   timeline_cost_currency public.currency_code;
-  timeline_event_type public.timeline_event_type := 'General Note';
+  timeline_event_type public.timeline_event_type := 'General Note'::public.timeline_event_type;
   timeline_title text;
 BEGIN
   IF (SELECT auth.uid()) IS NULL THEN
@@ -308,11 +308,11 @@ BEGIN
     timeline_cost_currency := p_currency;
 
     IF lower(normalized_category) = 'maintenance' THEN
-      timeline_event_type := 'Maintenance';
+      timeline_event_type := 'Maintenance'::public.timeline_event_type;
     ELSIF lower(normalized_category) = 'repair' THEN
-      timeline_event_type := 'Repair';
+      timeline_event_type := 'Repair'::public.timeline_event_type;
     ELSIF lower(normalized_category) = 'renovation' THEN
-      timeline_event_type := 'Renovation';
+      timeline_event_type := 'Renovation'::public.timeline_event_type;
     END IF;
   END IF;
 

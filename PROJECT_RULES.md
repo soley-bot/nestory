@@ -73,8 +73,8 @@ Current local CLI status:
 
 - Node.js: `v24.8.0`
 - npm: `11.6.0`
-- Vercel CLI: `54.14.0`, logged in
-- Supabase CLI: available through `npx supabase`, verified at `2.106.0`
+- Vercel CLI: `54.17.3`, logged in
+- Supabase CLI: available through `npx supabase`, verified at `2.108.0`
 - Docker CLI/Engine: `29.5.3`
 
 Docker Desktop must be running before Supabase local commands such as `npm run supabase:start`, `npm run db:lint`, or `npm run db:reset`.
