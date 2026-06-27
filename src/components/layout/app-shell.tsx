@@ -136,19 +136,20 @@ const mobilePrimaryItems = [
   { href: "/units", label: "Units", icon: Home },
   { href: "/timeline", label: "Timeline", icon: ListTree },
   { href: "/leases", label: "Leases", icon: ScrollText },
+] satisfies NavItem[];
+
+const mobileMoreItems = [
+  { href: "/people", label: "People", icon: Users, activeHrefs: ["/tenants"] },
+  { href: "/ledger", label: "Ledger", icon: Landmark },
+  { href: "/documents", label: "Documents", icon: FolderOpen, badge: "Draft" },
+  { href: "/import", label: "Import data", icon: Upload },
+  { href: "/reports", label: "Reports", icon: FileText, badge: "Draft" },
   {
     href: "/roadmap",
-    label: "More",
-    icon: MoreHorizontal,
-    activeHrefs: [
-      "/people",
-      "/tenants",
-      "/ledger",
-      "/documents",
-      "/import",
-      "/reports",
-      ...futureModuleHrefs,
-    ],
+    label: "Roadmap",
+    icon: ClipboardList,
+    badge: "Planned",
+    activeHrefs: futureModuleHrefs,
   },
 ] satisfies NavItem[];
 
@@ -190,7 +191,11 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const isSettingsActive = isNavItemActive(pathname, settingsItem);
+  const isMobileMoreActive = mobileMoreItems.some((item) =>
+    isNavItemActive(pathname, item),
+  );
   const sidebarToggleLabel = sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
 
   return (
@@ -325,7 +330,9 @@ export function AppShell({
                       prefetch={false}
                     >
                       <Icon className="shrink-0" size={15} />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                          {item.label}
+                        </span>
                     </Link>
                   );
                 })}
@@ -431,6 +438,7 @@ export function AppShell({
                   )}
                   href={item.href}
                   key={item.href}
+                  onNavigate={() => setMobileMoreOpen(false)}
                   prefetch={false}
                 >
                   <Icon size={15} />
@@ -438,6 +446,63 @@ export function AppShell({
                 </Link>
               );
             })}
+            <div className="relative shrink-0">
+              <button
+                aria-expanded={mobileMoreOpen}
+                aria-haspopup="menu"
+                className={cn(
+                  "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
+                  isMobileMoreActive || mobileMoreOpen
+                    ? "bg-accent-soft text-foreground"
+                    : "hover:bg-surface-muted hover:text-foreground",
+                )}
+                onClick={() => setMobileMoreOpen((open) => !open)}
+                type="button"
+              >
+                <MoreHorizontal size={15} />
+                More
+                <ChevronDown
+                  className={cn(
+                    "transition-transform",
+                    mobileMoreOpen && "rotate-180",
+                  )}
+                  size={13}
+                />
+              </button>
+              {mobileMoreOpen ? (
+                <div
+                  className="absolute right-0 top-11 z-30 w-56 rounded-md border border-border bg-white p-2 shadow-lg"
+                  role="menu"
+                >
+                  {mobileMoreItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = isNavItemActive(pathname, item);
+
+                    return (
+                      <Link
+                        className={cn(
+                          "flex min-h-9 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted transition-colors",
+                          isActive
+                            ? "bg-accent-soft text-foreground"
+                            : "hover:bg-surface-muted hover:text-foreground",
+                        )}
+                        href={item.href}
+                        key={item.href}
+                        onNavigate={() => setMobileMoreOpen(false)}
+                        prefetch={false}
+                        role="menuitem"
+                      >
+                        <Icon className="shrink-0" size={15} />
+                        <span className="min-w-0 flex-1 truncate">
+                          {item.label}
+                        </span>
+                        {item.badge ? <NavBadgeLabel badge={item.badge} /> : null}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           </nav>
         </div>
         {children}
