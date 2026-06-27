@@ -571,6 +571,7 @@ function revalidateLeasePaths(
   leaseId?: string | null,
 ) {
   revalidatePath("/overview");
+  revalidatePath("/documents");
   revalidatePath("/leases");
   revalidatePath("/ledger");
   revalidatePath("/reports");

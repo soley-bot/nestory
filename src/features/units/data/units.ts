@@ -5,6 +5,9 @@ import {
   buildUnitDetail,
   buildUnitSummary,
   selectCurrentLease,
+  type UnitDocumentRecord,
+  type UnitLeaseRecord,
+  type UnitPersonRecord,
   type UnitTimelineRecord,
 } from "@/features/units/data/unit-summary";
 import {
@@ -23,13 +26,17 @@ const unitSelect =
   "id, property_id, unit_number, floor, size_sqm, status, current_rent_amount, current_rent_currency, archived_at";
 const propertySelect = "id, code, name";
 const leaseSelect =
-  "id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
-const timelineContextSelect = "id, unit_id, event_date, event_type, title";
-const ledgerTotalsSelect = "unit_id, direction, amount, currency";
+  "id, unit_id, tenant_name, primary_tenant_person_id, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
+const timelineContextSelect =
+  "id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency";
+const ledgerTotalsSelect =
+  "id, unit_id, transaction_date, direction, category, amount, currency";
 const recentLedgerSelect =
   "id, unit_id, transaction_date, direction, category, amount, currency, description";
+const documentSelect =
+  "id, lease_id, ledger_entry_id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
 const listTimelineContextLimit = 1000;
-const detailRecordLimit = 8;
+const detailRecordLimit = 12;
 const unitRelationshipBatchSize = 75;
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -218,11 +225,12 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       .is("archived_at", null),
     supabase
       .from("documents")
-      .select("id", { count: "exact" })
+      .select(documentSelect, { count: "exact" })
       .eq("organization_id", organizationId)
       .eq("unit_id", unit.id)
       .is("archived_at", null)
-      .limit(1),
+      .order("uploaded_at", { ascending: false })
+      .limit(detailRecordLimit),
   ]);
 
   if (propertyResult.error) {
@@ -250,7 +258,11 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
   }
 
   const activeLease = selectCurrentLease(leasesResult.data ?? []);
-  const currencySettings = await getOrganizationCurrencySettings(organizationId);
+  const [currencySettings, documents, people] = await Promise.all([
+    getOrganizationCurrencySettings(organizationId),
+    addSignedDocumentUrls(documentsResult.data ?? [], supabase),
+    getActiveLeasePeople(supabase, organizationId, activeLease),
+  ]);
 
   return buildUnitDetail({
     activeLease,
@@ -260,12 +272,84 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
     },
     currencySettings,
+    documents,
     ledgerEntries: ledgerTotalsResult.data ?? [],
+    people,
     property: propertyResult.data ?? undefined,
     recentLedgerEntries: ledgerResult.data ?? [],
     recentTimelineEvents: timelineResult.data ?? [],
     unit,
   });
+}
+
+async function getActiveLeasePeople(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  activeLease?: UnitLeaseRecord,
+): Promise<UnitPersonRecord[]> {
+  if (!activeLease) {
+    return [];
+  }
+
+  const personIds = new Set(
+    activeLease.primary_tenant_person_id
+      ? [activeLease.primary_tenant_person_id]
+      : [],
+  );
+  const partiesResult = await supabase
+    .from("lease_parties")
+    .select("person_id")
+    .eq("organization_id", organizationId)
+    .eq("lease_id", activeLease.id)
+    .is("archived_at", null);
+
+  if (partiesResult.error) {
+    throw new Error(
+      `Could not load unit tenant links: ${partiesResult.error.message}`,
+    );
+  }
+
+  for (const party of partiesResult.data ?? []) {
+    if (party.person_id) {
+      personIds.add(party.person_id);
+    }
+  }
+
+  if (personIds.size === 0) {
+    return [];
+  }
+
+  const peopleResult = await supabase
+    .from("people")
+    .select("id, display_name, primary_email, primary_phone")
+    .eq("organization_id", organizationId)
+    .in("id", [...personIds])
+    .is("archived_at", null)
+    .order("display_name", { ascending: true });
+
+  if (peopleResult.error) {
+    throw new Error(`Could not load unit tenant people: ${peopleResult.error.message}`);
+  }
+
+  return peopleResult.data ?? [];
+}
+
+async function addSignedDocumentUrls(
+  rows: UnitDocumentRecord[],
+  supabase: SupabaseServerClient,
+): Promise<UnitDocumentRecord[]> {
+  return Promise.all(
+    rows.map(async (row) => {
+      const { data } = await supabase.storage
+        .from("nestory-documents")
+        .createSignedUrl(row.storage_path, 60 * 60);
+
+      return {
+        ...row,
+        url: data?.signedUrl,
+      };
+    }),
+  );
 }
 
 function indexById<T extends { id: string }>(rows: T[]) {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildUnitDetail,
+  buildUnitDetailHrefs,
+  buildUnitFinancialSummary,
   buildUnitSummary,
   formatLeaseStatus,
   formatUnitStatus,
@@ -33,6 +35,7 @@ const lease = {
   lease_start_date: "2026-02-01",
   monthly_rent_amount: 850,
   monthly_rent_currency: "USD" as const,
+  primary_tenant_person_id: "person-1",
   status: "active",
   tenant_name: "Dara Tenant",
   unit_id: unit.id,
@@ -100,7 +103,49 @@ describe("buildUnitDetail", () => {
           ledgerEntries: 3,
           timelineEvents: 4,
         },
-        ledgerEntries: [],
+        documents: [
+          {
+            category: "Receipt",
+            file_name: "ac-repair.pdf",
+            id: "doc-1",
+            lease_id: null,
+            ledger_entry_id: "entry-1",
+            mime_type: "application/pdf",
+            size_bytes: 2048,
+            storage_path: "org/ledger/entry-1/ac-repair.pdf",
+            timeline_event_id: null,
+            uploaded_at: "2026-06-04",
+            url: "https://signed.example/doc-1",
+          },
+        ],
+        ledgerEntries: [
+          {
+            amount: 900,
+            category: "Rent",
+            currency: "USD",
+            direction: "income",
+            id: "entry-income",
+            transaction_date: "2026-06-01",
+            unit_id: unit.id,
+          },
+          {
+            amount: 75,
+            category: "Maintenance",
+            currency: "USD",
+            direction: "expense",
+            id: "entry-expense",
+            transaction_date: "2026-06-03",
+            unit_id: unit.id,
+          },
+        ],
+        people: [
+          {
+            display_name: "Dara Tenant",
+            id: "person-1",
+            primary_email: "dara@example.com",
+            primary_phone: null,
+          },
+        ],
         property,
         recentLedgerEntries: [
           {
@@ -119,6 +164,7 @@ describe("buildUnitDetail", () => {
             event_date: "2026-06-02",
             event_type: "Repair",
             id: "event-2",
+            ledger_entry_id: "entry-1",
             title: "AC repair",
             unit_id: unit.id,
           },
@@ -128,6 +174,7 @@ describe("buildUnitDetail", () => {
     ).toMatchObject({
       activeLease: {
         monthlyRentLabel: "USD 850.00",
+        personId: "person-1",
         statusLabel: "Active",
         tenantName: "Dara Tenant",
       },
@@ -135,6 +182,27 @@ describe("buildUnitDetail", () => {
         documents: 2,
         ledgerEntries: 3,
         timelineEvents: 4,
+      },
+      documents: [
+        {
+          fileName: "ac-repair.pdf",
+          linkedRecordHref: "/ledger?archiveState=all&entryId=entry-1",
+          linkedRecordLabel: "Ledger entry",
+          url: "https://signed.example/doc-1",
+        },
+      ],
+      financialSummary: {
+        expenseUsd: 75,
+        incomeUsd: 900,
+        maintenanceRatioLabel: "100% of expenses",
+        noiUsd: 825,
+        rentRevenueUsd: 900,
+      },
+      hrefs: {
+        addLease:
+          "/leases?action=create&propertyId=property-1&source=vacancy&unitId=unit-1",
+        ledger: "/ledger?propertyId=property-1&query=12A",
+        timeline: "/timeline?propertyId=property-1&unitId=unit-1",
       },
       recentLedgerEntries: [
         {
@@ -147,9 +215,87 @@ describe("buildUnitDetail", () => {
         {
           eventType: "Repair",
           title: "AC repair",
+          unitId: unit.id,
         },
       ],
       sizeLabel: "55.25 sqm",
+      tenantLinks: [
+        {
+          contactLabel: "dara@example.com",
+          href: "/people?archiveState=all&personId=person-1",
+        },
+      ],
+    });
+  });
+});
+
+describe("buildUnitFinancialSummary", () => {
+  it("calculates trailing revenue, expenses, NOI, and repair ratio", () => {
+    const summary = buildUnitFinancialSummary({
+      currentDate: new Date("2026-06-28T00:00:00.000Z"),
+      ledgerEntries: [
+        {
+          amount: 1000,
+          category: "Rent",
+          currency: "USD",
+          direction: "income",
+          transaction_date: "2026-06-01",
+          unit_id: unit.id,
+        },
+        {
+          amount: 250,
+          category: "Repair",
+          currency: "USD",
+          direction: "expense",
+          transaction_date: "2026-06-10",
+          unit_id: unit.id,
+        },
+        {
+          amount: 500,
+          category: "Old repair",
+          currency: "USD",
+          direction: "expense",
+          transaction_date: "2024-01-01",
+          unit_id: unit.id,
+        },
+      ],
+    });
+
+    expect(summary).toMatchObject({
+      expenseUsd: 250,
+      incomeUsd: 1000,
+      maintenanceExpenseUsd: 250,
+      maintenanceRatioLabel: "100% of expenses",
+      marginLabel: "75% NOI margin",
+      noiUsd: 750,
+      rentRevenueUsd: 1000,
+    });
+    expect(summary.noiDisplay.primary).toBe("USD 750.00");
+  });
+});
+
+describe("buildUnitDetailHrefs", () => {
+  it("builds supported linked-record and create-intent hrefs", () => {
+    expect(
+      buildUnitDetailHrefs({
+        activeLease: lease,
+        tenantLinks: [
+          {
+            contactLabel: "dara@example.com",
+            displayName: "Dara Tenant",
+            href: "/people?archiveState=all&personId=person-1",
+            id: "person-1",
+            roleLabel: "Tenant",
+          },
+        ],
+        unit,
+      }),
+    ).toMatchObject({
+      addLedgerEntry: "/ledger?action=create&propertyId=property-1&query=12A",
+      addTimelineEvent: "/timeline?action=create&propertyId=property-1&unitId=unit-1",
+      lease: "/leases?archiveState=all&leaseId=lease-1",
+      property: "/properties/property-1",
+      tenantPerson: "/people?archiveState=all&personId=person-1",
     });
   });
 });

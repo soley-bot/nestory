@@ -345,6 +345,8 @@ function revalidateUnitPaths(
 ) {
   revalidatePath("/overview");
   revalidatePath("/ledger");
+  revalidatePath("/leases");
+  revalidatePath("/documents");
   revalidatePath("/reports");
   revalidatePath("/timeline");
   revalidatePath("/units");

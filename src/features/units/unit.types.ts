@@ -1,4 +1,5 @@
 import type { TimelineEventType } from "@/features/timeline/timeline.types";
+import type { LinkedDocument } from "@/features/documents/document.types";
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
 export type UnitBadgeTone = "neutral" | "success" | "warning" | "danger" | "accent";
@@ -47,16 +48,23 @@ export type UnitLeaseSummary = {
   endDate: string;
   monthlyRentDisplay: MoneyDisplayValue;
   monthlyRentLabel: string;
+  personId?: string;
   startDate: string;
   statusLabel: string;
   tenantName: string;
 };
 
 export type UnitTimelineContext = {
+  costDisplay?: MoneyDisplayValue;
+  costLabel?: string;
+  description: string;
   eventDate: string;
   eventType: TimelineEventType;
   id: string;
+  ledgerEntryId?: string;
+  leaseId?: string;
   title: string;
+  unitId?: string;
 };
 
 export type UnitLedgerContext = {
@@ -75,6 +83,63 @@ export type UnitRecordCounts = {
   documents: number;
   ledgerEntries: number;
   timelineEvents: number;
+};
+
+export type UnitPersonLink = {
+  contactLabel: string;
+  displayName: string;
+  href: string;
+  id: string;
+  roleLabel: string;
+};
+
+export type UnitDocumentContext = LinkedDocument & {
+  linkedRecordHref?: string;
+  linkedRecordLabel: string;
+};
+
+export type UnitFinancialSummary = {
+  expenseDisplay: MoneyDisplayValue;
+  expenseUsd: number;
+  incomeDisplay: MoneyDisplayValue;
+  incomeUsd: number;
+  maintenanceExpenseDisplay: MoneyDisplayValue;
+  maintenanceExpenseUsd: number;
+  maintenanceRatioLabel: string;
+  marginLabel: string;
+  noiDisplay: MoneyDisplayValue;
+  noiUsd: number;
+  periodLabel: string;
+  rentRevenueDisplay: MoneyDisplayValue;
+  rentRevenueUsd: number;
+};
+
+export type UnitHealthIndicator = {
+  description: string;
+  id: string;
+  label: string;
+  tone: UnitBadgeTone;
+};
+
+export type UnitRepairAction = {
+  description: string;
+  href: string;
+  label: string;
+  tone: UnitBadgeTone;
+};
+
+export type UnitDetailHrefs = {
+  addLease: string;
+  addLedgerEntry: string;
+  addTimelineEvent: string;
+  documents: string;
+  ledger: string;
+  lease?: string;
+  leases: string;
+  property: string;
+  repairAction: string;
+  tenantPerson?: string;
+  timeline: string;
 };
 
 export type UnitPagination = {
@@ -124,7 +189,13 @@ export type UnitSummary = {
 export type UnitDetail = UnitSummary & {
   activeLease?: UnitLeaseSummary;
   counts: UnitRecordCounts;
+  documents: UnitDocumentContext[];
+  financialSummary: UnitFinancialSummary;
+  healthIndicators: UnitHealthIndicator[];
+  hrefs: UnitDetailHrefs;
+  repairAction: UnitRepairAction;
   recentLedgerEntries: UnitLedgerContext[];
   recentTimelineEvents: UnitTimelineContext[];
   sizeLabel: string;
+  tenantLinks: UnitPersonLink[];
 };

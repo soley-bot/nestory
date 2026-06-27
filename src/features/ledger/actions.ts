@@ -144,7 +144,7 @@ export async function createLedgerEntryAction(
     };
   }
 
-  revalidateLedgerPaths();
+  revalidateLedgerPaths({ unitIds: [unitId] });
 
   return {
     message: "Ledger entry added.",
@@ -184,6 +184,11 @@ export async function updateLedgerEntryAction(
 
   const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
   const supabase = await createSupabaseServerClient();
+  const pathContext = await getLedgerPathContext(
+    supabase,
+    context.organizationId,
+    parsedEntryId.data,
+  );
   const { error } = await supabase.rpc("update_ledger_entry", {
     p_amount: Number(parsed.data.amount),
     p_category: parsed.data.category,
@@ -204,7 +209,7 @@ export async function updateLedgerEntryAction(
     };
   }
 
-  revalidateLedgerPaths();
+  revalidateLedgerPaths({ unitIds: [pathContext?.unit_id, unitId] });
 
   return {
     message: "Ledger entry updated.",
@@ -229,6 +234,11 @@ export async function archiveLedgerEntryAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const pathContext = await getLedgerPathContext(
+    supabase,
+    context.organizationId,
+    parsedEntryId.data,
+  );
   const { error } = await supabase.rpc("archive_ledger_entry", {
     p_entry_id: parsedEntryId.data,
     p_organization_id: context.organizationId,
@@ -241,7 +251,7 @@ export async function archiveLedgerEntryAction(
     };
   }
 
-  revalidateLedgerPaths();
+  revalidateLedgerPaths({ unitIds: [pathContext?.unit_id] });
 
   return {
     message: "Ledger entry archived.",
@@ -266,6 +276,11 @@ export async function restoreLedgerEntryAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const pathContext = await getLedgerPathContext(
+    supabase,
+    context.organizationId,
+    parsedEntryId.data,
+  );
   const { error } = await supabase.rpc("restore_ledger_entry", {
     p_entry_id: parsedEntryId.data,
     p_organization_id: context.organizationId,
@@ -278,7 +293,7 @@ export async function restoreLedgerEntryAction(
     };
   }
 
-  revalidateLedgerPaths();
+  revalidateLedgerPaths({ unitIds: [pathContext?.unit_id] });
 
   return {
     message: "Ledger entry restored.",
@@ -454,7 +469,7 @@ export async function attachLedgerReceiptAction(
     };
   }
 
-  revalidateLedgerPaths({ includeDocuments: true });
+  revalidateLedgerPaths({ includeDocuments: true, unitIds: [entry.unit_id] });
 
   return {
     message: "Receipt attached.",
@@ -470,19 +485,37 @@ function ledgerActionErrorMessage(message: string) {
   return "We could not save the ledger entry. Please check the fields and try again.";
 }
 
+async function getLedgerPathContext(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  entryId: string,
+) {
+  const { data } = await supabase
+    .from("ledger_entries")
+    .select("unit_id")
+    .eq("id", entryId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  return data;
+}
+
 function revalidateLedgerPaths({
   includeDocuments = false,
   includeProperties = true,
   includeReports = true,
   includeUnits = true,
+  unitIds = [],
 }: {
   includeDocuments?: boolean;
   includeProperties?: boolean;
   includeReports?: boolean;
   includeUnits?: boolean;
+  unitIds?: Array<string | null | undefined>;
 } = {}) {
   revalidatePath("/overview");
   revalidatePath("/ledger");
+  revalidatePath("/leases");
   revalidatePath("/timeline");
 
   if (includeDocuments) {
@@ -499,5 +532,9 @@ function revalidateLedgerPaths({
 
   if (includeUnits) {
     revalidatePath("/units");
+  }
+
+  for (const unitId of new Set(unitIds.filter(Boolean))) {
+    revalidatePath(`/units/${unitId}`);
   }
 }

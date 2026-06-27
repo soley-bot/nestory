@@ -36,6 +36,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "playwright": "^1.61.1",
     "supabase": "^2.108.0",
     "tailwindcss": "^4",
     "typescript": "^5",

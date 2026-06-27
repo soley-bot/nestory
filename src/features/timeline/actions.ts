@@ -166,7 +166,7 @@ export async function createTimelineEventAction(
     };
   }
 
-  revalidateTimelinePaths();
+  revalidateTimelinePaths({ unitIds: [unitId] });
 
   return {
     message: "Timeline event added.",
@@ -212,6 +212,11 @@ export async function updateTimelineEventAction(
       : null;
   const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
   const supabase = await createSupabaseServerClient();
+  const pathContext = await getTimelinePathContext(
+    supabase,
+    context.organizationId,
+    parsedEventId.data,
+  );
   const { error } = await supabase.rpc("update_timeline_event", {
     p_cost_amount: costAmount,
     p_cost_currency: costCurrency,
@@ -232,7 +237,7 @@ export async function updateTimelineEventAction(
     };
   }
 
-  revalidateTimelinePaths();
+  revalidateTimelinePaths({ unitIds: [pathContext?.unit_id, unitId] });
 
   return {
     message: "Timeline event updated.",
@@ -257,6 +262,11 @@ export async function archiveTimelineEventAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const pathContext = await getTimelinePathContext(
+    supabase,
+    context.organizationId,
+    parsedEventId.data,
+  );
   const { error } = await supabase.rpc("archive_timeline_event", {
     p_event_id: parsedEventId.data,
     p_organization_id: context.organizationId,
@@ -269,7 +279,7 @@ export async function archiveTimelineEventAction(
     };
   }
 
-  revalidateTimelinePaths();
+  revalidateTimelinePaths({ unitIds: [pathContext?.unit_id] });
 
   return {
     message: "Timeline event archived.",
@@ -294,6 +304,11 @@ export async function restoreTimelineEventAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const pathContext = await getTimelinePathContext(
+    supabase,
+    context.organizationId,
+    parsedEventId.data,
+  );
   const { error } = await supabase.rpc("restore_timeline_event", {
     p_event_id: parsedEventId.data,
     p_organization_id: context.organizationId,
@@ -306,7 +321,7 @@ export async function restoreTimelineEventAction(
     };
   }
 
-  revalidateTimelinePaths();
+  revalidateTimelinePaths({ unitIds: [pathContext?.unit_id] });
 
   return {
     message: "Timeline event restored.",
@@ -432,10 +447,10 @@ export async function attachTimelineDocumentAction(
     };
   }
 
-  revalidatePath("/timeline");
-  revalidatePath("/ledger");
-  revalidatePath("/documents");
-  revalidatePath("/overview");
+  revalidateTimelinePaths({
+    includeDocuments: true,
+    unitIds: [event.unit_id],
+  });
 
   return {
     message: "Document attached.",
@@ -443,13 +458,43 @@ export async function attachTimelineDocumentAction(
   };
 }
 
-function revalidateTimelinePaths() {
+async function getTimelinePathContext(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  eventId: string,
+) {
+  const { data } = await supabase
+    .from("timeline_events")
+    .select("unit_id")
+    .eq("id", eventId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  return data;
+}
+
+function revalidateTimelinePaths({
+  includeDocuments = false,
+  unitIds = [],
+}: {
+  includeDocuments?: boolean;
+  unitIds?: Array<string | null | undefined>;
+} = {}) {
   revalidatePath("/overview");
   revalidatePath("/timeline");
   revalidatePath("/properties");
   revalidatePath("/units");
   revalidatePath("/ledger");
+  revalidatePath("/leases");
   revalidatePath("/reports");
+
+  if (includeDocuments) {
+    revalidatePath("/documents");
+  }
+
+  for (const unitId of new Set(unitIds.filter(Boolean))) {
+    revalidatePath(`/units/${unitId}`);
+  }
 }
 
 function timelineActionErrorMessage(message: string) {
