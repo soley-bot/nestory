@@ -64,7 +64,13 @@ export function PropertiesTable({
 
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-          <div className="max-h-[min(680px,calc(100vh-260px))] overflow-auto">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-muted px-3 py-2 text-xs text-muted">
+            <span>Single-click a row to preview it in the inspector.</span>
+            <span className="font-medium text-foreground">
+              Use Open to view the full record.
+            </span>
+          </div>
+          <div className="max-h-[min(680px,calc(100vh-300px))] overflow-auto">
             <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
                 <col className="w-[18%]" />
@@ -72,8 +78,8 @@ export function PropertiesTable({
                 <col className="w-[12%]" />
                 <col className="w-[16%]" />
                 <col className="w-[6%]" />
-                <col className="w-[27%]" />
-                <col className="w-[13%]" />
+                <col className="w-[25%]" />
+                <col className="w-[15%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -259,7 +265,10 @@ function PropertyStatusBadges({
   compact?: boolean;
   property: PropertySummary;
 }) {
-  const badgeClassName = compact ? "px-2 text-xs" : undefined;
+  const badgeClassName = cn(
+    "border-2 px-2.5 py-1 text-xs font-semibold shadow-sm",
+    !compact && "backdrop-blur",
+  );
 
   return (
     <div
@@ -293,9 +302,10 @@ function PropertyActions({
   onRestoreProperty: (property: PropertySummary) => void;
   property: PropertySummary;
 }) {
-  const wrapperClassName = cn("flex justify-center gap-0.5", className);
+  const wrapperClassName = cn("flex justify-center gap-1", className);
   const buttonClassName =
-    "inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50";
+    "inline-flex h-[28px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50";
+  const iconButtonClassName = cn(buttonClassName, "w-[28px]");
 
   return (
     <div
@@ -304,18 +314,19 @@ function PropertyActions({
     >
       <Link
         aria-label={`Open ${property.name}`}
-        className={cn(buttonClassName, "hover:text-foreground")}
+        className="inline-flex h-[28px] items-center gap-1 rounded-md border border-border bg-white px-2 text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-accent hover:text-accent"
         href={`/properties/${property.id}`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
         title="Open property"
       >
-        <ExternalLink size={14} />
+        <ExternalLink size={13} />
+        Open
       </Link>
       {property.isArchived ? (
         <button
           aria-label={`Restore ${property.name}`}
-          className={cn(buttonClassName, "hover:text-accent")}
+          className={cn(iconButtonClassName, "hover:text-accent")}
           onClick={(event) => {
             event.stopPropagation();
             onRestoreProperty(property);
@@ -329,7 +340,7 @@ function PropertyActions({
         <>
           <button
             aria-label={`Edit ${property.name}`}
-            className={cn(buttonClassName, "hover:text-foreground")}
+            className={cn(iconButtonClassName, "hover:text-foreground")}
             onClick={(event) => {
               event.stopPropagation();
               onEditProperty(property);
@@ -341,7 +352,7 @@ function PropertyActions({
           </button>
           <button
             aria-label={`Archive ${property.name}`}
-            className={cn(buttonClassName, "hover:text-danger")}
+            className={cn(iconButtonClassName, "hover:text-danger")}
             onClick={(event) => {
               event.stopPropagation();
               onArchiveProperty(property);

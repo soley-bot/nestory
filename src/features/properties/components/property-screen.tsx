@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -78,12 +78,13 @@ export function PropertyScreen({
 
       {statusMessage ? (
         <div className="px-4 pt-5 sm:px-6 lg:px-8">
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+          <div
+            className="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 px-3.5 py-3 text-sm text-success shadow-sm"
             role="status"
           >
-            {statusMessage}
-          </p>
+            <CheckCircle2 className="mt-0.5 shrink-0" size={16} />
+            <p className="font-medium text-foreground">{statusMessage}</p>
+          </div>
         </div>
       ) : null}
 

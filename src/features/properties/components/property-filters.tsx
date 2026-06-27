@@ -44,11 +44,15 @@ export function PropertyFilters({
     source: viewQuery.query,
     value: viewQuery.query,
   });
-  const hasAdvancedFilters =
-    viewQuery.status !== "all" ||
-    viewQuery.archiveState !== "active" ||
-    viewQuery.sort !== DEFAULT_PROPERTY_SORT ||
-    viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE;
+  const activeFilters = [
+    viewQuery.status !== "all",
+    viewQuery.archiveState !== "active",
+    viewQuery.sort !== DEFAULT_PROPERTY_SORT,
+    viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE,
+  ].filter(Boolean).length;
+  const hasSearchQuery = viewQuery.query.trim().length > 0;
+  const hasAdvancedFilters = activeFilters > 0;
+  const hasAnyFilters = hasSearchQuery || hasAdvancedFilters;
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
@@ -124,24 +128,69 @@ export function PropertyFilters({
             <Button
               aria-controls="property-advanced-search"
               aria-expanded={advancedOpen}
-              className="h-8 w-full gap-1.5 px-2.5 sm:w-auto"
+              className={cn(
+                "h-8 w-full gap-1.5 px-2.5 sm:w-auto",
+                hasAdvancedFilters &&
+                  "border-accent bg-accent-soft text-accent hover:bg-accent-soft",
+              )}
               onClick={() => setAdvancedOpen((open) => !open)}
               type="button"
             >
               <SlidersHorizontal size={14} />
-              Filters
+              <span>Filters</span>
+              {activeFilters > 0 ? (
+                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                  {activeFilters}
+                </span>
+              ) : null}
             </Button>
             <Link
               aria-label="Reset property filters"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+              className={cn(
+                "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+                hasAnyFilters && "border-accent/40 text-accent",
+              )}
               href={pathname}
               scroll={false}
               title="Reset filters"
             >
               <RotateCcw size={14} />
+              <span className="hidden sm:inline">Reset</span>
             </Link>
           </div>
         </div>
+
+        {hasAnyFilters ? (
+          <div
+            aria-label="Active property filters"
+            className="flex flex-wrap items-center gap-1.5 text-xs"
+          >
+            {hasSearchQuery ? (
+              <FilterChip label="Search" value={viewQuery.query} />
+            ) : null}
+            {viewQuery.status !== "all" ? (
+              <FilterChip
+                label="Status"
+                value={formatFilterValue(viewQuery.status)}
+              />
+            ) : null}
+            {viewQuery.archiveState !== "active" ? (
+              <FilterChip
+                label="Archive"
+                value={formatFilterValue(viewQuery.archiveState)}
+              />
+            ) : null}
+            {viewQuery.sort !== DEFAULT_PROPERTY_SORT ? (
+              <FilterChip
+                label="Sort"
+                value={formatFilterValue(viewQuery.sort)}
+              />
+            ) : null}
+            {viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE ? (
+              <FilterChip label="Rows" value={String(viewQuery.pageSize)} />
+            ) : null}
+          </div>
+        ) : null}
 
         {advancedOpen ? (
           <div
@@ -207,6 +256,22 @@ export function PropertyFilters({
       </div>
     </div>
   );
+}
+
+function FilterChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-accent/20 bg-accent-soft px-2 py-1 text-accent">
+      <span className="font-semibold">{label}</span>
+      <span className="min-w-0 truncate text-foreground">{value}</span>
+    </span>
+  );
+}
+
+function formatFilterValue(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function ViewModeToggle({
