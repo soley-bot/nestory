@@ -97,11 +97,26 @@ export function SideDrawer({
 
       const firstFocusableElement = focusableElements[0];
       const lastFocusableElement = focusableElements[focusableElements.length - 1];
+      const activeElement =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const focusStartedOnDrawer = activeElement === drawerRef.current;
+      const focusStartedOutsideDrawer =
+        activeElement !== null && !drawerRef.current?.contains(activeElement);
 
-      if (event.shiftKey && document.activeElement === firstFocusableElement) {
+      if (
+        event.shiftKey &&
+        (focusStartedOnDrawer ||
+          focusStartedOutsideDrawer ||
+          activeElement === firstFocusableElement)
+      ) {
         event.preventDefault();
         lastFocusableElement.focus();
-      } else if (!event.shiftKey && document.activeElement === lastFocusableElement) {
+      } else if (
+        !event.shiftKey &&
+        (focusStartedOnDrawer ||
+          focusStartedOutsideDrawer ||
+          activeElement === lastFocusableElement)
+      ) {
         event.preventDefault();
         firstFocusableElement.focus();
       }
@@ -131,6 +146,7 @@ export function SideDrawer({
         aria-label="Close drawer"
         className="absolute inset-0 cursor-default"
         onClick={onClose}
+        tabIndex={-1}
         type="button"
       />
       <aside

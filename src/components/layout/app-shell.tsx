@@ -423,29 +423,34 @@ export function AppShell({
               </form>
             </div>
           </div>
-          <nav className="flex gap-2 overflow-x-auto px-4 pb-3">
-            {mobilePrimaryItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = isNavItemActive(pathname, item);
+          <div className="relative flex items-center gap-2 px-4 pb-3">
+            <nav
+              aria-label="Primary mobile navigation"
+              className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
+            >
+              {mobilePrimaryItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = isNavItemActive(pathname, item);
 
-              return (
-                <Link
-                  className={cn(
-                    "flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
-                    isActive
-                      ? "bg-accent-soft text-foreground"
-                      : "hover:bg-surface-muted hover:text-foreground",
-                  )}
-                  href={item.href}
-                  key={item.href}
-                  onNavigate={() => setMobileMoreOpen(false)}
-                  prefetch={false}
-                >
-                  <Icon size={15} />
-                  {item.label}
-                </Link>
-              );
-            })}
+                return (
+                  <Link
+                    className={cn(
+                      "flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
+                      isActive
+                        ? "bg-accent-soft text-foreground"
+                        : "hover:bg-surface-muted hover:text-foreground",
+                    )}
+                    href={item.href}
+                    key={item.href}
+                    onNavigate={() => setMobileMoreOpen(false)}
+                    prefetch={false}
+                  >
+                    <Icon size={15} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
             <div className="relative shrink-0">
               <button
                 aria-expanded={mobileMoreOpen}
@@ -503,7 +508,7 @@ export function AppShell({
                 </div>
               ) : null}
             </div>
-          </nav>
+          </div>
         </div>
         {children}
       </main>
