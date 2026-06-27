@@ -32,69 +32,80 @@ export function ReportsScreen({
 
   return (
     <div className="min-h-screen bg-background print:bg-white">
-      <PageHeader
-        actions={
-          <>
-            <a
-              className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted print:hidden"
-              href={buildCsvHref(viewQuery)}
-            >
-              <Download size={14} />
-              Export CSV
-            </a>
-            <PrintButton />
-          </>
-        }
-        description={
-          isProfitLoss
-            ? "Grouped income and expense detail for the selected accounting month."
-            : "A print-friendly unit availability report with vacant units sorted first."
-        }
-        title="Reports"
-      />
+      <div className="print:hidden">
+        <PageHeader
+          actions={
+            <>
+              <a
+                className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+                href={buildCsvHref(viewQuery)}
+              >
+                <Download size={14} />
+                Export CSV
+              </a>
+              <PrintButton />
+            </>
+          }
+          description={
+            isProfitLoss
+              ? "Grouped income and expense detail for the selected accounting month."
+              : "Printable available-unit list for the current filters."
+          }
+          title="Reports"
+        />
+      </div>
 
       <ReportsFilters propertyOptions={propertyOptions} viewQuery={viewQuery} />
 
-      <main className="space-y-4 px-4 py-5 sm:px-6 lg:p-8 print:p-0">
+      <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4 print:p-0">
         {isProfitLoss && profitLossReport ? (
           <ProfitLossReportView
             organizationName={organizationName}
             report={profitLossReport}
           />
         ) : (
-          <OccupancyReportView report={occupancyReport} />
+          <OccupancyReportView
+            organizationName={organizationName}
+            report={occupancyReport}
+          />
         )}
       </main>
     </div>
   );
 }
 
-function OccupancyReportView({ report }: { report?: OccupancyReport }) {
+function OccupancyReportView({
+  organizationName,
+  report,
+}: {
+  organizationName: string;
+  report?: OccupancyReport;
+}) {
   const rows = report?.rows ?? [];
 
   return (
     <>
-      <div className="grid gap-3 md:grid-cols-4 print:hidden">
-        <SummaryTile label="Units in scope" value={String(report?.totals.total ?? 0)} />
+      <div className="hidden grid-cols-2 gap-2 sm:grid md:grid-cols-4 print:hidden">
+        <SummaryTile label="Report rows" value={String(report?.totals.visible ?? 0)} />
         <SummaryTile label="Vacant" value={String(report?.totals.vacant ?? 0)} />
         <SummaryTile label="Occupied" value={String(report?.totals.occupied ?? 0)} />
         <SummaryTile label="Other status" value={String(report?.totals.other ?? 0)} />
       </div>
 
-      <section className="rounded-md border border-border bg-surface print:border-0">
-        <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+      <section className="rounded-md border border-border bg-surface print:border-0 print:bg-white">
+        <div className="flex flex-col gap-2 border-b border-border px-3 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-4 sm:py-4 print:block print:border-0 print:px-0 print:pb-3 print:pt-0 print:text-center">
           <div>
-            <div className="flex items-center gap-2">
-              <FileText className="text-accent" size={17} />
-              <h2 className="font-display text-xl font-semibold text-foreground">
-                Vacant Units Report
+            <div className="flex items-center gap-2 print:block">
+              <FileText className="text-accent print:hidden" size={17} />
+              <h2 className="text-base font-semibold text-foreground print:text-[18px] print:text-black">
+                Available Units - {organizationName}
               </h2>
             </div>
-            <p className="mt-1 text-[13px] text-muted">
-              Last update: {report ? formatDate(report.generatedAt) : "Not loaded"}
+            <p className="mt-1 text-xs text-foreground-muted sm:text-[13px] print:text-[12px] print:text-black">
+              {report ? `(Last Update: ${formatLongReportDate(report.generatedAt)})` : "Not loaded"}
             </p>
           </div>
-          <div className="text-[13px] text-muted">
+          <div className="hidden text-[13px] text-foreground-muted sm:block print:hidden">
             Showing{" "}
             <span className="font-medium text-foreground">
               {report?.totals.visible ?? 0}
@@ -103,12 +114,12 @@ function OccupancyReportView({ report }: { report?: OccupancyReport }) {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[280px] overflow-auto sm:max-h-[min(460px,calc(100vh-455px))] print:max-h-none print:overflow-visible">
           <table
             aria-label="Vacant units report"
-            className="min-w-[920px] w-full border-separate border-spacing-0 text-left text-[13px]"
+            className="min-w-[920px] w-full border-separate border-spacing-0 text-left text-[13px] print:min-w-0 print:border print:border-black print:text-[10px] print:text-black print:[&_td]:border print:[&_td]:border-black print:[&_td]:px-1.5 print:[&_td]:py-1.5 print:[&_th]:border print:[&_th]:border-black print:[&_th]:px-1.5 print:[&_th]:py-1 print:[&_thead_tr]:bg-white"
           >
-            <thead>
+            <thead className="sticky top-0 z-10 print:static">
               <tr className="bg-surface-muted text-[11px] font-semibold text-muted">
                 <th className="border-b border-border px-3 py-2">No.</th>
                 <th className="border-b border-border px-3 py-2">Property Name</th>
@@ -144,7 +155,9 @@ function OccupancyReportView({ report }: { report?: OccupancyReport }) {
 
         <div className="flex flex-col gap-1 border-t border-border px-4 py-3 text-[13px] sm:flex-row sm:items-center sm:justify-between">
           <strong>Total vacant units: {report?.totals.vacant ?? 0}</strong>
-          <span className="text-muted">Open a unit to continue into its record room.</span>
+          <span className="text-foreground-muted print:hidden">
+            Open a unit to continue into its record room.
+          </span>
         </div>
       </section>
     </>
@@ -159,8 +172,8 @@ function OccupancyReportTableRow({
   row: OccupancyReportRow;
 }) {
   return (
-    <tr className="align-top hover:bg-accent-soft/40">
-      <td className="border-b border-border px-3 py-2.5 text-muted">
+    <tr className="align-top hover:bg-surface-muted/70 print:break-inside-avoid print:hover:bg-white">
+      <td className="border-b border-border px-3 py-2.5 text-foreground-muted">
         {index + 1}
       </td>
       <td className="border-b border-border px-3 py-2.5 font-medium">
@@ -168,31 +181,33 @@ function OccupancyReportTableRow({
       </td>
       <td className="border-b border-border px-3 py-2.5">
         <Link
-          className="font-medium text-accent hover:text-accent-strong"
+          className="font-medium text-accent hover:text-accent-strong print:text-black"
           href={`/units/${row.id}`}
         >
           {row.unitNumber}
         </Link>
-        <span className="ml-2 text-muted">{row.floorLabel}</span>
+        {row.floorLabel !== "-" ? (
+          <span className="ml-2 text-foreground-muted">/ {row.floorLabel}</span>
+        ) : null}
       </td>
-      <td className="border-b border-border px-3 py-2.5 text-muted">
+      <td className="border-b border-border px-3 py-2.5 text-foreground-muted">
         {row.typeLabel}
       </td>
-      <td className="border-b border-border px-3 py-2.5 text-muted">
+      <td className="border-b border-border px-3 py-2.5 text-foreground-muted">
         {row.inclusionLabel}
       </td>
       <td className="border-b border-border px-3 py-2.5 text-right">
         {row.rentDisplay ? (
           <MoneyDisplay align="right" showSecondary={false} value={row.rentDisplay} />
         ) : (
-          <span className="text-muted">{row.rentLabel}</span>
+          <span className="text-foreground-muted">{row.rentLabel}</span>
         )}
       </td>
       <td className="border-b border-border px-3 py-2.5 font-medium">
         {row.propertyCode}
       </td>
-      <td className="max-w-[320px] border-b border-border px-3 py-2.5 leading-5 text-muted">
-        <Badge className="mb-1 mr-2 align-middle" tone={row.statusTone}>
+      <td className="max-w-[320px] border-b border-border px-3 py-2.5 leading-5 text-foreground-muted">
+        <Badge className="mb-1 mr-2 align-middle print:hidden" tone={row.statusTone}>
           {row.statusLabel}
         </Badge>
         {row.remark}
@@ -210,7 +225,7 @@ function ProfitLossReportView({
 }) {
   return (
     <>
-      <div className="grid gap-3 md:grid-cols-4 print:hidden">
+      <div className="hidden grid-cols-2 gap-2 sm:grid md:grid-cols-4 print:hidden">
         <SummaryTile
           label="Income"
           value={report.totalIncomeDisplay.primary}
@@ -226,25 +241,25 @@ function ProfitLossReportView({
         <SummaryTile label="Entries" value={String(report.entryCount)} />
       </div>
 
-      <div className="overflow-x-auto pb-6 print:overflow-visible print:pb-0">
-        <section className="min-w-[980px] rounded-md border border-border bg-white p-8 print:min-w-0 print:border-0 print:p-0">
-          <div className="flex items-start justify-between gap-8 border-b border-border pb-6">
+      <div className="max-h-[280px] overflow-auto pb-3 sm:max-h-[min(460px,calc(100vh-455px))] print:max-h-none print:overflow-visible print:pb-0">
+        <section className="min-w-[980px] rounded-md border border-border bg-surface p-5 print:min-w-0 print:border-0 print:bg-white print:p-0">
+          <div className="flex items-start justify-between gap-8 border-b border-border pb-4">
             <div>
-              <h2 className="font-display text-2xl font-semibold text-foreground">
+              <h2 className="text-base font-semibold text-foreground">
                 Profit and loss details
               </h2>
-              <p className="mt-4 text-lg font-medium text-muted">
+              <p className="mt-3 text-sm font-medium text-muted">
                 {report.periodLabel}
               </p>
-              <p className="mt-2 text-sm text-muted">
+              <p className="mt-1 text-[13px] text-muted">
                 Cash basis / generated {formatDate(report.generatedAt)}
               </p>
             </div>
             <div className="min-w-56 text-right">
-              <strong className="block font-display text-3xl font-semibold text-foreground">
+              <strong className="block text-base font-semibold text-foreground">
                 Nestory
               </strong>
-              <span className="mt-2 block text-sm text-muted">
+              <span className="mt-1 block text-[13px] text-muted">
                 {organizationName}
               </span>
             </div>
@@ -269,7 +284,7 @@ function ProfitLossReportView({
               <col className="w-[14%]" />
               <col className="w-[18%]" />
             </colgroup>
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-surface-muted text-[11px] font-semibold text-muted">
                 <th className="border-y border-l border-border px-3 py-2">Date</th>
                 <th className="border-y border-border px-3 py-2">Type</th>
@@ -331,7 +346,7 @@ function ProfitLossDirectionRows({
 }) {
   return (
     <>
-      <tr className="bg-[#e9edf5] font-semibold">
+      <tr className="bg-surface-muted font-semibold">
         <td className="border-b border-l border-r-4 border-border px-4 py-2" colSpan={6}>
           {group.label}
         </td>
@@ -409,7 +424,7 @@ function ProfitLossTotalRow({
   strong?: boolean;
 }) {
   return (
-    <tr className={cn("bg-[#e9edf5] font-semibold", strong && "font-bold")}>
+    <tr className={cn("bg-surface-muted font-semibold", strong && "font-bold")}>
       <td
         className="border-b border-l border-r-4 border-border px-8 py-2"
         colSpan={4}
@@ -426,9 +441,9 @@ function ProfitLossTotalRow({
 
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-border bg-surface px-4 py-3">
-      <p className="text-xs font-medium text-muted">{label}</p>
-      <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+    <div className="rounded-md border border-border bg-surface px-3 py-2">
+      <p className="text-xs font-medium text-foreground-muted">{label}</p>
+      <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">
         {value}
       </p>
     </div>
@@ -437,11 +452,27 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
 
 function ReportChip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-surface-muted px-3 text-sm">
+    <div className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-surface-muted px-2.5 text-[13px]">
       <strong>{label}:</strong>
-      <span className="text-muted">{value}</span>
+      <span className="text-foreground-muted">{value}</span>
     </div>
   );
+}
+
+function formatLongReportDate(value: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "long",
+    weekday: "long",
+    year: "numeric",
+  })
+    .formatToParts(new Date(value))
+    .reduce<Record<string, string>>((dateParts, part) => {
+      dateParts[part.type] = part.value;
+      return dateParts;
+    }, {});
+
+  return `${parts.weekday} ${parts.day} ${parts.month} ${parts.year}`;
 }
 
 function buildCsvHref(query: ReportsViewQuery) {

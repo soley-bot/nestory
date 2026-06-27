@@ -369,9 +369,9 @@ function toOccupancyReportRow({
       : undefined;
 
   return {
-    floorLabel: unit.floor ? `Floor ${unit.floor}` : "Floor not set",
+    floorLabel: unit.floor ? `Floor ${unit.floor}` : "-",
     id: unit.id,
-    inclusionLabel: "Not recorded",
+    inclusionLabel: "-",
     propertyCode: property?.code ?? "Unknown",
     propertyId: unit.property_id,
     propertyName: property?.name ?? "Unknown property",
@@ -382,13 +382,13 @@ function toOccupancyReportRow({
     rentLabel:
       rentAmount !== undefined && rentCurrency
         ? formatMoney(rentAmount, rentCurrency)
-        : "No rent recorded",
+        : "-",
     sizeLabel:
-      unit.size_sqm === null ? "Not recorded" : `${formatNumber(unit.size_sqm)} sqm`,
+      unit.size_sqm === null ? "-" : `${formatNumber(unit.size_sqm)} sqm`,
     statusLabel: formatUnitStatus(unit.status),
     statusTone: getUnitStatusTone(unit.status),
     statusValue,
-    typeLabel: "Unit",
+    typeLabel: unit.size_sqm === null ? "-" : `${formatNumber(unit.size_sqm)} sqm`,
     unitNumber: unit.unit_number,
   };
 }
@@ -467,8 +467,8 @@ function getOccupancyRemark(
 ) {
   if (statusValue === "vacant") {
     return activeLease
-      ? "Marked vacant but an active lease is still recorded."
-      : "Vacant / no active lease.";
+      ? "Active lease recorded"
+      : "Available";
   }
 
   if (activeLease) {

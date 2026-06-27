@@ -193,8 +193,14 @@ export async function getOverviewScreenData(
     (unit) =>
       currentLeasedUnitIds.has(unit.id) || unit.status.toLowerCase() === "occupied",
   );
-  const vacantUnits = operationalUnits.filter(
+  const leaseGapUnits = operationalUnits.filter(
     (unit) => !currentLeasedUnitIds.has(unit.id),
+  );
+  const vacantUnits = operationalUnits.filter(
+    (unit) => unit.status.toLowerCase() === "vacant",
+  );
+  const nonVacantLeaseGapUnits = leaseGapUnits.filter(
+    (unit) => unit.status.toLowerCase() !== "vacant",
   );
   const activePeople = people.filter((person) => !person.archived_at);
   const roleCounts = getRoleCounts(roles);
@@ -227,6 +233,7 @@ export async function getOverviewScreenData(
       : "0%";
   const attentionItems = buildAttentionItems({
     largeRecentExpenses,
+    leaseGapUnits: nonVacantLeaseGapUnits,
     leasesEndingSoon,
     missingOwnerLinks,
     peopleMissingContacts,
@@ -240,6 +247,7 @@ export async function getOverviewScreenData(
     dashboardSummary: buildDashboardSummary({
       attentionItems,
       largeRecentExpenses,
+      leaseGapUnits: nonVacantLeaseGapUnits,
       leasesEndingSoon,
       missingOwnerLinks,
       peopleMissingContacts,
@@ -261,7 +269,7 @@ export async function getOverviewScreenData(
       occupancyRate,
       peopleCount: activePeople.length,
       roleCounts,
-      vacantUnitCount: vacantUnits.length,
+      leaseGapUnitCount: leaseGapUnits.length,
       currencySettings,
     }),
     occupancyByProperty: buildOccupancyByProperty({
@@ -270,15 +278,13 @@ export async function getOverviewScreenData(
       operationalUnits,
     }),
     quickActions: [
-      { href: "/reports?report=occupancy&status=vacant", label: "Vacant report" },
-      { href: "/reports?report=profit-loss", label: "P&L report" },
       { href: "/import", label: "Import data" },
-      { href: "/properties", label: "Add property" },
-      { href: "/units", label: "Add unit" },
-      { href: "/leases", label: "Add lease" },
-      { href: "/people", label: "Add person" },
-      { href: "/timeline", label: "Add event" },
-      { href: "/ledger", label: "Add ledger entry" },
+      { href: "/properties?action=create", label: "Add property" },
+      { href: "/units?action=create", label: "Add unit" },
+      { href: "/leases?action=create", label: "Add lease" },
+      { href: "/people?action=create", label: "Add person" },
+      { href: "/timeline?action=create", label: "Add event" },
+      { href: "/ledger?action=create", label: "Add ledger entry" },
     ],
     recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
   };
@@ -287,6 +293,7 @@ export async function getOverviewScreenData(
 function buildDashboardSummary({
   attentionItems,
   largeRecentExpenses,
+  leaseGapUnits,
   leasesEndingSoon,
   missingOwnerLinks,
   peopleMissingContacts,
@@ -295,6 +302,7 @@ function buildDashboardSummary({
 }: {
   attentionItems: OverviewAttentionItem[];
   largeRecentExpenses: LedgerRow[];
+  leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
   missingOwnerLinks: PropertyRow[];
   peopleMissingContacts: PersonRow[];
@@ -307,7 +315,7 @@ function buildDashboardSummary({
     return {
       actionHref: "/people?status=no_role",
       actionLabel: "Review people",
-      detail: `${peopleWithoutRoles.length} people need a tenant, owner, or vendor role before their records can be trusted in workflows.`,
+      detail: `${peopleWithoutRoles.length} people need a tenant, owner, or vendor role before workflow checks are reliable.`,
       headline: "People records need cleanup first.",
       tone: "danger" as const,
     };
@@ -315,19 +323,29 @@ function buildDashboardSummary({
 
   if (vacantUnits.length > 0) {
     return {
-      actionHref: "/reports?report=occupancy&status=vacant",
-      actionLabel: "Open vacancy report",
-      detail: `${vacantUnits.length} units do not have an active lease link. Check whether they are truly vacant or missing lease data.`,
-      headline: "Vacancy and lease links are the main operating risk.",
+      actionHref: "/units?status=vacant",
+      actionLabel: "View vacant units",
+      detail: "Review availability, attach new leases, or make the vacant-units report.",
+      headline: `${vacantUnits.length} vacant units are available.`,
+      tone: "warning" as const,
+    };
+  }
+
+  if (leaseGapUnits.length > 0) {
+    return {
+      actionHref: "/units?leaseStatus=missing",
+      actionLabel: "Review lease gaps",
+      detail: "Some unit records have no current lease link.",
+      headline: `${leaseGapUnits.length} units need lease record review.`,
       tone: "warning" as const,
     };
   }
 
   if (leasesEndingSoon.length > 0) {
     return {
-      actionHref: "/leases?sort=end_asc",
+      actionHref: "/leases?endsWithin=60d&sort=end_asc",
       actionLabel: "Review leases",
-      detail: `${leasesEndingSoon.length} leases end in the next 60 days. Renewal and move-out planning should start here.`,
+      detail: `${leasesEndingSoon.length} leases end in 60 days. Start renewal or move-out planning here.`,
       headline: "Lease renewals need attention.",
       tone: "warning" as const,
     };
@@ -337,7 +355,7 @@ function buildDashboardSummary({
     return {
       actionHref: "/properties",
       actionLabel: "Review owners",
-      detail: `${missingOwnerLinks.length} properties are missing a current primary owner relationship.`,
+      detail: `${missingOwnerLinks.length} properties are missing a current primary owner.`,
       headline: "Owner relationships need cleanup.",
       tone: "warning" as const,
     };
@@ -355,9 +373,9 @@ function buildDashboardSummary({
 
   if (largeRecentExpenses.length > 0) {
     return {
-      actionHref: "/ledger?direction=expense&sort=amount_desc",
+      actionHref: "/ledger?direction=expense&sort=amount_desc&period=last_30_days",
       actionLabel: "Review expenses",
-      detail: `${largeRecentExpenses.length} recent expenses are above the review threshold.`,
+      detail: `${largeRecentExpenses.length} expenses in 30 days are above the review threshold.`,
       headline: "Recent expenses deserve a closer look.",
       tone: "warning" as const,
     };
@@ -382,20 +400,20 @@ function buildMetrics({
   activeLeaseCount,
   attentionItems,
   currencySettings,
+  leaseGapUnitCount,
   mtdLedgerRows,
   occupancyRate,
   peopleCount,
   roleCounts,
-  vacantUnitCount,
 }: {
   activeLeaseCount: number;
   attentionItems: OverviewAttentionItem[];
   currencySettings: Awaited<ReturnType<typeof getOrganizationCurrencySettings>>;
+  leaseGapUnitCount: number;
   mtdLedgerRows: LedgerRow[];
   occupancyRate: string;
   peopleCount: number;
   roleCounts: Map<PersonRoleRow["role"], number>;
-  vacantUnitCount: number;
 }): OverviewMetric[] {
   const attentionTotal = attentionItems.reduce((total, item) => total + item.count, 0);
 
@@ -414,9 +432,9 @@ function buildMetrics({
     },
     {
       helper: "Units without active lease",
-      label: "Vacant units",
-      tone: vacantUnitCount > 0 ? "warning" : "success",
-      value: String(vacantUnitCount),
+      label: "Lease gaps",
+      tone: leaseGapUnitCount > 0 ? "warning" : "success",
+      value: String(leaseGapUnitCount),
     },
     {
       helper: "Tenants, owners, vendors",
@@ -441,6 +459,7 @@ function buildMetrics({
 
 function buildAttentionItems({
   largeRecentExpenses,
+  leaseGapUnits,
   leasesEndingSoon,
   missingOwnerLinks,
   peopleMissingContacts,
@@ -448,6 +467,7 @@ function buildAttentionItems({
   vacantUnits,
 }: {
   largeRecentExpenses: LedgerRow[];
+  leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
   missingOwnerLinks: PropertyRow[];
   peopleMissingContacts: PersonRow[];
@@ -459,17 +479,26 @@ function buildAttentionItems({
       ? {
           count: leasesEndingSoon.length,
           helper: "Next 60 days",
-          href: "/leases?sort=end_asc",
-          label: "Leases ending soon",
+          href: "/leases?endsWithin=60d&sort=end_asc",
+          label: "Leases ending in 60d",
           tone: "warning",
         }
       : null,
     vacantUnits.length > 0
       ? {
           count: vacantUnits.length,
+          helper: "Marked vacant",
+          href: "/units?status=vacant",
+          label: "Vacant units",
+          tone: "warning",
+        }
+      : null,
+    leaseGapUnits.length > 0
+      ? {
+          count: leaseGapUnits.length,
           helper: "No active lease link",
-          href: "/reports?report=occupancy&status=vacant",
-          label: "Units without active lease",
+          href: "/units?leaseStatus=missing",
+          label: "Lease gaps",
           tone: "warning",
         }
       : null,
@@ -504,8 +533,8 @@ function buildAttentionItems({
       ? {
           count: largeRecentExpenses.length,
           helper: "Last 30 days above review threshold",
-          href: "/ledger?direction=expense&sort=amount_desc",
-          label: "Large recent expenses",
+          href: "/ledger?direction=expense&sort=amount_desc&period=last_30_days",
+          label: "Large expenses, 30d",
           tone: "warning",
         }
       : null,
@@ -531,9 +560,12 @@ function buildOccupancyByProperty({
           currentLeasedUnitIds.has(unit.id) ||
           unit.status.toLowerCase() === "occupied",
       ).length;
+      const vacantUnits = propertyUnits.filter(
+        (unit) => unit.status.toLowerCase() === "vacant",
+      ).length;
 
       return {
-        href: `/reports?report=occupancy&status=vacant&propertyId=${property.id}`,
+        href: `/units?status=vacant&propertyId=${property.id}`,
         label: `${property.code} / ${property.name}`,
         occupiedUnits,
         percent:
@@ -541,6 +573,7 @@ function buildOccupancyByProperty({
             ? Math.round((occupiedUnits / propertyUnits.length) * 100)
             : 0,
         totalUnits: propertyUnits.length,
+        vacantUnits,
       };
     })
     .toSorted(
@@ -616,7 +649,7 @@ function buildLeaseEndingsChart(
       getMonthKey(month),
       {
         count: 0,
-        href: "/leases?sort=end_asc",
+        href: `/leases?endMonth=${getMonthKey(month)}&sort=end_asc`,
         label: monthLabelFormatter.format(month),
       },
     ]),

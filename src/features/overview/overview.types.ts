@@ -32,6 +32,7 @@ export type OverviewOccupancyPoint = {
   occupiedUnits: number;
   percent: number;
   totalUnits: number;
+  vacantUnits: number;
 };
 
 export type OverviewLedgerPoint = {

@@ -8,10 +8,8 @@ import {
   CalendarClock,
   CheckCircle2,
   CircleDollarSign,
-  FileText,
   type LucideIcon,
   Plus,
-  Upload,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +43,7 @@ type PrimaryMetric = {
   metric: OverviewMetric;
 };
 
-const supportingMetricLabels = ["Active leases", "Vacant units", "People"];
+const supportingMetricLabels = ["Lease gaps", "Active leases", "Attention"];
 
 export function OverviewScreen({ data }: OverviewScreenProps) {
   const occupancyMetric = getMetric(data.metrics, "Occupancy");
@@ -53,29 +51,29 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
   const attentionMetric = getMetric(data.metrics, "Attention");
   const primaryMetrics: PrimaryMetric[] = [
     {
-      href: "/reports?report=occupancy&status=vacant",
+      href: "/units?status=vacant",
       icon: Building2,
       metric: occupancyMetric,
     },
     {
-      href: "/ledger",
+      href: "/ledger?period=current_month",
       icon: CircleDollarSign,
-      metric: ledgerMetric,
+      metric: { ...ledgerMetric, label: "MTD ledger net" },
     },
     {
-      href: "/leases?sort=end_asc",
+      href: "/leases?endsWithin=60d&sort=end_asc",
       icon: CalendarClock,
       metric: {
-        helper: "Ending in next 60 days",
-        label: "Lease risk",
+        helper: "Leases ending in 60 days",
+        label: "Lease risk, 60d",
         tone: data.leaseRiskCount > 0 ? "warning" : "success",
         value: String(data.leaseRiskCount),
       },
     },
     {
-      href: data.dashboardSummary.actionHref,
+      href: "#focus-now",
       icon: AlertTriangle,
-      metric: attentionMetric,
+      metric: { ...attentionMetric, label: "Open checks" },
     },
   ];
   const supportingMetrics = supportingMetricLabels.map((label) =>
@@ -83,128 +81,107 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
   );
 
   return (
-    <main className="min-h-screen bg-surface-muted/60 px-4 py-5 sm:px-6 lg:p-8">
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <DashboardSummaryPanel
-          metrics={primaryMetrics}
-          summary={data.dashboardSummary}
-          supportingMetrics={supportingMetrics}
-        />
-        <FocusPanel
-          items={data.attentionItems}
-          summary={data.dashboardSummary}
-          total={data.attentionTotal}
-        />
-      </section>
+    <main className="min-h-screen bg-background px-4 py-3 sm:px-5 lg:px-5">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-3">
+          <DashboardSummaryPanel
+            summary={data.dashboardSummary}
+            supportingMetrics={supportingMetrics}
+          />
 
-      <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-        <ChartPanel
-          actionHref="/reports?report=occupancy&status=vacant"
-          actionLabel="Open report"
-          description="Lowest occupancy properties first"
-          priority="primary"
-          title="Portfolio health by property"
-        >
-          <OccupancyChart points={data.occupancyByProperty} />
-        </ChartPanel>
-
-        <div className="grid min-w-0 grid-cols-1 gap-4">
-          <ChartPanel
-            actionHref="/ledger"
-            actionLabel="Open ledger"
-            description="Income, expense, and latest net"
-            title="Cash movement"
+          <section
+            aria-label="Portfolio signals"
+            className="grid grid-cols-1 overflow-hidden rounded-md border border-border bg-surface shadow-sm sm:grid-cols-2 xl:grid-cols-4"
           >
-            <LedgerFlowChart
-              currency={data.ledgerCurrency}
-              points={data.ledgerFlow}
-            />
-          </ChartPanel>
+            {primaryMetrics.map((item) => (
+              <PrimaryMetricTile
+                href={item.href}
+                icon={item.icon}
+                key={item.metric.label}
+                metric={item.metric}
+              />
+            ))}
+          </section>
 
-          <ChartPanel
-            actionHref="/leases?sort=end_asc"
-            actionLabel="Open leases"
-            description="Upcoming endings by month"
-            title="Lease runway"
-          >
-            <LeaseEndingChart points={data.leaseEndings} />
-          </ChartPanel>
+          <section className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+            <ChartPanel
+              actionHref="/units?status=vacant"
+              actionLabel="Open units"
+              priority="primary"
+              title="Lowest occupancy by property"
+            >
+              <OccupancyChart points={data.occupancyByProperty} />
+            </ChartPanel>
+
+            <div className="grid min-w-0 grid-cols-1 gap-3">
+              <ChartPanel
+                actionHref="/ledger"
+                actionLabel="Open ledger"
+                title="Cash movement, 6 months"
+              >
+                <LedgerFlowChart
+                  currency={data.ledgerCurrency}
+                  points={data.ledgerFlow}
+                />
+              </ChartPanel>
+
+              <ChartPanel
+                actionHref="/leases?sort=end_asc"
+                actionLabel="Open leases"
+                title="Lease endings by month"
+              >
+                <LeaseEndingChart points={data.leaseEndings} />
+              </ChartPanel>
+            </div>
+          </section>
         </div>
-      </section>
 
-      <section className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <RecentActivityList changes={data.recentChanges} />
-        <QuickActions actions={data.quickActions} />
-      </section>
+        <aside className="min-w-0 space-y-3 xl:sticky xl:top-3 xl:self-start">
+          <FocusPanel
+            items={data.attentionItems}
+            summary={data.dashboardSummary}
+            total={data.attentionTotal}
+          />
+          <RecentActivityList changes={data.recentChanges} />
+          <QuickActions actions={data.quickActions} />
+        </aside>
+      </div>
     </main>
   );
 }
 
 function DashboardSummaryPanel({
-  metrics,
   summary,
   supportingMetrics,
 }: {
-  metrics: PrimaryMetric[];
   summary: OverviewDashboardSummary;
   supportingMetrics: OverviewMetric[];
 }) {
   return (
-    <section
-      className={cn(
-        "min-w-0 rounded-md border border-border bg-surface p-4 shadow-sm sm:p-5",
-        summaryAccentClass(summary.tone),
-      )}
-    >
-      <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <section className="min-w-0 rounded-md border border-border bg-surface p-3 shadow-sm">
+      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_170px] lg:items-start">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl font-semibold leading-tight text-foreground">
-            Overview
-          </h1>
-          <p className="mt-2 max-w-3xl text-lg font-semibold leading-7 text-foreground">
+          <Badge tone={summary.tone}>{summaryStateLabel(summary.tone)}</Badge>
+          <h1 className="mt-2 max-w-3xl text-[15px] font-semibold leading-5 text-foreground">
             {summary.headline}
-          </p>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
+          </h1>
+          <p className="mt-1 line-clamp-1 max-w-3xl text-[13px] leading-5 text-foreground-muted">
             {summary.detail}
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+
+        <div className="flex min-w-0 flex-col gap-2 lg:items-end">
           <Link
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-            href="/reports?report=profit-loss"
-          >
-            <FileText size={15} />
-            <span>P&amp;L report</span>
-          </Link>
-          <Link
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-            href="/import"
-          >
-            <Upload size={15} />
-            <span>Import data</span>
-          </Link>
-          <Link
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-accent px-3 text-sm font-medium text-white transition-colors hover:bg-foreground"
+            className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted lg:w-auto"
             href={summary.actionHref}
           >
-            <span>{summary.actionLabel}</span>
+            <span className="truncate">{summary.actionLabel}</span>
             <ArrowRight size={15} />
           </Link>
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 2xl:grid-cols-4">
-        {metrics.map((item) => (
-          <PrimaryMetricTile
-            href={item.href}
-            icon={item.icon}
-            key={item.metric.label}
-            metric={item.metric}
-          />
-        ))}
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-2 border-t border-border pt-3 sm:grid-cols-3">
+      <div className="mt-3 grid min-w-0 divide-y divide-border overflow-hidden rounded-md border border-border bg-background/35 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {supportingMetrics.map((metric) => (
           <SupportingMetric key={metric.label} metric={metric} />
         ))}
@@ -224,28 +201,30 @@ function PrimaryMetricTile({
 }) {
   return (
     <Link
-      className="group min-w-0 rounded-md border border-border bg-surface px-3 py-3 transition-colors hover:border-foreground/30 hover:bg-surface-muted"
+      className={cn(
+        "group flex min-h-[64px] min-w-0 flex-col justify-between border-b border-border px-3 py-2 transition-colors last:border-b-0 hover:bg-surface-muted sm:border-r sm:last:border-r-0 xl:border-b-0",
+        metricAccentClass(metric.tone),
+      )}
       href={href}
+      title={metric.helper}
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
-        <p className="min-w-0 text-[11px] font-medium uppercase tracking-[0] text-muted">
+        <p className="min-w-0 text-[11px] font-medium uppercase tracking-[0] text-foreground-subtle">
           {metric.label}
         </p>
         <Icon className={cn("shrink-0", toneIconClass(metric.tone))} size={15} />
       </div>
-      <div className="mt-2 min-w-0 text-2xl font-semibold leading-7">
+      <div className="mt-1 min-w-0 text-[15px] font-semibold leading-5">
         {isMoneyDisplayValue(metric.value) ? (
-          <MoneyDisplay showSecondary={false} size="large" value={metric.value} />
+          <MoneyDisplay showSecondary={false} value={metric.value} />
         ) : (
           <span className="break-words tabular-nums">{metric.value}</span>
         )}
       </div>
-      <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
-        <p className="min-w-0 truncate text-xs text-muted" title={metric.helper}>
-          {metric.helper}
-        </p>
+      <div className="flex min-w-0 justify-end">
+        <span className="sr-only">{metric.helper}</span>
         <ArrowRight
-          className="shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100"
+          className="shrink-0 text-foreground-subtle opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
           size={13}
         />
       </div>
@@ -255,12 +234,15 @@ function PrimaryMetricTile({
 
 function SupportingMetric({ metric }: { metric: OverviewMetric }) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-3 rounded-md bg-surface-muted px-3 py-2">
+    <div
+      className="flex min-h-9 min-w-0 items-center justify-between gap-3 px-3 py-2"
+      title={metric.helper}
+    >
       <span className="min-w-0">
-        <span className="block truncate text-xs font-medium">{metric.label}</span>
-        <span className="mt-0.5 block truncate text-[11px] text-muted">
-          {metric.helper}
+        <span className="block truncate text-xs font-medium text-foreground-subtle">
+          {summaryMetricLabel(metric.label)}
         </span>
+        <span className="sr-only">{metric.helper}</span>
       </span>
       <span className="shrink-0 text-sm font-semibold tabular-nums">
         {isMoneyDisplayValue(metric.value) ? metric.value.primary : metric.value}
@@ -279,37 +261,39 @@ function FocusPanel({
   total: number;
 }) {
   return (
-    <aside className="min-w-0 rounded-md border border-border bg-surface p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
+    <aside
+      className="min-w-0 scroll-mt-4 rounded-md border border-border bg-surface shadow-sm"
+      id="focus-now"
+    >
+      <div className="flex items-start justify-between gap-3 border-b border-border px-3 py-2.5">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold tracking-tight">Focus now</h2>
-          <p className="mt-1 text-xs leading-5 text-muted">
-            Highest-priority checks from the current portfolio data.
-          </p>
         </div>
         <Badge tone={total > 0 ? summary.tone : "success"}>{total}</Badge>
       </div>
 
       {items.length === 0 ? (
-        <div className="mt-4 flex items-start gap-3 rounded-md bg-green-50 px-3 py-3 text-sm text-success">
+        <div className="m-4 flex items-start gap-3 rounded-md bg-success-soft px-3 py-3 text-sm text-success">
           <CheckCircle2 className="mt-0.5 shrink-0" size={16} />
           <span>No open operating checks from the current data.</span>
         </div>
       ) : (
-        <ul className="mt-4 divide-y divide-border">
-          {items.slice(0, 4).map((item) => (
+        <ul className="divide-y divide-border">
+          {items.slice(0, 5).map((item, index) => (
             <li key={item.label}>
               <Link
-                className="flex min-w-0 items-center justify-between gap-3 py-3 transition-colors hover:text-accent"
+                className="grid min-w-0 grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-surface-muted"
                 href={item.href}
+                title={item.helper}
               >
+                <span className="flex size-6 items-center justify-center rounded-md border border-border bg-surface text-[11px] font-semibold text-foreground-subtle">
+                  {index + 1}
+                </span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">
                     {item.label}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs text-muted">
-                    {item.helper}
-                  </span>
+                  <span className="sr-only">{item.helper}</span>
                 </span>
                 <Badge className="shrink-0" tone={item.tone}>
                   {item.count}
@@ -319,14 +303,6 @@ function FocusPanel({
           ))}
         </ul>
       )}
-
-      <Link
-        className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium transition-colors hover:bg-surface-muted"
-        href={summary.actionHref}
-      >
-        <span>{summary.actionLabel}</span>
-        <ArrowRight size={14} />
-      </Link>
     </aside>
   );
 }
@@ -342,18 +318,18 @@ function ChartPanel({
   actionHref: string;
   actionLabel: string;
   children: ReactNode;
-  description: string;
+  description?: string;
   priority?: "primary" | "secondary";
   title: string;
 }) {
   return (
     <section
       className={cn(
-        "min-w-0 rounded-md border border-border bg-surface shadow-sm",
-        priority === "primary" ? "xl:min-h-[520px]" : null,
+        "min-w-0 rounded-md border border-border bg-surface p-3 shadow-sm",
+        priority === "primary" ? "xl:min-h-[260px]" : null,
       )}
     >
-      <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <h2
             className={cn(
@@ -363,17 +339,19 @@ function ChartPanel({
           >
             {title}
           </h2>
-          <p className="mt-0.5 text-xs text-muted">{description}</p>
+          {description ? (
+            <p className="mt-0.5 text-xs text-foreground-muted">{description}</p>
+          ) : null}
         </div>
         <Link
-          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-foreground-subtle transition-colors hover:bg-surface-muted hover:text-foreground"
           href={actionHref}
         >
           <span>{actionLabel}</span>
           <ArrowRight size={12} />
         </Link>
       </div>
-      <div className={cn("px-4 py-4", priority === "primary" ? "sm:px-5" : null)}>
+      <div className="pt-3">
         {children}
       </div>
     </section>
@@ -385,37 +363,51 @@ function OccupancyChart({ points }: { points: OverviewOccupancyPoint[] }) {
     return <EmptyPanelText>No property/unit data yet.</EmptyPanelText>;
   }
 
+  const visiblePoints = points.slice(0, 4);
+  const hiddenCount = points.length - visiblePoints.length;
+
   return (
-    <div className="space-y-4">
-      {points.map((point) => (
+    <div className="space-y-2.5">
+      {visiblePoints.map((point) => {
+        return (
         <Link
-          className="group block min-w-0 rounded-md px-2 py-1.5 transition-colors hover:bg-surface-muted"
+          className="group block min-w-0 rounded-md px-2 py-1 transition-colors hover:bg-surface-muted"
           href={point.href}
           key={point.label}
+          prefetch={false}
           title={`${point.label}: ${point.occupiedUnits}/${point.totalUnits} occupied`}
         >
-          <div className="mb-1.5 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 text-xs">
+          <div className="mb-1 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 text-xs">
             <span className="min-w-0 truncate font-medium">{point.label}</span>
             <span className="shrink-0 font-semibold tabular-nums">
               {point.percent}%
             </span>
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_72px] items-center gap-3">
-            <div className="h-2.5 overflow-hidden rounded-full bg-surface-muted">
+            <div className="h-2 overflow-hidden rounded-full bg-chart-track">
               <div
                 className={cn(
-                  "h-full rounded-full transition-colors group-hover:bg-foreground",
+                  "h-full rounded-full transition-opacity group-hover:opacity-90",
                   occupancyBarClass(point.percent),
                 )}
                 style={{ width: `${Math.max(point.percent, point.totalUnits > 0 ? 3 : 0)}%` }}
               />
             </div>
-            <span className="text-right text-[11px] text-muted tabular-nums">
-              {point.occupiedUnits}/{point.totalUnits} units
+            <span className="text-right text-[11px] text-foreground-subtle tabular-nums">
+              {point.vacantUnits} vacant
             </span>
           </div>
         </Link>
-      ))}
+        );
+      })}
+      {hiddenCount > 0 ? (
+        <Link
+          className="inline-flex rounded-md px-2 py-1 text-xs font-medium text-foreground-subtle transition-colors hover:bg-surface-muted hover:text-foreground"
+          href="/units?status=vacant"
+        >
+          {hiddenCount} more properties
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -434,16 +426,16 @@ function LedgerFlowChart({
 
   return (
     <div className="min-w-0">
-      <div className="mb-3 flex items-center gap-3 text-[11px] text-muted">
-        <LegendSwatch className="bg-success" label="Income" />
-        <LegendSwatch className="bg-danger" label="Expense" />
+      <div className="mb-2 flex items-center gap-3 text-[11px] text-foreground-subtle">
+        <LegendSwatch className="bg-chart-accent" label="Income" />
+        <LegendSwatch className="bg-chart-neutral" label="Expense" />
       </div>
-      <div className="flex h-40 items-end gap-2 border-b border-border pb-2">
+      <div className="flex h-32 items-end gap-2 border-b border-border pb-2">
         {points.map((point) => (
           <div className="flex min-w-0 flex-1 flex-col items-center" key={point.label}>
-            <div className="flex h-32 w-full items-end justify-center gap-1">
+            <div className="flex h-24 w-full items-end justify-center gap-1">
               <Bar
-                className="bg-success"
+                className="bg-chart-accent"
                 title={`${point.label} income ${formatCompactMoney(
                   point.income,
                   currency,
@@ -452,7 +444,7 @@ function LedgerFlowChart({
                 maxValue={maxValue}
               />
               <Bar
-                className="bg-danger/75"
+                className="bg-chart-neutral"
                 title={`${point.label} expense ${formatCompactMoney(
                   point.expense,
                   currency,
@@ -461,12 +453,12 @@ function LedgerFlowChart({
                 maxValue={maxValue}
               />
             </div>
-            <span className="mt-2 text-[11px] text-muted">{point.label}</span>
+            <span className="mt-2 text-[11px] text-foreground-subtle">{point.label}</span>
           </div>
         ))}
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <p className="text-muted">Latest net</p>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+        <p className="text-foreground-subtle">Latest net</p>
         <p className="text-right font-medium tabular-nums">
           {formatCompactMoney(points.at(-1)?.net ?? 0, currency)}
         </p>
@@ -481,28 +473,29 @@ function LeaseEndingChart({ points }: { points: OverviewLeaseEndingPoint[] }) {
 
   return (
     <div className="min-w-0">
-      <div className="flex h-40 items-end gap-2 border-b border-border pb-2">
+      <div className="flex h-32 items-end gap-2 border-b border-border pb-2">
         {points.map((point) => (
           <Link
             className="flex min-w-0 flex-1 flex-col items-center"
             href={point.href}
             key={point.label}
+            prefetch={false}
             title={`${point.count} ending in ${point.label}`}
           >
-            <div className="flex h-32 w-full items-end justify-center">
+            <div className="flex h-24 w-full items-end justify-center">
               <Bar
                 className={cn(
-                  point.count > 0 ? "bg-warning/80" : "bg-border",
+                  point.count > 0 ? "bg-chart-accent/80" : "bg-chart-track",
                 )}
                 value={point.count}
                 maxValue={maxValue}
               />
             </div>
-            <span className="mt-2 text-[11px] text-muted">{point.label}</span>
+            <span className="mt-2 text-[11px] text-foreground-subtle">{point.label}</span>
           </Link>
         ))}
       </div>
-      <p className="mt-3 text-xs text-muted">
+      <p className="mt-2 text-xs text-foreground-muted">
         {total} {total === 1 ? "ending" : "endings"} in view.
       </p>
     </div>
@@ -516,9 +509,9 @@ function RecentActivityList({
 }) {
   return (
     <section className="rounded-md border border-border bg-surface shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <Activity size={15} className="text-muted" />
+          <Activity size={15} className="text-foreground-subtle" />
           <h2 className="text-sm font-semibold tracking-tight">Recent activity</h2>
         </div>
         <Badge>{changes.length}</Badge>
@@ -526,15 +519,15 @@ function RecentActivityList({
       {changes.length === 0 ? (
         <EmptyPanelText className="px-4 py-4">No activity logged yet.</EmptyPanelText>
       ) : (
-        <ul className="grid grid-cols-1 divide-y divide-border md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
+        <ul className="divide-y divide-border">
           {changes.slice(0, 4).map((change) => (
-            <li className="min-w-0 px-4 py-3" key={change.id}>
+            <li className="min-w-0 px-3 py-2" key={change.id}>
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">
                     {change.recordLabel}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs text-muted">
+                  <span className="mt-0.5 block truncate text-xs text-foreground-subtle">
                     {change.entityLabel} / {formatDate(change.createdAt)}
                   </span>
                 </span>
@@ -553,14 +546,14 @@ function RecentActivityList({
 function QuickActions({ actions }: { actions: OverviewQuickAction[] }) {
   return (
     <section className="rounded-md border border-border bg-surface shadow-sm">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <Plus size={15} className="text-muted" />
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+        <Plus size={15} className="text-foreground-subtle" />
         <h2 className="text-sm font-semibold tracking-tight">Quick actions</h2>
       </div>
-      <div className="grid grid-cols-2 gap-2 p-4">
+      <div className="grid grid-cols-2 gap-2 p-3">
         {actions.map((action) => (
           <Link
-            className="inline-flex h-9 min-w-0 items-center justify-center rounded-md border border-border bg-surface px-3 text-center text-sm font-medium transition-colors hover:bg-surface-muted"
+            className="inline-flex h-8 min-w-0 items-center justify-center rounded-md border border-border bg-surface px-2.5 text-center text-[13px] font-medium transition-colors hover:bg-surface-muted"
             href={action.href}
             key={action.label}
           >
@@ -587,7 +580,7 @@ function Bar({
 
   return (
     <span
-      className={cn("block w-full max-w-8 rounded-t-sm", className)}
+      className={cn("block w-full max-w-9 rounded-t-sm", className)}
       style={{ height: `${height}%` }}
       title={title}
     />
@@ -616,7 +609,7 @@ function EmptyPanelText({
   children: ReactNode;
   className?: string;
 }) {
-  return <p className={cn("text-sm text-muted", className)}>{children}</p>;
+  return <p className={cn("text-sm text-foreground-muted", className)}>{children}</p>;
 }
 
 function getMetric(metrics: OverviewMetric[], label: string): OverviewMetric {
@@ -634,25 +627,45 @@ function isMoneyDisplayValue(value: OverviewMetric["value"]): value is MoneyDisp
   return typeof value === "object" && value !== null && "primary" in value;
 }
 
-function summaryAccentClass(tone: OverviewMetricTone) {
-  if (tone === "success") {
-    return "border-l-4 border-l-success";
-  }
-
+function metricAccentClass(tone: OverviewMetricTone) {
   if (tone === "warning") {
-    return "border-l-4 border-l-warning";
+    return "bg-warning-soft/30 hover:bg-warning-soft/45";
   }
 
   if (tone === "danger") {
-    return "border-l-4 border-l-danger";
+    return "bg-danger-soft/30 hover:bg-danger-soft/45";
   }
 
-  return "border-l-4 border-l-border";
+  return null;
+}
+
+function summaryStateLabel(tone: OverviewMetricTone) {
+  if (tone === "success") {
+    return "Clear";
+  }
+
+  if (tone === "warning") {
+    return "Needs review";
+  }
+
+  if (tone === "danger") {
+    return "Needs action";
+  }
+
+  return "Current read";
+}
+
+function summaryMetricLabel(label: string) {
+  if (label === "Attention") {
+    return "Open checks";
+  }
+
+  return label;
 }
 
 function toneIconClass(tone: OverviewMetricTone) {
   if (tone === "success") {
-    return "text-success";
+    return "text-accent";
   }
 
   if (tone === "warning") {
@@ -663,7 +676,7 @@ function toneIconClass(tone: OverviewMetricTone) {
     return "text-danger";
   }
 
-  return "text-muted";
+  return "text-foreground-subtle";
 }
 
 function occupancyBarClass(percent: number) {
@@ -675,7 +688,7 @@ function occupancyBarClass(percent: number) {
     return "bg-warning/80";
   }
 
-  return "bg-success";
+  return "bg-accent";
 }
 
 function toBadgeTone(tone: RecentChangeTone) {

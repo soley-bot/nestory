@@ -22,7 +22,10 @@ export async function getReportCsv(
 
   return {
     body: buildOccupancyCsv(data.occupancyReport),
-    filename: "nestory-occupancy-report.csv",
+    filename:
+      viewQuery.status === "vacant"
+        ? "nestory-vacant-units-report.csv"
+        : "nestory-occupancy-report.csv",
   };
 }
 

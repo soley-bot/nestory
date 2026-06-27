@@ -12,7 +12,7 @@ const datePattern = /^(\d{4})-(0[1-9]|1[0-2])-\d{2}$/;
 type ReportSearchParams = Record<string, string | string[] | undefined>;
 
 export const DEFAULT_REPORT_KIND: ReportKind = "occupancy";
-export const DEFAULT_REPORT_STATUS: ReportStatusFilter = "all";
+export const DEFAULT_REPORT_STATUS: ReportStatusFilter = "vacant";
 
 export function parseReportSearchParams(
   params: ReportSearchParams,
@@ -43,7 +43,8 @@ function parseReportKind(value: string | string[] | undefined): ReportKind {
 function parseStatus(value: string | string[] | undefined): ReportStatusFilter {
   const candidate = getFirstValue(value);
 
-  return candidate === "occupied" ||
+  return candidate === "all" ||
+    candidate === "occupied" ||
     candidate === "vacant" ||
     candidate === "reserved" ||
     candidate === "maintenance" ||

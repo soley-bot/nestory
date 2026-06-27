@@ -5,7 +5,7 @@ import {
 } from "@/features/reports/reports.filters";
 
 describe("report search params", () => {
-  it("defaults to the occupancy report and keeps invalid filters safe", () => {
+  it("defaults to the vacant units report and keeps invalid filters safe", () => {
     const query = parseReportSearchParams({
       propertyId: "not-a-real-id",
       report: "whatever",
@@ -14,7 +14,7 @@ describe("report search params", () => {
 
     expect(query.report).toBe("occupancy");
     expect(query.propertyId).toBe("all");
-    expect(query.status).toBe("all");
+    expect(query.status).toBe("vacant");
     expect(query.month).toMatch(/^\d{4}-\d{2}$/);
   });
 
@@ -31,6 +31,10 @@ describe("report search params", () => {
       report: "profit-loss",
       status: "vacant",
     });
+  });
+
+  it("keeps an explicit all-status report filter", () => {
+    expect(parseReportSearchParams({ status: "all" }).status).toBe("all");
   });
 
   it("builds an inclusive calendar-month range", () => {
