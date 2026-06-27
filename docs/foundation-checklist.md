@@ -1,6 +1,15 @@
 # Foundation Checklist
 
-Use this checklist before adding new product modules or after changing auth, routing, Supabase policies, Vercel config, or environment variables.
+Read this doc for verification, auth, Supabase, Vercel, environment, or module
+release checks. Do not load it for pure UI or schema planning unless verification
+is part of the task.
+
+Use this checklist before adding new product modules or after changing auth,
+routing, Supabase policies, Vercel config, or environment variables.
+
+For dated hosted project details, current tooling notes, and known manual
+hardening, read `docs/project-state.md`. Re-verify those facts before relying on
+them.
 
 ## Local Verification
 
@@ -47,6 +56,9 @@ Run this flow on production after auth changes:
 10. Confirm the existing admin lands directly on `/timeline`.
 
 ## Production Deployment Checks
+
+The Vercel CLI may not be globally installed in every session. Install it with
+`npm i -g vercel` before relying on deployment, env, or log commands.
 
 ```bash
 vercel ls --scope soley-bots-projects

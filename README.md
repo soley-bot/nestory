@@ -1,21 +1,52 @@
 # Nestory
 
-Nestory starts as a web-first Property History and Performance Hub for property management companies in Cambodia, with a phased path toward a broader property management system.
+Nestory is a web-first Property History and Performance Hub for property
+management companies. It starts with Cambodia property operations and is being
+shaped as a reusable PMS core that can support company-specific branding,
+settings, reports, workflows, and integrations over time.
+
+The product north star is the Timeline-First Record Room:
+
+> Show the complete history and performance of a property or unit in one place.
+
+## Documentation Map
+
+Read only the docs needed for the task:
+
+- `PROJECT_RULES.md` - durable product, architecture, UI, data, and engineering
+  guardrails. Start here.
+- `docs/project-state.md` - dated current implementation, environment, hosted
+  service, and verification notes. Read for deployment/env/current-state work.
+- `docs/foundation-checklist.md` - local, Supabase, auth, and deployment
+  verification runbook. Read before verification or infra changes.
+- `docs/enterprise-lite-database-roadmap.md` - future PMS schema contract and
+  database review checklist. Read for schema/RLS/storage/module design.
+- `docs/operational-ui-handoff.md` - authenticated app UI contract for dense,
+  quiet, operational record screens. Read for UI work.
+
+`PROJECT_RULES.md` should stay timeless. Move volatile facts such as CLI
+versions, hosted project state, deployment URLs, and dated verification results
+to `docs/project-state.md`.
+
+Keep the always-read docs compact. Link to deeper docs instead of repeating long
+rules or status blocks.
 
 ## Product Direction
 
-Nestory should grow from a timeline and ledger record-room foundation before expanding into broader PMS workflows. The next backbone module is Leases & Tenants.
+Nestory should grow from the record-room foundation before expanding into
+broader PMS workflows.
 
 Roadmap order:
 
-1. Timeline/Ledger foundation
-2. Leases & Tenants
-3. Units and property dashboards
-4. Maintenance/tasks
-5. Reports/accounting expansion
-6. Tenant portal/payments/integrations later
+1. Timeline/Ledger foundation.
+2. Leases & Tenants.
+3. Units and property dashboards.
+4. Maintenance/tasks.
+5. Reports/accounting expansion.
+6. Tenant portal/payments/integrations later.
 
-Future module database design should follow `docs/enterprise-lite-database-roadmap.md`.
+Future module database design should follow
+`docs/enterprise-lite-database-roadmap.md`.
 
 ## Local Development
 
@@ -31,18 +62,17 @@ Start the Next.js app:
 npm run dev
 ```
 
-Run verification:
+Run standard verification:
 
 ```bash
 npm run lint
 npm run build
 ```
 
-For the auth, Supabase, and Vercel smoke checklist, see `docs/foundation-checklist.md`.
-
 ## Supabase
 
-Supabase CLI is installed as a local dev dependency. Docker Desktop must be running before local Supabase commands work.
+Supabase CLI is installed as a local dev dependency. Docker Desktop must be
+running before local Supabase commands work.
 
 Start Supabase:
 
@@ -58,22 +88,24 @@ npm run db:reset
 npm run db:types
 ```
 
-Copy `.env.example` to `.env.local` and fill in `NEXT_PUBLIC_SUPABASE_URL` plus a Supabase publishable key. Use server-only keys only in server-only code.
+Copy `.env.example` to `.env.local` and fill in
+`NEXT_PUBLIC_SUPABASE_URL` plus a Supabase publishable key. Use server-only keys
+only in server-only code.
 
-Phase 1 auth uses email/password, a single admin role, and a first workspace setup flow.
+For hosted project details, auth notes, and known manual hardening, see
+`docs/project-state.md`.
 
-Hosted Supabase project:
+## Deployment And Checks
 
-- Organization: SOLEY
-- Project: nestory
-- Region: ap-southeast-1, Singapore
-- Project ref: `pfvmztxktkwyewvxfgot`
-- Public URL: `https://pfvmztxktkwyewvxfgot.supabase.co`
+Use `docs/foundation-checklist.md` before adding product modules or after
+changing auth, routing, Supabase policies, Vercel config, or environment
+variables.
 
-Codex Supabase MCP is authenticated for hosted project work. Supabase CLI hosted login is not required for local development; if we later want `supabase link` or `supabase db push`, log in with a fresh Supabase personal access token.
+The Vercel CLI may not be globally installed in every session. Install it with:
 
-## Project Rules
+```bash
+npm i -g vercel
+```
 
-Read `PROJECT_RULES.md` before making architecture, database, UI, or refactoring decisions.
-
-For authenticated app polish, read `docs/operational-ui-handoff.md` before changing list pages, tables, card views, inspectors, or photo-ready record cards.
+This unlocks agentic deployment, environment, and log commands such as
+`vercel env pull`, `vercel deploy`, and `vercel logs`.

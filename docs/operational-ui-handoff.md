@@ -1,6 +1,13 @@
 # Operational UI Handoff
 
+Read this doc for authenticated UI work only. Do not load it for backend,
+deployment, or schema-only tasks.
+
 Use this handoff when continuing authenticated Nestory UI polish. It captures the current Properties and Units direction so future sessions can apply the same system to Timeline, Ledger, detail pages, and planned modules without rediscovering the decisions.
+
+For durable product and engineering guardrails, start with `PROJECT_RULES.md`.
+For dated current implementation and environment notes, see
+`docs/project-state.md`.
 
 ## Current Direction
 

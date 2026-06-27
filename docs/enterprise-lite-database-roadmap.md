@@ -1,8 +1,15 @@
 # Enterprise-Lite Database Roadmap
 
+Read this doc for schema, RLS, storage, database performance, or future PMS
+module design work. Do not load it for UI-only or docs-only tasks unless the
+change touches data modeling.
+
 This document turns the long-term PMS direction into a database design contract.
 It is intentionally not a migration plan yet. Use it to guide future Supabase
 migrations after the current Timeline/Ledger foundation is stable.
+
+For current hosted database state, local tooling notes, and dated verification
+results, see `docs/project-state.md`.
 
 ## Direction
 
@@ -466,4 +473,3 @@ Use this checklist before accepting future schema changes:
 - Are storage objects private by default?
 - Were `npm run db:lint`, `npm run db:reset`, and `npm run db:types` run after
   schema changes?
-
