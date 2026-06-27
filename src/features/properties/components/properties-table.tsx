@@ -65,6 +65,12 @@ export function PropertiesTable({
 
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-muted px-3 py-2 text-xs text-muted">
+            <span>Single-click a row to preview it in the inspector.</span>
+            <span className="font-medium text-foreground">
+              Use Open to view the full record.
+            </span>
+          </div>
           <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
             <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
@@ -313,6 +319,10 @@ function PropertyActions({
     "inline-flex items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50",
     size === "touch" ? "h-9 w-9" : "h-[28px] w-[28px]",
   );
+  const openButtonClassName = cn(
+    "inline-flex items-center justify-center gap-1 rounded-md border border-border bg-surface text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-accent hover:text-accent",
+    size === "touch" ? "h-9 px-2.5" : "h-[28px] px-2",
+  );
 
   return (
     <div
@@ -321,13 +331,14 @@ function PropertyActions({
     >
       <Link
         aria-label={`Open ${property.name}`}
-        className={cn(iconButtonClassName, "hover:text-foreground")}
+        className={openButtonClassName}
         href={`/properties/${property.id}`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
         title="Open property"
       >
-        <ExternalLink size={14} />
+        <ExternalLink size={13} />
+        Open
       </Link>
       {property.isArchived ? (
         <button

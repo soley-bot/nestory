@@ -33,8 +33,11 @@ type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
+  badge?: NavBadge;
   activeHrefs?: string[];
 };
+
+type NavBadge = "Draft" | "Planned";
 
 type NavGroup = {
   id: string;
@@ -78,13 +81,14 @@ const navGroups: NavGroup[] = [
 ];
 
 const moreNavItems: NavItem[] = [
-  { href: "/documents", label: "Documents", icon: FolderOpen },
-  { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/documents", label: "Documents", icon: FolderOpen, badge: "Draft" },
+  { href: "/reports", label: "Reports", icon: FileText, badge: "Draft" },
   { href: "/import", label: "Import data", icon: Upload },
   {
     href: "/roadmap",
     label: "Roadmap",
     icon: ClipboardList,
+    badge: "Planned",
     activeHrefs: FUTURE_MODULE_PATHS,
   },
 ];
@@ -132,6 +136,21 @@ function isNavItemActive(pathname: string, item: NavItem) {
     item.activeHrefs?.some(
       (href) => pathname === href || pathname.startsWith(`${href}/`),
     ) === true
+  );
+}
+
+function NavBadgeLabel({ badge }: { badge: NavBadge }) {
+  return (
+    <span
+      className={cn(
+        "ml-auto rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+        badge === "Draft"
+          ? "border-foreground/15 bg-surface text-foreground"
+          : "border-border bg-surface-muted text-muted",
+      )}
+    >
+      {badge}
+    </span>
   );
 }
 
@@ -375,9 +394,12 @@ export function AppShell({
                           prefetch={false}
                         >
                           <Icon className="shrink-0" size={14} />
-                          <span className="min-w-0 truncate">
+                          <span className="min-w-0 flex-1 truncate">
                             {item.label}
                           </span>
+                          {item.badge ? (
+                            <NavBadgeLabel badge={item.badge} />
+                          ) : null}
                         </Link>
                       );
                     })}
@@ -431,7 +453,7 @@ export function AppShell({
               </form>
             </div>
           </div>
-          <div className="relative flex items-center gap-2 px-4 pb-2">
+          <div className="relative flex items-center gap-2 px-4 pb-3">
             <nav
               aria-label="Primary mobile navigation"
               className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
@@ -443,9 +465,9 @@ export function AppShell({
                 return (
                   <Link
                     className={cn(
-                      "flex h-8 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
+                      "flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
                       isActive
-                        ? "bg-surface-muted text-foreground"
+                        ? "bg-accent-soft text-foreground"
                         : "hover:bg-surface-muted hover:text-foreground",
                     )}
                     href={item.href}
@@ -464,9 +486,9 @@ export function AppShell({
                 aria-expanded={mobileMoreOpen}
                 aria-haspopup="menu"
                 className={cn(
-                  "flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
+                  "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
                   isMobileMoreActive || mobileMoreOpen
-                    ? "bg-surface-muted text-foreground"
+                    ? "bg-accent-soft text-foreground"
                     : "hover:bg-surface-muted hover:text-foreground",
                 )}
                 onClick={() => setMobileMoreOpen((open) => !open)}
@@ -484,7 +506,7 @@ export function AppShell({
               </button>
               {mobileMoreOpen ? (
                 <div
-                  className="absolute right-0 top-10 z-30 w-56 rounded-md border border-border bg-surface p-2 shadow-lg"
+                  className="absolute right-0 top-11 z-30 w-56 rounded-md border border-border bg-surface p-2 shadow-lg"
                   role="menu"
                 >
                   {mobileMoreItems.map((item) => {
@@ -496,7 +518,7 @@ export function AppShell({
                         className={cn(
                           "flex min-h-9 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted transition-colors",
                           isActive
-                            ? "bg-surface-muted text-foreground"
+                            ? "bg-accent-soft text-foreground"
                             : "hover:bg-surface-muted hover:text-foreground",
                         )}
                         href={item.href}
@@ -509,6 +531,7 @@ export function AppShell({
                         <span className="min-w-0 flex-1 truncate">
                           {item.label}
                         </span>
+                        {item.badge ? <NavBadgeLabel badge={item.badge} /> : null}
                       </Link>
                     );
                   })}

@@ -133,7 +133,7 @@ export function PropertyFilters({
               className={cn(
                 "h-8 flex-1 gap-1.5 px-2.5 sm:flex-none",
                 hasAdvancedFilters &&
-                  "border-border bg-surface-muted text-foreground hover:bg-surface-muted",
+                  "border-accent bg-accent-soft text-accent hover:bg-accent-soft",
               )}
               onClick={() => setAdvancedOpen((open) => !open)}
               type="button"
@@ -141,7 +141,7 @@ export function PropertyFilters({
               <SlidersHorizontal size={14} />
               <span>Filters</span>
               {activeFilters > 0 ? (
-                <span className="rounded-full border border-border bg-surface px-1.5 py-0.5 text-[10px] font-semibold leading-none text-foreground">
+                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
                   {activeFilters}
                 </span>
               ) : null}
@@ -150,7 +150,7 @@ export function PropertyFilters({
               aria-label="Reset property filters"
               className={cn(
                 "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-                hasAnyFilters && "border-border bg-surface-muted text-foreground",
+                hasAnyFilters && "border-accent/40 text-accent",
               )}
               href={pathname}
               scroll={false}
@@ -291,7 +291,7 @@ export function PropertyFilters({
 
 function FilterChip({ label, value }: { label: string; value: string }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-muted px-2 py-1 text-foreground-muted">
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-accent/20 bg-accent-soft px-2 py-1 text-accent">
       <span className="font-semibold">{label}</span>
       <span className="min-w-0 truncate text-foreground">{value}</span>
     </span>
