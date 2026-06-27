@@ -17,7 +17,12 @@ export type PersonRoleStatus = "active" | "inactive";
 
 export type PeopleRoleFilter = PersonRoleValue | "all";
 
-export type PeopleStatusFilter = "active" | "inactive" | "no_role" | "all";
+export type PeopleStatusFilter =
+  | "active"
+  | "inactive"
+  | "no_role"
+  | "missing_contact"
+  | "all";
 
 export type PeopleSortKey =
   | "name_asc"
@@ -101,6 +106,7 @@ export type PeopleSummary = {
   contact: PeopleContactSummary;
   displayName: string;
   formValues: PeopleFormValues;
+  hasUsefulContact: boolean;
   id: string;
   isArchived: boolean;
   legalName?: string | null;

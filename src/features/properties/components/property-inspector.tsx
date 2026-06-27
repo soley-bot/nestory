@@ -75,7 +75,7 @@ export function PropertyInspector({
         <div className="grid grid-cols-3 gap-2 text-sm">
           <Link
             aria-label={`Open ${property.name}`}
-            className="inline-flex h-9 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted"
+            className="inline-flex h-8 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted"
             href={`/properties/${property.id}`}
             prefetch={false}
             title="Open property"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
@@ -46,7 +46,9 @@ export function PeopleScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const [drawer, setDrawer] = useState<DrawerState | null>(() =>
+    searchParams.get("action") === "create" ? { mode: "create" } : null,
+  );
   const [displayMode, setDisplayMode] = useState<PeopleDisplayMode>("table");
   const [selectedPersonId, setSelectedPersonId] = useState(() =>
     getInitialRecordId(people, initialPersonId),
@@ -59,6 +61,16 @@ export function PeopleScreen({
   const openPersonRecord = (personId: string) => {
     router.push(getPersonRecordHref(personId), { scroll: false });
   };
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "create") {
+      return;
+    }
+
+    router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+      scroll: false,
+    });
+  }, [pathname, router, searchParams]);
 
   return (
     <div className="min-h-screen">
@@ -80,7 +92,7 @@ export function PeopleScreen({
       />
 
       {statusMessage || schemaNotice ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-8">
+        <div className="px-4 pt-5 sm:px-6 lg:px-6">
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
             role={schemaNotice ? "alert" : "status"}
@@ -96,7 +108,7 @@ export function PeopleScreen({
         viewQuery={viewQuery}
       />
 
-      <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
+      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 space-y-3">
             <PeopleTable
@@ -123,22 +135,24 @@ export function PeopleScreen({
             />
             <PaginationControls pagination={pagination} />
           </div>
-          <PeopleInspector
-            onArchivePerson={(person) => {
-              setStatusMessage(null);
-              setDrawer({ mode: "archive", person });
-            }}
-            onEditPerson={(person) => {
-              setStatusMessage(null);
-              setDrawer({ mode: "edit", person });
-            }}
-            onRestorePerson={(person) => {
-              setStatusMessage(null);
-              setDrawer({ mode: "restore", person });
-            }}
-            getPersonHref={getPersonRecordHref}
-            person={selectedPerson}
-          />
+          <div className="hidden 2xl:block">
+            <PeopleInspector
+              onArchivePerson={(person) => {
+                setStatusMessage(null);
+                setDrawer({ mode: "archive", person });
+              }}
+              onEditPerson={(person) => {
+                setStatusMessage(null);
+                setDrawer({ mode: "edit", person });
+              }}
+              onRestorePerson={(person) => {
+                setStatusMessage(null);
+                setDrawer({ mode: "restore", person });
+              }}
+              getPersonHref={getPersonRecordHref}
+              person={selectedPerson}
+            />
+          </div>
         </div>
       </div>
 
@@ -195,6 +209,17 @@ function getFocusedRecordHref(
   nextParams.set(key, value);
 
   return `${pathname}?${nextParams.toString()}`;
+}
+
+function getHrefWithoutActionParam(
+  pathname: string,
+  searchParams: { toString(): string },
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+  nextParams.delete("action");
+
+  const queryString = nextParams.toString();
+  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 function getPeopleDrawerTitle(drawer: DrawerState) {

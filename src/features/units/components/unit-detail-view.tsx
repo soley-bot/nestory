@@ -23,7 +23,7 @@ import type { MoneyDisplayValue } from "@/lib/money/format";
 
 export function UnitDetailView({ unit }: { unit: UnitDetail }) {
   return (
-    <div className="space-y-5 px-4 py-5 sm:px-6 lg:p-8">
+    <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
       <Link
         className="inline-flex items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-accent"
         href="/units"
@@ -32,9 +32,9 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
         Units
       </Link>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-5">
-          <section className="rounded-md border border-border bg-surface p-5">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_320px] xl:overflow-hidden">
+        <div className="space-y-3 xl:overflow-auto xl:pr-1">
+          <section className="rounded-md border border-border bg-surface p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h2 className="text-base font-semibold">Unit record</h2>
@@ -47,7 +47,7 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
                 {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
               </div>
             </div>
-            <dl className="mt-5 grid grid-cols-1 gap-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
+            <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
               <Detail label="Property" value={unit.propertyName}>
                 <Link
                   className="text-accent hover:underline"
@@ -104,14 +104,14 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
           </section>
         </div>
 
-        <aside className="space-y-5">
-          <section className="rounded-md border border-border bg-surface p-5">
+        <aside className="space-y-3 xl:overflow-auto xl:pr-1">
+          <section className="rounded-md border border-border bg-surface p-4">
             <div className="flex items-center gap-2">
               <ScrollText className="text-muted" size={16} />
               <h2 className="text-base font-semibold">Active lease</h2>
             </div>
             {unit.activeLease ? (
-              <dl className="mt-5 space-y-4 text-sm">
+              <dl className="mt-4 space-y-3 text-sm">
                 <Detail label="Tenant" value={unit.activeLease.tenantName} />
                 <Detail label="Status" value={unit.activeLease.statusLabel} />
                 <Detail
@@ -132,24 +132,24 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
             )}
           </section>
 
-          <section className="rounded-md border border-border bg-surface p-5">
+          <section className="rounded-md border border-border bg-surface p-4">
             <div className="flex items-center gap-2">
               <FileText className="text-muted" size={16} />
               <h2 className="text-base font-semibold">Record counts</h2>
             </div>
-            <dl className="mt-5 grid grid-cols-3 gap-3 text-sm">
+            <dl className="mt-4 grid grid-cols-3 gap-2 text-sm">
               <CountDetail label="Timeline" value={unit.counts.timelineEvents} />
               <CountDetail label="Ledger" value={unit.counts.ledgerEntries} />
               <CountDetail label="Docs" value={unit.counts.documents} />
             </dl>
           </section>
 
-          <section className="rounded-md border border-border bg-surface p-5">
+          <section className="rounded-md border border-border bg-surface p-4">
             <div className="flex items-center gap-2">
               <Building2 className="text-muted" size={16} />
               <h2 className="text-base font-semibold">Relationship</h2>
             </div>
-            <p className="mt-4 text-sm leading-6 text-muted">
+            <p className="mt-3 text-sm leading-6 text-muted">
               This unit belongs to {unit.propertyCode}. Timeline events, ledger
               rows, leases, and documents can stay at the property level or attach
               directly to this unit.
@@ -187,11 +187,11 @@ function Detail({
 
 function CountDetail({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted px-3 py-3 text-center">
+    <div className="rounded-md border border-border bg-surface-muted px-3 py-2 text-center">
       <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
         {label}
       </dt>
-      <dd className="mt-1 text-lg font-semibold">{value}</dd>
+      <dd className="mt-1 text-base font-semibold">{value}</dd>
     </div>
   );
 }

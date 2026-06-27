@@ -8,9 +8,10 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-accent text-white hover:bg-accent-strong",
+  primary:
+    "border border-border bg-surface text-foreground shadow-sm hover:bg-surface-muted",
   secondary:
-    "border border-border bg-surface text-foreground hover:bg-surface-muted",
+    "border border-border bg-surface text-foreground shadow-sm hover:bg-surface-muted",
   ghost: "text-muted hover:bg-surface-muted hover:text-foreground",
 };
 
@@ -23,7 +24,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex h-9 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
         variants[variant],
         className,
       )}

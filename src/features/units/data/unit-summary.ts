@@ -71,12 +71,9 @@ export type UnitTimelineRecord = {
   unit_id: string | null;
 };
 
-const inactiveLeaseStatuses = new Set([
-  "cancelled",
-  "ended",
-  "expired",
-  "terminated",
-]);
+export const ACTIVE_UNIT_LEASE_STATUSES = ["active", "notice_given"] as const;
+
+const activeLeaseStatuses = new Set<string>(ACTIVE_UNIT_LEASE_STATUSES);
 
 export function buildUnitSummary({
   activeLease,
@@ -106,6 +103,7 @@ export function buildUnitSummary({
       unitNumber: unit.unit_number,
     },
     floorLabel: unit.floor ?? "Not set",
+    hasActiveLease: Boolean(activeLease),
     id: unit.id,
     isArchived: Boolean(unit.archived_at),
     ledgerNetUsd: calculateLedgerNetUsd(ledgerEntries, currencySettings),
@@ -175,10 +173,14 @@ export function buildUnitDetail({
 
 export function selectCurrentLease(rows: UnitLeaseRecord[]) {
   return rows
-    .filter((lease) => !inactiveLeaseStatuses.has(normalizeStoredValue(lease.status)))
+    .filter((lease) => isActiveUnitLeaseStatus(lease.status))
     .toSorted((first, second) =>
       second.lease_start_date.localeCompare(first.lease_start_date),
     )[0];
+}
+
+export function isActiveUnitLeaseStatus(status: string) {
+  return activeLeaseStatuses.has(normalizeFormValue(status));
 }
 
 export function formatUnitStatus(status: string) {

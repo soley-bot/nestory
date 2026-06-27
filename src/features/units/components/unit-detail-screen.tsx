@@ -34,7 +34,7 @@ export function UnitDetailScreen({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen lg:flex lg:h-screen lg:flex-col lg:overflow-hidden">
       <PageHeader
         actions={
           unit.isArchived ? (
@@ -78,7 +78,7 @@ export function UnitDetailScreen({
       />
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-8">
+        <div className="px-4 pt-5 sm:px-6 lg:shrink-0 lg:px-6">
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
             role="status"

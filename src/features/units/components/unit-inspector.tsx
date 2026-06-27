@@ -7,6 +7,7 @@ import {
   ListTree,
   Pencil,
   RotateCcw,
+  ScrollText,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
@@ -42,9 +43,9 @@ export function UnitInspector({
   }
 
   const iconButtonClassName =
-    "inline-flex h-9 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted";
   const primaryIconButtonClassName =
-    "inline-flex h-9 items-center justify-center rounded-md border border-accent bg-accent text-white transition-colors hover:bg-[#16181d]";
+    "inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface text-foreground transition-colors hover:bg-surface-muted";
 
   return (
     <aside className="rounded-md border border-border bg-surface 2xl:sticky 2xl:top-5 2xl:max-h-[calc(100vh-170px)] 2xl:overflow-auto">
@@ -83,6 +84,35 @@ export function UnitInspector({
             <MoneyDisplay value={unit.ledgerNetDisplay} />
           </Detail>
         </dl>
+
+        {!unit.hasActiveLease ? (
+          <div className="border-t border-border pt-3">
+            <p className="text-xs font-medium text-foreground-muted">
+              No active lease linked.
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <Link
+                aria-label={`Add lease for unit ${unit.unitNumber}`}
+                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-soft/40 px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-warning-soft"
+                href={getCreateLeaseHref(unit)}
+                title="Add lease for this unit"
+              >
+                <ScrollText size={14} />
+                <span className="truncate">Add lease</span>
+              </Link>
+              <button
+                aria-label={`Edit status for unit ${unit.unitNumber}`}
+                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+                onClick={() => onEditUnit(unit)}
+                title="Edit unit status"
+                type="button"
+              >
+                <Pencil size={14} />
+                <span className="truncate">Edit status</span>
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
           <div className="flex items-center gap-2 text-muted">
@@ -154,7 +184,7 @@ export function UnitInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open timeline filtered to unit ${unit.unitNumber}`}
-            className="inline-flex h-9 items-center justify-center rounded-md border border-border text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/timeline?unitId=${unit.id}`}
             title="Open unit timeline"
           >
@@ -162,7 +192,7 @@ export function UnitInspector({
           </Link>
           <Link
             aria-label={`Open ledger filtered to unit ${unit.unitNumber}`}
-            className="inline-flex h-9 items-center justify-center rounded-md border border-border text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/ledger?propertyId=${unit.propertyId}&query=${encodeURIComponent(
               unit.unitNumber,
             )}`}
@@ -174,6 +204,16 @@ export function UnitInspector({
       </div>
     </aside>
   );
+}
+
+function getCreateLeaseHref(unit: UnitSummary) {
+  const params = new URLSearchParams({
+    action: "create",
+    propertyId: unit.propertyId,
+    unitId: unit.id,
+  });
+
+  return `/leases?${params.toString()}`;
 }
 
 function Detail({

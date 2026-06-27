@@ -69,7 +69,7 @@ export function LedgerInspector({
             <Badge>{entry.propertyCode}</Badge>
           </div>
         </div>
-        <h2 className="mt-4 break-words text-lg font-semibold tracking-tight">
+        <h2 className="mt-4 break-words text-base font-semibold tracking-tight">
           {entry.category}
         </h2>
         <p className="mt-2 break-words text-sm leading-6 text-muted">
@@ -127,7 +127,7 @@ export function LedgerInspector({
                 </p>
               </div>
               <Link
-                className="inline-flex min-h-8 items-center justify-center gap-2 rounded-md px-2 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft"
+                className="inline-flex min-h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-surface-muted"
                 href={`/timeline?eventId=${encodeURIComponent(
                   entry.relatedTimelineEvent.id,
                 )}`}

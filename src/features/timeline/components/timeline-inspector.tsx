@@ -91,7 +91,7 @@ export function TimelineInspector({
           </p>
           <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
             <Link
-              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:bg-surface-muted"
+              className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] font-medium transition-colors hover:bg-surface-muted"
               href={`/ledger?entryId=${encodeURIComponent(
                 event.ledgerEntryId ?? "",
               )}`}

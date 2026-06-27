@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Archive, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,14 @@ export function TimelineScreen({
   unitOptions,
   viewQuery,
 }: TimelineScreenProps) {
-  const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [drawer, setDrawer] = useState<DrawerState | null>(() =>
+    searchParams.get("action") === "create"
+      ? { event: null, mode: "create" }
+      : null,
+  );
   const [selectedEventId, setSelectedEventId] = useState(initialEventId ?? "");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -73,6 +81,16 @@ export function TimelineScreen({
       ? events.find((event) => event.id === initialEventId)
       : null) ??
     events.find((event) => event.id === selectedEventId) ?? events[0] ?? null;
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "create") {
+      return;
+    }
+
+    router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+      scroll: false,
+    });
+  }, [pathname, router, searchParams]);
 
   return (
     <div className="min-h-screen">
@@ -103,7 +121,7 @@ export function TimelineScreen({
       />
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-8">
+        <div className="px-4 pt-5 sm:px-6 lg:px-6">
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
             role="status"
@@ -119,7 +137,7 @@ export function TimelineScreen({
         viewQuery={viewQuery}
       />
 
-      <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
+      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 space-y-3">
             <TimelineTable
@@ -131,26 +149,28 @@ export function TimelineScreen({
             />
             <PaginationControls pagination={pagination} />
           </div>
-          <TimelineInspector
-            currencySettings={currencySettings}
-            event={selectedEvent}
-            onAttachDocument={(event) => {
-              setStatusMessage(null);
-              setDrawer({ event, mode: "document" });
-            }}
-            onArchive={(event) => {
-              setStatusMessage(null);
-              setDrawer({ event, mode: "archive" });
-            }}
-            onEdit={(event) => {
-              setStatusMessage(null);
-              setDrawer({ event, mode: "edit" });
-            }}
-            onRestore={(event) => {
-              setStatusMessage(null);
-              setDrawer({ event, mode: "restore" });
-            }}
-          />
+          <div className="hidden 2xl:block">
+            <TimelineInspector
+              currencySettings={currencySettings}
+              event={selectedEvent}
+              onAttachDocument={(event) => {
+                setStatusMessage(null);
+                setDrawer({ event, mode: "document" });
+              }}
+              onArchive={(event) => {
+                setStatusMessage(null);
+                setDrawer({ event, mode: "archive" });
+              }}
+              onEdit={(event) => {
+                setStatusMessage(null);
+                setDrawer({ event, mode: "edit" });
+              }}
+              onRestore={(event) => {
+                setStatusMessage(null);
+                setDrawer({ event, mode: "restore" });
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -245,6 +265,17 @@ function getTimelineDrawerDescription(drawer: DrawerState) {
   }
 
   return "Hide this record from normal timeline views while keeping audit history.";
+}
+
+function getHrefWithoutActionParam(
+  pathname: string,
+  searchParams: { toString(): string },
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+  nextParams.delete("action");
+
+  const queryString = nextParams.toString();
+  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 function ArchiveTimelineEventPanel({

@@ -31,7 +31,7 @@ export function LeasesTable({
 }: LeasesTableProps) {
   return (
     <div>
-      <div className="space-y-3 md:hidden">
+      <div className="max-h-[330px] space-y-3 overflow-auto pr-1 md:hidden">
         {leases.length === 0 ? (
           <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted">
             {getEmptyMessage(archiveState)}
@@ -50,7 +50,7 @@ export function LeasesTable({
       </div>
 
       <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-        <div className="max-h-[min(680px,calc(100vh-260px))] overflow-auto">
+        <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
           <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-[13px]">
             <colgroup>
               <col className="w-[14%]" />
@@ -92,7 +92,7 @@ export function LeasesTable({
                 <tr
                   className={cn(
                     "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                    selectedLeaseId === lease.id && "bg-accent-soft",
+                    selectedLeaseId === lease.id && "bg-surface-muted",
                     lease.isArchived && "text-muted",
                   )}
                   key={lease.id}

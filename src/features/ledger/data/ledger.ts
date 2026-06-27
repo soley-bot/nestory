@@ -4,6 +4,7 @@ import { getOrganizationCurrencySettings } from "@/features/settings/data/settin
 import {
   DEFAULT_LEDGER_VIEW_QUERY,
   buildLedgerPagination,
+  getLedgerTransactionDateScope,
 } from "@/features/ledger/ledger.filters";
 import type {
   LedgerEntry,
@@ -178,6 +179,20 @@ export async function getLedgerScreenData(
 
   if (viewQuery.propertyId !== "all") {
     ledgerQuery = ledgerQuery.eq("property_id", viewQuery.propertyId);
+  }
+
+  const dateScope = getLedgerTransactionDateScope(viewQuery);
+
+  if (dateScope.from) {
+    ledgerQuery = ledgerQuery.gte("transaction_date", dateScope.from);
+  }
+
+  if (dateScope.before) {
+    ledgerQuery = ledgerQuery.lt("transaction_date", dateScope.before);
+  }
+
+  if (viewQuery.minAmount !== null) {
+    ledgerQuery = ledgerQuery.gte("amount", viewQuery.minAmount);
   }
 
   for (const searchGroup of searchGroups) {

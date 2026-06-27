@@ -24,8 +24,8 @@ export function ReportsFilters({
   viewQuery,
 }: ReportsFiltersProps) {
   return (
-    <div className="border-b border-border bg-surface px-4 py-3 print:hidden sm:px-6 lg:px-8">
-      <div className="space-y-2.5">
+    <div className="border-b border-border bg-surface px-4 py-2.5 print:hidden sm:px-6 lg:px-6">
+      <div className="space-y-2">
         <div
           aria-label="Report view"
           className="inline-flex h-8 rounded-md border border-border bg-surface-muted p-0.5 text-xs"
@@ -47,14 +47,14 @@ export function ReportsFilters({
 
         <form
           action="/reports"
-          className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(180px,240px)_minmax(150px,180px)_minmax(150px,180px)_auto_auto]"
+          className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(180px,240px)_minmax(150px,180px)_minmax(150px,180px)_auto_auto]"
           method="get"
         >
           <input name="report" type="hidden" value={viewQuery.report} />
 
           <SelectControl
             ariaLabel="Filter report by property"
-            className="h-8 px-2 text-[13px]"
+            className="col-span-2 h-8 px-2 text-[13px] lg:col-span-1"
             defaultValue={viewQuery.propertyId}
             name="propertyId"
             options={[
@@ -69,7 +69,7 @@ export function ReportsFilters({
           {viewQuery.report === "occupancy" ? (
             <SelectControl
               ariaLabel="Filter units by status"
-              className="h-8 px-2 text-[13px]"
+              className="col-span-2 h-8 px-2 text-[13px] lg:col-span-1"
               defaultValue={viewQuery.status}
               name="status"
               options={[
@@ -84,7 +84,7 @@ export function ReportsFilters({
           ) : (
             <MonthPickerField
               ariaLabel="Profit and loss month"
-              className="h-8 px-2 text-[13px]"
+              className="col-span-2 h-8 px-2 text-[13px] lg:col-span-1"
               defaultValue={viewQuery.month}
               name="month"
             />
@@ -95,7 +95,8 @@ export function ReportsFilters({
             type="submit"
           >
             <SlidersHorizontal size={14} />
-            Apply filters
+            <span className="hidden sm:inline">Apply filters</span>
+            <span className="sm:hidden">Apply</span>
           </Button>
 
           <Link
@@ -105,7 +106,7 @@ export function ReportsFilters({
             title="Reset filters"
           >
             <RotateCcw size={14} />
-            Reset
+            <span className="hidden sm:inline">Reset</span>
           </Link>
         </form>
       </div>
@@ -128,7 +129,7 @@ function ReportTab({
       className={cn(
         "inline-flex h-7 items-center rounded px-3 text-xs font-medium transition-colors",
         active
-          ? "bg-accent text-white shadow-sm"
+          ? "bg-surface text-foreground shadow-sm"
           : "text-muted hover:bg-surface hover:text-foreground",
       )}
       href={href}

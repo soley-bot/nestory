@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FileText, Plus } from "lucide-react";
+import { FileText, Plus, ScrollText } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,10 @@ export function UnitScreen({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedUnit =
     units.find((unit) => unit.id === selectedUnitId) ?? units[0] ?? null;
+  const fillVacancyHref =
+    isVacantReview && selectedUnit && !selectedUnit.hasActiveLease
+      ? getCreateLeaseHref(selectedUnit)
+      : null;
   const openUnitRecord = (unitId: string) => {
     router.push(`/units/${unitId}`);
   };
@@ -90,6 +94,15 @@ export function UnitScreen({
       <PageHeader
         actions={
           <>
+            {fillVacancyHref ? (
+              <Link
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-soft px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-warning-soft/70"
+                href={fillVacancyHref}
+              >
+                <ScrollText size={15} />
+                Fill vacancy
+              </Link>
+            ) : null}
             {activeReview?.reportHref ? (
               <Link
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
@@ -291,8 +304,8 @@ function getUnitReviewContext({
     return {
       countLabel: "marked vacant",
       description:
-        "Showing vacant units. Select a row to attach a lease, update status, or make the available-units report.",
-      nextStep: "Use Make report for the printable vacant-unit list.",
+        "Showing vacant units. Select a row, then fill the vacancy or make the available-units report.",
+      nextStep: "Fill vacancy opens Add lease with the selected unit already scoped.",
       reportHref: getVacantUnitsReportHref(propertyId),
     };
   }
@@ -328,6 +341,17 @@ function getVacantUnitsReportHref(propertyId: string) {
   }
 
   return `/reports?${params.toString()}`;
+}
+
+function getCreateLeaseHref(unit: UnitSummary) {
+  const params = new URLSearchParams({
+    action: "create",
+    propertyId: unit.propertyId,
+    source: "vacancy",
+    unitId: unit.id,
+  });
+
+  return `/leases?${params.toString()}`;
 }
 
 function getSelectedPropertyLabel(

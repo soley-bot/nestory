@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { ACTIVE_UNIT_LEASE_STATUSES } from "@/features/units/data/unit-summary";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { CurrencyCode } from "@/lib/money/format";
@@ -37,6 +38,21 @@ const leaseStatusSchema = z.enum([
 ]);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date.");
 const leaseIdSchema = z.uuid("Choose a lease.");
+const occupancyLeaseStatuses = new Set<string>(ACTIVE_UNIT_LEASE_STATUSES);
+
+type LeaseLinkedUnitRow = {
+  current_rent_amount: number | null;
+  current_rent_currency: CurrencyCode | null;
+  floor: string | null;
+  property_id: string;
+  size_sqm: number | null;
+  status: string;
+  unit_number: string;
+};
+
+type LinkedUnitOccupancyResult =
+  | { message?: never; status: "not-needed" | "updated" }
+  | { message: string; status: "needs-review" };
 
 const leaseMutationSchema = z
   .object({
@@ -207,10 +223,16 @@ export async function createLeaseAction(
     };
   }
 
+  const occupancyResult = await markLinkedUnitOccupiedIfNeeded(
+    supabase,
+    context.organizationId,
+    nullableUuid(parsed.data.unitId),
+    parsed.data.status,
+  );
   revalidateLeasePaths([parsed.data.propertyId], [parsed.data.unitId], data.id);
 
   return {
-    message: "Lease added.",
+    message: getLeaseSuccessMessage("Lease added.", occupancyResult),
     status: "success",
   };
 }
@@ -284,6 +306,12 @@ export async function updateLeaseAction(
     };
   }
 
+  const occupancyResult = await markLinkedUnitOccupiedIfNeeded(
+    supabase,
+    context.organizationId,
+    nullableUuid(parsed.data.unitId),
+    parsed.data.status,
+  );
   revalidateLeasePaths(
     [pathContext.property_id, parsed.data.propertyId],
     [pathContext.unit_id, parsed.data.unitId],
@@ -291,7 +319,7 @@ export async function updateLeaseAction(
   );
 
   return {
-    message: "Lease updated.",
+    message: getLeaseSuccessMessage("Lease updated.", occupancyResult),
     status: "success",
   };
 }
@@ -472,13 +500,80 @@ async function getLeasePathContext(
   return data;
 }
 
+async function markLinkedUnitOccupiedIfNeeded(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  unitId: string | null,
+  leaseStatus: string,
+): Promise<LinkedUnitOccupancyResult> {
+  if (!unitId || !occupancyLeaseStatuses.has(leaseStatus)) {
+    return { status: "not-needed" };
+  }
+
+  const { data, error } = await supabase
+    .from("units")
+    .select(
+      "current_rent_amount, current_rent_currency, floor, property_id, size_sqm, status, unit_number",
+    )
+    .eq("id", unitId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return {
+      message:
+        "Lease saved, but the linked unit status could not be checked. Review the unit status before relying on vacancy totals.",
+      status: "needs-review",
+    };
+  }
+
+  const unit = data as LeaseLinkedUnitRow;
+
+  if (unit.status.trim().toLowerCase() !== "vacant") {
+    return { status: "not-needed" };
+  }
+
+  const updateResult = await supabase.rpc("update_unit", {
+    p_current_rent_amount: unit.current_rent_amount,
+    p_current_rent_currency: unit.current_rent_currency,
+    p_floor: unit.floor,
+    p_organization_id: organizationId,
+    p_property_id: unit.property_id,
+    p_size_sqm: unit.size_sqm,
+    p_status: "occupied",
+    p_unit_id: unitId,
+    p_unit_number: unit.unit_number,
+  });
+
+  if (updateResult.error) {
+    return {
+      message:
+        "Lease saved, but the linked vacant unit could not be marked occupied. Open the unit and update its status.",
+      status: "needs-review",
+    };
+  }
+
+  return { status: "updated" };
+}
+
+function getLeaseSuccessMessage(
+  baseMessage: string,
+  occupancyResult: LinkedUnitOccupancyResult,
+) {
+  return occupancyResult.status === "needs-review"
+    ? occupancyResult.message
+    : baseMessage;
+}
+
 function revalidateLeasePaths(
   propertyIds: Array<string | null | undefined>,
   unitIds: Array<string | null | undefined>,
   leaseId?: string | null,
 ) {
+  revalidatePath("/overview");
   revalidatePath("/leases");
   revalidatePath("/ledger");
+  revalidatePath("/reports");
   revalidatePath("/timeline");
   revalidatePath("/units");
   revalidatePath("/properties");

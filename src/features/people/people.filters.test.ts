@@ -5,6 +5,8 @@ import {
   DEFAULT_PEOPLE_SORT,
   parsePeopleSearchParams,
 } from "@/features/people/people.filters";
+import { personMatchesStatusFilter } from "@/features/people/data/people";
+import type { PeopleSummary } from "@/features/people/people.types";
 
 describe("parsePeopleSearchParams", () => {
   it("normalizes default people filters", () => {
@@ -27,8 +29,8 @@ describe("parsePeopleSearchParams", () => {
         pageSize: "100",
         query: "  tenant owner vendor  ",
         role: "tenant",
+        status: "missing_contact",
         sort: "updated_desc",
-        status: "active",
       }),
     ).toEqual({
       archiveState: "all",
@@ -36,8 +38,8 @@ describe("parsePeopleSearchParams", () => {
       pageSize: 100,
       query: "tenant owner vendor",
       role: "tenant",
+      status: "missing_contact",
       sort: "updated_desc",
-      status: "active",
     });
   });
 
@@ -59,3 +61,63 @@ describe("parsePeopleSearchParams", () => {
     });
   });
 });
+
+describe("personMatchesStatusFilter", () => {
+  it("matches people missing useful email or phone contact", () => {
+    expect(
+      personMatchesStatusFilter(
+        buildPersonSummary({ hasUsefulContact: false }),
+        "missing_contact",
+      ),
+    ).toBe(true);
+    expect(
+      personMatchesStatusFilter(
+        buildPersonSummary({ hasUsefulContact: true }),
+        "missing_contact",
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps existing no-role behavior", () => {
+    expect(
+      personMatchesStatusFilter(buildPersonSummary({ roles: [] }), "no_role"),
+    ).toBe(true);
+    expect(
+      personMatchesStatusFilter(
+        buildPersonSummary({
+          roles: [{ role: "owner", status: "active" }],
+        }),
+        "no_role",
+      ),
+    ).toBe(false);
+  });
+});
+
+function buildPersonSummary(
+  overrides: Partial<PeopleSummary> = {},
+): PeopleSummary {
+  return {
+    contact: { email: null, label: "No contact", phone: null },
+    displayName: "Dara Person",
+    formValues: {
+      displayName: "Dara Person",
+      partyType: "individual",
+      roles: [],
+    },
+    hasUsefulContact: false,
+    id: "person-1",
+    isArchived: false,
+    linked: {
+      activeLeaseCount: 0,
+      ownerPropertyCount: 0,
+    },
+    partyType: "individual",
+    partyTypeLabel: "Individual",
+    roles: [],
+    roleLabel: "No role",
+    statusLabel: "No role",
+    statusTone: "warning",
+    updatedAt: "2026-06-01T00:00:00Z",
+    ...overrides,
+  };
+}

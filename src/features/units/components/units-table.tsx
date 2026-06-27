@@ -1,12 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
-import {
-  Archive,
-  Building2,
-  ExternalLink,
-  Pencil,
-  RotateCcw,
-} from "lucide-react";
+import { Archive, ExternalLink, Pencil, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type {
   UnitArchiveState,
@@ -47,8 +40,8 @@ export function UnitsTable({
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
-            : "space-y-3 md:hidden",
+            ? "grid max-h-[380px] gap-3 overflow-auto pr-1 sm:grid-cols-2 lg:max-h-none lg:overflow-visible lg:pr-0 xl:grid-cols-3 2xl:grid-cols-3"
+            : "max-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
         )}
       >
         {units.length === 0 ? (
@@ -59,7 +52,10 @@ export function UnitsTable({
         {units.map((unit) => (
           <UnitCard
             key={unit.id}
+            onArchiveUnit={onArchiveUnit}
+            onEditUnit={onEditUnit}
             onOpenUnit={onOpenUnit}
+            onRestoreUnit={onRestoreUnit}
             onSelectUnit={onSelectUnit}
             selected={selectedUnitId === unit.id}
             unit={unit}
@@ -69,7 +65,7 @@ export function UnitsTable({
 
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-          <div className="max-h-[min(680px,calc(100vh-260px))] overflow-auto">
+          <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
             <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
                 <col className="w-[20%]" />
@@ -111,7 +107,7 @@ export function UnitsTable({
                   <tr
                     className={cn(
                       "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                      selectedUnitId === unit.id && "bg-accent-soft",
+                      selectedUnitId === unit.id && "bg-surface-muted",
                       unit.isArchived && "text-muted",
                     )}
                     key={unit.id}
@@ -211,12 +207,18 @@ function getEmptyMessage(archiveState: UnitArchiveState) {
 }
 
 function UnitCard({
+  onArchiveUnit,
+  onEditUnit,
   onOpenUnit,
+  onRestoreUnit,
   onSelectUnit,
   selected,
   unit,
 }: {
+  onArchiveUnit: (unit: UnitSummary) => void;
+  onEditUnit: (unit: UnitSummary) => void;
   onOpenUnit: (id: string) => void;
+  onRestoreUnit: (unit: UnitSummary) => void;
   onSelectUnit: (id: string) => void;
   selected: boolean;
   unit: UnitSummary;
@@ -224,7 +226,7 @@ function UnitCard({
   return (
     <article
       className={cn(
-        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-[#c9d0da] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
+        "group min-w-0 cursor-pointer rounded-md border border-border bg-surface px-3.5 py-3.5 text-sm transition-colors hover:border-[#c9d0da] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
         selected && "border-accent shadow-[0_0_0_1px_var(--accent)]",
         unit.isArchived && "text-muted",
       )}
@@ -238,55 +240,53 @@ function UnitCard({
       }}
       tabIndex={0}
     >
-      <div className="relative aspect-[4/3] overflow-hidden border-b border-border bg-[#eef0f4]">
-        <div className={cn("absolute inset-0", getUnitCardTone(unit.statusValue))} />
-        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.26),rgba(255,255,255,0)_42%,rgba(8,11,18,0.1))]" />
-        <div className="absolute inset-0 flex items-center justify-center text-[#69717d]/70">
-          <Building2 size={26} strokeWidth={1.6} />
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Link
+            className="block truncate text-base font-semibold leading-5 text-accent hover:underline"
+            href={`/units/${unit.id}`}
+            onClick={(event) => event.stopPropagation()}
+            prefetch={false}
+            title={`Unit ${unit.unitNumber}`}
+          >
+            Unit {unit.unitNumber}
+          </Link>
+          <p className="mt-1 truncate font-medium" title={unit.propertyName}>
+            {unit.propertyName}
+          </p>
+          <p
+            className="mt-0.5 truncate text-[13px] text-foreground-muted"
+            title={unit.propertyCode}
+          >
+            {unit.propertyCode}
+          </p>
         </div>
+        <UnitStatusBadges unit={unit} />
       </div>
 
-      <div className="space-y-3 px-3.5 py-3.5">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <Link
-              className="block truncate text-base font-semibold leading-5 text-accent hover:underline"
-              href={`/units/${unit.id}`}
-              onClick={(event) => event.stopPropagation()}
-              prefetch={false}
-              title={`Unit ${unit.unitNumber}`}
-            >
-              Unit {unit.unitNumber}
-            </Link>
-            <p className="mt-1 truncate text-sm font-medium" title={unit.propertyName}>
-              {unit.propertyName}
-            </p>
-            <p className="mt-0.5 truncate text-xs text-muted" title={unit.propertyCode}>
-              {unit.propertyCode}
-            </p>
-          </div>
-          <UnitStatusBadges unit={unit} />
+      <div className="mt-3 grid gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-foreground-muted">Floor {unit.floorLabel}</span>
+          {unit.rentDisplay ? (
+            <TableMoneyDisplay showSecondary={false} value={unit.rentDisplay} />
+          ) : (
+            <span className="font-semibold">{unit.rentLabel}</span>
+          )}
         </div>
+        <p className="line-clamp-2 leading-5 text-foreground-muted">
+          {unit.leaseLabel}
+        </p>
+      </div>
 
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-          <UnitCardDetail label="Floor" value={unit.floorLabel} />
-          <UnitCardDetail
-            align="right"
-            label="Rent"
-            value={
-              unit.rentDisplay ? (
-                <TableMoneyDisplay value={unit.rentDisplay} />
-              ) : (
-                unit.rentLabel
-              )
-            }
-          />
-          <UnitCardDetail
-            className="col-span-2"
-            label="Lease"
-            value={<span className="line-clamp-1">{unit.leaseLabel}</span>}
-          />
-        </dl>
+      <div className="mt-3 flex justify-end border-t border-border pt-2">
+        <UnitActions
+          className="justify-end gap-1"
+          onArchiveUnit={onArchiveUnit}
+          onEditUnit={onEditUnit}
+          onRestoreUnit={onRestoreUnit}
+          size="touch"
+          unit={unit}
+        />
       </div>
     </article>
   );
@@ -297,17 +297,21 @@ function UnitActions({
   onArchiveUnit,
   onEditUnit,
   onRestoreUnit,
+  size = "compact",
   unit,
 }: {
   className?: string;
   onArchiveUnit: (unit: UnitSummary) => void;
   onEditUnit: (unit: UnitSummary) => void;
   onRestoreUnit: (unit: UnitSummary) => void;
+  size?: "compact" | "touch";
   unit: UnitSummary;
 }) {
   const baseClassName = cn("flex justify-center gap-0.5", className);
-  const buttonClassName =
-    "inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50";
+  const buttonClassName = cn(
+    "inline-flex items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50",
+    size === "touch" ? "h-9 w-9" : "h-[26px] w-[26px]",
+  );
 
   if (unit.isArchived) {
     return (
@@ -317,7 +321,7 @@ function UnitActions({
       >
         <Link
           aria-label={`Open unit ${unit.unitNumber}`}
-          className={`${buttonClassName} hover:text-foreground`}
+          className={cn(buttonClassName, "hover:text-foreground")}
           href={`/units/${unit.id}`}
           onClick={(event) => event.stopPropagation()}
           prefetch={false}
@@ -327,7 +331,7 @@ function UnitActions({
         </Link>
         <button
           aria-label={`Restore unit ${unit.unitNumber}`}
-          className={`${buttonClassName} hover:text-accent`}
+          className={cn(buttonClassName, "hover:text-accent")}
           onClick={(event) => {
             event.stopPropagation();
             onRestoreUnit(unit);
@@ -348,7 +352,7 @@ function UnitActions({
     >
       <Link
         aria-label={`Open unit ${unit.unitNumber}`}
-        className={`${buttonClassName} hover:text-foreground`}
+        className={cn(buttonClassName, "hover:text-foreground")}
         href={`/units/${unit.id}`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
@@ -358,7 +362,7 @@ function UnitActions({
       </Link>
       <button
         aria-label={`Edit unit ${unit.unitNumber}`}
-        className={`${buttonClassName} hover:text-foreground`}
+        className={cn(buttonClassName, "hover:text-foreground")}
         onClick={(event) => {
           event.stopPropagation();
           onEditUnit(unit);
@@ -370,7 +374,7 @@ function UnitActions({
       </button>
       <button
         aria-label={`Archive unit ${unit.unitNumber}`}
-        className={`${buttonClassName} hover:text-danger`}
+        className={cn(buttonClassName, "hover:text-danger")}
         onClick={(event) => {
           event.stopPropagation();
           onArchiveUnit(unit);
@@ -389,32 +393,6 @@ function UnitStatusBadges({ unit }: { unit: UnitSummary }) {
     <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
       <Badge tone={unit.statusTone}>{unit.statusLabel}</Badge>
       {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
-    </div>
-  );
-}
-
-function UnitCardDetail({
-  align = "left",
-  className,
-  label,
-  value,
-}: {
-  align?: "left" | "right";
-  className?: string;
-  label: string;
-  value: ReactNode;
-}) {
-  return (
-    <div
-      className={cn(
-        align === "right" ? "min-w-0 text-right" : "min-w-0",
-        className,
-      )}
-    >
-      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
-        {label}
-      </dt>
-      <dd className="mt-1 break-words font-medium">{value}</dd>
     </div>
   );
 }
@@ -455,22 +433,6 @@ function TableMoneyDisplay({
       ) : null}
     </span>
   );
-}
-
-function getUnitCardTone(status: string) {
-  if (status === "vacant") {
-    return "bg-[linear-gradient(135deg,#cfd7df_0%,#eef0f4_50%,#aab4c0_100%)]";
-  }
-
-  if (status === "maintenance" || status === "reserved") {
-    return "bg-[linear-gradient(135deg,#d8c1a3_0%,#eef0f4_48%,#9aa5b5_100%)]";
-  }
-
-  if (status === "inactive") {
-    return "bg-[linear-gradient(135deg,#c5c9cf_0%,#f3f1ec_48%,#9d9a92_100%)]";
-  }
-
-  return "bg-[linear-gradient(135deg,#b9c2bf_0%,#edf0ec_46%,#a38d73_100%)]";
 }
 
 function formatMoneyWithSymbol(label: string, currency: CurrencyCode) {

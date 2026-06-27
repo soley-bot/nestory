@@ -15,9 +15,9 @@ function redirectToLogin(request: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-function redirectToTimeline(request: NextRequest) {
+function redirectToOverview(request: NextRequest) {
   const url = request.nextUrl.clone();
-  url.pathname = "/timeline";
+  url.pathname = "/overview";
   url.search = "";
   return NextResponse.redirect(url);
 }
@@ -65,7 +65,7 @@ export async function proxy(request: NextRequest) {
     isAuthenticated &&
     REDIRECT_AUTHENTICATED_ROUTES.has(request.nextUrl.pathname)
   ) {
-    return redirectToTimeline(request);
+    return redirectToOverview(request);
   }
 
   return response;

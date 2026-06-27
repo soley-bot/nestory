@@ -8,68 +8,62 @@ import {
   Building2,
   ChevronDown,
   ClipboardList,
-  CreditCard,
   FileText,
   FolderOpen,
   Home,
   Landmark,
   ListTree,
   LogOut,
-  MessageSquare,
   MoreHorizontal,
+  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   ScrollText,
   Settings,
+  Sun,
   Upload,
   Users,
-  Workflow,
-  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOutAction } from "@/features/auth/actions";
-
-type NavBadge = "Draft" | "Planned";
+import { FUTURE_MODULE_PATHS } from "@/components/layout/future-modules";
 
 type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  badge?: NavBadge;
   activeHrefs?: string[];
 };
 
 type NavGroup = {
+  id: string;
   label: string;
+  icon: LucideIcon;
   items: NavItem[];
 };
 
-const futureModuleHrefs = [
-  "/payments",
-  "/maintenance",
-  "/tenant-portal",
-  "/communications",
-  "/workflows",
-];
-
 const navGroups: NavGroup[] = [
   {
+    id: "home",
     label: "Home",
-    items: [{ href: "/overview", label: "Overview", icon: BarChart3 }],
+    icon: BarChart3,
+    items: [{ href: "/overview", label: "Dashboard", icon: BarChart3 }],
   },
   {
+    id: "record-room",
     label: "Record room",
+    icon: Building2,
     items: [
       { href: "/properties", label: "Properties", icon: Building2 },
       { href: "/units", label: "Units", icon: Home },
       { href: "/timeline", label: "Timeline", icon: ListTree },
-      { href: "/documents", label: "Documents", icon: FolderOpen, badge: "Draft" },
-      { href: "/import", label: "Import data", icon: Upload },
     ],
   },
   {
-    label: "People & leases",
+    id: "people-money",
+    label: "People & money",
+    icon: Users,
     items: [
       { href: "/leases", label: "Leases", icon: ScrollText },
       {
@@ -78,50 +72,31 @@ const navGroups: NavGroup[] = [
         icon: Users,
         activeHrefs: ["/tenants"],
       },
-    ],
-  },
-  {
-    label: "Money",
-    items: [
       { href: "/ledger", label: "Ledger", icon: Landmark },
-      { href: "/reports", label: "Reports", icon: FileText, badge: "Draft" },
-    ],
-  },
-  {
-    label: "Build plan",
-    items: [
-      {
-        href: "/roadmap",
-        label: "Roadmap",
-        icon: ClipboardList,
-        badge: "Planned",
-        activeHrefs: futureModuleHrefs,
-      },
     ],
   },
 ];
 
-const plannedModuleItems: NavItem[] = [
-  { href: "/payments", label: "Payments", icon: CreditCard, badge: "Planned" },
+const moreNavItems: NavItem[] = [
+  { href: "/documents", label: "Documents", icon: FolderOpen },
+  { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/import", label: "Import data", icon: Upload },
   {
-    href: "/maintenance",
-    label: "Tasks & maintenance",
-    icon: Wrench,
-    badge: "Planned",
-  },
-  {
-    href: "/tenant-portal",
-    label: "Tenant portal",
+    href: "/roadmap",
+    label: "Roadmap",
     icon: ClipboardList,
-    badge: "Planned",
+    activeHrefs: FUTURE_MODULE_PATHS,
   },
+];
+
+const desktopNavGroups: NavGroup[] = [
+  ...navGroups,
   {
-    href: "/communications",
-    label: "Communications",
-    icon: MessageSquare,
-    badge: "Planned",
+    id: "tools",
+    label: "Tools",
+    icon: MoreHorizontal,
+    items: moreNavItems,
   },
-  { href: "/workflows", label: "Workflows", icon: Workflow, badge: "Planned" },
 ];
 
 const settingsItem: NavItem = {
@@ -131,25 +106,17 @@ const settingsItem: NavItem = {
 };
 
 const mobilePrimaryItems = [
-  { href: "/overview", label: "Overview", icon: BarChart3 },
+  { href: "/overview", label: "Dashboard", icon: BarChart3 },
   { href: "/properties", label: "Properties", icon: Building2 },
   { href: "/units", label: "Units", icon: Home },
   { href: "/timeline", label: "Timeline", icon: ListTree },
+  { href: "/ledger", label: "Ledger", icon: Landmark },
+] satisfies NavItem[];
+
+const mobileMoreItems = [
   { href: "/leases", label: "Leases", icon: ScrollText },
-  {
-    href: "/roadmap",
-    label: "More",
-    icon: MoreHorizontal,
-    activeHrefs: [
-      "/people",
-      "/tenants",
-      "/ledger",
-      "/documents",
-      "/import",
-      "/reports",
-      ...futureModuleHrefs,
-    ],
-  },
+  { href: "/people", label: "People", icon: Users, activeHrefs: ["/tenants"] },
+  ...moreNavItems,
 ] satisfies NavItem[];
 
 type AppShellProps = {
@@ -168,18 +135,37 @@ function isNavItemActive(pathname: string, item: NavItem) {
   );
 }
 
-function NavBadgeLabel({ badge }: { badge: NavBadge }) {
+function getPathGroup(pathname: string) {
+  return desktopNavGroups.find((group) =>
+    group.items.some((item) => isNavItemActive(pathname, item)),
+  );
+}
+
+function DesktopRailGroupButton({
+  group,
+  isActive,
+  onSelect,
+}: {
+  group: NavGroup;
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  const Icon = group.icon;
+
   return (
-    <span
+    <button
+      aria-label={group.label}
+      aria-pressed={isActive}
       className={cn(
-        "ml-auto rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold leading-none",
-        badge === "Draft"
-          ? "border-foreground/15 bg-surface text-foreground"
-          : "border-border bg-surface-muted text-muted",
+        "flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:bg-surface hover:text-foreground",
+        isActive && "border-border bg-surface text-foreground shadow-sm",
       )}
+      onClick={onSelect}
+      title={group.label}
+      type="button"
     >
-      {badge}
-    </span>
+      <Icon size={15} />
+    </button>
   );
 }
 
@@ -190,202 +176,230 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const pathGroup = getPathGroup(pathname);
+  const [selectedDesktopGroupId, setSelectedDesktopGroupId] = useState(
+    pathGroup?.id ?? "home",
+  );
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const selectedDesktopGroup =
+    desktopNavGroups.find((group) => group.id === selectedDesktopGroupId) ??
+    desktopNavGroups[0];
   const isSettingsActive = isNavItemActive(pathname, settingsItem);
+  const isMobileMoreActive = mobileMoreItems.some((item) =>
+    isNavItemActive(pathname, item),
+  );
   const sidebarToggleLabel = sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
 
+  function toggleTheme() {
+    const currentTheme =
+      document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+
+    document.documentElement.dataset.theme = nextTheme;
+    window.localStorage.setItem("nestory-theme", nextTheme);
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-[13px]">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 hidden flex-col border-r border-border bg-white transition-[width] duration-200 print:hidden lg:flex",
-          sidebarCollapsed ? "w-16" : "w-56",
+          "fixed inset-y-0 left-0 hidden border-r border-border bg-surface transition-[width] duration-200 print:hidden lg:flex",
+          sidebarCollapsed ? "w-12" : "w-52",
         )}
       >
-        <div
-          className={cn(
-            "flex border-b border-border",
-            sidebarCollapsed
-              ? "h-16 items-center justify-center px-2"
-              : "h-32 items-start gap-3 px-4 pt-6",
-          )}
-        >
-          {sidebarCollapsed ? null : (
-            <>
-              <div className="min-w-0 flex-1">
-                <Link
-                  className="font-display block w-fit leading-none text-foreground"
-                  href="/overview"
-                  prefetch={false}
+        {sidebarCollapsed ? (
+          <div className="flex w-12 shrink-0 flex-col items-center bg-surface-muted/60">
+            <Link
+              aria-label="Nestory dashboard"
+              className="flex h-12 w-full items-center justify-center border-b border-border text-[13px] font-semibold text-foreground"
+              href="/overview"
+              onClick={() => {
+                setSelectedDesktopGroupId("home");
+                setSidebarCollapsed(false);
+              }}
+              prefetch={false}
+              title="Nestory"
+            >
+              N
+            </Link>
+            <nav
+              aria-label="Quick module rail"
+              className="flex flex-1 flex-col items-center gap-1 px-1 py-2"
+            >
+              {desktopNavGroups.map((group) => (
+                <DesktopRailGroupButton
+                  group={group}
+                  isActive={selectedDesktopGroup.id === group.id}
+                  key={group.id}
+                  onSelect={() => {
+                    setSelectedDesktopGroupId(group.id);
+                    setSidebarCollapsed(false);
+                  }}
+                />
+              ))}
+            </nav>
+            <div className="flex flex-col items-center gap-1 border-t border-border px-1 py-2">
+              <ThemeToggle onToggle={toggleTheme} />
+              <Link
+                aria-label="Settings"
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground",
+                  isSettingsActive && "bg-surface text-foreground",
+                )}
+                href={settingsItem.href}
+                prefetch={false}
+                title="Settings"
+              >
+                <Settings size={15} />
+              </Link>
+              <button
+                aria-label={sidebarToggleLabel}
+                className="flex h-8 w-8 items-center justify-center rounded-md bg-surface text-foreground transition-colors hover:bg-surface hover:text-foreground"
+                onClick={() => setSidebarCollapsed(false)}
+                title={sidebarToggleLabel}
+                type="button"
+              >
+                <PanelLeftOpen size={15} />
+              </button>
+              <form action={signOutAction}>
+                <button
+                  aria-label={userEmail ? `Sign out ${userEmail}` : "Sign out"}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground"
+                  title={userEmail ? `Sign out ${userEmail}` : "Sign out"}
+                  type="submit"
                 >
-                  <span className="block text-2xl font-semibold">NESTORY</span>
-                  <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-[0.24em] text-muted">
-                    Record room
-                  </span>
+                  <LogOut size={15} />
+                </button>
+              </form>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex w-12 shrink-0 flex-col items-center border-r border-border bg-surface-muted/60">
+              <Link
+                aria-label="Nestory dashboard"
+                className="flex h-12 w-full items-center justify-center border-b border-border text-[13px] font-semibold text-foreground"
+                href="/overview"
+                onClick={() => setSelectedDesktopGroupId("home")}
+                prefetch={false}
+                title="Nestory"
+              >
+                N
+              </Link>
+              <nav
+                aria-label="Quick module rail"
+                className="flex flex-1 flex-col items-center gap-1 px-1 py-2"
+              >
+                {desktopNavGroups.map((group) => (
+                  <DesktopRailGroupButton
+                    group={group}
+                    isActive={selectedDesktopGroup.id === group.id}
+                    key={group.id}
+                    onSelect={() => setSelectedDesktopGroupId(group.id)}
+                  />
+                ))}
+              </nav>
+              <div className="flex flex-col items-center gap-1 border-t border-border px-1 py-2">
+                <ThemeToggle onToggle={toggleTheme} />
+                <Link
+                  aria-label="Settings"
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground",
+                    isSettingsActive && "bg-surface text-foreground",
+                  )}
+                  href={settingsItem.href}
+                  prefetch={false}
+                  title="Settings"
+                >
+                  <Settings size={15} />
                 </Link>
-                <p className="mt-3 max-w-full truncate text-sm font-semibold text-foreground">
-                  {organizationName}
-                </p>
-              </div>
-            </>
-          )}
-          <button
-            aria-label={sidebarToggleLabel}
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-              sidebarCollapsed ? "text-foreground" : "shrink-0",
-            )}
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            title={sidebarToggleLabel}
-            type="button"
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen size={17} />
-            ) : (
-              <PanelLeftClose size={17} />
-            )}
-          </button>
-        </div>
-
-        <nav
-          className={cn(
-            "flex-1 overflow-y-auto",
-            sidebarCollapsed ? "space-y-4 px-2 py-4" : "space-y-5 px-3 py-4",
-          )}
-        >
-          {navGroups.map((group) => (
-            <div aria-label={group.label} key={group.label}>
-              {sidebarCollapsed ? null : (
-                <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-                  {group.label}
-                </p>
-              )}
-              <div className="space-y-1">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = isNavItemActive(pathname, item);
-
-                  return (
-                    <Link
-                      aria-label={sidebarCollapsed ? item.label : undefined}
-                      className={cn(
-                        "flex h-8 rounded-md text-sm font-medium text-muted transition-colors",
-                        sidebarCollapsed
-                          ? "items-center justify-center px-0"
-                          : "items-center gap-3 px-2",
-                        isActive
-                          ? "bg-accent-soft text-foreground"
-                          : "hover:bg-surface-muted hover:text-foreground",
-                      )}
-                      href={item.href}
-                      key={item.href}
-                      prefetch={false}
-                      title={sidebarCollapsed ? item.label : undefined}
-                    >
-                      <Icon className="shrink-0" size={16} />
-                      {sidebarCollapsed ? null : (
-                        <>
-                          <span className="min-w-0 truncate">{item.label}</span>
-                          {item.badge ? <NavBadgeLabel badge={item.badge} /> : null}
-                        </>
-                      )}
-                    </Link>
-                  );
-                })}
+                <button
+                  aria-label={sidebarToggleLabel}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground"
+                  onClick={() => setSidebarCollapsed(true)}
+                  title={sidebarToggleLabel}
+                  type="button"
+                >
+                  <PanelLeftClose size={15} />
+                </button>
+                <form action={signOutAction}>
+                  <button
+                    aria-label={userEmail ? `Sign out ${userEmail}` : "Sign out"}
+                    className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground"
+                    title={userEmail ? `Sign out ${userEmail}` : "Sign out"}
+                    type="submit"
+                  >
+                    <LogOut size={15} />
+                  </button>
+                </form>
               </div>
             </div>
-          ))}
-          {sidebarCollapsed ? null : (
-            <details className="group">
-              <summary className="flex h-8 cursor-pointer list-none items-center gap-3 rounded-md px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground">
-                <MoreHorizontal size={16} />
-                <span className="min-w-0 flex-1 truncate">Future modules</span>
-                <span className="rounded-sm border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] font-semibold leading-none text-muted">
-                  {plannedModuleItems.length}
-                </span>
-                <ChevronDown
-                  className="transition-transform group-open:rotate-180"
-                  size={14}
-                />
-              </summary>
-              <div className="mt-1 space-y-1 border-l border-border/80 pl-3">
-                {plannedModuleItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = isNavItemActive(pathname, item);
 
-                  return (
-                    <Link
-                      className={cn(
-                        "flex h-8 items-center gap-2 rounded-md px-2 text-sm font-medium text-muted transition-colors",
-                        isActive
-                          ? "bg-accent-soft text-foreground"
-                          : "hover:bg-surface-muted hover:text-foreground",
-                      )}
-                      href={item.href}
-                      key={item.href}
-                      prefetch={false}
-                    >
-                      <Icon className="shrink-0" size={15} />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    </Link>
-                  );
-                })}
+            <div className="flex min-w-0 flex-1 flex-col bg-surface">
+              <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
+                <Link
+                  className="min-w-0 leading-none text-foreground"
+                  href="/overview"
+                  onClick={() => setSelectedDesktopGroupId("home")}
+                  prefetch={false}
+                >
+                  <span className="block truncate text-[13px] font-semibold">
+                    Nestory
+                  </span>
+                  <span className="mt-0.5 block truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
+                    {selectedDesktopGroup.label}
+                  </span>
+                </Link>
               </div>
-            </details>
-          )}
-        </nav>
 
-        <div className={cn("border-t border-border", sidebarCollapsed ? "p-2" : "p-3")}>
-          <Link
-            aria-label={sidebarCollapsed ? settingsItem.label : undefined}
-            className={cn(
-              "mb-2 flex h-9 w-full rounded-md text-sm font-medium text-muted transition-colors",
-              sidebarCollapsed
-                ? "items-center justify-center px-0"
-                : "items-center gap-3 px-2",
-              isSettingsActive
-                ? "bg-accent-soft text-foreground"
-                : "hover:bg-surface-muted hover:text-foreground",
-            )}
-            href={settingsItem.href}
-            prefetch={false}
-            title={sidebarCollapsed ? settingsItem.label : undefined}
-          >
-            <Settings size={16} />
-            {sidebarCollapsed ? null : settingsItem.label}
-          </Link>
-          {userEmail && !sidebarCollapsed ? (
-            <p className="mb-2 truncate px-2 text-xs text-muted">{userEmail}</p>
-          ) : null}
-          <form action={signOutAction}>
-            <button
-              aria-label={sidebarCollapsed ? "Sign out" : undefined}
-              className={cn(
-                "flex h-9 w-full rounded-md text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-                sidebarCollapsed
-                  ? "items-center justify-center px-0"
-                  : "items-center gap-3 px-2",
-              )}
-              title={sidebarCollapsed ? "Sign out" : undefined}
-              type="submit"
-            >
-              <LogOut size={16} />
-              {sidebarCollapsed ? null : "Sign out"}
-            </button>
-          </form>
-        </div>
+              <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 py-3">
+                <div aria-label={selectedDesktopGroup.label}>
+                  <p className="px-2 pb-1.5 text-[10px] font-medium text-muted">
+                    {selectedDesktopGroup.label}
+                  </p>
+                  <div className="space-y-1">
+                    {selectedDesktopGroup.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = isNavItemActive(pathname, item);
+
+                      return (
+                        <Link
+                          className={cn(
+                            "flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted transition-colors",
+                            isActive
+                              ? "bg-surface-muted text-foreground"
+                              : "hover:bg-surface-muted hover:text-foreground",
+                          )}
+                          href={item.href}
+                          key={item.href}
+                          prefetch={false}
+                        >
+                          <Icon className="shrink-0" size={14} />
+                          <span className="min-w-0 truncate">
+                            {item.label}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              </nav>
+            </div>
+          </>
+        )}
       </aside>
 
       <main
         className={cn(
           "min-h-screen transition-[margin-left] duration-200 print:ml-0",
-          sidebarCollapsed ? "lg:ml-16" : "lg:ml-56",
+          sidebarCollapsed ? "lg:ml-12" : "lg:ml-52",
         )}
       >
-        <div className="border-b border-border bg-white print:hidden lg:hidden">
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
+        <div className="border-b border-border bg-surface print:hidden lg:hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-2">
             <div className="flex min-w-0 items-center gap-3">
               <div className="min-w-0">
-                <p className="font-display text-xl font-semibold leading-none tracking-normal">
+                <p className="text-lg font-semibold leading-none tracking-normal">
                   NESTORY
                 </p>
                 <p className="truncate text-xs text-muted">
@@ -394,11 +408,12 @@ export function AppShell({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              <ThemeToggle onToggle={toggleTheme} />
               <Link
                 aria-label="Settings"
                 className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-                  isSettingsActive ? "bg-accent-soft text-foreground" : null,
+                  "flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+                  isSettingsActive ? "bg-surface-muted text-foreground" : null,
                 )}
                 href={settingsItem.href}
                 prefetch={false}
@@ -408,7 +423,7 @@ export function AppShell({
               <form action={signOutAction}>
                 <button
                   aria-label="Sign out"
-                  className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
                   type="submit"
                 >
                   <LogOut size={16} />
@@ -416,32 +431,113 @@ export function AppShell({
               </form>
             </div>
           </div>
-          <nav className="flex gap-2 overflow-x-auto px-4 pb-3">
-            {mobilePrimaryItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = isNavItemActive(pathname, item);
+          <div className="relative flex items-center gap-2 px-4 pb-2">
+            <nav
+              aria-label="Primary mobile navigation"
+              className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
+            >
+              {mobilePrimaryItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = isNavItemActive(pathname, item);
 
-              return (
-                <Link
+                return (
+                  <Link
+                    className={cn(
+                      "flex h-8 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
+                      isActive
+                        ? "bg-surface-muted text-foreground"
+                        : "hover:bg-surface-muted hover:text-foreground",
+                    )}
+                    href={item.href}
+                    key={item.href}
+                    onNavigate={() => setMobileMoreOpen(false)}
+                    prefetch={false}
+                  >
+                    <Icon size={15} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="relative shrink-0">
+              <button
+                aria-expanded={mobileMoreOpen}
+                aria-haspopup="menu"
+                className={cn(
+                  "flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
+                  isMobileMoreActive || mobileMoreOpen
+                    ? "bg-surface-muted text-foreground"
+                    : "hover:bg-surface-muted hover:text-foreground",
+                )}
+                onClick={() => setMobileMoreOpen((open) => !open)}
+                type="button"
+              >
+                <MoreHorizontal size={15} />
+                More
+                <ChevronDown
                   className={cn(
-                    "flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
-                    isActive
-                      ? "bg-accent-soft text-foreground"
-                      : "hover:bg-surface-muted hover:text-foreground",
+                    "transition-transform",
+                    mobileMoreOpen && "rotate-180",
                   )}
-                  href={item.href}
-                  key={item.href}
-                  prefetch={false}
+                  size={13}
+                />
+              </button>
+              {mobileMoreOpen ? (
+                <div
+                  className="absolute right-0 top-10 z-30 w-56 rounded-md border border-border bg-surface p-2 shadow-lg"
+                  role="menu"
                 >
-                  <Icon size={15} />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+                  {mobileMoreItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = isNavItemActive(pathname, item);
+
+                    return (
+                      <Link
+                        className={cn(
+                          "flex min-h-9 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted transition-colors",
+                          isActive
+                            ? "bg-surface-muted text-foreground"
+                            : "hover:bg-surface-muted hover:text-foreground",
+                        )}
+                        href={item.href}
+                        key={item.href}
+                        onNavigate={() => setMobileMoreOpen(false)}
+                        prefetch={false}
+                        role="menuitem"
+                      >
+                        <Icon className="shrink-0" size={15} />
+                        <span className="min-w-0 flex-1 truncate">
+                          {item.label}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
         {children}
       </main>
     </div>
+  );
+}
+
+function ThemeToggle({
+  onToggle,
+}: {
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      aria-label="Toggle color theme"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+      onClick={onToggle}
+      title="Toggle color theme"
+      type="button"
+    >
+      <Moon className="theme-toggle-moon" size={16} />
+      <Sun className="theme-toggle-sun" size={16} />
+    </button>
   );
 }

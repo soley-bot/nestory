@@ -37,7 +37,7 @@ export function LedgerTable({
 }: LedgerTableProps) {
   return (
     <div className="overflow-hidden rounded-md border border-border bg-surface">
-      <div className="max-h-[min(680px,calc(100vh-260px))] overflow-auto">
+      <div className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]">
         <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
             <col className="w-[100px]" />
@@ -69,7 +69,7 @@ export function LedgerTable({
               <tr
                 className={cn(
                   "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                  selectedEntryId === entry.id && "bg-accent-soft",
+                  selectedEntryId === entry.id && "bg-surface-muted",
                   entry.archivedAt && "text-muted",
                 )}
                 key={entry.id}

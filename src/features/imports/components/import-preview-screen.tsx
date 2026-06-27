@@ -125,7 +125,7 @@ export function ImportPreviewScreen({
       <PageHeader
         actions={
           <a
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
             download="nestory-units-import-template.csv"
             href={templateHref}
           >
@@ -137,22 +137,22 @@ export function ImportPreviewScreen({
         title="Import data"
       />
 
-      <main className="space-y-5 px-4 py-5 sm:px-6 lg:p-8">
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(360px,1.1fr)]">
-          <div className="space-y-5">
+      <main className="space-y-3 px-4 py-4 sm:px-6 lg:max-h-[calc(100vh-132px)] lg:overflow-auto lg:px-6 lg:py-4">
+        <section className="grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(360px,1.1fr)]">
+          <div className="space-y-3">
             <div className="rounded-md border border-border bg-surface">
-              <div className="border-b border-border px-4 py-4 sm:px-5">
+              <div className="border-b border-border px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-2">
                   <FileText className="text-muted" size={16} />
                   <h2 className="text-base font-semibold">Upload</h2>
                 </div>
               </div>
-              <div className="space-y-4 p-4 sm:p-5">
+              <div className="space-y-3 p-4">
                 <label className="block">
                   <span className="mb-2 block text-sm font-medium">CSV file</span>
                   <input
                     accept=".csv,text/csv"
-                    className="block w-full rounded-md border border-border bg-surface text-sm file:mr-3 file:h-9 file:border-0 file:border-r file:border-border file:bg-surface-muted file:px-3 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent-soft"
+                    className="block w-full rounded-md border border-border bg-surface text-[13px] file:mr-3 file:h-8 file:border-0 file:border-r file:border-border file:bg-surface-muted file:px-2.5 file:text-[13px] file:font-medium file:text-foreground hover:file:bg-surface-muted"
                     onChange={handleFileChange}
                     type="file"
                   />
@@ -181,7 +181,7 @@ export function ImportPreviewScreen({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
               <ImportStat
                 icon={<Database size={15} />}
                 label="Rows"
@@ -216,7 +216,7 @@ export function ImportPreviewScreen({
           </div>
 
           <div className="rounded-md border border-border bg-surface">
-            <div className="flex flex-col gap-2 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div>
                 <h2 className="text-base font-semibold">Column mapping</h2>
                 <p className="mt-1 text-sm text-muted">
@@ -239,7 +239,7 @@ export function ImportPreviewScreen({
               </Button>
             </div>
 
-            <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
+            <div className="grid gap-3 p-4 sm:grid-cols-2">
               {unitImportFields.map((field) => (
                 <label className="block min-w-0 text-sm font-medium" key={field.key}>
                   {field.label}
@@ -262,7 +262,7 @@ export function ImportPreviewScreen({
         </section>
 
         <section className="rounded-md border border-border bg-surface">
-          <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div>
               <h2 className="text-base font-semibold">Validation preview</h2>
               <p className="mt-1 text-sm text-muted">
@@ -282,7 +282,7 @@ export function ImportPreviewScreen({
             </form>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="max-h-[min(360px,calc(100vh-500px))] overflow-auto">
             <table className="w-full min-w-[980px] border-collapse text-left text-[13px]">
               <thead className="bg-surface-muted text-[11px] uppercase tracking-[0] text-muted">
                 <tr>
@@ -344,12 +344,12 @@ function ImportStat({
   value: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface px-4 py-3">
+    <div className="rounded-md border border-border bg-surface px-3 py-2">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-medium text-muted">{label}</p>
         <span className="text-muted">{icon}</span>
       </div>
-      <p className="mt-1 text-xl font-semibold text-foreground">{value}</p>
+      <p className="mt-0.5 text-lg font-semibold text-foreground">{value}</p>
     </div>
   );
 }

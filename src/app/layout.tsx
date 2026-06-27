@@ -17,6 +17,19 @@ export const metadata: Metadata = {
   description: "Property management system for growing portfolios",
 };
 
+const themeScript = `
+(() => {
+  try {
+    const stored = window.localStorage.getItem("nestory-theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const theme = stored === "dark" || stored === "light" ? stored : prefersDark ? "dark" : "light";
+    document.documentElement.dataset.theme = theme;
+  } catch {
+    document.documentElement.dataset.theme = "light";
+  }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,7 +39,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${manrope.variable} ${sora.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-full bg-background text-foreground">
         {children}
       </body>

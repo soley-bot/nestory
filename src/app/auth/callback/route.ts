@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getAdminMembershipForUser } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
-function redirectTo(request: NextRequest, pathname: "/login" | "/setup" | "/timeline") {
+function redirectTo(request: NextRequest, pathname: "/login" | "/setup" | "/overview") {
   const url = request.nextUrl.clone();
   url.pathname = pathname;
   url.search = "";
@@ -24,5 +24,5 @@ export async function GET(request: NextRequest) {
   }
 
   const membership = await getAdminMembershipForUser(data.user.id, supabase);
-  return redirectTo(request, membership ? "/timeline" : "/setup");
+  return redirectTo(request, membership ? "/overview" : "/setup");
 }

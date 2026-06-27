@@ -37,6 +37,8 @@ export function LeaseFilters({ properties, viewQuery }: LeaseFiltersProps) {
     viewQuery.propertyId !== "all" ||
     viewQuery.status !== "all" ||
     viewQuery.archiveState !== DEFAULT_LEASE_ARCHIVE_STATE ||
+    viewQuery.endsWithinDays !== null ||
+    viewQuery.endMonth !== "" ||
     viewQuery.sort !== DEFAULT_LEASE_SORT ||
     viewQuery.pageSize !== DEFAULT_LEASE_PAGE_SIZE;
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
@@ -69,7 +71,7 @@ export function LeaseFilters({ properties, viewQuery }: LeaseFiltersProps) {
   }
 
   return (
-    <div className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-8">
+    <div className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-6">
       <div className="space-y-2.5">
         <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
           <form

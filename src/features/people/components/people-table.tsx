@@ -53,8 +53,8 @@ export function PeopleTable({
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
-            : "space-y-3 md:hidden",
+            ? "grid max-h-[380px] gap-3 overflow-auto pr-1 sm:grid-cols-2 lg:max-h-none lg:overflow-visible lg:pr-0 xl:grid-cols-3 2xl:grid-cols-3"
+            : "max-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
         )}
       >
         {people.length === 0 ? (
@@ -76,7 +76,7 @@ export function PeopleTable({
 
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-          <div className="max-h-[min(680px,calc(100vh-260px))] overflow-auto">
+          <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
             <table className="w-full min-w-[820px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
                 <col className="w-[22%]" />
@@ -114,7 +114,7 @@ export function PeopleTable({
                   <tr
                     className={cn(
                       "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                      selectedPersonId === person.id && "bg-accent-soft",
+                      selectedPersonId === person.id && "bg-surface-muted",
                       person.isArchived && "text-muted",
                     )}
                     key={person.id}

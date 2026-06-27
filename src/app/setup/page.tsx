@@ -14,7 +14,7 @@ export default async function SetupPage() {
   const membership = await getAdminMembershipForUser(user.id);
 
   if (membership) {
-    redirect("/timeline");
+    redirect("/overview");
   }
 
   return (

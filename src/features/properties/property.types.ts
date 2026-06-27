@@ -4,6 +4,8 @@ export type PropertySortKey = "code_asc" | "name_asc" | "status_asc" | "net_desc
 
 export type PropertyStatusValue = "active" | "under_renovation" | "inactive";
 
+export type PropertyOwnerStatusFilter = "missing" | "all";
+
 export type PropertyDisplayMode = "table" | "cards";
 
 export type PropertyBadgeTone =
@@ -37,6 +39,7 @@ export type PropertyViewQuery = {
   archiveState: PropertyArchiveState;
   page: number;
   pageSize: number;
+  ownerStatus: PropertyOwnerStatusFilter;
   query: string;
   sort: PropertySortKey;
   status: PropertyStatusValue | "all";

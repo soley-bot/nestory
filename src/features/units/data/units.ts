@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import {
+  ACTIVE_UNIT_LEASE_STATUSES,
   buildUnitDetail,
   buildUnitSummary,
   selectCurrentLease,
@@ -12,6 +13,8 @@ import {
 } from "@/features/units/unit.filters";
 import type {
   UnitPagination,
+  UnitLeaseStatusFilter,
+  UnitOccupancyFilter,
   UnitSummary,
   UnitViewQuery,
 } from "@/features/units/unit.types";
@@ -27,12 +30,19 @@ const recentLedgerSelect =
   "id, unit_id, transaction_date, direction, category, amount, currency, description";
 const listTimelineContextLimit = 1000;
 const detailRecordLimit = 8;
+const unitRelationshipBatchSize = 75;
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 export async function getUnitsScreenData(
   organizationId: string,
   viewQuery: UnitViewQuery = parseUnitSearchParams({}),
 ) {
   const supabase = await createSupabaseServerClient();
+  const activeLeaseUnitIds =
+    viewQuery.leaseStatus === "missing" || viewQuery.occupancy === "unoccupied"
+      ? await getActiveLeaseUnitIds(organizationId)
+      : null;
   let unitsQuery = supabase
     .from("units")
     .select(unitSelect)
@@ -46,76 +56,77 @@ export async function getUnitsScreenData(
     unitsQuery = unitsQuery.not("archived_at", "is", null);
   }
 
-  const [
-    unitsResult,
-    propertiesResult,
-    leasesResult,
-    timelineContextResult,
-    ledgerTotalsResult,
-    currencySettings,
-  ] = await Promise.all([
-    unitsQuery,
-    supabase
-      .from("properties")
-      .select(propertySelect)
-      .eq("organization_id", organizationId)
-      .is("archived_at", null),
-    supabase
-      .from("leases")
-      .select(leaseSelect)
-      .eq("organization_id", organizationId)
-      .not("unit_id", "is", null)
-      .is("archived_at", null)
-      .order("lease_start_date", { ascending: false }),
-    supabase
-      .from("timeline_events")
-      .select(timelineContextSelect)
-      .eq("organization_id", organizationId)
-      .not("unit_id", "is", null)
-      .is("archived_at", null)
-      .order("event_date", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(listTimelineContextLimit),
-    supabase
-      .from("ledger_entries")
-      .select(ledgerTotalsSelect)
-      .eq("organization_id", organizationId)
-      .not("unit_id", "is", null)
-      .is("archived_at", null),
-    getOrganizationCurrencySettings(organizationId),
-  ]);
+  if (viewQuery.propertyId !== "all") {
+    unitsQuery = unitsQuery.eq("property_id", viewQuery.propertyId);
+  }
+
+  if (viewQuery.status !== "all") {
+    unitsQuery = unitsQuery.eq("status", viewQuery.status);
+  }
+
+  if (viewQuery.occupancy === "unoccupied") {
+    unitsQuery = unitsQuery
+      .neq("status", "occupied")
+      .neq("status", "inactive");
+  }
+
+  if (activeLeaseUnitIds && activeLeaseUnitIds.size > 0) {
+    unitsQuery = unitsQuery.not(
+      "id",
+      "in",
+      formatPostgrestInFilter(activeLeaseUnitIds),
+    );
+  }
+
+  const unitsResult = await unitsQuery;
 
   if (unitsResult.error) {
     throw new Error(`Could not load units: ${unitsResult.error.message}`);
   }
 
+  const unitRows = unitsResult.data ?? [];
+  const unitIds = new Set(unitRows.map((unit) => unit.id));
+  const propertyIds = new Set(unitRows.map((unit) => unit.property_id));
+
+  if (unitIds.size === 0) {
+    return {
+      pagination: buildUnitPagination({
+        page: viewQuery.page,
+        pageSize: viewQuery.pageSize,
+        totalCount: 0,
+      }),
+      units: [],
+    };
+  }
+
+  const [
+    propertiesResult,
+    leaseRows,
+    timelineContextRows,
+    ledgerTotalRows,
+    currencySettings,
+  ] = await Promise.all([
+    supabase
+      .from("properties")
+      .select(propertySelect)
+      .eq("organization_id", organizationId)
+      .in("id", [...propertyIds])
+      .is("archived_at", null),
+    getLeaseRowsForUnits(supabase, organizationId, [...unitIds]),
+    getTimelineContextRowsForUnits(supabase, organizationId, [...unitIds]),
+    getLedgerTotalRowsForUnits(supabase, organizationId, [...unitIds]),
+    getOrganizationCurrencySettings(organizationId),
+  ]);
+
   if (propertiesResult.error) {
     throw new Error(`Could not load unit properties: ${propertiesResult.error.message}`);
   }
 
-  if (leasesResult.error) {
-    throw new Error(`Could not load unit leases: ${leasesResult.error.message}`);
-  }
-
-  if (timelineContextResult.error) {
-    throw new Error(
-      `Could not load unit timeline context: ${timelineContextResult.error.message}`,
-    );
-  }
-
-  if (ledgerTotalsResult.error) {
-    throw new Error(
-      `Could not load unit ledger context: ${ledgerTotalsResult.error.message}`,
-    );
-  }
-
   const propertiesById = indexById(propertiesResult.data ?? []);
-  const leasesByUnitId = groupByUnitId(leasesResult.data ?? []);
-  const ledgerByUnitId = groupByUnitId(ledgerTotalsResult.data ?? []);
-  const latestTimelineByUnitId = indexLatestTimelineByUnitId(
-    timelineContextResult.data ?? [],
-  );
-  const units = (unitsResult.data ?? [])
+  const leasesByUnitId = groupByUnitId(leaseRows);
+  const ledgerByUnitId = groupByUnitId(ledgerTotalRows);
+  const latestTimelineByUnitId = indexLatestTimelineByUnitId(timelineContextRows);
+  const units = unitRows
     .map((unit) =>
       buildUnitSummary({
         activeLease: selectCurrentLease(leasesByUnitId.get(unit.id) ?? []),
@@ -322,6 +333,14 @@ function filterUnitSummaries(units: UnitSummary[], viewQuery: UnitViewQuery) {
       viewQuery.propertyId === "all" || unit.propertyId === viewQuery.propertyId;
     const matchesStatus =
       viewQuery.status === "all" || unit.statusValue === viewQuery.status;
+    const matchesLeaseStatus = unitMatchesLeaseStatusFilter(
+      unit,
+      viewQuery.leaseStatus,
+    );
+    const matchesOccupancy = unitMatchesOccupancyFilter(
+      unit,
+      viewQuery.occupancy,
+    );
     const haystack = [
       unit.unitNumber,
       unit.propertyCode,
@@ -335,8 +354,33 @@ function filterUnitSummaries(units: UnitSummary[], viewQuery: UnitViewQuery) {
       .toLowerCase();
     const matchesQuery = tokens.every((token) => haystack.includes(token));
 
-    return matchesProperty && matchesStatus && matchesQuery;
+    return (
+      matchesProperty &&
+      matchesStatus &&
+      matchesLeaseStatus &&
+      matchesOccupancy &&
+      matchesQuery
+    );
   });
+}
+
+export function unitMatchesLeaseStatusFilter(
+  unit: Pick<UnitSummary, "hasActiveLease">,
+  leaseStatus: UnitLeaseStatusFilter,
+) {
+  return leaseStatus === "all" || !unit.hasActiveLease;
+}
+
+export function unitMatchesOccupancyFilter(
+  unit: Pick<UnitSummary, "hasActiveLease" | "statusValue">,
+  occupancy: UnitOccupancyFilter,
+) {
+  return (
+    occupancy === "all" ||
+    (!unit.hasActiveLease &&
+      unit.statusValue !== "occupied" &&
+      unit.statusValue !== "inactive")
+  );
 }
 
 function sortUnitSummaries(
@@ -409,9 +453,132 @@ function getUnitPageSummaries(units: UnitSummary[], pagination: UnitPagination) 
   return units.slice(start, pagination.to);
 }
 
+async function getLeaseRowsForUnits(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  unitIds: string[],
+) {
+  const rows = await queryUnitIdBatches(unitIds, async (batch) => {
+    const result = await supabase
+      .from("leases")
+      .select(leaseSelect)
+      .eq("organization_id", organizationId)
+      .in("unit_id", batch)
+      .is("archived_at", null)
+      .order("lease_start_date", { ascending: false });
+
+    if (result.error) {
+      throw new Error(`Could not load unit leases: ${result.error.message}`);
+    }
+
+    return result.data ?? [];
+  });
+
+  return rows;
+}
+
+async function getTimelineContextRowsForUnits(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  unitIds: string[],
+) {
+  const rows = await queryUnitIdBatches(unitIds, async (batch) => {
+    const result = await supabase
+      .from("timeline_events")
+      .select(timelineContextSelect)
+      .eq("organization_id", organizationId)
+      .in("unit_id", batch)
+      .is("archived_at", null)
+      .order("event_date", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(listTimelineContextLimit);
+
+    if (result.error) {
+      throw new Error(
+        `Could not load unit timeline context: ${result.error.message}`,
+      );
+    }
+
+    return result.data ?? [];
+  });
+
+  return rows;
+}
+
+async function getLedgerTotalRowsForUnits(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  unitIds: string[],
+) {
+  const rows = await queryUnitIdBatches(unitIds, async (batch) => {
+    const result = await supabase
+      .from("ledger_entries")
+      .select(ledgerTotalsSelect)
+      .eq("organization_id", organizationId)
+      .in("unit_id", batch)
+      .is("archived_at", null);
+
+    if (result.error) {
+      throw new Error(`Could not load unit ledger context: ${result.error.message}`);
+    }
+
+    return result.data ?? [];
+  });
+
+  return rows;
+}
+
+async function queryUnitIdBatches<T>(
+  unitIds: string[],
+  queryBatch: (batch: string[]) => Promise<T[]>,
+) {
+  const rows: T[] = [];
+
+  for (const batch of chunkValues(unitIds, unitRelationshipBatchSize)) {
+    rows.push(...(await queryBatch(batch)));
+  }
+
+  return rows;
+}
+
+export function chunkValues<T>(values: T[], size: number) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
 function compareStrings(first: string, second: string) {
   return first.localeCompare(second, undefined, {
     numeric: true,
     sensitivity: "base",
   });
+}
+
+async function getActiveLeaseUnitIds(organizationId: string) {
+  const supabase = await createSupabaseServerClient();
+  const result = await supabase
+    .from("leases")
+    .select("unit_id")
+    .eq("organization_id", organizationId)
+    .in("status", [...ACTIVE_UNIT_LEASE_STATUSES])
+    .not("unit_id", "is", null)
+    .is("archived_at", null);
+
+  if (result.error) {
+    throw new Error(`Could not load active unit lease filters: ${result.error.message}`);
+  }
+
+  return new Set(
+    (result.data ?? []).flatMap((lease) =>
+      lease.unit_id ? [lease.unit_id] : [],
+    ),
+  );
+}
+
+function formatPostgrestInFilter(values: ReadonlySet<string>) {
+  return `(${[...values].join(",")})`;
 }

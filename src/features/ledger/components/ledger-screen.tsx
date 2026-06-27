@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Archive, Lock, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,12 @@ export function LedgerScreen({
   unitOptions,
   viewQuery,
 }: LedgerScreenProps) {
-  const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [drawerState, setDrawerState] = useState<DrawerState | null>(() =>
+    searchParams.get("action") === "create" ? { mode: "add" } : null,
+  );
   const [selectedEntryId, setSelectedEntryId] = useState(
     initialEntryId ?? entries[0]?.id ?? "",
   );
@@ -78,6 +84,16 @@ export function LedgerScreen({
 
   const selectedEntry =
     entries.find((entry) => entry.id === selectedEntryId) ?? entries[0] ?? null;
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "create") {
+      return;
+    }
+
+    router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+      scroll: false,
+    });
+  }, [pathname, router, searchParams]);
 
   return (
     <div className="min-h-screen">
@@ -117,7 +133,7 @@ export function LedgerScreen({
       />
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-8">
+        <div className="px-4 pt-5 sm:px-6 lg:px-6">
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
             role="status"
@@ -129,7 +145,7 @@ export function LedgerScreen({
 
       <LedgerFilters properties={propertyOptions} viewQuery={viewQuery} />
 
-      <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
+      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
             <LedgerTable
@@ -152,26 +168,28 @@ export function LedgerScreen({
             />
             <PaginationControls pagination={pagination} />
           </div>
-          <LedgerInspector
-            currencySettings={currencySettings}
-            entry={selectedEntry}
-            onArchiveEntry={(entry) => {
-              setStatusMessage(null);
-              setDrawerState({ entry, mode: "archive" });
-            }}
-            onAttachReceipt={(entry) => {
-              setStatusMessage(null);
-              setDrawerState({ entry, mode: "receipt" });
-            }}
-            onEditEntry={(entry) => {
-              setStatusMessage(null);
-              setDrawerState({ entry, mode: "edit" });
-            }}
-            onRestoreEntry={(entry) => {
-              setStatusMessage(null);
-              setDrawerState({ entry, mode: "restore" });
-            }}
-          />
+          <div className="hidden 2xl:block">
+            <LedgerInspector
+              currencySettings={currencySettings}
+              entry={selectedEntry}
+              onArchiveEntry={(entry) => {
+                setStatusMessage(null);
+                setDrawerState({ entry, mode: "archive" });
+              }}
+              onAttachReceipt={(entry) => {
+                setStatusMessage(null);
+                setDrawerState({ entry, mode: "receipt" });
+              }}
+              onEditEntry={(entry) => {
+                setStatusMessage(null);
+                setDrawerState({ entry, mode: "edit" });
+              }}
+              onRestoreEntry={(entry) => {
+                setStatusMessage(null);
+                setDrawerState({ entry, mode: "restore" });
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -283,6 +301,17 @@ function getLedgerDrawerDescription(drawer: DrawerState) {
   }
 
   return "Hide this entry from ledger totals and archive the linked timeline event when present.";
+}
+
+function getHrefWithoutActionParam(
+  pathname: string,
+  searchParams: { toString(): string },
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+  nextParams.delete("action");
+
+  const queryString = nextParams.toString();
+  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 function ArchivePanel({

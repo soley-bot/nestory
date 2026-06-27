@@ -108,7 +108,7 @@ export async function loginAction(
   }
 
   const membership = await getAdminMembershipForUser(data.user.id, supabase);
-  redirect(membership ? "/timeline" : "/setup");
+  redirect(membership ? "/overview" : "/setup");
 }
 
 export async function signupAction(
@@ -172,7 +172,7 @@ export async function setupOrganizationAction(
   const existingMembership = await getAdminMembershipForUser(user.id);
 
   if (existingMembership) {
-    redirect("/timeline");
+    redirect("/overview");
   }
 
   const bootstrapError = await bootstrapAdminOrganization(
@@ -183,7 +183,7 @@ export async function setupOrganizationAction(
     return bootstrapError;
   }
 
-  redirect("/timeline");
+  redirect("/overview");
 }
 
 export async function signOutAction() {

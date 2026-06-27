@@ -10,7 +10,10 @@ import {
   parsePropertySearchParams,
 } from "@/features/properties/property.filters";
 import type {
+  PropertyArchiveState,
+  PropertyOwnerStatusFilter,
   PropertyPagination,
+  PropertyStatusValue,
   PropertyViewQuery,
 } from "@/features/properties/property.types";
 
@@ -18,7 +21,10 @@ export type { PropertySummary } from "@/features/properties/data/property-summar
 export type { PropertyDetail } from "@/features/properties/data/property-detail";
 
 type PropertySummaryOptions = {
+  archiveState?: PropertyArchiveState;
   includeArchived?: boolean;
+  ownerStatus?: PropertyOwnerStatusFilter;
+  status?: PropertyStatusValue | "all";
 };
 
 export async function getPropertySummaries(
@@ -27,6 +33,12 @@ export async function getPropertySummaries(
   options: PropertySummaryOptions = {},
 ) {
   const supabase = await createSupabaseServerClient();
+  const activeOwnerPropertyIds =
+    options.ownerStatus === "missing"
+      ? await getActiveOwnerPropertyIds(organizationId)
+      : null;
+  const archiveState =
+    options.archiveState ?? (options.includeArchived ? "all" : "active");
 
   let propertiesQuery = supabase
     .from("properties")
@@ -36,27 +48,58 @@ export async function getPropertySummaries(
     .eq("organization_id", organizationId)
     .order("code", { ascending: true });
 
-  if (!options.includeArchived) {
+  if (archiveState === "active") {
     propertiesQuery = propertiesQuery.is("archived_at", null);
+  } else if (archiveState === "archived") {
+    propertiesQuery = propertiesQuery.not("archived_at", "is", null);
   }
 
-  const [propertiesResult, unitsResult, ledgerResult] = await Promise.all([
-    propertiesQuery,
+  if (options.status && options.status !== "all") {
+    propertiesQuery = propertiesQuery.in(
+      "status",
+      getStoredPropertyStatusValues(options.status),
+    );
+  }
+
+  if (activeOwnerPropertyIds && activeOwnerPropertyIds.size > 0) {
+    propertiesQuery = propertiesQuery.not(
+      "id",
+      "in",
+      formatPostgrestInFilter(activeOwnerPropertyIds),
+    );
+  }
+
+  const propertiesResult = await propertiesQuery;
+
+  if (propertiesResult.error) {
+    throw new Error(`Could not load properties: ${propertiesResult.error.message}`);
+  }
+
+  const propertyRows = propertiesResult.data ?? [];
+  const propertyIds = new Set(propertyRows.map((property) => property.id));
+
+  if (propertyIds.size === 0) {
+    return [];
+  }
+
+  const ownerPropertyIds =
+    activeOwnerPropertyIds ??
+    (await getActiveOwnerPropertyIds(organizationId, propertyIds));
+
+  const [unitsResult, ledgerResult] = await Promise.all([
     supabase
       .from("units")
       .select("property_id, status")
       .eq("organization_id", organizationId)
+      .in("property_id", [...propertyIds])
       .is("archived_at", null),
     supabase
       .from("ledger_entries")
       .select("property_id, direction, amount, currency")
       .eq("organization_id", organizationId)
+      .in("property_id", [...propertyIds])
       .is("archived_at", null),
   ]);
-
-  if (propertiesResult.error) {
-    throw new Error(`Could not load properties: ${propertiesResult.error.message}`);
-  }
 
   if (unitsResult.error) {
     throw new Error(`Could not load property units: ${unitsResult.error.message}`);
@@ -69,12 +112,13 @@ export async function getPropertySummaries(
   const unitsByProperty = groupByProperty(unitsResult.data ?? []);
   const ledgerByProperty = groupByProperty(ledgerResult.data ?? []);
 
-  return (propertiesResult.data ?? []).map((property): PropertySummary => {
+  return propertyRows.map((property): PropertySummary => {
     const units = unitsByProperty.get(property.id) ?? [];
     const ledgerEntries = ledgerByProperty.get(property.id) ?? [];
 
     return buildPropertySummary({
       currencySettings,
+      hasActiveOwnerLink: ownerPropertyIds.has(property.id),
       ledgerEntries,
       property,
       units,
@@ -88,7 +132,9 @@ export async function getPropertiesScreenData(
   viewQuery: PropertyViewQuery = parsePropertySearchParams({}),
 ) {
   const properties = await getPropertySummaries(organizationId, currencySettings, {
-    includeArchived: true,
+    archiveState: viewQuery.archiveState,
+    ownerStatus: viewQuery.ownerStatus,
+    status: viewQuery.status,
   });
   const filteredProperties = filterPropertySummaries(properties, viewQuery);
   const sortedProperties = sortPropertySummaries(
@@ -201,6 +247,10 @@ function filterPropertySummaries(
         : !property.isArchived);
     const matchesStatus =
       viewQuery.status === "all" || property.formValues.status === viewQuery.status;
+    const matchesOwnerStatus = propertyMatchesOwnerStatusFilter(
+      property,
+      viewQuery.ownerStatus,
+    );
     const haystack = [
       property.name,
       property.code,
@@ -213,8 +263,15 @@ function filterPropertySummaries(
       .toLowerCase();
     const matchesQuery = tokens.every((token) => haystack.includes(token));
 
-    return matchesArchiveState && matchesStatus && matchesQuery;
+    return matchesArchiveState && matchesStatus && matchesOwnerStatus && matchesQuery;
   });
+}
+
+export function propertyMatchesOwnerStatusFilter(
+  property: Pick<PropertySummary, "hasActiveOwnerLink">,
+  ownerStatus: PropertyOwnerStatusFilter,
+) {
+  return ownerStatus === "all" || !property.hasActiveOwnerLink;
 }
 
 function sortPropertySummaries(
@@ -282,4 +339,45 @@ function compareStrings(first: string, second: string) {
     numeric: true,
     sensitivity: "base",
   });
+}
+
+async function getActiveOwnerPropertyIds(
+  organizationId: string,
+  propertyIds?: ReadonlySet<string>,
+) {
+  const supabase = await createSupabaseServerClient();
+  let query = supabase
+    .from("property_owners")
+    .select("property_id")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .is("ended_on", null);
+
+  if (propertyIds) {
+    if (propertyIds.size === 0) {
+      return new Set<string>();
+    }
+
+    query = query.in("property_id", [...propertyIds]);
+  }
+
+  const result = await query;
+
+  if (result.error) {
+    throw new Error(`Could not load property owner links: ${result.error.message}`);
+  }
+
+  return new Set((result.data ?? []).map((owner) => owner.property_id));
+}
+
+function getStoredPropertyStatusValues(status: PropertyStatusValue) {
+  if (status === "under_renovation") {
+    return ["under_renovation", "under-renovation", "renovation"];
+  }
+
+  return [status];
+}
+
+function formatPostgrestInFilter(values: ReadonlySet<string>) {
+  return `(${[...values].join(",")})`;
 }

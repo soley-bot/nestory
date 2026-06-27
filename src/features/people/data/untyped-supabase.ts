@@ -17,6 +17,7 @@ type QueryOptions = {
 
 export type UntypedQueryBuilder = PromiseLike<UntypedQueryResult> & {
   eq(column: string, value: unknown): UntypedQueryBuilder;
+  in(column: string, values: readonly unknown[]): UntypedQueryBuilder;
   insert(
     values: Record<string, unknown> | Record<string, unknown>[],
   ): UntypedQueryBuilder;

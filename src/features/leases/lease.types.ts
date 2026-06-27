@@ -60,6 +60,8 @@ export type LeasePagination = {
 
 export type LeaseViewQuery = {
   archiveState: LeaseArchiveState;
+  endMonth: string;
+  endsWithinDays: number | null;
   page: number;
   pageSize: number;
   propertyId: string;

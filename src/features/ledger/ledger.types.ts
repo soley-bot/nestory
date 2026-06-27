@@ -53,6 +53,7 @@ export type LedgerSnapshot = {
 };
 
 export type LedgerArchiveState = "active" | "archived" | "all";
+export type LedgerPeriodFilter = "all" | "current_month" | "last_30_days";
 
 export type LedgerSortKey =
   | "date_desc"
@@ -63,9 +64,13 @@ export type LedgerSortKey =
 
 export type LedgerViewQuery = {
   archiveState: LedgerArchiveState;
+  dateFrom: string;
+  dateTo: string;
   direction: "all" | LedgerDirection;
+  minAmount: number | null;
   page: number;
   pageSize: number;
+  period: LedgerPeriodFilter;
   propertyId: string;
   query: string;
   sort: LedgerSortKey;

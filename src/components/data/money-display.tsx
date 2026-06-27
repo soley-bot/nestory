@@ -27,7 +27,7 @@ export function MoneyDisplay({
       <span
         className={cn(
           "min-w-0 break-words tabular-nums [overflow-wrap:anywhere]",
-          size === "large" ? "text-2xl font-semibold tracking-tight" : "font-medium",
+          size === "large" ? "text-base font-semibold tracking-tight" : "font-medium",
         )}
       >
         {value.primary}

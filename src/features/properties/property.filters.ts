@@ -1,5 +1,6 @@
 import type {
   PropertyArchiveState,
+  PropertyOwnerStatusFilter,
   PropertySortKey,
   PropertyViewQuery,
 } from "@/features/properties/property.types";
@@ -17,12 +18,19 @@ export function parsePropertySearchParams(
 ): PropertyViewQuery {
   return {
     archiveState: parseArchiveState(params.archiveState),
+    ownerStatus: parseOwnerStatus(params.ownerStatus),
     page: parsePositiveInteger(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
     query: (getFirstValue(params.query) || "").trim().slice(0, 120),
     sort: parseSort(params.sort),
     status: parseStatus(params.status),
   };
+}
+
+function parseOwnerStatus(
+  value: string | string[] | undefined,
+): PropertyOwnerStatusFilter {
+  return getFirstValue(value) === "missing" ? "missing" : "all";
 }
 
 function parseArchiveState(

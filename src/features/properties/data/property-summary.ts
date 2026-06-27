@@ -41,6 +41,7 @@ export type PropertySummary = {
   address: string;
   code: string;
   formValues: PropertyFormValues;
+  hasActiveOwnerLink: boolean;
   id: string;
   isArchived: boolean;
   name: string;
@@ -60,8 +61,10 @@ export function buildPropertySummary({
   ledgerEntries,
   property,
   units,
+  hasActiveOwnerLink = false,
 }: {
   currencySettings?: Partial<CurrencyDisplaySettings> | null;
+  hasActiveOwnerLink?: boolean;
   ledgerEntries: PropertyLedgerRecord[];
   property: PropertyRecord;
   units: PropertyUnitRecord[];
@@ -84,6 +87,7 @@ export function buildPropertySummary({
       propertyType: property.property_type,
       status,
     },
+    hasActiveOwnerLink,
     isArchived: Boolean(property.archived_at),
     name: property.name,
     netIncome: formatMoneyTotalsDisplay(ledgerEntries, currencySettings),

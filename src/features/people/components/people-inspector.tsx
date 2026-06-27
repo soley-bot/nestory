@@ -46,9 +46,9 @@ export function PeopleInspector({
   }
 
   const iconButtonClassName =
-    "inline-flex h-9 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted";
   const primaryIconButtonClassName =
-    "inline-flex h-9 items-center justify-center rounded-md border border-accent bg-accent text-white transition-colors hover:bg-[#16181d]";
+    "inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface text-foreground transition-colors hover:bg-surface-muted";
 
   return (
     <aside className="rounded-md border border-border bg-surface 2xl:sticky 2xl:top-5 2xl:max-h-[calc(100vh-170px)] 2xl:overflow-auto">

@@ -3,6 +3,7 @@ import {
   buildLedgerPagination,
   buildLedgerSnapshotFromEntries,
   filterLedgerEntries,
+  getLedgerTransactionDateScope,
   parseLedgerSearchParams,
   sortLedgerEntries,
 } from "@/features/ledger/ledger.filters";
@@ -23,6 +24,21 @@ const entries: LedgerEntry[] = [
     propertyName: "Soley Residence",
     transactionDate: "2026-06-01",
     unitNumber: "A1",
+  },
+  {
+    amount: 2400,
+    category: "Roof",
+    currency: "USD",
+    description: "May roof repair",
+    documents: [],
+    direction: "expense",
+    id: "roof-1",
+    isLocked: false,
+    propertyCode: "SR",
+    propertyId: "property-1",
+    propertyName: "Soley Residence",
+    transactionDate: "2026-05-24",
+    unitNumber: "A2",
   },
   {
     amount: 120,
@@ -65,7 +81,7 @@ describe("filterLedgerEntries", () => {
         propertyId: "all",
         query: "service NB",
       }),
-    ).toEqual([entries[1]]);
+    ).toEqual([entries[2]]);
   });
 
   it("matches linked timeline event titles", () => {
@@ -76,7 +92,7 @@ describe("filterLedgerEntries", () => {
         propertyId: "all",
         query: "expense air-conditioner",
       }),
-    ).toEqual([entries[1]]);
+    ).toEqual([entries[2]]);
   });
 
   it("hides archived rows by default and can filter to archive view", () => {
@@ -86,7 +102,7 @@ describe("filterLedgerEntries", () => {
         propertyId: "all",
         query: "",
       }),
-    ).toEqual([entries[0]]);
+    ).toEqual([entries[0], entries[1]]);
 
     expect(
       filterLedgerEntries(entries, {
@@ -95,7 +111,32 @@ describe("filterLedgerEntries", () => {
         propertyId: "all",
         query: "",
       }),
-    ).toEqual([entries[1]]);
+    ).toEqual([entries[2]]);
+  });
+
+  it("filters by current month, explicit date range, and minimum amount", () => {
+    expect(
+      filterLedgerEntries(entries, {
+        archiveState: "all",
+        currentDate: new Date("2026-06-26T12:00:00.000Z"),
+        direction: "all",
+        period: "current_month",
+        propertyId: "all",
+        query: "",
+      }).map((entry) => entry.id),
+    ).toEqual(["rent-1", "maintenance-1"]);
+
+    expect(
+      filterLedgerEntries(entries, {
+        archiveState: "all",
+        dateFrom: "2026-05-01",
+        dateTo: "2026-05-31",
+        direction: "all",
+        minAmount: 1000,
+        propertyId: "all",
+        query: "",
+      }).map((entry) => entry.id),
+    ).toEqual(["roof-1"]);
   });
 });
 
@@ -104,18 +145,26 @@ describe("parseLedgerSearchParams", () => {
     expect(
       parseLedgerSearchParams({
         archiveState: "archived",
+        dateFrom: "2026-06-01",
+        dateTo: "2026-06-30",
         direction: "expense",
+        minAmount: "500.75",
         page: "3",
         pageSize: "50",
+        period: "last_30_days",
         propertyId: "11111111-1111-4111-8111-111111111111",
         query: "  roof   repair  ",
         sort: "amount_desc",
       }),
     ).toEqual({
       archiveState: "archived",
+      dateFrom: "2026-06-01",
+      dateTo: "2026-06-30",
       direction: "expense",
+      minAmount: 500.75,
       page: 3,
       pageSize: 50,
+      period: "last_30_days",
       propertyId: "11111111-1111-4111-8111-111111111111",
       query: "roof   repair",
       sort: "amount_desc",
@@ -126,19 +175,68 @@ describe("parseLedgerSearchParams", () => {
     expect(
       parseLedgerSearchParams({
         archiveState: "deleted",
+        dateFrom: "2026-02-31",
+        dateTo: "next-week",
         direction: "transfer",
+        minAmount: "0",
         page: "-1",
         pageSize: "500",
+        period: "last_month",
         propertyId: "not-a-uuid",
         sort: "category_desc",
       }),
     ).toMatchObject({
       archiveState: "active",
+      dateFrom: "",
+      dateTo: "",
       direction: "all",
+      minAmount: null,
       page: 1,
       pageSize: 50,
+      period: "all",
       propertyId: "all",
       sort: "date_desc",
+    });
+  });
+
+  it("builds inclusive ledger date scopes for URLs", () => {
+    expect(
+      getLedgerTransactionDateScope(
+        {
+          dateFrom: "",
+          dateTo: "",
+          period: "last_30_days",
+        },
+        new Date("2026-06-26T12:00:00.000Z"),
+      ),
+    ).toEqual({
+      before: "2026-06-27",
+      from: "2026-05-27",
+    });
+
+    expect(
+      getLedgerTransactionDateScope(
+        {
+          dateFrom: "",
+          dateTo: "",
+          period: "current_month",
+        },
+        new Date("2026-06-26T12:00:00.000Z"),
+      ),
+    ).toEqual({
+      before: "2026-07-01",
+      from: "2026-06-01",
+    });
+
+    expect(
+      getLedgerTransactionDateScope({
+        dateFrom: "2026-06-10",
+        dateTo: "2026-06-30",
+        period: "all",
+      }),
+    ).toEqual({
+      before: "2026-07-01",
+      from: "2026-06-10",
     });
   });
 });
@@ -152,23 +250,27 @@ describe("ledger list helpers", () => {
       totalCount: sorted.length,
     });
 
-    expect(sorted.map((entry) => entry.id)).toEqual(["rent-1", "maintenance-1"]);
+    expect(sorted.map((entry) => entry.id)).toEqual([
+      "roof-1",
+      "rent-1",
+      "maintenance-1",
+    ]);
     expect(pagination).toMatchObject({
       from: 2,
       page: 2,
       pageSize: 1,
       to: 2,
-      totalCount: 2,
-      totalPages: 2,
+      totalCount: 3,
+      totalPages: 3,
     });
   });
 
   it("summarizes the filtered rows, not only a visible page", () => {
     const snapshot = buildLedgerSnapshotFromEntries(entries, "2");
 
-    expect(snapshot.entryCount).toBe("2");
+    expect(snapshot.entryCount).toBe("3");
     expect(snapshot.totalIncome.primary).toBe("USD 850.00");
-    expect(snapshot.totalExpense.primary).toBe("USD 120.00");
+    expect(snapshot.totalExpense.primary).toBe("USD 2,520.00");
     expect(snapshot.lockedPeriodCount).toBe("2");
   });
 });

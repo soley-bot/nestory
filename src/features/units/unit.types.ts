@@ -23,6 +23,10 @@ export type UnitStatusValue =
 
 export type UnitStatusFilter = UnitStatusValue | "all";
 
+export type UnitLeaseStatusFilter = "missing" | "all";
+
+export type UnitOccupancyFilter = "unoccupied" | "all";
+
 export type UnitPropertyOption = {
   id: string;
   label: string;
@@ -84,6 +88,8 @@ export type UnitPagination = {
 
 export type UnitViewQuery = {
   archiveState: UnitArchiveState;
+  leaseStatus: UnitLeaseStatusFilter;
+  occupancy: UnitOccupancyFilter;
   page: number;
   pageSize: number;
   propertyId: string;
@@ -96,6 +102,7 @@ export type UnitSummary = {
   id: string;
   formValues: UnitFormValues;
   floorLabel: string;
+  hasActiveLease: boolean;
   isArchived: boolean;
   ledgerNetUsd: number;
   ledgerNetDisplay: MoneyDisplayValue;

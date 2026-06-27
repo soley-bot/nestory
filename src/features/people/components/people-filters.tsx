@@ -81,9 +81,9 @@ export function PeopleFilters({
   }
 
   return (
-    <div className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-8">
-      <div className="space-y-2.5">
-        <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
+    <div className="border-b border-border bg-surface px-4 py-2.5 sm:px-6 lg:px-6">
+      <div className="space-y-2">
+        <div className="flex flex-col gap-2 text-[13px] xl:flex-row xl:items-center">
           <form
             className="flex min-w-0 flex-1 gap-2"
             onSubmit={handleSearchSubmit}
@@ -118,7 +118,7 @@ export function PeopleFilters({
             </Button>
           </form>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <ViewModeToggle
               displayMode={displayMode}
               onDisplayModeChange={onDisplayModeChange}
@@ -126,7 +126,7 @@ export function PeopleFilters({
             <Button
               aria-controls="people-advanced-search"
               aria-expanded={advancedOpen}
-              className="h-8 w-full gap-1.5 px-2.5 sm:w-auto"
+              className="h-8 flex-1 gap-1.5 px-2.5 sm:flex-none"
               onClick={() => setAdvancedOpen((open) => !open)}
               type="button"
             >
@@ -171,6 +171,7 @@ export function PeopleFilters({
                 { label: "All statuses", value: "all" },
                 { label: "Active", value: "active" },
                 { label: "Inactive", value: "inactive" },
+                { label: "Missing contact", value: "missing_contact" },
                 { label: "No role", value: "no_role" },
               ]}
               value={viewQuery.status}

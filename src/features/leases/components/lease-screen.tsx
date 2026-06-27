@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
@@ -16,6 +16,7 @@ import { LeaseForm } from "@/features/leases/components/lease-form";
 import { LeaseInspector } from "@/features/leases/components/lease-inspector";
 import { LeasesTable } from "@/features/leases/components/leases-table";
 import type {
+  LeaseFormValues,
   LeasePagination,
   LeasePropertyOption,
   LeaseSummary,
@@ -23,8 +24,16 @@ import type {
   LeaseViewQuery,
 } from "@/features/leases/lease.types";
 
+type LeaseCreateInitialValues = Partial<Pick<LeaseFormValues, "propertyId" | "unitId">>;
+type LeaseCreateIntent = "fill-vacancy" | "standard";
+
 type DrawerState =
-  | { lease?: never; mode: "create" }
+  | {
+      intent?: LeaseCreateIntent;
+      initialValues?: LeaseCreateInitialValues;
+      lease?: never;
+      mode: "create";
+    }
   | { lease: LeaseSummary; mode: "archive" }
   | { lease: LeaseSummary; mode: "edit" }
   | { lease: LeaseSummary; mode: "restore" };
@@ -49,7 +58,21 @@ export function LeaseScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const createInitialValues = getLeaseCreateInitialValues(
+    searchParams,
+    propertyOptions,
+    unitOptions,
+  );
+  const createIntent = getLeaseCreateIntent(searchParams, createInitialValues);
+  const [drawer, setDrawer] = useState<DrawerState | null>(() =>
+    searchParams.get("action") === "create"
+      ? {
+          initialValues: createInitialValues,
+          intent: createIntent,
+          mode: "create",
+        }
+      : null,
+  );
   const [selectedLeaseId, setSelectedLeaseId] = useState(() =>
     getInitialRecordId(leases, initialLeaseId),
   );
@@ -61,6 +84,16 @@ export function LeaseScreen({
   const openLeaseRecord = (leaseId: string) => {
     router.push(getLeaseRecordHref(leaseId), { scroll: false });
   };
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "create") {
+      return;
+    }
+
+    router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+      scroll: false,
+    });
+  }, [pathname, router, searchParams]);
 
   return (
     <div className="min-h-screen">
@@ -82,7 +115,7 @@ export function LeaseScreen({
       />
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-8">
+        <div className="px-4 pt-5 sm:px-6 lg:px-6">
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
             role="status"
@@ -94,7 +127,7 @@ export function LeaseScreen({
 
       <LeaseFilters properties={propertyOptions} viewQuery={viewQuery} />
 
-      <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
+      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0 space-y-3">
             <LeasesTable
@@ -119,22 +152,24 @@ export function LeaseScreen({
             />
             <PaginationControls pagination={pagination} />
           </div>
-          <LeaseInspector
-            lease={selectedLease}
-            onArchiveLease={(lease) => {
-              setStatusMessage(null);
-              setDrawer({ lease, mode: "archive" });
-            }}
-            onEditLease={(lease) => {
-              setStatusMessage(null);
-              setDrawer({ lease, mode: "edit" });
-            }}
-            onRestoreLease={(lease) => {
-              setStatusMessage(null);
-              setDrawer({ lease, mode: "restore" });
-            }}
-            getLeaseHref={getLeaseRecordHref}
-          />
+          <div className="hidden 2xl:block">
+            <LeaseInspector
+              lease={selectedLease}
+              onArchiveLease={(lease) => {
+                setStatusMessage(null);
+                setDrawer({ lease, mode: "archive" });
+              }}
+              onEditLease={(lease) => {
+                setStatusMessage(null);
+                setDrawer({ lease, mode: "edit" });
+              }}
+              onRestoreLease={(lease) => {
+                setStatusMessage(null);
+                setDrawer({ lease, mode: "restore" });
+              }}
+              getLeaseHref={getLeaseRecordHref}
+            />
+          </div>
         </div>
       </div>
 
@@ -159,7 +194,10 @@ export function LeaseScreen({
             />
           ) : (
             <LeaseForm
-              key={`${drawer.mode}-${drawer.lease?.id ?? "new"}`}
+              initialValues={
+                drawer.mode === "create" ? drawer.initialValues : undefined
+              }
+              key={getLeaseFormKey(drawer)}
               lease={drawer.lease}
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
@@ -195,8 +233,70 @@ function getFocusedRecordHref(
   return `${pathname}?${nextParams.toString()}`;
 }
 
+function getHrefWithoutActionParam(
+  pathname: string,
+  searchParams: { toString(): string },
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+  nextParams.delete("action");
+  nextParams.delete("source");
+  nextParams.delete("unitId");
+
+  const queryString = nextParams.toString();
+  return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+function getLeaseCreateIntent(
+  searchParams: { get(name: string): string | null },
+  initialValues?: LeaseCreateInitialValues,
+): LeaseCreateIntent {
+  return searchParams.get("source") === "vacancy" && initialValues?.unitId
+    ? "fill-vacancy"
+    : "standard";
+}
+
+function getLeaseCreateInitialValues(
+  searchParams: { get(name: string): string | null },
+  properties: LeasePropertyOption[],
+  units: LeaseUnitOption[],
+): LeaseCreateInitialValues | undefined {
+  const requestedPropertyId = searchParams.get("propertyId") ?? "";
+  const requestedUnitId = searchParams.get("unitId") ?? "";
+  const requestedUnit = units.find((unit) => unit.id === requestedUnitId);
+  const propertyId =
+    requestedUnit?.propertyId ??
+    (properties.some((property) => property.id === requestedPropertyId)
+      ? requestedPropertyId
+      : "");
+  const unitId =
+    requestedUnit && (!requestedPropertyId || requestedUnit.propertyId === propertyId)
+      ? requestedUnit.id
+      : "";
+
+  if (!propertyId && !unitId) {
+    return undefined;
+  }
+
+  return {
+    propertyId,
+    unitId,
+  };
+}
+
+function getLeaseFormKey(drawer: Extract<DrawerState, { mode: "create" | "edit" }>) {
+  if (drawer.mode === "create") {
+    return `create-${drawer.initialValues?.unitId ?? drawer.initialValues?.propertyId ?? "new"}`;
+  }
+
+  return `edit-${drawer.lease.id}`;
+}
+
 function getLeaseDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "create") {
+    if (drawer.intent === "fill-vacancy") {
+      return "Fill vacancy";
+    }
+
     return "Add lease";
   }
 
@@ -213,6 +313,10 @@ function getLeaseDrawerTitle(drawer: DrawerState) {
 
 function getLeaseDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "create") {
+    if (drawer.intent === "fill-vacancy") {
+      return "Create an active lease for the selected vacant unit. Saving the lease will mark the unit occupied.";
+    }
+
     return "Create a lease record tied to a tenant, property, optional unit, rent, and deposit.";
   }
 

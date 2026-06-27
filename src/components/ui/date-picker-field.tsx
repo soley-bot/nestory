@@ -39,7 +39,7 @@ export function DatePickerField({
           <button
             aria-label={ariaLabel}
             className={cn(
-              "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 text-left text-sm outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent-soft",
+              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 text-left text-[13px] shadow-sm outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent-soft",
               className,
             )}
             type="button"
@@ -95,7 +95,7 @@ export function DatePickerField({
                       "flex size-8 items-center justify-center rounded-md text-sm transition-colors hover:bg-surface-muted",
                       selectedDate &&
                         isSameDate(selectedDate, day) &&
-                        "bg-accent text-white hover:bg-accent",
+                        "bg-accent text-background hover:bg-accent",
                     )}
                     key={toDateValue(day)}
                     onClick={() => {
@@ -124,7 +124,7 @@ export function DatePickerField({
                 Clear
               </button>
               <button
-                className="rounded-md px-2 py-1 text-sm font-medium text-accent transition-colors hover:bg-accent-soft"
+                className="rounded-md px-2 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
                 onClick={() => {
                   const today = new Date();
                   setValue(toDateValue(today));

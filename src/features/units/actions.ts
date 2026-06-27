@@ -343,7 +343,9 @@ function revalidateUnitPaths(
   propertyIds: Array<string | null | undefined>,
   unitId?: string | null,
 ) {
+  revalidatePath("/overview");
   revalidatePath("/ledger");
+  revalidatePath("/reports");
   revalidatePath("/timeline");
   revalidatePath("/units");
   revalidatePath("/properties");

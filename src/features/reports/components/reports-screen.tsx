@@ -6,11 +6,16 @@ import { MoneyDisplay } from "@/components/data/money-display";
 import { PageHeader } from "@/components/layout/page-header";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import { PrintButton } from "@/features/reports/components/print-button";
+import {
+  formatLongReportDate,
+  getReportScopeLabel,
+} from "@/features/reports/data/report-format";
 import type {
   OccupancyReport,
   OccupancyReportRow,
   ProfitLossDirectionGroup,
   ProfitLossReport,
+  ReportPropertyOption,
   ReportsScreenData,
   ReportsViewQuery,
 } from "@/features/reports/reports.types";
@@ -36,6 +41,15 @@ export function ReportsScreen({
         <PageHeader
           actions={
             <>
+              {!isProfitLoss ? (
+                <a
+                  className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
+                  href={buildPdfHref(viewQuery)}
+                >
+                  <Download size={14} />
+                  Download PDF
+                </a>
+              ) : null}
               <a
                 className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
                 href={buildCsvHref(viewQuery)}
@@ -66,7 +80,9 @@ export function ReportsScreen({
         ) : (
           <OccupancyReportView
             organizationName={organizationName}
+            propertyOptions={propertyOptions}
             report={occupancyReport}
+            viewQuery={viewQuery}
           />
         )}
       </main>
@@ -76,12 +92,17 @@ export function ReportsScreen({
 
 function OccupancyReportView({
   organizationName,
+  propertyOptions,
   report,
+  viewQuery,
 }: {
   organizationName: string;
+  propertyOptions: ReportPropertyOption[];
   report?: OccupancyReport;
+  viewQuery: ReportsViewQuery;
 }) {
   const rows = report?.rows ?? [];
+  const scopeLabel = getReportScopeLabel(viewQuery.propertyId, propertyOptions);
 
   return (
     <>
@@ -92,35 +113,54 @@ function OccupancyReportView({
         <SummaryTile label="Other status" value={String(report?.totals.other ?? 0)} />
       </div>
 
-      <section className="rounded-md border border-border bg-surface print:border-0 print:bg-white">
-        <div className="flex flex-col gap-2 border-b border-border px-3 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-4 sm:py-4 print:block print:border-0 print:px-0 print:pb-3 print:pt-0 print:text-center">
-          <div>
-            <div className="flex items-center gap-2 print:block">
-              <FileText className="text-accent print:hidden" size={17} />
-              <h2 className="text-base font-semibold text-foreground print:text-[18px] print:text-black">
-                Available Units - {organizationName}
-              </h2>
+      <section className="overflow-hidden rounded-md border border-border bg-surface shadow-sm print:rounded-none print:border-0 print:bg-white print:shadow-none">
+        <div className="relative border-b border-border px-4 py-4 sm:px-5 print:block print:border-0 print:px-0 print:pb-3 print:pt-0 print:text-center">
+          <div className="absolute inset-y-0 left-0 hidden w-1 bg-accent sm:block print:hidden" />
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 print:block">
+                <FileText className="text-accent print:hidden" size={17} />
+                <h2 className="text-base font-semibold text-foreground print:text-[18px] print:text-black">
+                  Available Units - {organizationName}
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-foreground-muted sm:text-[13px] print:text-[12px] print:text-black">
+                {report
+                  ? `(Last Update: ${formatLongReportDate(report.generatedAt)})`
+                  : "Not loaded"}
+              </p>
             </div>
-            <p className="mt-1 text-xs text-foreground-muted sm:text-[13px] print:text-[12px] print:text-black">
-              {report ? `(Last Update: ${formatLongReportDate(report.generatedAt)})` : "Not loaded"}
-            </p>
-          </div>
-          <div className="hidden text-[13px] text-foreground-muted sm:block print:hidden">
-            Showing{" "}
-            <span className="font-medium text-foreground">
-              {report?.totals.visible ?? 0}
-            </span>{" "}
-            rows. Vacant units are sorted first.
+            <div className="grid grid-cols-2 gap-2 text-[12px] sm:min-w-[360px] sm:grid-cols-3 print:hidden">
+              <ReportMeta label="Scope" value={scopeLabel} />
+              <ReportMeta
+                label="Report rows"
+                value={String(report?.totals.visible ?? 0)}
+              />
+              <ReportMeta
+                label="Vacant"
+                value={String(report?.totals.vacant ?? 0)}
+              />
+            </div>
           </div>
         </div>
 
         <div className="max-h-[280px] overflow-auto sm:max-h-[min(460px,calc(100vh-455px))] print:max-h-none print:overflow-visible">
           <table
             aria-label="Vacant units report"
-            className="min-w-[920px] w-full border-separate border-spacing-0 text-left text-[13px] print:min-w-0 print:border print:border-black print:text-[10px] print:text-black print:[&_td]:border print:[&_td]:border-black print:[&_td]:px-1.5 print:[&_td]:py-1.5 print:[&_th]:border print:[&_th]:border-black print:[&_th]:px-1.5 print:[&_th]:py-1 print:[&_thead_tr]:bg-white"
+            className="w-full min-w-[920px] border-separate border-spacing-0 text-left text-[13px] print:min-w-0 print:border print:border-black print:text-[10px] print:text-black print:[&_td]:border print:[&_td]:border-black print:[&_td]:px-1.5 print:[&_td]:py-1.5 print:[&_th]:border print:[&_th]:border-black print:[&_th]:px-1.5 print:[&_th]:py-1 print:[&_thead_tr]:bg-white"
           >
+            <colgroup>
+              <col className="w-[48px]" />
+              <col className="w-[22%]" />
+              <col className="w-[13%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[12%]" />
+              <col className="w-[10%]" />
+              <col />
+            </colgroup>
             <thead className="sticky top-0 z-10 print:static">
-              <tr className="bg-surface-muted text-[11px] font-semibold text-muted">
+              <tr className="bg-surface-muted text-[11px] font-semibold text-foreground-muted">
                 <th className="border-b border-border px-3 py-2">No.</th>
                 <th className="border-b border-border px-3 py-2">Property Name</th>
                 <th className="border-b border-border px-3 py-2">
@@ -153,10 +193,10 @@ function OccupancyReportView({
           </table>
         </div>
 
-        <div className="flex flex-col gap-1 border-t border-border px-4 py-3 text-[13px] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1 border-t border-border bg-surface-muted/50 px-4 py-3 text-[13px] sm:flex-row sm:items-center sm:justify-between print:bg-white">
           <strong>Total vacant units: {report?.totals.vacant ?? 0}</strong>
           <span className="text-foreground-muted print:hidden">
-            Open a unit to continue into its record room.
+            Use Download PDF for a clean leasing copy.
           </span>
         </div>
       </section>
@@ -459,20 +499,13 @@ function ReportChip({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatLongReportDate(value: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    day: "2-digit",
-    month: "long",
-    weekday: "long",
-    year: "numeric",
-  })
-    .formatToParts(new Date(value))
-    .reduce<Record<string, string>>((dateParts, part) => {
-      dateParts[part.type] = part.value;
-      return dateParts;
-    }, {});
-
-  return `${parts.weekday} ${parts.day} ${parts.month} ${parts.year}`;
+function ReportMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-md border border-border bg-surface-muted/70 px-2.5 py-2">
+      <p className="text-[11px] font-medium text-foreground-muted">{label}</p>
+      <p className="mt-0.5 truncate font-semibold text-foreground">{value}</p>
+    </div>
+  );
 }
 
 function buildCsvHref(query: ReportsViewQuery) {
@@ -493,4 +526,20 @@ function buildCsvHref(query: ReportsViewQuery) {
   }
 
   return `/api/reports/export?${params.toString()}`;
+}
+
+function buildPdfHref(query: ReportsViewQuery) {
+  const params = new URLSearchParams();
+
+  params.set("report", "occupancy");
+
+  if (query.propertyId !== "all") {
+    params.set("propertyId", query.propertyId);
+  }
+
+  if (query.status !== "all") {
+    params.set("status", query.status);
+  }
+
+  return `/api/reports/pdf?${params.toString()}`;
 }

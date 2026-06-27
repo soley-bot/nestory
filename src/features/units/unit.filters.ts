@@ -1,5 +1,7 @@
 import type {
   UnitArchiveState,
+  UnitLeaseStatusFilter,
+  UnitOccupancyFilter,
   UnitSortKey,
   UnitStatusFilter,
   UnitViewQuery,
@@ -18,6 +20,8 @@ const uuidPattern =
 export function parseUnitSearchParams(params: UnitSearchParams): UnitViewQuery {
   return {
     archiveState: parseUnitArchiveState(params.archiveState),
+    leaseStatus: parseLeaseStatus(params.leaseStatus),
+    occupancy: parseOccupancy(params.occupancy),
     page: parsePositiveInteger(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
     propertyId: parseUuidFilter(params.propertyId),
@@ -25,6 +29,18 @@ export function parseUnitSearchParams(params: UnitSearchParams): UnitViewQuery {
     sort: parseSort(params.sort),
     status: parseStatus(params.status),
   };
+}
+
+function parseLeaseStatus(
+  value: string | string[] | undefined,
+): UnitLeaseStatusFilter {
+  return getFirstValue(value) === "missing" ? "missing" : "all";
+}
+
+function parseOccupancy(
+  value: string | string[] | undefined,
+): UnitOccupancyFilter {
+  return getFirstValue(value) === "unoccupied" ? "unoccupied" : "all";
 }
 
 export function parseUnitArchiveState(

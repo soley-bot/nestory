@@ -11,6 +11,7 @@ import {
   updateLeaseAction,
 } from "@/features/leases/actions";
 import type {
+  LeaseFormValues,
   LeasePropertyOption,
   LeaseStatusValue,
   LeaseSummary,
@@ -29,6 +30,7 @@ const statusOptions: { label: string; value: LeaseStatusValue }[] = [
 ];
 
 type LeaseFormProps = {
+  initialValues?: LeaseFormInitialValues;
   lease?: LeaseSummary | null;
   mode?: "create" | "edit";
   onClose: () => void;
@@ -37,7 +39,10 @@ type LeaseFormProps = {
   units: LeaseUnitOption[];
 };
 
+type LeaseFormInitialValues = Partial<Pick<LeaseFormValues, "propertyId" | "unitId">>;
+
 export function LeaseForm({
+  initialValues,
   lease,
   mode = "create",
   onClose,
@@ -50,7 +55,7 @@ export function LeaseForm({
     isEditMode ? updateLeaseAction : createLeaseAction,
     initialState,
   );
-  const defaults = getLeaseDefaults(lease);
+  const defaults = getLeaseDefaults(lease, initialValues);
   const [selectedPropertyId, setSelectedPropertyId] = useState(
     defaults.propertyId,
   );
@@ -73,6 +78,11 @@ export function LeaseForm({
     selectedUnitId && unitOptions.some((unit) => unit.id === selectedUnitId)
       ? selectedUnitId
       : "";
+  const selectedUnitOption = units.find((unit) => unit.id === formUnitId);
+  const selectedPropertyOption = properties.find(
+    (property) => property.id === selectedPropertyId,
+  );
+  const showVacancyContext = Boolean(initialValues?.unitId && selectedUnitOption);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -95,6 +105,16 @@ export function LeaseForm({
 
         {isEditMode && lease ? (
           <input name="leaseId" type="hidden" value={lease.id} />
+        ) : null}
+
+        {showVacancyContext ? (
+          <div className="rounded-md border border-warning/30 bg-warning-soft/30 px-3 py-2 text-sm">
+            <p className="font-medium text-foreground">Filling vacancy</p>
+            <p className="mt-1 text-foreground-muted">
+              {selectedUnitOption?.label}
+              {selectedPropertyOption ? ` / ${selectedPropertyOption.label}` : ""}
+            </p>
+          </div>
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
@@ -290,7 +310,10 @@ function Field({
   );
 }
 
-function getLeaseDefaults(lease?: LeaseSummary | null) {
+function getLeaseDefaults(
+  lease?: LeaseSummary | null,
+  initialValues: LeaseFormInitialValues = {},
+) {
   const formValues = lease?.formValues;
 
   return {
@@ -300,10 +323,10 @@ function getLeaseDefaults(lease?: LeaseSummary | null) {
     leaseStartDate: formValues?.leaseStartDate ?? "",
     monthlyRentAmount: toInputNumber(formValues?.monthlyRentAmount),
     monthlyRentCurrency: formValues?.monthlyRentCurrency ?? "USD",
-    propertyId: formValues?.propertyId ?? "",
+    propertyId: formValues?.propertyId ?? initialValues.propertyId ?? "",
     status: formValues?.status ?? "active",
     tenantName: formValues?.tenantName ?? "",
-    unitId: formValues?.unitId ?? "",
+    unitId: formValues?.unitId ?? initialValues.unitId ?? "",
   };
 }
 

@@ -42,7 +42,7 @@ export function TimelineTable({
           </p>
         </div>
       </div>
-      <div className="max-h-[min(680px,calc(100vh-260px))] overflow-auto">
+      <div className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]">
         <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
             <col className="w-[100px]" />
@@ -73,7 +73,7 @@ export function TimelineTable({
                 aria-selected={selectedEventId === event.id}
                 className={cn(
                   "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent-soft",
-                  selectedEventId === event.id && "bg-accent-soft",
+                  selectedEventId === event.id && "bg-surface-muted",
                   event.archivedAt && "text-muted",
                 )}
                 key={event.id}

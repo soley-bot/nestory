@@ -4,8 +4,10 @@ import {
   buildUnitSummary,
   formatLeaseStatus,
   formatUnitStatus,
+  isActiveUnitLeaseStatus,
   selectCurrentLease,
 } from "@/features/units/data/unit-summary";
+import { chunkValues } from "@/features/units/data/units";
 
 const property = {
   code: "CTR",
@@ -178,11 +180,34 @@ describe("selectCurrentLease", () => {
         },
         {
           ...lease,
+          id: "draft",
+          lease_start_date: "2026-05-01",
+          status: "draft",
+        },
+        {
+          ...lease,
           id: "newer",
           lease_start_date: "2026-04-01",
           status: "notice_given",
         },
       ])?.id,
     ).toBe("newer");
+  });
+
+  it("treats only active and notice-given leases as active links", () => {
+    expect(isActiveUnitLeaseStatus("active")).toBe(true);
+    expect(isActiveUnitLeaseStatus("notice_given")).toBe(true);
+    expect(isActiveUnitLeaseStatus("draft")).toBe(false);
+    expect(selectCurrentLease([{ ...lease, status: "draft" }])).toBeUndefined();
+  });
+});
+
+describe("chunkValues", () => {
+  it("splits large relationship requests into stable batches", () => {
+    expect(chunkValues(["a", "b", "c", "d", "e"], 2)).toEqual([
+      ["a", "b"],
+      ["c", "d"],
+      ["e"],
+    ]);
   });
 });

@@ -15,7 +15,7 @@ export default async function SettingsPage() {
         description="Phase 1 keeps access simple while preserving organization-wide defaults."
         title="Settings"
       />
-      <div className="space-y-5 px-4 py-5 sm:px-6 lg:p-8">
+      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <CurrencySettingsForm settings={currencySettings} />
       </div>
     </div>

@@ -1,9 +1,7 @@
 import Link from "next/link";
 import {
   Archive,
-  Building2,
   ExternalLink,
-  ImageIcon,
   Pencil,
   RotateCcw,
 } from "lucide-react";
@@ -42,8 +40,8 @@ export function PropertiesTable({
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-2"
-            : "space-y-3 md:hidden",
+            ? "grid max-h-[380px] gap-3 overflow-auto pr-1 sm:grid-cols-2 lg:max-h-none lg:overflow-visible lg:pr-0 xl:grid-cols-3 2xl:grid-cols-2"
+            : "max-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
         )}
       >
         {properties.length === 0 ? (
@@ -54,7 +52,10 @@ export function PropertiesTable({
         {properties.map((property) => (
           <PropertyCard
             key={property.id}
+            onArchiveProperty={onArchiveProperty}
+            onEditProperty={onEditProperty}
             onOpenProperty={onOpenProperty}
+            onRestoreProperty={onRestoreProperty}
             onSelectProperty={onSelectProperty}
             property={property}
             selected={selectedPropertyId === property.id}
@@ -64,7 +65,7 @@ export function PropertiesTable({
 
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-          <div className="max-h-[min(680px,calc(100vh-260px))] overflow-auto">
+          <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
             <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
                 <col className="w-[18%]" />
@@ -72,8 +73,8 @@ export function PropertiesTable({
                 <col className="w-[12%]" />
                 <col className="w-[16%]" />
                 <col className="w-[6%]" />
-                <col className="w-[27%]" />
-                <col className="w-[13%]" />
+                <col className="w-[25%]" />
+                <col className="w-[15%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -104,7 +105,7 @@ export function PropertiesTable({
                   <tr
                     className={cn(
                       "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                      selectedPropertyId === property.id && "bg-accent-soft",
+                      selectedPropertyId === property.id && "bg-surface-muted",
                       property.isArchived && "text-muted",
                     )}
                     key={property.id}
@@ -146,7 +147,7 @@ export function PropertiesTable({
                         {property.owner}
                       </p>
                     </td>
-                    <td className="px-1.5 py-2 text-muted">
+                    <td className="px-1.5 py-2 text-foreground-muted">
                       <p
                         className="line-clamp-2 break-words leading-[18px]"
                         title={property.address}
@@ -180,12 +181,18 @@ export function PropertiesTable({
 }
 
 function PropertyCard({
+  onArchiveProperty,
+  onEditProperty,
   onOpenProperty,
+  onRestoreProperty,
   onSelectProperty,
   property,
   selected,
 }: {
+  onArchiveProperty: (property: PropertySummary) => void;
+  onEditProperty: (property: PropertySummary) => void;
   onOpenProperty: (id: string) => void;
+  onRestoreProperty: (property: PropertySummary) => void;
   onSelectProperty: (id: string) => void;
   property: PropertySummary;
   selected: boolean;
@@ -193,7 +200,7 @@ function PropertyCard({
   return (
     <article
       className={cn(
-        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-[#c9d0da] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
+        "group min-w-0 cursor-pointer rounded-md border border-border bg-surface px-3.5 py-3.5 text-sm transition-colors hover:border-[#c9d0da] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
         selected && "border-accent shadow-[0_0_0_1px_var(--accent)]",
         property.isArchived && "text-muted",
       )}
@@ -207,21 +214,10 @@ function PropertyCard({
       }}
       tabIndex={0}
     >
-      <div className="relative aspect-[16/9] overflow-hidden bg-[#eef0f4]">
-        <div className={cn("absolute inset-0", getPropertyPhotoTone(property.type))} />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,11,18,0.08),rgba(8,11,18,0.34))]" />
-        <div className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-md bg-white/82 text-[#363c47] shadow-sm backdrop-blur">
-          <ImageIcon size={17} />
-        </div>
-        <div className="absolute right-3 top-3">
-          <PropertyStatusBadges property={property} />
-        </div>
-        <div className="absolute bottom-3 left-3 right-3 min-w-0 text-white">
-          <p className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-white/75">
-            {property.code}
-          </p>
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
           <Link
-            className="mt-1 block truncate text-base font-semibold leading-5 text-white hover:underline"
+            className="block truncate text-base font-semibold leading-5 text-accent hover:underline"
             href={`/properties/${property.id}`}
             onClick={(event) => event.stopPropagation()}
             prefetch={false}
@@ -229,24 +225,38 @@ function PropertyCard({
           >
             {property.name}
           </Link>
-        </div>
-      </div>
-
-      <div className="flex min-w-0 items-center justify-between gap-3 px-3.5 py-3">
-        <div className="min-w-0">
           <p
-            className="truncate text-sm font-medium"
-            title={`${property.type} property`}
+            className="mt-1 truncate font-medium"
+            title={`${property.code} / ${property.type}`}
           >
-            {property.type}
+            {property.code} / {property.type}
+          </p>
+          <p
+            className="mt-0.5 line-clamp-1 break-words text-[13px] text-foreground-muted"
+            title={property.address}
+          >
+            {property.address}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted">
-          <Building2 size={13} />
-          <span className="whitespace-nowrap tabular-nums">
-            {property.occupiedUnits}/{property.units} units
-          </span>
-        </div>
+        <PropertyStatusBadges property={property} />
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-foreground-muted">
+          {property.occupiedUnits}/{property.units} units
+        </span>
+        <TableMoneyDisplay showSecondary={false} value={property.netIncome} />
+      </div>
+
+      <div className="mt-3 flex justify-end border-t border-border pt-2">
+        <PropertyActions
+          className="justify-end gap-1"
+          onArchiveProperty={onArchiveProperty}
+          onEditProperty={onEditProperty}
+          onRestoreProperty={onRestoreProperty}
+          property={property}
+          size="touch"
+        />
       </div>
     </article>
   );
@@ -259,7 +269,10 @@ function PropertyStatusBadges({
   compact?: boolean;
   property: PropertySummary;
 }) {
-  const badgeClassName = compact ? "px-2 text-xs" : undefined;
+  const badgeClassName = cn(
+    "border-2 px-2.5 py-1 text-xs font-semibold shadow-sm",
+    !compact && "backdrop-blur",
+  );
 
   return (
     <div
@@ -285,17 +298,21 @@ function PropertyActions({
   onArchiveProperty,
   onEditProperty,
   onRestoreProperty,
+  size = "compact",
   property,
 }: {
   className?: string;
   onArchiveProperty: (property: PropertySummary) => void;
   onEditProperty: (property: PropertySummary) => void;
   onRestoreProperty: (property: PropertySummary) => void;
+  size?: "compact" | "touch";
   property: PropertySummary;
 }) {
-  const wrapperClassName = cn("flex justify-center gap-0.5", className);
-  const buttonClassName =
-    "inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50";
+  const wrapperClassName = cn("flex justify-center gap-1", className);
+  const iconButtonClassName = cn(
+    "inline-flex items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50",
+    size === "touch" ? "h-9 w-9" : "h-[28px] w-[28px]",
+  );
 
   return (
     <div
@@ -304,7 +321,7 @@ function PropertyActions({
     >
       <Link
         aria-label={`Open ${property.name}`}
-        className={cn(buttonClassName, "hover:text-foreground")}
+        className={cn(iconButtonClassName, "hover:text-foreground")}
         href={`/properties/${property.id}`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
@@ -315,7 +332,7 @@ function PropertyActions({
       {property.isArchived ? (
         <button
           aria-label={`Restore ${property.name}`}
-          className={cn(buttonClassName, "hover:text-accent")}
+          className={cn(iconButtonClassName, "hover:text-accent")}
           onClick={(event) => {
             event.stopPropagation();
             onRestoreProperty(property);
@@ -329,7 +346,7 @@ function PropertyActions({
         <>
           <button
             aria-label={`Edit ${property.name}`}
-            className={cn(buttonClassName, "hover:text-foreground")}
+            className={cn(iconButtonClassName, "hover:text-foreground")}
             onClick={(event) => {
               event.stopPropagation();
               onEditProperty(property);
@@ -341,7 +358,7 @@ function PropertyActions({
           </button>
           <button
             aria-label={`Archive ${property.name}`}
-            className={cn(buttonClassName, "hover:text-danger")}
+            className={cn(iconButtonClassName, "hover:text-danger")}
             onClick={(event) => {
               event.stopPropagation();
               onArchiveProperty(property);
@@ -357,7 +374,13 @@ function PropertyActions({
   );
 }
 
-function TableMoneyDisplay({ value }: { value: MoneyDisplayValue }) {
+function TableMoneyDisplay({
+  showSecondary = true,
+  value,
+}: {
+  showSecondary?: boolean;
+  value: MoneyDisplayValue;
+}) {
   const primary = formatMoneyWithSymbol(value.primary, value.primaryCurrency);
   const secondary = formatMoneyWithSymbol(
     value.secondary,
@@ -367,11 +390,15 @@ function TableMoneyDisplay({ value }: { value: MoneyDisplayValue }) {
   return (
     <span
       className="flex min-w-0 items-center justify-end gap-1.5 whitespace-nowrap text-right text-sm leading-5 tabular-nums"
-      title={`${primary} / ${secondary}`}
+      title={showSecondary ? `${primary} / ${secondary}` : primary}
     >
       <span className="font-semibold text-foreground">{primary}</span>
-      <span className="text-muted">/</span>
-      <span className="text-[13px] text-muted">{secondary}</span>
+      {showSecondary ? (
+        <>
+          <span className="text-muted">/</span>
+          <span className="text-[13px] text-muted">{secondary}</span>
+        </>
+      ) : null}
     </span>
   );
 }
@@ -386,21 +413,4 @@ function formatMoneyWithSymbol(label: string, currency: CurrencyCode) {
   const symbol = currency === "USD" ? "$" : "\u17db";
 
   return `${isNegative ? "-" : ""}${symbol}${amount}`;
-}
-
-function getPropertyPhotoTone(type: string) {
-  const normalizedType = type.toLowerCase();
-
-  if (normalizedType.includes("retail") || normalizedType.includes("mixed")) {
-    return "bg-[linear-gradient(135deg,#d8c1a3_0%,#eef0f4_48%,#9aa5b5_100%)]";
-  }
-
-  if (
-    normalizedType.includes("townhouse") ||
-    normalizedType.includes("condominium")
-  ) {
-    return "bg-[linear-gradient(135deg,#b9c2bf_0%,#edf0ec_46%,#a38d73_100%)]";
-  }
-
-  return "bg-[linear-gradient(135deg,#c6d0d9_0%,#f3f1ec_48%,#9c8b77_100%)]";
 }

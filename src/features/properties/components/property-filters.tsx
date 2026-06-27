@@ -44,11 +44,16 @@ export function PropertyFilters({
     source: viewQuery.query,
     value: viewQuery.query,
   });
-  const hasAdvancedFilters =
-    viewQuery.status !== "all" ||
-    viewQuery.archiveState !== "active" ||
-    viewQuery.sort !== DEFAULT_PROPERTY_SORT ||
-    viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE;
+  const activeFilters = [
+    viewQuery.status !== "all",
+    viewQuery.ownerStatus !== "all",
+    viewQuery.archiveState !== "active",
+    viewQuery.sort !== DEFAULT_PROPERTY_SORT,
+    viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE,
+  ].filter(Boolean).length;
+  const hasSearchQuery = viewQuery.query.trim().length > 0;
+  const hasAdvancedFilters = activeFilters > 0;
+  const hasAnyFilters = hasSearchQuery || hasAdvancedFilters;
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
@@ -79,9 +84,9 @@ export function PropertyFilters({
   }
 
   return (
-    <div className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-8">
-      <div className="space-y-2.5">
-        <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
+    <div className="border-b border-border bg-surface px-4 py-2.5 sm:px-6 lg:px-6">
+      <div className="space-y-2">
+        <div className="flex flex-col gap-2 text-[13px] xl:flex-row xl:items-center">
           <form
             className="flex min-w-0 flex-1 gap-2"
             onSubmit={handleSearchSubmit}
@@ -116,7 +121,7 @@ export function PropertyFilters({
             </Button>
           </form>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <ViewModeToggle
               displayMode={displayMode}
               onDisplayModeChange={onDisplayModeChange}
@@ -124,28 +129,76 @@ export function PropertyFilters({
             <Button
               aria-controls="property-advanced-search"
               aria-expanded={advancedOpen}
-              className="h-8 w-full gap-1.5 px-2.5 sm:w-auto"
+              className={cn(
+                "h-8 flex-1 gap-1.5 px-2.5 sm:flex-none",
+                hasAdvancedFilters &&
+                  "border-border bg-surface-muted text-foreground hover:bg-surface-muted",
+              )}
               onClick={() => setAdvancedOpen((open) => !open)}
               type="button"
             >
               <SlidersHorizontal size={14} />
-              Filters
+              <span>Filters</span>
+              {activeFilters > 0 ? (
+                <span className="rounded-full border border-border bg-surface px-1.5 py-0.5 text-[10px] font-semibold leading-none text-foreground">
+                  {activeFilters}
+                </span>
+              ) : null}
             </Button>
             <Link
               aria-label="Reset property filters"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+              className={cn(
+                "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+                hasAnyFilters && "border-border bg-surface-muted text-foreground",
+              )}
               href={pathname}
               scroll={false}
               title="Reset filters"
             >
               <RotateCcw size={14} />
+              <span className="hidden sm:inline">Reset</span>
             </Link>
           </div>
         </div>
 
+        {hasAnyFilters ? (
+          <div
+            aria-label="Active property filters"
+            className="flex flex-wrap items-center gap-1.5 text-xs"
+          >
+            {hasSearchQuery ? (
+              <FilterChip label="Search" value={viewQuery.query} />
+            ) : null}
+            {viewQuery.status !== "all" ? (
+              <FilterChip
+                label="Status"
+                value={formatFilterValue(viewQuery.status)}
+              />
+            ) : null}
+            {viewQuery.archiveState !== "active" ? (
+              <FilterChip
+                label="Archive"
+                value={formatFilterValue(viewQuery.archiveState)}
+              />
+            ) : null}
+            {viewQuery.ownerStatus !== "all" ? (
+              <FilterChip label="Owner" value="Missing owner link" />
+            ) : null}
+            {viewQuery.sort !== DEFAULT_PROPERTY_SORT ? (
+              <FilterChip
+                label="Sort"
+                value={formatFilterValue(viewQuery.sort)}
+              />
+            ) : null}
+            {viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE ? (
+              <FilterChip label="Rows" value={String(viewQuery.pageSize)} />
+            ) : null}
+          </div>
+        ) : null}
+
         {advancedOpen ? (
           <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(132px,160px)_minmax(132px,160px)_minmax(132px,170px)_minmax(84px,104px)]"
+            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(132px,160px)_minmax(132px,170px)_minmax(132px,160px)_minmax(132px,170px)_minmax(84px,104px)]"
             id="property-advanced-search"
           >
             <SelectControl
@@ -159,6 +212,17 @@ export function PropertyFilters({
                 { label: "Inactive", value: "inactive" },
               ]}
               value={viewQuery.status}
+            />
+
+            <SelectControl
+              ariaLabel="Filter by owner link"
+              className={compactSelectClassName}
+              onValueChange={(value) => replaceParam("ownerStatus", value, "all")}
+              options={[
+                { label: "All owner links", value: "all" },
+                { label: "Missing owner link", value: "missing" },
+              ]}
+              value={viewQuery.ownerStatus}
             />
 
             <SelectControl
@@ -209,6 +273,22 @@ export function PropertyFilters({
   );
 }
 
+function FilterChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-muted px-2 py-1 text-foreground-muted">
+      <span className="font-semibold">{label}</span>
+      <span className="min-w-0 truncate text-foreground">{value}</span>
+    </span>
+  );
+}
+
+function formatFilterValue(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function ViewModeToggle({
   displayMode,
   onDisplayModeChange,
@@ -219,7 +299,7 @@ function ViewModeToggle({
   return (
     <div
       aria-label="Property view"
-      className="inline-flex h-8 rounded-md border border-border bg-surface-muted p-0.5 text-xs"
+      className="hidden h-8 rounded-md border border-border bg-surface-muted p-0.5 text-xs md:inline-flex"
       role="group"
     >
       <ViewModeButton

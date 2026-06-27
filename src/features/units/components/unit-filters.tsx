@@ -51,6 +51,8 @@ export function UnitFilters({
   const hasAdvancedFilters =
     viewQuery.propertyId !== "all" ||
     viewQuery.status !== "all" ||
+    viewQuery.occupancy !== "all" ||
+    viewQuery.leaseStatus !== "all" ||
     viewQuery.archiveState !== DEFAULT_UNIT_ARCHIVE_STATE ||
     viewQuery.sort !== DEFAULT_UNIT_SORT ||
     viewQuery.pageSize !== DEFAULT_UNIT_PAGE_SIZE;
@@ -84,9 +86,9 @@ export function UnitFilters({
   }
 
   return (
-    <div className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-8">
-      <div className="space-y-2.5">
-        <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
+    <div className="border-b border-border bg-surface px-4 py-2.5 sm:px-6 lg:px-6">
+      <div className="space-y-2">
+        <div className="flex flex-col gap-2 text-[13px] xl:flex-row xl:items-center">
           <form
             className="flex min-w-0 flex-1 gap-2"
             onSubmit={handleSearchSubmit}
@@ -121,7 +123,7 @@ export function UnitFilters({
             </Button>
           </form>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <ViewModeToggle
               displayMode={displayMode}
               onDisplayModeChange={onDisplayModeChange}
@@ -129,7 +131,7 @@ export function UnitFilters({
             <Button
               aria-controls="unit-advanced-search"
               aria-expanded={advancedOpen}
-              className="h-8 w-full gap-1.5 px-2.5 sm:w-auto"
+              className="h-8 flex-1 gap-1.5 px-2.5 sm:flex-none"
               onClick={() => setAdvancedOpen((open) => !open)}
               type="button"
             >
@@ -150,7 +152,7 @@ export function UnitFilters({
 
         {advancedOpen ? (
           <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(160px,210px)_minmax(132px,150px)_minmax(132px,150px)_minmax(132px,160px)_minmax(84px,104px)]"
+            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] xl:grid-cols-[minmax(160px,220px)_minmax(124px,150px)_minmax(128px,160px)_minmax(132px,170px)_minmax(132px,150px)_minmax(132px,160px)_minmax(84px,104px)]"
             id="unit-advanced-search"
           >
             <SelectControl
@@ -180,6 +182,28 @@ export function UnitFilters({
                 { label: "Inactive", value: "inactive" },
               ]}
               value={viewQuery.status}
+            />
+
+            <SelectControl
+              ariaLabel="Filter by occupancy"
+              className={compactSelectClassName}
+              onValueChange={(value) => replaceParam("occupancy", value, "all")}
+              options={[
+                { label: "All occupancy", value: "all" },
+                { label: "Not occupied", value: "unoccupied" },
+              ]}
+              value={viewQuery.occupancy}
+            />
+
+            <SelectControl
+              ariaLabel="Filter by lease link"
+              className={compactSelectClassName}
+              onValueChange={(value) => replaceParam("leaseStatus", value, "all")}
+              options={[
+                { label: "All lease links", value: "all" },
+                { label: "Missing active lease", value: "missing" },
+              ]}
+              value={viewQuery.leaseStatus}
             />
 
             <SelectControl

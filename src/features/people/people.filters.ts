@@ -54,6 +54,7 @@ function parseStatus(value: string | string[] | undefined): PeopleStatusFilter {
 
   return candidate === "active" ||
     candidate === "inactive" ||
+    candidate === "missing_contact" ||
     candidate === "no_role"
     ? candidate
     : "all";

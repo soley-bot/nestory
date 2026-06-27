@@ -139,6 +139,11 @@ export async function getPeopleScreenData(
   viewQuery: PeopleViewQuery = parsePeopleSearchParams({}),
 ): Promise<PeopleScreenData> {
   const supabase = asUntypedSupabase(await createSupabaseServerClient());
+  const excludedPersonIds = await getExcludedPersonIdsForStatus(
+    supabase,
+    organizationId,
+    viewQuery.status,
+  );
   let peopleQuery = supabase
     .from("people")
     .select(peopleSelect)
@@ -149,6 +154,14 @@ export async function getPeopleScreenData(
     peopleQuery = peopleQuery.is("archived_at", null);
   } else if (viewQuery.archiveState === "archived") {
     peopleQuery = peopleQuery.not("archived_at", "is", null);
+  }
+
+  if (excludedPersonIds.size > 0) {
+    peopleQuery = peopleQuery.not(
+      "id",
+      "in",
+      formatPostgrestInFilter(excludedPersonIds),
+    );
   }
 
   const peopleResult = await peopleQuery;
@@ -162,52 +175,91 @@ export async function getPeopleScreenData(
   }
 
   const people = asRows(peopleResult.data, toPersonRow);
-  const [
-    roles,
-    contacts,
-    leaseParties,
-    leases,
-    propertyOwners,
-    vendorProfiles,
-    properties,
-    units,
-  ] = await Promise.all([
-    getRows(supabase, "person_roles", roleSelect, organizationId, toRoleRow),
+  const personIds = new Set(people.map((person) => person.id));
+  const [roles, contacts, leaseParties, propertyOwners, vendorProfiles] =
+    await Promise.all([
+      getRows(supabase, "person_roles", roleSelect, organizationId, toRoleRow, {
+        column: "person_id",
+        values: personIds,
+      }),
+      getRows(
+        supabase,
+        "person_contacts",
+        contactSelect,
+        organizationId,
+        toContactRow,
+        { column: "person_id", values: personIds },
+        true,
+      ),
+      getRows(
+        supabase,
+        "lease_parties",
+        leasePartySelect,
+        organizationId,
+        toLeasePartyRow,
+        { column: "person_id", values: personIds },
+        true,
+      ),
+      getRows(
+        supabase,
+        "property_owners",
+        propertyOwnerSelect,
+        organizationId,
+        toPropertyOwnerRow,
+        { column: "person_id", values: personIds },
+        true,
+      ),
+      getRows(
+        supabase,
+        "vendor_profiles",
+        vendorProfileSelect,
+        organizationId,
+        toVendorProfileRow,
+        { column: "person_id", values: personIds },
+        true,
+      ),
+    ]);
+  const leaseIds = new Set(leaseParties.map((party) => party.leaseId));
+  const leases = await getRows(
+    supabase,
+    "leases",
+    leaseSelect,
+    organizationId,
+    toLeaseRow,
+    { column: "id", values: leaseIds },
+    true,
+  );
+  const propertyIds = new Set([
+    ...leases.map((lease) => lease.propertyId),
+    ...propertyOwners.map((owner) => owner.propertyId),
+  ]);
+  const unitIds = new Set(
+    leases.flatMap((lease) => (lease.unitId ? [lease.unitId] : [])),
+  );
+  const [properties, units] = await Promise.all([
     getRows(
       supabase,
-      "person_contacts",
-      contactSelect,
+      "properties",
+      propertySelect,
       organizationId,
-      toContactRow,
-      true,
+      toPropertyRow,
+      {
+        column: "id",
+        values: propertyIds,
+      },
     ),
     getRows(
       supabase,
-      "lease_parties",
-      leasePartySelect,
+      "units",
+      unitSelect,
       organizationId,
-      toLeasePartyRow,
+      toUnitRow,
+      {
+        column: "id",
+        values: unitIds,
+      },
       true,
     ),
-    getRows(supabase, "leases", leaseSelect, organizationId, toLeaseRow, true),
-    getRows(
-      supabase,
-      "property_owners",
-      propertyOwnerSelect,
-      organizationId,
-      toPropertyOwnerRow,
-      true,
-    ),
-    getRows(
-      supabase,
-      "vendor_profiles",
-      vendorProfileSelect,
-      organizationId,
-      toVendorProfileRow,
-      true,
-    ),
-    getRows(supabase, "properties", propertySelect, organizationId, toPropertyRow),
-    getRows(supabase, "units", unitSelect, organizationId, toUnitRow, true),
   ]);
 
   const rolesByPerson = groupByPersonId(roles);
@@ -253,12 +305,23 @@ async function getRows<T>(
   columns: string,
   organizationId: string,
   mapper: (row: UnknownRecord) => T | null,
+  filter?: { column: string; values: ReadonlySet<string> },
   optional = false,
 ) {
-  const result = await supabase
+  if (filter && filter.values.size === 0) {
+    return [];
+  }
+
+  let query = supabase
     .from(table)
     .select(columns)
     .eq("organization_id", organizationId);
+
+  if (filter) {
+    query = query.in(filter.column, [...filter.values]);
+  }
+
+  const result = await query;
 
   if (result.error) {
     if (optional && isMissingPeopleSchemaMessage(result.error.message)) {
@@ -331,6 +394,7 @@ function buildPeopleSummary({
         .map((role) => role.role),
       taxIdentifier: person.taxIdentifier,
     },
+    hasUsefulContact: hasUsefulPersonContact(person, contacts),
     id: person.id,
     isArchived: Boolean(person.archivedAt),
     legalName: person.legalName,
@@ -465,7 +529,7 @@ function buildVendorLink(profile: VendorProfileRow): PeopleVendorLink {
   };
 }
 
-function filterPeopleSummaries(
+export function filterPeopleSummaries(
   people: PeopleSummary[],
   viewQuery: PeopleViewQuery,
 ) {
@@ -480,7 +544,7 @@ function filterPeopleSummaries(
     const matchesRole =
       viewQuery.role === "all" ||
       person.roles.some((role) => role.role === viewQuery.role);
-    const matchesStatus = matchesPersonStatus(person, viewQuery.status);
+    const matchesStatus = personMatchesStatusFilter(person, viewQuery.status);
     const haystack = [
       person.displayName,
       person.legalName ?? "",
@@ -509,7 +573,7 @@ function matchesArchive(person: PeopleSummary, archiveState: PeopleArchiveState)
   return archiveState === "archived" ? person.isArchived : !person.isArchived;
 }
 
-function matchesPersonStatus(
+export function personMatchesStatusFilter(
   person: PeopleSummary,
   status: PeopleViewQuery["status"],
 ) {
@@ -521,6 +585,10 @@ function matchesPersonStatus(
     return person.roles.length === 0;
   }
 
+  if (status === "missing_contact") {
+    return !person.hasUsefulContact;
+  }
+
   if (status === "active") {
     return person.roles.some((role) => role.status === "active");
   }
@@ -529,6 +597,60 @@ function matchesPersonStatus(
     person.roles.length > 0 &&
     person.roles.every((role) => role.status === "inactive")
   );
+}
+
+async function getExcludedPersonIdsForStatus(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  status: PeopleViewQuery["status"],
+) {
+  if (status === "missing_contact") {
+    return new Set<string>();
+  }
+
+  if (status === "no_role") {
+    return getPeopleIdsWithVisibleRoles(supabase, organizationId);
+  }
+
+  return new Set<string>();
+}
+
+async function getPeopleIdsWithVisibleRoles(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+) {
+  const result = await supabase
+    .from("person_roles")
+    .select("person_id")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null);
+
+  if (result.error) {
+    if (isMissingPeopleSchemaMessage(result.error.message)) {
+      return new Set<string>();
+    }
+
+    throw new Error(`Could not load people role filters: ${result.error.message}`);
+  }
+
+  return new Set(asRows(result.data, toPersonIdRow).map((row) => row.personId));
+}
+
+function hasUsefulPersonContact(person: PersonRow, contacts: ContactRow[]) {
+  return (
+    hasUsefulContactValue(person.primaryEmail) ||
+    hasUsefulContactValue(person.primaryPhone) ||
+    contacts.some(
+      (contact) =>
+        !contact.archivedAt &&
+        (hasUsefulContactValue(contact.email) ||
+          hasUsefulContactValue(contact.phone)),
+    )
+  );
+}
+
+function hasUsefulContactValue(value: string | null | undefined) {
+  return Boolean(value?.trim());
 }
 
 function sortPeopleSummaries(
@@ -869,6 +991,16 @@ function toUnitRow(row: UnknownRecord): UnitRow | null {
   const unitNumber = readString(row, "unit_number");
 
   return id ? { id, propertyId, unitNumber } : null;
+}
+
+function toPersonIdRow(row: UnknownRecord) {
+  const personId = readString(row, "person_id");
+
+  return personId ? { personId } : null;
+}
+
+function formatPostgrestInFilter(values: ReadonlySet<string>) {
+  return `(${[...values].join(",")})`;
 }
 
 function formatDate(value: string) {

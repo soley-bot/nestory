@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { CheckCircle2, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -41,8 +41,12 @@ export function PropertyScreen({
   properties,
   viewQuery,
 }: PropertyScreenProps) {
+  const pathname = usePathname();
   const router = useRouter();
-  const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const searchParams = useSearchParams();
+  const [drawer, setDrawer] = useState<DrawerState | null>(() =>
+    searchParams.get("action") === "create" ? { mode: "create" } : null,
+  );
   const [displayMode, setDisplayMode] =
     useState<PropertyDisplayMode>("table");
   const [selectedPropertyId, setSelectedPropertyId] = useState(() =>
@@ -56,6 +60,16 @@ export function PropertyScreen({
   const openPropertyRecord = (propertyId: string) => {
     router.push(`/properties/${propertyId}`);
   };
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "create") {
+      return;
+    }
+
+    router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+      scroll: false,
+    });
+  }, [pathname, router, searchParams]);
 
   return (
     <div className="min-h-screen">
@@ -77,13 +91,14 @@ export function PropertyScreen({
       />
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-8">
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+        <div className="px-4 pt-5 sm:px-6 lg:px-6">
+          <div
+            className="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 px-3.5 py-3 text-sm text-success shadow-sm"
             role="status"
           >
-            {statusMessage}
-          </p>
+            <CheckCircle2 className="mt-0.5 shrink-0" size={16} />
+            <p className="font-medium text-foreground">{statusMessage}</p>
+          </div>
         </div>
       ) : null}
 
@@ -93,7 +108,7 @@ export function PropertyScreen({
         viewQuery={viewQuery}
       />
 
-      <div className="space-y-3 px-4 py-5 sm:px-6 lg:p-8">
+      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-3">
             <PropertiesTable
@@ -117,21 +132,23 @@ export function PropertyScreen({
             />
             <PaginationControls pagination={pagination} />
           </div>
-          <PropertyInspector
-            onArchiveProperty={(property) => {
-              setStatusMessage(null);
-              setDrawer({ mode: "archive", property });
-            }}
-            onEditProperty={(property) => {
-              setStatusMessage(null);
-              setDrawer({ mode: "edit", property });
-            }}
-            onRestoreProperty={(property) => {
-              setStatusMessage(null);
-              setDrawer({ mode: "restore", property });
-            }}
-            property={selectedProperty}
-          />
+          <div className="hidden 2xl:block">
+            <PropertyInspector
+              onArchiveProperty={(property) => {
+                setStatusMessage(null);
+                setDrawer({ mode: "archive", property });
+              }}
+              onEditProperty={(property) => {
+                setStatusMessage(null);
+                setDrawer({ mode: "edit", property });
+              }}
+              onRestoreProperty={(property) => {
+                setStatusMessage(null);
+                setDrawer({ mode: "restore", property });
+              }}
+              property={selectedProperty}
+            />
+          </div>
         </div>
       </div>
 
@@ -176,6 +193,17 @@ function getInitialRecordId<TRecord extends { id: string }>(
   return initialId && records.some((record) => record.id === initialId)
     ? initialId
     : records[0]?.id ?? "";
+}
+
+function getHrefWithoutActionParam(
+  pathname: string,
+  searchParams: { toString(): string },
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+  nextParams.delete("action");
+
+  const queryString = nextParams.toString();
+  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 function getPropertyDrawerTitle(drawer: DrawerState) {
