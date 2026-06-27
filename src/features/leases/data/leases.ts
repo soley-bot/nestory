@@ -76,7 +76,9 @@ export async function getLeasesScreenData(
       leasesQuery = leasesQuery.eq("property_id", viewQuery.propertyId);
     }
 
-    if (viewQuery.status !== "all") {
+    if (viewQuery.status === "current") {
+      leasesQuery = leasesQuery.in("status", ["active", "notice_given"]);
+    } else if (viewQuery.status !== "all") {
       leasesQuery = leasesQuery.eq("status", viewQuery.status);
     }
 

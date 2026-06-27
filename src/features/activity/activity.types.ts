@@ -12,6 +12,7 @@ export type RecentChange = {
   createdAt: string;
   details: ActivityChangeDetail[];
   entityLabel: string;
+  href: string;
   id: string;
   recordLabel: string;
   tone: RecentChangeTone;

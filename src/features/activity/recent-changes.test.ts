@@ -7,6 +7,7 @@ describe("toRecentChange", () => {
       toRecentChange({
         action: "updated_from_ledger",
         created_at: "2026-06-16T10:15:00.000Z",
+        entity_id: "11111111-1111-4111-8111-111111111111",
         entity_type: "timeline_event",
         id: "log-1",
         new_values: {
@@ -26,6 +27,7 @@ describe("toRecentChange", () => {
         },
       ],
       entityLabel: "Timeline",
+      href: "/timeline?archiveState=all&eventId=11111111-1111-4111-8111-111111111111&query=Expense+-+Maintenance",
       id: "log-1",
       recordLabel: "Expense - Maintenance",
       tone: "accent",
@@ -37,6 +39,7 @@ describe("toRecentChange", () => {
       toRecentChange({
         action: "archived",
         created_at: "2026-06-16T11:00:00.000Z",
+        entity_id: "22222222-2222-4222-8222-222222222222",
         entity_type: "ledger_entry",
         id: "log-2",
         new_values: {
@@ -49,6 +52,7 @@ describe("toRecentChange", () => {
     ).toMatchObject({
       actionLabel: "Archived",
       entityLabel: "Ledger",
+      href: "/ledger?archiveState=all&entryId=22222222-2222-4222-8222-222222222222&query=Rent",
       recordLabel: "Rent",
       tone: "warning",
     });
@@ -59,6 +63,7 @@ describe("toRecentChange", () => {
       toRecentChange({
         action: "archived_from_ledger",
         created_at: "2026-06-16T12:00:00.000Z",
+        entity_id: "33333333-3333-4333-8333-333333333333",
         entity_type: "timeline_event",
         id: "log-3",
         new_values: {
@@ -69,6 +74,7 @@ describe("toRecentChange", () => {
     ).toMatchObject({
       actionLabel: "Archived from ledger",
       entityLabel: "Timeline",
+      href: "/timeline?archiveState=all&eventId=33333333-3333-4333-8333-333333333333",
       recordLabel: "Timeline event",
       tone: "warning",
     });
@@ -79,6 +85,7 @@ describe("toRecentChange", () => {
       toRecentChange({
         action: "updated",
         created_at: "2026-06-16T13:00:00.000Z",
+        entity_id: "44444444-4444-4444-8444-444444444444",
         entity_type: "ledger_entry",
         id: "log-4",
         new_values: {
@@ -118,6 +125,7 @@ describe("toRecentChange", () => {
       toRecentChange({
         action: "unit_archived",
         created_at: "2026-06-17T09:00:00.000Z",
+        entity_id: "55555555-5555-4555-8555-555555555555",
         entity_type: "unit",
         id: "log-5",
         new_values: {
@@ -134,7 +142,29 @@ describe("toRecentChange", () => {
     ).toMatchObject({
       actionLabel: "Archived",
       entityLabel: "Unit",
+      href: "/units/55555555-5555-4555-8555-555555555555",
       recordLabel: "04-02",
+      tone: "warning",
+    });
+  });
+
+  it("links ledger period activity to the affected month", () => {
+    expect(
+      toRecentChange({
+        action: "locked",
+        created_at: "2026-06-17T09:00:00.000Z",
+        entity_id: "66666666-6666-4666-8666-666666666666",
+        entity_type: "ledger_period",
+        id: "log-6",
+        new_values: {
+          period_start: "2026-06-01",
+        },
+        previous_values: null,
+      }),
+    ).toMatchObject({
+      actionLabel: "Period locked",
+      entityLabel: "Period lock",
+      href: "/ledger?dateFrom=2026-06-01&dateTo=2026-06-30",
       tone: "warning",
     });
   });

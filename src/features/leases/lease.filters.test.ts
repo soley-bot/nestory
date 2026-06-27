@@ -16,7 +16,7 @@ describe("parseLeaseSearchParams", () => {
         propertyId: "11111111-1111-4111-8111-111111111111",
         query: "  unit   a1  ",
         sort: "end_asc",
-        status: "notice_given",
+        status: "current",
       }),
     ).toEqual({
       archiveState: "all",
@@ -27,7 +27,7 @@ describe("parseLeaseSearchParams", () => {
       propertyId: "11111111-1111-4111-8111-111111111111",
       query: "unit   a1",
       sort: "end_asc",
-      status: "notice_given",
+      status: "current",
     });
   });
 

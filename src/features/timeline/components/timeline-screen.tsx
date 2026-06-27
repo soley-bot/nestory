@@ -87,6 +87,10 @@ export function TimelineScreen({
       return;
     }
 
+    queueMicrotask(() => {
+      setStatusMessage(null);
+      setDrawer({ event: null, mode: "create" });
+    });
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });

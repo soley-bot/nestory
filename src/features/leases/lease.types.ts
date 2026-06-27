@@ -23,7 +23,7 @@ export type LeaseStatusValue =
   | "notice_given"
   | "terminated";
 
-export type LeaseStatusFilter = LeaseStatusValue | "all";
+export type LeaseStatusFilter = LeaseStatusValue | "all" | "current";
 
 export type LeasePropertyOption = {
   id: string;

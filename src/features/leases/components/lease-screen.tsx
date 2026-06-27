@@ -24,6 +24,11 @@ import type {
   LeaseViewQuery,
 } from "@/features/leases/lease.types";
 
+const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  year: "numeric",
+});
+
 type LeaseCreateInitialValues = Partial<Pick<LeaseFormValues, "propertyId" | "unitId">>;
 type LeaseCreateIntent = "fill-vacancy" | "standard";
 
@@ -79,6 +84,11 @@ export function LeaseScreen({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedLease =
     leases.find((lease) => lease.id === selectedLeaseId) ?? leases[0] ?? null;
+  const reviewContext = getLeaseReviewContext(viewQuery);
+  const reviewPropertyLabel = getSelectedPropertyLabel(
+    propertyOptions,
+    viewQuery.propertyId,
+  );
   const getLeaseRecordHref = (leaseId: string) =>
     getFocusedRecordHref(pathname, searchParams, "leaseId", leaseId);
   const openLeaseRecord = (leaseId: string) => {
@@ -90,10 +100,18 @@ export function LeaseScreen({
       return;
     }
 
+    queueMicrotask(() => {
+      setStatusMessage(null);
+      setDrawer({
+        initialValues: createInitialValues,
+        intent: createIntent,
+        mode: "create",
+      });
+    });
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [pathname, router, searchParams]);
+  }, [createInitialValues, createIntent, pathname, router, searchParams]);
 
   return (
     <div className="min-h-screen">
@@ -126,6 +144,14 @@ export function LeaseScreen({
       ) : null}
 
       <LeaseFilters properties={propertyOptions} viewQuery={viewQuery} />
+
+      {reviewContext ? (
+        <LeaseReviewStrip
+          context={reviewContext}
+          count={pagination.totalCount}
+          propertyLabel={reviewPropertyLabel}
+        />
+      ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -329,4 +355,102 @@ function getLeaseDrawerDescription(drawer: DrawerState) {
   }
 
   return "Hide this lease from active operational views without deleting its history.";
+}
+
+type LeaseReviewContext = {
+  countLabel: string;
+  description: string;
+  nextStep: string;
+};
+
+function LeaseReviewStrip({
+  context,
+  count,
+  propertyLabel,
+}: {
+  context: LeaseReviewContext;
+  count: number;
+  propertyLabel?: string;
+}) {
+  return (
+    <div className="border-b border-border bg-warning-soft/20 px-4 py-2 sm:px-6 lg:px-6">
+      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <p className="min-w-0 truncate font-medium text-foreground">
+          {count} {count === 1 ? "lease" : "leases"} {context.countLabel}
+          {propertyLabel ? ` in ${propertyLabel}` : ""}
+        </p>
+        <p className="text-foreground-muted">{context.nextStep}</p>
+      </div>
+      <p className="mt-1 text-xs text-foreground-subtle">{context.description}</p>
+    </div>
+  );
+}
+
+function getLeaseReviewContext(
+  viewQuery: LeaseViewQuery,
+): LeaseReviewContext | null {
+  const endMonthLabel = viewQuery.endMonth
+    ? formatLeaseMonth(viewQuery.endMonth)
+    : "";
+
+  if (viewQuery.endsWithinDays !== null && endMonthLabel) {
+    return {
+      countLabel: `ending in ${endMonthLabel}`,
+      description: `Showing leases inside the next ${viewQuery.endsWithinDays} days and this month.`,
+      nextStep: "Select a lease to renew, edit dates, or prepare move-out follow-up.",
+    };
+  }
+
+  if (viewQuery.endsWithinDays !== null) {
+    return {
+      countLabel: `ending in the next ${viewQuery.endsWithinDays} days`,
+      description: "Dashboard lease risk opens this renewal and move-out review.",
+      nextStep: "Select the earliest lease first, then renew, edit, or follow up.",
+    };
+  }
+
+  if (endMonthLabel) {
+    return {
+      countLabel: `ending in ${endMonthLabel}`,
+      description: "Opened from the Dashboard lease-ending chart.",
+      nextStep: "Select a lease to inspect tenant, unit, rent, and term details.",
+    };
+  }
+
+  if (viewQuery.status !== "all") {
+    if (viewQuery.status === "current") {
+      return {
+        countLabel: "currently active or in notice",
+        description: "Showing leases that count as current occupancy records.",
+        nextStep: "Select a lease to inspect tenant, unit, rent, and term details.",
+      };
+    }
+
+    return {
+      countLabel: `with ${viewQuery.status.replace("_", " ")} status`,
+      description: "Showing leases filtered by operational status.",
+      nextStep: "Clear filters to return to all active lease records.",
+    };
+  }
+
+  return null;
+}
+
+function formatLeaseMonth(monthValue: string) {
+  const date = new Date(`${monthValue}-01T00:00:00.000Z`);
+
+  return Number.isNaN(date.getTime())
+    ? monthValue
+    : leaseMonthFormatter.format(date);
+}
+
+function getSelectedPropertyLabel(
+  properties: LeasePropertyOption[],
+  propertyId: string,
+) {
+  if (propertyId === "all") {
+    return undefined;
+  }
+
+  return properties.find((property) => property.id === propertyId)?.label;
 }

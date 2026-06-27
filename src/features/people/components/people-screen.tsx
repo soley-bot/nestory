@@ -67,6 +67,10 @@ export function PeopleScreen({
       return;
     }
 
+    queueMicrotask(() => {
+      setStatusMessage(null);
+      setDrawer({ mode: "create" });
+    });
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });

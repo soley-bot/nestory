@@ -99,6 +99,7 @@ function parseStatus(value: string | string[] | undefined): LeaseStatusFilter {
 
   return candidate === "active" ||
     candidate === "cancelled" ||
+    candidate === "current" ||
     candidate === "draft" ||
     candidate === "ended" ||
     candidate === "notice_given" ||

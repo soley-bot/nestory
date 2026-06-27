@@ -156,6 +156,7 @@ export function LeaseFilters({ properties, viewQuery }: LeaseFiltersProps) {
               onValueChange={(value) => replaceParam("status", value, "all")}
               options={[
                 { label: "All statuses", value: "all" },
+                { label: "Current", value: "current" },
                 { label: "Active", value: "active" },
                 { label: "Draft", value: "draft" },
                 { label: "Notice", value: "notice_given" },

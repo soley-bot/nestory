@@ -21,6 +21,7 @@ const events: TimelineEvent[] = [
     propertyId: "property-1",
     propertyName: "Central Residence",
     title: "Renovation completed",
+    unitId: "unit-1",
     unitNumber: "12B",
   },
   {
@@ -38,6 +39,7 @@ const events: TimelineEvent[] = [
     propertyName: "Northline Mixed Use",
     relatedLedgerEntry: "Income - Rent",
     title: "Rent review",
+    unitId: "unit-2",
     unitNumber: "04C",
   },
 ];
@@ -61,6 +63,18 @@ describe("filterTimelineEvents", () => {
         eventType: "all",
         propertyId: "all",
         query: "04c renewal",
+      }),
+    ).toEqual([events[1]]);
+  });
+
+  it("filters to a unit when the URL carries unit context", () => {
+    expect(
+      filterTimelineEvents(events, {
+        archiveState: "all",
+        eventType: "all",
+        propertyId: "all",
+        query: "",
+        unitId: "unit-2",
       }),
     ).toEqual([events[1]]);
   });

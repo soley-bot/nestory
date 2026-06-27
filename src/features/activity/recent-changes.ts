@@ -10,6 +10,7 @@ export type ActivityLogSnapshot = Pick<
   Database["public"]["Tables"]["activity_logs"]["Row"],
   | "action"
   | "created_at"
+  | "entity_id"
   | "entity_type"
   | "id"
   | "new_values"
@@ -89,14 +90,17 @@ const linkReferenceFields = new Set([
 ]);
 
 export function toRecentChange(log: ActivityLogSnapshot): RecentChange {
+  const recordLabel = getRecordLabel(log);
+
   return {
     action: log.action,
     actionLabel: actionLabels[log.action] ?? toReadableAction(log.action),
     createdAt: log.created_at,
     details: getChangeDetails(log),
     entityLabel: getEntityLabel(log.entity_type),
+    href: getActivityHref(log, recordLabel),
     id: log.id,
-    recordLabel: getRecordLabel(log),
+    recordLabel,
     tone: getTone(log.action),
   };
 }
@@ -107,6 +111,12 @@ function getRecordLabel(log: ActivityLogSnapshot) {
   const label =
     getString(nextValues, "title") ??
     getString(previousValues, "title") ??
+    getString(nextValues, "tenant_name") ??
+    getString(previousValues, "tenant_name") ??
+    getString(nextValues, "display_name") ??
+    getString(previousValues, "display_name") ??
+    getString(nextValues, "name") ??
+    getString(previousValues, "name") ??
     getString(nextValues, "unit_number") ??
     getString(previousValues, "unit_number") ??
     getString(nextValues, "category") ??
@@ -145,6 +155,98 @@ function getEntityLabel(entityType: string) {
   }
 
   return toReadableAction(entityType);
+}
+
+function getActivityHref(log: ActivityLogSnapshot, recordLabel: string) {
+  const entityId = encodeURIComponent(log.entity_id);
+
+  if (log.entity_type === "ledger_entry") {
+    return buildModuleHref("/ledger", {
+      archiveState: "all",
+      entryId: log.entity_id,
+      query: getFocusedQuery(recordLabel, "Ledger entry"),
+    });
+  }
+
+  if (log.entity_type === "timeline_event") {
+    return buildModuleHref("/timeline", {
+      archiveState: "all",
+      eventId: log.entity_id,
+      query: getFocusedQuery(recordLabel, "Timeline event"),
+    });
+  }
+
+  if (log.entity_type === "unit") {
+    return `/units/${entityId}`;
+  }
+
+  if (log.entity_type === "property") {
+    return `/properties/${entityId}`;
+  }
+
+  if (log.entity_type === "lease") {
+    return buildModuleHref("/leases", {
+      archiveState: "all",
+      leaseId: log.entity_id,
+      query: getFocusedQuery(recordLabel, "Lease"),
+    });
+  }
+
+  if (log.entity_type === "person") {
+    return buildModuleHref("/people", {
+      archiveState: "all",
+      personId: log.entity_id,
+      query: getFocusedQuery(recordLabel, "Person"),
+    });
+  }
+
+  if (log.entity_type === "ledger_period") {
+    const periodStart =
+      getString(toRecord(log.new_values), "period_start") ??
+      getString(toRecord(log.previous_values), "period_start");
+
+    return periodStart ? getLedgerPeriodHref(periodStart) : "/ledger";
+  }
+
+  return `/timeline?query=${encodeURIComponent(recordLabel)}`;
+}
+
+function buildModuleHref(pathname: string, values: Record<string, string | undefined>) {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(values)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+function getFocusedQuery(recordLabel: string, fallbackLabel: string) {
+  return recordLabel === fallbackLabel ? undefined : recordLabel;
+}
+
+function getLedgerPeriodHref(periodStart: string) {
+  const monthStart = periodStart.slice(0, 10);
+  const match = monthStart.match(/^(\d{4})-(\d{2})-01$/);
+
+  if (!match) {
+    return "/ledger";
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const dateTo = `${monthStart.slice(0, 8)}${String(lastDay).padStart(2, "0")}`;
+  const params = new URLSearchParams({
+    dateFrom: monthStart,
+    dateTo,
+  });
+
+  return `/ledger?${params.toString()}`;
 }
 
 function getTone(action: string): RecentChangeTone {

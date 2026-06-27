@@ -58,10 +58,10 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
     {
       href: "/ledger?period=current_month",
       icon: CircleDollarSign,
-      metric: { ...ledgerMetric, label: "MTD ledger net" },
+      metric: { ...ledgerMetric, label: "Current month net" },
     },
     {
-      href: "/leases?endsWithin=60d&sort=end_asc",
+      href: "/leases?status=current&endsWithin=60d&sort=end_asc",
       icon: CalendarClock,
       metric: {
         helper: "Leases ending in 60 days",
@@ -115,7 +115,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
 
             <div className="grid min-w-0 grid-cols-1 gap-3">
               <ChartPanel
-                actionHref="/ledger"
+                actionHref="/ledger?period=current_month"
                 actionLabel="Open ledger"
                 title="Cash movement, 6 months"
               >
@@ -126,7 +126,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
               </ChartPanel>
 
               <ChartPanel
-                actionHref="/leases?sort=end_asc"
+                actionHref="/leases?status=current&sort=end_asc"
                 actionLabel="Open leases"
                 title="Lease endings by month"
               >
@@ -394,7 +394,7 @@ function OccupancyChart({ points }: { points: OverviewOccupancyPoint[] }) {
               />
             </div>
             <span className="text-right text-[11px] text-foreground-subtle tabular-nums">
-              {point.vacantUnits} vacant
+              {point.unoccupiedUnits} open
             </span>
           </div>
         </Link>
@@ -403,7 +403,7 @@ function OccupancyChart({ points }: { points: OverviewOccupancyPoint[] }) {
       {hiddenCount > 0 ? (
         <Link
           className="inline-flex rounded-md px-2 py-1 text-xs font-medium text-foreground-subtle transition-colors hover:bg-surface-muted hover:text-foreground"
-          href="/units?status=vacant"
+          href="/units?occupancy=unoccupied"
         >
           {hiddenCount} more properties
         </Link>
@@ -432,10 +432,19 @@ function LedgerFlowChart({
       </div>
       <div className="flex h-32 items-end gap-2 border-b border-border pb-2">
         {points.map((point) => (
-          <div className="flex min-w-0 flex-1 flex-col items-center" key={point.label}>
+          <Link
+            className="group flex min-w-0 flex-1 flex-col items-center rounded-md px-1 py-1 transition-colors hover:bg-surface-muted"
+            href={point.href}
+            key={point.label}
+            prefetch={false}
+            title={`${point.label} ledger net ${formatCompactMoney(
+              point.net,
+              currency,
+            )}`}
+          >
             <div className="flex h-24 w-full items-end justify-center gap-1">
               <Bar
-                className="bg-chart-accent"
+                className="bg-chart-accent transition-opacity group-hover:opacity-90"
                 title={`${point.label} income ${formatCompactMoney(
                   point.income,
                   currency,
@@ -444,7 +453,7 @@ function LedgerFlowChart({
                 maxValue={maxValue}
               />
               <Bar
-                className="bg-chart-neutral"
+                className="bg-chart-neutral transition-opacity group-hover:opacity-90"
                 title={`${point.label} expense ${formatCompactMoney(
                   point.expense,
                   currency,
@@ -454,7 +463,7 @@ function LedgerFlowChart({
               />
             </div>
             <span className="mt-2 text-[11px] text-foreground-subtle">{point.label}</span>
-          </div>
+          </Link>
         ))}
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
@@ -521,8 +530,12 @@ function RecentActivityList({
       ) : (
         <ul className="divide-y divide-border">
           {changes.slice(0, 4).map((change) => (
-            <li className="min-w-0 px-3 py-2" key={change.id}>
-              <div className="flex min-w-0 items-start justify-between gap-3">
+            <li className="min-w-0" key={change.id}>
+              <Link
+                className="flex min-w-0 items-start justify-between gap-3 px-3 py-2 transition-colors hover:bg-surface-muted"
+                href={change.href}
+                title={`Open ${change.entityLabel.toLowerCase()} record`}
+              >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">
                     {change.recordLabel}
@@ -534,7 +547,7 @@ function RecentActivityList({
                 <Badge className="shrink-0" tone={toBadgeTone(change.tone)}>
                   {change.actionLabel}
                 </Badge>
-              </div>
+              </Link>
             </li>
           ))}
         </ul>

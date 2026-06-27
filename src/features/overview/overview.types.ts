@@ -32,11 +32,13 @@ export type OverviewOccupancyPoint = {
   occupiedUnits: number;
   percent: number;
   totalUnits: number;
+  unoccupiedUnits: number;
   vacantUnits: number;
 };
 
 export type OverviewLedgerPoint = {
   expense: number;
+  href: string;
   income: number;
   label: string;
   net: number;

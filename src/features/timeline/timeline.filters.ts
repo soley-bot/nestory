@@ -33,6 +33,7 @@ export type TimelineFilterInput = {
   eventType: string;
   propertyId: string;
   query: string;
+  unitId?: string;
 };
 
 type TimelineSearchParams = Record<string, string | string[] | undefined>;
@@ -49,6 +50,8 @@ export function filterTimelineEvents(
       filters.eventType === "all" || event.eventType === filters.eventType;
     const matchesProperty =
       filters.propertyId === "all" || event.propertyId === filters.propertyId;
+    const matchesUnit =
+      !filters.unitId || filters.unitId === "all" || event.unitId === filters.unitId;
     const archiveState = filters.archiveState ?? "active";
     const matchesArchiveState =
       archiveState === "all" ||
@@ -72,6 +75,7 @@ export function filterTimelineEvents(
     return (
       matchesEventType &&
       matchesProperty &&
+      matchesUnit &&
       matchesArchiveState &&
       (queryTokens.length === 0 ||
         queryTokens.every((token) => searchable.includes(token)))
@@ -264,6 +268,10 @@ function stripDefaultTimelineParams(params: URLSearchParams) {
 
   if (params.get("propertyId") === "all") {
     params.delete("propertyId");
+  }
+
+  if (params.get("unitId") === "all") {
+    params.delete("unitId");
   }
 
   if (params.get("page") === "1") {

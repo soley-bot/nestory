@@ -152,7 +152,9 @@ export async function getTimelineScreenData(
       .limit(24),
     supabase
       .from("activity_logs")
-      .select("id, entity_type, action, previous_values, new_values, created_at")
+      .select(
+        "id, entity_type, entity_id, action, previous_values, new_values, created_at",
+      )
       .eq("organization_id", organizationId)
       .in("entity_type", ["timeline_event", "ledger_entry", "ledger_period"])
       .order("created_at", { ascending: false })
@@ -354,6 +356,10 @@ function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
 
   if (viewQuery.propertyId !== "all") {
     nextQuery = nextQuery.eq("property_id", viewQuery.propertyId);
+  }
+
+  if (viewQuery.unitId && viewQuery.unitId !== "all") {
+    nextQuery = nextQuery.eq("unit_id", viewQuery.unitId);
   }
 
   if (viewQuery.eventType !== "all") {

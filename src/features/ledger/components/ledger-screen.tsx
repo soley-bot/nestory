@@ -84,12 +84,21 @@ export function LedgerScreen({
 
   const selectedEntry =
     entries.find((entry) => entry.id === selectedEntryId) ?? entries[0] ?? null;
+  const reviewContext = getLedgerReviewContext(viewQuery);
+  const reviewPropertyLabel = getSelectedPropertyLabel(
+    propertyOptions,
+    viewQuery.propertyId,
+  );
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
       return;
     }
 
+    queueMicrotask(() => {
+      setStatusMessage(null);
+      setDrawerState({ mode: "add" });
+    });
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
@@ -144,6 +153,14 @@ export function LedgerScreen({
       ) : null}
 
       <LedgerFilters properties={propertyOptions} viewQuery={viewQuery} />
+
+      {reviewContext ? (
+        <LedgerReviewStrip
+          context={reviewContext}
+          count={pagination.totalCount}
+          propertyLabel={reviewPropertyLabel}
+        />
+      ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -312,6 +329,107 @@ function getHrefWithoutActionParam(
 
   const queryString = nextParams.toString();
   return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+type LedgerReviewContext = {
+  countLabel: string;
+  description: string;
+  nextStep: string;
+};
+
+function LedgerReviewStrip({
+  context,
+  count,
+  propertyLabel,
+}: {
+  context: LedgerReviewContext;
+  count: number;
+  propertyLabel?: string;
+}) {
+  return (
+    <div className="border-b border-border bg-surface-muted/35 px-4 py-2 sm:px-6 lg:px-6">
+      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <p className="min-w-0 truncate font-medium text-foreground">
+          {count} {count === 1 ? "entry" : "entries"} {context.countLabel}
+          {propertyLabel ? ` in ${propertyLabel}` : ""}
+        </p>
+        <p className="text-foreground-muted">{context.nextStep}</p>
+      </div>
+      <p className="mt-1 text-xs text-foreground-subtle">{context.description}</p>
+    </div>
+  );
+}
+
+function getLedgerReviewContext(
+  viewQuery: LedgerViewQuery,
+): LedgerReviewContext | null {
+  if (viewQuery.period === "current_month") {
+    return {
+      countLabel: "in the current month",
+      description: "Dashboard ledger net opens this month-to-date view.",
+      nextStep: "Select an entry to inspect, edit, attach a receipt, or lock the period.",
+    };
+  }
+
+  if (viewQuery.period === "last_30_days" && viewQuery.direction === "expense") {
+    return {
+      countLabel: "from recent expenses",
+      description: "Dashboard expense review shows expenses from the last 30 days.",
+      nextStep: "Check the largest entries first, then attach receipts or correct records.",
+    };
+  }
+
+  if (viewQuery.period === "last_30_days") {
+    return {
+      countLabel: "from the last 30 days",
+      description: "Showing the rolling 30-day ledger window from Dashboard context.",
+      nextStep: "Select an entry to inspect the record and related timeline context.",
+    };
+  }
+
+  if (viewQuery.dateFrom || viewQuery.dateTo) {
+    return {
+      countLabel: "in the selected date range",
+      description: `Showing ${formatLedgerDateRange(
+        viewQuery.dateFrom,
+        viewQuery.dateTo,
+      )}.`,
+      nextStep: "Select an entry to inspect or adjust the ledger record.",
+    };
+  }
+
+  if (viewQuery.direction !== "all") {
+    return {
+      countLabel: `from ${viewQuery.direction} records`,
+      description: `Showing ${viewQuery.direction} entries only.`,
+      nextStep: "Clear filters to return to the full ledger.",
+    };
+  }
+
+  return null;
+}
+
+function formatLedgerDateRange(dateFrom: string, dateTo: string) {
+  if (dateFrom && dateTo) {
+    return `${formatDate(dateFrom)} to ${formatDate(dateTo)}`;
+  }
+
+  if (dateFrom) {
+    return `entries from ${formatDate(dateFrom)}`;
+  }
+
+  return `entries through ${formatDate(dateTo)}`;
+}
+
+function getSelectedPropertyLabel(
+  properties: LedgerPropertyOption[],
+  propertyId: string,
+) {
+  if (propertyId === "all") {
+    return undefined;
+  }
+
+  return properties.find((property) => property.id === propertyId)?.label;
 }
 
 function ArchivePanel({

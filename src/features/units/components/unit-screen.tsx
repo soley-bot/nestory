@@ -72,9 +72,10 @@ export function UnitScreen({
   const selectedUnit =
     units.find((unit) => unit.id === selectedUnitId) ?? units[0] ?? null;
   const fillVacancyHref =
-    isVacantReview && selectedUnit && !selectedUnit.hasActiveLease
+    (isVacantReview || isLeaseReview) && selectedUnit && !selectedUnit.hasActiveLease
       ? getCreateLeaseHref(selectedUnit)
       : null;
+  const fillLeaseLabel = isVacantReview ? "Fill vacancy" : "Add lease";
   const openUnitRecord = (unitId: string) => {
     router.push(`/units/${unitId}`);
   };
@@ -84,6 +85,10 @@ export function UnitScreen({
       return;
     }
 
+    queueMicrotask(() => {
+      setStatusMessage(null);
+      setDrawer({ mode: "create" });
+    });
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
@@ -100,7 +105,7 @@ export function UnitScreen({
                 href={fillVacancyHref}
               >
                 <ScrollText size={15} />
-                Fill vacancy
+                {fillLeaseLabel}
               </Link>
             ) : null}
             {activeReview?.reportHref ? (
@@ -326,7 +331,7 @@ function getUnitReviewContext({
       description:
         "Showing units without an active lease. Select a row to add a lease or update the unit status.",
       nextStep:
-        "Add a lease from the inspector, or edit status if the lease record is missing.",
+        "Use Add lease for the selected row, or edit status if the unit is actually vacant.",
     };
   }
 

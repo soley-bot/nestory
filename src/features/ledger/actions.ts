@@ -147,6 +147,8 @@ export async function createLedgerEntryAction(
   revalidatePath("/ledger");
   revalidatePath("/timeline");
   revalidatePath("/properties");
+  revalidatePath("/overview");
+  revalidatePath("/reports");
 
   return {
     message: "Ledger entry added.",
@@ -209,6 +211,8 @@ export async function updateLedgerEntryAction(
   revalidatePath("/ledger");
   revalidatePath("/timeline");
   revalidatePath("/properties");
+  revalidatePath("/overview");
+  revalidatePath("/reports");
 
   return {
     message: "Ledger entry updated.",
@@ -248,6 +252,8 @@ export async function archiveLedgerEntryAction(
   revalidatePath("/ledger");
   revalidatePath("/timeline");
   revalidatePath("/properties");
+  revalidatePath("/overview");
+  revalidatePath("/reports");
 
   return {
     message: "Ledger entry archived.",
@@ -287,6 +293,8 @@ export async function restoreLedgerEntryAction(
   revalidatePath("/ledger");
   revalidatePath("/timeline");
   revalidatePath("/properties");
+  revalidatePath("/overview");
+  revalidatePath("/reports");
 
   return {
     message: "Ledger entry restored.",
@@ -326,6 +334,7 @@ export async function setLedgerPeriodLockAction(
 
   revalidatePath("/ledger");
   revalidatePath("/timeline");
+  revalidatePath("/overview");
 
   return {
     message:
@@ -466,6 +475,7 @@ export async function attachLedgerReceiptAction(
   revalidatePath("/ledger");
   revalidatePath("/timeline");
   revalidatePath("/documents");
+  revalidatePath("/overview");
 
   return {
     message: "Receipt attached.",

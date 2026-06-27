@@ -96,9 +96,10 @@ export async function getOverviewScreenData(
 ): Promise<OverviewScreenData> {
   const supabase = await createSupabaseServerClient();
   const now = new Date();
-  const currentMonthStart = startOfMonth(now);
+  const businessToday = getBusinessDateString(now);
+  const currentMonthStart = startOfMonth(businessToday);
   const ledgerStart = addMonths(currentMonthStart, -5);
-  const recentExpenseStart = addDays(now, -30);
+  const recentExpenseStart = addDaysToDateString(businessToday, -30);
 
   const [
     propertiesResult,
@@ -152,7 +153,9 @@ export async function getOverviewScreenData(
       .eq("organization_id", organizationId),
     supabase
       .from("activity_logs")
-      .select("id, entity_type, action, previous_values, new_values, created_at")
+      .select(
+        "id, entity_type, entity_id, action, previous_values, new_values, created_at",
+      )
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .limit(8),
@@ -218,7 +221,7 @@ export async function getOverviewScreenData(
   const peopleWithoutRoles = activePeople.filter(
     (person) => !hasActiveRole(person.id, roles),
   );
-  const leasesEndingSoon = getLeasesEndingSoon(currentLeases, now);
+  const leasesEndingSoon = getLeasesEndingSoon(currentLeases, businessToday);
   const largeRecentExpenses = getLargeRecentExpenses({
     ledgerRows,
     normalizedSettings,
@@ -269,7 +272,7 @@ export async function getOverviewScreenData(
       occupancyRate,
       peopleCount: activePeople.length,
       roleCounts,
-      leaseGapUnitCount: leaseGapUnits.length,
+      leaseGapUnitCount: nonVacantLeaseGapUnits.length,
       currencySettings,
     }),
     occupancyByProperty: buildOccupancyByProperty({
@@ -343,7 +346,7 @@ function buildDashboardSummary({
 
   if (leasesEndingSoon.length > 0) {
     return {
-      actionHref: "/leases?endsWithin=60d&sort=end_asc",
+      actionHref: "/leases?status=current&endsWithin=60d&sort=end_asc",
       actionLabel: "Review leases",
       detail: `${leasesEndingSoon.length} leases end in 60 days. Start renewal or move-out planning here.`,
       headline: "Lease renewals need attention.",
@@ -443,7 +446,7 @@ function buildMetrics({
       value: `${peopleCount} / ${roleCounts.get("tenant") ?? 0} tenants`,
     },
     {
-      helper: "Month to date",
+      helper: "Current month",
       label: "Ledger net",
       tone: "neutral",
       value: formatMoneyTotalsDisplay(mtdLedgerRows, currencySettings),
@@ -479,7 +482,7 @@ function buildAttentionItems({
       ? {
           count: leasesEndingSoon.length,
           helper: "Next 60 days",
-          href: "/leases?endsWithin=60d&sort=end_asc",
+          href: "/leases?status=current&endsWithin=60d&sort=end_asc",
           label: "Leases ending in 60d",
           tone: "warning",
         }
@@ -563,9 +566,15 @@ function buildOccupancyByProperty({
       const vacantUnits = propertyUnits.filter(
         (unit) => unit.status.toLowerCase() === "vacant",
       ).length;
+      const unoccupiedUnits = propertyUnits.filter(
+        (unit) =>
+          !currentLeasedUnitIds.has(unit.id) &&
+          unit.status.toLowerCase() !== "occupied" &&
+          unit.status.toLowerCase() !== "inactive",
+      ).length;
 
       return {
-        href: `/units?status=vacant&propertyId=${property.id}`,
+        href: `/units?occupancy=unoccupied&propertyId=${property.id}`,
         label: `${property.code} / ${property.name}`,
         occupiedUnits,
         percent:
@@ -573,6 +582,7 @@ function buildOccupancyByProperty({
             ? Math.round((occupiedUnits / propertyUnits.length) * 100)
             : 0,
         totalUnits: propertyUnits.length,
+        unoccupiedUnits,
         vacantUnits,
       };
     })
@@ -600,6 +610,7 @@ function buildLedgerFlowChart({
       getMonthKey(month),
       {
         expense: 0,
+        href: getLedgerMonthHref(month),
         income: 0,
         label: monthLabelFormatter.format(month),
         net: 0,
@@ -649,7 +660,7 @@ function buildLeaseEndingsChart(
       getMonthKey(month),
       {
         count: 0,
-        href: `/leases?endMonth=${getMonthKey(month)}&sort=end_asc`,
+        href: `/leases?status=current&endMonth=${getMonthKey(month)}&sort=end_asc`,
         label: monthLabelFormatter.format(month),
       },
     ]),
@@ -666,9 +677,8 @@ function buildLeaseEndingsChart(
   return Array.from(points.values());
 }
 
-function getLeasesEndingSoon(currentLeases: LeaseRow[], now: Date) {
-  const today = toDateInput(now);
-  const soon = toDateInput(addDays(now, 60));
+function getLeasesEndingSoon(currentLeases: LeaseRow[], today: string) {
+  const soon = addDaysToDateString(today, 60);
 
   return currentLeases.filter(
     (lease) => lease.lease_end_date >= today && lease.lease_end_date <= soon,
@@ -682,14 +692,17 @@ function getLargeRecentExpenses({
 }: {
   ledgerRows: LedgerRow[];
   normalizedSettings: ReturnType<typeof normalizeCurrencyDisplaySettings>;
-  recentExpenseStart: Date;
+  recentExpenseStart: string;
 }) {
   const threshold =
     normalizedSettings.preferredCurrency === "USD" ? 1000 : 4_100_000;
-  const since = toDateInput(recentExpenseStart);
 
   return ledgerRows.filter((row) => {
-    if (row.archived_at || row.direction !== "expense" || row.transaction_date < since) {
+    if (
+      row.archived_at ||
+      row.direction !== "expense" ||
+      row.transaction_date < recentExpenseStart
+    ) {
       return false;
     }
 
@@ -757,8 +770,11 @@ function groupBy<T>(rows: T[], getKey: (row: T) => string) {
   return groups;
 }
 
-function startOfMonth(value: Date) {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
+function startOfMonth(value: string) {
+  const year = Number(value.slice(0, 4));
+  const monthIndex = Number(value.slice(5, 7)) - 1;
+
+  return new Date(Date.UTC(year, monthIndex, 1));
 }
 
 function addMonths(value: Date, amount: number) {
@@ -771,8 +787,42 @@ function addDays(value: Date, days: number) {
   return next;
 }
 
+function addDaysToDateString(value: string, days: number) {
+  const next = new Date(`${value}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + days);
+
+  return next.toISOString().slice(0, 10);
+}
+
+function getBusinessDateString(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Phnom_Penh",
+    year: "numeric",
+  }).formatToParts(date);
+  const getPart = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+
+  return `${getPart("year")}-${String(getPart("month")).padStart(2, "0")}-${String(
+    getPart("day"),
+  ).padStart(2, "0")}`;
+}
+
 function getMonthKey(value: Date) {
   return toDateInput(value).slice(0, 7);
+}
+
+function getLedgerMonthHref(monthStart: Date) {
+  const nextMonthStart = addMonths(monthStart, 1);
+  const monthEnd = addDays(nextMonthStart, -1);
+  const params = new URLSearchParams({
+    dateFrom: toDateInput(monthStart),
+    dateTo: toDateInput(monthEnd),
+    sort: "date_desc",
+  });
+
+  return `/ledger?${params.toString()}`;
 }
 
 function toDateInput(value: Date) {
