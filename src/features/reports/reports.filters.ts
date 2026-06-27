@@ -11,8 +11,8 @@ const datePattern = /^(\d{4})-(0[1-9]|1[0-2])-\d{2}$/;
 
 type ReportSearchParams = Record<string, string | string[] | undefined>;
 
-export const DEFAULT_REPORT_KIND: ReportKind = "occupancy";
-export const DEFAULT_REPORT_STATUS: ReportStatusFilter = "vacant";
+export const DEFAULT_REPORT_KIND: ReportKind = "rent-roll";
+export const DEFAULT_REPORT_STATUS: ReportStatusFilter = "all";
 
 export function parseReportSearchParams(
   params: ReportSearchParams,
@@ -37,7 +37,26 @@ export function getReportMonthRange(month: string) {
 }
 
 function parseReportKind(value: string | string[] | undefined): ReportKind {
-  return getFirstValue(value) === "profit-loss" ? "profit-loss" : "occupancy";
+  const candidate = getFirstValue(value);
+
+  if (candidate === "profit-loss") {
+    return "income-expense";
+  }
+
+  if (candidate === "occupancy") {
+    return "vacancy-risk";
+  }
+
+  return candidate === "unit-performance" ||
+    candidate === "property-performance" ||
+    candidate === "owner-statement" ||
+    candidate === "income-expense" ||
+    candidate === "lease-expiry" ||
+    candidate === "vacancy-risk" ||
+    candidate === "maintenance-cost" ||
+    candidate === "missing-data"
+    ? candidate
+    : DEFAULT_REPORT_KIND;
 }
 
 function parseStatus(value: string | string[] | undefined): ReportStatusFilter {

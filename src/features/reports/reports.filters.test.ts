@@ -5,32 +5,41 @@ import {
 } from "@/features/reports/reports.filters";
 
 describe("report search params", () => {
-  it("defaults to the vacant units report and keeps invalid filters safe", () => {
+  it("defaults to the rent roll and keeps invalid filters safe", () => {
     const query = parseReportSearchParams({
       propertyId: "not-a-real-id",
       report: "whatever",
       status: "archived",
     });
 
-    expect(query.report).toBe("occupancy");
+    expect(query.report).toBe("rent-roll");
     expect(query.propertyId).toBe("all");
-    expect(query.status).toBe("vacant");
+    expect(query.status).toBe("all");
     expect(query.month).toMatch(/^\d{4}-\d{2}$/);
   });
 
-  it("normalizes profit and loss month input from date params", () => {
+  it("normalizes income and expense month input from date params", () => {
     expect(
       parseReportSearchParams({
         date: "2026-06-25",
-        report: "profit-loss",
+        report: "income-expense",
         status: "vacant",
       }),
     ).toEqual({
       month: "2026-06",
       propertyId: "all",
-      report: "profit-loss",
+      report: "income-expense",
       status: "vacant",
     });
+  });
+
+  it("keeps old report aliases pointing at trusted report contracts", () => {
+    expect(parseReportSearchParams({ report: "occupancy" }).report).toBe(
+      "vacancy-risk",
+    );
+    expect(parseReportSearchParams({ report: "profit-loss" }).report).toBe(
+      "income-expense",
+    );
   });
 
   it("keeps an explicit all-status report filter", () => {

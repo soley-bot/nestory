@@ -1,186 +1,80 @@
 import { getReportsScreenData } from "@/features/reports/data/reports";
 import type {
-  OccupancyReport,
-  ProfitLossReport,
-  ProfitLossReportEntry,
   ReportsViewQuery,
+  TrustedReport,
+  TrustedReportRow,
 } from "@/features/reports/reports.types";
-import { formatMoney } from "@/lib/money/format";
+import { slugifyReportPart } from "@/features/reports/data/report-format";
 
 export async function getReportCsv(
   organizationId: string,
   viewQuery: ReportsViewQuery,
 ) {
   const data = await getReportsScreenData(organizationId, viewQuery);
-
-  if (viewQuery.report === "profit-loss" && data.profitLossReport) {
-    return {
-      body: buildProfitLossCsv(data.profitLossReport),
-      filename: `nestory-profit-loss-${viewQuery.month}.csv`,
-    };
-  }
+  const report = data.trustedReport;
 
   return {
-    body: buildOccupancyCsv(data.occupancyReport),
-    filename:
-      viewQuery.status === "vacant"
-        ? "nestory-vacant-units-report.csv"
-        : "nestory-occupancy-report.csv",
+    body: buildTrustedReportCsv(report),
+    filename: `${report.exportFilenameBase}-${viewQuery.month}-${slugifyReportPart(
+      report.scopeLabel,
+    )}.csv`,
   };
 }
 
-function buildOccupancyCsv(report?: OccupancyReport) {
+export function buildTrustedReportCsv(report: TrustedReport) {
   const rows = [
+    ["Report", report.title],
+    ["Scope", report.scopeLabel],
+    ["Period", report.periodLabel],
+    ["Generated at", report.generatedAt],
+    ["Trace", report.totalsTraceLabel],
+    [],
     [
-      "No.",
-      "Property Name",
-      "Unit no. / Floor",
-      "Type",
-      "Inclusion",
-      "Price",
-      "Currency",
-      "Property Code",
-      "Remark",
+      "Row",
+      "Title",
+      ...report.columns.map((column) => column.label),
+      "Source records",
+      "Source ids",
     ],
   ];
 
-  for (const [index, row] of (report?.rows ?? []).entries()) {
+  for (const [index, row] of report.rows.entries()) {
+    rows.push(toCsvRow(index, row, report));
+  }
+
+  if (report.rows.length === 0) {
+    rows.push(["", report.emptyTitle, report.emptyDescription, "", ""]);
+  }
+
+  rows.push([]);
+  rows.push(["Metric", "Value", "Detail", "Source count"]);
+
+  for (const metric of report.summary) {
     rows.push([
-      String(index + 1),
-      row.propertyName,
-      `${row.unitNumber} / ${row.floorLabel}`,
-      row.typeLabel,
-      row.inclusionLabel,
-      row.rentAmount === undefined ? "" : String(row.rentAmount),
-      row.rentCurrency ?? "",
-      row.propertyCode,
-      `${row.statusLabel} - ${row.remark}`,
+      metric.label,
+      metric.value,
+      metric.detail,
+      String(metric.sourceCount),
     ]);
   }
 
   return toCsv(rows);
 }
 
-function buildProfitLossCsv(report: ProfitLossReport) {
-  const rows = [
-    [
-      "Section",
-      "Category",
-      "Date",
-      "Type",
-      "Name",
-      "Property",
-      "Amount",
-      "Currency",
-      "Description",
-    ],
-  ];
-
-  addProfitLossDirectionRows(rows, report.income.label, report.income.groups);
-  rows.push([
-    report.income.label,
-    "Total Income",
-    "",
-    "",
-    "",
-    "",
-    report.totalIncomeDisplay.primary,
-    report.totalIncomeDisplay.primaryCurrency,
-    "",
-  ]);
-  addProfitLossDirectionRows(rows, report.expenses.label, report.expenses.groups);
-  rows.push([
-    report.expenses.label,
-    "Total Expenses",
-    "",
-    "",
-    "",
-    "",
-    report.totalExpensesDisplay.primary,
-    report.totalExpensesDisplay.primaryCurrency,
-    "",
-  ]);
-  rows.push([
-    "Net",
-    "Net operating income",
-    "",
-    "",
-    "",
-    "",
-    report.netOperatingIncomeDisplay.primary,
-    report.netOperatingIncomeDisplay.primaryCurrency,
-    "",
-  ]);
-  rows.push([
-    "Net",
-    "Other income",
-    "",
-    "",
-    "",
-    "",
-    report.otherIncomeDisplay.primary,
-    report.otherIncomeDisplay.primaryCurrency,
-    "",
-  ]);
-  rows.push([
-    "Net",
-    "Other expenses",
-    "",
-    "",
-    "",
-    "",
-    report.otherExpensesDisplay.primary,
-    report.otherExpensesDisplay.primaryCurrency,
-    "",
-  ]);
-  rows.push([
-    "Net",
-    "Net other income",
-    "",
-    "",
-    "",
-    "",
-    report.netOtherIncomeDisplay.primary,
-    report.netOtherIncomeDisplay.primaryCurrency,
-    "",
-  ]);
-  rows.push([
-    "Net",
-    "Net income",
-    "",
-    "",
-    "",
-    "",
-    report.netIncomeDisplay.primary,
-    report.netIncomeDisplay.primaryCurrency,
-    "",
-  ]);
-
-  return toCsv(rows);
-}
-
-function addProfitLossDirectionRows(
-  rows: string[][],
-  section: "Income" | "Expenses",
-  groups: { category: string; entries: ProfitLossReportEntry[] }[],
+function toCsvRow(
+  index: number,
+  row: TrustedReportRow,
+  report: TrustedReport,
 ) {
-  for (const group of groups) {
-    rows.push([section, group.category, "", "", "", "", "", "", ""]);
-
-    for (const entry of group.entries) {
-      rows.push([
-        section,
-        group.category,
-        entry.date,
-        entry.typeLabel,
-        entry.name,
-        entry.propertyLabel,
-        formatMoney(entry.amount, entry.currency),
-        entry.currency,
-        entry.description,
-      ]);
-    }
-  }
+  return [
+    String(index + 1),
+    row.title,
+    ...report.columns.map((column) => row.cells[column.key] ?? ""),
+    row.sourceLinks
+      .map((source) => `${source.recordType}:${source.label}`)
+      .join(" | "),
+    row.sourceLinks.map((source) => source.id).join(" | "),
+  ];
 }
 
 function toCsv(rows: string[][]) {

@@ -6,6 +6,7 @@ import {
   selectCurrentLease,
 } from "@/features/units/data/unit-summary";
 import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
+import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import {
   getReportMonthRange,
 } from "@/features/reports/reports.filters";
@@ -116,8 +117,13 @@ export async function getReportsScreenData(
   const properties = propertiesResult.data ?? [];
   const propertyOptions = toPropertyOptions(properties);
   const propertiesById = indexById(properties);
+  const trustedReportPromise = getTrustedReport({
+    currencySettings,
+    organizationId,
+    viewQuery,
+  });
 
-  if (viewQuery.report === "profit-loss") {
+  if (viewQuery.report === "income-expense") {
     return {
       currencySettings,
       profitLossReport: await getProfitLossReport({
@@ -129,6 +135,16 @@ export async function getReportsScreenData(
         viewQuery,
       }),
       propertyOptions,
+      trustedReport: await trustedReportPromise,
+      viewQuery,
+    };
+  }
+
+  if (viewQuery.report !== "vacancy-risk") {
+    return {
+      currencySettings,
+      propertyOptions,
+      trustedReport: await trustedReportPromise,
       viewQuery,
     };
   }
@@ -143,6 +159,7 @@ export async function getReportsScreenData(
       viewQuery,
     }),
     propertyOptions,
+    trustedReport: await trustedReportPromise,
     viewQuery,
   };
 }

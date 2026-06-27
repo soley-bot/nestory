@@ -80,8 +80,8 @@ export async function getReportPdf(
   organizationName: string,
   viewQuery: ReportsViewQuery,
 ): Promise<PdfExport> {
-  if (viewQuery.report !== "occupancy") {
-    throw new Error("PDF export is only available for occupancy reports.");
+  if (viewQuery.report !== "vacancy-risk") {
+    throw new Error("PDF export is only available for vacancy/risk reports.");
   }
 
   const data = await getReportsScreenData(organizationId, viewQuery);
@@ -101,7 +101,7 @@ export async function getReportPdf(
     filename:
       viewQuery.status === "vacant"
         ? `available-units-${filenameScope}.pdf`
-        : `occupancy-report-${filenameScope}.pdf`,
+        : `vacancy-risk-report-${filenameScope}.pdf`,
   };
 }
 

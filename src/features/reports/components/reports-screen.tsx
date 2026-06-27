@@ -1,25 +1,16 @@
 import Link from "next/link";
-import { Fragment } from "react";
-import { Download, FileText } from "lucide-react";
+import { Download, ExternalLink, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { MoneyDisplay } from "@/components/data/money-display";
 import { PageHeader } from "@/components/layout/page-header";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import { PrintButton } from "@/features/reports/components/print-button";
-import {
-  formatLongReportDate,
-  getReportScopeLabel,
-} from "@/features/reports/data/report-format";
+import { formatLongReportDate } from "@/features/reports/data/report-format";
 import type {
-  OccupancyReport,
-  OccupancyReportRow,
-  ProfitLossDirectionGroup,
-  ProfitLossReport,
-  ReportPropertyOption,
   ReportsScreenData,
   ReportsViewQuery,
+  TrustedReport,
+  TrustedReportRow,
 } from "@/features/reports/reports.types";
-import { formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
 
 type ReportsScreenProps = ReportsScreenData & {
@@ -27,13 +18,12 @@ type ReportsScreenProps = ReportsScreenData & {
 };
 
 export function ReportsScreen({
-  occupancyReport,
   organizationName,
-  profitLossReport,
   propertyOptions,
+  trustedReport,
   viewQuery,
 }: ReportsScreenProps) {
-  const isProfitLoss = viewQuery.report === "profit-loss";
+  const canDownloadPdf = trustedReport.kind === "vacancy-risk";
 
   return (
     <div className="min-h-screen bg-background print:bg-white">
@@ -41,7 +31,7 @@ export function ReportsScreen({
         <PageHeader
           actions={
             <>
-              {!isProfitLoss ? (
+              {canDownloadPdf ? (
                 <a
                   className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
                   href={buildPdfHref(viewQuery)}
@@ -60,11 +50,7 @@ export function ReportsScreen({
               <PrintButton />
             </>
           }
-          description={
-            isProfitLoss
-              ? "Grouped income and expense detail for the selected accounting month."
-              : "Printable available-unit list for the current filters."
-          }
+          description="Connected reports built from Unit, Property, Lease, Ledger, Timeline, and Document source rows."
           title="Reports"
         />
       </div>
@@ -72,430 +58,221 @@ export function ReportsScreen({
       <ReportsFilters propertyOptions={propertyOptions} viewQuery={viewQuery} />
 
       <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4 print:p-0">
-        {isProfitLoss && profitLossReport ? (
-          <ProfitLossReportView
-            organizationName={organizationName}
-            report={profitLossReport}
-          />
-        ) : (
-          <OccupancyReportView
-            organizationName={organizationName}
-            propertyOptions={propertyOptions}
-            report={occupancyReport}
-            viewQuery={viewQuery}
-          />
-        )}
+        <ReportSummaryGrid report={trustedReport} />
+        <TrustedReportTable
+          organizationName={organizationName}
+          report={trustedReport}
+        />
       </main>
     </div>
   );
 }
 
-function OccupancyReportView({
-  organizationName,
-  propertyOptions,
-  report,
-  viewQuery,
-}: {
-  organizationName: string;
-  propertyOptions: ReportPropertyOption[];
-  report?: OccupancyReport;
-  viewQuery: ReportsViewQuery;
-}) {
-  const rows = report?.rows ?? [];
-  const scopeLabel = getReportScopeLabel(viewQuery.propertyId, propertyOptions);
-
+function ReportSummaryGrid({ report }: { report: TrustedReport }) {
   return (
-    <>
-      <div className="hidden grid-cols-2 gap-2 sm:grid md:grid-cols-4 print:hidden">
-        <SummaryTile label="Report rows" value={String(report?.totals.visible ?? 0)} />
-        <SummaryTile label="Vacant" value={String(report?.totals.vacant ?? 0)} />
-        <SummaryTile label="Occupied" value={String(report?.totals.occupied ?? 0)} />
-        <SummaryTile label="Other status" value={String(report?.totals.other ?? 0)} />
-      </div>
-
-      <section className="overflow-hidden rounded-md border border-border bg-surface shadow-sm print:rounded-none print:border-0 print:bg-white print:shadow-none">
-        <div className="relative border-b border-border px-4 py-4 sm:px-5 print:block print:border-0 print:px-0 print:pb-3 print:pt-0 print:text-center">
-          <div className="absolute inset-y-0 left-0 hidden w-1 bg-accent sm:block print:hidden" />
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 print:block">
-                <FileText className="text-accent print:hidden" size={17} />
-                <h2 className="text-base font-semibold text-foreground print:text-[18px] print:text-black">
-                  Available Units - {organizationName}
-                </h2>
-              </div>
-              <p className="mt-1 text-xs text-foreground-muted sm:text-[13px] print:text-[12px] print:text-black">
-                {report
-                  ? `(Last Update: ${formatLongReportDate(report.generatedAt)})`
-                  : "Not loaded"}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-[12px] sm:min-w-[360px] sm:grid-cols-3 print:hidden">
-              <ReportMeta label="Scope" value={scopeLabel} />
-              <ReportMeta
-                label="Report rows"
-                value={String(report?.totals.visible ?? 0)}
-              />
-              <ReportMeta
-                label="Vacant"
-                value={String(report?.totals.vacant ?? 0)}
-              />
-            </div>
-          </div>
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 print:hidden">
+      {report.summary.map((metric) => (
+        <div
+          className="rounded-md border border-border bg-surface px-3 py-2"
+          key={metric.label}
+          title={`${metric.detail}. Source count: ${metric.sourceCount}`}
+        >
+          <p className="text-xs font-medium text-foreground-muted">
+            {metric.label}
+          </p>
+          <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">
+            {metric.value}
+          </p>
+          <p className="mt-1 truncate text-[11px] text-muted">
+            {metric.sourceCount} source rows
+          </p>
         </div>
-
-        <div className="max-h-[280px] overflow-auto sm:max-h-[min(460px,calc(100vh-455px))] print:max-h-none print:overflow-visible">
-          <table
-            aria-label="Vacant units report"
-            className="w-full min-w-[920px] border-separate border-spacing-0 text-left text-[13px] print:min-w-0 print:border print:border-black print:text-[10px] print:text-black print:[&_td]:border print:[&_td]:border-black print:[&_td]:px-1.5 print:[&_td]:py-1.5 print:[&_th]:border print:[&_th]:border-black print:[&_th]:px-1.5 print:[&_th]:py-1 print:[&_thead_tr]:bg-white"
-          >
-            <colgroup>
-              <col className="w-[48px]" />
-              <col className="w-[22%]" />
-              <col className="w-[13%]" />
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
-              <col className="w-[12%]" />
-              <col className="w-[10%]" />
-              <col />
-            </colgroup>
-            <thead className="sticky top-0 z-10 print:static">
-              <tr className="bg-surface-muted text-[11px] font-semibold text-foreground-muted">
-                <th className="border-b border-border px-3 py-2">No.</th>
-                <th className="border-b border-border px-3 py-2">Property Name</th>
-                <th className="border-b border-border px-3 py-2">
-                  Unit no. / Floor
-                </th>
-                <th className="border-b border-border px-3 py-2">Type</th>
-                <th className="border-b border-border px-3 py-2">Inclusion</th>
-                <th className="border-b border-border px-3 py-2 text-right">Price</th>
-                <th className="border-b border-border px-3 py-2">Property Code</th>
-                <th className="border-b border-border px-3 py-2">Remark</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td className="px-3 py-6 text-center text-muted" colSpan={8}>
-                    No units match this report.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row, index) => (
-                  <OccupancyReportTableRow
-                    index={index}
-                    key={row.id}
-                    row={row}
-                  />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex flex-col gap-1 border-t border-border bg-surface-muted/50 px-4 py-3 text-[13px] sm:flex-row sm:items-center sm:justify-between print:bg-white">
-          <strong>Total vacant units: {report?.totals.vacant ?? 0}</strong>
-          <span className="text-foreground-muted print:hidden">
-            Use Download PDF for a clean leasing copy.
-          </span>
-        </div>
-      </section>
-    </>
+      ))}
+    </div>
   );
 }
 
-function OccupancyReportTableRow({
-  index,
+function TrustedReportTable({
+  organizationName,
+  report,
+}: {
+  organizationName: string;
+  report: TrustedReport;
+}) {
+  return (
+    <section className="overflow-hidden rounded-md border border-border bg-surface shadow-sm print:rounded-none print:border-0 print:bg-white print:shadow-none">
+      <div className="relative border-b border-border px-4 py-4 sm:px-5 print:block print:border-0 print:px-0 print:pb-3 print:pt-0 print:text-center">
+        <div className="absolute inset-y-0 left-0 hidden w-1 bg-accent sm:block print:hidden" />
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 print:block">
+              <FileText className="text-accent print:hidden" size={17} />
+              <h2 className="text-base font-semibold text-foreground print:text-[18px] print:text-black">
+                {report.title} - {organizationName}
+              </h2>
+            </div>
+            <p className="mt-1 max-w-4xl text-xs leading-5 text-foreground-muted sm:text-[13px] print:text-[12px] print:text-black">
+              {report.description}
+            </p>
+            <p className="mt-1 text-xs text-muted print:text-black">
+              Generated {formatLongReportDate(report.generatedAt)}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-[12px] sm:min-w-[420px] sm:grid-cols-3 print:hidden">
+            <ReportMeta label="Scope" value={report.scopeLabel} />
+            <ReportMeta label="Period" value={report.periodLabel} />
+            <ReportMeta label="Rows" value={String(report.rows.length)} />
+          </div>
+        </div>
+      </div>
+
+      <div className="border-b border-border bg-surface-muted/60 px-4 py-2.5 text-[13px] text-foreground-muted print:hidden">
+        {report.totalsTraceLabel}
+      </div>
+
+      <div className="max-h-[320px] overflow-auto sm:max-h-[min(560px,calc(100vh-430px))] print:max-h-none print:overflow-visible">
+        <table
+          aria-label={`${report.title} report`}
+          className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-[13px] print:min-w-0 print:border print:border-black print:text-[10px] print:text-black print:[&_td]:border print:[&_td]:border-black print:[&_td]:px-1.5 print:[&_td]:py-1.5 print:[&_th]:border print:[&_th]:border-black print:[&_th]:px-1.5 print:[&_th]:py-1 print:[&_thead_tr]:bg-white"
+        >
+          <thead className="sticky top-0 z-10 print:static">
+            <tr className="bg-surface-muted text-[11px] font-semibold text-foreground-muted">
+              <th className="border-b border-border px-3 py-2">Record</th>
+              {report.columns.map((column) => (
+                <th
+                  className={cn(
+                    "border-b border-border px-3 py-2",
+                    column.align === "right" && "text-right",
+                  )}
+                  key={column.key}
+                >
+                  {column.label}
+                </th>
+              ))}
+              <th className="border-b border-border px-3 py-2">
+                Source rows
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {report.rows.length === 0 ? (
+              <tr>
+                <td
+                  className="px-3 py-8 text-center text-muted"
+                  colSpan={report.columns.length + 2}
+                >
+                  <strong className="block text-foreground">
+                    {report.emptyTitle}
+                  </strong>
+                  <span className="mt-1 block">{report.emptyDescription}</span>
+                </td>
+              </tr>
+            ) : (
+              report.rows.map((row) => (
+                <TrustedReportTableRow
+                  columns={report.columns}
+                  key={row.id}
+                  row={row}
+                />
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function TrustedReportTableRow({
+  columns,
   row,
 }: {
-  index: number;
-  row: OccupancyReportRow;
+  columns: TrustedReport["columns"];
+  row: TrustedReportRow;
 }) {
   return (
     <tr className="align-top hover:bg-surface-muted/70 print:break-inside-avoid print:hover:bg-white">
-      <td className="border-b border-border px-3 py-2.5 text-foreground-muted">
-        {index + 1}
+      <td className="w-[220px] border-b border-border px-3 py-2.5">
+        <div className="flex min-w-0 items-start gap-2">
+          <ReportToneBadge tone={row.tone} />
+          <div className="min-w-0">
+            {row.href ? (
+              <Link
+                className="inline-flex max-w-full items-center gap-1 font-medium text-accent hover:text-accent-strong"
+                href={row.href}
+                prefetch={false}
+              >
+                <span className="truncate">{row.title}</span>
+                <ExternalLink className="shrink-0" size={12} />
+              </Link>
+            ) : (
+              <span className="font-medium text-foreground">{row.title}</span>
+            )}
+            <p className="mt-1 text-xs text-muted">{row.sourceSummary}</p>
+          </div>
+        </div>
       </td>
-      <td className="border-b border-border px-3 py-2.5 font-medium">
-        {row.propertyName}
-      </td>
-      <td className="border-b border-border px-3 py-2.5">
-        <Link
-          className="font-medium text-accent hover:text-accent-strong print:text-black"
-          href={`/units/${row.id}`}
+      {columns.map((column) => (
+        <td
+          className={cn(
+            "border-b border-border px-3 py-2.5 leading-5",
+            column.align === "right"
+              ? "text-right font-medium tabular-nums"
+              : "text-foreground-muted",
+          )}
+          key={column.key}
         >
-          {row.unitNumber}
-        </Link>
-        {row.floorLabel !== "-" ? (
-          <span className="ml-2 text-foreground-muted">/ {row.floorLabel}</span>
-        ) : null}
-      </td>
-      <td className="border-b border-border px-3 py-2.5 text-foreground-muted">
-        {row.typeLabel}
-      </td>
-      <td className="border-b border-border px-3 py-2.5 text-foreground-muted">
-        {row.inclusionLabel}
-      </td>
-      <td className="border-b border-border px-3 py-2.5 text-right">
-        {row.rentDisplay ? (
-          <MoneyDisplay align="right" showSecondary={false} value={row.rentDisplay} />
-        ) : (
-          <span className="text-foreground-muted">{row.rentLabel}</span>
-        )}
-      </td>
-      <td className="border-b border-border px-3 py-2.5 font-medium">
-        {row.propertyCode}
-      </td>
-      <td className="max-w-[320px] border-b border-border px-3 py-2.5 leading-5 text-foreground-muted">
-        <Badge className="mb-1 mr-2 align-middle print:hidden" tone={row.statusTone}>
-          {row.statusLabel}
-        </Badge>
-        {row.remark}
-      </td>
-    </tr>
-  );
-}
-
-function ProfitLossReportView({
-  organizationName,
-  report,
-}: {
-  organizationName: string;
-  report: ProfitLossReport;
-}) {
-  return (
-    <>
-      <div className="hidden grid-cols-2 gap-2 sm:grid md:grid-cols-4 print:hidden">
-        <SummaryTile
-          label="Income"
-          value={report.totalIncomeDisplay.primary}
-        />
-        <SummaryTile
-          label="Expenses"
-          value={report.totalExpensesDisplay.primary}
-        />
-        <SummaryTile
-          label="Net income"
-          value={report.netIncomeDisplay.primary}
-        />
-        <SummaryTile label="Entries" value={String(report.entryCount)} />
-      </div>
-
-      <div className="max-h-[280px] overflow-auto pb-3 sm:max-h-[min(460px,calc(100vh-455px))] print:max-h-none print:overflow-visible print:pb-0">
-        <section className="min-w-[980px] rounded-md border border-border bg-surface p-5 print:min-w-0 print:border-0 print:bg-white print:p-0">
-          <div className="flex items-start justify-between gap-8 border-b border-border pb-4">
-            <div>
-              <h2 className="text-base font-semibold text-foreground">
-                Profit and loss details
-              </h2>
-              <p className="mt-3 text-sm font-medium text-muted">
-                {report.periodLabel}
-              </p>
-              <p className="mt-1 text-[13px] text-muted">
-                Cash basis / generated {formatDate(report.generatedAt)}
-              </p>
-            </div>
-            <div className="min-w-56 text-right">
-              <strong className="block text-base font-semibold text-foreground">
-                Nestory
-              </strong>
-              <span className="mt-1 block text-[13px] text-muted">
-                {organizationName}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <ReportChip label="Unit" value="" />
-            <ReportChip label="Property" value={report.propertyLabel} />
-            <ReportChip label="Beginning balance" value="No" />
-            <ReportChip label="Basis" value="Ledger entries" />
-          </div>
-
-          <table
-            aria-label="Profit and loss details report"
-            className="mt-6 w-full border-separate border-spacing-0 text-left text-[13px] text-foreground"
-          >
-            <colgroup>
-              <col className="w-[18%]" />
-              <col className="w-[10%]" />
-              <col className="w-[18%]" />
-              <col className="w-[22%]" />
-              <col className="w-[14%]" />
-              <col className="w-[18%]" />
-            </colgroup>
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-surface-muted text-[11px] font-semibold text-muted">
-                <th className="border-y border-l border-border px-3 py-2">Date</th>
-                <th className="border-y border-border px-3 py-2">Type</th>
-                <th className="border-y border-border px-3 py-2">Name</th>
-                <th className="border-y border-border px-3 py-2">Property</th>
-                <th className="border-y border-border px-3 py-2 text-right">
-                  Amount
-                </th>
-                <th className="border-y border-r border-border px-3 py-2">
-                  Description
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <ProfitLossDirectionRows group={report.income} />
-              <ProfitLossTotalRow
-                amount={report.totalIncomeDisplay.primary}
-                label="Total Income"
-              />
-              <ProfitLossDirectionRows group={report.expenses} />
-              <ProfitLossTotalRow
-                amount={report.totalExpensesDisplay.primary}
-                label="Total Expenses"
-              />
-              <ProfitLossTotalRow
-                amount={report.netOperatingIncomeDisplay.primary}
-                label="Net operating income"
-                strong
-              />
-              <ProfitLossTotalRow
-                amount={report.otherIncomeDisplay.primary}
-                label="Other income"
-              />
-              <ProfitLossTotalRow
-                amount={report.otherExpensesDisplay.primary}
-                label="Other expenses"
-              />
-              <ProfitLossTotalRow
-                amount={report.netOtherIncomeDisplay.primary}
-                label="Net other income"
-              />
-              <ProfitLossTotalRow
-                amount={report.netIncomeDisplay.primary}
-                label="Net income"
-                strong
-              />
-            </tbody>
-          </table>
-        </section>
-      </div>
-    </>
-  );
-}
-
-function ProfitLossDirectionRows({
-  group,
-}: {
-  group: ProfitLossDirectionGroup;
-}) {
-  return (
-    <>
-      <tr className="bg-surface-muted font-semibold">
-        <td className="border-b border-l border-r-4 border-border px-4 py-2" colSpan={6}>
-          {group.label}
+          {row.cells[column.key] ?? "-"}
         </td>
-      </tr>
-      {group.groups.length === 0 ? (
-        <tr>
-          <td
-            className="border-b border-l border-border px-8 py-3 text-muted"
-            colSpan={6}
-          >
-            No {group.label.toLowerCase()} entries for this period.
-          </td>
-        </tr>
-      ) : (
-        group.groups.map((categoryGroup) => (
-          <Fragment key={categoryGroup.category}>
-            <tr className="font-semibold">
-              <td
-                className="border-b border-l border-border px-8 py-2"
-                colSpan={6}
+      ))}
+      <td className="max-w-[260px] border-b border-border px-3 py-2.5">
+        <div className="flex flex-wrap gap-1.5">
+          {row.sourceLinks.slice(0, 5).map((source) =>
+            source.href ? (
+              <Link
+                className="inline-flex min-h-6 max-w-[180px] items-center rounded-md border border-border bg-surface-muted px-2 text-xs font-medium text-foreground-muted hover:text-foreground"
+                href={source.href}
+                key={`${source.recordType}-${source.id}`}
+                prefetch={false}
+                title={`${source.recordType}: ${source.label}`}
               >
-                {categoryGroup.category}
-              </td>
-            </tr>
-            {categoryGroup.entries.map((entry) => (
-              <tr className="align-top" key={entry.id}>
-                <td className="border-b border-l border-border px-12 py-2 text-muted">
-                  {formatDate(entry.date)}
-                </td>
-                <td className="border-b border-border px-3 py-2">
-                  {entry.typeLabel}
-                </td>
-                <td className="border-b border-border px-3 py-2">{entry.name}</td>
-                <td className="border-b border-border px-3 py-2 text-muted">
-                  {entry.propertyLabel}
-                </td>
-                <td className="border-b border-border px-3 py-2 text-right font-medium tabular-nums">
-                  <MoneyDisplay
-                    align="right"
-                    showSecondary={false}
-                    value={entry.amountDisplay}
-                  />
-                </td>
-                <td className="border-b border-r border-border px-3 py-2 text-muted">
-                  {entry.description || "-"}
-                </td>
-              </tr>
-            ))}
-            <tr className="font-semibold">
-              <td
-                className="border-b border-l border-border px-12 py-2"
-                colSpan={4}
+                <span className="truncate">{source.recordType}</span>
+              </Link>
+            ) : (
+              <span
+                className="inline-flex min-h-6 max-w-[180px] items-center rounded-md border border-border bg-surface-muted px-2 text-xs font-medium text-foreground-muted"
+                key={`${source.recordType}-${source.id}`}
+                title={`${source.recordType}: ${source.label}`}
               >
-                Total {categoryGroup.category}
-              </td>
-              <td className="border-b border-border px-3 py-2 text-right tabular-nums">
-                {categoryGroup.totalDisplay.primary}
-              </td>
-              <td className="border-b border-r border-border" />
-            </tr>
-          </Fragment>
-        ))
-      )}
-    </>
-  );
-}
-
-function ProfitLossTotalRow({
-  amount,
-  label,
-  strong = false,
-}: {
-  amount: string;
-  label: string;
-  strong?: boolean;
-}) {
-  return (
-    <tr className={cn("bg-surface-muted font-semibold", strong && "font-bold")}>
-      <td
-        className="border-b border-l border-r-4 border-border px-8 py-2"
-        colSpan={4}
-      >
-        {label}
+                <span className="truncate">{source.recordType}</span>
+              </span>
+            ),
+          )}
+          {row.sourceLinks.length > 5 ? (
+            <span className="inline-flex min-h-6 items-center rounded-md border border-border bg-surface px-2 text-xs font-medium text-muted">
+              +{row.sourceLinks.length - 5}
+            </span>
+          ) : null}
+        </div>
       </td>
-      <td className="border-b border-border px-3 py-2 text-right tabular-nums">
-        {amount}
-      </td>
-      <td className="border-b border-r border-border" />
     </tr>
   );
 }
 
-function SummaryTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border bg-surface px-3 py-2">
-      <p className="text-xs font-medium text-foreground-muted">{label}</p>
-      <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">
-        {value}
-      </p>
-    </div>
-  );
-}
+function ReportToneBadge({ tone }: { tone?: TrustedReportRow["tone"] }) {
+  if (!tone || tone === "neutral") {
+    return null;
+  }
 
-function ReportChip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-surface-muted px-2.5 text-[13px]">
-      <strong>{label}:</strong>
-      <span className="text-foreground-muted">{value}</span>
-    </div>
+    <Badge
+      className="mt-0.5 shrink-0 capitalize print:hidden"
+      tone={
+        tone === "danger" ? "danger" : tone === "success" ? "success" : "warning"
+      }
+    >
+      {tone}
+    </Badge>
   );
 }
 
@@ -512,17 +289,14 @@ function buildCsvHref(query: ReportsViewQuery) {
   const params = new URLSearchParams();
 
   params.set("report", query.report);
+  params.set("month", query.month);
 
   if (query.propertyId !== "all") {
     params.set("propertyId", query.propertyId);
   }
 
-  if (query.report === "occupancy" && query.status !== "all") {
+  if (query.status !== "all") {
     params.set("status", query.status);
-  }
-
-  if (query.report === "profit-loss") {
-    params.set("month", query.month);
   }
 
   return `/api/reports/export?${params.toString()}`;
@@ -531,7 +305,8 @@ function buildCsvHref(query: ReportsViewQuery) {
 function buildPdfHref(query: ReportsViewQuery) {
   const params = new URLSearchParams();
 
-  params.set("report", "occupancy");
+  params.set("report", "vacancy-risk");
+  params.set("month", query.month);
 
   if (query.propertyId !== "all") {
     params.set("propertyId", query.propertyId);

@@ -1,7 +1,16 @@
 import type { UnitBadgeTone, UnitStatusValue } from "@/features/units/unit.types";
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
-export type ReportKind = "occupancy" | "profit-loss";
+export type ReportKind =
+  | "rent-roll"
+  | "unit-performance"
+  | "property-performance"
+  | "owner-statement"
+  | "income-expense"
+  | "lease-expiry"
+  | "vacancy-risk"
+  | "maintenance-cost"
+  | "missing-data";
 
 export type ReportStatusFilter = UnitStatusValue | "all";
 
@@ -15,6 +24,61 @@ export type ReportsViewQuery = {
   propertyId: string;
   report: ReportKind;
   status: ReportStatusFilter;
+};
+
+export type ReportSourceRecordType =
+  | "document"
+  | "lease"
+  | "ledger"
+  | "owner"
+  | "property"
+  | "timeline"
+  | "unit";
+
+export type ReportSourceLink = {
+  href?: string;
+  id: string;
+  label: string;
+  recordType: ReportSourceRecordType;
+};
+
+export type TraceableReportMetric = {
+  detail: string;
+  label: string;
+  sourceCount: number;
+  value: string;
+};
+
+export type TrustedReportColumn = {
+  align?: "left" | "right";
+  key: string;
+  label: string;
+};
+
+export type TrustedReportRow = {
+  cells: Record<string, string>;
+  href?: string;
+  id: string;
+  sourceLinks: ReportSourceLink[];
+  sourceSummary: string;
+  tone?: "danger" | "neutral" | "success" | "warning";
+  title: string;
+};
+
+export type TrustedReport = {
+  columns: TrustedReportColumn[];
+  description: string;
+  emptyDescription: string;
+  emptyTitle: string;
+  exportFilenameBase: string;
+  generatedAt: string;
+  kind: ReportKind;
+  periodLabel: string;
+  rows: TrustedReportRow[];
+  scopeLabel: string;
+  summary: TraceableReportMetric[];
+  title: string;
+  totalsTraceLabel: string;
 };
 
 export type OccupancyReportRow = {
@@ -102,5 +166,6 @@ export type ReportsScreenData = {
   occupancyReport?: OccupancyReport;
   profitLossReport?: ProfitLossReport;
   propertyOptions: ReportPropertyOption[];
+  trustedReport: TrustedReport;
   viewQuery: ReportsViewQuery;
 };
