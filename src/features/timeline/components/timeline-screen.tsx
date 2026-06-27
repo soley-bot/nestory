@@ -76,11 +76,27 @@ export function TimelineScreen({
   const [selectedEventId, setSelectedEventId] = useState(initialEventId ?? "");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
+  const focusedEvent = initialEventId
+    ? events.find((event) => event.id === initialEventId) ?? null
+    : null;
+  const focusedEventId = focusedEvent?.id;
   const selectedEvent =
-    (initialEventId
-      ? events.find((event) => event.id === initialEventId)
-      : null) ??
-    events.find((event) => event.id === selectedEventId) ?? events[0] ?? null;
+    events.find((event) => event.id === selectedEventId) ??
+    focusedEvent ??
+    events[0] ??
+    null;
+  const reviewContext = getTimelineReviewContext({
+    hasFocusedEvent: Boolean(focusedEvent),
+    hasFocusedEventIntent: Boolean(initialEventId),
+  });
+
+  useEffect(() => {
+    if (!focusedEventId) {
+      return;
+    }
+
+    queueMicrotask(() => setSelectedEventId(focusedEventId));
+  }, [focusedEventId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -140,6 +156,13 @@ export function TimelineScreen({
         properties={propertyOptions}
         viewQuery={viewQuery}
       />
+
+      {reviewContext ? (
+        <TimelineReviewStrip
+          context={reviewContext}
+          count={pagination.totalCount}
+        />
+      ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -280,6 +303,60 @@ function getHrefWithoutActionParam(
 
   const queryString = nextParams.toString();
   return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+type TimelineReviewContext = {
+  countLabel: string;
+  description: string;
+  nextStep: string;
+};
+
+type FocusedTimelineState = {
+  hasFocusedEvent: boolean;
+  hasFocusedEventIntent: boolean;
+};
+
+function TimelineReviewStrip({
+  context,
+  count,
+}: {
+  context: TimelineReviewContext;
+  count: number;
+}) {
+  return (
+    <div className="border-b border-border bg-surface-muted/35 px-4 py-2 sm:px-6 lg:px-6">
+      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <p className="min-w-0 truncate font-medium text-foreground">
+          {count} {count === 1 ? "event" : "events"} {context.countLabel}
+        </p>
+        <p className="text-foreground-muted">{context.nextStep}</p>
+      </div>
+      <p className="mt-1 text-xs text-foreground-subtle">{context.description}</p>
+    </div>
+  );
+}
+
+function getTimelineReviewContext(
+  focusedState: FocusedTimelineState,
+): TimelineReviewContext | null {
+  if (focusedState.hasFocusedEvent) {
+    return {
+      countLabel: "in this activity view",
+      description: "Opened from recent activity with archived records included.",
+      nextStep: "The focused event is available for table and inspector review.",
+    };
+  }
+
+  if (focusedState.hasFocusedEventIntent) {
+    return {
+      countLabel: "in this activity view",
+      description:
+        "Opened from recent activity with archived records included, but this page did not include the focused event.",
+      nextStep: "Review visible matches or broaden the current filters.",
+    };
+  }
+
+  return null;
 }
 
 function ArchiveTimelineEventPanel({

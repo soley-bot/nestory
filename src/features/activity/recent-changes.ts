@@ -126,15 +126,39 @@ function getRecordLabel(log: ActivityLogSnapshot) {
     return label;
   }
 
-  if (log.entity_type === "ledger_entry") {
+  return getFallbackRecordLabel(log.entity_type);
+}
+
+function getFallbackRecordLabel(entityType: string) {
+  if (entityType === "ledger_entry") {
     return "Ledger entry";
   }
 
-  if (log.entity_type === "unit") {
+  if (entityType === "ledger_period") {
+    return "Period lock";
+  }
+
+  if (entityType === "lease") {
+    return "Lease";
+  }
+
+  if (entityType === "person") {
+    return "Person";
+  }
+
+  if (entityType === "property") {
+    return "Property";
+  }
+
+  if (entityType === "timeline_event") {
+    return "Timeline event";
+  }
+
+  if (entityType === "unit") {
     return "Unit";
   }
 
-  return "Timeline event";
+  return "Activity record";
 }
 
 function getEntityLabel(entityType: string) {

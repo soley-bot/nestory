@@ -35,6 +35,35 @@ describe("buildPropertySummary", () => {
       units: 2,
     });
   });
+
+  it("uses the active owner link for display and edit defaults", () => {
+    expect(
+      buildPropertySummary({
+        activeOwner: {
+          label: "Jane Owner",
+          personId: "person-1",
+        },
+        ledgerEntries: [],
+        property: {
+          address: "123 Riverside",
+          code: "RIV",
+          id: "property-1",
+          name: "Riverside",
+          owner: "Legacy owner",
+          property_type: "Apartment",
+          status: "active",
+        },
+        units: [],
+      }),
+    ).toMatchObject({
+      formValues: {
+        owner: "Legacy owner",
+        ownerPersonId: "person-1",
+      },
+      hasActiveOwnerLink: true,
+      owner: "Jane Owner",
+    });
+  });
 });
 
 describe("formatPropertyStatus", () => {

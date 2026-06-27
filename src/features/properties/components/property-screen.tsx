@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Plus } from "lucide-react";
+import { CheckCircle2, Pencil, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { PropertiesTable } from "@/features/properties/components/properties-tab
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
   PropertyDisplayMode,
+  PropertyOwnerOption,
   PropertyPagination,
   PropertyViewQuery,
 } from "@/features/properties/property.types";
@@ -30,6 +31,7 @@ type DrawerState =
 
 type PropertyScreenProps = {
   initialPropertyId?: string;
+  ownerOptions: PropertyOwnerOption[];
   pagination: PropertyPagination;
   properties: PropertySummary[];
   viewQuery: PropertyViewQuery;
@@ -37,6 +39,7 @@ type PropertyScreenProps = {
 
 export function PropertyScreen({
   initialPropertyId,
+  ownerOptions,
   pagination,
   properties,
   viewQuery,
@@ -57,6 +60,7 @@ export function PropertyScreen({
     properties.find((property) => property.id === selectedPropertyId) ??
     properties[0] ??
     null;
+  const reviewContext = getPropertyReviewContext(viewQuery);
   const openPropertyRecord = (propertyId: string) => {
     router.push(`/properties/${propertyId}`);
   };
@@ -79,18 +83,35 @@ export function PropertyScreen({
     <div className="min-h-screen">
       <PageHeader
         actions={
-          <Button
-            onClick={() => {
-              setStatusMessage(null);
-              setDrawer({ mode: "create" });
-            }}
-            variant="primary"
-          >
-            <Plus size={15} />
-            Add property
-          </Button>
+          <>
+            {reviewContext && selectedProperty ? (
+              <Button
+                onClick={() => {
+                  setStatusMessage(null);
+                  setDrawer({ mode: "edit", property: selectedProperty });
+                }}
+              >
+                <Pencil size={15} />
+                Edit selected
+              </Button>
+            ) : null}
+            <Button
+              onClick={() => {
+                setStatusMessage(null);
+                setDrawer({ mode: "create" });
+              }}
+              variant="primary"
+            >
+              <Plus size={15} />
+              Add property
+            </Button>
+          </>
         }
-        description="Operational property records with ownership, occupancy, and linked unit performance."
+        description={
+          reviewContext
+            ? reviewContext.description
+            : "Operational property records with ownership, occupancy, and linked unit performance."
+        }
         title="Properties"
       />
 
@@ -111,6 +132,13 @@ export function PropertyScreen({
         displayMode={displayMode}
         viewQuery={viewQuery}
       />
+
+      {reviewContext ? (
+        <PropertyReviewStrip
+          context={reviewContext}
+          count={pagination.totalCount}
+        />
+      ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -181,6 +209,7 @@ export function PropertyScreen({
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
+              ownerOptions={ownerOptions}
               property={drawer.property}
             />
           )}
@@ -208,6 +237,57 @@ function getHrefWithoutActionParam(
 
   const queryString = nextParams.toString();
   return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+type PropertyReviewContext = {
+  countLabel: string;
+  description: string;
+  nextStep: string;
+};
+
+function PropertyReviewStrip({
+  context,
+  count,
+}: {
+  context: PropertyReviewContext;
+  count: number;
+}) {
+  return (
+    <div className="border-b border-border bg-warning-soft/20 px-4 py-2 sm:px-6 lg:px-6">
+      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <p className="min-w-0 truncate font-medium text-foreground">
+          {count} {count === 1 ? "property" : "properties"} {context.countLabel}
+        </p>
+        <p className="text-foreground-muted">{context.nextStep}</p>
+      </div>
+    </div>
+  );
+}
+
+function getPropertyReviewContext(
+  viewQuery: PropertyViewQuery,
+): PropertyReviewContext | null {
+  if (viewQuery.ownerStatus === "missing") {
+    return {
+      countLabel: "missing a current owner link",
+      description:
+        "Showing properties that need a current owner link before ownership reporting and follow-up are reliable.",
+      nextStep:
+        "Select a property, then choose a current owner in the edit drawer.",
+    };
+  }
+
+  if (viewQuery.netStatus === "negative") {
+    return {
+      countLabel: "with negative net income",
+      description:
+        "Showing properties where active ledger totals are below zero and need income, expense, or occupancy review.",
+      nextStep:
+        "Select a property, then open its Ledger, Units, or Timeline context from the inspector.",
+    };
+  }
+
+  return null;
 }
 
 function getPropertyDrawerTitle(drawer: DrawerState) {

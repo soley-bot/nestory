@@ -45,12 +45,16 @@ export function PeopleFilters({
     source: viewQuery.query,
     value: viewQuery.query,
   });
-  const hasAdvancedFilters =
-    viewQuery.role !== "all" ||
-    viewQuery.status !== "all" ||
-    viewQuery.archiveState !== DEFAULT_PEOPLE_ARCHIVE_STATE ||
-    viewQuery.sort !== DEFAULT_PEOPLE_SORT ||
-    viewQuery.pageSize !== DEFAULT_PEOPLE_PAGE_SIZE;
+  const activeFilters = [
+    viewQuery.role !== "all",
+    viewQuery.status !== "all",
+    viewQuery.archiveState !== DEFAULT_PEOPLE_ARCHIVE_STATE,
+    viewQuery.sort !== DEFAULT_PEOPLE_SORT,
+    viewQuery.pageSize !== DEFAULT_PEOPLE_PAGE_SIZE,
+  ].filter(Boolean).length;
+  const hasSearchQuery = viewQuery.query.trim().length > 0;
+  const hasAdvancedFilters = activeFilters > 0;
+  const hasAnyFilters = hasSearchQuery || hasAdvancedFilters;
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
@@ -126,24 +130,72 @@ export function PeopleFilters({
             <Button
               aria-controls="people-advanced-search"
               aria-expanded={advancedOpen}
-              className="h-8 flex-1 gap-1.5 px-2.5 sm:flex-none"
+              className={cn(
+                "h-8 flex-1 gap-1.5 px-2.5 sm:flex-none",
+                hasAdvancedFilters &&
+                  "border-border bg-surface-muted text-foreground hover:bg-surface-muted",
+              )}
               onClick={() => setAdvancedOpen((open) => !open)}
               type="button"
             >
               <SlidersHorizontal size={14} />
-              Filters
+              <span>Filters</span>
+              {activeFilters > 0 ? (
+                <span className="rounded-full border border-border bg-surface px-1.5 py-0.5 text-[10px] font-semibold leading-none text-foreground">
+                  {activeFilters}
+                </span>
+              ) : null}
             </Button>
             <Link
               aria-label="Reset people filters"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+              className={cn(
+                "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+                hasAnyFilters && "border-border bg-surface-muted text-foreground",
+              )}
               href={pathname}
               scroll={false}
               title="Reset filters"
             >
               <RotateCcw size={14} />
+              <span className="hidden sm:inline">Reset</span>
             </Link>
           </div>
         </div>
+
+        {hasAnyFilters ? (
+          <div
+            aria-label="Active people filters"
+            className="flex flex-wrap items-center gap-1.5 text-xs"
+          >
+            {hasSearchQuery ? (
+              <FilterChip label="Search" value={viewQuery.query} />
+            ) : null}
+            {viewQuery.role !== "all" ? (
+              <FilterChip label="Role" value={formatFilterValue(viewQuery.role)} />
+            ) : null}
+            {viewQuery.status !== "all" ? (
+              <FilterChip
+                label="Status"
+                value={formatFilterValue(viewQuery.status)}
+              />
+            ) : null}
+            {viewQuery.archiveState !== DEFAULT_PEOPLE_ARCHIVE_STATE ? (
+              <FilterChip
+                label="Archive"
+                value={formatFilterValue(viewQuery.archiveState)}
+              />
+            ) : null}
+            {viewQuery.sort !== DEFAULT_PEOPLE_SORT ? (
+              <FilterChip
+                label="Sort"
+                value={formatFilterValue(viewQuery.sort)}
+              />
+            ) : null}
+            {viewQuery.pageSize !== DEFAULT_PEOPLE_PAGE_SIZE ? (
+              <FilterChip label="Rows" value={String(viewQuery.pageSize)} />
+            ) : null}
+          </div>
+        ) : null}
 
         {advancedOpen ? (
           <div
@@ -221,6 +273,22 @@ export function PeopleFilters({
       </div>
     </div>
   );
+}
+
+function FilterChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-muted px-2 py-1 text-foreground-muted">
+      <span className="font-semibold">{label}</span>
+      <span className="min-w-0 truncate text-foreground">{value}</span>
+    </span>
+  );
+}
+
+function formatFilterValue(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function ViewModeToggle({

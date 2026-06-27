@@ -1,5 +1,6 @@
 import type {
   PropertyArchiveState,
+  PropertyNetStatusFilter,
   PropertyOwnerStatusFilter,
   PropertySortKey,
   PropertyViewQuery,
@@ -18,6 +19,7 @@ export function parsePropertySearchParams(
 ): PropertyViewQuery {
   return {
     archiveState: parseArchiveState(params.archiveState),
+    netStatus: parseNetStatus(params.netStatus),
     ownerStatus: parseOwnerStatus(params.ownerStatus),
     page: parsePositiveInteger(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
@@ -25,6 +27,12 @@ export function parsePropertySearchParams(
     sort: parseSort(params.sort),
     status: parseStatus(params.status),
   };
+}
+
+function parseNetStatus(
+  value: string | string[] | undefined,
+): PropertyNetStatusFilter {
+  return getFirstValue(value) === "negative" ? "negative" : "all";
 }
 
 function parseOwnerStatus(
@@ -56,6 +64,7 @@ function parseSort(value: string | string[] | undefined): PropertySortKey {
 
   return candidate === "name_asc" ||
     candidate === "status_asc" ||
+    candidate === "net_asc" ||
     candidate === "net_desc"
     ? candidate
     : DEFAULT_PROPERTY_SORT;

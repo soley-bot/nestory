@@ -451,11 +451,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function revalidatePeoplePaths() {
+  revalidatePath("/overview");
   revalidatePath("/people");
   revalidatePath("/tenants");
   revalidatePath("/leases");
   revalidatePath("/properties");
   revalidatePath("/units");
+  revalidatePath("/reports");
 }
 
 function peopleActionErrorMessage(message: string) {

@@ -11,6 +11,8 @@ import {
 } from "@/features/properties/property.filters";
 import type {
   PropertyArchiveState,
+  PropertyNetStatusFilter,
+  PropertyOwnerOption,
   PropertyOwnerStatusFilter,
   PropertyPagination,
   PropertyStatusValue,
@@ -19,6 +21,11 @@ import type {
 
 export type { PropertySummary } from "@/features/properties/data/property-summary";
 export type { PropertyDetail } from "@/features/properties/data/property-detail";
+
+type ActiveOwnerLink = {
+  label: string;
+  personId: string;
+};
 
 type PropertySummaryOptions = {
   archiveState?: PropertyArchiveState;
@@ -33,9 +40,9 @@ export async function getPropertySummaries(
   options: PropertySummaryOptions = {},
 ) {
   const supabase = await createSupabaseServerClient();
-  const activeOwnerPropertyIds =
+  const activeOwnerLinks =
     options.ownerStatus === "missing"
-      ? await getActiveOwnerPropertyIds(organizationId)
+      ? await getActiveOwnerLinks(organizationId)
       : null;
   const archiveState =
     options.archiveState ?? (options.includeArchived ? "all" : "active");
@@ -61,11 +68,11 @@ export async function getPropertySummaries(
     );
   }
 
-  if (activeOwnerPropertyIds && activeOwnerPropertyIds.size > 0) {
+  if (activeOwnerLinks && activeOwnerLinks.size > 0) {
     propertiesQuery = propertiesQuery.not(
       "id",
       "in",
-      formatPostgrestInFilter(activeOwnerPropertyIds),
+      formatPostgrestInFilter(new Set(activeOwnerLinks.keys())),
     );
   }
 
@@ -82,9 +89,8 @@ export async function getPropertySummaries(
     return [];
   }
 
-  const ownerPropertyIds =
-    activeOwnerPropertyIds ??
-    (await getActiveOwnerPropertyIds(organizationId, propertyIds));
+  const ownerLinks =
+    activeOwnerLinks ?? (await getActiveOwnerLinks(organizationId, propertyIds));
 
   const [unitsResult, ledgerResult] = await Promise.all([
     supabase
@@ -117,13 +123,35 @@ export async function getPropertySummaries(
     const ledgerEntries = ledgerByProperty.get(property.id) ?? [];
 
     return buildPropertySummary({
+      activeOwner: ownerLinks.get(property.id),
       currencySettings,
-      hasActiveOwnerLink: ownerPropertyIds.has(property.id),
+      hasActiveOwnerLink: ownerLinks.has(property.id),
       ledgerEntries,
       property,
       units,
     });
   });
+}
+
+export async function getPropertyOwnerOptions(
+  organizationId: string,
+): Promise<PropertyOwnerOption[]> {
+  const supabase = await createSupabaseServerClient();
+  const peopleResult = await supabase
+    .from("people")
+    .select("id, display_name")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .order("display_name", { ascending: true });
+
+  if (peopleResult.error) {
+    throw new Error(`Could not load owner options: ${peopleResult.error.message}`);
+  }
+
+  return (peopleResult.data ?? []).map((person) => ({
+    id: person.id,
+    label: person.display_name,
+  }));
 }
 
 export async function getPropertiesScreenData(
@@ -251,6 +279,10 @@ function filterPropertySummaries(
       property,
       viewQuery.ownerStatus,
     );
+    const matchesNetStatus = propertyMatchesNetStatusFilter(
+      property,
+      viewQuery.netStatus,
+    );
     const haystack = [
       property.name,
       property.code,
@@ -263,7 +295,13 @@ function filterPropertySummaries(
       .toLowerCase();
     const matchesQuery = tokens.every((token) => haystack.includes(token));
 
-    return matchesArchiveState && matchesStatus && matchesOwnerStatus && matchesQuery;
+    return (
+      matchesArchiveState &&
+      matchesStatus &&
+      matchesOwnerStatus &&
+      matchesNetStatus &&
+      matchesQuery
+    );
   });
 }
 
@@ -272,6 +310,13 @@ export function propertyMatchesOwnerStatusFilter(
   ownerStatus: PropertyOwnerStatusFilter,
 ) {
   return ownerStatus === "all" || !property.hasActiveOwnerLink;
+}
+
+export function propertyMatchesNetStatusFilter(
+  property: Pick<PropertySummary, "netIncomeUsd">,
+  netStatus: PropertyNetStatusFilter,
+) {
+  return netStatus === "all" || property.netIncomeUsd < 0;
 }
 
 function sortPropertySummaries(
@@ -293,6 +338,13 @@ function sortPropertySummaries(
     if (sort === "net_desc") {
       return (
         second.netIncomeUsd - first.netIncomeUsd ||
+        compareStrings(first.code, second.code)
+      );
+    }
+
+    if (sort === "net_asc") {
+      return (
+        first.netIncomeUsd - second.netIncomeUsd ||
         compareStrings(first.code, second.code)
       );
     }
@@ -341,21 +393,22 @@ function compareStrings(first: string, second: string) {
   });
 }
 
-async function getActiveOwnerPropertyIds(
+async function getActiveOwnerLinks(
   organizationId: string,
   propertyIds?: ReadonlySet<string>,
 ) {
   const supabase = await createSupabaseServerClient();
   let query = supabase
     .from("property_owners")
-    .select("property_id")
+    .select("person_id, property_id")
     .eq("organization_id", organizationId)
+    .eq("is_primary", true)
     .is("archived_at", null)
     .is("ended_on", null);
 
   if (propertyIds) {
     if (propertyIds.size === 0) {
-      return new Set<string>();
+      return new Map<string, ActiveOwnerLink>();
     }
 
     query = query.in("property_id", [...propertyIds]);
@@ -367,7 +420,41 @@ async function getActiveOwnerPropertyIds(
     throw new Error(`Could not load property owner links: ${result.error.message}`);
   }
 
-  return new Set((result.data ?? []).map((owner) => owner.property_id));
+  const ownerRows = result.data ?? [];
+  const personIds = new Set(ownerRows.map((owner) => owner.person_id));
+  const labelsByPerson = await getPeopleDisplayNames(organizationId, personIds);
+  const links = new Map<string, ActiveOwnerLink>();
+
+  for (const owner of ownerRows) {
+    links.set(owner.property_id, {
+      label: labelsByPerson.get(owner.person_id) ?? "Linked owner",
+      personId: owner.person_id,
+    });
+  }
+
+  return links;
+}
+
+async function getPeopleDisplayNames(
+  organizationId: string,
+  personIds: ReadonlySet<string>,
+) {
+  if (personIds.size === 0) {
+    return new Map<string, string>();
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const result = await supabase
+    .from("people")
+    .select("id, display_name")
+    .eq("organization_id", organizationId)
+    .in("id", [...personIds]);
+
+  if (result.error) {
+    throw new Error(`Could not load owner names: ${result.error.message}`);
+  }
+
+  return new Map((result.data ?? []).map((person) => [person.id, person.display_name]));
 }
 
 function getStoredPropertyStatusValues(status: PropertyStatusValue) {

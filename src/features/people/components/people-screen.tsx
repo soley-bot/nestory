@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -54,13 +54,32 @@ export function PeopleScreen({
     getInitialRecordId(people, initialPersonId),
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const focusedPerson = initialPersonId
+    ? people.find((person) => person.id === initialPersonId) ?? null
+    : null;
+  const focusedPersonId = focusedPerson?.id;
   const selectedPerson =
-    people.find((person) => person.id === selectedPersonId) ?? people[0] ?? null;
+    people.find((person) => person.id === selectedPersonId) ??
+    focusedPerson ??
+    people[0] ??
+    null;
+  const reviewContext = getPeopleReviewContext(viewQuery, {
+    hasFocusedPerson: Boolean(focusedPerson),
+    hasFocusedPersonIntent: Boolean(initialPersonId),
+  });
   const getPersonRecordHref = (personId: string) =>
     getFocusedRecordHref(pathname, searchParams, "personId", personId);
   const openPersonRecord = (personId: string) => {
     router.push(getPersonRecordHref(personId), { scroll: false });
   };
+
+  useEffect(() => {
+    if (!focusedPersonId) {
+      return;
+    }
+
+    queueMicrotask(() => setSelectedPersonId(focusedPersonId));
+  }, [focusedPersonId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -80,18 +99,35 @@ export function PeopleScreen({
     <div className="min-h-screen">
       <PageHeader
         actions={
-          <Button
-            onClick={() => {
-              setStatusMessage(null);
-              setDrawer({ mode: "create" });
-            }}
-            variant="primary"
-          >
-            <Plus size={15} />
-            Add person
-          </Button>
+          <>
+            {reviewContext && selectedPerson ? (
+              <Button
+                onClick={() => {
+                  setStatusMessage(null);
+                  setDrawer({ mode: "edit", person: selectedPerson });
+                }}
+              >
+                <Pencil size={15} />
+                Edit selected
+              </Button>
+            ) : null}
+            <Button
+              onClick={() => {
+                setStatusMessage(null);
+                setDrawer({ mode: "create" });
+              }}
+              variant="primary"
+            >
+              <Plus size={15} />
+              Add person
+            </Button>
+          </>
         }
-        description="Operational people, company, tenant, owner, and vendor records linked back to leases and properties."
+        description={
+          reviewContext
+            ? reviewContext.description
+            : "Operational people, company, tenant, owner, and vendor records linked back to leases and properties."
+        }
         title="People"
       />
 
@@ -111,6 +147,10 @@ export function PeopleScreen({
         onDisplayModeChange={setDisplayMode}
         viewQuery={viewQuery}
       />
+
+      {reviewContext ? (
+        <PeopleReviewStrip context={reviewContext} count={pagination.totalCount} />
+      ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -224,6 +264,78 @@ function getHrefWithoutActionParam(
 
   const queryString = nextParams.toString();
   return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+type PeopleReviewContext = {
+  countLabel: string;
+  description: string;
+  nextStep: string;
+};
+
+type FocusedPeopleState = {
+  hasFocusedPerson: boolean;
+  hasFocusedPersonIntent: boolean;
+};
+
+function PeopleReviewStrip({
+  context,
+  count,
+}: {
+  context: PeopleReviewContext;
+  count: number;
+}) {
+  return (
+    <div className="border-b border-border bg-warning-soft/20 px-4 py-2 sm:px-6 lg:px-6">
+      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <p className="min-w-0 truncate font-medium text-foreground">
+          {count} {count === 1 ? "person" : "people"} {context.countLabel}
+        </p>
+        <p className="text-foreground-muted">{context.nextStep}</p>
+      </div>
+    </div>
+  );
+}
+
+function getPeopleReviewContext(
+  viewQuery: PeopleViewQuery,
+  focusedState: FocusedPeopleState,
+): PeopleReviewContext | null {
+  if (focusedState.hasFocusedPerson) {
+    return {
+      countLabel: "in this activity view",
+      description: "Opened from recent activity with archived records included.",
+      nextStep: "The focused person is selected for inspector review.",
+    };
+  }
+
+  if (focusedState.hasFocusedPersonIntent) {
+    return {
+      countLabel: "in this activity view",
+      description:
+        "Opened from recent activity with archived records included, but this page did not include the focused person.",
+      nextStep: "Review visible matches or broaden the current filters.",
+    };
+  }
+
+  if (viewQuery.status === "missing_contact") {
+    return {
+      countLabel: "missing usable contact",
+      description:
+        "Showing people records that need a usable email or phone before tenant, owner, or vendor follow-up.",
+      nextStep: "Select a person, then edit contact details from the header or inspector.",
+    };
+  }
+
+  if (viewQuery.status === "no_role") {
+    return {
+      countLabel: "without an assigned role",
+      description:
+        "Showing people records that need a tenant, owner, or vendor role before they can drive linked workflows.",
+      nextStep: "Select a person, then assign the right role from the edit drawer.",
+    };
+  }
+
+  return null;
 }
 
 function getPeopleDrawerTitle(drawer: DrawerState) {

@@ -144,11 +144,7 @@ export async function createLedgerEntryAction(
     };
   }
 
-  revalidatePath("/ledger");
-  revalidatePath("/timeline");
-  revalidatePath("/properties");
-  revalidatePath("/overview");
-  revalidatePath("/reports");
+  revalidateLedgerPaths();
 
   return {
     message: "Ledger entry added.",
@@ -208,11 +204,7 @@ export async function updateLedgerEntryAction(
     };
   }
 
-  revalidatePath("/ledger");
-  revalidatePath("/timeline");
-  revalidatePath("/properties");
-  revalidatePath("/overview");
-  revalidatePath("/reports");
+  revalidateLedgerPaths();
 
   return {
     message: "Ledger entry updated.",
@@ -249,11 +241,7 @@ export async function archiveLedgerEntryAction(
     };
   }
 
-  revalidatePath("/ledger");
-  revalidatePath("/timeline");
-  revalidatePath("/properties");
-  revalidatePath("/overview");
-  revalidatePath("/reports");
+  revalidateLedgerPaths();
 
   return {
     message: "Ledger entry archived.",
@@ -290,11 +278,7 @@ export async function restoreLedgerEntryAction(
     };
   }
 
-  revalidatePath("/ledger");
-  revalidatePath("/timeline");
-  revalidatePath("/properties");
-  revalidatePath("/overview");
-  revalidatePath("/reports");
+  revalidateLedgerPaths();
 
   return {
     message: "Ledger entry restored.",
@@ -332,9 +316,7 @@ export async function setLedgerPeriodLockAction(
     };
   }
 
-  revalidatePath("/ledger");
-  revalidatePath("/timeline");
-  revalidatePath("/overview");
+  revalidateLedgerPaths({ includeProperties: false, includeReports: false, includeUnits: false });
 
   return {
     message:
@@ -472,10 +454,7 @@ export async function attachLedgerReceiptAction(
     };
   }
 
-  revalidatePath("/ledger");
-  revalidatePath("/timeline");
-  revalidatePath("/documents");
-  revalidatePath("/overview");
+  revalidateLedgerPaths({ includeDocuments: true });
 
   return {
     message: "Receipt attached.",
@@ -489,4 +468,36 @@ function ledgerActionErrorMessage(message: string) {
   }
 
   return "We could not save the ledger entry. Please check the fields and try again.";
+}
+
+function revalidateLedgerPaths({
+  includeDocuments = false,
+  includeProperties = true,
+  includeReports = true,
+  includeUnits = true,
+}: {
+  includeDocuments?: boolean;
+  includeProperties?: boolean;
+  includeReports?: boolean;
+  includeUnits?: boolean;
+} = {}) {
+  revalidatePath("/overview");
+  revalidatePath("/ledger");
+  revalidatePath("/timeline");
+
+  if (includeDocuments) {
+    revalidatePath("/documents");
+  }
+
+  if (includeProperties) {
+    revalidatePath("/properties");
+  }
+
+  if (includeReports) {
+    revalidatePath("/reports");
+  }
+
+  if (includeUnits) {
+    revalidatePath("/units");
+  }
 }

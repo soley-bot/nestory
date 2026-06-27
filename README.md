@@ -23,6 +23,10 @@ Read only the docs needed for the task:
   database review checklist. Read for schema/RLS/storage/module design.
 - `docs/operational-ui-handoff.md` - authenticated app UI contract for dense,
   quiet, operational record screens. Read for UI work.
+- `docs/complete-app-goals.md` - final product target, module goals, and build
+  order. Read for roadmap or scope decisions.
+- `docs/build-goal-prompts.md` - copy-paste prompts for each major build goal.
+  Read when starting a new implementation session.
 
 `PROJECT_RULES.md` should stay timeless. Move volatile facts such as CLI
 versions, hosted project state, deployment URLs, and dated verification results
@@ -38,15 +42,20 @@ broader PMS workflows.
 
 Roadmap order:
 
-1. Timeline/Ledger foundation.
-2. Leases & Tenants.
-3. Units and property dashboards.
-4. Maintenance/tasks.
-5. Reports/accounting expansion.
-6. Tenant portal/payments/integrations later.
+1. Closed Dashboard operating loop.
+2. Unit Operating Record.
+3. Reports and owner/operator outputs.
+4. Deep detail pages and CRUD completeness.
+5. Documents/evidence system.
+6. Maintenance/issues workflow.
+7. Import/data cleanup.
+8. Audit/history hardening.
+9. Role-based access and portals.
+10. Production readiness and onboarding.
 
 Future module database design should follow
-`docs/enterprise-lite-database-roadmap.md`.
+`docs/enterprise-lite-database-roadmap.md`. The full product target and build
+sequence live in `docs/complete-app-goals.md`.
 
 ## Local Development
 

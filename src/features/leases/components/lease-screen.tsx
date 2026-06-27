@@ -82,9 +82,19 @@ export function LeaseScreen({
     getInitialRecordId(leases, initialLeaseId),
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const focusedLease = initialLeaseId
+    ? leases.find((lease) => lease.id === initialLeaseId) ?? null
+    : null;
+  const focusedLeaseId = focusedLease?.id;
   const selectedLease =
-    leases.find((lease) => lease.id === selectedLeaseId) ?? leases[0] ?? null;
-  const reviewContext = getLeaseReviewContext(viewQuery);
+    leases.find((lease) => lease.id === selectedLeaseId) ??
+    focusedLease ??
+    leases[0] ??
+    null;
+  const reviewContext = getLeaseReviewContext(viewQuery, {
+    hasFocusedLease: Boolean(focusedLease),
+    hasFocusedLeaseIntent: Boolean(initialLeaseId),
+  });
   const reviewPropertyLabel = getSelectedPropertyLabel(
     propertyOptions,
     viewQuery.propertyId,
@@ -94,6 +104,14 @@ export function LeaseScreen({
   const openLeaseRecord = (leaseId: string) => {
     router.push(getLeaseRecordHref(leaseId), { scroll: false });
   };
+
+  useEffect(() => {
+    if (!focusedLeaseId) {
+      return;
+    }
+
+    queueMicrotask(() => setSelectedLeaseId(focusedLeaseId));
+  }, [focusedLeaseId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -363,6 +381,11 @@ type LeaseReviewContext = {
   nextStep: string;
 };
 
+type FocusedLeaseState = {
+  hasFocusedLease: boolean;
+  hasFocusedLeaseIntent: boolean;
+};
+
 function LeaseReviewStrip({
   context,
   count,
@@ -388,10 +411,28 @@ function LeaseReviewStrip({
 
 function getLeaseReviewContext(
   viewQuery: LeaseViewQuery,
+  focusedState: FocusedLeaseState,
 ): LeaseReviewContext | null {
   const endMonthLabel = viewQuery.endMonth
     ? formatLeaseMonth(viewQuery.endMonth)
     : "";
+
+  if (focusedState.hasFocusedLease) {
+    return {
+      countLabel: "in this activity view",
+      description: "Opened from recent activity with archived records included.",
+      nextStep: "The focused lease is selected for inspector review.",
+    };
+  }
+
+  if (focusedState.hasFocusedLeaseIntent) {
+    return {
+      countLabel: "in this activity view",
+      description:
+        "Opened from recent activity with archived records included, but this page did not include the focused lease.",
+      nextStep: "Review visible matches or broaden the current filters.",
+    };
+  }
 
   if (viewQuery.endsWithinDays !== null && endMonthLabel) {
     return {

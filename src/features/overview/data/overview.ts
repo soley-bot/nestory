@@ -133,8 +133,7 @@ export async function getOverviewScreenData(
       .select(
         "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, archived_at",
       )
-      .eq("organization_id", organizationId)
-      .gte("transaction_date", toDateInput(ledgerStart)),
+      .eq("organization_id", organizationId),
     supabase
       .from("people")
       .select("id, display_name, primary_email, primary_phone, archived_at")
@@ -227,8 +226,17 @@ export async function getOverviewScreenData(
     normalizedSettings,
     recentExpenseStart,
   });
+  const negativeNetProperties = getNegativeNetProperties({
+    ledgerRows,
+    normalizedSettings,
+    properties: activeProperties,
+  });
+  const currentMonthEnd = addMonths(currentMonthStart, 1);
   const mtdLedgerRows = ledgerRows.filter(
-    (entry) => !entry.archived_at && entry.transaction_date >= toDateInput(currentMonthStart),
+    (entry) =>
+      !entry.archived_at &&
+      entry.transaction_date >= toDateInput(currentMonthStart) &&
+      entry.transaction_date < toDateInput(currentMonthEnd),
   );
   const occupancyRate =
     operationalUnits.length > 0
@@ -239,6 +247,7 @@ export async function getOverviewScreenData(
     leaseGapUnits: nonVacantLeaseGapUnits,
     leasesEndingSoon,
     missingOwnerLinks,
+    negativeNetProperties,
     peopleMissingContacts,
     peopleWithoutRoles,
     vacantUnits,
@@ -253,6 +262,7 @@ export async function getOverviewScreenData(
       leaseGapUnits: nonVacantLeaseGapUnits,
       leasesEndingSoon,
       missingOwnerLinks,
+      negativeNetProperties,
       peopleMissingContacts,
       peopleWithoutRoles,
       vacantUnits,
@@ -299,6 +309,7 @@ function buildDashboardSummary({
   leaseGapUnits,
   leasesEndingSoon,
   missingOwnerLinks,
+  negativeNetProperties,
   peopleMissingContacts,
   peopleWithoutRoles,
   vacantUnits,
@@ -308,6 +319,7 @@ function buildDashboardSummary({
   leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
   missingOwnerLinks: PropertyRow[];
+  negativeNetProperties: PropertyRow[];
   peopleMissingContacts: PersonRow[];
   peopleWithoutRoles: PersonRow[];
   vacantUnits: UnitRow[];
@@ -356,18 +368,28 @@ function buildDashboardSummary({
 
   if (missingOwnerLinks.length > 0) {
     return {
-      actionHref: "/properties",
-      actionLabel: "Review owners",
+      actionHref: "/properties?ownerStatus=missing",
+      actionLabel: "Review missing owners",
       detail: `${missingOwnerLinks.length} properties are missing a current primary owner.`,
       headline: "Owner relationships need cleanup.",
       tone: "warning" as const,
     };
   }
 
+  if (negativeNetProperties.length > 0) {
+    return {
+      actionHref: "/properties?netStatus=negative&sort=net_asc",
+      actionLabel: "Review net income",
+      detail: `${negativeNetProperties.length} properties have negative active ledger net income.`,
+      headline: "Property net income needs review.",
+      tone: "warning" as const,
+    };
+  }
+
   if (peopleMissingContacts.length > 0) {
     return {
-      actionHref: "/people?query=No%20contact",
-      actionLabel: "Review contacts",
+      actionHref: "/people?status=missing_contact",
+      actionLabel: "Review missing contacts",
       detail: `${peopleMissingContacts.length} people are missing usable contact information.`,
       headline: "Contact records need review.",
       tone: "warning" as const,
@@ -465,6 +487,7 @@ function buildAttentionItems({
   leaseGapUnits,
   leasesEndingSoon,
   missingOwnerLinks,
+  negativeNetProperties,
   peopleMissingContacts,
   peopleWithoutRoles,
   vacantUnits,
@@ -473,6 +496,7 @@ function buildAttentionItems({
   leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
   missingOwnerLinks: PropertyRow[];
+  negativeNetProperties: PropertyRow[];
   peopleMissingContacts: PersonRow[];
   peopleWithoutRoles: PersonRow[];
   vacantUnits: UnitRow[];
@@ -509,8 +533,17 @@ function buildAttentionItems({
       ? {
           count: missingOwnerLinks.length,
           helper: "Needs ownership relationship",
-          href: "/properties",
+          href: "/properties?ownerStatus=missing",
           label: "Properties without owner link",
+          tone: "warning",
+        }
+      : null,
+    negativeNetProperties.length > 0
+      ? {
+          count: negativeNetProperties.length,
+          helper: "Active ledger net is below zero",
+          href: "/properties?netStatus=negative&sort=net_asc",
+          label: "Properties with negative net",
           tone: "warning",
         }
       : null,
@@ -518,7 +551,7 @@ function buildAttentionItems({
       ? {
           count: peopleMissingContacts.length,
           helper: "No primary contact value",
-          href: "/people?query=No%20contact",
+          href: "/people?status=missing_contact",
           label: "People missing contact",
           tone: "warning",
         }
@@ -715,6 +748,46 @@ function getLargeRecentExpenses({
       ) >= threshold
     );
   });
+}
+
+function getNegativeNetProperties({
+  ledgerRows,
+  normalizedSettings,
+  properties,
+}: {
+  ledgerRows: LedgerRow[];
+  normalizedSettings: ReturnType<typeof normalizeCurrencyDisplaySettings>;
+  properties: PropertyRow[];
+}) {
+  const netByProperty = new Map<string, number>();
+
+  for (const row of ledgerRows) {
+    if (row.archived_at) {
+      continue;
+    }
+
+    const amount = convertMoney(
+      Number(row.amount),
+      row.currency,
+      "USD",
+      normalizedSettings.khrPerUsd,
+    );
+    const signedAmount = row.direction === "expense" ? -amount : amount;
+
+    netByProperty.set(
+      row.property_id,
+      (netByProperty.get(row.property_id) ?? 0) + signedAmount,
+    );
+  }
+
+  return properties
+    .filter((property) => (netByProperty.get(property.id) ?? 0) < 0)
+    .toSorted(
+      (first, second) =>
+        (netByProperty.get(first.id) ?? 0) -
+          (netByProperty.get(second.id) ?? 0) ||
+        first.code.localeCompare(second.code),
+    );
 }
 
 function getRoleCounts(roles: PersonRoleRow[]) {

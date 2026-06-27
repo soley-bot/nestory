@@ -4,6 +4,8 @@ import {
   Building2,
   ExternalLink,
   Home,
+  Landmark,
+  ListTree,
   MapPin,
   Pencil,
   RotateCcw,
@@ -115,6 +117,33 @@ export function PropertyInspector({
           ) : (
             <span aria-hidden="true" />
           )}
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <Link
+            aria-label={`Open units for ${property.name}`}
+            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            href={`/units?propertyId=${property.id}`}
+            title="Open property units"
+          >
+            <Home size={15} />
+          </Link>
+          <Link
+            aria-label={`Open ledger for ${property.name}`}
+            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            href={`/ledger?propertyId=${property.id}`}
+            title="Open property ledger"
+          >
+            <Landmark size={15} />
+          </Link>
+          <Link
+            aria-label={`Open timeline for ${property.name}`}
+            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            href={`/timeline?propertyId=${property.id}`}
+            title="Open property timeline"
+          >
+            <ListTree size={15} />
+          </Link>
         </div>
       </div>
     </aside>

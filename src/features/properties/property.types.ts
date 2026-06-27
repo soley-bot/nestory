@@ -1,10 +1,17 @@
 export type PropertyArchiveState = "active" | "archived" | "all";
 
-export type PropertySortKey = "code_asc" | "name_asc" | "status_asc" | "net_desc";
+export type PropertySortKey =
+  | "code_asc"
+  | "name_asc"
+  | "status_asc"
+  | "net_asc"
+  | "net_desc";
 
 export type PropertyStatusValue = "active" | "under_renovation" | "inactive";
 
 export type PropertyOwnerStatusFilter = "missing" | "all";
+
+export type PropertyNetStatusFilter = "negative" | "all";
 
 export type PropertyDisplayMode = "table" | "cards";
 
@@ -22,8 +29,14 @@ export type PropertyFormValues = {
   name: string;
   notes?: string | null;
   owner?: string | null;
+  ownerPersonId?: string | null;
   propertyType: string;
   status: PropertyStatusValue;
+};
+
+export type PropertyOwnerOption = {
+  id: string;
+  label: string;
 };
 
 export type PropertyPagination = {
@@ -37,6 +50,7 @@ export type PropertyPagination = {
 
 export type PropertyViewQuery = {
   archiveState: PropertyArchiveState;
+  netStatus: PropertyNetStatusFilter;
   page: number;
   pageSize: number;
   ownerStatus: PropertyOwnerStatusFilter;

@@ -51,7 +51,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
   const attentionMetric = getMetric(data.metrics, "Attention");
   const primaryMetrics: PrimaryMetric[] = [
     {
-      href: "/units?status=vacant",
+      href: "/units?occupancy=unoccupied",
       icon: Building2,
       metric: occupancyMetric,
     },
@@ -105,8 +105,8 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
 
           <section className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
             <ChartPanel
-              actionHref="/units?status=vacant"
-              actionLabel="Open units"
+              actionHref="/units?occupancy=unoccupied"
+              actionLabel="Review open units"
               priority="primary"
               title="Lowest occupancy by property"
             >

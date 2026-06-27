@@ -166,8 +166,7 @@ export async function createTimelineEventAction(
     };
   }
 
-  revalidatePath("/timeline");
-  revalidatePath("/properties");
+  revalidateTimelinePaths();
 
   return {
     message: "Timeline event added.",
@@ -233,8 +232,7 @@ export async function updateTimelineEventAction(
     };
   }
 
-  revalidatePath("/timeline");
-  revalidatePath("/properties");
+  revalidateTimelinePaths();
 
   return {
     message: "Timeline event updated.",
@@ -271,8 +269,7 @@ export async function archiveTimelineEventAction(
     };
   }
 
-  revalidatePath("/timeline");
-  revalidatePath("/properties");
+  revalidateTimelinePaths();
 
   return {
     message: "Timeline event archived.",
@@ -309,8 +306,7 @@ export async function restoreTimelineEventAction(
     };
   }
 
-  revalidatePath("/timeline");
-  revalidatePath("/properties");
+  revalidateTimelinePaths();
 
   return {
     message: "Timeline event restored.",
@@ -439,11 +435,21 @@ export async function attachTimelineDocumentAction(
   revalidatePath("/timeline");
   revalidatePath("/ledger");
   revalidatePath("/documents");
+  revalidatePath("/overview");
 
   return {
     message: "Document attached.",
     status: "success",
   };
+}
+
+function revalidateTimelinePaths() {
+  revalidatePath("/overview");
+  revalidatePath("/timeline");
+  revalidatePath("/properties");
+  revalidatePath("/units");
+  revalidatePath("/ledger");
+  revalidatePath("/reports");
 }
 
 function timelineActionErrorMessage(message: string) {

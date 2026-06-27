@@ -82,13 +82,31 @@ export function LedgerScreen({
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
+  const focusedEntry = initialEntryId
+    ? entries.find((entry) => entry.id === initialEntryId) ?? null
+    : null;
+  const focusedEntryId = focusedEntry?.id;
   const selectedEntry =
-    entries.find((entry) => entry.id === selectedEntryId) ?? entries[0] ?? null;
-  const reviewContext = getLedgerReviewContext(viewQuery);
+    entries.find((entry) => entry.id === selectedEntryId) ??
+    focusedEntry ??
+    entries[0] ??
+    null;
+  const reviewContext = getLedgerReviewContext(viewQuery, {
+    hasFocusedEntry: Boolean(focusedEntry),
+    hasFocusedEntryIntent: Boolean(initialEntryId),
+  });
   const reviewPropertyLabel = getSelectedPropertyLabel(
     propertyOptions,
     viewQuery.propertyId,
   );
+
+  useEffect(() => {
+    if (!focusedEntryId) {
+      return;
+    }
+
+    queueMicrotask(() => setSelectedEntryId(focusedEntryId));
+  }, [focusedEntryId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -337,6 +355,11 @@ type LedgerReviewContext = {
   nextStep: string;
 };
 
+type FocusedLedgerState = {
+  hasFocusedEntry: boolean;
+  hasFocusedEntryIntent: boolean;
+};
+
 function LedgerReviewStrip({
   context,
   count,
@@ -362,7 +385,25 @@ function LedgerReviewStrip({
 
 function getLedgerReviewContext(
   viewQuery: LedgerViewQuery,
+  focusedState: FocusedLedgerState,
 ): LedgerReviewContext | null {
+  if (focusedState.hasFocusedEntry) {
+    return {
+      countLabel: "in this activity view",
+      description: "Opened from recent activity with archived records included.",
+      nextStep: "The focused entry is available for table and inspector review.",
+    };
+  }
+
+  if (focusedState.hasFocusedEntryIntent) {
+    return {
+      countLabel: "in this activity view",
+      description:
+        "Opened from recent activity with archived records included, but this page did not include the focused entry.",
+      nextStep: "Review visible matches or broaden the current filters.",
+    };
+  }
+
   if (viewQuery.period === "current_month") {
     return {
       countLabel: "in the current month",

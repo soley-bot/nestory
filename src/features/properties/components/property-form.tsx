@@ -12,6 +12,7 @@ import {
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
   PropertyFormValues,
+  PropertyOwnerOption,
   PropertyStatusValue,
 } from "@/features/properties/property.types";
 
@@ -27,6 +28,7 @@ type PropertyFormProps = {
   mode?: "create" | "edit";
   onClose: () => void;
   onSuccess?: (message: string) => void;
+  ownerOptions: PropertyOwnerOption[];
   property?: PropertySummary | null;
 };
 
@@ -34,6 +36,7 @@ export function PropertyForm({
   mode = "create",
   onClose,
   onSuccess,
+  ownerOptions,
   property,
 }: PropertyFormProps) {
   const isEditMode = mode === "edit";
@@ -42,6 +45,13 @@ export function PropertyForm({
     initialState,
   );
   const defaults = getPropertyDefaults(property);
+  const ownerSelectOptions = [
+    { label: "No current owner link", value: "" },
+    ...ownerOptions.map((owner) => ({
+      label: owner.label,
+      value: owner.id,
+    })),
+  ];
 
   useEffect(() => {
     if (state.status === "success") {
@@ -114,13 +124,22 @@ export function PropertyForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
-          <Field label="Owner" error={state.fieldErrors?.owner?.[0]}>
-            <Input
-              defaultValue={defaults.owner ?? ""}
-              name="owner"
-              placeholder="Owner group"
-              type="text"
+          <Field
+            label="Current owner link"
+            error={state.fieldErrors?.ownerPersonId?.[0]}
+          >
+            <SelectControl
+              ariaLabel="Current owner link"
+              defaultValue={defaults.ownerPersonId ?? ""}
+              name="ownerPersonId"
+              options={ownerSelectOptions}
+              placeholder="Choose owner"
             />
+            {ownerOptions.length === 0 ? (
+              <p className="mt-1 text-xs text-muted">
+                Add a person before assigning a current owner.
+              </p>
+            ) : null}
           </Field>
 
           <Field
@@ -134,6 +153,15 @@ export function PropertyForm({
             />
           </Field>
         </div>
+
+        <Field label="Owner display label" error={state.fieldErrors?.owner?.[0]}>
+          <Input
+            defaultValue={defaults.owner ?? ""}
+            name="owner"
+            placeholder="Owner group or legal label"
+            type="text"
+          />
+        </Field>
 
         <Field label="Address" error={state.fieldErrors?.address?.[0]}>
           <Input
@@ -207,6 +235,7 @@ function getPropertyDefaults(
     name: property?.formValues.name ?? "",
     notes: property?.formValues.notes ?? "",
     owner: property?.formValues.owner ?? "",
+    ownerPersonId: property?.formValues.ownerPersonId ?? "",
     propertyType: property?.formValues.propertyType ?? "",
     status: property?.formValues.status ?? "active",
   };

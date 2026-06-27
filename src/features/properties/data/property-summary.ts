@@ -56,13 +56,20 @@ export type PropertySummary = {
   units: number;
 };
 
+export type ActivePropertyOwnerLink = {
+  label: string;
+  personId: string;
+};
+
 export function buildPropertySummary({
+  activeOwner,
   currencySettings,
   ledgerEntries,
   property,
   units,
   hasActiveOwnerLink = false,
 }: {
+  activeOwner?: ActivePropertyOwnerLink | null;
   currencySettings?: Partial<CurrencyDisplaySettings> | null;
   hasActiveOwnerLink?: boolean;
   ledgerEntries: PropertyLedgerRecord[];
@@ -84,16 +91,17 @@ export function buildPropertySummary({
       name: property.name,
       notes: property.notes ?? "",
       owner: property.owner ?? "",
+      ownerPersonId: activeOwner?.personId ?? "",
       propertyType: property.property_type,
       status,
     },
-    hasActiveOwnerLink,
+    hasActiveOwnerLink: hasActiveOwnerLink || Boolean(activeOwner),
     isArchived: Boolean(property.archived_at),
     name: property.name,
     netIncome: formatMoneyTotalsDisplay(ledgerEntries, currencySettings),
     netIncomeUsd,
     occupiedUnits,
-    owner: property.owner ?? "Unassigned",
+    owner: activeOwner?.label ?? property.owner ?? "Unassigned",
     status: formatPropertyStatus(property.status),
     statusTone: getPropertyStatusTone(status),
     type: property.property_type,

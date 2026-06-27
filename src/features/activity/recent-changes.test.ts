@@ -168,4 +168,80 @@ describe("toRecentChange", () => {
       tone: "warning",
     });
   });
+
+  it("preserves lease focus ids with a useful tenant query", () => {
+    expect(
+      toRecentChange({
+        action: "lease_updated",
+        created_at: "2026-06-17T10:00:00.000Z",
+        entity_id: "77777777-7777-4777-8777-777777777777",
+        entity_type: "lease",
+        id: "log-7",
+        new_values: {
+          tenant_name: "John Smith",
+        },
+        previous_values: null,
+      }),
+    ).toMatchObject({
+      entityLabel: "Lease",
+      href: "/leases?archiveState=all&leaseId=77777777-7777-4777-8777-777777777777&query=John+Smith",
+      recordLabel: "John Smith",
+    });
+  });
+
+  it("preserves person focus ids with a useful display-name query", () => {
+    expect(
+      toRecentChange({
+        action: "updated",
+        created_at: "2026-06-17T10:30:00.000Z",
+        entity_id: "88888888-8888-4888-8888-888888888888",
+        entity_type: "person",
+        id: "log-8",
+        new_values: {
+          display_name: "Jane Owner",
+        },
+        previous_values: null,
+      }),
+    ).toMatchObject({
+      entityLabel: "Person",
+      href: "/people?archiveState=all&personId=88888888-8888-4888-8888-888888888888&query=Jane+Owner",
+      recordLabel: "Jane Owner",
+    });
+  });
+
+  it("does not add brittle fallback text queries to focused lease and person links", () => {
+    expect(
+      toRecentChange({
+        action: "lease_updated",
+        created_at: "2026-06-17T11:00:00.000Z",
+        entity_id: "99999999-9999-4999-8999-999999999999",
+        entity_type: "lease",
+        id: "log-9",
+        new_values: {
+          status: "active",
+        },
+        previous_values: null,
+      }),
+    ).toMatchObject({
+      href: "/leases?archiveState=all&leaseId=99999999-9999-4999-8999-999999999999",
+      recordLabel: "Lease",
+    });
+
+    expect(
+      toRecentChange({
+        action: "updated",
+        created_at: "2026-06-17T11:30:00.000Z",
+        entity_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        entity_type: "person",
+        id: "log-10",
+        new_values: {
+          primary_phone: "012 345 678",
+        },
+        previous_values: null,
+      }),
+    ).toMatchObject({
+      href: "/people?archiveState=all&personId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      recordLabel: "Person",
+    });
+  });
 });

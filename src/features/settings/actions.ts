@@ -77,6 +77,7 @@ export async function updateCurrencySettingsAction(
     };
   }
 
+  revalidatePath("/overview");
   revalidatePath("/settings");
   revalidatePath("/ledger");
   revalidatePath("/timeline");

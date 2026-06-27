@@ -17,6 +17,8 @@ Product goal:
 - Read `docs/operational-ui-handoff.md` only for authenticated UI work.
 - Read `docs/enterprise-lite-database-roadmap.md` only for schema, RLS, storage,
   or future PMS module design.
+- Read `docs/complete-app-goals.md` for final product scope, build order, or
+  roadmap decisions.
 - Read `docs/foundation-checklist.md` only before verification, auth,
   Supabase, Vercel, or environment changes.
 - Do not duplicate long checklists across docs. Link to the owner doc instead.
@@ -69,12 +71,19 @@ Early constraints stay in place until explicitly changed:
 
 Roadmap order:
 
-1. Timeline/Ledger foundation.
-2. Leases & Tenants.
-3. Units and property dashboards.
-4. Maintenance/tasks.
-5. Reports/accounting expansion.
-6. Tenant portal/payments/integrations later.
+1. Closed Dashboard operating loop.
+2. Unit Operating Record.
+3. Reports and owner/operator outputs.
+4. Deep detail pages and CRUD completeness.
+5. Documents/evidence system.
+6. Maintenance/issues workflow.
+7. Import/data cleanup.
+8. Audit/history hardening.
+9. Role-based access and portals.
+10. Production readiness and onboarding.
+
+The full target product and copy-paste build prompts live in
+`docs/complete-app-goals.md` and `docs/build-goal-prompts.md`.
 
 ## Data Rules
 

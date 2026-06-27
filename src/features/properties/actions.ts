@@ -12,6 +12,7 @@ type PropertyFieldErrors = {
   name?: string[];
   notes?: string[];
   owner?: string[];
+  ownerPersonId?: string[];
   propertyId?: string[];
   propertyType?: string[];
   status?: string[];
@@ -28,6 +29,12 @@ const propertyStatusSchema = z.enum([
   "under_renovation",
   "inactive",
 ]);
+const optionalUuidSchema = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || z.uuid().safeParse(value).success, {
+    message: "Choose a valid owner person.",
+  });
 
 const propertyMutationSchema = z.object({
   acquisitionDate: z
@@ -49,6 +56,7 @@ const propertyMutationSchema = z.object({
     .max(120, "Keep the name under 120 characters."),
   notes: z.string().trim().max(800, "Keep notes under 800 characters."),
   owner: z.string().trim().max(120, "Keep the owner under 120 characters."),
+  ownerPersonId: optionalUuidSchema,
   propertyType: z
     .string()
     .trim()
@@ -72,6 +80,7 @@ function readPropertyMutationInput(formData: FormData) {
     name: readString(formData, "name"),
     notes: readString(formData, "notes"),
     owner: readString(formData, "owner"),
+    ownerPersonId: readString(formData, "ownerPersonId"),
     propertyType: readString(formData, "propertyType"),
     status: readString(formData, "status"),
   };
@@ -119,6 +128,18 @@ export async function createPropertyAction(
       message: propertyActionErrorMessage(error.message),
       status: "error",
     };
+  }
+
+  const ownerSyncResult = await syncPrimaryOwnerLink({
+    organizationId: context.organizationId,
+    ownerPersonId: nullableString(parsed.data.ownerPersonId),
+    propertyId,
+    supabase,
+    userId: context.userId,
+  });
+
+  if (ownerSyncResult.status === "error") {
+    return ownerSyncResult;
   }
 
   revalidatePropertyPaths(propertyId);
@@ -171,6 +192,18 @@ export async function updatePropertyAction(
       message: propertyActionErrorMessage(error.message),
       status: "error",
     };
+  }
+
+  const ownerSyncResult = await syncPrimaryOwnerLink({
+    organizationId: context.organizationId,
+    ownerPersonId: nullableString(parsed.data.ownerPersonId),
+    propertyId: parsedPropertyId.data,
+    supabase,
+    userId: context.userId,
+  });
+
+  if (ownerSyncResult.status === "error") {
+    return ownerSyncResult;
   }
 
   revalidatePropertyPaths(parsedPropertyId.data);
@@ -256,14 +289,215 @@ export async function restorePropertyAction(
 }
 
 function revalidatePropertyPaths(propertyId?: string | null) {
+  revalidatePath("/overview");
+  revalidatePath("/people");
   revalidatePath("/properties");
   revalidatePath("/units");
   revalidatePath("/ledger");
   revalidatePath("/timeline");
+  revalidatePath("/reports");
 
   if (propertyId) {
     revalidatePath(`/properties/${propertyId}`);
   }
+}
+
+async function syncPrimaryOwnerLink({
+  organizationId,
+  ownerPersonId,
+  propertyId,
+  supabase,
+  userId,
+}: {
+  organizationId: string;
+  ownerPersonId: string | null;
+  propertyId: string;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  userId: string;
+}): Promise<PropertyActionState> {
+  const now = new Date().toISOString();
+  const today = now.slice(0, 10);
+
+  const currentOwnerResult = await supabase
+    .from("property_owners")
+    .select("id, person_id")
+    .eq("organization_id", organizationId)
+    .eq("property_id", propertyId)
+    .eq("is_primary", true)
+    .is("archived_at", null)
+    .is("ended_on", null);
+
+  if (currentOwnerResult.error) {
+    return {
+      message: propertyActionErrorMessage(currentOwnerResult.error.message),
+      status: "error",
+    };
+  }
+
+  if (ownerPersonId) {
+    const ownerResult = await ensureOwnerPersonRole({
+      organizationId,
+      ownerPersonId,
+      supabase,
+      userId,
+    });
+
+    if (ownerResult.status === "error") {
+      return ownerResult;
+    }
+  }
+
+  const currentOwners = currentOwnerResult.data ?? [];
+  const ownersToEnd = currentOwners.filter(
+    (owner) => owner.person_id !== ownerPersonId,
+  );
+
+  if (ownersToEnd.length > 0) {
+    const endResult = await supabase
+      .from("property_owners")
+      .update({
+        ended_on: today,
+        updated_at: now,
+        updated_by: userId,
+      })
+      .eq("organization_id", organizationId)
+      .in(
+        "id",
+        ownersToEnd.map((owner) => owner.id),
+      );
+
+    if (endResult.error) {
+      return {
+        message: propertyActionErrorMessage(endResult.error.message),
+        status: "error",
+      };
+    }
+  }
+
+  if (
+    !ownerPersonId ||
+    currentOwners.some((owner) => owner.person_id === ownerPersonId)
+  ) {
+    return { status: "success" };
+  }
+
+  const insertResult = await supabase.from("property_owners").insert({
+    created_by: userId,
+    is_primary: true,
+    organization_id: organizationId,
+    ownership_label: "Primary",
+    person_id: ownerPersonId,
+    property_id: propertyId,
+    started_on: today,
+    updated_at: now,
+    updated_by: userId,
+  });
+
+  if (insertResult.error) {
+    return {
+      message: propertyActionErrorMessage(insertResult.error.message),
+      status: "error",
+    };
+  }
+
+  return { status: "success" };
+}
+
+async function ensureOwnerPersonRole({
+  organizationId,
+  ownerPersonId,
+  supabase,
+  userId,
+}: {
+  organizationId: string;
+  ownerPersonId: string;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  userId: string;
+}): Promise<PropertyActionState> {
+  const now = new Date().toISOString();
+  const personResult = await supabase
+    .from("people")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("id", ownerPersonId)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (personResult.error) {
+    return {
+      message: propertyActionErrorMessage(personResult.error.message),
+      status: "error",
+    };
+  }
+
+  if (!personResult.data) {
+    return {
+      fieldErrors: {
+        ownerPersonId: ["Choose an active person for the current owner."],
+      },
+      status: "error",
+    };
+  }
+
+  const roleResult = await supabase
+    .from("person_roles")
+    .select("id, archived_at")
+    .eq("organization_id", organizationId)
+    .eq("person_id", ownerPersonId)
+    .eq("role", "owner");
+
+  if (roleResult.error) {
+    return {
+      message: propertyActionErrorMessage(roleResult.error.message),
+      status: "error",
+    };
+  }
+
+  const existingRole =
+    (roleResult.data ?? []).find((role) => role.archived_at === null) ??
+    (roleResult.data ?? [])[0];
+
+  if (existingRole) {
+    const roleUpdateResult = await supabase
+      .from("person_roles")
+      .update({
+        archived_at: null,
+        archived_by: null,
+        status: "active",
+        updated_at: now,
+        updated_by: userId,
+      })
+      .eq("organization_id", organizationId)
+      .eq("id", existingRole.id);
+
+    if (roleUpdateResult.error) {
+      return {
+        message: propertyActionErrorMessage(roleUpdateResult.error.message),
+        status: "error",
+      };
+    }
+
+    return { status: "success" };
+  }
+
+  const roleInsertResult = await supabase.from("person_roles").insert({
+    created_by: userId,
+    organization_id: organizationId,
+    person_id: ownerPersonId,
+    role: "owner",
+    status: "active",
+    updated_at: now,
+    updated_by: userId,
+  });
+
+  if (roleInsertResult.error) {
+    return {
+      message: propertyActionErrorMessage(roleInsertResult.error.message),
+      status: "error",
+    };
+  }
+
+  return { status: "success" };
 }
 
 function propertyActionErrorMessage(message: string) {

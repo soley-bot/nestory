@@ -47,6 +47,7 @@ export function PropertyFilters({
   const activeFilters = [
     viewQuery.status !== "all",
     viewQuery.ownerStatus !== "all",
+    viewQuery.netStatus !== "all",
     viewQuery.archiveState !== "active",
     viewQuery.sort !== DEFAULT_PROPERTY_SORT,
     viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE,
@@ -184,6 +185,9 @@ export function PropertyFilters({
             {viewQuery.ownerStatus !== "all" ? (
               <FilterChip label="Owner" value="Missing owner link" />
             ) : null}
+            {viewQuery.netStatus !== "all" ? (
+              <FilterChip label="Net" value="Negative net income" />
+            ) : null}
             {viewQuery.sort !== DEFAULT_PROPERTY_SORT ? (
               <FilterChip
                 label="Sort"
@@ -198,7 +202,7 @@ export function PropertyFilters({
 
         {advancedOpen ? (
           <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(132px,160px)_minmax(132px,170px)_minmax(132px,160px)_minmax(132px,170px)_minmax(84px,104px)]"
+            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(132px,160px)_minmax(132px,170px)_minmax(132px,170px)_minmax(132px,160px)_minmax(132px,170px)_minmax(84px,104px)]"
             id="property-advanced-search"
           >
             <SelectControl
@@ -226,6 +230,17 @@ export function PropertyFilters({
             />
 
             <SelectControl
+              ariaLabel="Filter by net income"
+              className={compactSelectClassName}
+              onValueChange={(value) => replaceParam("netStatus", value, "all")}
+              options={[
+                { label: "All net results", value: "all" },
+                { label: "Negative net income", value: "negative" },
+              ]}
+              value={viewQuery.netStatus}
+            />
+
+            <SelectControl
               ariaLabel="Filter by archive state"
               className={compactSelectClassName}
               onValueChange={(value) =>
@@ -249,6 +264,7 @@ export function PropertyFilters({
                 { label: "Code", value: "code_asc" },
                 { label: "Name", value: "name_asc" },
                 { label: "Status", value: "status_asc" },
+                { label: "Lowest net income", value: "net_asc" },
                 { label: "Net income", value: "net_desc" },
               ]}
               value={viewQuery.sort}

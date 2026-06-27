@@ -1,5 +1,8 @@
 import { PropertyScreen } from "@/features/properties/components/property-screen";
-import { getPropertiesScreenData } from "@/features/properties/data/properties";
+import {
+  getPropertiesScreenData,
+  getPropertyOwnerOptions,
+} from "@/features/properties/data/properties";
 import { parsePropertySearchParams } from "@/features/properties/property.filters";
 import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import { requireAdminContext } from "@/lib/auth/context";
@@ -18,17 +21,17 @@ export default async function PropertiesPage({
   const currencySettings = await getOrganizationCurrencySettings(
     context.organizationId,
   );
-  const { pagination, properties } = await getPropertiesScreenData(
-    context.organizationId,
-    currencySettings,
-    viewQuery,
-  );
+  const [{ pagination, properties }, ownerOptions] = await Promise.all([
+    getPropertiesScreenData(context.organizationId, currencySettings, viewQuery),
+    getPropertyOwnerOptions(context.organizationId),
+  ]);
   const initialPropertyId = getUuidSearchParam(params.propertyId);
 
   return (
     <PropertyScreen
       key={initialPropertyId ?? "properties"}
       initialPropertyId={initialPropertyId}
+      ownerOptions={ownerOptions}
       pagination={pagination}
       properties={properties}
       viewQuery={viewQuery}
