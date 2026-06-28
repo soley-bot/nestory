@@ -7,14 +7,10 @@ import type {
   TimelinePagination,
 } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
-import {
-  formatMoneyDisplay,
-  type CurrencyDisplaySettings,
-} from "@/lib/money/format";
+import { formatMoneyDisplay } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 type TimelineTableProps = {
-  currencySettings: CurrencyDisplaySettings;
   events: TimelineEvent[];
   selectedEventId: string;
   onSelectEvent: (id: string) => void;
@@ -22,7 +18,6 @@ type TimelineTableProps = {
 };
 
 export function TimelineTable({
-  currencySettings,
   events,
   selectedEventId,
   onSelectEvent,
@@ -43,13 +38,13 @@ export function TimelineTable({
         </div>
       </div>
       <div className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]">
-        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
-            <col className="w-[100px]" />
-            <col className="w-[120px]" />
-            <col />
-            <col className="w-[132px]" />
             <col className="w-[112px]" />
+            <col className="w-[128px]" />
+            <col />
+            <col className="w-[180px]" />
+            <col className="w-[150px]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
@@ -141,7 +136,6 @@ export function TimelineTable({
                           value={formatMoneyDisplay(
                             event.cost,
                             event.currency,
-                            currencySettings,
                           )}
                         />
                       )

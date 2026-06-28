@@ -3,12 +3,14 @@
 import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type SideDrawerProps = {
   children: React.ReactNode;
   description?: string;
   onClose: () => void;
   open: boolean;
+  size?: "default" | "preview";
   title: string;
 };
 
@@ -17,6 +19,7 @@ export function SideDrawer({
   description,
   onClose,
   open,
+  size = "default",
   title,
 }: SideDrawerProps) {
   const drawerRef = useRef<HTMLElement>(null);
@@ -150,7 +153,12 @@ export function SideDrawer({
         type="button"
       />
       <aside
-        className="relative flex h-full w-full max-w-[min(100vw,600px)] flex-col border-l border-border bg-surface shadow-xl"
+        className={cn(
+          "relative flex h-full w-full flex-col border-l border-border bg-surface shadow-xl",
+          size === "preview"
+            ? "max-w-[min(100vw,520px)]"
+            : "max-w-[min(100vw,600px)]",
+        )}
         ref={drawerRef}
         tabIndex={-1}
       >

@@ -20,14 +20,10 @@ import { DocumentList } from "@/features/documents/components/document-list";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
 import type { TimelineEvent } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
-import {
-  formatMoneyDisplay,
-  type CurrencyDisplaySettings,
-} from "@/lib/money/format";
+import { formatMoneyDisplay } from "@/lib/money/format";
 
 type TimelineInspectorProps = {
   archiveDisabled?: boolean;
-  currencySettings: CurrencyDisplaySettings;
   event: TimelineEvent | null;
   onAttachDocument?: (event: TimelineEvent) => void;
   onArchive?: (event: TimelineEvent) => void;
@@ -37,7 +33,6 @@ type TimelineInspectorProps = {
 
 export function TimelineInspector({
   archiveDisabled = false,
-  currencySettings,
   event,
   onAttachDocument,
   onArchive,
@@ -46,7 +41,7 @@ export function TimelineInspector({
 }: TimelineInspectorProps) {
   if (!event) {
     return (
-      <aside className="rounded-md border border-border bg-surface p-4 2xl:sticky 2xl:top-5">
+      <aside className="bg-surface p-4">
         <h2 className="text-base font-semibold tracking-tight">No record selected</h2>
         <p className="mt-2 text-sm leading-6 text-muted">
           Select a timeline record to inspect its property, unit, cost, and linked
@@ -61,7 +56,7 @@ export function TimelineInspector({
   const isDisabled = event.isLocked || archiveDisabled;
 
   return (
-    <aside className="rounded-md border border-border bg-surface 2xl:sticky 2xl:top-5 2xl:max-h-[calc(100vh-170px)] 2xl:overflow-auto">
+    <aside className="bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -242,7 +237,6 @@ export function TimelineInspector({
                   value={formatMoneyDisplay(
                     event.cost,
                     event.currency,
-                    currencySettings,
                   )}
                 />
               )

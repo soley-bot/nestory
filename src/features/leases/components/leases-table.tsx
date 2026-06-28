@@ -1,19 +1,15 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Archive, ExternalLink, Pencil, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { LeaseArchiveState, LeaseSummary } from "@/features/leases/lease.types";
-import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
+import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 type LeasesTableProps = {
   archiveState: LeaseArchiveState;
   getLeaseHref: (id: string) => string;
   leases: LeaseSummary[];
-  onArchiveLease: (lease: LeaseSummary) => void;
-  onEditLease: (lease: LeaseSummary) => void;
   onOpenLease: (id: string) => void;
-  onRestoreLease: (lease: LeaseSummary) => void;
   onSelectLease: (id: string) => void;
   selectedLeaseId: string;
 };
@@ -22,10 +18,7 @@ export function LeasesTable({
   archiveState,
   getLeaseHref,
   leases,
-  onArchiveLease,
-  onEditLease,
   onOpenLease,
-  onRestoreLease,
   onSelectLease,
   selectedLeaseId,
 }: LeasesTableProps) {
@@ -51,16 +44,15 @@ export function LeasesTable({
 
       <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
         <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-          <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-[13px]">
+          <table className="w-full min-w-[1040px] table-fixed border-collapse text-left text-[13px]">
             <colgroup>
-              <col className="w-[14%]" />
-              <col className="w-[16%]" />
-              <col className="w-[17%]" />
-              <col className="w-[14%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
+              <col className="w-[11%]" />
+              <col className="w-[21%]" />
+              <col className="w-[20%]" />
+              <col className="w-[15%]" />
+              <col className="w-[13%]" />
+              <col className="w-[13%]" />
               <col className="w-[7%]" />
-              <col className="w-[8%]" />
             </colgroup>
             <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
               <tr>
@@ -75,15 +67,12 @@ export function LeasesTable({
                 <th className="px-1.5 py-2.5 text-center font-semibold">
                   Status
                 </th>
-                <th className="px-1.5 py-2.5 text-center font-semibold">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody>
               {leases.length === 0 ? (
                 <tr className="border-t border-border">
-                  <td className="px-4 py-8 text-center text-muted" colSpan={8}>
+                  <td className="px-4 py-8 text-center text-muted" colSpan={7}>
                     {getEmptyMessage(archiveState)}
                   </td>
                 </tr>
@@ -168,14 +157,6 @@ export function LeasesTable({
                         </Badge>
                       ) : null}
                     </div>
-                  </td>
-                  <td className="px-1.5 py-2">
-                    <LeaseActions
-                      lease={lease}
-                      onArchiveLease={onArchiveLease}
-                      onEditLease={onEditLease}
-                      onRestoreLease={onRestoreLease}
-                    />
                   </td>
                 </tr>
               ))}
@@ -269,102 +250,6 @@ function LeaseCard({
   );
 }
 
-function LeaseActions({
-  className,
-  lease,
-  onArchiveLease,
-  onEditLease,
-  onRestoreLease,
-}: {
-  className?: string;
-  lease: LeaseSummary;
-  onArchiveLease: (lease: LeaseSummary) => void;
-  onEditLease: (lease: LeaseSummary) => void;
-  onRestoreLease: (lease: LeaseSummary) => void;
-}) {
-  const baseClassName = cn("flex justify-center gap-0.5", className);
-  const buttonClassName =
-    "inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50";
-
-  if (lease.isArchived) {
-    return (
-      <div
-        className={baseClassName}
-        onDoubleClick={(event) => event.stopPropagation()}
-      >
-        {lease.unitId ? (
-          <Link
-            aria-label={`Open ${lease.unitLabel}`}
-            className={`${buttonClassName} hover:text-foreground`}
-            href={`/units/${lease.unitId}`}
-            onClick={(event) => event.stopPropagation()}
-            prefetch={false}
-            title="Open unit"
-          >
-            <ExternalLink size={14} />
-          </Link>
-        ) : null}
-        <button
-          aria-label={`Restore lease for ${lease.tenantName}`}
-          className={`${buttonClassName} hover:text-accent`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onRestoreLease(lease);
-          }}
-          title="Restore lease"
-          type="button"
-        >
-          <RotateCcw size={14} />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={baseClassName}
-      onDoubleClick={(event) => event.stopPropagation()}
-    >
-      {lease.unitId ? (
-        <Link
-          aria-label={`Open ${lease.unitLabel}`}
-          className={`${buttonClassName} hover:text-foreground`}
-          href={`/units/${lease.unitId}`}
-          onClick={(event) => event.stopPropagation()}
-          prefetch={false}
-          title="Open unit"
-        >
-          <ExternalLink size={14} />
-        </Link>
-      ) : null}
-      <button
-        aria-label={`Edit lease for ${lease.tenantName}`}
-        className={`${buttonClassName} hover:text-foreground`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onEditLease(lease);
-        }}
-        title="Edit lease"
-        type="button"
-      >
-        <Pencil size={14} />
-      </button>
-      <button
-        aria-label={`Archive lease for ${lease.tenantName}`}
-        className={`${buttonClassName} hover:text-danger`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onArchiveLease(lease);
-        }}
-        title="Archive lease"
-        type="button"
-      >
-        <Archive size={14} />
-      </button>
-    </div>
-  );
-}
-
 function LeaseCardDetail({
   align = "left",
   children,
@@ -386,44 +271,28 @@ function LeaseCardDetail({
   );
 }
 
-function TableMoneyDisplay({
-  showSecondary = true,
-  value,
-}: {
-  showSecondary?: boolean;
-  value: MoneyDisplayValue;
-}) {
-  const primary = formatMoneyWithSymbol(value.primary, value.primaryCurrency);
-  const secondary = formatMoneyWithSymbol(
-    value.secondary,
-    value.secondaryCurrency,
-  );
+function TableMoneyDisplay({ value }: { value: MoneyDisplayValue }) {
+  const primary = formatMoneyWithSymbol(value.primary);
 
   return (
     <span
       className="flex min-w-0 flex-col items-end gap-0.5 text-right tabular-nums"
-      title={showSecondary ? `${primary} / ${secondary}` : primary}
+      title={primary}
     >
       <span className="max-w-full truncate font-semibold leading-5 text-foreground">
         {primary}
       </span>
-      {showSecondary ? (
-        <span className="max-w-full truncate text-xs leading-4 text-muted">
-          {secondary}
-        </span>
-      ) : null}
     </span>
   );
 }
 
-function formatMoneyWithSymbol(label: string, currency: CurrencyCode) {
+function formatMoneyWithSymbol(label: string) {
   const isNegative = label.startsWith("-");
   const unsignedLabel = isNegative ? label.slice(1) : label;
-  const codePrefix = `${currency} `;
+  const codePrefix = "USD ";
   const amount = unsignedLabel.startsWith(codePrefix)
     ? unsignedLabel.slice(codePrefix.length)
     : unsignedLabel;
-  const symbol = currency === "USD" ? "$" : "\u17db";
 
-  return `${isNegative ? "-" : ""}${symbol}${amount}`;
+  return `${isNegative ? "-" : ""}$${amount}`;
 }

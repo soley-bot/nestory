@@ -6,6 +6,7 @@ import { CheckCircle2, Pencil, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
   ArchivePropertyPanel,
@@ -52,9 +53,11 @@ export function PropertyScreen({
   );
   const [displayMode, setDisplayMode] =
     useState<PropertyDisplayMode>("table");
+  const isTableMode = displayMode === "table";
   const [selectedPropertyId, setSelectedPropertyId] = useState(() =>
     getInitialRecordId(properties, initialPropertyId),
   );
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedProperty =
     properties.find((property) => property.id === selectedPropertyId) ??
@@ -64,6 +67,21 @@ export function PropertyScreen({
   const openPropertyRecord = (propertyId: string) => {
     router.push(`/properties/${propertyId}`);
   };
+  const openPropertyAction = (nextDrawer: DrawerState) => {
+    setPreviewOpen(false);
+    setStatusMessage(null);
+    setDrawer(nextDrawer);
+  };
+  const previewProperty = (propertyId: string) => {
+    setSelectedPropertyId(propertyId);
+    setPreviewOpen(true);
+  };
+
+  useEffect(() => {
+    if (initialPropertyId) {
+      queueMicrotask(() => setPreviewOpen(true));
+    }
+  }, [initialPropertyId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -86,10 +104,9 @@ export function PropertyScreen({
           <>
             {reviewContext && selectedProperty ? (
               <Button
-                onClick={() => {
-                  setStatusMessage(null);
-                  setDrawer({ mode: "edit", property: selectedProperty });
-                }}
+                onClick={() =>
+                  openPropertyAction({ mode: "edit", property: selectedProperty })
+                }
               >
                 <Pencil size={15} />
                 Edit selected
@@ -97,6 +114,7 @@ export function PropertyScreen({
             ) : null}
             <Button
               onClick={() => {
+                setPreviewOpen(false);
                 setStatusMessage(null);
                 setDrawer({ mode: "create" });
               }}
@@ -141,48 +159,48 @@ export function PropertyScreen({
       ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="min-w-0 space-y-3">
-            <PropertiesTable
-              displayMode={displayMode}
-              onArchiveProperty={(property) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "archive", property });
-              }}
-              onEditProperty={(property) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "edit", property });
-              }}
-              onRestoreProperty={(property) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "restore", property });
-              }}
-              onOpenProperty={openPropertyRecord}
-              onSelectProperty={setSelectedPropertyId}
-              properties={properties}
-              selectedPropertyId={selectedProperty?.id ?? ""}
-            />
-            <PaginationControls pagination={pagination} />
-          </div>
-          <div className="hidden 2xl:block">
-            <PropertyInspector
-              onArchiveProperty={(property) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "archive", property });
-              }}
-              onEditProperty={(property) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "edit", property });
-              }}
-              onRestoreProperty={(property) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "restore", property });
-              }}
-              property={selectedProperty}
-            />
-          </div>
+        <div
+          className={isTableMode ? "min-w-0 space-y-0" : "min-w-0 space-y-3"}
+        >
+          <PropertiesTable
+            displayMode={displayMode}
+            onArchiveProperty={(property) =>
+              openPropertyAction({ mode: "archive", property })
+            }
+            onEditProperty={(property) =>
+              openPropertyAction({ mode: "edit", property })
+            }
+            onRestoreProperty={(property) =>
+              openPropertyAction({ mode: "restore", property })
+            }
+            onOpenProperty={openPropertyRecord}
+            onSelectProperty={previewProperty}
+            properties={properties}
+            selectedPropertyId={selectedProperty?.id ?? ""}
+          />
+          <PaginationControls attached={isTableMode} pagination={pagination} />
         </div>
       </div>
+
+      <RecordPreviewDrawer
+        description="Selected row details and linked property actions."
+        onClose={() => setPreviewOpen(false)}
+        open={previewOpen && Boolean(selectedProperty)}
+        title="Property preview"
+      >
+        <PropertyInspector
+          onArchiveProperty={(property) =>
+            openPropertyAction({ mode: "archive", property })
+          }
+          onEditProperty={(property) =>
+            openPropertyAction({ mode: "edit", property })
+          }
+          onRestoreProperty={(property) =>
+            openPropertyAction({ mode: "restore", property })
+          }
+          property={selectedProperty}
+        />
+      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer

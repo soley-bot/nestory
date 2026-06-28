@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
   ArchiveLeasePanel,
@@ -80,6 +81,7 @@ export function LeaseScreen({
   const [selectedLeaseId, setSelectedLeaseId] = useState(() =>
     getInitialRecordId(leases, initialLeaseId),
   );
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedLease = initialLeaseId
     ? leases.find((lease) => lease.id === initialLeaseId) ?? null
@@ -103,13 +105,25 @@ export function LeaseScreen({
   const openLeaseRecord = (leaseId: string) => {
     router.push(getLeaseRecordHref(leaseId), { scroll: false });
   };
+  const openLeaseAction = (nextDrawer: DrawerState) => {
+    setPreviewOpen(false);
+    setStatusMessage(null);
+    setDrawer(nextDrawer);
+  };
+  const previewLease = (leaseId: string) => {
+    setSelectedLeaseId(leaseId);
+    setPreviewOpen(true);
+  };
 
   useEffect(() => {
     if (!focusedLeaseId) {
       return;
     }
 
-    queueMicrotask(() => setSelectedLeaseId(focusedLeaseId));
+    queueMicrotask(() => {
+      setSelectedLeaseId(focusedLeaseId);
+      setPreviewOpen(true);
+    });
   }, [focusedLeaseId]);
 
   useEffect(() => {
@@ -135,10 +149,7 @@ export function LeaseScreen({
       <PageHeader
         actions={
           <Button
-            onClick={() => {
-              setStatusMessage(null);
-              setDrawer({ mode: "create" });
-            }}
+            onClick={() => openLeaseAction({ mode: "create" })}
             variant="primary"
           >
             <Plus size={15} />
@@ -175,50 +186,37 @@ export function LeaseScreen({
       ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="min-w-0 space-y-3">
-            <LeasesTable
-              archiveState={viewQuery.archiveState}
-              leases={leases}
-              onArchiveLease={(lease) => {
-                setStatusMessage(null);
-                setDrawer({ lease, mode: "archive" });
-              }}
-              onEditLease={(lease) => {
-                setStatusMessage(null);
-                setDrawer({ lease, mode: "edit" });
-              }}
-              onRestoreLease={(lease) => {
-                setStatusMessage(null);
-                setDrawer({ lease, mode: "restore" });
-              }}
-              getLeaseHref={getLeaseRecordHref}
-              onOpenLease={openLeaseRecord}
-              onSelectLease={setSelectedLeaseId}
-              selectedLeaseId={selectedLease?.id ?? ""}
-            />
-            <PaginationControls pagination={pagination} />
-          </div>
-          <div className="hidden 2xl:block">
-            <LeaseInspector
-              lease={selectedLease}
-              onArchiveLease={(lease) => {
-                setStatusMessage(null);
-                setDrawer({ lease, mode: "archive" });
-              }}
-              onEditLease={(lease) => {
-                setStatusMessage(null);
-                setDrawer({ lease, mode: "edit" });
-              }}
-              onRestoreLease={(lease) => {
-                setStatusMessage(null);
-                setDrawer({ lease, mode: "restore" });
-              }}
-              getLeaseHref={getLeaseRecordHref}
-            />
-          </div>
+        <div className="min-w-0 space-y-0">
+          <LeasesTable
+            archiveState={viewQuery.archiveState}
+            leases={leases}
+            getLeaseHref={getLeaseRecordHref}
+            onOpenLease={openLeaseRecord}
+            onSelectLease={previewLease}
+            selectedLeaseId={selectedLease?.id ?? ""}
+          />
+          <PaginationControls attached pagination={pagination} />
         </div>
       </div>
+
+      <RecordPreviewDrawer
+        description="Selected row term, tenant, risk, and linked actions."
+        onClose={() => setPreviewOpen(false)}
+        open={previewOpen && Boolean(selectedLease)}
+        title="Lease preview"
+      >
+        <LeaseInspector
+          lease={selectedLease}
+          onArchiveLease={(lease) =>
+            openLeaseAction({ lease, mode: "archive" })
+          }
+          onEditLease={(lease) => openLeaseAction({ lease, mode: "edit" })}
+          onRestoreLease={(lease) =>
+            openLeaseAction({ lease, mode: "restore" })
+          }
+          getLeaseHref={getLeaseRecordHref}
+        />
+      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer

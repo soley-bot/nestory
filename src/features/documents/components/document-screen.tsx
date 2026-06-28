@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
@@ -78,6 +79,7 @@ export function DocumentScreen({
   const [selectedDocumentId, setSelectedDocumentId] = useState(
     initialDocumentId ?? documents[0]?.id ?? "",
   );
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedDocument =
     documents.find((document) => document.id === selectedDocumentId) ??
@@ -86,7 +88,10 @@ export function DocumentScreen({
 
   useEffect(() => {
     if (initialDocumentId) {
-      queueMicrotask(() => setSelectedDocumentId(initialDocumentId));
+      queueMicrotask(() => {
+        setSelectedDocumentId(initialDocumentId);
+        setPreviewOpen(true);
+      });
     }
   }, [initialDocumentId]);
 
@@ -103,6 +108,15 @@ export function DocumentScreen({
       scroll: false,
     });
   }, [createInitialValues, pathname, router, searchParams]);
+  const openDocumentAction = (nextDrawer: DrawerState) => {
+    setPreviewOpen(false);
+    setStatusMessage(null);
+    setDrawer(nextDrawer);
+  };
+  const previewDocument = (documentId: string) => {
+    setSelectedDocumentId(documentId);
+    setPreviewOpen(true);
+  };
 
   return (
     <div className="min-h-screen">
@@ -111,7 +125,10 @@ export function DocumentScreen({
           <Button
             onClick={() => {
               setStatusMessage(null);
-              setDrawer({ initialValues: createInitialValues, mode: "create" });
+              openDocumentAction({
+                initialValues: createInitialValues,
+                mode: "create",
+              });
             }}
             variant="primary"
           >
@@ -141,28 +158,33 @@ export function DocumentScreen({
       />
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="min-w-0 space-y-3">
-            <DocumentTable
-              documents={documents}
-              onArchive={(document) => setDrawer({ document, mode: "archive" })}
-              onEdit={(document) => setDrawer({ document, mode: "edit" })}
-              onRestore={(document) => setDrawer({ document, mode: "restore" })}
-              onSelect={setSelectedDocumentId}
-              selectedDocumentId={selectedDocument?.id ?? ""}
-            />
-            <PaginationControls pagination={pagination} />
-          </div>
-          <div className="hidden 2xl:block">
-            <DocumentInspector
-              document={selectedDocument}
-              onArchive={(document) => setDrawer({ document, mode: "archive" })}
-              onEdit={(document) => setDrawer({ document, mode: "edit" })}
-              onRestore={(document) => setDrawer({ document, mode: "restore" })}
-            />
-          </div>
+        <div className="min-w-0 space-y-0">
+          <DocumentTable
+            documents={documents}
+            onSelect={previewDocument}
+            selectedDocumentId={selectedDocument?.id ?? ""}
+          />
+          <PaginationControls attached pagination={pagination} />
         </div>
       </div>
+
+      <RecordPreviewDrawer
+        description="Selected document links, evidence state, and actions."
+        onClose={() => setPreviewOpen(false)}
+        open={previewOpen && Boolean(selectedDocument)}
+        title="Document preview"
+      >
+        <DocumentInspector
+          document={selectedDocument}
+          onArchive={(document) =>
+            openDocumentAction({ document, mode: "archive" })
+          }
+          onEdit={(document) => openDocumentAction({ document, mode: "edit" })}
+          onRestore={(document) =>
+            openDocumentAction({ document, mode: "restore" })
+          }
+        />
+      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer
@@ -282,29 +304,22 @@ function DocumentFilters({
 
 function DocumentTable({
   documents,
-  onArchive,
-  onEdit,
-  onRestore,
   onSelect,
   selectedDocumentId,
 }: {
   documents: DocumentSummary[];
-  onArchive: (document: DocumentSummary) => void;
-  onEdit: (document: DocumentSummary) => void;
-  onRestore: (document: DocumentSummary) => void;
   onSelect: (id: string) => void;
   selectedDocumentId: string;
 }) {
   return (
     <div className="overflow-hidden rounded-md border border-border bg-surface">
       <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[820px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
-            <col className="w-[34%]" />
-            <col className="w-[18%]" />
-            <col className="w-[25%]" />
-            <col className="w-[13%]" />
-            <col className="w-[10%]" />
+            <col className="w-[40%]" />
+            <col className="w-[16%]" />
+            <col className="w-[32%]" />
+            <col className="w-[12%]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
@@ -312,13 +327,12 @@ function DocumentTable({
               <th className="px-1.5 py-2.5 font-semibold">Category</th>
               <th className="px-1.5 py-2.5 font-semibold">Linked records</th>
               <th className="px-1.5 py-2.5 font-semibold">Uploaded</th>
-              <th className="px-1.5 py-2.5 text-center font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody>
             {documents.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-muted" colSpan={5}>
+                <td className="px-4 py-8 text-center text-muted" colSpan={4}>
                   No documents found.
                 </td>
               </tr>
@@ -352,40 +366,6 @@ function DocumentTable({
                   </p>
                 </td>
                 <td className="px-1.5 py-2">{formatDate(document.uploadedAt)}</td>
-                <td className="px-1.5 py-2">
-                  <div className="flex justify-center gap-1">
-                    <button
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-surface-muted hover:text-foreground"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (document.isArchived) {
-                          onRestore(document);
-                        } else {
-                          onEdit(document);
-                        }
-                      }}
-                      type="button"
-                    >
-                      {document.isArchived ? (
-                        <RotateCcw size={14} />
-                      ) : (
-                        <Pencil size={14} />
-                      )}
-                    </button>
-                    {!document.isArchived ? (
-                      <button
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-surface-muted hover:text-danger"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onArchive(document);
-                        }}
-                        type="button"
-                      >
-                        <Archive size={14} />
-                      </button>
-                    ) : null}
-                  </div>
-                </td>
               </tr>
             ))}
           </tbody>
@@ -408,7 +388,7 @@ function DocumentInspector({
 }) {
   if (!document) {
     return (
-      <aside className="rounded-md border border-border bg-surface p-4">
+      <aside className="bg-surface p-4">
         <h2 className="text-base font-semibold">No document selected</h2>
         <p className="mt-2 text-sm leading-6 text-muted">
           Select a document to inspect links, evidence state, and activity.
@@ -418,7 +398,7 @@ function DocumentInspector({
   }
 
   return (
-    <aside className="rounded-md border border-border bg-surface 2xl:sticky 2xl:top-5 2xl:max-h-[calc(100vh-170px)] 2xl:overflow-auto">
+    <aside className="bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

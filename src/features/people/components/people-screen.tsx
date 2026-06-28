@@ -6,6 +6,7 @@ import { Pencil, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
   ArchivePersonPanel,
@@ -50,9 +51,11 @@ export function PeopleScreen({
     searchParams.get("action") === "create" ? { mode: "create" } : null,
   );
   const [displayMode, setDisplayMode] = useState<PeopleDisplayMode>("table");
+  const isTableMode = displayMode === "table";
   const [selectedPersonId, setSelectedPersonId] = useState(() =>
     getInitialRecordId(people, initialPersonId),
   );
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedPerson = initialPersonId
     ? people.find((person) => person.id === initialPersonId) ?? null
@@ -72,13 +75,25 @@ export function PeopleScreen({
   const openPersonRecord = (personId: string) => {
     router.push(getPersonRecordHref(personId), { scroll: false });
   };
+  const openPeopleAction = (nextDrawer: DrawerState) => {
+    setPreviewOpen(false);
+    setStatusMessage(null);
+    setDrawer(nextDrawer);
+  };
+  const previewPerson = (personId: string) => {
+    setSelectedPersonId(personId);
+    setPreviewOpen(true);
+  };
 
   useEffect(() => {
     if (!focusedPersonId) {
       return;
     }
 
-    queueMicrotask(() => setSelectedPersonId(focusedPersonId));
+    queueMicrotask(() => {
+      setSelectedPersonId(focusedPersonId);
+      setPreviewOpen(true);
+    });
   }, [focusedPersonId]);
 
   useEffect(() => {
@@ -102,20 +117,16 @@ export function PeopleScreen({
           <>
             {reviewContext && selectedPerson ? (
               <Button
-                onClick={() => {
-                  setStatusMessage(null);
-                  setDrawer({ mode: "edit", person: selectedPerson });
-                }}
+                onClick={() =>
+                  openPeopleAction({ mode: "edit", person: selectedPerson })
+                }
               >
                 <Pencil size={15} />
                 Edit selected
               </Button>
             ) : null}
             <Button
-              onClick={() => {
-                setStatusMessage(null);
-                setDrawer({ mode: "create" });
-              }}
+              onClick={() => openPeopleAction({ mode: "create" })}
               variant="primary"
             >
               <Plus size={15} />
@@ -153,52 +164,41 @@ export function PeopleScreen({
       ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="min-w-0 space-y-3">
-            <PeopleTable
-              archiveState={viewQuery.archiveState}
-              displayMode={displayMode}
-              onArchivePerson={(person) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "archive", person });
-              }}
-              onEditPerson={(person) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "edit", person });
-              }}
-              onRestorePerson={(person) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "restore", person });
-              }}
-              getPersonHref={getPersonRecordHref}
-              onOpenPerson={openPersonRecord}
-              onSelectPerson={setSelectedPersonId}
-              people={people}
-              schemaNotice={schemaNotice}
-              selectedPersonId={selectedPerson?.id ?? ""}
-            />
-            <PaginationControls pagination={pagination} />
-          </div>
-          <div className="hidden 2xl:block">
-            <PeopleInspector
-              onArchivePerson={(person) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "archive", person });
-              }}
-              onEditPerson={(person) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "edit", person });
-              }}
-              onRestorePerson={(person) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "restore", person });
-              }}
-              getPersonHref={getPersonRecordHref}
-              person={selectedPerson}
-            />
-          </div>
+        <div
+          className={isTableMode ? "min-w-0 space-y-0" : "min-w-0 space-y-3"}
+        >
+          <PeopleTable
+            archiveState={viewQuery.archiveState}
+            displayMode={displayMode}
+            getPersonHref={getPersonRecordHref}
+            onOpenPerson={openPersonRecord}
+            onSelectPerson={previewPerson}
+            people={people}
+            schemaNotice={schemaNotice}
+            selectedPersonId={selectedPerson?.id ?? ""}
+          />
+          <PaginationControls attached={isTableMode} pagination={pagination} />
         </div>
       </div>
+
+      <RecordPreviewDrawer
+        description="Selected row roles, contact context, links, and actions."
+        onClose={() => setPreviewOpen(false)}
+        open={previewOpen && Boolean(selectedPerson)}
+        title="Person preview"
+      >
+        <PeopleInspector
+          onArchivePerson={(person) =>
+            openPeopleAction({ mode: "archive", person })
+          }
+          onEditPerson={(person) => openPeopleAction({ mode: "edit", person })}
+          onRestorePerson={(person) =>
+            openPeopleAction({ mode: "restore", person })
+          }
+          getPersonHref={getPersonRecordHref}
+          person={selectedPerson}
+        />
+      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer

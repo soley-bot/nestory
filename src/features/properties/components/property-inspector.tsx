@@ -31,7 +31,7 @@ export function PropertyInspector({
 }: PropertyInspectorProps) {
   if (!property) {
     return (
-      <aside className="rounded-md border border-border bg-surface p-5 2xl:sticky 2xl:top-5">
+      <aside className="bg-surface p-4">
         <div className="flex items-center gap-2">
           <Building2 className="text-muted" size={16} />
           <h2 className="text-base font-semibold">Property inspector</h2>
@@ -45,7 +45,7 @@ export function PropertyInspector({
   }
 
   return (
-    <aside className="rounded-md border border-border bg-surface 2xl:sticky 2xl:top-5 2xl:max-h-[calc(100vh-170px)] 2xl:overflow-auto">
+    <aside className="bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

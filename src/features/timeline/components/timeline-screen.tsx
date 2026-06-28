@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Archive, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { Button } from "@/components/ui/button";
+import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
@@ -28,7 +29,6 @@ import type {
   TimelineUnitOption,
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
-import type { CurrencyDisplaySettings } from "@/lib/money/format";
 
 const archiveInitialState: TimelineActionState = {};
 const documentInitialState: TimelineActionState = {};
@@ -47,7 +47,6 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange };
 
 type TimelineScreenProps = {
-  currencySettings: CurrencyDisplaySettings;
   eventTypes: TimelineEventType[];
   events: TimelineEvent[];
   initialEventId?: string;
@@ -59,7 +58,6 @@ type TimelineScreenProps = {
 };
 
 export function TimelineScreen({
-  currencySettings,
   eventTypes,
   events,
   initialEventId,
@@ -82,6 +80,7 @@ export function TimelineScreen({
       : null,
   );
   const [selectedEventId, setSelectedEventId] = useState(initialEventId ?? "");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const focusedEvent = initialEventId
@@ -97,13 +96,25 @@ export function TimelineScreen({
     hasFocusedEvent: Boolean(focusedEvent),
     hasFocusedEventIntent: Boolean(initialEventId),
   });
+  const openTimelineAction = (nextDrawer: DrawerState) => {
+    setPreviewOpen(false);
+    setStatusMessage(null);
+    setDrawer(nextDrawer);
+  };
+  const previewEvent = (eventId: string) => {
+    setSelectedEventId(eventId);
+    setPreviewOpen(true);
+  };
 
   useEffect(() => {
     if (!focusedEventId) {
       return;
     }
 
-    queueMicrotask(() => setSelectedEventId(focusedEventId));
+    queueMicrotask(() => {
+      setSelectedEventId(focusedEventId);
+      setPreviewOpen(true);
+    });
   }, [focusedEventId]);
 
   useEffect(() => {
@@ -128,19 +139,17 @@ export function TimelineScreen({
             <RecentChangesPopover
               changes={recentChanges}
               onSelectChange={(change) => {
-                setStatusMessage(null);
-                setDrawer({ change, mode: "activity" });
+                openTimelineAction({ change, mode: "activity" });
               }}
             />
             <Button
-              onClick={() => {
-                setStatusMessage(null);
-                setDrawer({
+              onClick={() =>
+                openTimelineAction({
                   event: null,
                   initialValues: createInitialValues,
                   mode: "create",
-                });
-              }}
+                })
+              }
               variant="primary"
             >
               <Plus size={15} />
@@ -177,41 +186,33 @@ export function TimelineScreen({
       ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="min-w-0 space-y-3">
-            <TimelineTable
-              currencySettings={currencySettings}
-              events={events}
-              onSelectEvent={setSelectedEventId}
-              pagination={pagination}
-              selectedEventId={selectedEvent?.id ?? ""}
-            />
-            <PaginationControls pagination={pagination} />
-          </div>
-          <div className="hidden 2xl:block">
-            <TimelineInspector
-              currencySettings={currencySettings}
-              event={selectedEvent}
-              onAttachDocument={(event) => {
-                setStatusMessage(null);
-                setDrawer({ event, mode: "document" });
-              }}
-              onArchive={(event) => {
-                setStatusMessage(null);
-                setDrawer({ event, mode: "archive" });
-              }}
-              onEdit={(event) => {
-                setStatusMessage(null);
-                setDrawer({ event, mode: "edit" });
-              }}
-              onRestore={(event) => {
-                setStatusMessage(null);
-                setDrawer({ event, mode: "restore" });
-              }}
-            />
-          </div>
+        <div className="min-w-0 space-y-0">
+          <TimelineTable
+            events={events}
+            onSelectEvent={previewEvent}
+            pagination={pagination}
+            selectedEventId={selectedEvent?.id ?? ""}
+          />
+          <PaginationControls attached pagination={pagination} />
         </div>
       </div>
+
+      <RecordPreviewDrawer
+        description="Selected timeline record detail, links, documents, and actions."
+        onClose={() => setPreviewOpen(false)}
+        open={previewOpen && Boolean(selectedEvent)}
+        title="Timeline preview"
+      >
+        <TimelineInspector
+          event={selectedEvent}
+          onAttachDocument={(event) =>
+            openTimelineAction({ event, mode: "document" })
+          }
+          onArchive={(event) => openTimelineAction({ event, mode: "archive" })}
+          onEdit={(event) => openTimelineAction({ event, mode: "edit" })}
+          onRestore={(event) => openTimelineAction({ event, mode: "restore" })}
+        />
+      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer

@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/layout/page-header";
 
-const rowWidths = ["w-40", "w-28", "w-48", "w-36", "w-20", "w-16"];
+const rowWidths = ["w-40", "w-24", "w-48", "w-48", "w-16"];
 
 export function PeopleScreenSkeleton() {
   return (
@@ -27,10 +27,10 @@ export function PeopleScreenSkeleton() {
         </div>
       </div>
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid grid-cols-1 gap-5">
           <div className="min-w-0 space-y-3">
             <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-              <div className="grid grid-cols-[22%_16%_23%_20%_9%_10%] bg-surface-muted px-2.5 py-2.5">
+              <div className="grid grid-cols-[24%_16%_25%_26%_9%] bg-surface-muted px-2.5 py-2.5">
                 {rowWidths.map((width, index) => (
                   <div
                     className={`h-3 rounded bg-foreground/10 ${width}`}
@@ -41,7 +41,7 @@ export function PeopleScreenSkeleton() {
               <div>
                 {Array.from({ length: 8 }).map((_, rowIndex) => (
                   <div
-                    className="grid min-h-[54px] grid-cols-[22%_16%_23%_20%_9%_10%] items-center border-t border-border px-2.5"
+                    className="grid min-h-[54px] grid-cols-[24%_16%_25%_26%_9%] items-center border-t border-border px-2.5"
                     key={rowIndex}
                   >
                     {rowWidths.map((width, columnIndex) => (
@@ -73,19 +73,6 @@ export function PeopleScreenSkeleton() {
             <div className="flex items-center justify-between border-t border-border bg-surface px-3 py-3">
               <div className="h-3 w-36 rounded bg-foreground/10" />
               <div className="h-8 w-44 rounded-md border border-border bg-surface-muted" />
-            </div>
-          </div>
-          <div className="hidden 2xl:block">
-            <div className="rounded-md border border-border bg-surface p-4">
-              <div className="h-4 w-36 rounded bg-foreground/10" />
-              <div className="mt-4 space-y-3">
-                {Array.from({ length: 7 }).map((_, index) => (
-                  <div className="space-y-2" key={index}>
-                    <div className="h-3 w-24 rounded bg-foreground/10" />
-                    <div className="h-3 w-full rounded bg-foreground/10" />
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </div>

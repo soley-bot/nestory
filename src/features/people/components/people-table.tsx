@@ -1,12 +1,8 @@
 import Link from "next/link";
 import {
-  Archive,
   BriefcaseBusiness,
   Building2,
-  ExternalLink,
   Mail,
-  Pencil,
-  RotateCcw,
   UserRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +18,6 @@ import { cn } from "@/lib/utils";
 type PeopleTableProps = {
   archiveState: PeopleArchiveState;
   displayMode: PeopleDisplayMode;
-  onArchivePerson: (person: PeopleSummary) => void;
-  onEditPerson: (person: PeopleSummary) => void;
-  onRestorePerson: (person: PeopleSummary) => void;
   getPersonHref: (id: string) => string;
   onOpenPerson: (id: string) => void;
   onSelectPerson: (id: string) => void;
@@ -36,9 +29,6 @@ type PeopleTableProps = {
 export function PeopleTable({
   archiveState,
   displayMode,
-  onArchivePerson,
-  onEditPerson,
-  onRestorePerson,
   getPersonHref,
   onOpenPerson,
   onSelectPerson,
@@ -77,14 +67,13 @@ export function PeopleTable({
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
           <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-            <table className="w-full min-w-[820px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[22%]" />
+                <col className="w-[24%]" />
                 <col className="w-[16%]" />
-                <col className="w-[23%]" />
-                <col className="w-[20%]" />
+                <col className="w-[25%]" />
+                <col className="w-[26%]" />
                 <col className="w-[9%]" />
-                <col className="w-[10%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -97,15 +86,12 @@ export function PeopleTable({
                   <th className="px-1.5 py-2.5 text-center font-semibold">
                     Status
                   </th>
-                  <th className="px-1.5 py-2.5 text-center font-semibold">
-                    Actions
-                  </th>
                 </tr>
               </thead>
               <tbody>
                 {people.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={6}>
+                    <td className="px-4 py-8 text-center text-muted" colSpan={5}>
                       {emptyMessage}
                     </td>
                   </tr>
@@ -156,15 +142,6 @@ export function PeopleTable({
                     </td>
                     <td className="px-1.5 py-2">
                       <StatusBadges compact person={person} />
-                    </td>
-                    <td className="px-1.5 py-2">
-                      <PeopleActions
-                        getPersonHref={getPersonHref}
-                        onArchivePerson={onArchivePerson}
-                        onEditPerson={onEditPerson}
-                        onRestorePerson={onRestorePerson}
-                        person={person}
-                      />
                     </td>
                   </tr>
                 ))}
@@ -329,100 +306,6 @@ function StatusBadges({
       <Badge className={compact ? "px-2 text-xs" : undefined} tone={person.statusTone}>
         {person.statusLabel}
       </Badge>
-    </div>
-  );
-}
-
-function PeopleActions({
-  className,
-  getPersonHref,
-  onArchivePerson,
-  onEditPerson,
-  onRestorePerson,
-  person,
-}: {
-  className?: string;
-  getPersonHref: (id: string) => string;
-  onArchivePerson: (person: PeopleSummary) => void;
-  onEditPerson: (person: PeopleSummary) => void;
-  onRestorePerson: (person: PeopleSummary) => void;
-  person: PeopleSummary;
-}) {
-  const baseClassName = cn("flex justify-center gap-0.5", className);
-  const buttonClassName =
-    "inline-flex h-[26px] w-[26px] items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50";
-
-  if (person.isArchived) {
-    return (
-      <div
-        className={baseClassName}
-        onDoubleClick={(event) => event.stopPropagation()}
-      >
-        <Link
-          aria-label={`Open ${person.displayName}`}
-          className={`${buttonClassName} hover:text-foreground`}
-          href={getPersonHref(person.id)}
-          onClick={(event) => event.stopPropagation()}
-          prefetch={false}
-          title="Open person"
-        >
-          <ExternalLink size={14} />
-        </Link>
-        <button
-          aria-label={`Restore ${person.displayName}`}
-          className={`${buttonClassName} hover:text-accent`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onRestorePerson(person);
-          }}
-          title="Restore person"
-          type="button"
-        >
-          <RotateCcw size={14} />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={baseClassName}
-      onDoubleClick={(event) => event.stopPropagation()}
-    >
-      <Link
-        aria-label={`Open ${person.displayName}`}
-        className={`${buttonClassName} hover:text-foreground`}
-        href={getPersonHref(person.id)}
-        onClick={(event) => event.stopPropagation()}
-        prefetch={false}
-        title="Open person"
-      >
-        <ExternalLink size={14} />
-      </Link>
-      <button
-        aria-label={`Edit ${person.displayName}`}
-        className={`${buttonClassName} hover:text-foreground`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onEditPerson(person);
-        }}
-        title="Edit person"
-        type="button"
-      >
-        <Pencil size={14} />
-      </button>
-      <button
-        aria-label={`Archive ${person.displayName}`}
-        className={`${buttonClassName} hover:text-danger`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onArchivePerson(person);
-        }}
-        title="Archive person"
-        type="button"
-      >
-        <Archive size={14} />
-      </button>
     </div>
   );
 }

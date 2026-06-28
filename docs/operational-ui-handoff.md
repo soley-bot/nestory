@@ -28,9 +28,9 @@ For dated current implementation and environment notes, see
 
 ## List Page Pattern
 
-- Use a compact header, compact filter bar, table or card selector when both modes are useful, and a docked inspector on wide desktop.
+- Use a compact header, compact filter bar, table or card selector when both modes are useful, and row-click preview drawers instead of permanently docked inspectors.
 - Treat tables and cards as selection surfaces. They should not repeat every detail from the inspector.
-- Keep the docked inspector responsible for richer context: latest record, ledger net, linked actions, and secondary operational detail.
+- Keep the preview drawer responsible for richer context: latest record, ledger net, linked actions, and secondary operational detail.
 - Use icon-first controls for familiar actions, with accessible labels and titles.
 - Keep filters around 32px high, with `Filters` wording, icon-only search/reset where practical, and advanced filters collapsed unless active.
 - Use URL-backed filters and pagination for large operational lists.
@@ -40,9 +40,10 @@ For dated current implementation and environment notes, see
 - Table body should be about 13px and table headers about 11px with zero letter spacing.
 - Rows should be dense but readable; the current Properties and Units target is roughly 55px row height.
 - Column widths should follow scan value, not equal width. Short fields such as status, unit count, floor, and actions should stay compact.
-- Money cells should be prominent, tabular, right-aligned, and symbol-first. Keep secondary currency muted.
+- Money cells should be prominent, tabular, right-aligned, and symbol-first.
 - Action columns should be compact, icon-only, and stable so row actions do not crowd numeric values.
 - Avoid page-level horizontal overflow. Dense tables may scroll inside their own table container only when truly necessary.
+- Single-clicking a row should open the preview drawer. Linked record names keep opening the full record or focused record URL.
 
 ## Card Rules
 
@@ -53,21 +54,22 @@ For dated current implementation and environment notes, see
 - Keep card information intentionally lighter than the inspector. Cards help the user pick a record; the inspector explains it.
 - On mobile, use the card/list stack directly and hide desktop-only Table/Cards controls when the alternate mode is not actually available.
 
-## Inspector Rules
+## Preview Drawer Rules
 
-- Docked inspectors should stay around 300px to 320px on wide desktop unless content proves it needs more.
-- Keep inspector actions compact and icon-first.
-- Use the inspector to show information removed from list rows: latest timeline record, ledger net, relationship context, and linked navigation.
-- The inspector should complete the selected row, not duplicate the row.
+- Use a right-side preview drawer for row context instead of reserving permanent page width for an inspector.
+- Preview drawers should be about 520px on desktop and full-width on small screens.
+- Keep preview actions compact and icon-first.
+- Use the preview drawer to show information removed from list rows: latest timeline record, ledger net, relationship context, and linked navigation.
+- The preview should complete the selected row, not duplicate the row.
 
 ## Completed Reference Surfaces
 
-- Properties is the reference for compact filters, Table/Cards toggle, table density, money cells, icon-only actions, and docked inspector behavior.
+- Properties is the reference for compact filters, Table/Cards toggle, table density, money cells, icon-only actions, and row-click preview drawer behavior.
 - Units now follows the same pattern:
   - Table mode is a compact selector and no longer repeats latest-record or ledger details.
   - Card mode uses a text-free `4:3` photo slot and keeps readable text below the image.
   - Mobile uses cards directly and hides the desktop view toggle.
-  - The right inspector carries ledger net, latest record, and linked actions.
+  - The preview drawer carries ledger net, latest record, and linked actions.
 
 ## Next Application Order
 

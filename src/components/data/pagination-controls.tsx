@@ -16,17 +16,28 @@ type PaginationState = {
 };
 
 type PaginationControlsProps = {
+  attached?: boolean;
   pagination: PaginationState;
 };
 
-export function PaginationControls({ pagination }: PaginationControlsProps) {
+export function PaginationControls({
+  attached = false,
+  pagination,
+}: PaginationControlsProps) {
   const previousDisabled = pagination.page <= 1;
   const nextDisabled = pagination.page >= pagination.totalPages;
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   return (
-    <div className="flex flex-col gap-3 border-t border-border bg-surface px-3 py-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
+    <div
+      className={cn(
+        "flex flex-col gap-3 bg-surface px-3 py-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between",
+        attached
+          ? "-mt-px rounded-b-md border border-t-0 border-border"
+          : "border-t border-border",
+      )}
+    >
       <p>
         Showing{" "}
         <span className="font-medium text-foreground">

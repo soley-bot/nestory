@@ -29,7 +29,7 @@ export function UnitInspector({
 }: UnitInspectorProps) {
   if (!unit) {
     return (
-      <aside className="rounded-md border border-border bg-surface p-4 2xl:sticky 2xl:top-5">
+      <aside className="bg-surface p-4">
         <div className="flex items-center gap-2">
           <Building2 className="text-muted" size={16} />
           <h2 className="text-base font-semibold">Unit inspector</h2>
@@ -48,7 +48,7 @@ export function UnitInspector({
     "inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface text-foreground transition-colors hover:bg-surface-muted";
 
   return (
-    <aside className="rounded-md border border-border bg-surface 2xl:sticky 2xl:top-5 2xl:max-h-[calc(100vh-170px)] 2xl:overflow-auto">
+    <aside className="bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

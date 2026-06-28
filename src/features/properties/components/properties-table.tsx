@@ -1,17 +1,9 @@
 import Link from "next/link";
-import {
-  Archive,
-  ExternalLink,
-  Pencil,
-  RotateCcw,
-} from "lucide-react";
+import { Archive, Pencil, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type { PropertyDisplayMode } from "@/features/properties/property.types";
-import type {
-  CurrencyCode,
-  MoneyDisplayValue,
-} from "@/lib/money/format";
+import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 type PropertiesTableProps = {
@@ -66,21 +58,20 @@ export function PropertiesTable({
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-muted px-3 py-2 text-xs text-muted">
-            <span>Single-click a row to preview it in the inspector.</span>
+            <span>Single-click a row to open the preview drawer.</span>
             <span className="font-medium text-foreground">
-              Use Open to view the full record.
+              Linked names open full records.
             </span>
           </div>
           <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-            <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[18%]" />
+                <col className="w-[24%]" />
                 <col className="w-[8%]" />
-                <col className="w-[12%]" />
-                <col className="w-[16%]" />
+                <col className="w-[21%]" />
+                <col className="w-[30%]" />
                 <col className="w-[6%]" />
-                <col className="w-[25%]" />
-                <col className="w-[15%]" />
+                <col className="w-[11%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -94,15 +85,12 @@ export function PropertiesTable({
                     Units
                   </th>
                   <th className="px-2 py-2.5 text-right font-semibold">Net</th>
-                  <th className="px-1.5 py-2.5 text-center font-semibold">
-                    Actions
-                  </th>
                 </tr>
               </thead>
               <tbody>
                 {properties.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={7}>
+                    <td className="px-4 py-8 text-center text-muted" colSpan={6}>
                       No properties match the current filters.
                     </td>
                   </tr>
@@ -166,14 +154,6 @@ export function PropertiesTable({
                     </td>
                     <td className="px-2 py-2">
                       <TableMoneyDisplay value={property.netIncome} />
-                    </td>
-                    <td className="px-1.5 py-2">
-                      <PropertyActions
-                        onArchiveProperty={onArchiveProperty}
-                        onEditProperty={onEditProperty}
-                        onRestoreProperty={onRestoreProperty}
-                        property={property}
-                      />
                     </td>
                   </tr>
                 ))}
@@ -251,7 +231,7 @@ function PropertyCard({
         <span className="text-foreground-muted">
           {property.occupiedUnits}/{property.units} units
         </span>
-        <TableMoneyDisplay showSecondary={false} value={property.netIncome} />
+        <TableMoneyDisplay value={property.netIncome} />
       </div>
 
       <div className="mt-3 flex justify-end border-t border-border pt-2">
@@ -319,27 +299,12 @@ function PropertyActions({
     "inline-flex items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50",
     size === "touch" ? "h-9 w-9" : "h-[28px] w-[28px]",
   );
-  const openButtonClassName = cn(
-    "inline-flex items-center justify-center gap-1 rounded-md border border-border bg-surface text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-accent hover:text-accent",
-    size === "touch" ? "h-9 px-2.5" : "h-[28px] px-2",
-  );
 
   return (
     <div
       className={wrapperClassName}
       onDoubleClick={(event) => event.stopPropagation()}
     >
-      <Link
-        aria-label={`Open ${property.name}`}
-        className={openButtonClassName}
-        href={`/properties/${property.id}`}
-        onClick={(event) => event.stopPropagation()}
-        prefetch={false}
-        title="Open property"
-      >
-        <ExternalLink size={13} />
-        Open
-      </Link>
       {property.isArchived ? (
         <button
           aria-label={`Restore ${property.name}`}
@@ -385,43 +350,26 @@ function PropertyActions({
   );
 }
 
-function TableMoneyDisplay({
-  showSecondary = true,
-  value,
-}: {
-  showSecondary?: boolean;
-  value: MoneyDisplayValue;
-}) {
-  const primary = formatMoneyWithSymbol(value.primary, value.primaryCurrency);
-  const secondary = formatMoneyWithSymbol(
-    value.secondary,
-    value.secondaryCurrency,
-  );
+function TableMoneyDisplay({ value }: { value: MoneyDisplayValue }) {
+  const primary = formatMoneyWithSymbol(value.primary);
 
   return (
     <span
       className="flex min-w-0 items-center justify-end gap-1.5 whitespace-nowrap text-right text-sm leading-5 tabular-nums"
-      title={showSecondary ? `${primary} / ${secondary}` : primary}
+      title={primary}
     >
       <span className="font-semibold text-foreground">{primary}</span>
-      {showSecondary ? (
-        <>
-          <span className="text-muted">/</span>
-          <span className="text-[13px] text-muted">{secondary}</span>
-        </>
-      ) : null}
     </span>
   );
 }
 
-function formatMoneyWithSymbol(label: string, currency: CurrencyCode) {
+function formatMoneyWithSymbol(label: string) {
   const isNegative = label.startsWith("-");
   const unsignedLabel = isNegative ? label.slice(1) : label;
-  const codePrefix = `${currency} `;
+  const codePrefix = "USD ";
   const amount = unsignedLabel.startsWith(codePrefix)
     ? unsignedLabel.slice(codePrefix.length)
     : unsignedLabel;
-  const symbol = currency === "USD" ? "$" : "\u17db";
 
-  return `${isNegative ? "-" : ""}${symbol}${amount}`;
+  return `${isNegative ? "-" : ""}$${amount}`;
 }

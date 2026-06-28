@@ -17,13 +17,9 @@ import { Button } from "@/components/ui/button";
 import { DocumentList } from "@/features/documents/components/document-list";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
 import { formatDate } from "@/lib/dates/format";
-import {
-  formatMoneyDisplay,
-  type CurrencyDisplaySettings,
-} from "@/lib/money/format";
+import { formatMoneyDisplay } from "@/lib/money/format";
 
 type LedgerInspectorProps = {
-  currencySettings: CurrencyDisplaySettings;
   entry: LedgerEntry | null;
   onArchiveEntry: (entry: LedgerEntry) => void;
   onAttachReceipt: (entry: LedgerEntry) => void;
@@ -32,7 +28,6 @@ type LedgerInspectorProps = {
 };
 
 export function LedgerInspector({
-  currencySettings,
   entry,
   onArchiveEntry,
   onAttachReceipt,
@@ -41,7 +36,7 @@ export function LedgerInspector({
 }: LedgerInspectorProps) {
   if (!entry) {
     return (
-      <aside className="rounded-md border border-border bg-surface p-5">
+      <aside className="bg-surface p-4">
         <h2 className="text-base font-semibold tracking-tight">
           No ledger entry selected
         </h2>
@@ -56,7 +51,7 @@ export function LedgerInspector({
   const isArchived = Boolean(entry.archivedAt);
 
   return (
-    <aside className="rounded-md border border-border bg-surface">
+    <aside className="bg-surface">
       <div className="border-b border-border p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <DirectionBadge direction={entry.direction} />
@@ -82,7 +77,6 @@ export function LedgerInspector({
             value={formatMoneyDisplay(
               entry.direction === "expense" ? -entry.amount : entry.amount,
               entry.currency,
-              currencySettings,
             )}
             size="large"
           />

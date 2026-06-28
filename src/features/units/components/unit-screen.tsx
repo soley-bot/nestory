@@ -7,6 +7,7 @@ import { FileText, Plus, ScrollText } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
   ArchiveUnitPanel,
@@ -74,9 +75,11 @@ export function UnitScreen({
       : null,
   );
   const [displayMode, setDisplayMode] = useState<UnitDisplayMode>("table");
+  const isTableMode = displayMode === "table";
   const [selectedUnitId, setSelectedUnitId] = useState(() =>
     getInitialRecordId(units, initialUnitId),
   );
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedUnit =
     units.find((unit) => unit.id === selectedUnitId) ?? units[0] ?? null;
@@ -88,6 +91,21 @@ export function UnitScreen({
   const openUnitRecord = (unitId: string) => {
     router.push(`/units/${unitId}`);
   };
+  const openUnitAction = (nextDrawer: DrawerState) => {
+    setPreviewOpen(false);
+    setStatusMessage(null);
+    setDrawer(nextDrawer);
+  };
+  const previewUnit = (unitId: string) => {
+    setSelectedUnitId(unitId);
+    setPreviewOpen(true);
+  };
+
+  useEffect(() => {
+    if (initialUnitId) {
+      queueMicrotask(() => setPreviewOpen(true));
+    }
+  }, [initialUnitId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -128,8 +146,7 @@ export function UnitScreen({
             ) : null}
             <Button
               onClick={() => {
-                setStatusMessage(null);
-                setDrawer({ initialValues: createInitialValues, mode: "create" });
+                openUnitAction({ initialValues: createInitialValues, mode: "create" });
               }}
               variant="primary"
             >
@@ -173,49 +190,37 @@ export function UnitScreen({
       ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="min-w-0 space-y-3">
-            <UnitsTable
-              archiveState={viewQuery.archiveState}
-              displayMode={displayMode}
-              onArchiveUnit={(unit) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "archive", unit });
-              }}
-              onEditUnit={(unit) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "edit", unit });
-              }}
-              onRestoreUnit={(unit) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "restore", unit });
-              }}
-              onOpenUnit={openUnitRecord}
-              onSelectUnit={setSelectedUnitId}
-              selectedUnitId={selectedUnit?.id ?? ""}
-              units={units}
-            />
-            <PaginationControls pagination={pagination} />
-          </div>
-          <div className="hidden 2xl:block">
-            <UnitInspector
-              onArchiveUnit={(unit) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "archive", unit });
-              }}
-              onEditUnit={(unit) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "edit", unit });
-              }}
-              onRestoreUnit={(unit) => {
-                setStatusMessage(null);
-                setDrawer({ mode: "restore", unit });
-              }}
-              unit={selectedUnit}
-            />
-          </div>
+        <div
+          className={isTableMode ? "min-w-0 space-y-0" : "min-w-0 space-y-3"}
+        >
+          <UnitsTable
+            archiveState={viewQuery.archiveState}
+            displayMode={displayMode}
+            onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
+            onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
+            onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
+            onOpenUnit={openUnitRecord}
+            onSelectUnit={previewUnit}
+            selectedUnitId={selectedUnit?.id ?? ""}
+            units={units}
+          />
+          <PaginationControls attached={isTableMode} pagination={pagination} />
         </div>
       </div>
+
+      <RecordPreviewDrawer
+        description="Selected row details, lease context, and linked actions."
+        onClose={() => setPreviewOpen(false)}
+        open={previewOpen && Boolean(selectedUnit)}
+        title="Unit preview"
+      >
+        <UnitInspector
+          onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
+          onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
+          onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
+          unit={selectedUnit}
+        />
+      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer

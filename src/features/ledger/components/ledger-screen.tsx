@@ -6,6 +6,7 @@ import { Archive, Lock, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
+import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
@@ -32,7 +33,6 @@ import type {
   LedgerViewQuery,
 } from "@/features/ledger/ledger.types";
 import { formatDate } from "@/lib/dates/format";
-import type { CurrencyDisplaySettings } from "@/lib/money/format";
 
 const archiveInitialState: LedgerActionState = {};
 const receiptInitialState: LedgerActionState = {};
@@ -53,7 +53,6 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange };
 
 type LedgerScreenProps = {
-  currencySettings: CurrencyDisplaySettings;
   entries: LedgerEntry[];
   initialEntryId?: string;
   pagination: LedgerPaginationMeta;
@@ -65,7 +64,6 @@ type LedgerScreenProps = {
 };
 
 export function LedgerScreen({
-  currencySettings,
   entries,
   initialEntryId,
   pagination,
@@ -90,6 +88,7 @@ export function LedgerScreen({
   const [selectedEntryId, setSelectedEntryId] = useState(
     initialEntryId ?? entries[0]?.id ?? "",
   );
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const focusedEntry = initialEntryId
@@ -109,13 +108,25 @@ export function LedgerScreen({
     propertyOptions,
     viewQuery.propertyId,
   );
+  const openLedgerAction = (nextDrawer: DrawerState) => {
+    setPreviewOpen(false);
+    setStatusMessage(null);
+    setDrawerState(nextDrawer);
+  };
+  const previewEntry = (entryId: string) => {
+    setSelectedEntryId(entryId);
+    setPreviewOpen(true);
+  };
 
   useEffect(() => {
     if (!focusedEntryId) {
       return;
     }
 
-    queueMicrotask(() => setSelectedEntryId(focusedEntryId));
+    queueMicrotask(() => {
+      setSelectedEntryId(focusedEntryId);
+      setPreviewOpen(true);
+    });
   }, [focusedEntryId]);
 
   useEffect(() => {
@@ -140,24 +151,22 @@ export function LedgerScreen({
             <RecentChangesPopover
               changes={recentChanges}
               onSelectChange={(change) => {
-                setStatusMessage(null);
-                setDrawerState({ change, mode: "activity" });
+                openLedgerAction({ change, mode: "activity" });
               }}
             />
             <Button
-              onClick={() => {
-                setStatusMessage(null);
-                setDrawerState({ mode: "period-lock" });
-              }}
+              onClick={() => openLedgerAction({ mode: "period-lock" })}
             >
               <Lock size={15} />
               Period lock
             </Button>
             <Button
-              onClick={() => {
-                setStatusMessage(null);
-                setDrawerState({ initialValues: createInitialValues, mode: "add" });
-              }}
+              onClick={() =>
+                openLedgerAction({
+                  initialValues: createInitialValues,
+                  mode: "add",
+                })
+              }
               variant="primary"
             >
               <Plus size={15} />
@@ -195,52 +204,30 @@ export function LedgerScreen({
       ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-3">
-            <LedgerTable
-              currencySettings={currencySettings}
-              entries={entries}
-              onArchiveEntry={(entry) => {
-                setStatusMessage(null);
-                setDrawerState({ entry, mode: "archive" });
-              }}
-              onEditEntry={(entry) => {
-                setStatusMessage(null);
-                setDrawerState({ entry, mode: "edit" });
-              }}
-              onRestoreEntry={(entry) => {
-                setStatusMessage(null);
-                setDrawerState({ entry, mode: "restore" });
-              }}
-              onSelectEntry={setSelectedEntryId}
-              selectedEntryId={selectedEntry?.id ?? ""}
-            />
-            <PaginationControls pagination={pagination} />
-          </div>
-          <div className="hidden 2xl:block">
-            <LedgerInspector
-              currencySettings={currencySettings}
-              entry={selectedEntry}
-              onArchiveEntry={(entry) => {
-                setStatusMessage(null);
-                setDrawerState({ entry, mode: "archive" });
-              }}
-              onAttachReceipt={(entry) => {
-                setStatusMessage(null);
-                setDrawerState({ entry, mode: "receipt" });
-              }}
-              onEditEntry={(entry) => {
-                setStatusMessage(null);
-                setDrawerState({ entry, mode: "edit" });
-              }}
-              onRestoreEntry={(entry) => {
-                setStatusMessage(null);
-                setDrawerState({ entry, mode: "restore" });
-              }}
-            />
-          </div>
+        <div className="min-w-0 space-y-0">
+          <LedgerTable
+            entries={entries}
+            onSelectEntry={previewEntry}
+            selectedEntryId={selectedEntry?.id ?? ""}
+          />
+          <PaginationControls attached pagination={pagination} />
         </div>
       </div>
+
+      <RecordPreviewDrawer
+        description="Selected transaction detail, risk, receipts, and actions."
+        onClose={() => setPreviewOpen(false)}
+        open={previewOpen && Boolean(selectedEntry)}
+        title="Ledger preview"
+      >
+        <LedgerInspector
+          entry={selectedEntry}
+          onArchiveEntry={(entry) => openLedgerAction({ entry, mode: "archive" })}
+          onAttachReceipt={(entry) => openLedgerAction({ entry, mode: "receipt" })}
+          onEditEntry={(entry) => openLedgerAction({ entry, mode: "edit" })}
+          onRestoreEntry={(entry) => openLedgerAction({ entry, mode: "restore" })}
+        />
+      </RecordPreviewDrawer>
 
       {drawerState ? (
         <SideDrawer
@@ -289,7 +276,6 @@ export function LedgerScreen({
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
               properties={propertyOptions}
-              defaultCurrency={currencySettings.preferredCurrency}
               units={unitOptions}
             />
           )}

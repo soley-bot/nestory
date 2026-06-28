@@ -1,15 +1,12 @@
 import Link from "next/link";
-import { Archive, ExternalLink, Pencil, RotateCcw } from "lucide-react";
+import { Archive, Pencil, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type {
   UnitArchiveState,
   UnitDisplayMode,
   UnitSummary,
 } from "@/features/units/unit.types";
-import type {
-  CurrencyCode,
-  MoneyDisplayValue,
-} from "@/lib/money/format";
+import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 type UnitsTableProps = {
@@ -66,15 +63,14 @@ export function UnitsTable({
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
           <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-            <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[20%]" />
-                <col className="w-[9%]" />
-                <col className="w-[7%]" />
-                <col className="w-[11%]" />
-                <col className="w-[23%]" />
-                <col className="w-[20%]" />
+                <col className="w-[24%]" />
                 <col className="w-[10%]" />
+                <col className="w-[7%]" />
+                <col className="w-[10%]" />
+                <col className="w-[13%]" />
+                <col className="w-[36%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -90,15 +86,12 @@ export function UnitsTable({
                   <th className="px-1.5 py-2.5 font-semibold">
                     Lease / Tenant
                   </th>
-                  <th className="px-1.5 py-2.5 text-center font-semibold">
-                    Actions
-                  </th>
                 </tr>
               </thead>
               <tbody>
                 {units.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={7}>
+                    <td className="px-4 py-8 text-center text-muted" colSpan={6}>
                       {getEmptyMessage(archiveState)}
                     </td>
                   </tr>
@@ -174,14 +167,6 @@ export function UnitsTable({
                       <p className="line-clamp-2 break-words leading-[18px]">
                         {unit.leaseLabel}
                       </p>
-                    </td>
-                    <td className="px-1.5 py-2">
-                      <UnitActions
-                        onArchiveUnit={onArchiveUnit}
-                        onEditUnit={onEditUnit}
-                        onRestoreUnit={onRestoreUnit}
-                        unit={unit}
-                      />
                     </td>
                   </tr>
                 ))}
@@ -268,7 +253,7 @@ function UnitCard({
         <div className="flex items-center justify-between gap-3">
           <span className="text-foreground-muted">Floor {unit.floorLabel}</span>
           {unit.rentDisplay ? (
-            <TableMoneyDisplay showSecondary={false} value={unit.rentDisplay} />
+            <TableMoneyDisplay value={unit.rentDisplay} />
           ) : (
             <span className="font-semibold">{unit.rentLabel}</span>
           )}
@@ -319,16 +304,6 @@ function UnitActions({
         className={baseClassName}
         onDoubleClick={(event) => event.stopPropagation()}
       >
-        <Link
-          aria-label={`Open unit ${unit.unitNumber}`}
-          className={cn(buttonClassName, "hover:text-foreground")}
-          href={`/units/${unit.id}`}
-          onClick={(event) => event.stopPropagation()}
-          prefetch={false}
-          title="Open unit"
-        >
-          <ExternalLink size={14} />
-        </Link>
         <button
           aria-label={`Restore unit ${unit.unitNumber}`}
           className={cn(buttonClassName, "hover:text-accent")}
@@ -350,16 +325,6 @@ function UnitActions({
       className={baseClassName}
       onDoubleClick={(event) => event.stopPropagation()}
     >
-      <Link
-        aria-label={`Open unit ${unit.unitNumber}`}
-        className={cn(buttonClassName, "hover:text-foreground")}
-        href={`/units/${unit.id}`}
-        onClick={(event) => event.stopPropagation()}
-        prefetch={false}
-        title="Open unit"
-      >
-        <ExternalLink size={14} />
-      </Link>
       <button
         aria-label={`Edit unit ${unit.unitNumber}`}
         className={cn(buttonClassName, "hover:text-foreground")}
@@ -399,18 +364,12 @@ function UnitStatusBadges({ unit }: { unit: UnitSummary }) {
 
 function TableMoneyDisplay({
   compact = false,
-  showSecondary = true,
   value,
 }: {
   compact?: boolean;
-  showSecondary?: boolean;
   value: MoneyDisplayValue;
 }) {
-  const primary = formatMoneyWithSymbol(value.primary, value.primaryCurrency);
-  const secondary = formatMoneyWithSymbol(
-    value.secondary,
-    value.secondaryCurrency,
-  );
+  const primary = formatMoneyWithSymbol(value.primary);
 
   return (
     <span
@@ -418,31 +377,20 @@ function TableMoneyDisplay({
         "flex min-w-0 items-center justify-end whitespace-nowrap text-right tabular-nums",
         compact ? "gap-1 text-xs leading-4" : "gap-1.5 text-sm leading-5",
       )}
-      title={showSecondary ? `${primary} / ${secondary}` : primary}
+      title={primary}
     >
       <span className="font-semibold text-foreground">{primary}</span>
-      {showSecondary ? (
-        <>
-          <span className="text-muted">/</span>
-          <span
-            className={compact ? "text-xs text-muted" : "text-[13px] text-muted"}
-          >
-            {secondary}
-          </span>
-        </>
-      ) : null}
     </span>
   );
 }
 
-function formatMoneyWithSymbol(label: string, currency: CurrencyCode) {
+function formatMoneyWithSymbol(label: string) {
   const isNegative = label.startsWith("-");
   const unsignedLabel = isNegative ? label.slice(1) : label;
-  const codePrefix = `${currency} `;
+  const codePrefix = "USD ";
   const amount = unsignedLabel.startsWith(codePrefix)
     ? unsignedLabel.slice(codePrefix.length)
     : unsignedLabel;
-  const symbol = currency === "USD" ? "$" : "\u17db";
 
-  return `${isNegative ? "-" : ""}${symbol}${amount}`;
+  return `${isNegative ? "-" : ""}$${amount}`;
 }
