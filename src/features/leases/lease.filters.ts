@@ -26,6 +26,7 @@ export function parseLeaseSearchParams(
     archiveState: parseArchiveState(params.archiveState),
     endMonth: parseMonthFilter(params.endMonth),
     endsWithinDays: parseEndsWithin(params.endsWithin),
+    leaseId: parseOptionalUuid(params.leaseId),
     page: parsePositiveInteger(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
     propertyId: parseUuidFilter(params.propertyId),
@@ -123,6 +124,12 @@ function parseUuidFilter(value: string | string[] | undefined) {
   const candidate = getFirstValue(value);
 
   return candidate && uuidPattern.test(candidate) ? candidate : "all";
+}
+
+function parseOptionalUuid(value: string | string[] | undefined) {
+  const candidate = getFirstValue(value);
+
+  return candidate && uuidPattern.test(candidate) ? candidate : null;
 }
 
 function parsePageSize(value: string | string[] | undefined) {

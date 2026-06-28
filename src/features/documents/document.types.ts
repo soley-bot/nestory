@@ -18,6 +18,7 @@ export type DocumentViewQuery = {
   pageSize: number;
   propertyId: string;
   query: string;
+  taskId: string;
   unitId: string;
 };
 
@@ -44,6 +45,7 @@ export type DocumentUnitOption = {
 export type DocumentFormValues = {
   category: string;
   propertyId: string;
+  taskId?: string | null;
   unitId?: string | null;
 };
 
@@ -71,6 +73,7 @@ export type DocumentDetailHrefs = {
   document: string;
   ledger?: string;
   lease?: string;
+  maintenance?: string;
   property?: string;
   timeline?: string;
   unit?: string;

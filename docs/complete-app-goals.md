@@ -83,7 +83,7 @@ Nestory is complete when a user can:
 
 ### Ledger
 
-- Income and expense CRUD with exact money and USD/KHR support.
+- Income and expense CRUD with exact money and USD-only MVP display.
 - Links to property, unit, lease, person, timeline event, and documents.
 - Rent charges, payments, deposits, expenses, corrections, period locks, and
   exports.

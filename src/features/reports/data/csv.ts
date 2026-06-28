@@ -1,4 +1,4 @@
-import { getReportsScreenData } from "@/features/reports/data/reports";
+import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import type {
   ReportsViewQuery,
   TrustedReport,
@@ -10,8 +10,10 @@ export async function getReportCsv(
   organizationId: string,
   viewQuery: ReportsViewQuery,
 ) {
-  const data = await getReportsScreenData(organizationId, viewQuery);
-  const report = data.trustedReport;
+  const report = await getTrustedReport({
+    organizationId,
+    viewQuery,
+  });
 
   return {
     body: buildTrustedReportCsv(report),

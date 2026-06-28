@@ -1,7 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import { toRecentChange } from "@/features/activity/recent-changes";
-import type { CurrencyDisplaySettings } from "@/lib/money/format";
+import type { CurrencyCode } from "@/lib/money/format";
 import {
   getLeaseEndDateScope,
   parseLeaseSearchParams,
@@ -35,10 +35,10 @@ type OptionalLeaseBackboneResult<T> = {
   data: T[] | null;
   error: { message: string } | null;
 };
+const RENT_SORT_CURRENCIES: CurrencyCode[] = ["USD"];
 
 export async function getLeasesScreenData(
   organizationId: string,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
   viewQuery: LeaseViewQuery = parseLeaseSearchParams({}),
 ) {
   const supabase = await createSupabaseServerClient();
@@ -73,10 +73,30 @@ export async function getLeasesScreenData(
   >;
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
-  const buildLeasesQuery = () => {
+  const buildLeasesQuery = ({
+    count,
+    currency,
+    head = false,
+    sort = viewQuery.sort,
+  }: {
+    count?: "exact";
+    currency?: CurrencyCode;
+    head?: boolean;
+    sort?: LeaseViewQuery["sort"] | "none";
+  } = {}) => {
+    const selectOptions: { count?: "exact"; head?: boolean } = {};
+
+    if (count) {
+      selectOptions.count = count;
+    }
+
+    if (head) {
+      selectOptions.head = true;
+    }
+
     let leasesQuery = supabase
       .from("leases")
-      .select(leaseSelect, { count: "exact" })
+      .select(leaseSelect, selectOptions)
       .eq("organization_id", organizationId);
 
     if (viewQuery.archiveState === "active") {
@@ -109,26 +129,42 @@ export async function getLeasesScreenData(
       leasesQuery = leasesQuery.lt("lease_end_date", endDateScope.before);
     }
 
-    if (viewQuery.archiveState === "all") {
+    if (currency) {
+      leasesQuery = leasesQuery.eq("monthly_rent_currency", currency);
+    }
+
+    for (const filter of buildLeaseSearchFilters(viewQuery, {
+      properties,
+      units,
+      propertiesById,
+    })) {
+      leasesQuery = leasesQuery.or(filter);
+    }
+
+    if (sort === "none") {
+      return leasesQuery;
+    }
+
+    if (viewQuery.archiveState === "all" && sort !== "rent_desc") {
       leasesQuery = leasesQuery.order("archived_at", {
         ascending: true,
         nullsFirst: true,
       });
     }
 
-    if (viewQuery.sort === "end_asc") {
+    if (sort === "end_asc") {
       return leasesQuery
         .order("lease_end_date", { ascending: true })
         .order("tenant_name", { ascending: true });
     }
 
-    if (viewQuery.sort === "tenant_asc") {
+    if (sort === "tenant_asc") {
       return leasesQuery
         .order("tenant_name", { ascending: true })
         .order("lease_start_date", { ascending: false });
     }
 
-    if (viewQuery.sort === "rent_desc") {
+    if (sort === "rent_desc") {
       return leasesQuery
         .order("monthly_rent_amount", { ascending: false })
         .order("tenant_name", { ascending: true });
@@ -138,37 +174,69 @@ export async function getLeasesScreenData(
       .order("lease_start_date", { ascending: false })
       .order("tenant_name", { ascending: true });
   };
-  const needsClientLeasePipeline =
-    viewQuery.query.trim() !== "" || viewQuery.sort === "rent_desc";
 
-  if (needsClientLeasePipeline) {
-    const leasesResult = await buildLeasesQuery();
-
-    if (leasesResult.error) {
-      throw new Error(`Could not load leases: ${leasesResult.error.message}`);
-    }
-
-    const leases = ((leasesResult.data ?? []) as LeaseRow[]).map((lease) =>
+  const toLeaseSummaries = (rows: LeaseRow[]) =>
+    rows.map((lease) =>
       buildLeaseSummary({
-        currencySettings,
         lease,
         property: propertiesById.get(lease.property_id),
         unit: lease.unit_id ? unitsById.get(lease.unit_id) : undefined,
       }),
     );
-    const filteredLeases = filterLeaseSummaries(leases, viewQuery);
-    const sortedLeases = sortLeaseSummaries(filteredLeases, viewQuery.sort);
+
+  if (viewQuery.sort === "rent_desc") {
+    const countResult = await buildLeasesQuery({
+      count: "exact",
+      head: true,
+      sort: "none",
+    });
+
+    if (countResult.error) {
+      throw new Error(`Could not load leases: ${countResult.error.message}`);
+    }
+
     const pagination = buildLeasePagination({
       page: viewQuery.page,
       pageSize: viewQuery.pageSize,
-      totalCount: sortedLeases.length,
+      totalCount: countResult.count ?? 0,
     });
 
+    if (pagination.totalCount === 0) {
+      return {
+        leases: [],
+        pagination,
+        propertyOptions: toPropertyOptions(properties),
+        unitOptions: toUnitOptions(units, propertiesById),
+      };
+    }
+
+    const rentWindowSize = pagination.page * pagination.pageSize;
+    const rentResults = await Promise.all(
+      RENT_SORT_CURRENCIES.map((currency) =>
+        buildLeasesQuery({ currency, sort: "rent_desc" }).range(
+          0,
+          rentWindowSize - 1,
+        ),
+      ),
+    );
+
+    for (const result of rentResults) {
+      if (result.error) {
+        throw new Error(`Could not load leases: ${result.error.message}`);
+      }
+    }
+
+    const sortedLeases = sortLeaseSummaries(
+      toLeaseSummaries(
+        rentResults.flatMap((result) => (result.data ?? []) as LeaseRow[]),
+      ),
+      "rent_desc",
+    );
     const visibleLeases = getLeasePageSummaries(sortedLeases, pagination);
 
     return {
       leases: await enrichLeaseSummaries({
-        currencySettings,
+        focusedLeaseId: viewQuery.leaseId,
         leases: visibleLeases,
         organizationId,
         propertiesById,
@@ -182,7 +250,10 @@ export async function getLeasesScreenData(
   }
 
   let range = getRange(viewQuery.page, viewQuery.pageSize);
-  let leasesResult = await buildLeasesQuery().range(range.from, range.to);
+  let leasesResult = await buildLeasesQuery({ count: "exact" }).range(
+    range.from,
+    range.to,
+  );
 
   if (leasesResult.error) {
     throw new Error(`Could not load leases: ${leasesResult.error.message}`);
@@ -196,7 +267,10 @@ export async function getLeasesScreenData(
 
   if (pagination.page !== viewQuery.page) {
     range = getRange(pagination.page, viewQuery.pageSize);
-    leasesResult = await buildLeasesQuery().range(range.from, range.to);
+    leasesResult = await buildLeasesQuery({ count: "exact" }).range(
+      range.from,
+      range.to,
+    );
 
     if (leasesResult.error) {
       throw new Error(`Could not load leases: ${leasesResult.error.message}`);
@@ -209,18 +283,11 @@ export async function getLeasesScreenData(
     });
   }
 
-  const leases = ((leasesResult.data ?? []) as LeaseRow[]).map((lease) =>
-    buildLeaseSummary({
-      currencySettings,
-      lease,
-      property: propertiesById.get(lease.property_id),
-      unit: lease.unit_id ? unitsById.get(lease.unit_id) : undefined,
-    }),
-  );
+  const leases = toLeaseSummaries((leasesResult.data ?? []) as LeaseRow[]);
 
   return {
     leases: await enrichLeaseSummaries({
-      currencySettings,
+      focusedLeaseId: viewQuery.leaseId,
       leases,
       organizationId,
       propertiesById,
@@ -234,14 +301,14 @@ export async function getLeasesScreenData(
 }
 
 async function enrichLeaseSummaries({
-  currencySettings,
+  focusedLeaseId,
   leases,
   organizationId,
   propertiesById,
   supabase,
   unitsById,
 }: {
-  currencySettings?: Partial<CurrencyDisplaySettings> | null;
+  focusedLeaseId: string | null;
   leases: LeaseSummary[];
   organizationId: string;
   propertiesById: Map<string, LeasePropertyRow>;
@@ -252,9 +319,11 @@ async function enrichLeaseSummaries({
     return leases;
   }
 
-  const leaseIds = leases.map((lease) => lease.id);
-  const unitIds = new Set(leases.flatMap((lease) => (lease.unitId ? [lease.unitId] : [])));
-  const propertyIds = new Set(leases.map((lease) => lease.propertyId));
+  const detailLease =
+    leases.find((lease) => lease.id === focusedLeaseId) ?? leases[0];
+  const detailLeaseIds = [detailLease.id];
+  const unitIds = new Set(detailLease.unitId ? [detailLease.unitId] : []);
+  const propertyIds = new Set([detailLease.propertyId]);
   const [
     partiesResult,
     termsResult,
@@ -269,14 +338,14 @@ async function enrichLeaseSummaries({
       .from("lease_parties")
       .select("id, lease_id, person_id, party_role, is_primary, started_on, ended_on, archived_at")
       .eq("organization_id", organizationId)
-      .in("lease_id", leaseIds)
+      .in("lease_id", detailLeaseIds)
       .order("is_primary", { ascending: false })
       .order("party_role", { ascending: true }),
     supabase
       .from("lease_terms")
       .select("id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, status, archived_at")
       .eq("organization_id", organizationId)
-      .in("lease_id", leaseIds)
+      .in("lease_id", detailLeaseIds)
       .order("term_sequence", { ascending: false }),
     supabase
       .from("lease_occupancies")
@@ -284,26 +353,26 @@ async function enrichLeaseSummaries({
         "id, lease_id, unit_id, status, scheduled_move_in_date, actual_move_in_date, scheduled_move_out_date, actual_move_out_date, archived_at",
       )
       .eq("organization_id", organizationId)
-      .in("lease_id", leaseIds)
+      .in("lease_id", detailLeaseIds)
       .order("updated_at", { ascending: false }),
     supabase
       .from("lease_deposits")
       .select("id, lease_id, deposit_type, amount, currency, status, archived_at")
       .eq("organization_id", organizationId)
-      .in("lease_id", leaseIds)
+      .in("lease_id", detailLeaseIds)
       .order("updated_at", { ascending: false }),
     supabase
       .from("documents")
       .select("id, lease_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at")
       .eq("organization_id", organizationId)
-      .in("lease_id", leaseIds)
+      .in("lease_id", detailLeaseIds)
       .is("archived_at", null)
       .order("uploaded_at", { ascending: false }),
     supabase
       .from("timeline_events")
       .select("id, lease_id, event_date, event_type, title")
       .eq("organization_id", organizationId)
-      .in("lease_id", leaseIds)
+      .in("lease_id", detailLeaseIds)
       .is("archived_at", null)
       .order("event_date", { ascending: false })
       .order("id", { ascending: false }),
@@ -312,7 +381,7 @@ async function enrichLeaseSummaries({
       .select("id, entity_type, entity_id, action, previous_values, new_values, created_at")
       .eq("organization_id", organizationId)
       .eq("entity_type", "lease")
-      .in("entity_id", leaseIds)
+      .in("entity_id", detailLeaseIds)
       .order("created_at", { ascending: false }),
     buildLeaseLedgerQuery(supabase, organizationId, propertyIds, unitIds),
   ]);
@@ -376,11 +445,14 @@ async function enrichLeaseSummaries({
   const ledgerRows = ledgerResult.data ?? [];
 
   return leases.map((lease) => {
+    if (lease.id !== detailLease.id) {
+      return lease;
+    }
+
     const leaseRow = summaryToLeaseRow(lease);
 
     return buildLeaseSummary({
       activity: activityByLeaseId.get(lease.id) ?? [],
-      currencySettings,
       documents: documentsByLeaseId.get(lease.id) ?? [],
       ledgerEntryCount: countRelatedLedgerRows(lease, ledgerRows),
       lease: leaseRow,
@@ -601,6 +673,110 @@ function toUnitOptions(
   });
 }
 
+function buildLeaseSearchFilters(
+  viewQuery: LeaseViewQuery,
+  {
+    properties,
+    propertiesById,
+    units,
+  }: {
+    properties: LeasePropertyRow[];
+    propertiesById: Map<string, LeasePropertyRow>;
+    units: LeaseUnitRow[];
+  },
+) {
+  return getLeaseSearchTokens(viewQuery.query).map((token) => {
+    const conditions = [
+      `tenant_name.ilike.*${token}*`,
+      `status.ilike.*${token}*`,
+    ];
+    const amountToken = parseSearchAmountToken(token);
+    const currencyToken = parseCurrencySearchToken(token);
+    const propertyIds = properties
+      .filter((property) =>
+        normalizeSearchText(`${property.code} ${property.name}`).includes(
+          token,
+        ),
+      )
+      .map((property) => property.id);
+    const unitIds = units
+      .filter((unit) => {
+        const property = propertiesById.get(unit.property_id);
+
+        return normalizeSearchText(
+          [
+            "unit",
+            unit.unit_number,
+            unit.floor,
+            property?.code,
+            property?.name,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        ).includes(token);
+      })
+      .map((unit) => unit.id);
+
+    if (amountToken !== null) {
+      conditions.push(`monthly_rent_amount.eq.${amountToken}`);
+      conditions.push(`deposit_amount.eq.${amountToken}`);
+    }
+
+    if (currencyToken) {
+      conditions.push(`monthly_rent_currency.eq.${currencyToken}`);
+      conditions.push(`deposit_currency.eq.${currencyToken}`);
+    }
+
+    if (propertyIds.length > 0) {
+      conditions.push(`property_id.in.(${uniqueStrings(propertyIds).join(",")})`);
+    }
+
+    if (token === "unit" || token === "units") {
+      conditions.push("unit_id.not.is.null");
+    } else if (unitIds.length > 0) {
+      conditions.push(`unit_id.in.(${uniqueStrings(unitIds).join(",")})`);
+    }
+
+    return conditions.join(",");
+  });
+}
+
+function getLeaseSearchTokens(query: string) {
+  return query
+    .trim()
+    .split(/\s+/)
+    .map(sanitizePostgrestSearchToken)
+    .filter(Boolean);
+}
+
+function sanitizePostgrestSearchToken(token: string) {
+  return token.replace(/[^\p{L}\p{N}_.-]+/gu, "").toLowerCase();
+}
+
+function normalizeSearchText(value: string) {
+  return value.toLowerCase();
+}
+
+function parseSearchAmountToken(token: string) {
+  if (!/^\d+(\.\d+)?$/.test(token)) {
+    return null;
+  }
+
+  const amount = Number(token);
+
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function parseCurrencySearchToken(token: string): CurrencyCode | null {
+  const normalized = token.toUpperCase();
+
+  return normalized === "USD" ? "USD" : null;
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values)];
+}
+
 function compareLeaseSummaries(first: LeaseSummary, second: LeaseSummary) {
   return (
     Number(first.isArchived) - Number(second.isArchived) ||
@@ -609,34 +785,6 @@ function compareLeaseSummaries(first: LeaseSummary, second: LeaseSummary) {
     ) ||
     compareStrings(first.tenantName, second.tenantName)
   );
-}
-
-function filterLeaseSummaries(
-  leases: LeaseSummary[],
-  viewQuery: LeaseViewQuery,
-) {
-  const tokens = viewQuery.query
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  return leases.filter((lease) => {
-    const haystack = [
-      lease.tenantName,
-      lease.propertyCode,
-      lease.propertyName,
-      lease.unitLabel,
-      lease.termLabel,
-      lease.rentLabel,
-      lease.depositLabel,
-      lease.statusLabel,
-    ]
-      .join(" ")
-      .toLowerCase();
-
-    return tokens.every((token) => haystack.includes(token));
-  });
 }
 
 function sortLeaseSummaries(

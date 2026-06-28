@@ -1,5 +1,9 @@
-import Link from "next/link";
 import { Archive, Pencil, RotateCcw } from "lucide-react";
+import {
+  previewRowClassName,
+  RecordLink,
+  selectedPreviewRowClassName,
+} from "@/components/data/interactive-table";
 import { Badge } from "@/components/ui/badge";
 import type {
   UnitArchiveState,
@@ -99,8 +103,8 @@ export function UnitsTable({
                 {units.map((unit) => (
                   <tr
                     className={cn(
-                      "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                      selectedUnitId === unit.id && "bg-surface-muted",
+                      previewRowClassName,
+                      selectedUnitId === unit.id && selectedPreviewRowClassName,
                       unit.isArchived && "text-muted",
                     )}
                     key={unit.id}
@@ -129,15 +133,12 @@ export function UnitsTable({
                       </p>
                     </td>
                     <td className="px-1.5 py-2">
-                      <Link
-                        className="block truncate font-medium text-accent hover:underline"
+                      <RecordLink
                         href={`/units/${unit.id}`}
-                        onClick={(event) => event.stopPropagation()}
-                        prefetch={false}
-                        title={`Unit ${unit.unitNumber}`}
+                        title={`Open full unit record: Unit ${unit.unitNumber}`}
                       >
                         {unit.unitNumber}
-                      </Link>
+                      </RecordLink>
                     </td>
                     <td className="px-1.5 py-2 text-center text-muted">
                       {unit.floorLabel}
@@ -227,15 +228,13 @@ function UnitCard({
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <Link
-            className="block truncate text-base font-semibold leading-5 text-accent hover:underline"
+          <RecordLink
+            className="text-base font-semibold leading-5"
             href={`/units/${unit.id}`}
-            onClick={(event) => event.stopPropagation()}
-            prefetch={false}
-            title={`Unit ${unit.unitNumber}`}
+            title={`Open full unit record: Unit ${unit.unitNumber}`}
           >
             Unit {unit.unitNumber}
-          </Link>
+          </RecordLink>
           <p className="mt-1 truncate font-medium" title={unit.propertyName}>
             {unit.propertyName}
           </p>

@@ -7,7 +7,6 @@ import type {
   LedgerSortKey,
   LedgerViewQuery,
 } from "@/features/ledger/ledger.types";
-import type { CurrencyDisplaySettings } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
 export const DEFAULT_LEDGER_PAGE_SIZE = 50;
@@ -270,23 +269,20 @@ export function getLedgerPageEntries(
 export function buildLedgerSnapshotFromEntries(
   entries: LedgerEntry[],
   lockedPeriodCount: string,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
 ): LedgerSnapshot {
   return {
     entryCount: String(entries.length),
     lockedPeriodCount,
-    netIncome: formatMoneyTotalsDisplay(entries, currencySettings),
+    netIncome: formatMoneyTotalsDisplay(entries),
     totalExpense: formatMoneyTotalsDisplay(
       entries
         .filter((entry) => entry.direction === "expense")
         .map((entry) => ({ amount: entry.amount, currency: entry.currency })),
-      currencySettings,
     ),
     totalIncome: formatMoneyTotalsDisplay(
       entries
         .filter((entry) => entry.direction === "income")
         .map((entry) => ({ amount: entry.amount, currency: entry.currency })),
-      currencySettings,
     ),
   };
 }

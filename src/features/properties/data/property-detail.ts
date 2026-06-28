@@ -9,12 +9,9 @@ import type { PropertyBadgeTone } from "@/features/properties/property.types";
 import type { TimelineEventType } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
 import {
-  convertMoney,
   formatMoney,
   formatMoneyDisplay,
-  normalizeCurrencyDisplaySettings,
   type CurrencyCode,
-  type CurrencyDisplaySettings,
   type MoneyDisplayValue,
 } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
@@ -71,10 +68,24 @@ export type PropertyDetailDocumentRecord = {
   mime_type: string;
   size_bytes: number;
   storage_path: string;
+  task_id?: string | null;
   timeline_event_id: string | null;
   unit_id: string | null;
   uploaded_at: string;
   url?: string;
+};
+
+export type PropertyDetailMaintenanceRecord = {
+  actual_cost_amount: number | null;
+  actual_cost_currency: CurrencyCode | null;
+  category: string;
+  due_date: string | null;
+  due_time: string | null;
+  id: string;
+  priority: string;
+  status: string;
+  title: string;
+  unit_id: string | null;
 };
 
 export type PropertyOwnerHistoryRecord = {
@@ -136,6 +147,19 @@ export type PropertyTimelineContext = {
   unitLabel: string;
 };
 
+export type PropertyMaintenanceContext = {
+  actualCostLabel: string;
+  category: string;
+  dueLabel: string;
+  href: string;
+  id: string;
+  statusLabel: string;
+  statusTone: PropertyBadgeTone;
+  title: string;
+  unitHref?: string;
+  unitLabel: string;
+};
+
 export type PropertyDocumentContext = LinkedDocument & {
   linkedRecordHref?: string;
   linkedRecordLabel: string;
@@ -155,17 +179,22 @@ export type PropertyDetailCounts = {
   activeLeases: number;
   documents: number;
   ledgerEntries: number;
+  maintenanceCases?: number;
+  openMaintenanceCases?: number;
+  overdueMaintenanceCases?: number;
   timelineEvents: number;
 };
 
 export type PropertyDetailHrefs = {
   addLedgerEntry: string;
   addLease: string;
+  addMaintenanceCase: string;
   addTimelineEvent: string;
   addUnit: string;
   documents: string;
   ledger: string;
   leases: string;
+  maintenance: string;
   ownerPerson?: string;
   propertiesList: string;
   reports: string;
@@ -214,6 +243,7 @@ export type PropertyDetail = ReturnType<typeof buildPropertySummary> & {
   notesLabel: string;
   ownerHistory: PropertyOwnerHistory[];
   recentLedgerEntries: PropertyLedgerContext[];
+  recentMaintenanceCases: PropertyMaintenanceContext[];
   recentTimelineEvents: PropertyTimelineContext[];
   totalUnitCount: number;
   unitSummary: string;
@@ -224,9 +254,9 @@ export function buildPropertyDetail({
   activeLeases = [],
   activeOwner,
   activity = [],
-  currencySettings,
   documents = [],
   ledgerEntries,
+  maintenanceCases = [],
   ownerHistory = [],
   property,
   recentLedgerEntries = [],
@@ -237,9 +267,9 @@ export function buildPropertyDetail({
   activeLeases?: PropertyDetailLeaseRecord[];
   activeOwner?: { label: string; personId: string } | null;
   activity?: RecentChange[];
-  currencySettings?: Partial<CurrencyDisplaySettings> | null;
   documents?: PropertyDetailDocumentRecord[];
   ledgerEntries: PropertyDetailLedgerRecord[];
+  maintenanceCases?: PropertyDetailMaintenanceRecord[];
   ownerHistory?: PropertyOwnerHistoryRecord[];
   property: PropertyRecord;
   recentLedgerEntries?: PropertyDetailLedgerRecord[];
@@ -251,7 +281,6 @@ export function buildPropertyDetail({
   const unitsById = indexById(units);
   const summary = buildPropertySummary({
     activeOwner,
-    currencySettings,
     hasActiveOwnerLink: Boolean(activeOwner),
     ledgerEntries,
     property,
@@ -261,21 +290,26 @@ export function buildPropertyDetail({
     activeOwner,
     propertyId: property.id,
   });
-  const financialSummary = buildPropertyFinancialSummary({
-    currencySettings,
-    ledgerEntries,
-  });
+  const financialSummary = buildPropertyFinancialSummary({ ledgerEntries });
   const counts = {
     activeLeases: recordCounts.activeLeases ?? activeLeases.length,
     documents: recordCounts.documents ?? documents.length,
     ledgerEntries: recordCounts.ledgerEntries ?? ledgerEntries.length,
+    maintenanceCases:
+      recordCounts.maintenanceCases ?? maintenanceCases.length,
+    openMaintenanceCases:
+      recordCounts.openMaintenanceCases ??
+      maintenanceCases.filter(isOpenMaintenanceTask).length,
+    overdueMaintenanceCases:
+      recordCounts.overdueMaintenanceCases ??
+      maintenanceCases.filter(isOverdueMaintenanceTask).length,
     timelineEvents: recordCounts.timelineEvents ?? recentTimelineEvents.length,
   };
 
   return {
     ...summary,
     activeLeases: activeLeases.map((lease) =>
-      toLeaseContext(lease, unitsById, currencySettings),
+      toLeaseContext(lease, unitsById),
     ),
     activeUnitCount: activeUnits.length,
     activity,
@@ -289,6 +323,7 @@ export function buildPropertyDetail({
       counts,
       financialSummary,
       hasActiveOwnerLink: Boolean(activeOwner),
+      maintenanceCases,
       occupiedUnitCount: summary.occupiedUnits,
     }),
     hrefs,
@@ -299,14 +334,18 @@ export function buildPropertyDetail({
       financialSummary,
       hasActiveOwnerLink: Boolean(activeOwner),
       hrefs,
+      maintenanceCases,
     }),
     notesLabel: property.notes?.trim() || "No operating notes recorded",
     ownerHistory: ownerHistory.map(toOwnerHistory),
     recentLedgerEntries: recentLedgerEntries.map((entry) =>
-      toLedgerContext(entry, unitsById, currencySettings),
+      toLedgerContext(entry, unitsById),
     ),
+    recentMaintenanceCases: maintenanceCases
+      .slice(0, 8)
+      .map((maintenanceCase) => toMaintenanceContext(maintenanceCase, unitsById)),
     recentTimelineEvents: recentTimelineEvents.map((event) =>
-      toTimelineContext(event, unitsById, currencySettings),
+      toTimelineContext(event, unitsById),
     ),
     totalUnitCount: units.length,
     unitSummary: formatUnitSummary({
@@ -314,7 +353,7 @@ export function buildPropertyDetail({
       archivedUnitCount: units.length - activeUnits.length,
       occupiedUnitCount: summary.occupiedUnits,
     }),
-    unitsList: units.map((unit) => formatUnit(unit, currencySettings)),
+    unitsList: units.map(formatUnit),
   };
 }
 
@@ -334,6 +373,10 @@ export function buildPropertyDetailHrefs({
       action: "create",
       propertyId,
     }),
+    addMaintenanceCase: buildHref("/maintenance", {
+      action: "create",
+      propertyId,
+    }),
     addTimelineEvent: buildHref("/timeline", {
       action: "create",
       propertyId,
@@ -349,6 +392,9 @@ export function buildPropertyDetailHrefs({
     }),
     leases: buildHref("/leases", {
       archiveState: "all",
+      propertyId,
+    }),
+    maintenance: buildHref("/maintenance", {
       propertyId,
     }),
     ownerPerson: activeOwner?.personId
@@ -375,14 +421,11 @@ export function buildPropertyDetailHrefs({
   };
 }
 
-function formatUnit(
-  unit: PropertyDetailUnitRecord,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-): PropertyDetailUnit {
+function formatUnit(unit: PropertyDetailUnitRecord): PropertyDetailUnit {
   return {
     archivedAt: unit.archived_at,
     currentRent: formatCurrentRent(unit),
-    currentRentDisplay: formatCurrentRentDisplay(unit, currencySettings),
+    currentRentDisplay: formatCurrentRentDisplay(unit),
     floor: unit.floor?.trim() || "Not set",
     id: unit.id,
     isArchived: Boolean(unit.archived_at),
@@ -399,27 +442,18 @@ function formatCurrentRent(unit: PropertyDetailUnitRecord) {
   return formatMoney(Number(unit.current_rent_amount), unit.current_rent_currency);
 }
 
-function formatCurrentRentDisplay(
-  unit: PropertyDetailUnitRecord,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-) {
+function formatCurrentRentDisplay(unit: PropertyDetailUnitRecord) {
   if (unit.current_rent_amount === null || !unit.current_rent_currency) {
     return undefined;
   }
 
-  return formatMoneyDisplay(
-    Number(unit.current_rent_amount),
-    unit.current_rent_currency,
-    currencySettings,
-  );
+  return formatMoneyDisplay(Number(unit.current_rent_amount), unit.current_rent_currency);
 }
 
 function buildPropertyFinancialSummary({
-  currencySettings,
   currentDate = new Date(),
   ledgerEntries,
 }: {
-  currencySettings?: Partial<CurrencyDisplaySettings> | null;
   currentDate?: Date;
   ledgerEntries: PropertyDetailLedgerRecord[];
 }): PropertyFinancialSummary {
@@ -434,27 +468,21 @@ function buildPropertyFinancialSummary({
   const maintenanceExpenseEntries = expenseEntries.filter((entry) =>
     isMaintenanceExpenseCategory(entry.category),
   );
-  const incomeUsd = sumLedgerUsd(incomeEntries, currencySettings);
-  const expenseUsd = sumLedgerUsd(expenseEntries, currencySettings);
-  const maintenanceExpenseUsd = sumLedgerUsd(
-    maintenanceExpenseEntries,
-    currencySettings,
-  );
+  const incomeUsd = sumLedgerUsd(incomeEntries);
+  const expenseUsd = sumLedgerUsd(expenseEntries);
+  const maintenanceExpenseUsd = sumLedgerUsd(maintenanceExpenseEntries);
   const noiUsd = incomeUsd - expenseUsd;
 
   return {
-    expenseDisplay: formatPositiveLedgerDisplay(expenseEntries, currencySettings),
+    expenseDisplay: formatPositiveLedgerDisplay(expenseEntries),
     expenseUsd,
-    incomeDisplay: formatPositiveLedgerDisplay(incomeEntries, currencySettings),
+    incomeDisplay: formatPositiveLedgerDisplay(incomeEntries),
     incomeUsd,
-    maintenanceExpenseDisplay: formatPositiveLedgerDisplay(
-      maintenanceExpenseEntries,
-      currencySettings,
-    ),
+    maintenanceExpenseDisplay: formatPositiveLedgerDisplay(maintenanceExpenseEntries),
     maintenanceExpenseUsd,
     marginLabel:
       incomeUsd > 0 ? `${formatPercent(noiUsd / incomeUsd)} NOI margin` : "No income",
-    noiDisplay: formatMoneyDisplay(noiUsd, "USD", currencySettings),
+    noiDisplay: formatMoneyDisplay(noiUsd),
     noiUsd,
     periodLabel: "Trailing 12 months",
   };
@@ -463,7 +491,6 @@ function buildPropertyFinancialSummary({
 function toLeaseContext(
   lease: PropertyDetailLeaseRecord,
   unitsById: Map<string, PropertyDetailUnitRecord>,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
 ): PropertyDetailLease {
   const unit = lease.unit_id ? unitsById.get(lease.unit_id) : undefined;
 
@@ -474,11 +501,7 @@ function toLeaseContext(
       query: lease.tenant_name,
     }),
     id: lease.id,
-    rentDisplay: formatMoneyDisplay(
-      lease.monthly_rent_amount,
-      lease.monthly_rent_currency,
-      currencySettings,
-    ),
+    rentDisplay: formatMoneyDisplay(lease.monthly_rent_amount, lease.monthly_rent_currency),
     rentLabel: formatMoney(lease.monthly_rent_amount, lease.monthly_rent_currency),
     statusLabel: formatStatusLabel(lease.status),
     tenantName: lease.tenant_name,
@@ -493,7 +516,6 @@ function toLeaseContext(
 function toLedgerContext(
   entry: PropertyDetailLedgerRecord,
   unitsById: Map<string, PropertyDetailUnitRecord>,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
 ): PropertyLedgerContext {
   const direction = entry.direction === "expense" ? "expense" : "income";
   const amount = entry.amount ?? 0;
@@ -502,7 +524,7 @@ function toLedgerContext(
   const unit = entry.unit_id ? unitsById.get(entry.unit_id) : undefined;
 
   return {
-    amountDisplay: formatMoneyDisplay(signedAmount, currency, currencySettings),
+    amountDisplay: formatMoneyDisplay(signedAmount, currency),
     amountLabel: `${direction === "expense" ? "-" : ""}${formatMoney(
       amount,
       currency,
@@ -524,18 +546,13 @@ function toLedgerContext(
 function toTimelineContext(
   event: PropertyDetailTimelineRecord,
   unitsById: Map<string, PropertyDetailUnitRecord>,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
 ): PropertyTimelineContext {
   const unit = event.unit_id ? unitsById.get(event.unit_id) : undefined;
   const hasCost = event.cost_amount !== null && event.cost_currency !== null;
 
   return {
     costDisplay: hasCost
-      ? formatMoneyDisplay(
-          event.cost_amount ?? 0,
-          event.cost_currency ?? "USD",
-          currencySettings,
-        )
+      ? formatMoneyDisplay(event.cost_amount ?? 0, event.cost_currency ?? "USD")
       : undefined,
     description: event.description ?? "",
     eventDate: event.event_date,
@@ -547,6 +564,50 @@ function toTimelineContext(
     id: event.id,
     title: event.title,
     unitHref: event.unit_id ? `/units/${event.unit_id}` : undefined,
+    unitLabel: unit ? `Unit ${unit.unit_number}` : "Property level",
+  };
+}
+
+function toMaintenanceContext(
+  maintenanceCase: PropertyDetailMaintenanceRecord,
+  unitsById: Map<string, PropertyDetailUnitRecord>,
+): PropertyMaintenanceContext {
+  const unit = maintenanceCase.unit_id
+    ? unitsById.get(maintenanceCase.unit_id)
+    : undefined;
+  const status = normalizeStatusValue(maintenanceCase.status);
+
+  return {
+    actualCostLabel:
+      maintenanceCase.actual_cost_amount !== null &&
+      maintenanceCase.actual_cost_currency
+        ? formatMoney(
+            maintenanceCase.actual_cost_amount,
+            maintenanceCase.actual_cost_currency,
+          )
+        : "No actual cost",
+    category: maintenanceCase.category,
+    dueLabel: formatDateTimeLabel(
+      maintenanceCase.due_date,
+      maintenanceCase.due_time,
+      "No due date",
+    ),
+    href: buildHref("/maintenance", {
+      archiveState: "all",
+      taskId: maintenanceCase.id,
+    }),
+    id: maintenanceCase.id,
+    statusLabel: formatStatusLabel(maintenanceCase.status),
+    statusTone:
+      status === "completed"
+        ? "success"
+        : status === "blocked" || status === "cancelled"
+          ? "warning"
+          : status === "in_progress"
+            ? "accent"
+            : "neutral",
+    title: maintenanceCase.title,
+    unitHref: maintenanceCase.unit_id ? `/units/${maintenanceCase.unit_id}` : undefined,
     unitLabel: unit ? `Unit ${unit.unit_number}` : "Property level",
   };
 }
@@ -591,6 +652,7 @@ function buildPropertyHealthIndicators({
   counts,
   financialSummary,
   hasActiveOwnerLink,
+  maintenanceCases,
   occupiedUnitCount,
 }: {
   activeLeases: PropertyDetailLeaseRecord[];
@@ -598,6 +660,7 @@ function buildPropertyHealthIndicators({
   counts: PropertyDetailCounts;
   financialSummary: PropertyFinancialSummary;
   hasActiveOwnerLink: boolean;
+  maintenanceCases: PropertyDetailMaintenanceRecord[];
   occupiedUnitCount: number;
 }): PropertyHealthIndicator[] {
   const indicators: PropertyHealthIndicator[] = [];
@@ -677,6 +740,34 @@ function buildPropertyHealthIndicators({
 
   indicators.push({
     description:
+      (counts.overdueMaintenanceCases ?? 0) > 0
+        ? `${counts.overdueMaintenanceCases} open maintenance case ${
+            counts.overdueMaintenanceCases === 1 ? "is" : "are"
+          } overdue.`
+        : (counts.openMaintenanceCases ?? 0) > 0
+          ? `${counts.openMaintenanceCases} open maintenance ${
+              counts.openMaintenanceCases === 1 ? "case" : "cases"
+            } need follow-up.`
+          : maintenanceCases.length > 0
+            ? "No open maintenance cases are currently blocking this property."
+            : "No maintenance cases are linked to this property yet.",
+    id: "open-maintenance",
+    label:
+      (counts.overdueMaintenanceCases ?? 0) > 0
+        ? "Maintenance overdue"
+        : (counts.openMaintenanceCases ?? 0) > 0
+          ? "Open issues"
+          : "No open issues",
+    tone:
+      (counts.overdueMaintenanceCases ?? 0) > 0
+        ? "danger"
+        : (counts.openMaintenanceCases ?? 0) > 0
+          ? "warning"
+          : "success",
+  });
+
+  indicators.push({
+    description:
       counts.documents > 0
         ? "Evidence or supporting documents are attached."
         : "No property evidence or supporting documents are attached yet.",
@@ -695,6 +786,7 @@ function buildPropertyNextAction({
   financialSummary,
   hasActiveOwnerLink,
   hrefs,
+  maintenanceCases,
 }: {
   activeLeases: PropertyDetailLeaseRecord[];
   activeUnitCount: number;
@@ -702,6 +794,7 @@ function buildPropertyNextAction({
   financialSummary: PropertyFinancialSummary;
   hasActiveOwnerLink: boolean;
   hrefs: PropertyDetailHrefs;
+  maintenanceCases: PropertyDetailMaintenanceRecord[];
 }): PropertyNextAction {
   if (!hasActiveOwnerLink) {
     return {
@@ -739,6 +832,34 @@ function buildPropertyNextAction({
     };
   }
 
+  const overdueCase = maintenanceCases.find(isOverdueMaintenanceTask);
+
+  if (overdueCase) {
+    return {
+      description: `${overdueCase.title} is overdue under this property.`,
+      href: buildHref("/maintenance", {
+        archiveState: "all",
+        taskId: overdueCase.id,
+      }),
+      label: "Review overdue issue",
+      tone: "danger",
+    };
+  }
+
+  const openCase = maintenanceCases.find(isOpenMaintenanceTask);
+
+  if (openCase) {
+    return {
+      description: `${openCase.title} is still ${formatStatusLabel(openCase.status)}.`,
+      href: buildHref("/maintenance", {
+        archiveState: "all",
+        taskId: openCase.id,
+      }),
+      label: "Review open issue",
+      tone: "warning",
+    };
+  }
+
   if (counts.documents === 0) {
     return {
       description: "Attach ownership, lease, receipt, or inspection evidence to the record.",
@@ -749,43 +870,38 @@ function buildPropertyNextAction({
   }
 
   return {
-    description: "The core record is connected. Review timeline history or add the next event.",
-    href: hrefs.addTimelineEvent,
-    label: "Log next event",
+    description: "The core record is connected. Review maintenance or add the next case.",
+    href: hrefs.addMaintenanceCase,
+    label: "Log maintenance case",
     tone: "accent",
   };
 }
 
-function formatPositiveLedgerDisplay(
-  entries: PropertyDetailLedgerRecord[],
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-) {
+function formatPositiveLedgerDisplay(entries: PropertyDetailLedgerRecord[]) {
   return formatMoneyTotalsDisplay(
     entries.map((entry) => ({
       amount: entry.amount,
       currency: entry.currency,
       direction: "income",
     })),
-    currencySettings,
   );
 }
 
-function sumLedgerUsd(
-  entries: PropertyDetailLedgerRecord[],
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-) {
-  const settings = normalizeCurrencyDisplaySettings(currencySettings);
-
+function sumLedgerUsd(entries: PropertyDetailLedgerRecord[]) {
   return entries.reduce((total, entry) => {
-    if (entry.amount === null || !entry.currency) {
+    if (entry.amount === null) {
       return total;
     }
 
-    return total + convertMoney(entry.amount, entry.currency, "USD", settings.khrPerUsd);
+    return total + entry.amount;
   }, 0);
 }
 
 function getDocumentLinkedRecordLabel(document: PropertyDetailDocumentRecord) {
+  if (document.task_id) {
+    return "Maintenance case";
+  }
+
   if (document.ledger_entry_id) {
     return "Ledger entry";
   }
@@ -806,6 +922,13 @@ function getDocumentLinkedRecordLabel(document: PropertyDetailDocumentRecord) {
 }
 
 function getDocumentLinkedRecordHref(document: PropertyDetailDocumentRecord) {
+  if (document.task_id) {
+    return buildHref("/maintenance", {
+      archiveState: "all",
+      taskId: document.task_id,
+    });
+  }
+
   if (document.ledger_entry_id) {
     return buildHref("/ledger", {
       archiveState: "all",
@@ -867,14 +990,38 @@ function formatUnitSummary({
 }
 
 function formatStatusLabel(status: string) {
-  return status
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, " ")
+  return normalizeStatusValue(status)
+    .replace(/_/g, " ")
     .split(" ")
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function normalizeStatusValue(status: string) {
+  return status.trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function isOpenMaintenanceTask(task: PropertyDetailMaintenanceRecord) {
+  const status = normalizeStatusValue(task.status);
+
+  return status !== "completed" && status !== "cancelled";
+}
+
+function isOverdueMaintenanceTask(task: PropertyDetailMaintenanceRecord) {
+  return (
+    isOpenMaintenanceTask(task) &&
+    Boolean(task.due_date) &&
+    task.due_date! < new Date().toISOString().slice(0, 10)
+  );
+}
+
+function formatDateTimeLabel(date: string | null, time: string | null, fallback: string) {
+  if (!date) {
+    return fallback;
+  }
+
+  return `${formatDate(date)}${time ? ` at ${time.slice(0, 5)}` : ""}`;
 }
 
 function getTrailingTwelveMonthStart(currentDate: Date) {

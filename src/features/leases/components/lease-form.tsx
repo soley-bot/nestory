@@ -201,7 +201,7 @@ export function LeaseForm({
           </Field>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_120px]">
+        <div className="grid gap-4">
           <Field
             label="Monthly rent"
             error={state.fieldErrors?.monthlyRentAmount?.[0]}
@@ -216,25 +216,9 @@ export function LeaseForm({
               type="number"
             />
           </Field>
-
-          <Field
-            label="Currency"
-            error={state.fieldErrors?.monthlyRentCurrency?.[0]}
-          >
-            <SelectControl
-              ariaLabel="Rent currency"
-              defaultValue={defaults.monthlyRentCurrency}
-              name="monthlyRentCurrency"
-              options={[
-                { label: "USD", value: "USD" },
-                { label: "KHR", value: "KHR" },
-              ]}
-              required
-            />
-          </Field>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_120px]">
+        <div className="grid gap-4">
           <Field
             label="Deposit"
             error={state.fieldErrors?.depositAmount?.[0]}
@@ -246,22 +230,6 @@ export function LeaseForm({
               placeholder="0.00"
               step="0.01"
               type="number"
-            />
-          </Field>
-
-          <Field
-            label="Currency"
-            error={state.fieldErrors?.depositCurrency?.[0]}
-          >
-            <SelectControl
-              ariaLabel="Deposit currency"
-              defaultValue={defaults.depositCurrency}
-              name="depositCurrency"
-              options={[
-                { label: "None", value: "" },
-                { label: "USD", value: "USD" },
-                { label: "KHR", value: "KHR" },
-              ]}
             />
           </Field>
         </div>
@@ -318,11 +286,9 @@ function getLeaseDefaults(
 
   return {
     depositAmount: toInputNumber(formValues?.depositAmount),
-    depositCurrency: formValues?.depositCurrency ?? "",
     leaseEndDate: formValues?.leaseEndDate ?? "",
     leaseStartDate: formValues?.leaseStartDate ?? "",
     monthlyRentAmount: toInputNumber(formValues?.monthlyRentAmount),
-    monthlyRentCurrency: formValues?.monthlyRentCurrency ?? "USD",
     propertyId: formValues?.propertyId ?? initialValues.propertyId ?? "",
     status: formValues?.status ?? "active",
     tenantName: formValues?.tenantName ?? "",

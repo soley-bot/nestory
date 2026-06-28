@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
-import { formatUnitTimelineContext } from "@/features/units/data/unit-summary";
 import type { UnitSummary } from "@/features/units/unit.types";
 
 type UnitInspectorProps = {
@@ -70,17 +69,15 @@ export function UnitInspector({
       </div>
 
       <div className="space-y-4 p-4">
-        <dl className="grid grid-cols-2 gap-4 text-sm">
-          <Detail label="Floor" value={unit.floorLabel} />
-          <Detail label="Lease" value={unit.leaseLabel} />
-          <Detail label="Current rent" wide>
+        <dl className="grid grid-cols-2 gap-3 text-sm">
+          <Detail label="Rent">
             {unit.rentDisplay ? (
               <MoneyDisplay value={unit.rentDisplay} />
             ) : (
               unit.rentLabel
             )}
           </Detail>
-          <Detail label="Ledger net" wide>
+          <Detail label="Ledger net">
             <MoneyDisplay value={unit.ledgerNetDisplay} />
           </Detail>
         </dl>
@@ -113,27 +110,6 @@ export function UnitInspector({
             </div>
           </div>
         ) : null}
-
-        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
-          <div className="flex items-center gap-2 text-muted">
-            <ListTree size={15} />
-            <p className="text-xs font-medium uppercase tracking-[0.06em]">
-              Latest record
-            </p>
-          </div>
-          {unit.latestTimelineEvent ? (
-            <div className="mt-2 text-sm leading-5">
-              <p className="line-clamp-2 font-medium">
-                {unit.latestTimelineEvent.title}
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                {formatUnitTimelineContext(unit.latestTimelineEvent)}
-              </p>
-            </div>
-          ) : (
-            <p className="mt-2 text-sm text-muted">No timeline events yet.</p>
-          )}
-        </section>
 
         <div className="grid grid-cols-3 gap-2 text-sm">
           <Link
@@ -228,7 +204,13 @@ function Detail({
   wide?: boolean;
 }) {
   return (
-    <div className={wide ? "col-span-2 min-w-0" : "min-w-0"}>
+    <div
+      className={
+        wide
+          ? "col-span-2 min-w-0 rounded-md border border-border px-3 py-2.5"
+          : "min-w-0 rounded-md border border-border px-3 py-2.5"
+      }
+    >
       <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
         {label}
       </dt>

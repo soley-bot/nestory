@@ -6,10 +6,8 @@ import {
   Home,
   Landmark,
   ListTree,
-  MapPin,
   Pencil,
   RotateCcw,
-  UserRound,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
@@ -65,11 +63,9 @@ export function PropertyInspector({
       </div>
 
       <div className="space-y-4 p-4">
-        <dl className="grid grid-cols-2 gap-4 text-sm">
+        <dl className="grid grid-cols-2 gap-3 text-sm">
           <Detail icon={<Home size={14} />} label="Units" value={property.unitSummary} />
-          <Detail icon={<UserRound size={14} />} label="Owner" value={property.owner} />
-          <Detail icon={<MapPin size={14} />} label="Address" value={property.address} wide />
-          <Detail label="Net income" wide>
+          <Detail label="Net income">
             <MoneyDisplay value={property.netIncome} />
           </Detail>
         </dl>
@@ -164,7 +160,13 @@ function Detail({
   wide?: boolean;
 }) {
   return (
-    <div className={wide ? "col-span-2 min-w-0" : "min-w-0"}>
+    <div
+      className={
+        wide
+          ? "col-span-2 min-w-0 rounded-md border border-border px-3 py-2.5"
+          : "min-w-0 rounded-md border border-border px-3 py-2.5"
+      }
+    >
       <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.06em] text-muted">
         {icon ? <span>{icon}</span> : null}
         {label}

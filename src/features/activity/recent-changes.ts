@@ -27,6 +27,10 @@ const actionLabels: Record<string, string> = {
   lease_created: "Created",
   lease_updated: "Updated",
   locked: "Period locked",
+  maintenance_request_created: "Maintenance request created",
+  maintenance_task_created: "Maintenance case created",
+  maintenance_task_status_changed: "Maintenance status changed",
+  maintenance_task_updated: "Maintenance case updated",
   receipt_attached: "Receipt attached",
   restored: "Restored",
   restored_from_ledger: "Restored from ledger",
@@ -60,14 +64,22 @@ const fieldLabels: Record<string, string> = {
   description: "Description",
   direction: "Direction",
   document_id: "Document",
+  due_date: "Due date",
+  due_time: "Due time",
   event_date: "Event date",
   event_type: "Event type",
   floor: "Floor",
   lease_id: "Lease",
   ledger_entry_id: "Ledger link",
+  priority: "Priority",
   property_id: "Property",
+  recurrence_frequency: "Recurrence",
+  reminder_date: "Reminder date",
+  reminder_time: "Reminder time",
   size_sqm: "Size",
   status: "Status",
+  task_id: "Maintenance case",
+  tenant_request_id: "Maintenance request",
   timeline_event_id: "Timeline link",
   title: "Title",
   transaction_date: "Transaction date",
@@ -80,6 +92,8 @@ const referenceFields = new Set([
   "lease_id",
   "ledger_entry_id",
   "property_id",
+  "task_id",
+  "tenant_request_id",
   "timeline_event_id",
   "unit_id",
 ]);
@@ -88,6 +102,7 @@ const linkReferenceFields = new Set([
   "document_id",
   "lease_id",
   "ledger_entry_id",
+  "task_id",
   "timeline_event_id",
 ]);
 
@@ -140,6 +155,14 @@ function getFallbackRecordLabel(entityType: string) {
     return "Period lock";
   }
 
+  if (entityType === "task") {
+    return "Maintenance case";
+  }
+
+  if (entityType === "tenant_request") {
+    return "Maintenance request";
+  }
+
   if (entityType === "lease") {
     return "Lease";
   }
@@ -172,6 +195,10 @@ function getEntityLabel(entityType: string) {
     return "Timeline";
   }
 
+  if (entityType === "task" || entityType === "tenant_request") {
+    return "Maintenance";
+  }
+
   if (entityType === "ledger_period") {
     return "Period lock";
   }
@@ -199,6 +226,21 @@ function getActivityHref(log: ActivityLogSnapshot, recordLabel: string) {
       archiveState: "all",
       eventId: log.entity_id,
       query: getFocusedQuery(recordLabel, "Timeline event"),
+    });
+  }
+
+  if (log.entity_type === "task") {
+    return buildModuleHref("/maintenance", {
+      archiveState: "all",
+      query: getFocusedQuery(recordLabel, "Maintenance case"),
+      taskId: log.entity_id,
+    });
+  }
+
+  if (log.entity_type === "tenant_request") {
+    return buildModuleHref("/maintenance", {
+      archiveState: "all",
+      query: getFocusedQuery(recordLabel, "Maintenance request"),
     });
   }
 

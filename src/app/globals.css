@@ -69,15 +69,15 @@
   --color-chart-accent: var(--chart-accent);
   --color-chart-neutral: var(--chart-neutral);
   --color-chart-track: var(--chart-track);
-  --font-sans: var(--font-manrope);
-  --font-display: var(--font-sora);
-  --font-mono: var(--font-manrope);
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-display: Arial, Helvetica, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-manrope), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
 }
 

@@ -6,16 +6,13 @@ import { ACTIVE_UNIT_LEASE_STATUSES } from "@/features/units/data/unit-summary";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { CurrencyCode } from "@/lib/money/format";
-import { Constants } from "@/types/database";
 
 type LeaseFieldErrors = {
   depositAmount?: string[];
-  depositCurrency?: string[];
   leaseEndDate?: string[];
   leaseId?: string[];
   leaseStartDate?: string[];
   monthlyRentAmount?: string[];
-  monthlyRentCurrency?: string[];
   propertyId?: string[];
   status?: string[];
   tenantName?: string[];
@@ -57,11 +54,9 @@ type LinkedUnitOccupancyResult =
 const leaseMutationSchema = z
   .object({
     depositAmount: z.string().trim(),
-    depositCurrency: z.string().trim(),
     leaseEndDate: dateSchema,
     leaseStartDate: dateSchema,
     monthlyRentAmount: z.string().trim(),
-    monthlyRentCurrency: z.string().trim(),
     propertyId: z.uuid("Choose a property."),
     status: leaseStatusSchema,
     tenantName: z
@@ -90,18 +85,6 @@ const leaseMutationSchema = z
       });
     }
 
-    const rentCurrency = z
-      .enum(Constants.public.Enums.currency_code)
-      .safeParse(data.monthlyRentCurrency);
-
-    if (!rentCurrency.success) {
-      context.addIssue({
-        code: "custom",
-        message: "Choose a valid rent currency.",
-        path: ["monthlyRentCurrency"],
-      });
-    }
-
     if (data.leaseEndDate < data.leaseStartDate) {
       context.addIssue({
         code: "custom",
@@ -110,19 +93,7 @@ const leaseMutationSchema = z
       });
     }
 
-    const hasDepositAmount = data.depositAmount.length > 0;
-    const hasDepositCurrency = data.depositCurrency.length > 0;
-
-    if (!hasDepositAmount && !hasDepositCurrency) {
-      return;
-    }
-
-    if (!hasDepositAmount || !hasDepositCurrency) {
-      context.addIssue({
-        code: "custom",
-        message: "Enter both deposit amount and currency.",
-        path: hasDepositAmount ? ["depositCurrency"] : ["depositAmount"],
-      });
+    if (data.depositAmount.length === 0) {
       return;
     }
 
@@ -133,18 +104,6 @@ const leaseMutationSchema = z
         code: "custom",
         message: "Enter a valid non-negative deposit.",
         path: ["depositAmount"],
-      });
-    }
-
-    const depositCurrency = z
-      .enum(Constants.public.Enums.currency_code)
-      .safeParse(data.depositCurrency);
-
-    if (!depositCurrency.success) {
-      context.addIssue({
-        code: "custom",
-        message: "Choose a valid deposit currency.",
-        path: ["depositCurrency"],
       });
     }
   });
@@ -167,10 +126,6 @@ function nullableNumber(value: string) {
 
 function nullableUuid(value: string) {
   return value.length > 0 ? value : null;
-}
-
-function nullableCurrency(value: string) {
-  return value.length > 0 ? (value as CurrencyCode) : null;
 }
 
 export async function createLeaseAction(
@@ -201,11 +156,11 @@ export async function createLeaseAction(
     .insert({
       created_by: context.userId,
       deposit_amount: nullableNumber(parsed.data.depositAmount),
-      deposit_currency: nullableCurrency(parsed.data.depositCurrency),
+      deposit_currency: parsed.data.depositAmount.length > 0 ? "USD" : null,
       lease_end_date: parsed.data.leaseEndDate,
       lease_start_date: parsed.data.leaseStartDate,
       monthly_rent_amount: Number(parsed.data.monthlyRentAmount),
-      monthly_rent_currency: parsed.data.monthlyRentCurrency as CurrencyCode,
+      monthly_rent_currency: "USD",
       organization_id: context.organizationId,
       property_id: parsed.data.propertyId,
       status: parsed.data.status,
@@ -285,11 +240,11 @@ export async function updateLeaseAction(
     .from("leases")
     .update({
       deposit_amount: nullableNumber(parsed.data.depositAmount),
-      deposit_currency: nullableCurrency(parsed.data.depositCurrency),
+      deposit_currency: parsed.data.depositAmount.length > 0 ? "USD" : null,
       lease_end_date: parsed.data.leaseEndDate,
       lease_start_date: parsed.data.leaseStartDate,
       monthly_rent_amount: Number(parsed.data.monthlyRentAmount),
-      monthly_rent_currency: parsed.data.monthlyRentCurrency as CurrencyCode,
+      monthly_rent_currency: "USD",
       property_id: parsed.data.propertyId,
       status: parsed.data.status,
       tenant_name: parsed.data.tenantName,
@@ -425,11 +380,9 @@ export async function restoreLeaseAction(
 function readLeaseMutationInput(formData: FormData) {
   return {
     depositAmount: readString(formData, "depositAmount"),
-    depositCurrency: readString(formData, "depositCurrency"),
     leaseEndDate: readString(formData, "leaseEndDate"),
     leaseStartDate: readString(formData, "leaseStartDate"),
     monthlyRentAmount: readString(formData, "monthlyRentAmount"),
-    monthlyRentCurrency: readString(formData, "monthlyRentCurrency"),
     propertyId: readString(formData, "propertyId"),
     status: readString(formData, "status"),
     tenantName: readString(formData, "tenantName"),

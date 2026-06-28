@@ -1,5 +1,9 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import {
+  previewRowClassName,
+  RecordLink,
+  selectedPreviewRowClassName,
+} from "@/components/data/interactive-table";
 import { Badge } from "@/components/ui/badge";
 import type { LeaseArchiveState, LeaseSummary } from "@/features/leases/lease.types";
 import type { MoneyDisplayValue } from "@/lib/money/format";
@@ -80,8 +84,8 @@ export function LeasesTable({
               {leases.map((lease) => (
                 <tr
                   className={cn(
-                    "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                    selectedLeaseId === lease.id && "bg-surface-muted",
+                    previewRowClassName,
+                    selectedLeaseId === lease.id && selectedPreviewRowClassName,
                     lease.isArchived && "text-muted",
                   )}
                   key={lease.id}
@@ -96,15 +100,12 @@ export function LeasesTable({
                   tabIndex={0}
                 >
                   <td className="px-2.5 py-2">
-                    <Link
-                      className="block truncate font-medium text-accent hover:underline"
+                    <RecordLink
                       href={getLeaseHref(lease.id)}
-                      onClick={(event) => event.stopPropagation()}
-                      prefetch={false}
                       title={`Open lease for ${lease.tenantName}`}
                     >
                       {lease.propertyCode}
-                    </Link>
+                    </RecordLink>
                     <p className="mt-0.5 truncate text-xs text-muted">
                       {lease.startDateLabel}
                     </p>
@@ -212,15 +213,13 @@ function LeaseCard({
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <Link
-            className="line-clamp-2 text-base font-semibold leading-5 text-accent hover:underline"
+          <RecordLink
+            className="text-base font-semibold leading-5"
             href={getLeaseHref(lease.id)}
-            onClick={(event) => event.stopPropagation()}
-            prefetch={false}
             title={`Open lease for ${lease.tenantName}`}
           >
             {lease.tenantName}
-          </Link>
+          </RecordLink>
           <p className="mt-1 truncate text-sm text-muted" title={lease.unitLabel}>
             {lease.unitLabel}
           </p>

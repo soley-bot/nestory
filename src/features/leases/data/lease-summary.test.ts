@@ -65,14 +65,13 @@ describe("buildLeaseSummary", () => {
       activity: [
         {
           action: "lease_updated",
-          actorLabel: "Admin",
+          actionLabel: "Updated",
           createdAt: "2026-06-10T00:00:00.000Z",
-          description: "Updated lease dates",
+          details: [],
           entityLabel: "Dara Tenant",
-          entityType: "lease",
           href: "/leases?leaseId=lease-1",
           id: "activity-1",
-          label: "Updated",
+          recordLabel: "Dara Tenant",
           tone: "neutral",
         },
       ],
@@ -205,8 +204,8 @@ describe("buildLeaseSummary", () => {
       label: "Review ledger",
     });
     expect(summary.activity[0]).toMatchObject({
+      actionLabel: "Updated",
       id: "activity-1",
-      label: "Updated",
     });
   });
 });

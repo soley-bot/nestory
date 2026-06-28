@@ -2,12 +2,9 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 import { formatDate } from "@/lib/dates/format";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import {
-  convertMoney,
   formatMoney,
   formatMoneyDisplay,
-  normalizeCurrencyDisplaySettings,
   type CurrencyCode,
-  type CurrencyDisplaySettings,
 } from "@/lib/money/format";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
 import type {
@@ -99,6 +96,26 @@ type TimelineRow = {
   unit_id: string | null;
 };
 
+type MaintenanceTaskRow = {
+  actual_cost_amount: number | null;
+  actual_cost_currency: CurrencyCode | null;
+  category: string;
+  cost_estimate_amount: number | null;
+  cost_estimate_currency: CurrencyCode | null;
+  created_at: string;
+  due_date: string | null;
+  due_time: string | null;
+  id: string;
+  ledger_entry_id: string | null;
+  priority: string;
+  property_id: string;
+  recurrence_frequency: string;
+  status: string;
+  timeline_event_id: string | null;
+  title: string;
+  unit_id: string | null;
+};
+
 type DocumentRow = {
   file_name: string;
   id: string;
@@ -123,11 +140,11 @@ type PersonRow = {
 };
 
 type TrustedReportInput = {
-  currencySettings: CurrencyDisplaySettings;
   documents: DocumentRow[];
   generatedAt?: string;
   ledgerEntries: LedgerRow[];
   leases: LeaseRow[];
+  maintenanceTasks: MaintenanceTaskRow[];
   owners: OwnerRow[];
   people: PersonRow[];
   periodEnd: string;
@@ -136,6 +153,17 @@ type TrustedReportInput = {
   timelineEvents: TimelineRow[];
   units: UnitRow[];
   viewQuery: ReportsViewQuery;
+};
+
+type TrustedReportSourceRequirements = {
+  documents: boolean;
+  ledgerEntries: boolean;
+  leases: boolean;
+  maintenanceTasks: boolean;
+  owners: boolean;
+  people: boolean;
+  timelineEvents: boolean;
+  units: boolean;
 };
 
 type ReportContext = TrustedReportInput & {
@@ -148,6 +176,8 @@ type ReportContext = TrustedReportInput & {
   generatedAt: string;
   ledgerByPropertyId: Map<string, LedgerRow[]>;
   ledgerByUnitId: Map<string, LedgerRow[]>;
+  maintenanceByPropertyId: Map<string, MaintenanceTaskRow[]>;
+  maintenanceByUnitId: Map<string, MaintenanceTaskRow[]>;
   ownersByPropertyId: Map<string, OwnerRow>;
   peopleById: Map<string, PersonRow>;
   periodLabel: string;
@@ -161,13 +191,37 @@ type ReportContext = TrustedReportInput & {
 
 const activeLeaseStatuses = new Set(["active", "notice_given"]);
 const repairEventTypes = new Set(["Maintenance", "Repair", "Renovation"]);
+const trustedReportSourceRequirements = {
+  "income-expense": requiresReportSources("ledgerEntries", "units"),
+  "lease-expiry": requiresReportSources("leases", "units"),
+  "maintenance-cost": requiresReportSources(
+    "ledgerEntries",
+    "maintenanceTasks",
+    "timelineEvents",
+    "units",
+  ),
+  "missing-data": requiresReportSources("documents", "leases", "owners", "units"),
+  "owner-statement": requiresReportSources("ledgerEntries", "owners", "people"),
+  "property-performance": requiresReportSources(
+    "ledgerEntries",
+    "leases",
+    "timelineEvents",
+    "units",
+  ),
+  "rent-roll": requiresReportSources("documents", "leases", "units"),
+  "unit-performance": requiresReportSources(
+    "documents",
+    "ledgerEntries",
+    "timelineEvents",
+    "units",
+  ),
+  "vacancy-risk": requiresReportSources("documents", "leases", "units"),
+} satisfies Record<ReportKind, TrustedReportSourceRequirements>;
 
 export async function getTrustedReport({
-  currencySettings,
   organizationId,
   viewQuery,
 }: {
-  currencySettings: CurrencyDisplaySettings;
   organizationId: string;
   viewQuery: ReportsViewQuery;
 }): Promise<TrustedReport> {
@@ -175,13 +229,14 @@ export async function getTrustedReport({
   const period = getReportMonthRange(viewQuery.month);
   const properties = await loadReportProperties(supabase, organizationId, viewQuery);
   const propertyIds = properties.map((property) => property.id);
+  const sources = getTrustedReportSourceRequirements(viewQuery.report);
 
   if (propertyIds.length === 0) {
     return buildTrustedReport({
-      currencySettings,
       documents: [],
       ledgerEntries: [],
       leases: [],
+      maintenanceTasks: [],
       owners: [],
       people: [],
       periodEnd: period.end,
@@ -193,26 +248,51 @@ export async function getTrustedReport({
     });
   }
 
-  const [units, leases, ledgerEntries, timelineEvents, documents, owners] =
+  const [
+    units,
+    leases,
+    ledgerEntries,
+    maintenanceTasks,
+    timelineEvents,
+    documents,
+    owners,
+  ] =
     await Promise.all([
-      loadReportUnits(supabase, organizationId, propertyIds),
-      loadReportLeases(supabase, organizationId, propertyIds),
-      loadReportLedger(supabase, organizationId, propertyIds, period),
-      loadReportTimeline(supabase, organizationId, propertyIds, period),
-      loadReportDocuments(supabase, organizationId),
-      loadReportOwners(supabase, organizationId, propertyIds),
+      sources.units
+        ? loadReportUnits(supabase, organizationId, propertyIds)
+        : Promise.resolve<UnitRow[]>([]),
+      sources.leases
+        ? loadReportLeases(supabase, organizationId, propertyIds)
+        : Promise.resolve<LeaseRow[]>([]),
+      sources.ledgerEntries
+        ? loadReportLedger(supabase, organizationId, propertyIds, period)
+        : Promise.resolve<LedgerRow[]>([]),
+      sources.maintenanceTasks
+        ? loadReportMaintenanceTasks(supabase, organizationId, propertyIds, period)
+        : Promise.resolve<MaintenanceTaskRow[]>([]),
+      sources.timelineEvents
+        ? loadReportTimeline(supabase, organizationId, propertyIds, period)
+        : Promise.resolve<TimelineRow[]>([]),
+      sources.documents
+        ? loadReportDocuments(supabase, organizationId)
+        : Promise.resolve<DocumentRow[]>([]),
+      sources.owners
+        ? loadReportOwners(supabase, organizationId, propertyIds)
+        : Promise.resolve<OwnerRow[]>([]),
     ]);
-  const people = await loadReportPeople(
-    supabase,
-    organizationId,
-    new Set(owners.map((owner) => owner.person_id)),
-  );
+  const people = sources.people
+    ? await loadReportPeople(
+        supabase,
+        organizationId,
+        new Set(owners.map((owner) => owner.person_id)),
+      )
+    : [];
 
   return buildTrustedReport({
-    currencySettings,
     documents,
     ledgerEntries,
     leases,
+    maintenanceTasks,
     owners,
     people,
     periodEnd: period.end,
@@ -222,6 +302,12 @@ export async function getTrustedReport({
     units,
     viewQuery,
   });
+}
+
+export function getTrustedReportSourceRequirements(
+  report: ReportKind,
+): TrustedReportSourceRequirements {
+  return trustedReportSourceRequirements[report];
 }
 
 export function buildTrustedReport(input: TrustedReportInput): TrustedReport {
@@ -260,6 +346,21 @@ export function buildTrustedReport(input: TrustedReportInput): TrustedReport {
   }
 
   return buildRentRollReport(context);
+}
+
+function requiresReportSources(
+  ...enabledSources: Array<keyof TrustedReportSourceRequirements>
+): TrustedReportSourceRequirements {
+  return {
+    documents: enabledSources.includes("documents"),
+    ledgerEntries: enabledSources.includes("ledgerEntries"),
+    leases: enabledSources.includes("leases"),
+    maintenanceTasks: enabledSources.includes("maintenanceTasks"),
+    owners: enabledSources.includes("owners"),
+    people: enabledSources.includes("people"),
+    timelineEvents: enabledSources.includes("timelineEvents"),
+    units: enabledSources.includes("units"),
+  };
 }
 
 function buildRentRollReport(context: ReportContext): TrustedReport {
@@ -727,7 +828,57 @@ function buildVacancyRiskReport(context: ReportContext): TrustedReport {
 }
 
 function buildMaintenanceCostReport(context: ReportContext): TrustedReport {
-  const ledgerRows = context.ledgerEntries.filter(isMaintenanceLedger).map((entry) => {
+  const linkedLedgerIds = new Set(
+    context.maintenanceTasks.flatMap((task) => task.ledger_entry_id ?? []),
+  );
+  const linkedTimelineIds = new Set(
+    context.maintenanceTasks.flatMap((task) => task.timeline_event_id ?? []),
+  );
+  const taskRows = context.maintenanceTasks.map((task) => {
+    const property = context.propertiesById.get(task.property_id);
+    const unit = task.unit_id ? context.unitsById.get(task.unit_id) : undefined;
+    const linkedLedger = task.ledger_entry_id
+      ? context.ledgerEntries.find((entry) => entry.id === task.ledger_entry_id)
+      : undefined;
+    const linkedTimeline = task.timeline_event_id
+      ? context.timelineEvents.find((event) => event.id === task.timeline_event_id)
+      : undefined;
+    const actualCost =
+      task.actual_cost_amount !== null && task.actual_cost_currency
+        ? formatMoney(task.actual_cost_amount, task.actual_cost_currency)
+        : "No actual cost";
+    const estimate =
+      task.cost_estimate_amount !== null && task.cost_estimate_currency
+        ? `Est. ${formatMoney(task.cost_estimate_amount, task.cost_estimate_currency)}`
+        : "No estimate";
+
+    return reportRow({
+      cells: {
+        amount: `${actualCost} / ${estimate}`,
+        category: normalizeCategory(task.category),
+        date: formatDate(getTaskReportDate(task)),
+        property: propertyLabel(property),
+        source: "Case",
+        status: formatStatus(task.status),
+        summary: `${formatStatus(task.priority)} / ${task.title}`,
+        unit: unit ? unitLabel(unit) : "Property-level",
+      },
+      href: `/maintenance?archiveState=all&taskId=${task.id}`,
+      id: `task-${task.id}`,
+      sources: compactSources([
+        property && propertySource(property),
+        unit && unitSource(unit),
+        maintenanceTaskSource(task),
+        linkedLedger && ledgerSource(linkedLedger),
+        linkedTimeline && timelineSource(linkedTimeline),
+      ]),
+      title: task.title,
+      tone: getMaintenanceTaskTone(task, context.periodEnd),
+    });
+  });
+  const ledgerRows = context.ledgerEntries
+    .filter((entry) => isMaintenanceLedger(entry) && !linkedLedgerIds.has(entry.id))
+    .map((entry) => {
     const property = context.propertiesById.get(entry.property_id);
     const unit = entry.unit_id ? context.unitsById.get(entry.unit_id) : undefined;
 
@@ -750,9 +901,11 @@ function buildMaintenanceCostReport(context: ReportContext): TrustedReport {
       title: normalizeCategory(entry.category),
       tone: "warning",
     });
-  });
+    });
   const timelineRows = context.timelineEvents
-    .filter(isMaintenanceTimeline)
+    .filter(
+      (event) => isMaintenanceTimeline(event) && !linkedTimelineIds.has(event.id),
+    )
     .map((event) => {
       const property = context.propertiesById.get(event.property_id);
       const unit = event.unit_id ? context.unitsById.get(event.unit_id) : undefined;
@@ -780,12 +933,28 @@ function buildMaintenanceCostReport(context: ReportContext): TrustedReport {
         tone: event.cost_amount === null ? "warning" : "neutral",
       });
     });
-  const rows = [...ledgerRows, ...timelineRows].toSorted((first, second) =>
+  const rows = [...taskRows, ...ledgerRows, ...timelineRows].toSorted((first, second) =>
     first.cells.date.localeCompare(second.cells.date),
   );
-  const totalUsd =
-    sumLedgerUsd(context.ledgerEntries.filter(isMaintenanceLedger), context, true) +
-    sumTimelineCostUsd(context.timelineEvents.filter(isMaintenanceTimeline), context);
+  const totalActualUsd =
+    sumMaintenanceTaskActualUsd(context.maintenanceTasks) +
+    sumLedgerUsd(
+      context.ledgerEntries.filter(
+        (entry) => isMaintenanceLedger(entry) && !linkedLedgerIds.has(entry.id),
+      ),
+      context,
+      true,
+    ) +
+    sumTimelineCostUsd(
+      context.timelineEvents.filter(
+        (event) => isMaintenanceTimeline(event) && !linkedTimelineIds.has(event.id),
+      ),
+      context,
+    );
+  const totalEstimateUsd = sumMaintenanceTaskEstimateUsd(context.maintenanceTasks);
+  const openTasks = context.maintenanceTasks.filter((task) =>
+    isOpenMaintenanceTask(task.status),
+  );
 
   return baseReport(context, {
     columns: [
@@ -793,24 +962,36 @@ function buildMaintenanceCostReport(context: ReportContext): TrustedReport {
       column("source", "Source"),
       column("property", "Property"),
       column("unit", "Unit"),
+      column("category", "Category"),
+      column("status", "Status"),
       column("summary", "Maintenance record"),
       column("amount", "Amount", "right"),
     ],
     description:
-      "Maintenance cost report from maintenance/repair ledger categories and costed maintenance timeline events.",
-    emptyDescription: "No maintenance ledger or timeline cost rows exist for this period.",
-    emptyTitle: "No maintenance costs",
+      "Maintenance case report with category, status, property/unit, actual costs, estimates, and legacy ledger/timeline cost fallbacks.",
+    emptyDescription: "No maintenance cases or legacy maintenance cost rows exist for this period.",
+    emptyTitle: "No maintenance records",
     exportFilenameBase: "maintenance-cost",
     kind: "maintenance-cost",
     rows,
     summary: [
-      metric("Cost rows", String(rows.length), "Ledger plus timeline maintenance rows", rows.length),
-      metric("Total cost", moneyFromUsd(totalUsd, context), "Sum of maintenance ledger and timeline costs", rows.length),
-      metric("Ledger rows", String(ledgerRows.length), "Maintenance ledger source rows", ledgerRows.length),
-      metric("Timeline rows", String(timelineRows.length), "Maintenance timeline source rows", timelineRows.length),
+      metric("Cases", String(taskRows.length), "Maintenance task/case rows", taskRows.length),
+      metric("Open", String(openTasks.length), "Open maintenance cases", openTasks.length),
+      metric(
+        "Actual cost",
+        moneyFromUsd(totalActualUsd, context),
+        "Actual case cost plus unlinked legacy ledger/timeline costs",
+        rows.length,
+      ),
+      metric(
+        "Estimated",
+        moneyFromUsd(totalEstimateUsd, context),
+        "Maintenance case cost estimates",
+        taskRows.length,
+      ),
     ],
     title: "Maintenance Cost",
-    totalsTraceLabel: `Maintenance total traces to ${ledgerRows.length} ledger rows and ${timelineRows.length} timeline rows.`,
+    totalsTraceLabel: `Maintenance report traces to ${taskRows.length} cases, ${ledgerRows.length} unlinked ledger rows, and ${timelineRows.length} unlinked timeline rows.`,
   });
 }
 
@@ -965,6 +1146,8 @@ function buildReportContext(input: TrustedReportInput): ReportContext {
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     ledgerByPropertyId: groupBy(input.ledgerEntries, "property_id"),
     ledgerByUnitId: groupByNullable(input.ledgerEntries, "unit_id"),
+    maintenanceByPropertyId: groupBy(input.maintenanceTasks, "property_id"),
+    maintenanceByUnitId: groupByNullable(input.maintenanceTasks, "unit_id"),
     ownersByPropertyId: indexPrimaryOwners(input.owners),
     peopleById: indexById(input.people),
     periodLabel: `${formatDate(input.periodStart)} - ${formatDate(input.periodEnd)}`,
@@ -1008,6 +1191,7 @@ function reportRow({
     cells,
     href,
     id,
+    sourceCount: sources.length,
     sourceLinks: sources,
     sourceSummary:
       sources.length === 1 ? "1 source row" : `${sources.length} source rows`,
@@ -1133,6 +1317,15 @@ function timelineSource(event: TimelineRow): ReportSourceLink {
     id: event.id,
     label: event.title,
     recordType: "timeline",
+  };
+}
+
+function maintenanceTaskSource(task: MaintenanceTaskRow): ReportSourceLink {
+  return {
+    href: `/maintenance?archiveState=all&taskId=${task.id}`,
+    id: task.id,
+    label: task.title,
+    recordType: "maintenance",
   };
 }
 
@@ -1308,6 +1501,31 @@ function isMaintenanceTimeline(event: TimelineRow) {
   );
 }
 
+function isOpenMaintenanceTask(status: string) {
+  const normalized = normalizeValue(status);
+
+  return normalized !== "completed" && normalized !== "cancelled";
+}
+
+function getMaintenanceTaskTone(
+  task: MaintenanceTaskRow,
+  periodEnd: string,
+): TrustedReportRow["tone"] {
+  if (isOpenMaintenanceTask(task.status) && task.due_date && task.due_date < periodEnd) {
+    return "danger";
+  }
+
+  if (normalizeValue(task.priority) === "urgent" || normalizeValue(task.priority) === "high") {
+    return "warning";
+  }
+
+  if (normalizeValue(task.status) === "completed") {
+    return "success";
+  }
+
+  return "neutral";
+}
+
 function isActiveLease(lease: LeaseRow) {
   return activeLeaseStatuses.has(normalizeValue(lease.status));
 }
@@ -1332,11 +1550,11 @@ function compareStrings(first: string, second: string) {
 
 function sumLedgerUsd(
   entries: LedgerRow[],
-  context: Pick<ReportContext, "currencySettings">,
+  _context?: unknown,
   absolute = false,
 ) {
   return entries.reduce((total, entry) => {
-    const amount = toUsd(entry.amount, entry.currency, context);
+    const amount = toUsd(entry.amount, entry.currency);
     const signedAmount = absolute ? Math.abs(amount) : isExpense(entry) ? -amount : amount;
 
     return total + signedAmount;
@@ -1345,35 +1563,70 @@ function sumLedgerUsd(
 
 function sumTimelineCostUsd(
   events: TimelineRow[],
-  context: Pick<ReportContext, "currencySettings">,
+  _context?: unknown,
 ) {
+  void _context;
+
   return events.reduce((total, event) => {
     if (event.cost_amount === null || !event.cost_currency) {
       return total;
     }
 
-    return total + Math.abs(toUsd(event.cost_amount, event.cost_currency, context));
+    return total + Math.abs(toUsd(event.cost_amount, event.cost_currency));
   }, 0);
+}
+
+function sumMaintenanceTaskActualUsd(tasks: MaintenanceTaskRow[]) {
+  return tasks.reduce((total, task) => {
+    if (task.actual_cost_amount === null || !task.actual_cost_currency) {
+      return total;
+    }
+
+    return total + Math.abs(toUsd(task.actual_cost_amount, task.actual_cost_currency));
+  }, 0);
+}
+
+function sumMaintenanceTaskEstimateUsd(tasks: MaintenanceTaskRow[]) {
+  return tasks.reduce((total, task) => {
+    if (task.cost_estimate_amount === null || !task.cost_estimate_currency) {
+      return total;
+    }
+
+    return total + Math.abs(toUsd(task.cost_estimate_amount, task.cost_estimate_currency));
+  }, 0);
+}
+
+function taskFallsInPeriod(
+  task: MaintenanceTaskRow,
+  period: { end: string; start: string },
+) {
+  const reportDate = getTaskReportDate(task);
+
+  return reportDate >= period.start && reportDate <= period.end;
+}
+
+function getTaskReportDate(task: MaintenanceTaskRow) {
+  return task.due_date ?? task.created_at.slice(0, 10);
 }
 
 function toUsd(
   amount: number,
-  currency: CurrencyCode,
-  context: Pick<ReportContext, "currencySettings">,
+  _currency: CurrencyCode,
+  _context?: unknown,
 ) {
-  return convertMoney(
-    amount,
-    currency,
-    "USD",
-    normalizeCurrencyDisplaySettings(context.currencySettings).khrPerUsd,
-  );
+  void _currency;
+  void _context;
+
+  return amount;
 }
 
 function moneyFromUsd(
   amount: number,
-  context: Pick<ReportContext, "currencySettings">,
+  _context?: unknown,
 ) {
-  return formatMoneyDisplay(amount, "USD", context.currencySettings).primary;
+  void _context;
+
+  return formatMoneyDisplay(amount, "USD").primary;
 }
 
 function diffDays(start: string, end: string) {
@@ -1571,6 +1824,35 @@ async function loadReportTimeline(
   }
 
   return result.data ?? [];
+}
+
+async function loadReportMaintenanceTasks(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  propertyIds: string[],
+  period: { end: string; start: string },
+) {
+  const result = await supabase
+    .from("tasks")
+    .select(
+      "id, property_id, unit_id, title, category, priority, status, due_date, due_time, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, recurrence_frequency, ledger_entry_id, timeline_event_id, created_at",
+    )
+    .eq("organization_id", organizationId)
+    .in("property_id", propertyIds)
+    .is("archived_at", null)
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true })
+    .limit(2_000);
+
+  if (result.error) {
+    throw new Error(
+      `Could not load report maintenance cases: ${result.error.message}`,
+    );
+  }
+
+  return ((result.data ?? []) as MaintenanceTaskRow[]).filter((task) =>
+    taskFallsInPeriod(task, period),
+  );
 }
 
 async function loadReportDocuments(

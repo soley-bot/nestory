@@ -64,6 +64,7 @@ export type LeaseViewQuery = {
   archiveState: LeaseArchiveState;
   endMonth: string;
   endsWithinDays: number | null;
+  leaseId: string | null;
   page: number;
   pageSize: number;
   propertyId: string;

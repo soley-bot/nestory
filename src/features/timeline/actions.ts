@@ -5,11 +5,9 @@ import { z } from "zod";
 import { Constants } from "@/types/database";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import type { CurrencyCode } from "@/lib/money/format";
 
 type TimelineFieldErrors = {
   costAmount?: string[];
-  costCurrency?: string[];
   description?: string[];
   document?: string[];
   eventId?: string[];
@@ -29,7 +27,6 @@ export type TimelineActionState = {
 const createTimelineEventSchema = z
   .object({
     costAmount: z.string().trim(),
-    costCurrency: z.string().trim(),
     description: z
       .string()
       .trim()
@@ -48,9 +45,6 @@ const createTimelineEventSchema = z
     unitId: z.string().trim(),
   })
   .superRefine((data, context) => {
-    const hasCostAmount = data.costAmount.length > 0;
-    const hasCostCurrency = data.costCurrency.length > 0;
-
     if (data.unitId.length > 0) {
       const parsedUnitId = z.uuid().safeParse(data.unitId);
 
@@ -63,16 +57,7 @@ const createTimelineEventSchema = z
       }
     }
 
-    if (!hasCostAmount && !hasCostCurrency) {
-      return;
-    }
-
-    if (!hasCostAmount || !hasCostCurrency) {
-      context.addIssue({
-        code: "custom",
-        message: "Enter both cost and currency.",
-        path: hasCostAmount ? ["costCurrency"] : ["costAmount"],
-      });
+    if (data.costAmount.length === 0) {
       return;
     }
 
@@ -83,18 +68,6 @@ const createTimelineEventSchema = z
         code: "custom",
         message: "Enter a valid cost.",
         path: ["costAmount"],
-      });
-    }
-
-    const parsedCurrency = z
-      .enum(Constants.public.Enums.currency_code)
-      .safeParse(data.costCurrency);
-
-    if (!parsedCurrency.success) {
-      context.addIssue({
-        code: "custom",
-        message: "Choose a valid currency.",
-        path: ["costCurrency"],
       });
     }
   });
@@ -126,7 +99,6 @@ export async function createTimelineEventAction(
   const context = await requireAdminContext();
   const parsed = createTimelineEventSchema.safeParse({
     costAmount: readString(formData, "costAmount"),
-    costCurrency: readString(formData, "costCurrency"),
     description: readString(formData, "description"),
     eventDate: readString(formData, "eventDate"),
     eventType: readString(formData, "eventType"),
@@ -141,10 +113,7 @@ export async function createTimelineEventAction(
 
   const costAmount =
     parsed.data.costAmount.length > 0 ? Number(parsed.data.costAmount) : null;
-  const costCurrency =
-    parsed.data.costCurrency.length > 0
-      ? (parsed.data.costCurrency as CurrencyCode)
-      : null;
+  const costCurrency = costAmount === null ? null : "USD";
   const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("create_timeline_event", {
@@ -187,7 +156,6 @@ export async function updateTimelineEventAction(
   );
   const parsed = createTimelineEventSchema.safeParse({
     costAmount: readString(formData, "costAmount"),
-    costCurrency: readString(formData, "costCurrency"),
     description: readString(formData, "description"),
     eventDate: readString(formData, "eventDate"),
     eventType: readString(formData, "eventType"),
@@ -209,10 +177,7 @@ export async function updateTimelineEventAction(
 
   const costAmount =
     parsed.data.costAmount.length > 0 ? Number(parsed.data.costAmount) : null;
-  const costCurrency =
-    parsed.data.costCurrency.length > 0
-      ? (parsed.data.costCurrency as CurrencyCode)
-      : null;
+  const costCurrency = costAmount === null ? null : "USD";
   const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
   const supabase = await createSupabaseServerClient();
   const pathContext = await getTimelinePathContext(

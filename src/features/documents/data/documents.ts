@@ -23,6 +23,7 @@ type DocumentRow = {
   property_id: string | null;
   size_bytes: number;
   storage_path: string;
+  task_id: string | null;
   timeline_event_id: string | null;
   unit_id: string | null;
   uploaded_at: string;
@@ -52,6 +53,11 @@ type LedgerRow = {
 };
 
 type TimelineRow = {
+  id: string;
+  title: string;
+};
+
+type TaskRow = {
   id: string;
   title: string;
 };
@@ -88,7 +94,7 @@ export async function getDocumentsScreenData(
   let documentsQuery = supabase
     .from("documents")
     .select(
-      "id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at, archived_at, property_id, unit_id, lease_id, ledger_entry_id, timeline_event_id",
+      "id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at, archived_at, property_id, unit_id, lease_id, ledger_entry_id, task_id, timeline_event_id",
       { count: "exact" },
     )
     .eq("organization_id", organizationId);
@@ -105,6 +111,10 @@ export async function getDocumentsScreenData(
 
   if (viewQuery.unitId !== "all") {
     documentsQuery = documentsQuery.eq("unit_id", viewQuery.unitId);
+  }
+
+  if (viewQuery.taskId !== "all") {
+    documentsQuery = documentsQuery.eq("task_id", viewQuery.taskId);
   }
 
   if (viewQuery.query) {
@@ -124,8 +134,9 @@ export async function getDocumentsScreenData(
   const documentIds = rows.map((document) => document.id);
   const leaseIds = rows.flatMap((document) => document.lease_id ?? []);
   const ledgerIds = rows.flatMap((document) => document.ledger_entry_id ?? []);
+  const taskIds = rows.flatMap((document) => document.task_id ?? []);
   const timelineIds = rows.flatMap((document) => document.timeline_event_id ?? []);
-  const [leases, ledgerEntries, timelineEvents, activityRows] = await Promise.all([
+  const [leases, ledgerEntries, tasks, timelineEvents, activityRows] = await Promise.all([
     getRowsById(supabase, "leases", "id, tenant_name", organizationId, leaseIds),
     getRowsById(
       supabase,
@@ -134,6 +145,7 @@ export async function getDocumentsScreenData(
       organizationId,
       ledgerIds,
     ),
+    getRowsById(supabase, "tasks", "id, title", organizationId, taskIds),
     getRowsById(supabase, "timeline_events", "id, title", organizationId, timelineIds),
     getDocumentActivity(supabase, organizationId, documentIds),
   ]);
@@ -141,27 +153,28 @@ export async function getDocumentsScreenData(
   const unitsById = indexById(unitsResult.data ?? []);
   const leasesById = indexById(leases as unknown as LeaseRow[]);
   const ledgerById = indexById(ledgerEntries as unknown as LedgerRow[]);
+  const tasksById = indexById(tasks as unknown as TaskRow[]);
   const timelineById = indexById(timelineEvents as unknown as TimelineRow[]);
   const activityByDocumentId = groupActivityByDocumentId(activityRows);
-  const documents = await Promise.all(
-    rows.map(async (document) =>
-      toDocumentSummary({
-        activity: activityByDocumentId.get(document.id) ?? [],
-        document,
-        ledgerEntry: document.ledger_entry_id
-          ? ledgerById.get(document.ledger_entry_id)
-          : undefined,
-        lease: document.lease_id ? leasesById.get(document.lease_id) : undefined,
-        property: document.property_id
-          ? propertiesById.get(document.property_id)
-          : undefined,
-        supabase,
-        timelineEvent: document.timeline_event_id
-          ? timelineById.get(document.timeline_event_id)
-          : undefined,
-        unit: document.unit_id ? unitsById.get(document.unit_id) : undefined,
-      }),
-    ),
+  const signedUrlsByPath = await getSignedDocumentUrls(rows, supabase);
+  const documents = rows.map((document) =>
+    toDocumentSummary({
+      activity: activityByDocumentId.get(document.id) ?? [],
+      document,
+      ledgerEntry: document.ledger_entry_id
+        ? ledgerById.get(document.ledger_entry_id)
+        : undefined,
+      lease: document.lease_id ? leasesById.get(document.lease_id) : undefined,
+      property: document.property_id
+        ? propertiesById.get(document.property_id)
+        : undefined,
+      signedUrl: signedUrlsByPath.get(document.storage_path),
+      task: document.task_id ? tasksById.get(document.task_id) : undefined,
+      timelineEvent: document.timeline_event_id
+        ? timelineById.get(document.timeline_event_id)
+        : undefined,
+      unit: document.unit_id ? unitsById.get(document.unit_id) : undefined,
+    }),
   );
 
   return {
@@ -187,13 +200,14 @@ export async function getDocumentsScreenData(
   };
 }
 
-async function toDocumentSummary({
+function toDocumentSummary({
   activity,
   document,
   ledgerEntry,
   lease,
   property,
-  supabase,
+  signedUrl,
+  task,
   timelineEvent,
   unit,
 }: {
@@ -202,18 +216,17 @@ async function toDocumentSummary({
   ledgerEntry?: LedgerRow;
   lease?: LeaseRow;
   property?: PropertyRow;
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  signedUrl?: string;
+  task?: TaskRow;
   timelineEvent?: TimelineRow;
   unit?: UnitRow;
-}): Promise<DocumentSummary> {
-  const { data } = await supabase.storage
-    .from("nestory-documents")
-    .createSignedUrl(document.storage_path, 60 * 60);
+}): DocumentSummary {
   const linkedRecords = buildLinkedRecords({
     document,
     ledgerEntry,
     lease,
     property,
+    task,
     timelineEvent,
     unit,
   });
@@ -224,6 +237,9 @@ async function toDocumentSummary({
       : undefined,
     lease: document.lease_id
       ? `/leases?archiveState=all&leaseId=${document.lease_id}`
+      : undefined,
+    maintenance: document.task_id
+      ? `/maintenance?archiveState=all&taskId=${document.task_id}`
       : undefined,
     property: document.property_id ? `/properties/${document.property_id}` : undefined,
     timeline: document.timeline_event_id
@@ -240,7 +256,7 @@ async function toDocumentSummary({
     mimeType: document.mime_type,
     sizeBytes: document.size_bytes,
     uploadedAt: document.uploaded_at,
-    url: data?.signedUrl,
+    url: signedUrl,
   };
 
   return {
@@ -250,6 +266,7 @@ async function toDocumentSummary({
     formValues: {
       category: document.category,
       propertyId: document.property_id ?? "",
+      taskId: document.task_id,
       unitId: document.unit_id,
     },
     hrefs,
@@ -271,7 +288,7 @@ async function toDocumentSummary({
           }
         : {
             description: "Open the file or review its linked operational record.",
-            href: data?.signedUrl ?? hrefs.document,
+            href: signedUrl ?? hrefs.document,
             label: "Review file",
             tone: "neutral",
           },
@@ -293,12 +310,12 @@ async function toDocumentSummary({
         tone: linked ? "success" : "warning",
       },
       {
-        description: data?.signedUrl
+        description: signedUrl
           ? "A temporary signed URL is available for review."
           : "The file exists in metadata, but a signed URL was not returned.",
         id: "file",
-        label: data?.signedUrl ? "File available" : "File unavailable",
-        tone: data?.signedUrl ? "success" : "danger",
+        label: signedUrl ? "File available" : "File unavailable",
+        tone: signedUrl ? "success" : "danger",
       },
     ],
     storagePath: document.storage_path,
@@ -310,6 +327,7 @@ function buildLinkedRecords({
   ledgerEntry,
   lease,
   property,
+  task,
   timelineEvent,
   unit,
 }: {
@@ -317,6 +335,7 @@ function buildLinkedRecords({
   ledgerEntry?: LedgerRow;
   lease?: LeaseRow;
   property?: PropertyRow;
+  task?: TaskRow;
   timelineEvent?: TimelineRow;
   unit?: UnitRow;
 }): DocumentLinkedRecord[] {
@@ -349,6 +368,13 @@ function buildLinkedRecords({
           type: "Ledger",
         }
       : null,
+    task && document.task_id
+      ? {
+          href: `/maintenance?archiveState=all&taskId=${document.task_id}`,
+          label: task.title,
+          type: "Maintenance",
+        }
+      : null,
     timelineEvent && document.timeline_event_id
       ? {
           href: `/timeline?archiveState=all&eventId=${document.timeline_event_id}`,
@@ -359,9 +385,34 @@ function buildLinkedRecords({
   ].filter((record): record is DocumentLinkedRecord => Boolean(record));
 }
 
+async function getSignedDocumentUrls(
+  rows: DocumentRow[],
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+) {
+  if (rows.length === 0) {
+    return new Map<string, string>();
+  }
+
+  const { data } = await supabase.storage.from("nestory-documents").createSignedUrls(
+    rows.map((row) => row.storage_path),
+    60 * 60,
+  );
+  const urlsByPath = new Map<string, string>();
+
+  rows.forEach((row, index) => {
+    const signedUrl = data?.[index]?.signedUrl ?? undefined;
+
+    if (signedUrl) {
+      urlsByPath.set(row.storage_path, signedUrl);
+    }
+  });
+
+  return urlsByPath;
+}
+
 async function getRowsById(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  table: "leases" | "ledger_entries" | "timeline_events",
+  table: "leases" | "ledger_entries" | "tasks" | "timeline_events",
   select: string,
   organizationId: string,
   ids: string[],

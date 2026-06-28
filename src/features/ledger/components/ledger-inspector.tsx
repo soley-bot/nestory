@@ -1,11 +1,7 @@
 import Link from "next/link";
 import {
   Archive,
-  AlertTriangle,
-  CalendarDays,
-  CheckCircle2,
   ExternalLink,
-  Landmark,
   Lock,
   Pencil,
   RotateCcw,
@@ -14,7 +10,6 @@ import {
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DocumentList } from "@/features/documents/components/document-list";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
@@ -83,159 +78,31 @@ export function LedgerInspector({
         </div>
       </div>
 
-      <div className="space-y-5 p-4 text-sm sm:p-5">
-        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
-                Next action
-              </p>
-              <p className="mt-1 font-semibold">{entry.nextAction.label}</p>
-            </div>
-            <Badge tone={entry.nextAction.tone}>
-              {getRiskBadgeLabel(entry.nextAction.tone)}
-            </Badge>
-          </div>
-          <p className="mt-2 leading-6 text-muted">
-            {entry.nextAction.description}
-          </p>
-          <Link
-            className="mt-2 inline-flex items-center gap-1.5 font-medium text-accent hover:underline"
-            href={entry.nextAction.href}
-          >
-            Open action
-            <ExternalLink size={13} />
-          </Link>
-        </section>
-
-        <section>
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
-            Risk
-          </p>
-          <div className="mt-2 space-y-2">
-            {entry.riskIndicators.map((risk) => (
-              <RiskRow key={risk.id} risk={risk} />
-            ))}
-          </div>
-        </section>
-
-        <InspectorRow icon={<CalendarDays size={16} />} label="Transaction date">
-          {formatDate(entry.transactionDate)}
-        </InspectorRow>
-        <InspectorRow icon={<Landmark size={16} />} label="Property">
-          <Link
-            className="font-medium text-accent hover:underline"
-            href={entry.hrefs.property}
-          >
-            {entry.propertyName}
-          </Link>
-          {entry.unitNumber ? (
+      <div className="space-y-4 p-4 text-sm sm:p-5">
+        <div className="grid grid-cols-2 gap-3">
+          <CompactFact label="Date">{formatDate(entry.transactionDate)}</CompactFact>
+          <CompactFact label="Property">
             <Link
-              className="block text-muted hover:text-accent hover:underline"
-              href={entry.hrefs.unit ?? entry.hrefs.property}
+              className="line-clamp-2 break-words text-accent hover:underline"
+              href={entry.hrefs.property}
             >
-              Unit {entry.unitNumber}
+              {entry.unitNumber
+                ? `${entry.propertyCode} / Unit ${entry.unitNumber}`
+                : entry.propertyCode}
             </Link>
-          ) : (
-            <span className="block text-muted">Property level</span>
-          )}
-        </InspectorRow>
-        <InspectorRow icon={<ExternalLink size={16} />} label="Timeline sync">
-          {entry.relatedTimelineEvent
-            ? "Linked and kept in sync"
-            : "Timeline link pending"}
-        </InspectorRow>
-        {entry.archivedAt ? (
-          <InspectorRow icon={<Archive size={16} />} label="Archived">
-            {formatDate(entry.archivedAt)}
-          </InspectorRow>
-        ) : null}
-      </div>
-
-      <div className="border-t border-border p-4 sm:p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-          Linked timeline
-        </p>
-        <div className="mt-3 rounded-md border border-border px-3 py-2 text-sm">
-          {entry.relatedTimelineEvent ? (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="break-words font-medium">
-                  {entry.relatedTimelineEvent.title}
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  Edits and archives from Ledger keep this timeline event in sync.
-                </p>
-              </div>
-              <Link
-                className="inline-flex min-h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-surface-muted"
-                href={entry.hrefs.timeline}
-              >
-                <ExternalLink size={14} />
-                Open timeline event
-              </Link>
-            </div>
-          ) : (
-            <p className="text-muted">
-              No linked timeline record was found. Saving an edit will recreate
-              the missing timeline link.
-            </p>
-          )}
+          </CompactFact>
         </div>
-      </div>
 
-      <div className="border-t border-border p-4 sm:p-5">
-        <div className="mb-5">
-          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-              Receipts
-            </p>
-            {!isArchived ? (
-              <Button onClick={() => onAttachReceipt(entry)} variant="ghost">
-                <Upload size={15} />
-                Attach
-              </Button>
-            ) : null}
-          </div>
-          <DocumentList
-            documents={entry.documents}
-            emptyLabel="No receipts attached yet."
-          />
-        </div>
-      </div>
+        <AttentionNote
+          href={entry.nextAction.href}
+          item={getAttentionItem(entry.riskIndicators)}
+          label={entry.nextAction.label}
+        />
 
-      <div className="border-t border-border p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-            History
-          </p>
-          <Badge>{entry.recordCounts.activity}</Badge>
-        </div>
-        <div className="mt-3 space-y-2">
-          {entry.activity.length === 0 ? (
-            <MiniRow label="Activity" value="No entry activity logged yet." />
-          ) : (
-            entry.activity.slice(0, 4).map((change) => (
-              <Link
-                className="block rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-muted"
-                href={change.href}
-                key={change.id}
-              >
-                <MiniRow
-                  label={`${change.actionLabel} / ${change.entityLabel}`}
-                  value={`${change.recordLabel} / ${formatDate(change.createdAt)}`}
-                />
-              </Link>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className="border-t border-border p-4 sm:p-5">
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-3">
           {isArchived ? (
             <Button
-              className="col-span-2"
+              className="sm:col-span-3"
               disabled={entry.isLocked}
               onClick={() => onRestoreEntry(entry)}
               title={
@@ -249,56 +116,61 @@ export function LedgerInspector({
           ) : (
             <>
               <Button
+                aria-label="Attach receipt"
+                className="px-0"
+                disabled={entry.isLocked}
+                onClick={() => onAttachReceipt(entry)}
+                title={
+                  entry.isLocked
+                    ? "This accounting period is locked."
+                    : "Attach receipt"
+                }
+              >
+                <Upload size={15} />
+              </Button>
+              <Button
+                aria-label="Edit ledger entry"
+                className="px-0"
                 disabled={entry.isLocked}
                 onClick={() => onEditEntry(entry)}
                 title={
-                  entry.isLocked ? "This accounting period is locked." : undefined
+                  entry.isLocked ? "This accounting period is locked." : "Edit"
                 }
               >
                 <Pencil size={15} />
-                Edit
               </Button>
               <Button
+                aria-label="Archive ledger entry"
+                className="px-0"
                 disabled={entry.isLocked}
                 onClick={() => onArchiveEntry(entry)}
                 title={
-                  entry.isLocked ? "This accounting period is locked." : undefined
+                  entry.isLocked ? "This accounting period is locked." : "Archive"
                 }
               >
                 <Archive size={15} />
-                Archive
               </Button>
             </>
           )}
         </div>
-        <p className="mt-3 text-xs leading-5 text-muted">
-          {entry.isLocked
-            ? "This entry belongs to a locked accounting period. Unlock the period before editing, archiving, or restoring it."
-            : "Archiving from Ledger hides this entry from totals and archives the linked timeline event when one exists."}
-        </p>
       </div>
     </aside>
   );
 }
 
-function InspectorRow({
+function CompactFact({
   children,
-  icon,
   label,
 }: {
   children: React.ReactNode;
-  icon: React.ReactNode;
   label: string;
 }) {
   return (
-    <div className="flex gap-3">
-      <div className="mt-0.5 text-muted">{icon}</div>
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
-          {label}
-        </p>
-        <div className="mt-1 text-foreground">{children}</div>
-      </div>
+    <div className="min-w-0 rounded-md border border-border px-3 py-2.5">
+      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+        {label}
+      </p>
+      <div className="mt-1.5 font-medium">{children}</div>
     </div>
   );
 }
@@ -311,57 +183,37 @@ function DirectionBadge({ direction }: { direction: LedgerEntry["direction"] }) 
   return <Badge tone="warning">Expense</Badge>;
 }
 
-function RiskRow({
-  risk,
+function AttentionNote({
+  href,
+  item,
+  label,
 }: {
-  risk: LedgerEntry["riskIndicators"][number];
+  href: string;
+  item?: LedgerEntry["riskIndicators"][number];
+  label: string;
 }) {
-  const Icon =
-    risk.tone === "success"
-      ? CheckCircle2
-      : risk.tone === "danger" || risk.tone === "warning"
-        ? AlertTriangle
-        : CalendarDays;
-
   return (
-    <div className="flex min-w-0 gap-2 rounded-md border border-border px-2.5 py-2">
-      <Icon className="mt-0.5 shrink-0 text-muted" size={14} />
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate font-medium">{risk.label}</p>
-          <Badge className="px-2 text-xs" tone={risk.tone}>
-            {getRiskBadgeLabel(risk.tone)}
+    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="truncate font-semibold">{item?.label ?? label}</p>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge tone={item?.tone ?? "neutral"}>
+            {item ? "Review" : "Action"}
           </Badge>
+          <Link
+            aria-label="Open action"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+            href={href}
+            title="Open action"
+          >
+            <ExternalLink size={13} />
+          </Link>
         </div>
-        <p className="mt-0.5 text-xs leading-5 text-muted">
-          {risk.description}
-        </p>
       </div>
     </div>
   );
 }
 
-function MiniRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 text-sm">
-      <p className="truncate font-medium" title={label}>
-        {label}
-      </p>
-      <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-muted">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function getRiskBadgeLabel(tone: LedgerEntry["riskIndicators"][number]["tone"]) {
-  if (tone === "success") {
-    return "Ready";
-  }
-
-  if (tone === "danger") {
-    return "Risk";
-  }
-
-  return "Review";
+function getAttentionItem(items: LedgerEntry["riskIndicators"]) {
+  return items.find((item) => item.tone !== "success");
 }

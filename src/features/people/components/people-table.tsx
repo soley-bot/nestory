@@ -1,10 +1,14 @@
-import Link from "next/link";
 import {
   BriefcaseBusiness,
   Building2,
   Mail,
   UserRound,
 } from "lucide-react";
+import {
+  previewRowClassName,
+  RecordLink,
+  selectedPreviewRowClassName,
+} from "@/components/data/interactive-table";
 import { Badge } from "@/components/ui/badge";
 import { formatRole } from "@/features/people/people.labels";
 import type {
@@ -99,8 +103,9 @@ export function PeopleTable({
                 {people.map((person) => (
                   <tr
                     className={cn(
-                      "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                      selectedPersonId === person.id && "bg-surface-muted",
+                      previewRowClassName,
+                      selectedPersonId === person.id &&
+                        selectedPreviewRowClassName,
                       person.isArchived && "text-muted",
                     )}
                     key={person.id}
@@ -115,15 +120,12 @@ export function PeopleTable({
                     tabIndex={0}
                   >
                     <td className="px-2.5 py-2">
-                      <Link
-                        className="block truncate font-medium text-accent hover:underline"
+                      <RecordLink
                         href={getPersonHref(person.id)}
-                        onClick={(event) => event.stopPropagation()}
-                        prefetch={false}
-                        title={person.displayName}
+                        title={`Open full person record: ${person.displayName}`}
                       >
                         {person.displayName}
-                      </Link>
+                      </RecordLink>
                       <p
                         className="mt-0.5 truncate text-xs text-muted"
                         title={person.legalName ?? person.partyTypeLabel}
@@ -195,15 +197,13 @@ function PersonCard({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <Link
-                className="block truncate text-base font-semibold leading-5 text-accent hover:underline"
+              <RecordLink
+                className="text-base font-semibold leading-5"
                 href={getPersonHref(person.id)}
-                onClick={(event) => event.stopPropagation()}
-                prefetch={false}
-                title={person.displayName}
+                title={`Open full person record: ${person.displayName}`}
               >
                 {person.displayName}
-              </Link>
+              </RecordLink>
               <p className="mt-1 truncate text-xs text-muted">
                 {person.legalName ?? person.partyTypeLabel}
               </p>

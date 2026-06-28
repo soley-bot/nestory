@@ -15,7 +15,6 @@ import type {
   LedgerPropertyOption,
   LedgerUnitOption,
 } from "@/features/ledger/ledger.types";
-import type { CurrencyCode } from "@/lib/money/format";
 
 const initialState: LedgerActionState = {};
 
@@ -23,7 +22,6 @@ type LedgerEntryFormProps = {
   entry?: LedgerEntry;
   initialValues?: Partial<Pick<LedgerEntry, "propertyId" | "unitId">>;
   mode?: "add" | "edit";
-  defaultCurrency?: CurrencyCode;
   onClose: () => void;
   onSuccess?: (message: string) => void;
   properties: LedgerPropertyOption[];
@@ -34,7 +32,6 @@ export function LedgerEntryForm({
   entry,
   initialValues,
   mode = "add",
-  defaultCurrency = "USD",
   onClose,
   onSuccess,
   properties,
@@ -143,7 +140,7 @@ export function LedgerEntryForm({
           </Field>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_140px_100px]">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_140px]">
           <Field label="Category" error={state.fieldErrors?.category?.[0]}>
             <Input
               defaultValue={entry?.category}
@@ -163,19 +160,6 @@ export function LedgerEntryForm({
               required
               step="0.01"
               type="number"
-            />
-          </Field>
-
-          <Field label="Currency" error={state.fieldErrors?.currency?.[0]}>
-            <SelectControl
-              ariaLabel="Currency"
-              defaultValue={entry?.currency ?? defaultCurrency}
-              name="currency"
-              options={[
-                { label: "USD", value: "USD" },
-                { label: "KHR", value: "KHR" },
-              ]}
-              required
             />
           </Field>
         </div>

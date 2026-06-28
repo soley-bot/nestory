@@ -13,6 +13,7 @@ describe("parseDocumentSearchParams", () => {
       pageSize: DEFAULT_DOCUMENT_PAGE_SIZE,
       propertyId: "all",
       query: "",
+      taskId: "all",
       unitId: "all",
     });
   });
@@ -25,6 +26,7 @@ describe("parseDocumentSearchParams", () => {
         pageSize: "100",
         propertyId: "11111111-1111-4111-8111-111111111111",
         query: "  lease agreement  ",
+        taskId: "33333333-3333-4333-8333-333333333333",
         unitId: "22222222-2222-4222-8222-222222222222",
       }),
     ).toEqual({
@@ -33,6 +35,7 @@ describe("parseDocumentSearchParams", () => {
       pageSize: 100,
       propertyId: "11111111-1111-4111-8111-111111111111",
       query: "lease agreement",
+      taskId: "33333333-3333-4333-8333-333333333333",
       unitId: "22222222-2222-4222-8222-222222222222",
     });
   });
@@ -51,6 +54,7 @@ describe("parseDocumentSearchParams", () => {
       page: 1,
       pageSize: DEFAULT_DOCUMENT_PAGE_SIZE,
       propertyId: "all",
+      taskId: "all",
       unitId: "all",
     });
   });

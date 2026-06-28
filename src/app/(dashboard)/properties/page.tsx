@@ -4,7 +4,6 @@ import {
   getPropertyOwnerOptions,
 } from "@/features/properties/data/properties";
 import { parsePropertySearchParams } from "@/features/properties/property.filters";
-import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import { requireAdminContext } from "@/lib/auth/context";
 import { getUuidSearchParam } from "@/lib/validation/search-params";
 
@@ -18,11 +17,8 @@ export default async function PropertiesPage({
   const context = await requireAdminContext();
   const params = await searchParams;
   const viewQuery = parsePropertySearchParams(params);
-  const currencySettings = await getOrganizationCurrencySettings(
-    context.organizationId,
-  );
   const [{ pagination, properties }, ownerOptions] = await Promise.all([
-    getPropertiesScreenData(context.organizationId, currencySettings, viewQuery),
+    getPropertiesScreenData(context.organizationId, viewQuery),
     getPropertyOwnerOptions(context.organizationId),
   ]);
   const initialPropertyId = getUuidSearchParam(params.propertyId);

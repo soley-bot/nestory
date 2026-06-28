@@ -216,7 +216,7 @@ function PrimaryMetricTile({
       </div>
       <div className="mt-1 min-w-0 text-[15px] font-semibold leading-5">
         {isMoneyDisplayValue(metric.value) ? (
-          <MoneyDisplay showSecondary={false} value={metric.value} />
+          <MoneyDisplay value={metric.value} />
         ) : (
           <span className="break-words tabular-nums">{metric.value}</span>
         )}
@@ -710,10 +710,6 @@ function toBadgeTone(tone: RecentChangeTone) {
 
 function formatCompactMoney(amount: number, currency: CurrencyCode) {
   const absolute = Math.abs(amount);
-
-  if (currency === "KHR" && absolute >= 1_000_000) {
-    return `${amount < 0 ? "-" : ""}KHR ${(absolute / 1_000_000).toFixed(1)}M`;
-  }
 
   if (currency === "USD" && absolute >= 1_000) {
     return `${amount < 0 ? "-" : ""}USD ${(absolute / 1_000).toFixed(1)}k`;

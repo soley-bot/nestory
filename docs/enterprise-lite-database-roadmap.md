@@ -85,7 +85,7 @@ documents why it does not.
 
 7. Money stays exact.
    Use `numeric(14,2)` or a deliberate integer-minor-unit model. Every money
-   amount must include a `currency_code` value. Keep USD and KHR support.
+   amount must include a `currency_code` value. Keep MVP writes and display USD-only.
 
 8. Dates and timestamps are distinct.
    Use `date` for business dates such as lease start, due date, and transaction

@@ -107,22 +107,31 @@ describe("canUsePagedPeopleBaseQuery", () => {
     ).toBe(true);
   });
 
-  it("keeps derived views on the full enrichment path", () => {
-    expect(
-      canUsePagedPeopleBaseQuery(parsePeopleSearchParams({ query: "central" })),
-    ).toBe(false);
+  it("uses the database-paged path for role and status filters", () => {
     expect(
       canUsePagedPeopleBaseQuery(parsePeopleSearchParams({ role: "tenant" })),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canUsePagedPeopleBaseQuery(
         parsePeopleSearchParams({ status: "missing_contact" }),
       ),
+    ).toBe(true);
+    expect(
+      canUsePagedPeopleBaseQuery(parsePeopleSearchParams({ status: "no_role" })),
+    ).toBe(true);
+  });
+
+  it("keeps query and derived-sort views off the base-row pager", () => {
+    expect(
+      canUsePagedPeopleBaseQuery(parsePeopleSearchParams({ query: "central" })),
     ).toBe(false);
     expect(
       canUsePagedPeopleBaseQuery(
         parsePeopleSearchParams({ sort: "linked_desc" }),
       ),
+    ).toBe(false);
+    expect(
+      canUsePagedPeopleBaseQuery(parsePeopleSearchParams({ archiveState: "all" })),
     ).toBe(false);
   });
 });

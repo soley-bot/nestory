@@ -1,8 +1,5 @@
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
-import type {
-  CurrencyCode,
-  CurrencyDisplaySettings,
-} from "@/lib/money/format";
+import type { CurrencyCode } from "@/lib/money/format";
 import type {
   LedgerDirection,
   LedgerSnapshot,
@@ -17,31 +14,21 @@ type LedgerSummaryEntry = {
 export function buildLedgerSnapshot(
   entries: LedgerSummaryEntry[],
   options: {
-    currencySettings?: Partial<CurrencyDisplaySettings> | null;
     entryCount?: number;
   } = {},
 ): LedgerSnapshot {
   return {
     entryCount: String(options.entryCount ?? entries.length),
     lockedPeriodCount: "0",
-    netIncome: formatMoneyTotalsDisplay(entries, options.currencySettings),
-    totalExpense: formatDirectionTotal(
-      entries,
-      "expense",
-      options.currencySettings,
-    ),
-    totalIncome: formatDirectionTotal(
-      entries,
-      "income",
-      options.currencySettings,
-    ),
+    netIncome: formatMoneyTotalsDisplay(entries),
+    totalExpense: formatDirectionTotal(entries, "expense"),
+    totalIncome: formatDirectionTotal(entries, "income"),
   };
 }
 
 function formatDirectionTotal(
   entries: LedgerSummaryEntry[],
   direction: LedgerDirection,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
 ) {
   return formatMoneyTotalsDisplay(
     entries
@@ -50,6 +37,5 @@ function formatDirectionTotal(
         amount: entry.amount,
         currency: entry.currency,
       })),
-    currencySettings,
   );
 }

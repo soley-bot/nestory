@@ -5,7 +5,6 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
-  CheckCircle2,
   ExternalLink,
   FileText,
   Pencil,
@@ -13,6 +12,10 @@ import {
   RotateCcw,
   Upload,
 } from "lucide-react";
+import {
+  previewRowClassName,
+  selectedPreviewRowClassName,
+} from "@/components/data/interactive-table";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +45,9 @@ const initialState: DocumentActionState = {};
 
 type DrawerState =
   | {
-      initialValues?: Partial<Pick<DocumentSummary["formValues"], "propertyId" | "unitId">>;
+      initialValues?: Partial<
+        Pick<DocumentSummary["formValues"], "propertyId" | "taskId" | "unitId">
+      >;
       mode: "create";
     }
   | { document: DocumentSummary; mode: "archive" | "edit" | "restore" };
@@ -169,7 +174,6 @@ export function DocumentScreen({
       </div>
 
       <RecordPreviewDrawer
-        description="Selected document links, evidence state, and actions."
         onClose={() => setPreviewOpen(false)}
         open={previewOpen && Boolean(selectedDocument)}
         title="Document preview"
@@ -249,6 +253,8 @@ function DocumentFilters({
     if (name === "propertyId") {
       nextParams.delete("unitId");
     }
+
+    nextParams.delete("taskId");
 
     const query = nextParams.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
@@ -340,12 +346,20 @@ function DocumentTable({
             {documents.map((document) => (
               <tr
                 className={cn(
-                  "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70",
-                  selectedDocumentId === document.id && "bg-surface-muted",
+                  previewRowClassName,
+                  selectedDocumentId === document.id &&
+                    selectedPreviewRowClassName,
                   document.isArchived && "text-muted",
                 )}
                 key={document.id}
                 onClick={() => onSelect(document.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect(document.id);
+                  }
+                }}
+                tabIndex={0}
               >
                 <td className="px-2.5 py-2">
                   <p className="truncate font-medium" title={document.fileName}>
@@ -415,79 +429,20 @@ function DocumentInspector({
       </div>
 
       <div className="space-y-4 p-4 text-sm">
-        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
-            Next action
-          </p>
-          <p className="mt-1 font-semibold">{document.nextAction.label}</p>
-          <p className="mt-2 leading-6 text-muted">
-            {document.nextAction.description}
-          </p>
-          <Link
-            className="mt-2 inline-flex items-center gap-1.5 font-medium text-accent hover:underline"
-            href={document.nextAction.href}
-            target={document.nextAction.href.startsWith("http") ? "_blank" : undefined}
-          >
-            Open action
-            <ExternalLink size={13} />
-          </Link>
-        </section>
+        <div className="grid grid-cols-2 gap-3">
+          <CompactFact label="Uploaded">
+            {formatDate(document.uploadedAt)}
+          </CompactFact>
+          <CompactFact label="Links">
+            {document.linkedRecords.length || "None"}
+          </CompactFact>
+        </div>
 
-        <section>
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
-            Risk
-          </p>
-          <div className="mt-2 space-y-2">
-            {document.riskIndicators.map((risk) => (
-              <RiskRow key={risk.id} risk={risk} />
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
-            Linked records
-          </p>
-          <div className="mt-2 space-y-2">
-            {document.linkedRecords.length === 0 ? (
-              <MiniRow label="Links" value="No linked records" />
-            ) : (
-              document.linkedRecords.map((record) => (
-                <Link
-                  className="block rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-muted"
-                  href={record.href}
-                  key={`${record.type}-${record.href}`}
-                >
-                  <MiniRow label={record.type} value={record.label} />
-                </Link>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section>
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
-            History
-          </p>
-          <div className="mt-2 space-y-2">
-            {document.activity.length === 0 ? (
-              <MiniRow label="Activity" value="No document activity logged yet." />
-            ) : (
-              document.activity.slice(0, 4).map((change) => (
-                <Link
-                  className="block rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-muted"
-                  href={change.href}
-                  key={change.id}
-                >
-                  <MiniRow
-                    label={`${change.actionLabel} / ${change.entityLabel}`}
-                    value={`${change.recordLabel} / ${formatDate(change.createdAt)}`}
-                  />
-                </Link>
-              ))
-            )}
-          </div>
-        </section>
+        <DocumentAttentionNote
+          href={document.nextAction.href}
+          item={getDocumentAttentionItem(document.riskIndicators)}
+          label={document.nextAction.label}
+        />
 
         <div className="grid grid-cols-3 gap-2">
           <Button onClick={() => onEdit(document)} type="button">
@@ -529,7 +484,9 @@ function DocumentForm({
   units,
 }: {
   document?: DocumentSummary;
-  initialValues?: Partial<Pick<DocumentSummary["formValues"], "propertyId" | "unitId">>;
+  initialValues?: Partial<
+    Pick<DocumentSummary["formValues"], "propertyId" | "taskId" | "unitId">
+  >;
   mode: "create" | "edit";
   onClose: () => void;
   onSuccess: (message: string) => void;
@@ -544,6 +501,7 @@ function DocumentForm({
     category: document?.formValues.category ?? "General",
     propertyId:
       document?.formValues.propertyId ?? initialValues?.propertyId ?? "",
+    taskId: document?.formValues.taskId ?? initialValues?.taskId ?? "",
     unitId: document?.formValues.unitId ?? initialValues?.unitId ?? "",
   };
   const [propertyId, setPropertyId] = useState(defaults.propertyId);
@@ -565,6 +523,9 @@ function DocumentForm({
     >
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {document ? <input name="documentId" type="hidden" value={document.id} /> : null}
+        {defaults.taskId ? (
+          <input name="taskId" type="hidden" value={defaults.taskId} />
+        ) : null}
         <Field label="Category" error={state.fieldErrors?.category?.[0]}>
           <Input defaultValue={defaults.category} name="category" required />
         </Field>
@@ -708,40 +669,57 @@ function DocumentArchivePanel({
   );
 }
 
-function RiskRow({
-  risk,
+function CompactFact({
+  children,
+  label,
 }: {
-  risk: DocumentSummary["riskIndicators"][number];
+  children: React.ReactNode;
+  label: string;
 }) {
   return (
-    <div className="flex min-w-0 gap-2 rounded-md border border-border px-2.5 py-2">
-      <CheckCircle2 className="mt-0.5 shrink-0 text-muted" size={14} />
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate font-medium">{risk.label}</p>
-          <Badge className="px-2 text-xs" tone={risk.tone}>
-            {risk.tone === "success" ? "Ready" : "Review"}
+    <div className="min-w-0 rounded-md border border-border px-3 py-2.5">
+      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+        {label}
+      </p>
+      <div className="mt-1.5 font-medium">{children}</div>
+    </div>
+  );
+}
+
+function DocumentAttentionNote({
+  href,
+  item,
+  label,
+}: {
+  href: string;
+  item?: DocumentSummary["riskIndicators"][number];
+  label: string;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="truncate font-semibold">{item?.label ?? label}</p>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge tone={item?.tone ?? "neutral"}>
+            {item ? "Review" : "Action"}
           </Badge>
+          <Link
+            aria-label="Open action"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+            href={href}
+            target={href.startsWith("http") ? "_blank" : undefined}
+            title="Open action"
+          >
+            <ExternalLink size={13} />
+          </Link>
         </div>
-        <p className="mt-0.5 text-xs leading-5 text-muted">
-          {risk.description}
-        </p>
       </div>
     </div>
   );
 }
 
-function MiniRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 text-sm">
-      <p className="truncate font-medium" title={label}>
-        {label}
-      </p>
-      <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-muted">
-        {value}
-      </p>
-    </div>
-  );
+function getDocumentAttentionItem(items: DocumentSummary["riskIndicators"]) {
+  return items.find((item) => item.tone !== "success");
 }
 
 function Field({
@@ -784,6 +762,7 @@ function getDocumentCreateInitialValues(
 
   return {
     propertyId,
+    taskId: viewQuery.taskId === "all" ? undefined : viewQuery.taskId,
     unitId: requestedUnit?.id,
   };
 }

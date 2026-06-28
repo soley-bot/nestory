@@ -15,7 +15,6 @@ import type {
   UnitStatusValue,
   UnitSummary,
 } from "@/features/units/unit.types";
-import type { CurrencyCode } from "@/lib/money/format";
 
 const initialState: UnitActionState = {};
 
@@ -29,7 +28,6 @@ const statusOptions: { label: string; value: UnitStatusValue }[] = [
 
 type UnitFormProps = {
   mode?: "create" | "edit";
-  defaultCurrency?: CurrencyCode;
   initialValues?: Partial<Pick<UnitSummary["formValues"], "propertyId">>;
   onClose: () => void;
   onSuccess?: (message: string) => void;
@@ -150,7 +148,7 @@ export function UnitForm({
           </Field>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_120px]">
+        <div className="grid gap-4">
           <Field
             label="Current rent"
             error={state.fieldErrors?.currentRentAmount?.[0]}
@@ -162,22 +160,6 @@ export function UnitForm({
               placeholder="0.00"
               step="0.01"
               type="number"
-            />
-          </Field>
-
-          <Field
-            label="Currency"
-            error={state.fieldErrors?.currentRentCurrency?.[0]}
-          >
-            <SelectControl
-              ariaLabel="Currency"
-              defaultValue={defaults.currentRentCurrency}
-              name="currentRentCurrency"
-              options={[
-                { label: "None", value: "" },
-                { label: "USD", value: "USD" },
-                { label: "KHR", value: "KHR" },
-              ]}
             />
           </Field>
         </div>
@@ -253,8 +235,6 @@ function getUnitDefaults(
     currentRentAmount: toInputNumber(
       formValues?.currentRentAmount ?? parsedRent.amount,
     ),
-    currentRentCurrency:
-      formValues?.currentRentCurrency ?? parsedRent.currency ?? "",
     floor:
       formValues?.floor ??
       (unit?.floorLabel && unit.floorLabel !== "Not set" ? unit.floorLabel : ""),
@@ -285,16 +265,14 @@ function parseSizeLabel(unit?: UnitDetail | UnitSummary | null) {
 
 function parseRentLabel(label?: string): {
   amount: string;
-  currency: CurrencyCode | "";
 } {
   if (!label || label === "No rent recorded") {
-    return { amount: "", currency: "" };
+    return { amount: "" };
   }
 
-  const currency = label.includes("KHR") ? "KHR" : label.includes("$") ? "USD" : "";
   const amount = label.replace(/[^\d.-]/g, "");
 
-  return currency && amount ? { amount, currency } : { amount: "", currency: "" };
+  return amount ? { amount } : { amount: "" };
 }
 
 function normalizeStoredValue(value: string) {

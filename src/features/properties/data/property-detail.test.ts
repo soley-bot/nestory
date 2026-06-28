@@ -79,14 +79,12 @@ describe("buildPropertyDetail", () => {
     expect(detail.unitSummary).toBe("1/1 occupied, 1 archived");
     expect(detail.netIncome).toMatchObject({
       primary: "USD 1,000.00",
-      secondary: "KHR 4,100,000",
     });
     expect(detail.unitsList).toEqual([
       expect.objectContaining({
         currentRent: "USD 450.00",
         currentRentDisplay: expect.objectContaining({
           primary: "USD 450.00",
-          secondary: "KHR 1,845,000",
         }),
         floor: "3",
         isArchived: false,
@@ -234,8 +232,8 @@ describe("buildPropertyDetail", () => {
       "evidence",
     );
     expect(detail.nextAction).toMatchObject({
-      href: "/timeline?action=create&propertyId=property-1",
-      label: "Log next event",
+      href: "/maintenance?action=create&propertyId=property-1",
+      label: "Log maintenance case",
     });
   });
 });

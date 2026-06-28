@@ -4,7 +4,6 @@ import {
   getPropertyDetail,
   getPropertyOwnerOptions,
 } from "@/features/properties/data/properties";
-import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import { requireAdminContext } from "@/lib/auth/context";
 
 type PropertyPageProps = {
@@ -14,11 +13,8 @@ type PropertyPageProps = {
 export default async function PropertyPage({ params }: PropertyPageProps) {
   const { propertyId } = await params;
   const context = await requireAdminContext();
-  const currencySettings = await getOrganizationCurrencySettings(
-    context.organizationId,
-  );
   const [property, ownerOptions] = await Promise.all([
-    getPropertyDetail(context.organizationId, propertyId, currencySettings),
+    getPropertyDetail(context.organizationId, propertyId),
     getPropertyOwnerOptions(context.organizationId),
   ]);
 

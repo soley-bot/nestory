@@ -1,12 +1,9 @@
 import type { TimelineEventType } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
 import {
-  convertMoney,
   formatMoney,
   formatMoneyDisplay,
-  normalizeCurrencyDisplaySettings,
   type CurrencyCode,
-  type CurrencyDisplaySettings,
 } from "@/lib/money/format";
 import { formatMoneyTotals, formatMoneyTotalsDisplay } from "@/lib/money/totals";
 import type {
@@ -18,6 +15,7 @@ import type {
   UnitHealthIndicator,
   UnitLedgerContext,
   UnitLeaseSummary,
+  UnitMaintenanceContext,
   UnitPersonLink,
   UnitRepairAction,
   UnitRecordCounts,
@@ -102,9 +100,22 @@ export type UnitDocumentRecord = {
   mime_type: string;
   size_bytes: number;
   storage_path: string;
+  task_id?: string | null;
   timeline_event_id: string | null;
   uploaded_at: string;
   url?: string;
+};
+
+export type UnitMaintenanceRecord = {
+  actual_cost_amount: number | null;
+  actual_cost_currency: CurrencyCode | null;
+  category: string;
+  due_date: string | null;
+  due_time: string | null;
+  id: string;
+  priority: string;
+  status: string;
+  title: string;
 };
 
 export const ACTIVE_UNIT_LEASE_STATUSES = ["active", "notice_given"] as const;
@@ -113,14 +124,12 @@ const activeLeaseStatuses = new Set<string>(ACTIVE_UNIT_LEASE_STATUSES);
 
 export function buildUnitSummary({
   activeLease,
-  currencySettings,
   latestTimelineEvent,
   ledgerEntries,
   property,
   unit,
 }: {
   activeLease?: UnitLeaseRecord;
-  currencySettings?: Partial<CurrencyDisplaySettings> | null;
   latestTimelineEvent?: UnitTimelineRecord;
   ledgerEntries: UnitLedgerRecord[];
   property?: UnitPropertyRecord;
@@ -142,8 +151,8 @@ export function buildUnitSummary({
     hasActiveLease: Boolean(activeLease),
     id: unit.id,
     isArchived: Boolean(unit.archived_at),
-    ledgerNetUsd: calculateLedgerNetUsd(ledgerEntries, currencySettings),
-    ledgerNetDisplay: formatMoneyTotalsDisplay(ledgerEntries, currencySettings),
+    ledgerNetUsd: calculateLedgerNetUsd(ledgerEntries),
+    ledgerNetDisplay: formatMoneyTotalsDisplay(ledgerEntries),
     ledgerNetLabel: formatMoneyTotals(ledgerEntries),
     latestTimelineEvent: latestTimelineEvent
       ? toTimelineContext(latestTimelineEvent)
@@ -154,8 +163,8 @@ export function buildUnitSummary({
     propertyCode: property?.code ?? "Unknown",
     propertyId: unit.property_id,
     propertyName: property?.name ?? "Unknown property",
-    rentUsd: calculateRentUsd(unit, activeLease, currencySettings),
-    rentDisplay: formatUnitRentDisplay(unit, activeLease, currencySettings),
+    rentUsd: calculateRentUsd(unit, activeLease),
+    rentDisplay: formatUnitRentDisplay(unit, activeLease),
     rentLabel: formatUnitRent(unit, activeLease),
     statusValue,
     statusLabel: formatUnitStatus(unit.status),
@@ -168,10 +177,10 @@ export function buildUnitDetail({
   activeLease,
   activity = [],
   counts,
-  currencySettings,
   currentDate,
   documents,
   ledgerEntries,
+  maintenanceCases = [],
   people,
   property,
   recentLedgerEntries,
@@ -181,10 +190,10 @@ export function buildUnitDetail({
   activeLease?: UnitLeaseRecord;
   activity?: UnitDetail["activity"];
   counts: UnitRecordCounts;
-  currencySettings?: Partial<CurrencyDisplaySettings> | null;
   currentDate?: Date;
   documents: UnitDocumentRecord[];
   ledgerEntries: UnitLedgerRecord[];
+  maintenanceCases?: UnitMaintenanceRecord[];
   people: UnitPersonRecord[];
   property?: UnitPropertyRecord;
   recentLedgerEntries: RecentUnitLedgerRecord[];
@@ -193,7 +202,6 @@ export function buildUnitDetail({
 }): UnitDetail {
   const summary = buildUnitSummary({
     activeLease,
-    currencySettings,
     latestTimelineEvent: recentTimelineEvents[0],
     ledgerEntries,
     property,
@@ -205,16 +213,13 @@ export function buildUnitDetail({
     tenantLinks,
     unit,
   });
-  const financialSummary = buildUnitFinancialSummary({
-    currencySettings,
-    currentDate,
-    ledgerEntries,
-  });
+  const financialSummary = buildUnitFinancialSummary({ currentDate, ledgerEntries });
   const repairAction = buildUnitRepairAction({
     activeLease,
     counts,
     financialSummary,
     hrefs,
+    maintenanceCases,
     rentUsd: summary.rentUsd,
     recentTimelineEvents,
     statusValue: summary.statusValue,
@@ -224,9 +229,7 @@ export function buildUnitDetail({
 
   return {
     ...summary,
-    activeLease: activeLease
-      ? toLeaseSummary(activeLease, currencySettings)
-      : undefined,
+    activeLease: activeLease ? toLeaseSummary(activeLease) : undefined,
     activity,
     counts,
     documents: documents.map(toDocumentContext),
@@ -235,6 +238,7 @@ export function buildUnitDetail({
       activeLease,
       counts,
       financialSummary,
+      maintenanceCases,
       rentUsd: summary.rentUsd,
       statusValue: summary.statusValue,
       tenantLinks,
@@ -242,10 +246,11 @@ export function buildUnitDetail({
     hrefs,
     repairAction,
     recentLedgerEntries: recentLedgerEntries.map((entry) =>
-      toLedgerContext(entry, currencySettings),
+      toLedgerContext(entry),
     ),
+    recentMaintenanceCases: maintenanceCases.slice(0, 6).map(toMaintenanceContext),
     recentTimelineEvents: recentTimelineEvents.map((event) =>
-      toTimelineContext(event, currencySettings),
+      toTimelineContext(event),
     ),
     sizeLabel:
       unit.size_sqm === null
@@ -297,17 +302,13 @@ export function getUnitStatusTone(status: string): UnitBadgeTone {
   return "accent";
 }
 
-function toLeaseSummary(
-  lease: UnitLeaseRecord,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-): UnitLeaseSummary {
+function toLeaseSummary(lease: UnitLeaseRecord): UnitLeaseSummary {
   return {
     endDate: lease.lease_end_date,
     id: lease.id,
     monthlyRentDisplay: formatMoneyDisplay(
       lease.monthly_rent_amount,
       lease.monthly_rent_currency,
-      currencySettings,
     ),
     monthlyRentLabel: formatMoney(
       lease.monthly_rent_amount,
@@ -320,17 +321,14 @@ function toLeaseSummary(
   };
 }
 
-function toTimelineContext(
-  event: UnitTimelineRecord,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-): UnitTimelineContext {
+function toTimelineContext(event: UnitTimelineRecord): UnitTimelineContext {
   const hasCost = event.cost_amount !== null && event.cost_amount !== undefined;
   const currency = event.cost_currency ?? undefined;
 
   return {
     costDisplay:
       hasCost && currency
-        ? formatMoneyDisplay(event.cost_amount ?? 0, currency, currencySettings)
+        ? formatMoneyDisplay(event.cost_amount ?? 0, currency)
         : undefined,
     costLabel:
       hasCost && currency
@@ -347,10 +345,7 @@ function toTimelineContext(
   };
 }
 
-function toLedgerContext(
-  entry: RecentUnitLedgerRecord,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-): UnitLedgerContext {
+function toLedgerContext(entry: RecentUnitLedgerRecord): UnitLedgerContext {
   const direction = entry.direction === "expense" ? "expense" : "income";
   const amount = entry.amount ?? 0;
   const signedAmount = direction === "expense" ? -amount : amount;
@@ -358,7 +353,7 @@ function toLedgerContext(
 
   return {
     amount,
-    amountDisplay: formatMoneyDisplay(signedAmount, currency, currencySettings),
+    amountDisplay: formatMoneyDisplay(signedAmount, currency),
     amountLabel: `${direction === "expense" ? "-" : ""}${formatMoney(amount, currency)}`,
     category: entry.category,
     currency,
@@ -399,6 +394,10 @@ function toDocumentContext(document: UnitDocumentRecord): UnitDocumentContext {
 }
 
 function getDocumentLinkedRecordLabel(document: UnitDocumentRecord) {
+  if (document.task_id) {
+    return "Maintenance case";
+  }
+
   if (document.ledger_entry_id) {
     return "Ledger entry";
   }
@@ -415,6 +414,13 @@ function getDocumentLinkedRecordLabel(document: UnitDocumentRecord) {
 }
 
 function getDocumentLinkedRecordHref(document: UnitDocumentRecord) {
+  if (document.task_id) {
+    return buildHref("/maintenance", {
+      archiveState: "all",
+      taskId: document.task_id,
+    });
+  }
+
   if (document.ledger_entry_id) {
     return buildHref("/ledger", {
       archiveState: "all",
@@ -440,11 +446,9 @@ function getDocumentLinkedRecordHref(document: UnitDocumentRecord) {
 }
 
 export function buildUnitFinancialSummary({
-  currencySettings,
   currentDate = new Date(),
   ledgerEntries,
 }: {
-  currencySettings?: Partial<CurrencyDisplaySettings> | null;
   currentDate?: Date;
   ledgerEntries: UnitLedgerRecord[];
 }): UnitFinancialSummary {
@@ -462,24 +466,18 @@ export function buildUnitFinancialSummary({
   const maintenanceExpenseEntries = expenseEntries.filter((entry) =>
     isMaintenanceExpenseCategory(entry.category ?? ""),
   );
-  const incomeUsd = sumLedgerUsd(incomeEntries, currencySettings);
-  const expenseUsd = sumLedgerUsd(expenseEntries, currencySettings);
-  const rentRevenueUsd = sumLedgerUsd(rentRevenueEntries, currencySettings);
-  const maintenanceExpenseUsd = sumLedgerUsd(
-    maintenanceExpenseEntries,
-    currencySettings,
-  );
+  const incomeUsd = sumLedgerUsd(incomeEntries);
+  const expenseUsd = sumLedgerUsd(expenseEntries);
+  const rentRevenueUsd = sumLedgerUsd(rentRevenueEntries);
+  const maintenanceExpenseUsd = sumLedgerUsd(maintenanceExpenseEntries);
   const noiUsd = incomeUsd - expenseUsd;
 
   return {
-    expenseDisplay: formatPositiveLedgerDisplay(expenseEntries, currencySettings),
+    expenseDisplay: formatPositiveLedgerDisplay(expenseEntries),
     expenseUsd,
-    incomeDisplay: formatPositiveLedgerDisplay(incomeEntries, currencySettings),
+    incomeDisplay: formatPositiveLedgerDisplay(incomeEntries),
     incomeUsd,
-    maintenanceExpenseDisplay: formatPositiveLedgerDisplay(
-      maintenanceExpenseEntries,
-      currencySettings,
-    ),
+    maintenanceExpenseDisplay: formatPositiveLedgerDisplay(maintenanceExpenseEntries),
     maintenanceExpenseUsd,
     maintenanceRatioLabel:
       expenseUsd > 0
@@ -487,13 +485,10 @@ export function buildUnitFinancialSummary({
         : "No expenses",
     marginLabel:
       incomeUsd > 0 ? `${formatPercent(noiUsd / incomeUsd)} NOI margin` : "No income",
-    noiDisplay: formatMoneyDisplay(noiUsd, "USD", currencySettings),
+    noiDisplay: formatMoneyDisplay(noiUsd),
     noiUsd,
     periodLabel: "Trailing 12 months",
-    rentRevenueDisplay: formatPositiveLedgerDisplay(
-      rentRevenueEntries,
-      currencySettings,
-    ),
+    rentRevenueDisplay: formatPositiveLedgerDisplay(rentRevenueEntries),
     rentRevenueUsd,
   };
 }
@@ -502,6 +497,7 @@ function buildUnitHealthIndicators({
   activeLease,
   counts,
   financialSummary,
+  maintenanceCases,
   rentUsd,
   statusValue,
   tenantLinks,
@@ -509,6 +505,7 @@ function buildUnitHealthIndicators({
   activeLease?: UnitLeaseRecord;
   counts: UnitRecordCounts;
   financialSummary: UnitFinancialSummary;
+  maintenanceCases: UnitMaintenanceRecord[];
   rentUsd: number;
   statusValue: UnitStatusValue;
   tenantLinks: UnitPersonLink[];
@@ -602,6 +599,34 @@ function buildUnitHealthIndicators({
 
   indicators.push({
     description:
+      (counts.overdueMaintenanceCases ?? 0) > 0
+        ? `${counts.overdueMaintenanceCases} open maintenance case ${
+            counts.overdueMaintenanceCases === 1 ? "is" : "are"
+          } overdue.`
+        : (counts.openMaintenanceCases ?? 0) > 0
+          ? `${counts.openMaintenanceCases} open maintenance ${
+              counts.openMaintenanceCases === 1 ? "case" : "cases"
+            } need follow-up.`
+          : maintenanceCases.length > 0
+            ? "No open maintenance cases are currently blocking the unit."
+            : "No maintenance cases are linked to this unit yet.",
+    id: "open-maintenance",
+    label:
+      (counts.overdueMaintenanceCases ?? 0) > 0
+        ? "Maintenance overdue"
+        : (counts.openMaintenanceCases ?? 0) > 0
+          ? "Open issues"
+          : "No open issues",
+    tone:
+      (counts.overdueMaintenanceCases ?? 0) > 0
+        ? "danger"
+        : (counts.openMaintenanceCases ?? 0) > 0
+          ? "warning"
+          : "success",
+  });
+
+  indicators.push({
+    description:
       counts.documents > 0
         ? "Documents or receipts are attached to this unit record."
         : "No unit-scoped documents or receipts are attached yet.",
@@ -618,6 +643,7 @@ function buildUnitRepairAction({
   counts,
   financialSummary,
   hrefs,
+  maintenanceCases,
   rentUsd,
   recentTimelineEvents,
   statusValue,
@@ -628,6 +654,7 @@ function buildUnitRepairAction({
   counts: UnitRecordCounts;
   financialSummary: UnitFinancialSummary;
   hrefs: UnitDetailHrefs;
+  maintenanceCases: UnitMaintenanceRecord[];
   rentUsd: number;
   recentTimelineEvents: UnitTimelineRecord[];
   statusValue: UnitStatusValue;
@@ -671,8 +698,40 @@ function buildUnitRepairAction({
   if (statusValue === "maintenance") {
     return {
       description: `Unit ${unitNumber} is marked maintenance. Log the next repair, inspection, or completion note.`,
-      href: hrefs.addTimelineEvent,
-      label: "Log repair follow-up",
+      href: hrefs.addMaintenanceCase,
+      label: "Log maintenance case",
+      tone: "warning",
+    };
+  }
+
+  const overdueCase = maintenanceCases.find((maintenanceCase) =>
+    isOverdueMaintenanceCase(maintenanceCase),
+  );
+
+  if (overdueCase) {
+    return {
+      description: `${overdueCase.title} is overdue for this unit.`,
+      href: buildHref("/maintenance", {
+        archiveState: "all",
+        taskId: overdueCase.id,
+      }),
+      label: "Review overdue issue",
+      tone: "danger",
+    };
+  }
+
+  const openCase = maintenanceCases.find((maintenanceCase) =>
+    isOpenMaintenanceStatus(maintenanceCase.status),
+  );
+
+  if (openCase) {
+    return {
+      description: `${openCase.title} is still ${formatStoredLabel(openCase.status)}.`,
+      href: buildHref("/maintenance", {
+        archiveState: "all",
+        taskId: openCase.id,
+      }),
+      label: "Review open issue",
       tone: "warning",
     };
   }
@@ -699,9 +758,9 @@ function buildUnitRepairAction({
   }
 
   return {
-    description: "No repair or maintenance event is visible for this unit yet.",
-    href: hrefs.addTimelineEvent,
-    label: "Log repair event",
+    description: "No open maintenance case is visible for this unit yet.",
+    href: hrefs.addMaintenanceCase,
+    label: "Log maintenance case",
     tone: "accent",
   };
 }
@@ -732,6 +791,11 @@ export function buildUnitDetailHrefs({
       propertyId: unit.property_id,
       unitId: unit.id,
     }),
+    addMaintenanceCase: buildHref("/maintenance", {
+      action: "create",
+      propertyId: unit.property_id,
+      unitId: unit.id,
+    }),
     documents: "/documents",
     ledger: buildHref("/ledger", {
       propertyId: unit.property_id,
@@ -747,8 +811,12 @@ export function buildUnitDetailHrefs({
       propertyId: unit.property_id,
       unitId: unit.id,
     }),
+    maintenance: buildHref("/maintenance", {
+      propertyId: unit.property_id,
+      unitId: unit.id,
+    }),
     property: `/properties/${unit.property_id}`,
-    repairAction: buildHref("/timeline", {
+    repairAction: buildHref("/maintenance", {
       action: "create",
       propertyId: unit.property_id,
       unitId: unit.id,
@@ -758,6 +826,43 @@ export function buildUnitDetailHrefs({
       propertyId: unit.property_id,
       unitId: unit.id,
     }),
+  };
+}
+
+function toMaintenanceContext(
+  maintenanceCase: UnitMaintenanceRecord,
+): UnitMaintenanceContext {
+  const status = normalizeStoredValue(maintenanceCase.status).replace(/\s+/g, "_");
+  const costAmount = maintenanceCase.actual_cost_amount;
+  const costCurrency = maintenanceCase.actual_cost_currency;
+
+  return {
+    actualCostLabel:
+      costAmount !== null && costCurrency
+        ? formatMoney(costAmount, costCurrency)
+        : "No actual cost",
+    category: maintenanceCase.category,
+    dueLabel: formatDateTimeLabel(
+      maintenanceCase.due_date,
+      maintenanceCase.due_time,
+      "No due date",
+    ),
+    href: buildHref("/maintenance", {
+      archiveState: "all",
+      taskId: maintenanceCase.id,
+    }),
+    id: maintenanceCase.id,
+    priorityLabel: formatStoredLabel(maintenanceCase.priority),
+    statusLabel: formatStoredLabel(maintenanceCase.status),
+    statusTone:
+      status === "completed"
+        ? "success"
+        : status === "blocked" || status === "cancelled"
+          ? "warning"
+          : status === "in_progress"
+            ? "accent"
+            : "neutral",
+    title: maintenanceCase.title,
   };
 }
 
@@ -776,16 +881,11 @@ function formatUnitRent(unit: UnitRecord, activeLease?: UnitLeaseRecord) {
   return "No rent recorded";
 }
 
-function formatUnitRentDisplay(
-  unit: UnitRecord,
-  activeLease?: UnitLeaseRecord,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-) {
+function formatUnitRentDisplay(unit: UnitRecord, activeLease?: UnitLeaseRecord) {
   if (unit.current_rent_amount !== null && unit.current_rent_currency) {
     return formatMoneyDisplay(
       unit.current_rent_amount,
       unit.current_rent_currency,
-      currencySettings,
     );
   }
 
@@ -793,71 +893,51 @@ function formatUnitRentDisplay(
     return formatMoneyDisplay(
       activeLease.monthly_rent_amount,
       activeLease.monthly_rent_currency,
-      currencySettings,
     );
   }
 
   return undefined;
 }
 
-function calculateRentUsd(
-  unit: UnitRecord,
-  activeLease?: UnitLeaseRecord,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-) {
+function calculateRentUsd(unit: UnitRecord, activeLease?: UnitLeaseRecord) {
   if (unit.current_rent_amount !== null && unit.current_rent_currency) {
-    return toUsd(unit.current_rent_amount, unit.current_rent_currency, currencySettings);
+    return unit.current_rent_amount;
   }
 
   if (activeLease) {
-    return toUsd(
-      activeLease.monthly_rent_amount,
-      activeLease.monthly_rent_currency,
-      currencySettings,
-    );
+    return activeLease.monthly_rent_amount;
   }
 
   return 0;
 }
 
-function calculateLedgerNetUsd(
-  entries: UnitLedgerRecord[],
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-) {
+function calculateLedgerNetUsd(entries: UnitLedgerRecord[]) {
   return entries.reduce((total, entry) => {
-    if (entry.amount === null || !entry.currency) {
+    if (entry.amount === null) {
       return total;
     }
 
-    const amount = toUsd(entry.amount, entry.currency, currencySettings);
-    return total + (entry.direction === "expense" ? -amount : amount);
+    return total + (entry.direction === "expense" ? -entry.amount : entry.amount);
   }, 0);
 }
 
-function sumLedgerUsd(
-  entries: UnitLedgerRecord[],
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-) {
+function sumLedgerUsd(entries: UnitLedgerRecord[]) {
   return entries.reduce((total, entry) => {
-    if (entry.amount === null || !entry.currency) {
+    if (entry.amount === null) {
       return total;
     }
 
-    return total + toUsd(entry.amount, entry.currency, currencySettings);
+    return total + entry.amount;
   }, 0);
 }
 
-function formatPositiveLedgerDisplay(
-  entries: UnitLedgerRecord[],
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-) {
+function formatPositiveLedgerDisplay(entries: UnitLedgerRecord[]) {
   return formatMoneyTotalsDisplay(
     entries.map((entry) => ({
       amount: entry.amount,
       currency: entry.currency,
       direction: "income",
     })),
-    currencySettings,
   );
 }
 
@@ -886,6 +966,28 @@ function isRepairEventType(eventType: TimelineEventType) {
   );
 }
 
+function isOpenMaintenanceStatus(status: string) {
+  const normalized = normalizeFormValue(status);
+
+  return normalized !== "completed" && normalized !== "cancelled";
+}
+
+function isOverdueMaintenanceCase(maintenanceCase: UnitMaintenanceRecord) {
+  return (
+    isOpenMaintenanceStatus(maintenanceCase.status) &&
+    Boolean(maintenanceCase.due_date) &&
+    maintenanceCase.due_date! < toIsoDate(new Date())
+  );
+}
+
+function formatDateTimeLabel(date: string | null, time: string | null, fallback: string) {
+  if (!date) {
+    return fallback;
+  }
+
+  return `${formatDate(date)}${time ? ` at ${time.slice(0, 5)}` : ""}`;
+}
+
 function getTrailingTwelveMonthStart(currentDate: Date) {
   const start = new Date(
     Date.UTC(
@@ -896,6 +998,10 @@ function getTrailingTwelveMonthStart(currentDate: Date) {
   );
 
   return start.toISOString().slice(0, 10);
+}
+
+function toIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function formatPercent(value: number) {
@@ -921,19 +1027,6 @@ function buildHref(
   const queryString = searchParams.toString();
 
   return queryString ? `${pathname}?${queryString}` : pathname;
-}
-
-function toUsd(
-  amount: number,
-  currency: CurrencyCode,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-) {
-  return convertMoney(
-    amount,
-    currency,
-    "USD",
-    normalizeCurrencyDisplaySettings(currencySettings).khrPerUsd,
-  );
 }
 
 function normalizeUnitStatus(status: string): UnitStatusValue {

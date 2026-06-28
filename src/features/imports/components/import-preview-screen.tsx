@@ -357,8 +357,8 @@ function ImportStat({
 function PreviewRow({ row }: { row: UnitImportPreviewRow }) {
   const hasError = row.issues.some((issue) => issue.level === "error");
   const price =
-    row.currentRentAmount !== null && row.currentRentCurrency
-      ? formatMoney(row.currentRentAmount, row.currentRentCurrency)
+    row.currentRentAmount !== null
+      ? formatMoney(row.currentRentAmount, "USD")
       : "Not set";
 
   return (

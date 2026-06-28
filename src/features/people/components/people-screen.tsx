@@ -182,7 +182,6 @@ export function PeopleScreen({
       </div>
 
       <RecordPreviewDrawer
-        description="Selected row roles, contact context, links, and actions."
         onClose={() => setPreviewOpen(false)}
         open={previewOpen && Boolean(selectedPerson)}
         title="Person preview"

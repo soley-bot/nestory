@@ -65,7 +65,7 @@ Early constraints stay in place until explicitly changed:
 - Simple UI.
 - Archive over delete.
 - Activity logging.
-- USD/KHR support.
+- USD-only MVP money display and writes.
 - Server/RPC write boundaries for important mutations.
 - Reusable components and feature-owned modules.
 
@@ -112,7 +112,8 @@ The full target product and copy-paste build prompts live in
 
 ## Money, Dates, And Storage
 
-- Support USD and KHR.
+- Use USD for MVP money display and writes. Keep exact database money types and
+  currency codes so broader currency support can be added deliberately later.
 - Do not store money as loose JavaScript floats. Use exact database types and a
   currency code for every amount.
 - Keep business dates such as `event_date`, `lease_start_date`,

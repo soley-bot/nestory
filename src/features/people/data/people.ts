@@ -157,9 +157,28 @@ type PeopleSummaryLoadResult = {
   summaries: PeopleSummary[];
 };
 
+type PeopleIdPrefilter = {
+  excludeIds: Set<string>;
+  includeIds: Set<string> | null;
+  requireMissingPrimaryContact: boolean;
+};
+
+type PeopleIdPrefilterResult =
+  | { kind: "ready"; filter: PeopleIdPrefilter }
+  | { kind: "missing_schema"; schemaNotice: string };
+
+type PeopleIdQueryResult =
+  | { kind: "ready"; ids: Set<string> }
+  | { kind: "missing_schema"; schemaNotice: string }
+  | { kind: "unsupported" };
+
 type PagedPeopleRowsResult =
   | { kind: "ready"; people: PersonRow[]; totalCount: number }
   | { kind: "missing_schema"; schemaNotice: string };
+
+type SearchableQueryBuilder = UntypedQueryBuilder & {
+  or(filters: string): UntypedQueryBuilder;
+};
 
 export async function getPeopleScreenData(
   organizationId: string,
@@ -177,6 +196,15 @@ export async function getPeopleScreenData(
     });
   }
 
+  if (canUseBoundedPeopleSearchQuery(viewQuery)) {
+    return getQueryFilteredPeopleScreenData({
+      organizationId,
+      rawSupabase,
+      supabase,
+      viewQuery,
+    });
+  }
+
   return getCompletePeopleScreenData({
     organizationId,
     rawSupabase,
@@ -187,12 +215,18 @@ export async function getPeopleScreenData(
 
 export function canUsePagedPeopleBaseQuery(viewQuery: PeopleViewQuery) {
   return (
-    viewQuery.archiveState === "active" &&
+    viewQuery.archiveState !== "all" &&
     viewQuery.query.trim().length === 0 &&
-    viewQuery.role === "all" &&
-    viewQuery.status === "all" &&
-    (viewQuery.sort === "name_asc" || viewQuery.sort === "updated_desc")
+    canUsePeopleBaseSort(viewQuery.sort)
   );
+}
+
+function canUseBoundedPeopleSearchQuery(viewQuery: PeopleViewQuery) {
+  return viewQuery.query.trim().length > 0 && canUsePeopleBaseSort(viewQuery.sort);
+}
+
+function canUsePeopleBaseSort(sort: PeopleViewQuery["sort"]) {
+  return sort === "name_asc" || sort === "updated_desc";
 }
 
 async function getPagedPeopleScreenData({
@@ -206,7 +240,18 @@ async function getPagedPeopleScreenData({
   supabase: UntypedSupabaseClient;
   viewQuery: PeopleViewQuery;
 }): Promise<PeopleScreenData> {
+  const idFilterResult = await getPeopleIdPrefilter({
+    organizationId,
+    supabase,
+    viewQuery,
+  });
+
+  if (idFilterResult.kind === "missing_schema") {
+    return emptyPeopleData(viewQuery, idFilterResult.schemaNotice);
+  }
+
   let rowsResult = await getPagedPeopleRows({
+    idFilter: idFilterResult.filter,
     organizationId,
     page: viewQuery.page,
     pageSize: viewQuery.pageSize,
@@ -226,6 +271,7 @@ async function getPagedPeopleScreenData({
 
   if (pagination.page !== viewQuery.page && rowsResult.totalCount > 0) {
     rowsResult = await getPagedPeopleRows({
+      idFilter: idFilterResult.filter,
       organizationId,
       page: pagination.page,
       pageSize: viewQuery.pageSize,
@@ -251,6 +297,95 @@ async function getPagedPeopleScreenData({
   });
   const summariesById = indexById(summaries);
   const pagePeople = rowsResult.people.flatMap((person) => {
+    const summary = summariesById.get(person.id);
+
+    return summary ? [summary] : [];
+  });
+
+  return {
+    pagination,
+    people: await addSignedDocumentUrlsToPeople(
+      pagePeople,
+      documentsById,
+      rawSupabase,
+    ),
+  };
+}
+
+async function getQueryFilteredPeopleScreenData({
+  organizationId,
+  rawSupabase,
+  supabase,
+  viewQuery,
+}: {
+  organizationId: string;
+  rawSupabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  supabase: UntypedSupabaseClient;
+  viewQuery: PeopleViewQuery;
+}): Promise<PeopleScreenData> {
+  const [idFilterResult, queryIdsResult] = await Promise.all([
+    getPeopleIdPrefilter({ organizationId, supabase, viewQuery }),
+    getPeopleIdsMatchingQuery({ organizationId, supabase, viewQuery }),
+  ]);
+
+  if (idFilterResult.kind === "missing_schema") {
+    return emptyPeopleData(viewQuery, idFilterResult.schemaNotice);
+  }
+
+  if (queryIdsResult.kind === "missing_schema") {
+    return emptyPeopleData(viewQuery, queryIdsResult.schemaNotice);
+  }
+
+  if (queryIdsResult.kind === "unsupported") {
+    return getCompletePeopleScreenData({
+      organizationId,
+      rawSupabase,
+      supabase,
+      viewQuery,
+    });
+  }
+
+  const idFilter = mergePeopleIdPrefilters(idFilterResult.filter, {
+    excludeIds: new Set<string>(),
+    includeIds: queryIdsResult.ids,
+    requireMissingPrimaryContact: false,
+  });
+
+  if (idFilter.includeIds?.size === 0) {
+    return emptyPeopleData(viewQuery);
+  }
+
+  const rowsResult = await getPeopleRowsForFilter({
+    idFilter,
+    organizationId,
+    supabase,
+    viewQuery,
+  });
+
+  if (rowsResult.kind === "missing_schema") {
+    return emptyPeopleData(viewQuery, rowsResult.schemaNotice);
+  }
+
+  const filteredPeople = await filterPeopleRowsByQuery({
+    organizationId,
+    people: rowsResult.people,
+    supabase,
+    viewQuery,
+  });
+  const sortedPeople = sortPersonRows(filteredPeople, viewQuery.sort);
+  const pagination = buildPeoplePagination({
+    page: viewQuery.page,
+    pageSize: viewQuery.pageSize,
+    totalCount: sortedPeople.length,
+  });
+  const pagePeopleRows = getPeoplePageRows(sortedPeople, pagination);
+  const { documentsById, summaries } = await loadPeopleSummariesForRows({
+    organizationId,
+    people: pagePeopleRows,
+    supabase,
+  });
+  const summariesById = indexById(summaries);
+  const pagePeople = pagePeopleRows.flatMap((person) => {
     const summary = summariesById.get(person.id);
 
     return summary ? [summary] : [];
@@ -341,29 +476,87 @@ async function getCompletePeopleScreenData({
 }
 
 async function getPagedPeopleRows({
+  idFilter,
   organizationId,
   page,
   pageSize,
   supabase,
   viewQuery,
 }: {
+  idFilter: PeopleIdPrefilter;
   organizationId: string;
   page: number;
   pageSize: number;
   supabase: UntypedSupabaseClient;
   viewQuery: PeopleViewQuery;
 }): Promise<PagedPeopleRowsResult> {
+  if (idFilter.includeIds?.size === 0) {
+    return { kind: "ready", people: [], totalCount: 0 };
+  }
+
   const start = (Math.max(page, 1) - 1) * pageSize;
   const result = await applyPeopleBaseSort(
-    applyPeopleArchiveFilter(
-      supabase
-        .from("people")
-        .select(peopleSelect, { count: "exact" })
-        .eq("organization_id", organizationId),
-      viewQuery.archiveState,
+    applyPeopleIdPrefilter(
+      applyPeopleArchiveFilter(
+        supabase
+          .from("people")
+          .select(peopleSelect, { count: "exact" })
+          .eq("organization_id", organizationId),
+        viewQuery.archiveState,
+      ),
+      idFilter,
     ),
     viewQuery.sort,
   ).range(start, start + pageSize - 1);
+
+  if (result.error) {
+    if (isMissingPeopleSchemaMessage(result.error.message)) {
+      return {
+        kind: "missing_schema",
+        schemaNotice: "People tables are not available yet.",
+      };
+    }
+
+    throw new Error(`Could not load people: ${result.error.message}`);
+  }
+
+  const people = asRows(result.data, toPersonRow);
+
+  return {
+    kind: "ready",
+    people,
+    totalCount: typeof result.count === "number" ? result.count : people.length,
+  };
+}
+
+async function getPeopleRowsForFilter({
+  idFilter,
+  organizationId,
+  supabase,
+  viewQuery,
+}: {
+  idFilter: PeopleIdPrefilter;
+  organizationId: string;
+  supabase: UntypedSupabaseClient;
+  viewQuery: PeopleViewQuery;
+}): Promise<PagedPeopleRowsResult> {
+  if (idFilter.includeIds?.size === 0) {
+    return { kind: "ready", people: [], totalCount: 0 };
+  }
+
+  const result = await applyPeopleBaseSort(
+    applyPeopleIdPrefilter(
+      applyPeopleArchiveFilter(
+        supabase
+          .from("people")
+          .select(peopleSelect, { count: "exact" })
+          .eq("organization_id", organizationId),
+        viewQuery.archiveState,
+      ),
+      idFilter,
+    ),
+    viewQuery.sort,
+  );
 
   if (result.error) {
     if (isMissingPeopleSchemaMessage(result.error.message)) {
@@ -411,6 +604,172 @@ function applyPeopleBaseSort(
   }
 
   return query.order("display_name", { ascending: true });
+}
+
+function applyPeopleIdPrefilter(
+  query: UntypedQueryBuilder,
+  idFilter: PeopleIdPrefilter,
+) {
+  let nextQuery = query;
+
+  if (idFilter.includeIds) {
+    nextQuery = nextQuery.in("id", [...idFilter.includeIds]);
+  }
+
+  if (idFilter.excludeIds.size > 0) {
+    nextQuery = nextQuery.not(
+      "id",
+      "in",
+      formatPostgrestInFilter(idFilter.excludeIds),
+    );
+  }
+
+  if (idFilter.requireMissingPrimaryContact) {
+    nextQuery = nextQuery.is("primary_email", null).is("primary_phone", null);
+  }
+
+  return nextQuery;
+}
+
+async function getPeopleIdPrefilter({
+  organizationId,
+  supabase,
+  viewQuery,
+}: {
+  organizationId: string;
+  supabase: UntypedSupabaseClient;
+  viewQuery: PeopleViewQuery;
+}): Promise<PeopleIdPrefilterResult> {
+  let filter: PeopleIdPrefilter = {
+    excludeIds: new Set<string>(),
+    includeIds: null,
+    requireMissingPrimaryContact: false,
+  };
+
+  if (viewQuery.role !== "all") {
+    const roleIdsResult = await getPeopleIdsFromRoles({
+      organizationId,
+      role: viewQuery.role,
+      supabase,
+    });
+
+    if (roleIdsResult.kind === "missing_schema") {
+      return roleIdsResult;
+    }
+
+    if (roleIdsResult.kind === "unsupported") {
+      throw new Error("Unsupported people role filter.");
+    }
+
+    filter = mergePeopleIdPrefilters(filter, {
+      excludeIds: new Set<string>(),
+      includeIds: roleIdsResult.ids,
+      requireMissingPrimaryContact: false,
+    });
+  }
+
+  if (viewQuery.status === "active") {
+    const activeIdsResult = await getPeopleIdsFromRoles({
+      organizationId,
+      status: "active",
+      supabase,
+    });
+
+    if (activeIdsResult.kind === "missing_schema") {
+      return activeIdsResult;
+    }
+
+    if (activeIdsResult.kind === "unsupported") {
+      throw new Error("Unsupported people status filter.");
+    }
+
+    filter = mergePeopleIdPrefilters(filter, {
+      excludeIds: new Set<string>(),
+      includeIds: activeIdsResult.ids,
+      requireMissingPrimaryContact: false,
+    });
+  } else if (viewQuery.status === "inactive") {
+    const [visibleRoleIdsResult, activeIdsResult] = await Promise.all([
+      getPeopleIdsFromRoles({ organizationId, supabase }),
+      getPeopleIdsFromRoles({ organizationId, status: "active", supabase }),
+    ]);
+
+    if (visibleRoleIdsResult.kind === "missing_schema") {
+      return visibleRoleIdsResult;
+    }
+
+    if (activeIdsResult.kind === "missing_schema") {
+      return activeIdsResult;
+    }
+
+    if (
+      visibleRoleIdsResult.kind === "unsupported" ||
+      activeIdsResult.kind === "unsupported"
+    ) {
+      throw new Error("Unsupported people inactive status filter.");
+    }
+
+    filter = mergePeopleIdPrefilters(filter, {
+      excludeIds: new Set<string>(),
+      includeIds: differenceSets(visibleRoleIdsResult.ids, activeIdsResult.ids),
+      requireMissingPrimaryContact: false,
+    });
+  } else if (viewQuery.status === "no_role") {
+    const visibleRoleIdsResult = await getPeopleIdsFromRoles({
+      organizationId,
+      supabase,
+    });
+
+    if (visibleRoleIdsResult.kind === "missing_schema") {
+      return visibleRoleIdsResult;
+    }
+
+    if (visibleRoleIdsResult.kind === "unsupported") {
+      throw new Error("Unsupported people no-role filter.");
+    }
+
+    filter = mergePeopleIdPrefilters(filter, {
+      excludeIds: visibleRoleIdsResult.ids,
+      includeIds: null,
+      requireMissingPrimaryContact: false,
+    });
+  } else if (viewQuery.status === "missing_contact") {
+    const usefulContactIdsResult = await getPeopleIdsWithUsefulContacts(
+      supabase,
+      organizationId,
+    );
+
+    if (usefulContactIdsResult.kind === "missing_schema") {
+      return usefulContactIdsResult;
+    }
+
+    if (usefulContactIdsResult.kind === "unsupported") {
+      throw new Error("Unsupported people missing-contact filter.");
+    }
+
+    filter = mergePeopleIdPrefilters(filter, {
+      excludeIds: usefulContactIdsResult.ids,
+      includeIds: null,
+      requireMissingPrimaryContact: true,
+    });
+  }
+
+  return { kind: "ready", filter };
+}
+
+function mergePeopleIdPrefilters(
+  first: PeopleIdPrefilter,
+  second: PeopleIdPrefilter,
+): PeopleIdPrefilter {
+  return {
+    excludeIds: unionSets(first.excludeIds, second.excludeIds),
+    includeIds:
+      first.includeIds && second.includeIds
+        ? intersectSets(first.includeIds, second.includeIds)
+        : first.includeIds ?? second.includeIds,
+    requireMissingPrimaryContact:
+      first.requireMissingPrimaryContact || second.requireMissingPrimaryContact,
+  };
 }
 
 async function loadPeopleSummariesForRows({
@@ -626,6 +985,739 @@ async function getRows<T>(
   }
 
   return asRows(result.data, mapper);
+}
+
+async function getPeopleIdsMatchingQuery({
+  organizationId,
+  supabase,
+  viewQuery,
+}: {
+  organizationId: string;
+  supabase: UntypedSupabaseClient;
+  viewQuery: PeopleViewQuery;
+}): Promise<PeopleIdQueryResult> {
+  const tokens = getPeopleQueryTokens(viewQuery);
+  let matchingIds: Set<string> | null = null;
+
+  for (const token of tokens) {
+    const tokenResult = await getPeopleIdsMatchingQueryToken({
+      organizationId,
+      supabase,
+      token,
+    });
+
+    if (tokenResult.kind !== "ready") {
+      return tokenResult;
+    }
+
+    matchingIds = matchingIds
+      ? intersectSets(matchingIds, tokenResult.ids)
+      : tokenResult.ids;
+
+    if (matchingIds.size === 0) {
+      break;
+    }
+  }
+
+  return { kind: "ready", ids: matchingIds ?? new Set<string>() };
+}
+
+async function getPeopleIdsMatchingQueryToken({
+  organizationId,
+  supabase,
+  token,
+}: {
+  organizationId: string;
+  supabase: UntypedSupabaseClient;
+  token: string;
+}): Promise<PeopleIdQueryResult> {
+  const pattern = toPostgrestIlikeToken(token);
+
+  if (!pattern) {
+    return { kind: "unsupported" };
+  }
+
+  const [
+    baseIdsResult,
+    roleIdsResult,
+    contactIdsResult,
+    vendorIdsResult,
+    linkedPropertyIdsResult,
+    linkedUnitIdsResult,
+    syntheticLabelIdsResult,
+  ] = await Promise.all([
+    getPeopleIdsMatchingBaseToken(supabase, organizationId, pattern),
+    getPeopleIdsMatchingRoleToken(supabase, organizationId, pattern),
+    getPeopleIdsMatchingContactToken(supabase, organizationId, pattern),
+    getPeopleIdsMatchingVendorToken(supabase, organizationId, pattern),
+    getPeopleIdsMatchingLinkedPropertyToken(supabase, organizationId, pattern),
+    getPeopleIdsMatchingLinkedUnitToken(supabase, organizationId, pattern),
+    getPeopleIdsMatchingSyntheticLabelToken(supabase, organizationId, token),
+  ]);
+  const results = [
+    baseIdsResult,
+    roleIdsResult,
+    contactIdsResult,
+    vendorIdsResult,
+    linkedPropertyIdsResult,
+    linkedUnitIdsResult,
+    syntheticLabelIdsResult,
+  ];
+  const missingSchema = results.find(
+    (result): result is Extract<PeopleIdQueryResult, { kind: "missing_schema" }> =>
+      result.kind === "missing_schema",
+  );
+  const unsupported = results.some((result) => result.kind === "unsupported");
+
+  if (missingSchema) {
+    return missingSchema;
+  }
+
+  if (unsupported) {
+    return { kind: "unsupported" };
+  }
+
+  return {
+    kind: "ready",
+    ids: unionSets(
+      ...(results as Extract<PeopleIdQueryResult, { kind: "ready" }>[]).map(
+        (result) => result.ids,
+      ),
+    ),
+  };
+}
+
+async function getPeopleIdsMatchingBaseToken(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  pattern: string,
+): Promise<PeopleIdQueryResult> {
+  const result = await applyPostgrestOr(
+    supabase.from("people").select("id").eq("organization_id", organizationId),
+    [
+      `display_name.ilike.%${pattern}%`,
+      `legal_name.ilike.%${pattern}%`,
+      `party_type.ilike.%${pattern}%`,
+      `primary_email.ilike.%${pattern}%`,
+      `primary_phone.ilike.%${pattern}%`,
+      `tax_identifier.ilike.%${pattern}%`,
+      `notes.ilike.%${pattern}%`,
+    ].join(","),
+  );
+
+  if (result.error) {
+    if (isMissingPeopleSchemaMessage(result.error.message)) {
+      return {
+        kind: "missing_schema",
+        schemaNotice: "People tables are not available yet.",
+      };
+    }
+
+    throw new Error(`Could not load people search filters: ${result.error.message}`);
+  }
+
+  return {
+    kind: "ready",
+    ids: new Set(asRows(result.data, toIdRow).map((row) => row.id)),
+  };
+}
+
+async function getPeopleIdsMatchingRoleToken(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  pattern: string,
+): Promise<PeopleIdQueryResult> {
+  const result = await applyPostgrestOr(
+    supabase
+      .from("person_roles")
+      .select("person_id")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null),
+    `role.ilike.%${pattern}%`,
+  );
+
+  return readPersonIdQueryResult(result, "people role search filters");
+}
+
+async function getPeopleIdsMatchingContactToken(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  pattern: string,
+): Promise<PeopleIdQueryResult> {
+  const result = await applyPostgrestOr(
+    supabase
+      .from("person_contacts")
+      .select("person_id")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null),
+    [
+      `contact_name.ilike.%${pattern}%`,
+      `contact_type.ilike.%${pattern}%`,
+      `email.ilike.%${pattern}%`,
+      `phone.ilike.%${pattern}%`,
+    ].join(","),
+  );
+
+  return readPersonIdQueryResult(
+    result,
+    "people contact search filters",
+    true,
+  );
+}
+
+async function getPeopleIdsMatchingVendorToken(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  pattern: string,
+): Promise<PeopleIdQueryResult> {
+  const result = await applyPostgrestOr(
+    supabase
+      .from("vendor_profiles")
+      .select("person_id")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null),
+    [`service_category.ilike.%${pattern}%`, `service_area.ilike.%${pattern}%`].join(
+      ",",
+    ),
+  );
+
+  return readPersonIdQueryResult(
+    result,
+    "people vendor search filters",
+    true,
+  );
+}
+
+async function getPeopleIdsMatchingLinkedPropertyToken(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  pattern: string,
+): Promise<PeopleIdQueryResult> {
+  const propertyIdsResult = await getPropertyIdsMatchingToken(
+    supabase,
+    organizationId,
+    pattern,
+  );
+
+  if (propertyIdsResult.kind !== "ready" || propertyIdsResult.ids.size === 0) {
+    return propertyIdsResult;
+  }
+
+  const [ownerIdsResult, leaseIdsResult] = await Promise.all([
+    getPeopleIdsForCurrentOwnerProperties(
+      supabase,
+      organizationId,
+      propertyIdsResult.ids,
+    ),
+    getPeopleIdsForActiveLeaseProperties(
+      supabase,
+      organizationId,
+      propertyIdsResult.ids,
+    ),
+  ]);
+
+  if (ownerIdsResult.kind !== "ready") {
+    return ownerIdsResult;
+  }
+
+  if (leaseIdsResult.kind !== "ready") {
+    return leaseIdsResult;
+  }
+
+  return {
+    kind: "ready",
+    ids: unionSets(ownerIdsResult.ids, leaseIdsResult.ids),
+  };
+}
+
+async function getPeopleIdsMatchingLinkedUnitToken(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  pattern: string,
+): Promise<PeopleIdQueryResult> {
+  const unitIdsResult = await getUnitIdsMatchingToken(
+    supabase,
+    organizationId,
+    pattern,
+  );
+
+  if (unitIdsResult.kind !== "ready" || unitIdsResult.ids.size === 0) {
+    return unitIdsResult;
+  }
+
+  return getPeopleIdsForActiveLeaseUnits(
+    supabase,
+    organizationId,
+    unitIdsResult.ids,
+  );
+}
+
+async function getPeopleIdsMatchingSyntheticLabelToken(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  token: string,
+): Promise<PeopleIdQueryResult> {
+  const results = await Promise.all([
+    tokenMatchesSyntheticLabel(token, "No role")
+      ? getPeopleIdsWithoutVisibleRoles(supabase, organizationId)
+      : readyPeopleIdSet(),
+    tokenMatchesSyntheticLabel(token, "No contact")
+      ? getPeopleIdsWithoutUsefulContacts(supabase, organizationId)
+      : readyPeopleIdSet(),
+    tokenMatchesSyntheticLabel(token, "Vendor profile")
+      ? getPeopleIdsForVisibleVendorProfiles(supabase, organizationId)
+      : readyPeopleIdSet(),
+    tokenMatchesSyntheticLabel(token, "No unit")
+      ? getPeopleIdsForActiveLeasesWithoutUnits(supabase, organizationId)
+      : readyPeopleIdSet(),
+  ]);
+  const missingSchema = results.find(
+    (result): result is Extract<PeopleIdQueryResult, { kind: "missing_schema" }> =>
+      result.kind === "missing_schema",
+  );
+  const unsupported = results.some((result) => result.kind === "unsupported");
+
+  if (missingSchema) {
+    return missingSchema;
+  }
+
+  if (unsupported) {
+    return { kind: "unsupported" };
+  }
+
+  return {
+    kind: "ready",
+    ids: unionSets(
+      ...(results as Extract<PeopleIdQueryResult, { kind: "ready" }>[]).map(
+        (result) => result.ids,
+      ),
+    ),
+  };
+}
+
+async function getPeopleIdsWithoutVisibleRoles(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+): Promise<PeopleIdQueryResult> {
+  const [allPeopleIdsResult, visibleRoleIdsResult] = await Promise.all([
+    getAllPeopleIds(supabase, organizationId),
+    getPeopleIdsFromRoles({ organizationId, supabase }),
+  ]);
+
+  if (allPeopleIdsResult.kind !== "ready") {
+    return allPeopleIdsResult;
+  }
+
+  if (visibleRoleIdsResult.kind !== "ready") {
+    return visibleRoleIdsResult;
+  }
+
+  return {
+    kind: "ready",
+    ids: differenceSets(allPeopleIdsResult.ids, visibleRoleIdsResult.ids),
+  };
+}
+
+async function getPeopleIdsWithoutUsefulContacts(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+): Promise<PeopleIdQueryResult> {
+  const [missingPrimaryIdsResult, usefulContactIdsResult] = await Promise.all([
+    getPeopleIdsWithoutPrimaryContact(supabase, organizationId),
+    getPeopleIdsWithUsefulContacts(supabase, organizationId),
+  ]);
+
+  if (missingPrimaryIdsResult.kind !== "ready") {
+    return missingPrimaryIdsResult;
+  }
+
+  if (usefulContactIdsResult.kind !== "ready") {
+    return usefulContactIdsResult;
+  }
+
+  return {
+    kind: "ready",
+    ids: differenceSets(missingPrimaryIdsResult.ids, usefulContactIdsResult.ids),
+  };
+}
+
+async function getAllPeopleIds(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+): Promise<PeopleIdQueryResult> {
+  const result = await supabase
+    .from("people")
+    .select("id")
+    .eq("organization_id", organizationId);
+
+  if (result.error) {
+    if (isMissingPeopleSchemaMessage(result.error.message)) {
+      return {
+        kind: "missing_schema",
+        schemaNotice: "People tables are not available yet.",
+      };
+    }
+
+    throw new Error(`Could not load people id filters: ${result.error.message}`);
+  }
+
+  return {
+    kind: "ready",
+    ids: new Set(asRows(result.data, toIdRow).map((row) => row.id)),
+  };
+}
+
+async function getPeopleIdsWithoutPrimaryContact(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+): Promise<PeopleIdQueryResult> {
+  const result = await supabase
+    .from("people")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .is("primary_email", null)
+    .is("primary_phone", null);
+
+  if (result.error) {
+    if (isMissingPeopleSchemaMessage(result.error.message)) {
+      return {
+        kind: "missing_schema",
+        schemaNotice: "People tables are not available yet.",
+      };
+    }
+
+    throw new Error(`Could not load people contact filters: ${result.error.message}`);
+  }
+
+  return {
+    kind: "ready",
+    ids: new Set(asRows(result.data, toIdRow).map((row) => row.id)),
+  };
+}
+
+async function getPeopleIdsForVisibleVendorProfiles(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+): Promise<PeopleIdQueryResult> {
+  const result = await supabase
+    .from("vendor_profiles")
+    .select("person_id")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null);
+
+  return readPersonIdQueryResult(result, "people vendor profile filters", true);
+}
+
+async function getPeopleIdsForActiveLeasesWithoutUnits(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+): Promise<PeopleIdQueryResult> {
+  const result = await supabase
+    .from("leases")
+    .select("id, status, archived_at")
+    .eq("organization_id", organizationId)
+    .is("unit_id", null);
+
+  if (result.error) {
+    throw new Error(`Could not load people no-unit lease filters: ${result.error.message}`);
+  }
+
+  return getPeopleIdsForActiveLeaseIds(
+    supabase,
+    organizationId,
+    new Set(
+      asRows(result.data, toLeaseSearchRow)
+        .filter(isActiveLeaseSearchRow)
+        .map((lease) => lease.id),
+    ),
+  );
+}
+
+async function getPropertyIdsMatchingToken(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  pattern: string,
+): Promise<PeopleIdQueryResult> {
+  const result = await applyPostgrestOr(
+    supabase
+      .from("properties")
+      .select("id")
+      .eq("organization_id", organizationId),
+    [`code.ilike.%${pattern}%`, `name.ilike.%${pattern}%`].join(","),
+  );
+
+  if (result.error) {
+    throw new Error(`Could not load people property search filters: ${result.error.message}`);
+  }
+
+  return {
+    kind: "ready",
+    ids: new Set(asRows(result.data, toIdRow).map((row) => row.id)),
+  };
+}
+
+async function getUnitIdsMatchingToken(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  pattern: string,
+): Promise<PeopleIdQueryResult> {
+  const result = await applyPostgrestOr(
+    supabase.from("units").select("id").eq("organization_id", organizationId),
+    `unit_number.ilike.%${pattern}%`,
+  );
+
+  if (result.error) {
+    throw new Error(`Could not load people unit search filters: ${result.error.message}`);
+  }
+
+  return {
+    kind: "ready",
+    ids: new Set(asRows(result.data, toIdRow).map((row) => row.id)),
+  };
+}
+
+async function getPeopleIdsForCurrentOwnerProperties(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  propertyIds: ReadonlySet<string>,
+): Promise<PeopleIdQueryResult> {
+  const result = await supabase
+    .from("property_owners")
+    .select("person_id")
+    .eq("organization_id", organizationId)
+    .in("property_id", [...propertyIds])
+    .is("archived_at", null)
+    .is("ended_on", null);
+
+  return readPersonIdQueryResult(
+    result,
+    "people owner property search filters",
+    true,
+  );
+}
+
+async function getPeopleIdsForActiveLeaseProperties(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  propertyIds: ReadonlySet<string>,
+): Promise<PeopleIdQueryResult> {
+  const result = await supabase
+    .from("leases")
+    .select("id, status, archived_at")
+    .eq("organization_id", organizationId)
+    .in("property_id", [...propertyIds]);
+
+  if (result.error) {
+    throw new Error(`Could not load people lease property search filters: ${result.error.message}`);
+  }
+
+  return getPeopleIdsForActiveLeaseIds(
+    supabase,
+    organizationId,
+    new Set(
+      asRows(result.data, toLeaseSearchRow)
+        .filter(isActiveLeaseSearchRow)
+        .map((lease) => lease.id),
+    ),
+  );
+}
+
+async function getPeopleIdsForActiveLeaseUnits(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  unitIds: ReadonlySet<string>,
+): Promise<PeopleIdQueryResult> {
+  const result = await supabase
+    .from("leases")
+    .select("id, status, archived_at")
+    .eq("organization_id", organizationId)
+    .in("unit_id", [...unitIds]);
+
+  if (result.error) {
+    throw new Error(`Could not load people lease unit search filters: ${result.error.message}`);
+  }
+
+  return getPeopleIdsForActiveLeaseIds(
+    supabase,
+    organizationId,
+    new Set(
+      asRows(result.data, toLeaseSearchRow)
+        .filter(isActiveLeaseSearchRow)
+        .map((lease) => lease.id),
+    ),
+  );
+}
+
+async function getPeopleIdsForActiveLeaseIds(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  leaseIds: ReadonlySet<string>,
+): Promise<PeopleIdQueryResult> {
+  if (leaseIds.size === 0) {
+    return { kind: "ready", ids: new Set<string>() };
+  }
+
+  const result = await supabase
+    .from("lease_parties")
+    .select("person_id")
+    .eq("organization_id", organizationId)
+    .in("lease_id", [...leaseIds])
+    .is("archived_at", null)
+    .is("ended_on", null);
+
+  return readPersonIdQueryResult(
+    result,
+    "people lease party search filters",
+    true,
+  );
+}
+
+function readPersonIdQueryResult(
+  result: Awaited<UntypedQueryBuilder>,
+  label: string,
+  optional = false,
+): PeopleIdQueryResult {
+  if (result.error) {
+    if (optional && isMissingPeopleSchemaMessage(result.error.message)) {
+      return { kind: "ready", ids: new Set<string>() };
+    }
+
+    if (isMissingPeopleSchemaMessage(result.error.message)) {
+      return {
+        kind: "missing_schema",
+        schemaNotice: "People tables are not available yet.",
+      };
+    }
+
+    throw new Error(`Could not load ${label}: ${result.error.message}`);
+  }
+
+  return {
+    kind: "ready",
+    ids: new Set(asRows(result.data, toPersonIdRow).map((row) => row.personId)),
+  };
+}
+
+async function filterPeopleRowsByQuery({
+  organizationId,
+  people,
+  supabase,
+  viewQuery,
+}: {
+  organizationId: string;
+  people: PersonRow[];
+  supabase: UntypedSupabaseClient;
+  viewQuery: PeopleViewQuery;
+}) {
+  const tokens = getPeopleQueryTokens(viewQuery);
+
+  if (people.length === 0 || tokens.length === 0) {
+    return people;
+  }
+
+  const personIds = new Set(people.map((person) => person.id));
+  const [roles, contacts, leaseParties, propertyOwners, vendorProfiles] =
+    await Promise.all([
+      getRows(supabase, "person_roles", roleSelect, organizationId, toRoleRow, {
+        column: "person_id",
+        values: personIds,
+      }),
+      getRows(
+        supabase,
+        "person_contacts",
+        contactSelect,
+        organizationId,
+        toContactRow,
+        { column: "person_id", values: personIds },
+        true,
+      ),
+      getRows(
+        supabase,
+        "lease_parties",
+        leasePartySelect,
+        organizationId,
+        toLeasePartyRow,
+        { column: "person_id", values: personIds },
+        true,
+      ),
+      getRows(
+        supabase,
+        "property_owners",
+        propertyOwnerSelect,
+        organizationId,
+        toPropertyOwnerRow,
+        { column: "person_id", values: personIds },
+        true,
+      ),
+      getRows(
+        supabase,
+        "vendor_profiles",
+        vendorProfileSelect,
+        organizationId,
+        toVendorProfileRow,
+        { column: "person_id", values: personIds },
+        true,
+      ),
+    ]);
+  const leaseIds = new Set(leaseParties.map((party) => party.leaseId));
+  const leases = await getRows(
+    supabase,
+    "leases",
+    leaseSelect,
+    organizationId,
+    toLeaseRow,
+    { column: "id", values: leaseIds },
+    true,
+  );
+  const propertyIds = new Set([
+    ...leases.map((lease) => lease.propertyId),
+    ...propertyOwners.map((owner) => owner.propertyId),
+  ]);
+  const unitIds = new Set(
+    leases.flatMap((lease) => (lease.unitId ? [lease.unitId] : [])),
+  );
+  const [properties, units] = await Promise.all([
+    getRows(
+      supabase,
+      "properties",
+      propertySelect,
+      organizationId,
+      toPropertyRow,
+      { column: "id", values: propertyIds },
+    ),
+    getRows(
+      supabase,
+      "units",
+      unitSelect,
+      organizationId,
+      toUnitRow,
+      { column: "id", values: unitIds },
+      true,
+    ),
+  ]);
+  const rolesByPerson = groupByPersonId(roles);
+  const contactsByPerson = groupByPersonId(contacts);
+  const leasePartiesByPerson = groupByPersonId(leaseParties);
+  const propertyOwnersByPerson = groupByPersonId(propertyOwners);
+  const vendorProfilesByPerson = groupByPersonId(vendorProfiles);
+  const leasesById = indexById(leases);
+  const propertiesById = indexById(properties);
+  const unitsById = indexById(units);
+
+  return people.filter((person) =>
+    personMatchesQueryTokens({
+      contacts: contactsByPerson.get(person.id) ?? [],
+      leaseParties: leasePartiesByPerson.get(person.id) ?? [],
+      leasesById,
+      person,
+      propertyOwners: propertyOwnersByPerson.get(person.id) ?? [],
+      propertiesById,
+      roles: rolesByPerson.get(person.id) ?? [],
+      tokens,
+      unitsById,
+      vendorProfiles: vendorProfilesByPerson.get(person.id) ?? [],
+    }),
+  );
 }
 
 async function getPersonActivityRows(
@@ -1323,6 +2415,66 @@ export function personMatchesStatusFilter(
   );
 }
 
+function personMatchesQueryTokens({
+  contacts,
+  leaseParties,
+  leasesById,
+  person,
+  propertyOwners,
+  propertiesById,
+  roles,
+  tokens,
+  unitsById,
+  vendorProfiles,
+}: {
+  contacts: ContactRow[];
+  leaseParties: LeasePartyRow[];
+  leasesById: Map<string, LeaseRow>;
+  person: PersonRow;
+  propertyOwners: PropertyOwnerRow[];
+  propertiesById: Map<string, PropertyRow>;
+  roles: RoleRow[];
+  tokens: string[];
+  unitsById: Map<string, UnitRow>;
+  vendorProfiles: VendorProfileRow[];
+}) {
+  const visibleRoles = roles
+    .filter((role) => !role.archivedAt)
+    .map((role): PersonRoleSummary => ({
+      role: role.role,
+      status: role.status,
+    }))
+    .toSorted(compareRoles);
+  const linked = getLinkedRecords({
+    leaseParties,
+    leasesById,
+    propertyOwners,
+    propertiesById,
+    unitsById,
+    vendorProfiles,
+  });
+  const roleLabel =
+    visibleRoles.length > 0
+      ? visibleRoles.map((role) => formatRole(role.role)).join(", ")
+      : "No role";
+  const haystack = [
+    person.displayName,
+    person.legalName ?? "",
+    formatPartyType(person.partyType),
+    roleLabel,
+    getPrimaryContact(person, contacts).label,
+    linked.activeLease?.propertyLabel ?? "",
+    linked.activeLease?.unitLabel ?? "",
+    linked.ownerProperty?.label ?? "",
+    linked.vendorProfile?.label ?? "",
+    person.notes ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return tokens.every((token) => haystack.includes(token));
+}
+
 async function getExcludedPersonIdsForStatus(
   supabase: UntypedSupabaseClient,
   organizationId: string,
@@ -1343,21 +2495,81 @@ async function getPeopleIdsWithVisibleRoles(
   supabase: UntypedSupabaseClient,
   organizationId: string,
 ) {
-  const result = await supabase
+  const result = await getPeopleIdsFromRoles({ organizationId, supabase });
+
+  if (result.kind !== "ready") {
+    return new Set<string>();
+  }
+
+  return result.ids;
+}
+
+async function getPeopleIdsFromRoles({
+  organizationId,
+  role,
+  status,
+  supabase,
+}: {
+  organizationId: string;
+  role?: PersonRoleValue;
+  status?: PersonRoleStatus;
+  supabase: UntypedSupabaseClient;
+}): Promise<PeopleIdQueryResult> {
+  let query = supabase
     .from("person_roles")
     .select("person_id")
     .eq("organization_id", organizationId)
     .is("archived_at", null);
 
-  if (result.error) {
-    if (isMissingPeopleSchemaMessage(result.error.message)) {
-      return new Set<string>();
-    }
-
-    throw new Error(`Could not load people role filters: ${result.error.message}`);
+  if (role) {
+    query = query.eq("role", role);
   }
 
-  return new Set(asRows(result.data, toPersonIdRow).map((row) => row.personId));
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const result = await query;
+
+  return readPersonIdQueryResult(result, "people role filters");
+}
+
+async function getPeopleIdsWithUsefulContacts(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+): Promise<PeopleIdQueryResult> {
+  const [emailResult, phoneResult] = await Promise.all([
+    getPeopleIdsFromContactValue(supabase, organizationId, "email"),
+    getPeopleIdsFromContactValue(supabase, organizationId, "phone"),
+  ]);
+
+  if (emailResult.kind !== "ready") {
+    return emailResult;
+  }
+
+  if (phoneResult.kind !== "ready") {
+    return phoneResult;
+  }
+
+  return {
+    kind: "ready",
+    ids: unionSets(emailResult.ids, phoneResult.ids),
+  };
+}
+
+async function getPeopleIdsFromContactValue(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  column: "email" | "phone",
+): Promise<PeopleIdQueryResult> {
+  const result = await supabase
+    .from("person_contacts")
+    .select("person_id")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .not(column, "is", null);
+
+  return readPersonIdQueryResult(result, "people contact filters", true);
 }
 
 function hasUsefulPersonContact(person: PersonRow, contacts: ContactRow[]) {
@@ -1407,6 +2619,19 @@ function sortPeopleSummaries(
   });
 }
 
+function sortPersonRows(people: PersonRow[], sort = DEFAULT_PEOPLE_SORT) {
+  return [...people].sort((first, second) => {
+    if (sort === "updated_desc") {
+      return (
+        Date.parse(second.updatedAt) - Date.parse(first.updatedAt) ||
+        comparePersonRows(first, second)
+      );
+    }
+
+    return comparePersonRows(first, second);
+  });
+}
+
 function buildPeoplePagination({
   page,
   pageSize,
@@ -1435,6 +2660,12 @@ function getPeoplePageSummaries(
   people: PeopleSummary[],
   pagination: PeoplePagination,
 ) {
+  const start = pagination.totalCount === 0 ? 0 : pagination.from - 1;
+
+  return people.slice(start, pagination.to);
+}
+
+function getPeoplePageRows(people: PersonRow[], pagination: PeoplePagination) {
   const start = pagination.totalCount === 0 ? 0 : pagination.from - 1;
 
   return people.slice(start, pagination.to);
@@ -1500,6 +2731,13 @@ function getLinkedCount(person: PeopleSummary) {
 function comparePeopleSummaries(first: PeopleSummary, second: PeopleSummary) {
   return (
     Number(first.isArchived) - Number(second.isArchived) ||
+    compareStrings(first.displayName, second.displayName)
+  );
+}
+
+function comparePersonRows(first: PersonRow, second: PersonRow) {
+  return (
+    Number(Boolean(first.archivedAt)) - Number(Boolean(second.archivedAt)) ||
     compareStrings(first.displayName, second.displayName)
   );
 }
@@ -1768,8 +3006,101 @@ function toPersonIdRow(row: UnknownRecord) {
   return personId ? { personId } : null;
 }
 
+function toIdRow(row: UnknownRecord) {
+  const id = readString(row, "id");
+
+  return id ? { id } : null;
+}
+
+function toLeaseSearchRow(row: UnknownRecord) {
+  const id = readString(row, "id");
+
+  if (!id) {
+    return null;
+  }
+
+  return {
+    archivedAt: readNullableString(row, "archived_at"),
+    id,
+    status: readString(row, "status"),
+  };
+}
+
+function isActiveLeaseSearchRow(lease: {
+  archivedAt: string | null;
+  status: string;
+}) {
+  if (lease.archivedAt) {
+    return false;
+  }
+
+  return !["cancelled", "canceled", "ended", "terminated"].includes(
+    lease.status.toLowerCase(),
+  );
+}
+
+function getPeopleQueryTokens(viewQuery: PeopleViewQuery) {
+  return viewQuery.query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function toPostgrestIlikeToken(token: string) {
+  return token.replace(/[,%()]/g, " ").trim().replace(/\s+/g, "%");
+}
+
+function tokenMatchesSyntheticLabel(token: string, label: string) {
+  return label.toLowerCase().includes(token);
+}
+
+function readyPeopleIdSet(ids = new Set<string>()): PeopleIdQueryResult {
+  return { kind: "ready", ids };
+}
+
+function applyPostgrestOr(query: UntypedQueryBuilder, filters: string) {
+  return (query as SearchableQueryBuilder).or(filters);
+}
+
 function formatPostgrestInFilter(values: ReadonlySet<string>) {
   return `(${[...values].join(",")})`;
+}
+
+function unionSets<T>(...sets: ReadonlySet<T>[]) {
+  const union = new Set<T>();
+
+  for (const set of sets) {
+    for (const value of set) {
+      union.add(value);
+    }
+  }
+
+  return union;
+}
+
+function intersectSets<T>(first: ReadonlySet<T>, second: ReadonlySet<T>) {
+  const intersection = new Set<T>();
+
+  for (const value of first) {
+    if (second.has(value)) {
+      intersection.add(value);
+    }
+  }
+
+  return intersection;
+}
+
+function differenceSets<T>(first: ReadonlySet<T>, second: ReadonlySet<T>) {
+  const difference = new Set<T>();
+
+  for (const value of first) {
+    if (!second.has(value)) {
+      difference.add(value);
+    }
+  }
+
+  return difference;
 }
 
 function buildHref(pathname: string, params: Record<string, string | undefined>) {

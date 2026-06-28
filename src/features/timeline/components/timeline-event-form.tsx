@@ -139,7 +139,7 @@ export function TimelineEventForm({
         </Field>
       </div>
 
-      <div className="grid gap-4 px-4 sm:grid-cols-[minmax(0,1fr)_128px_112px] sm:px-5">
+      <div className="grid gap-4 px-4 sm:grid-cols-[minmax(0,1fr)_128px] sm:px-5">
         <Field label="Title" error={state.fieldErrors?.title?.[0]}>
           <Input
             defaultValue={event?.title ?? ""}
@@ -158,19 +158,6 @@ export function TimelineEventForm({
             placeholder="0.00"
             step="0.01"
             type="number"
-          />
-        </Field>
-
-        <Field label="Currency" error={state.fieldErrors?.costCurrency?.[0]}>
-          <SelectControl
-            ariaLabel="Currency"
-            defaultValue={event?.currency ?? ""}
-            name="costCurrency"
-            options={[
-              { label: "None", value: "" },
-              { label: "USD", value: "USD" },
-              { label: "KHR", value: "KHR" },
-            ]}
           />
         </Field>
       </div>

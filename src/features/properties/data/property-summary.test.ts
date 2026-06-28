@@ -27,7 +27,6 @@ describe("buildPropertySummary", () => {
       address: "No address recorded",
       netIncome: {
         primary: "USD 875.00",
-        secondary: "KHR 3,587,500",
       },
       occupiedUnits: 1,
       owner: "Unassigned",

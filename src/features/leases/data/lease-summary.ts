@@ -1,10 +1,7 @@
 import { formatDate } from "@/lib/dates/format";
 import {
-  convertMoney,
   formatMoney,
   formatMoneyDisplay,
-  normalizeCurrencyDisplaySettings,
-  type CurrencyDisplaySettings,
 } from "@/lib/money/format";
 import type { Database } from "@/types/database";
 import type {
@@ -120,7 +117,6 @@ export type LeaseTimelineRow = {
 
 type BuildLeaseSummaryInput = {
   activity?: RecentChange[];
-  currencySettings?: Partial<CurrencyDisplaySettings> | null;
   documents?: LeaseDocumentRow[];
   ledgerEntryCount?: number;
   lease: LeaseRow;
@@ -135,7 +131,6 @@ type BuildLeaseSummaryInput = {
 
 export function buildLeaseSummary({
   activity = [],
-  currencySettings,
   documents = [],
   ledgerEntryCount = 0,
   lease,
@@ -147,7 +142,6 @@ export function buildLeaseSummary({
   timelineEvents = [],
   unit,
 }: BuildLeaseSummaryInput): LeaseSummary {
-  const settings = normalizeCurrencyDisplaySettings(currencySettings);
   const statusValue = normalizeLeaseStatus(lease.status);
   const statusLabel = formatLeaseStatus(statusValue);
   const propertyCode = property?.code ?? "No code";
@@ -157,12 +151,7 @@ export function buildLeaseSummary({
     : "No unit assigned";
   const rentAmount = Number(lease.monthly_rent_amount);
   const rentCurrency = lease.monthly_rent_currency;
-  const rentUsd = convertMoney(
-    rentAmount,
-    rentCurrency,
-    "USD",
-    settings.khrPerUsd,
-  );
+  const rentUsd = rentAmount;
   const depositAmount =
     lease.deposit_amount === null ? null : Number(lease.deposit_amount);
   const depositCurrency = lease.deposit_currency ?? rentCurrency;
@@ -196,13 +185,13 @@ export function buildLeaseSummary({
   return {
     activity,
     depositDisplay: hasDeposit
-      ? formatMoneyDisplay(depositAmount, depositCurrency, settings)
+      ? formatMoneyDisplay(depositAmount, depositCurrency)
       : undefined,
     depositLabel: hasDeposit
       ? formatMoney(depositAmount, depositCurrency)
       : "No deposit recorded",
     deposits: deposits.filter((deposit) => !deposit.archived_at).map((deposit) =>
-      toDepositContext(deposit, settings),
+      toDepositContext(deposit),
     ),
     documents: activeDocuments.map(toDocumentContext),
     endDateLabel: formatDate(lease.lease_end_date),
@@ -228,7 +217,7 @@ export function buildLeaseSummary({
     propertyId: lease.property_id,
     propertyName,
     recordCounts,
-    rentDisplay: formatMoneyDisplay(rentAmount, rentCurrency, settings),
+    rentDisplay: formatMoneyDisplay(rentAmount, rentCurrency),
     rentLabel: formatMoney(rentAmount, rentCurrency),
     rentUsd,
     riskIndicators: buildLeaseRiskIndicators({
@@ -248,7 +237,7 @@ export function buildLeaseSummary({
       lease.lease_end_date,
     )}`,
     terms: terms.filter((term) => !term.archived_at).map((term) =>
-      toTermContext(term, settings),
+      toTermContext(term),
     ),
     timeline: activeTimelineEvents.map(toTimelineContext),
     unitId: lease.unit_id,
@@ -368,14 +357,11 @@ function toPartyContext(party: LeasePartyRow): LeaseLinkedPerson {
   };
 }
 
-function toTermContext(
-  term: LeaseTermRow,
-  currencySettings: Partial<CurrencyDisplaySettings>,
-): LeaseTermContext {
+function toTermContext(term: LeaseTermRow): LeaseTermContext {
   return {
     datesLabel: `${formatDate(term.start_date)} - ${formatDate(term.end_date)}`,
     id: term.id,
-    rentDisplay: formatMoneyDisplay(term.rent_amount, term.rent_currency, currencySettings),
+    rentDisplay: formatMoneyDisplay(term.rent_amount, term.rent_currency),
     rentLabel: formatMoney(term.rent_amount, term.rent_currency),
     statusLabel: formatStoredLabel(term.status),
   };
@@ -400,12 +386,9 @@ function toOccupancyContext(
   };
 }
 
-function toDepositContext(
-  deposit: LeaseDepositRow,
-  currencySettings: Partial<CurrencyDisplaySettings>,
-): LeaseDepositContext {
+function toDepositContext(deposit: LeaseDepositRow): LeaseDepositContext {
   return {
-    amountDisplay: formatMoneyDisplay(deposit.amount, deposit.currency, currencySettings),
+    amountDisplay: formatMoneyDisplay(deposit.amount, deposit.currency),
     amountLabel: formatMoney(deposit.amount, deposit.currency),
     id: deposit.id,
     statusLabel: formatStoredLabel(deposit.status),

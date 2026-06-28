@@ -1,6 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { toRecentChange } from "@/features/activity/recent-changes";
-import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import {
   DEFAULT_LEDGER_VIEW_QUERY,
   buildLedgerPagination,
@@ -92,7 +91,6 @@ export async function getLedgerScreenData(
     unitsResult,
     periodLocksResult,
     recentActivityResult,
-    currencySettings,
   ] = await Promise.all([
     supabase
       .from("properties")
@@ -121,7 +119,6 @@ export async function getLedgerScreenData(
       .in("entity_type", ["timeline_event", "ledger_entry", "ledger_period"])
       .order("created_at", { ascending: false })
       .limit(6),
-    getOrganizationCurrencySettings(organizationId),
   ]);
 
   if (propertiesResult.error) {
@@ -285,7 +282,6 @@ export async function getLedgerScreenData(
       };
     }),
     viewQuery,
-    currencySettings,
   };
 }
 
@@ -375,24 +371,25 @@ async function addSignedDocumentUrls(
   rows: DocumentRow[],
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
 ): Promise<LedgerDocumentWithLink[]> {
-  return Promise.all(
-    rows.map(async (row) => {
-      const { data } = await supabase.storage
-        .from("nestory-documents")
-        .createSignedUrl(row.storage_path, 60 * 60);
+  if (rows.length === 0) {
+    return [];
+  }
 
-      return {
-        category: row.category,
-        fileName: row.file_name,
-        id: row.id,
-        ledgerEntryId: row.ledger_entry_id ?? undefined,
-        mimeType: row.mime_type,
-        sizeBytes: row.size_bytes,
-        uploadedAt: row.uploaded_at,
-        url: data?.signedUrl,
-      };
-    }),
+  const { data } = await supabase.storage.from("nestory-documents").createSignedUrls(
+    rows.map((row) => row.storage_path),
+    60 * 60,
   );
+
+  return rows.map((row, index) => ({
+    category: row.category,
+    fileName: row.file_name,
+    id: row.id,
+    ledgerEntryId: row.ledger_entry_id ?? undefined,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    uploadedAt: row.uploaded_at,
+    url: data?.[index]?.signedUrl ?? undefined,
+  }));
 }
 
 function groupDocumentsByLedgerEntryId(rows: LedgerDocumentWithLink[]) {

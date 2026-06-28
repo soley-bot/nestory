@@ -1,14 +1,15 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { toRecentChange } from "@/features/activity/recent-changes";
-import type { CurrencyDisplaySettings } from "@/lib/money/format";
 import {
   buildPropertySummary,
+  type PropertyRecord,
   type PropertySummary,
 } from "@/features/properties/data/property-summary";
 import {
   buildPropertyDetail,
   type PropertyDetailDocumentRecord,
   type PropertyDetailLedgerRecord,
+  type PropertyDetailMaintenanceRecord,
   type PropertyOwnerHistoryRecord,
 } from "@/features/properties/data/property-detail";
 import {
@@ -35,6 +36,9 @@ type ActiveOwnerLink = {
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
+const propertySelect =
+  "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at";
+
 type PropertySummaryOptions = {
   archiveState?: PropertyArchiveState;
   includeArchived?: boolean;
@@ -42,9 +46,13 @@ type PropertySummaryOptions = {
   status?: PropertyStatusValue | "all";
 };
 
+type PagedPropertyRowsResult = {
+  properties: PropertyRecord[];
+  totalCount: number;
+};
+
 export async function getPropertySummaries(
   organizationId: string,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
   options: PropertySummaryOptions = {},
 ) {
   const supabase = await createSupabaseServerClient();
@@ -57,9 +65,7 @@ export async function getPropertySummaries(
 
   let propertiesQuery = supabase
     .from("properties")
-    .select(
-      "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at",
-    )
+    .select(propertySelect)
     .eq("organization_id", organizationId)
     .order("code", { ascending: true });
 
@@ -91,7 +97,27 @@ export async function getPropertySummaries(
   }
 
   const propertyRows = propertiesResult.data ?? [];
-  const propertyIds = new Set(propertyRows.map((property) => property.id));
+
+  return loadPropertySummariesForRows({
+    activeOwnerLinks: activeOwnerLinks ?? undefined,
+    organizationId,
+    properties: propertyRows,
+    supabase,
+  });
+}
+
+async function loadPropertySummariesForRows({
+  activeOwnerLinks,
+  organizationId,
+  properties,
+  supabase,
+}: {
+  activeOwnerLinks?: ReadonlyMap<string, ActiveOwnerLink>;
+  organizationId: string;
+  properties: PropertyRecord[];
+  supabase: SupabaseServerClient;
+}) {
+  const propertyIds = new Set(properties.map((property) => property.id));
 
   if (propertyIds.size === 0) {
     return [];
@@ -126,13 +152,12 @@ export async function getPropertySummaries(
   const unitsByProperty = groupByProperty(unitsResult.data ?? []);
   const ledgerByProperty = groupByProperty(ledgerResult.data ?? []);
 
-  return propertyRows.map((property): PropertySummary => {
+  return properties.map((property): PropertySummary => {
     const units = unitsByProperty.get(property.id) ?? [];
     const ledgerEntries = ledgerByProperty.get(property.id) ?? [];
 
     return buildPropertySummary({
       activeOwner: ownerLinks.get(property.id),
-      currencySettings,
       hasActiveOwnerLink: ownerLinks.has(property.id),
       ledgerEntries,
       property,
@@ -164,10 +189,184 @@ export async function getPropertyOwnerOptions(
 
 export async function getPropertiesScreenData(
   organizationId: string,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
   viewQuery: PropertyViewQuery = parsePropertySearchParams({}),
 ) {
-  const properties = await getPropertySummaries(organizationId, currencySettings, {
+  if (canUsePagedPropertyBaseQuery(viewQuery)) {
+    return getPagedPropertiesScreenData({
+      organizationId,
+      viewQuery,
+    });
+  }
+
+  return getCompletePropertiesScreenData({
+    organizationId,
+    viewQuery,
+  });
+}
+
+function canUsePagedPropertyBaseQuery(viewQuery: PropertyViewQuery) {
+  return (
+    viewQuery.query.trim().length === 0 &&
+    viewQuery.netStatus === "all" &&
+    (viewQuery.sort === "code_asc" ||
+      viewQuery.sort === "name_asc" ||
+      viewQuery.sort === "status_asc")
+  );
+}
+
+async function getPagedPropertiesScreenData({
+  organizationId,
+  viewQuery,
+}: {
+  organizationId: string;
+  viewQuery: PropertyViewQuery;
+}) {
+  const supabase = await createSupabaseServerClient();
+  const activeOwnerLinks =
+    viewQuery.ownerStatus === "missing"
+      ? await getActiveOwnerLinks(organizationId)
+      : undefined;
+  let rowsResult = await getPagedPropertyRows({
+    activeOwnerLinks,
+    organizationId,
+    page: viewQuery.page,
+    pageSize: viewQuery.pageSize,
+    supabase,
+    viewQuery,
+  });
+  let pagination = buildPropertyPagination({
+    page: viewQuery.page,
+    pageSize: viewQuery.pageSize,
+    totalCount: rowsResult.totalCount,
+  });
+
+  if (pagination.page !== viewQuery.page && rowsResult.totalCount > 0) {
+    rowsResult = await getPagedPropertyRows({
+      activeOwnerLinks,
+      organizationId,
+      page: pagination.page,
+      pageSize: viewQuery.pageSize,
+      supabase,
+      viewQuery,
+    });
+    pagination = buildPropertyPagination({
+      page: pagination.page,
+      pageSize: viewQuery.pageSize,
+      totalCount: rowsResult.totalCount,
+    });
+  }
+
+  return {
+    pagination,
+    properties: await loadPropertySummariesForRows({
+      activeOwnerLinks,
+      organizationId,
+      properties: rowsResult.properties,
+      supabase,
+    }),
+  };
+}
+
+async function getPagedPropertyRows({
+  activeOwnerLinks,
+  organizationId,
+  page,
+  pageSize,
+  supabase,
+  viewQuery,
+}: {
+  activeOwnerLinks?: ReadonlyMap<string, ActiveOwnerLink>;
+  organizationId: string;
+  page: number;
+  pageSize: number;
+  supabase: SupabaseServerClient;
+  viewQuery: PropertyViewQuery;
+}): Promise<PagedPropertyRowsResult> {
+  const range = getRange(page, pageSize);
+  const result = applyPropertyBaseSort(
+    applyPropertyBaseFilters(
+      supabase
+        .from("properties")
+        .select(propertySelect, { count: "exact" })
+        .eq("organization_id", organizationId),
+      viewQuery,
+      activeOwnerLinks,
+    ),
+    viewQuery.sort,
+  ).range(range.from, range.to);
+  const rowsResult = await result;
+
+  if (rowsResult.error) {
+    throw new Error(`Could not load properties: ${rowsResult.error.message}`);
+  }
+
+  const properties = rowsResult.data ?? [];
+
+  return {
+    properties,
+    totalCount:
+      typeof rowsResult.count === "number" ? rowsResult.count : properties.length,
+  };
+}
+
+function applyPropertyBaseFilters(
+  query: ReturnType<SupabaseServerClient["from"]>,
+  viewQuery: PropertyViewQuery,
+  activeOwnerLinks?: ReadonlyMap<string, ActiveOwnerLink>,
+) {
+  let filteredQuery = query;
+
+  if (viewQuery.archiveState === "active") {
+    filteredQuery = filteredQuery.is("archived_at", null);
+  } else if (viewQuery.archiveState === "archived") {
+    filteredQuery = filteredQuery.not("archived_at", "is", null);
+  }
+
+  if (viewQuery.status !== "all") {
+    filteredQuery = filteredQuery.in(
+      "status",
+      getStoredPropertyStatusValues(viewQuery.status),
+    );
+  }
+
+  if (activeOwnerLinks && activeOwnerLinks.size > 0) {
+    filteredQuery = filteredQuery.not(
+      "id",
+      "in",
+      formatPostgrestInFilter(new Set(activeOwnerLinks.keys())),
+    );
+  }
+
+  return filteredQuery;
+}
+
+function applyPropertyBaseSort(
+  query: ReturnType<typeof applyPropertyBaseFilters>,
+  sort: PropertyViewQuery["sort"],
+) {
+  if (sort === "name_asc") {
+    return query.order("name", { ascending: true }).order("code", {
+      ascending: true,
+    });
+  }
+
+  if (sort === "status_asc") {
+    return query.order("status", { ascending: true }).order("code", {
+      ascending: true,
+    });
+  }
+
+  return query.order("code", { ascending: true });
+}
+
+async function getCompletePropertiesScreenData({
+  organizationId,
+  viewQuery,
+}: {
+  organizationId: string;
+  viewQuery: PropertyViewQuery;
+}) {
+  const properties = await getPropertySummaries(organizationId, {
     archiveState: viewQuery.archiveState,
     ownerStatus: viewQuery.ownerStatus,
     status: viewQuery.status,
@@ -192,16 +391,14 @@ export async function getPropertiesScreenData(
 export async function getPropertySummary(
   organizationId: string,
   propertyId: string,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
 ) {
-  const properties = await getPropertySummaries(organizationId, currencySettings);
+  const properties = await getPropertySummaries(organizationId);
   return properties.find((property) => property.id === propertyId) ?? null;
 }
 
 export async function getPropertyDetail(
   organizationId: string,
   propertyId: string,
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
 ) {
   const supabase = await createSupabaseServerClient();
   const detailRecordLimit = 8;
@@ -214,6 +411,7 @@ export async function getPropertyDetail(
     timelineResult,
     ledgerResult,
     documentsResult,
+    maintenanceResult,
     activityResult,
   ] = await Promise.all([
     supabase
@@ -278,7 +476,7 @@ export async function getPropertyDetail(
     supabase
       .from("documents")
       .select(
-        "id, unit_id, lease_id, ledger_entry_id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at",
+        "id, unit_id, lease_id, ledger_entry_id, task_id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at",
         { count: "exact" },
       )
       .eq("organization_id", organizationId)
@@ -286,6 +484,18 @@ export async function getPropertyDetail(
       .is("archived_at", null)
       .order("uploaded_at", { ascending: false })
       .limit(detailRecordLimit),
+    supabase
+      .from("tasks")
+      .select(
+        "id, unit_id, title, category, priority, status, due_date, due_time, actual_cost_amount, actual_cost_currency",
+        { count: "exact" },
+      )
+      .eq("organization_id", organizationId)
+      .eq("property_id", propertyId)
+      .is("archived_at", null)
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(50),
     supabase
       .from("activity_logs")
       .select(
@@ -338,6 +548,12 @@ export async function getPropertyDetail(
     );
   }
 
+  if (maintenanceResult.error) {
+    throw new Error(
+      `Could not load property maintenance cases: ${maintenanceResult.error.message}`,
+    );
+  }
+
   if (activityResult.error) {
     throw new Error(
       `Could not load property activity: ${activityResult.error.message}`,
@@ -363,6 +579,8 @@ export async function getPropertyDetail(
     supabase,
   );
   const ledgerEntries = (ledgerResult.data ?? []) as PropertyDetailLedgerRecord[];
+  const maintenanceCases =
+    (maintenanceResult.data ?? []) as PropertyDetailMaintenanceRecord[];
 
   return buildPropertyDetail({
     activeLeases: activeLeasesResult.data ?? [],
@@ -373,9 +591,9 @@ export async function getPropertyDetail(
         }
       : null,
     activity: (activityResult.data ?? []).map(toRecentChange),
-    currencySettings,
     documents,
     ledgerEntries,
+    maintenanceCases,
     ownerHistory,
     property: propertyResult.data,
     recentLedgerEntries: ledgerEntries.slice(0, detailRecordLimit),
@@ -384,6 +602,10 @@ export async function getPropertyDetail(
       activeLeases: activeLeasesResult.count ?? activeLeasesResult.data?.length ?? 0,
       documents: documentsResult.count ?? documents.length,
       ledgerEntries: ledgerResult.count ?? ledgerEntries.length,
+      maintenanceCases: maintenanceResult.count ?? maintenanceCases.length,
+      openMaintenanceCases: maintenanceCases.filter(isOpenMaintenanceTask).length,
+      overdueMaintenanceCases:
+        maintenanceCases.filter(isOverdueMaintenanceTask).length,
       timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
     },
     units: unitsResult.data ?? [],
@@ -549,6 +771,15 @@ function getPropertyPageSummaries(
   return properties.slice(start, pagination.to);
 }
 
+function getRange(page: number, pageSize: number) {
+  const from = (Math.max(page, 1) - 1) * pageSize;
+
+  return {
+    from,
+    to: from + pageSize - 1,
+  };
+}
+
 function compareStrings(first: string, second: string) {
   return first.localeCompare(second, undefined, {
     numeric: true,
@@ -626,6 +857,18 @@ function getStoredPropertyStatusValues(status: PropertyStatusValue) {
   }
 
   return [status];
+}
+
+function isOpenMaintenanceTask(task: PropertyDetailMaintenanceRecord) {
+  return task.status !== "completed" && task.status !== "cancelled";
+}
+
+function isOverdueMaintenanceTask(task: PropertyDetailMaintenanceRecord) {
+  return (
+    isOpenMaintenanceTask(task) &&
+    Boolean(task.due_date) &&
+    task.due_date! < new Date().toISOString().slice(0, 10)
+  );
 }
 
 function formatPostgrestInFilter(values: ReadonlySet<string>) {

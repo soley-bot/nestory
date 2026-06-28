@@ -209,7 +209,6 @@ export function UnitScreen({
       </div>
 
       <RecordPreviewDrawer
-        description="Selected row details, lease context, and linked actions."
         onClose={() => setPreviewOpen(false)}
         open={previewOpen && Boolean(selectedUnit)}
         title="Unit preview"

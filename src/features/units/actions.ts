@@ -2,14 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { Constants } from "@/types/database";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import type { CurrencyCode } from "@/lib/money/format";
 
 type UnitFieldErrors = {
   currentRentAmount?: string[];
-  currentRentCurrency?: string[];
   floor?: string[];
   propertyId?: string[];
   sizeSqm?: string[];
@@ -35,7 +32,6 @@ const unitStatusSchema = z.enum([
 const unitMutationSchema = z
   .object({
     currentRentAmount: z.string().trim(),
-    currentRentCurrency: z.string().trim(),
     floor: z
       .string()
       .trim()
@@ -62,19 +58,7 @@ const unitMutationSchema = z
       }
     }
 
-    const hasRentAmount = data.currentRentAmount.length > 0;
-    const hasRentCurrency = data.currentRentCurrency.length > 0;
-
-    if (!hasRentAmount && !hasRentCurrency) {
-      return;
-    }
-
-    if (!hasRentAmount || !hasRentCurrency) {
-      context.addIssue({
-        code: "custom",
-        message: "Enter both rent amount and currency.",
-        path: hasRentAmount ? ["currentRentCurrency"] : ["currentRentAmount"],
-      });
+    if (data.currentRentAmount.length === 0) {
       return;
     }
 
@@ -85,18 +69,6 @@ const unitMutationSchema = z
         code: "custom",
         message: "Enter a valid non-negative rent amount.",
         path: ["currentRentAmount"],
-      });
-    }
-
-    const parsedCurrency = z
-      .enum(Constants.public.Enums.currency_code)
-      .safeParse(data.currentRentCurrency);
-
-    if (!parsedCurrency.success) {
-      context.addIssue({
-        code: "custom",
-        message: "Choose a valid currency.",
-        path: ["currentRentCurrency"],
       });
     }
   });
@@ -138,9 +110,7 @@ export async function createUnitAction(
   const { data: unitId, error } = await supabase.rpc("create_unit", {
     p_current_rent_amount: nullableNumber(parsed.data.currentRentAmount),
     p_current_rent_currency:
-      parsed.data.currentRentCurrency.length > 0
-        ? (parsed.data.currentRentCurrency as CurrencyCode)
-        : null,
+      parsed.data.currentRentAmount.length > 0 ? "USD" : null,
     p_floor: nullableString(parsed.data.floor),
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
@@ -202,9 +172,7 @@ export async function updateUnitAction(
   const { error } = await supabase.rpc("update_unit", {
     p_current_rent_amount: nullableNumber(parsed.data.currentRentAmount),
     p_current_rent_currency:
-      parsed.data.currentRentCurrency.length > 0
-        ? (parsed.data.currentRentCurrency as CurrencyCode)
-        : null,
+      parsed.data.currentRentAmount.length > 0 ? "USD" : null,
     p_floor: nullableString(parsed.data.floor),
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
@@ -315,7 +283,6 @@ export async function restoreUnitAction(
 function readUnitMutationInput(formData: FormData) {
   return {
     currentRentAmount: readString(formData, "currentRentAmount"),
-    currentRentCurrency: readString(formData, "currentRentCurrency"),
     floor: readString(formData, "floor"),
     propertyId: readString(formData, "propertyId"),
     sizeSqm: readString(formData, "sizeSqm"),

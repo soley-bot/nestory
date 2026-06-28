@@ -24,6 +24,8 @@ export function ReportsScreen({
   viewQuery,
 }: ReportsScreenProps) {
   const canDownloadPdf = trustedReport.kind === "vacancy-risk";
+  const reportRowCount = trustedReport.totalRowCount ?? trustedReport.rows.length;
+  const isPreviewLimited = reportRowCount > trustedReport.rows.length;
 
   return (
     <div className="min-h-screen bg-background print:bg-white">
@@ -47,7 +49,7 @@ export function ReportsScreen({
                 <Download size={14} />
                 Export CSV
               </a>
-              <PrintButton />
+              {canDownloadPdf || isPreviewLimited ? null : <PrintButton />}
             </>
           }
           description="Connected reports built from Unit, Property, Lease, Ledger, Timeline, and Document source rows."
@@ -99,6 +101,9 @@ function TrustedReportTable({
   organizationName: string;
   report: TrustedReport;
 }) {
+  const totalRowCount = report.totalRowCount ?? report.rows.length;
+  const isPreviewLimited = totalRowCount > report.rows.length;
+
   return (
     <section className="overflow-hidden rounded-md border border-border bg-surface shadow-sm print:rounded-none print:border-0 print:bg-white print:shadow-none">
       <div className="relative border-b border-border px-4 py-4 sm:px-5 print:block print:border-0 print:px-0 print:pb-3 print:pt-0 print:text-center">
@@ -121,13 +126,15 @@ function TrustedReportTable({
           <div className="grid grid-cols-2 gap-2 text-[12px] sm:min-w-[420px] sm:grid-cols-3 print:hidden">
             <ReportMeta label="Scope" value={report.scopeLabel} />
             <ReportMeta label="Period" value={report.periodLabel} />
-            <ReportMeta label="Rows" value={String(report.rows.length)} />
+            <ReportMeta label="Rows" value={String(totalRowCount)} />
           </div>
         </div>
       </div>
 
       <div className="border-b border-border bg-surface-muted/60 px-4 py-2.5 text-[13px] text-foreground-muted print:hidden">
-        {report.totalsTraceLabel}
+        {isPreviewLimited
+          ? `Showing first ${report.rows.length} of ${totalRowCount} rows. Export CSV for the full report.`
+          : report.totalsTraceLabel}
       </div>
 
       <div className="max-h-[320px] overflow-auto sm:max-h-[min(560px,calc(100vh-430px))] print:max-h-none print:overflow-visible">
@@ -248,9 +255,9 @@ function TrustedReportTableRow({
               </span>
             ),
           )}
-          {row.sourceLinks.length > 5 ? (
+          {row.sourceCount > row.sourceLinks.length ? (
             <span className="inline-flex min-h-6 items-center rounded-md border border-border bg-surface px-2 text-xs font-medium text-muted">
-              +{row.sourceLinks.length - 5}
+              +{row.sourceCount - row.sourceLinks.length}
             </span>
           ) : null}
         </div>

@@ -67,6 +67,8 @@ export type Database = {
           property_id: string | null
           size_bytes: number
           storage_path: string
+          task_id: string | null
+          tenant_request_id: string | null
           timeline_event_id: string | null
           unit_id: string | null
           uploaded_at: string
@@ -85,6 +87,8 @@ export type Database = {
           property_id?: string | null
           size_bytes: number
           storage_path: string
+          task_id?: string | null
+          tenant_request_id?: string | null
           timeline_event_id?: string | null
           unit_id?: string | null
           uploaded_at?: string
@@ -103,6 +107,8 @@ export type Database = {
           property_id?: string | null
           size_bytes?: number
           storage_path?: string
+          task_id?: string | null
+          tenant_request_id?: string | null
           timeline_event_id?: string | null
           unit_id?: string | null
           uploaded_at?: string
@@ -138,6 +144,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "documents_task_fk"
+            columns: ["organization_id", "task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "documents_tenant_request_fk"
+            columns: ["organization_id", "tenant_request_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_requests"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "documents_timeline_event_id_fkey"
             columns: ["timeline_event_id"]
             isOneToOne: false
@@ -150,6 +170,259 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "units"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_requests: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          organization_id: string
+          priority: string
+          property_id: string
+          request_type: string
+          requested_at: string
+          requested_by_person_id: string | null
+          status: string
+          title: string
+          unit_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          organization_id: string
+          priority?: string
+          property_id: string
+          request_type?: string
+          requested_at?: string
+          requested_by_person_id?: string | null
+          status?: string
+          title: string
+          unit_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          organization_id?: string
+          priority?: string
+          property_id?: string
+          request_type?: string
+          requested_at?: string
+          requested_by_person_id?: string | null
+          status?: string
+          title?: string
+          unit_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_requests_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_requests_requested_by_person_fk"
+            columns: ["organization_id", "requested_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_requests_unit_fk"
+            columns: ["organization_id", "unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          actual_cost_amount: number | null
+          actual_cost_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          archived_at: string | null
+          archived_by: string | null
+          category: string
+          checklist: Json
+          completed_at: string | null
+          cost_estimate_amount: number | null
+          cost_estimate_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          due_time: string | null
+          id: string
+          ledger_entry_id: string | null
+          organization_id: string
+          priority: string
+          property_id: string
+          recurrence_frequency: string
+          reminder_date: string | null
+          reminder_time: string | null
+          status: string
+          tenant_request_id: string
+          timeline_event_id: string | null
+          title: string
+          unit_id: string | null
+          updated_at: string
+          updated_by: string | null
+          vendor_person_id: string | null
+        }
+        Insert: {
+          actual_cost_amount?: number | null
+          actual_cost_currency?:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          archived_at?: string | null
+          archived_by?: string | null
+          category?: string
+          checklist?: Json
+          completed_at?: string | null
+          cost_estimate_amount?: number | null
+          cost_estimate_currency?:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          due_time?: string | null
+          id?: string
+          ledger_entry_id?: string | null
+          organization_id: string
+          priority?: string
+          property_id: string
+          recurrence_frequency?: string
+          reminder_date?: string | null
+          reminder_time?: string | null
+          status?: string
+          tenant_request_id: string
+          timeline_event_id?: string | null
+          title: string
+          unit_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vendor_person_id?: string | null
+        }
+        Update: {
+          actual_cost_amount?: number | null
+          actual_cost_currency?:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          archived_at?: string | null
+          archived_by?: string | null
+          category?: string
+          checklist?: Json
+          completed_at?: string | null
+          cost_estimate_amount?: number | null
+          cost_estimate_currency?:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          due_time?: string | null
+          id?: string
+          ledger_entry_id?: string | null
+          organization_id?: string
+          priority?: string
+          property_id?: string
+          recurrence_frequency?: string
+          reminder_date?: string | null
+          reminder_time?: string | null
+          status?: string
+          tenant_request_id?: string
+          timeline_event_id?: string | null
+          title?: string
+          unit_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vendor_person_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_ledger_entry_id_fkey"
+            columns: ["ledger_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tasks_request_fk"
+            columns: ["organization_id", "tenant_request_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_requests"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tasks_timeline_event_id_fkey"
+            columns: ["timeline_event_id"]
+            isOneToOne: false
+            referencedRelation: "timeline_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_unit_fk"
+            columns: ["organization_id", "unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tasks_vendor_person_fk"
+            columns: ["organization_id", "vendor_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -716,25 +989,19 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          khr_per_usd: number
           name: string
-          preferred_currency: Database["public"]["Enums"]["currency_code"]
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
-          khr_per_usd?: number
           name: string
-          preferred_currency?: Database["public"]["Enums"]["currency_code"]
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
-          khr_per_usd?: number
           name?: string
-          preferred_currency?: Database["public"]["Enums"]["currency_code"]
           updated_at?: string
         }
         Relationships: []
@@ -1347,6 +1614,30 @@ export type Database = {
         }
         Returns: string
       }
+      create_maintenance_task: {
+        Args: {
+          p_category: string
+          p_checklist: Json
+          p_cost_estimate_amount: number | null
+          p_cost_estimate_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          p_description: string | null
+          p_due_date: string | null
+          p_due_time: string | null
+          p_organization_id: string
+          p_priority: string
+          p_property_id: string
+          p_recurrence_frequency: string
+          p_reminder_date: string | null
+          p_reminder_time: string | null
+          p_status: string
+          p_title: string
+          p_unit_id: string | null
+          p_vendor_person_id: string | null
+        }
+        Returns: string
+      }
       create_property: {
         Args: {
           p_acquisition_date: string | null
@@ -1430,6 +1721,36 @@ export type Database = {
         }
         Returns: string
       }
+      update_maintenance_task: {
+        Args: {
+          p_actual_cost_amount: number | null
+          p_actual_cost_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          p_category: string
+          p_checklist: Json
+          p_cost_estimate_amount: number | null
+          p_cost_estimate_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          p_description: string | null
+          p_due_date: string | null
+          p_due_time: string | null
+          p_link_actual_cost_to_ledger: boolean
+          p_organization_id: string
+          p_priority: string
+          p_property_id: string
+          p_recurrence_frequency: string
+          p_reminder_date: string | null
+          p_reminder_time: string | null
+          p_status: string
+          p_task_id: string
+          p_title: string
+          p_unit_id: string | null
+          p_vendor_person_id: string | null
+        }
+        Returns: string
+      }
       update_property: {
         Args: {
           p_acquisition_date: string | null
@@ -1478,7 +1799,7 @@ export type Database = {
       }
     }
     Enums: {
-      currency_code: "USD" | "KHR"
+      currency_code: "USD"
       timeline_event_type:
         | "Lease Started"
         | "Lease Ended"
@@ -1618,7 +1939,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      currency_code: ["USD", "KHR"],
+      currency_code: ["USD"],
       timeline_event_type: [
         "Lease Started",
         "Lease Ended",

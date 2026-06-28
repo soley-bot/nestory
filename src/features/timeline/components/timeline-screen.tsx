@@ -198,7 +198,6 @@ export function TimelineScreen({
       </div>
 
       <RecordPreviewDrawer
-        description="Selected timeline record detail, links, documents, and actions."
         onClose={() => setPreviewOpen(false)}
         open={previewOpen && Boolean(selectedEvent)}
         title="Timeline preview"

@@ -1,5 +1,4 @@
 import { toRecentChange } from "@/features/activity/recent-changes";
-import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import type {
   OverviewAttentionItem,
   OverviewLedgerPoint,
@@ -8,86 +7,64 @@ import type {
   OverviewScreenData,
 } from "@/features/overview/overview.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import {
-  convertMoney,
-  normalizeCurrencyDisplaySettings,
-  type CurrencyCode,
-} from "@/lib/money/format";
+import type { CurrencyCode } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
-const activeLeaseStatuses = new Set(["active", "notice_given"]);
+const activeLeaseStatuses = ["active", "notice_given"] as const;
 const monthLabelFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
 });
 
 type PropertyRow = {
-  archived_at: string | null;
   code: string;
   id: string;
   name: string;
-  owner: string | null;
 };
 
 type UnitRow = {
-  archived_at: string | null;
   id: string;
   property_id: string;
   status: string;
-  unit_number: string;
 };
 
 type LeaseRow = {
-  archived_at: string | null;
-  id: string;
   lease_end_date: string;
-  property_id: string;
-  status: string;
-  tenant_name: string;
   unit_id: string | null;
 };
 
-type LedgerRow = {
+type LedgerWindowRow = {
   amount: number;
-  archived_at: string | null;
-  category: string;
   currency: CurrencyCode;
-  description: string | null;
   direction: string;
-  id: string;
-  property_id: string;
   transaction_date: string;
-  unit_id: string | null;
+};
+
+type LedgerNetRow = {
+  amount: number;
+  currency: CurrencyCode;
+  direction: string;
+  property_id: string;
 };
 
 type PersonRow = {
-  archived_at: string | null;
-  display_name: string;
   id: string;
   primary_email: string | null;
   primary_phone: string | null;
 };
 
 type PersonRoleRow = {
-  archived_at: string | null;
   person_id: string;
   role: "owner" | "tenant" | "vendor";
-  status: string;
 };
 
 type PersonContactRow = {
-  archived_at: string | null;
   contact_name: string | null;
   email: string | null;
-  is_primary: boolean;
   person_id: string;
   phone: string | null;
 };
 
 type PropertyOwnerRow = {
-  archived_at: string | null;
-  ended_on: string | null;
-  is_primary: boolean;
-  person_id: string;
   property_id: string;
 };
 
@@ -99,57 +76,77 @@ export async function getOverviewScreenData(
   const businessToday = getBusinessDateString(now);
   const currentMonthStart = startOfMonth(businessToday);
   const ledgerStart = addMonths(currentMonthStart, -5);
+  const currentMonthEnd = addMonths(currentMonthStart, 1);
+  const ledgerStartInput = toDateInput(ledgerStart);
+  const currentMonthEndInput = toDateInput(currentMonthEnd);
   const recentExpenseStart = addDaysToDateString(businessToday, -30);
 
   const [
     propertiesResult,
     unitsResult,
     leasesResult,
-    ledgerResult,
+    ledgerWindowResult,
+    ledgerNetResult,
     peopleResult,
     rolesResult,
     contactsResult,
     propertyOwnersResult,
     recentActivityResult,
-    currencySettings,
   ] = await Promise.all([
     supabase
       .from("properties")
-      .select("id, code, name, owner, archived_at")
+      .select("id, code, name")
       .eq("organization_id", organizationId)
+      .is("archived_at", null)
       .order("code", { ascending: true }),
     supabase
       .from("units")
-      .select("id, property_id, unit_number, status, archived_at")
-      .eq("organization_id", organizationId),
+      .select("id, property_id, status")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .neq("status", "inactive"),
     supabase
       .from("leases")
-      .select(
-        "id, property_id, unit_id, tenant_name, lease_end_date, status, archived_at",
-      )
-      .eq("organization_id", organizationId),
+      .select("unit_id, lease_end_date")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .in("status", [...activeLeaseStatuses]),
     supabase
       .from("ledger_entries")
-      .select(
-        "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, archived_at",
-      )
-      .eq("organization_id", organizationId),
+      .select("transaction_date, direction, amount, currency")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .gte("transaction_date", ledgerStartInput)
+      .lt("transaction_date", currentMonthEndInput),
+    supabase
+      .from("ledger_entries")
+      .select("property_id, direction, amount, currency")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null),
     supabase
       .from("people")
-      .select("id, display_name, primary_email, primary_phone, archived_at")
-      .eq("organization_id", organizationId),
+      .select("id, primary_email, primary_phone")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null),
     supabase
       .from("person_roles")
-      .select("person_id, role, status, archived_at")
-      .eq("organization_id", organizationId),
+      .select("person_id, role")
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+      .is("archived_at", null),
     supabase
       .from("person_contacts")
-      .select("person_id, contact_name, email, phone, is_primary, archived_at")
-      .eq("organization_id", organizationId),
+      .select("person_id, contact_name, email, phone")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .or("contact_name.not.is.null,email.not.is.null,phone.not.is.null"),
     supabase
       .from("property_owners")
-      .select("property_id, person_id, is_primary, ended_on, archived_at")
-      .eq("organization_id", organizationId),
+      .select("property_id")
+      .eq("organization_id", organizationId)
+      .eq("is_primary", true)
+      .is("archived_at", null)
+      .is("ended_on", null),
     supabase
       .from("activity_logs")
       .select(
@@ -158,36 +155,29 @@ export async function getOverviewScreenData(
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .limit(8),
-    getOrganizationCurrencySettings(organizationId),
   ]);
 
   assertNoError(propertiesResult.error, "overview properties");
   assertNoError(unitsResult.error, "overview units");
   assertNoError(leasesResult.error, "overview leases");
-  assertNoError(ledgerResult.error, "overview ledger");
+  assertNoError(ledgerWindowResult.error, "overview ledger window");
+  assertNoError(ledgerNetResult.error, "overview property ledger net");
   assertNoError(peopleResult.error, "overview people");
   assertNoError(rolesResult.error, "overview person roles");
   assertNoError(contactsResult.error, "overview person contacts");
   assertNoError(propertyOwnersResult.error, "overview property owners");
   assertNoError(recentActivityResult.error, "overview activity");
 
-  const normalizedSettings = normalizeCurrencyDisplaySettings(currencySettings);
   const properties = (propertiesResult.data ?? []) as PropertyRow[];
-  const units = (unitsResult.data ?? []) as UnitRow[];
-  const leases = (leasesResult.data ?? []) as LeaseRow[];
-  const ledgerRows = (ledgerResult.data ?? []) as LedgerRow[];
-  const people = (peopleResult.data ?? []) as PersonRow[];
+  const operationalUnits = (unitsResult.data ?? []) as UnitRow[];
+  const currentLeases = (leasesResult.data ?? []) as LeaseRow[];
+  const ledgerRows = (ledgerWindowResult.data ?? []) as LedgerWindowRow[];
+  const ledgerNetRows = (ledgerNetResult.data ?? []) as LedgerNetRow[];
+  const activePeople = (peopleResult.data ?? []) as PersonRow[];
   const roles = (rolesResult.data ?? []) as PersonRoleRow[];
   const contacts = (contactsResult.data ?? []) as PersonContactRow[];
   const propertyOwners = (propertyOwnersResult.data ?? []) as PropertyOwnerRow[];
-  const activeProperties = properties.filter((property) => !property.archived_at);
-  const operationalUnits = units.filter(
-    (unit) => !unit.archived_at && unit.status !== "inactive",
-  );
-  const currentLeases = leases.filter(
-    (lease) =>
-      !lease.archived_at && activeLeaseStatuses.has(lease.status.toLowerCase()),
-  );
+  const activeProperties = properties;
   const currentLeasedUnitIds = new Set(
     currentLeases.flatMap((lease) => (lease.unit_id ? [lease.unit_id] : [])),
   );
@@ -204,39 +194,34 @@ export async function getOverviewScreenData(
   const nonVacantLeaseGapUnits = leaseGapUnits.filter(
     (unit) => unit.status.toLowerCase() !== "vacant",
   );
-  const activePeople = people.filter((person) => !person.archived_at);
   const roleCounts = getRoleCounts(roles);
   const currentPropertyOwnerIds = new Set(
-    propertyOwners
-      .filter((owner) => owner.is_primary && !owner.archived_at && !owner.ended_on)
-      .map((owner) => owner.property_id),
+    propertyOwners.map((owner) => owner.property_id),
   );
   const missingOwnerLinks = activeProperties.filter(
     (property) => !currentPropertyOwnerIds.has(property.id),
   );
+  const activeRolePersonIds = new Set(roles.map((role) => role.person_id));
+  const usableContactPersonIds = getUsableContactPersonIds(contacts);
   const peopleMissingContacts = activePeople.filter((person) =>
-    isMissingContact(person, contacts),
+    isMissingContact(person, usableContactPersonIds),
   );
   const peopleWithoutRoles = activePeople.filter(
-    (person) => !hasActiveRole(person.id, roles),
+    (person) => !activeRolePersonIds.has(person.id),
   );
   const leasesEndingSoon = getLeasesEndingSoon(currentLeases, businessToday);
   const largeRecentExpenses = getLargeRecentExpenses({
     ledgerRows,
-    normalizedSettings,
     recentExpenseStart,
   });
   const negativeNetProperties = getNegativeNetProperties({
-    ledgerRows,
-    normalizedSettings,
+    ledgerRows: ledgerNetRows,
     properties: activeProperties,
   });
-  const currentMonthEnd = addMonths(currentMonthStart, 1);
   const mtdLedgerRows = ledgerRows.filter(
     (entry) =>
-      !entry.archived_at &&
       entry.transaction_date >= toDateInput(currentMonthStart) &&
-      entry.transaction_date < toDateInput(currentMonthEnd),
+      entry.transaction_date < currentMonthEndInput,
   );
   const occupancyRate =
     operationalUnits.length > 0
@@ -269,11 +254,10 @@ export async function getOverviewScreenData(
     }),
     leaseEndings: buildLeaseEndingsChart(currentLeases, currentMonthStart),
     leaseRiskCount: leasesEndingSoon.length,
-    ledgerCurrency: normalizedSettings.preferredCurrency,
+    ledgerCurrency: "USD",
     ledgerFlow: buildLedgerFlowChart({
       ledgerRows,
       monthStart: ledgerStart,
-      normalizedSettings,
     }),
     metrics: buildMetrics({
       activeLeaseCount: currentLeases.length,
@@ -283,7 +267,6 @@ export async function getOverviewScreenData(
       peopleCount: activePeople.length,
       roleCounts,
       leaseGapUnitCount: nonVacantLeaseGapUnits.length,
-      currencySettings,
     }),
     occupancyByProperty: buildOccupancyByProperty({
       activeProperties,
@@ -315,7 +298,7 @@ function buildDashboardSummary({
   vacantUnits,
 }: {
   attentionItems: OverviewAttentionItem[];
-  largeRecentExpenses: LedgerRow[];
+  largeRecentExpenses: LedgerWindowRow[];
   leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
   missingOwnerLinks: PropertyRow[];
@@ -424,7 +407,6 @@ function buildDashboardSummary({
 function buildMetrics({
   activeLeaseCount,
   attentionItems,
-  currencySettings,
   leaseGapUnitCount,
   mtdLedgerRows,
   occupancyRate,
@@ -433,9 +415,8 @@ function buildMetrics({
 }: {
   activeLeaseCount: number;
   attentionItems: OverviewAttentionItem[];
-  currencySettings: Awaited<ReturnType<typeof getOrganizationCurrencySettings>>;
   leaseGapUnitCount: number;
-  mtdLedgerRows: LedgerRow[];
+  mtdLedgerRows: LedgerWindowRow[];
   occupancyRate: string;
   peopleCount: number;
   roleCounts: Map<PersonRoleRow["role"], number>;
@@ -471,7 +452,7 @@ function buildMetrics({
       helper: "Current month",
       label: "Ledger net",
       tone: "neutral",
-      value: formatMoneyTotalsDisplay(mtdLedgerRows, currencySettings),
+      value: formatMoneyTotalsDisplay(mtdLedgerRows),
     },
     {
       helper: "Open operating checks",
@@ -492,7 +473,7 @@ function buildAttentionItems({
   peopleWithoutRoles,
   vacantUnits,
 }: {
-  largeRecentExpenses: LedgerRow[];
+  largeRecentExpenses: LedgerWindowRow[];
   leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
   missingOwnerLinks: PropertyRow[];
@@ -631,11 +612,9 @@ function buildOccupancyByProperty({
 function buildLedgerFlowChart({
   ledgerRows,
   monthStart,
-  normalizedSettings,
 }: {
-  ledgerRows: LedgerRow[];
+  ledgerRows: LedgerWindowRow[];
   monthStart: Date;
-  normalizedSettings: ReturnType<typeof normalizeCurrencyDisplaySettings>;
 }): OverviewLedgerPoint[] {
   const months = Array.from({ length: 6 }, (_, index) => addMonths(monthStart, index));
   const points = new Map(
@@ -652,22 +631,13 @@ function buildLedgerFlowChart({
   );
 
   for (const row of ledgerRows) {
-    if (row.archived_at) {
-      continue;
-    }
-
     const point = points.get(row.transaction_date.slice(0, 7));
 
     if (!point) {
       continue;
     }
 
-    const amount = convertMoney(
-      Number(row.amount),
-      row.currency,
-      normalizedSettings.preferredCurrency,
-      normalizedSettings.khrPerUsd,
-    );
+    const amount = Number(row.amount);
 
     if (row.direction === "expense") {
       point.expense += amount;
@@ -720,58 +690,36 @@ function getLeasesEndingSoon(currentLeases: LeaseRow[], today: string) {
 
 function getLargeRecentExpenses({
   ledgerRows,
-  normalizedSettings,
   recentExpenseStart,
 }: {
-  ledgerRows: LedgerRow[];
-  normalizedSettings: ReturnType<typeof normalizeCurrencyDisplaySettings>;
+  ledgerRows: LedgerWindowRow[];
   recentExpenseStart: string;
 }) {
-  const threshold =
-    normalizedSettings.preferredCurrency === "USD" ? 1000 : 4_100_000;
+  const threshold = 1000;
 
   return ledgerRows.filter((row) => {
     if (
-      row.archived_at ||
       row.direction !== "expense" ||
       row.transaction_date < recentExpenseStart
     ) {
       return false;
     }
 
-    return (
-      convertMoney(
-        Number(row.amount),
-        row.currency,
-        normalizedSettings.preferredCurrency,
-        normalizedSettings.khrPerUsd,
-      ) >= threshold
-    );
+    return Number(row.amount) >= threshold;
   });
 }
 
 function getNegativeNetProperties({
   ledgerRows,
-  normalizedSettings,
   properties,
 }: {
-  ledgerRows: LedgerRow[];
-  normalizedSettings: ReturnType<typeof normalizeCurrencyDisplaySettings>;
+  ledgerRows: LedgerNetRow[];
   properties: PropertyRow[];
 }) {
   const netByProperty = new Map<string, number>();
 
   for (const row of ledgerRows) {
-    if (row.archived_at) {
-      continue;
-    }
-
-    const amount = convertMoney(
-      Number(row.amount),
-      row.currency,
-      "USD",
-      normalizedSettings.khrPerUsd,
-    );
+    const amount = Number(row.amount);
     const signedAmount = row.direction === "expense" ? -amount : amount;
 
     netByProperty.set(
@@ -794,36 +742,37 @@ function getRoleCounts(roles: PersonRoleRow[]) {
   const counts = new Map<PersonRoleRow["role"], number>();
 
   for (const role of roles) {
-    if (role.archived_at || role.status !== "active") {
-      continue;
-    }
-
     counts.set(role.role, (counts.get(role.role) ?? 0) + 1);
   }
 
   return counts;
 }
 
-function hasActiveRole(personId: string, roles: PersonRoleRow[]) {
-  return roles.some(
-    (role) =>
-      role.person_id === personId && !role.archived_at && role.status === "active",
-  );
+function getUsableContactPersonIds(contacts: PersonContactRow[]) {
+  const personIds = new Set<string>();
+
+  for (const contact of contacts) {
+    if (
+      hasText(contact.email) ||
+      hasText(contact.phone) ||
+      hasText(contact.contact_name)
+    ) {
+      personIds.add(contact.person_id);
+    }
+  }
+
+  return personIds;
 }
 
-function isMissingContact(person: PersonRow, contacts: PersonContactRow[]) {
+function isMissingContact(
+  person: PersonRow,
+  usableContactPersonIds: Set<string>,
+) {
   if (hasText(person.primary_email) || hasText(person.primary_phone)) {
     return false;
   }
 
-  return !contacts.some(
-    (contact) =>
-      contact.person_id === person.id &&
-      !contact.archived_at &&
-      (hasText(contact.email) ||
-        hasText(contact.phone) ||
-        hasText(contact.contact_name)),
-  );
+  return !usableContactPersonIds.has(person.id);
 }
 
 function hasText(value: string | null) {

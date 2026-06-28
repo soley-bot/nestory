@@ -5,7 +5,6 @@ import {
   getUnitStatusTone,
   selectCurrentLease,
 } from "@/features/units/data/unit-summary";
-import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import {
   getReportMonthRange,
@@ -20,13 +19,13 @@ import type {
   ReportPropertyOption,
   ReportsScreenData,
   ReportsViewQuery,
+  TrustedReport,
 } from "@/features/reports/reports.types";
 import { formatDate } from "@/lib/dates/format";
 import {
   formatMoney,
   formatMoneyDisplay,
   type CurrencyCode,
-  type CurrencyDisplaySettings,
 } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
@@ -38,6 +37,8 @@ const occupancyLeaseSelect =
 const profitLossEntrySelect =
   "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description";
 const profitLossUnitSelect = "id, property_id, unit_number";
+const maxScreenReportRows = 75;
+const maxScreenSourceLinks = 5;
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -93,20 +94,103 @@ type MoneyInput = {
   direction?: "income" | "expense";
 };
 
+type ReportBaseData = {
+  propertiesById: Map<string, PropertyRow>;
+  propertyOptions: ReportPropertyOption[];
+  supabase: SupabaseServerClient;
+};
+
+type OccupancyReportData = Pick<
+  ReportsScreenData,
+  "propertyOptions" | "viewQuery"
+> & {
+  occupancyReport: OccupancyReport;
+};
+
+type ProfitLossReportData = Pick<
+  ReportsScreenData,
+  "propertyOptions" | "viewQuery"
+> & {
+  profitLossReport: ProfitLossReport;
+};
+
 export async function getReportsScreenData(
   organizationId: string,
   viewQuery: ReportsViewQuery,
 ): Promise<ReportsScreenData> {
+  const { propertyOptions } = await getReportBaseData(organizationId);
+  const trustedReport = await getTrustedReport({
+    organizationId,
+    viewQuery,
+  });
+
+  return {
+    propertyOptions,
+    trustedReport: trimTrustedReportForScreen(trustedReport),
+    viewQuery,
+  };
+}
+
+function trimTrustedReportForScreen(report: TrustedReport): TrustedReport {
+  return {
+    ...report,
+    rows: report.rows.slice(0, maxScreenReportRows).map((row) => ({
+      ...row,
+      sourceLinks: row.sourceLinks.slice(0, maxScreenSourceLinks),
+    })),
+    totalRowCount: report.rows.length,
+  };
+}
+
+export async function getOccupancyReportData(
+  organizationId: string,
+  viewQuery: ReportsViewQuery,
+): Promise<OccupancyReportData> {
+  const { propertiesById, propertyOptions, supabase } =
+    await getReportBaseData(organizationId);
+
+  return {
+    occupancyReport: await getOccupancyReport({
+      organizationId,
+      propertiesById,
+      supabase,
+      viewQuery,
+    }),
+    propertyOptions,
+    viewQuery,
+  };
+}
+
+export async function getProfitLossReportData(
+  organizationId: string,
+  viewQuery: ReportsViewQuery,
+): Promise<ProfitLossReportData> {
+  const { propertiesById, propertyOptions, supabase } =
+    await getReportBaseData(organizationId);
+
+  return {
+    profitLossReport: await getProfitLossReport({
+      organizationId,
+      propertiesById,
+      propertyOptions,
+      supabase,
+      viewQuery,
+    }),
+    propertyOptions,
+    viewQuery,
+  };
+}
+
+async function getReportBaseData(
+  organizationId: string,
+): Promise<ReportBaseData> {
   const supabase = await createSupabaseServerClient();
-  const [propertiesResult, currencySettings] = await Promise.all([
-    supabase
-      .from("properties")
-      .select(propertySelect)
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .order("name", { ascending: true }),
-    getOrganizationCurrencySettings(organizationId),
-  ]);
+  const propertiesResult = await supabase
+    .from("properties")
+    .select(propertySelect)
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .order("name", { ascending: true });
 
   if (propertiesResult.error) {
     throw new Error(
@@ -117,61 +201,16 @@ export async function getReportsScreenData(
   const properties = propertiesResult.data ?? [];
   const propertyOptions = toPropertyOptions(properties);
   const propertiesById = indexById(properties);
-  const trustedReportPromise = getTrustedReport({
-    currencySettings,
-    organizationId,
-    viewQuery,
-  });
 
-  if (viewQuery.report === "income-expense") {
-    return {
-      currencySettings,
-      profitLossReport: await getProfitLossReport({
-        currencySettings,
-        organizationId,
-        propertiesById,
-        propertyOptions,
-        supabase,
-        viewQuery,
-      }),
-      propertyOptions,
-      trustedReport: await trustedReportPromise,
-      viewQuery,
-    };
-  }
-
-  if (viewQuery.report !== "vacancy-risk") {
-    return {
-      currencySettings,
-      propertyOptions,
-      trustedReport: await trustedReportPromise,
-      viewQuery,
-    };
-  }
-
-  return {
-    currencySettings,
-    occupancyReport: await getOccupancyReport({
-      currencySettings,
-      organizationId,
-      propertiesById,
-      supabase,
-      viewQuery,
-    }),
-    propertyOptions,
-    trustedReport: await trustedReportPromise,
-    viewQuery,
-  };
+  return { propertiesById, propertyOptions, supabase };
 }
 
 async function getOccupancyReport({
-  currencySettings,
   organizationId,
   propertiesById,
   supabase,
   viewQuery,
 }: {
-  currencySettings: CurrencyDisplaySettings;
   organizationId: string;
   propertiesById: Map<string, PropertyRow>;
   supabase: SupabaseServerClient;
@@ -216,7 +255,6 @@ async function getOccupancyReport({
     .map((unit) =>
       toOccupancyReportRow({
         activeLease: selectCurrentLease(leasesByUnitId.get(unit.id) ?? []),
-        currencySettings,
         property: propertiesById.get(unit.property_id),
         unit,
       }),
@@ -243,14 +281,12 @@ async function getOccupancyReport({
 }
 
 async function getProfitLossReport({
-  currencySettings,
   organizationId,
   propertiesById,
   propertyOptions,
   supabase,
   viewQuery,
 }: {
-  currencySettings: CurrencyDisplaySettings;
   organizationId: string;
   propertiesById: Map<string, PropertyRow>;
   propertyOptions: ReportPropertyOption[];
@@ -293,7 +329,6 @@ async function getProfitLossReport({
   }
 
   return buildProfitLossReport({
-    currencySettings,
     entries: entriesResult.data ?? [],
     generatedAt: new Date().toISOString(),
     periodEnd: period.end,
@@ -305,7 +340,6 @@ async function getProfitLossReport({
 }
 
 function buildProfitLossReport({
-  currencySettings,
   entries,
   generatedAt,
   periodEnd,
@@ -314,7 +348,6 @@ function buildProfitLossReport({
   propertyLabel,
   unitsById,
 }: {
-  currencySettings: CurrencyDisplaySettings;
   entries: ProfitLossEntryRow[];
   generatedAt: string;
   periodEnd: string;
@@ -325,7 +358,6 @@ function buildProfitLossReport({
 }): ProfitLossReport {
   const reportEntries = entries.map((entry) =>
     toProfitLossReportEntry({
-      currencySettings,
       entry,
       property: propertiesById.get(entry.property_id),
       unit: entry.unit_id ? unitsById.get(entry.unit_id) : undefined,
@@ -338,41 +370,37 @@ function buildProfitLossReport({
     (entry) => entry.direction === "expense",
   );
   const netInputs = toMoneyInputs(reportEntries, true);
-  const netDisplay = formatMoneyTotalsDisplay(netInputs, currencySettings);
+  const netDisplay = formatMoneyTotalsDisplay(netInputs);
 
   return {
     entryCount: reportEntries.length,
-    expenses: buildDirectionGroup("Expenses", expenseEntries, currencySettings),
+    expenses: buildDirectionGroup("Expenses", expenseEntries),
     generatedAt,
-    income: buildDirectionGroup("Income", incomeEntries, currencySettings),
+    income: buildDirectionGroup("Income", incomeEntries),
     netIncomeDisplay: netDisplay,
-    netOtherIncomeDisplay: formatMoneyTotalsDisplay([], currencySettings),
+    netOtherIncomeDisplay: formatMoneyTotalsDisplay([]),
     netOperatingIncomeDisplay: netDisplay,
-    otherExpensesDisplay: formatMoneyTotalsDisplay([], currencySettings),
-    otherIncomeDisplay: formatMoneyTotalsDisplay([], currencySettings),
+    otherExpensesDisplay: formatMoneyTotalsDisplay([]),
+    otherIncomeDisplay: formatMoneyTotalsDisplay([]),
     periodEnd,
     periodLabel: `${formatDate(periodStart)} - ${formatDate(periodEnd)}`,
     periodStart,
     propertyLabel,
     totalExpensesDisplay: formatMoneyTotalsDisplay(
       toMoneyInputs(expenseEntries),
-      currencySettings,
     ),
     totalIncomeDisplay: formatMoneyTotalsDisplay(
       toMoneyInputs(incomeEntries),
-      currencySettings,
     ),
   };
 }
 
 function toOccupancyReportRow({
   activeLease,
-  currencySettings,
   property,
   unit,
 }: {
   activeLease?: OccupancyLeaseRow;
-  currencySettings: CurrencyDisplaySettings;
   property?: PropertyRow;
   unit: OccupancyUnitRow;
 }): OccupancyReportRow {
@@ -382,7 +410,7 @@ function toOccupancyReportRow({
     unit.current_rent_currency ?? activeLease?.monthly_rent_currency;
   const rentDisplay =
     rentAmount !== undefined && rentCurrency
-      ? formatMoneyDisplay(rentAmount, rentCurrency, currencySettings)
+      ? formatMoneyDisplay(rentAmount, rentCurrency)
       : undefined;
 
   return {
@@ -411,12 +439,10 @@ function toOccupancyReportRow({
 }
 
 function toProfitLossReportEntry({
-  currencySettings,
   entry,
   property,
   unit,
 }: {
-  currencySettings: CurrencyDisplaySettings;
   entry: ProfitLossEntryRow;
   property?: PropertyRow;
   unit?: ProfitLossUnitRow;
@@ -428,7 +454,7 @@ function toProfitLossReportEntry({
 
   return {
     amount: entry.amount,
-    amountDisplay: formatMoneyDisplay(entry.amount, entry.currency, currencySettings),
+    amountDisplay: formatMoneyDisplay(entry.amount, entry.currency),
     category: normalizeCategory(entry.category),
     currency: entry.currency,
     date: entry.transaction_date,
@@ -444,7 +470,6 @@ function toProfitLossReportEntry({
 function buildDirectionGroup(
   label: "Income" | "Expenses",
   entries: ProfitLossReportEntry[],
-  currencySettings: CurrencyDisplaySettings,
 ): ProfitLossDirectionGroup {
   const groupsByCategory = new Map<string, ProfitLossReportEntry[]>();
 
@@ -466,7 +491,6 @@ function buildDirectionGroup(
       entries: categoryEntries,
       totalDisplay: formatMoneyTotalsDisplay(
         toMoneyInputs(categoryEntries),
-        currencySettings,
       ),
     }));
 
@@ -474,7 +498,7 @@ function buildDirectionGroup(
     entryCount: entries.length,
     groups,
     label,
-    totalDisplay: formatMoneyTotalsDisplay(toMoneyInputs(entries), currencySettings),
+    totalDisplay: formatMoneyTotalsDisplay(toMoneyInputs(entries)),
   };
 }
 

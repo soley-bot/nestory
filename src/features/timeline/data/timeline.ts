@@ -1,7 +1,6 @@
 import { Constants } from "@/types/database";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import type { LinkedDocument } from "@/features/documents/document.types";
-import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import {
   buildTimelinePagination,
   DEFAULT_TIMELINE_PAGE_SIZE,
@@ -18,6 +17,7 @@ import type {
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import type { CurrencyCode } from "@/lib/money/format";
 
 const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
   archiveState: "active",
@@ -50,7 +50,7 @@ type LedgerEntryRow = {
   amount: number;
   archived_at: string | null;
   category: string;
-  currency: "USD" | "KHR";
+  currency: CurrencyCode;
   direction: string;
   id: string;
 };
@@ -69,7 +69,7 @@ type DocumentRow = {
 type TimelineEventRow = {
   archived_at: string | null;
   cost_amount: number | null;
-  cost_currency: "USD" | "KHR" | null;
+  cost_currency: CurrencyCode | null;
   created_by: string | null;
   description: string | null;
   event_date: string;
@@ -132,7 +132,6 @@ export async function getTimelineScreenData(
     unitsResult,
     periodLocksResult,
     recentActivityResult,
-    currencySettings,
   ] = await Promise.all([
     fetchEventsPage(viewQuery.page),
     supabase
@@ -162,7 +161,6 @@ export async function getTimelineScreenData(
       .in("entity_type", ["timeline_event", "ledger_entry", "ledger_period"])
       .order("created_at", { ascending: false })
       .limit(6),
-    getOrganizationCurrencySettings(organizationId),
   ]);
 
   if (firstEventsResult.error) {
@@ -302,7 +300,6 @@ export async function getTimelineScreenData(
       };
     }),
     viewQuery,
-    currencySettings,
   };
 }
 
@@ -456,24 +453,25 @@ async function addSignedDocumentUrls(
   rows: DocumentRow[],
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
 ): Promise<TimelineDocumentWithLink[]> {
-  return Promise.all(
-    rows.map(async (row) => {
-      const { data } = await supabase.storage
-        .from("nestory-documents")
-        .createSignedUrl(row.storage_path, 60 * 60);
+  if (rows.length === 0) {
+    return [];
+  }
 
-      return {
-        category: row.category,
-        fileName: row.file_name,
-        id: row.id,
-        mimeType: row.mime_type,
-        sizeBytes: row.size_bytes,
-        timelineEventId: row.timeline_event_id ?? undefined,
-        uploadedAt: row.uploaded_at,
-        url: data?.signedUrl,
-      };
-    }),
+  const { data } = await supabase.storage.from("nestory-documents").createSignedUrls(
+    rows.map((row) => row.storage_path),
+    60 * 60,
   );
+
+  return rows.map((row, index) => ({
+    category: row.category,
+    fileName: row.file_name,
+    id: row.id,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    timelineEventId: row.timeline_event_id ?? undefined,
+    uploadedAt: row.uploaded_at,
+    url: data?.[index]?.signedUrl ?? undefined,
+  }));
 }
 
 async function getLinkedTimelineActivity(

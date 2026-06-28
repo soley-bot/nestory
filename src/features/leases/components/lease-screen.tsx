@@ -200,7 +200,6 @@ export function LeaseScreen({
       </div>
 
       <RecordPreviewDrawer
-        description="Selected row term, tenant, risk, and linked actions."
         onClose={() => setPreviewOpen(false)}
         open={previewOpen && Boolean(selectedLease)}
         title="Lease preview"

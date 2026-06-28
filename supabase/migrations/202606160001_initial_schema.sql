@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TYPE public.currency_code AS ENUM ('USD', 'KHR');
+CREATE TYPE public.currency_code AS ENUM ('USD');
 
 CREATE TYPE public.timeline_event_type AS ENUM (
   'Lease Started',

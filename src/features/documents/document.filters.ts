@@ -17,6 +17,7 @@ export function parseDocumentSearchParams(
     pageSize: parsePageSize(params.pageSize),
     propertyId: parseUuidFilter(params.propertyId),
     query: (getFirstValue(params.query) || "").trim().slice(0, 120),
+    taskId: parseUuidFilter(params.taskId),
     unitId: parseUuidFilter(params.unitId),
   };
 }

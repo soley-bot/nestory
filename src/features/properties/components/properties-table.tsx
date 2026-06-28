@@ -1,5 +1,9 @@
-import Link from "next/link";
 import { Archive, Pencil, RotateCcw } from "lucide-react";
+import {
+  previewRowClassName,
+  RecordLink,
+  selectedPreviewRowClassName,
+} from "@/components/data/interactive-table";
 import { Badge } from "@/components/ui/badge";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type { PropertyDisplayMode } from "@/features/properties/property.types";
@@ -98,8 +102,9 @@ export function PropertiesTable({
                 {properties.map((property) => (
                   <tr
                     className={cn(
-                      "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                      selectedPropertyId === property.id && "bg-surface-muted",
+                      previewRowClassName,
+                      selectedPropertyId === property.id &&
+                        selectedPreviewRowClassName,
                       property.isArchived && "text-muted",
                     )}
                     key={property.id}
@@ -114,15 +119,12 @@ export function PropertiesTable({
                     tabIndex={0}
                   >
                     <td className="px-2.5 py-2">
-                      <Link
-                        className="block truncate font-medium text-accent hover:underline"
+                      <RecordLink
                         href={`/properties/${property.id}`}
-                        onClick={(event) => event.stopPropagation()}
-                        prefetch={false}
-                        title={property.name}
+                        title={`Open full property record: ${property.name}`}
                       >
                         {property.name}
-                      </Link>
+                      </RecordLink>
                       <p
                         className="mt-0.5 truncate text-xs text-muted"
                         title={`${property.code} / ${property.type}`}
@@ -202,15 +204,13 @@ function PropertyCard({
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <Link
-            className="block truncate text-base font-semibold leading-5 text-accent hover:underline"
+          <RecordLink
+            className="text-base font-semibold leading-5"
             href={`/properties/${property.id}`}
-            onClick={(event) => event.stopPropagation()}
-            prefetch={false}
-            title={property.name}
+            title={`Open full property record: ${property.name}`}
           >
             {property.name}
-          </Link>
+          </RecordLink>
           <p
             className="mt-1 truncate font-medium"
             title={`${property.code} / ${property.type}`}

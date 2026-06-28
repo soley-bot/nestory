@@ -13,6 +13,7 @@ For dated current implementation and environment notes, see
 
 - Nestory should read as a quiet operational Property Management System, not a loud marketing app or generic record keeper.
 - Authenticated pages should stay white, neutral, dense, and work-focused.
+- Use Arial/Helvetica/sans-serif in authenticated app surfaces; do not load custom web fonts for core operational screens.
 - Use minimal accent color, no teal-heavy controls, no oversized decorative cards, and no marketing-style dashboard sections.
 - Primary list pages should optimize for scanning, selection, and repeated operator work.
 - Overview is not a primary list page. Treat it as the portfolio decision dashboard: stronger visual hierarchy is allowed when it helps the operator see what needs attention first.
@@ -44,6 +45,7 @@ For dated current implementation and environment notes, see
 - Action columns should be compact, icon-only, and stable so row actions do not crowd numeric values.
 - Avoid page-level horizontal overflow. Dense tables may scroll inside their own table container only when truly necessary.
 - Single-clicking a row should open the preview drawer. Linked record names keep opening the full record or focused record URL.
+- Row hover/selection should signal preview, while linked record names need a compact open-record affordance so the two click targets read differently.
 
 ## Card Rules
 
@@ -59,8 +61,9 @@ For dated current implementation and environment notes, see
 - Use a right-side preview drawer for row context instead of reserving permanent page width for an inspector.
 - Preview drawers should be about 520px on desktop and full-width on small screens.
 - Keep preview actions compact and icon-first.
-- Use the preview drawer to show information removed from list rows: latest timeline record, ledger net, relationship context, and linked navigation.
-- The preview should complete the selected row, not duplicate the row.
+- Keep previews sparse: header, one or two key facts, one attention item only when useful, and actions.
+- Do not show long explanations, full risk checklists, activity history, document lists, or every linked record in a preview drawer. Send that work to the full record page.
+- The preview should answer "what do I need to know right now?" rather than duplicate the row or become a mini detail page.
 
 ## Completed Reference Surfaces
 

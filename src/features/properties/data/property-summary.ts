@@ -1,12 +1,4 @@
-import type {
-  CurrencyCode,
-  CurrencyDisplaySettings,
-  MoneyDisplayValue,
-} from "@/lib/money/format";
-import {
-  DEFAULT_CURRENCY_DISPLAY_SETTINGS,
-  normalizeCurrencyDisplaySettings,
-} from "@/lib/money/format";
+import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 import type {
   PropertyBadgeTone,
@@ -63,21 +55,19 @@ export type ActivePropertyOwnerLink = {
 
 export function buildPropertySummary({
   activeOwner,
-  currencySettings,
   ledgerEntries,
   property,
   units,
   hasActiveOwnerLink = false,
 }: {
   activeOwner?: ActivePropertyOwnerLink | null;
-  currencySettings?: Partial<CurrencyDisplaySettings> | null;
   hasActiveOwnerLink?: boolean;
   ledgerEntries: PropertyLedgerRecord[];
   property: PropertyRecord;
   units: PropertyUnitRecord[];
 }): PropertySummary {
   const status = normalizePropertyStatus(property.status);
-  const netIncomeUsd = calculateNetIncomeUsd(ledgerEntries, currencySettings);
+  const netIncomeUsd = calculateNetIncomeUsd(ledgerEntries);
   const occupiedUnits = units.filter((unit) => unit.status === "occupied").length;
 
   return {
@@ -98,7 +88,7 @@ export function buildPropertySummary({
     hasActiveOwnerLink: hasActiveOwnerLink || Boolean(activeOwner),
     isArchived: Boolean(property.archived_at),
     name: property.name,
-    netIncome: formatMoneyTotalsDisplay(ledgerEntries, currencySettings),
+    netIncome: formatMoneyTotalsDisplay(ledgerEntries),
     netIncomeUsd,
     occupiedUnits,
     owner: activeOwner?.label ?? property.owner ?? "Unassigned",
@@ -163,22 +153,13 @@ function getPropertyStatusTone(status: PropertyStatusValue): PropertyBadgeTone {
   return "neutral";
 }
 
-function calculateNetIncomeUsd(
-  ledgerEntries: PropertyLedgerRecord[],
-  currencySettings?: Partial<CurrencyDisplaySettings> | null,
-) {
-  const settings = normalizeCurrencyDisplaySettings(
-    currencySettings ?? DEFAULT_CURRENCY_DISPLAY_SETTINGS,
-  );
-
+function calculateNetIncomeUsd(ledgerEntries: PropertyLedgerRecord[]) {
   return ledgerEntries.reduce((total, entry) => {
-    if (entry.amount === null || !entry.currency) {
+    if (entry.amount === null) {
       return total;
     }
 
-    const amount =
-      entry.currency === "USD" ? entry.amount : entry.amount / settings.khrPerUsd;
-    const signedAmount = entry.direction === "expense" ? -amount : amount;
+    const signedAmount = entry.direction === "expense" ? -entry.amount : entry.amount;
 
     return total + signedAmount;
   }, 0);

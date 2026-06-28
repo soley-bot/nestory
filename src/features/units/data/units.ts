@@ -1,7 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import { toRecentChange } from "@/features/activity/recent-changes";
-import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import {
   ACTIVE_UNIT_LEASE_STATUSES,
   buildUnitDetail,
@@ -9,7 +8,10 @@ import {
   selectCurrentLease,
   type UnitDocumentRecord,
   type UnitLeaseRecord,
+  type UnitMaintenanceRecord,
   type UnitPersonRecord,
+  type UnitPropertyRecord,
+  type UnitRecord,
   type UnitTimelineRecord,
 } from "@/features/units/data/unit-summary";
 import {
@@ -20,6 +22,7 @@ import type {
   UnitPagination,
   UnitLeaseStatusFilter,
   UnitOccupancyFilter,
+  UnitPropertyOption,
   UnitSummary,
   UnitViewQuery,
 } from "@/features/units/unit.types";
@@ -27,6 +30,7 @@ import type {
 const unitSelect =
   "id, property_id, unit_number, floor, size_sqm, status, current_rent_amount, current_rent_currency, archived_at";
 const propertySelect = "id, code, name";
+const unitWithPropertySelect = `${unitSelect}, property:properties!units_property_id_fkey(${propertySelect})`;
 const leaseSelect =
   "id, unit_id, tenant_name, primary_tenant_person_id, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
 const legacyLeaseSelect =
@@ -38,12 +42,22 @@ const ledgerTotalsSelect =
 const recentLedgerSelect =
   "id, unit_id, transaction_date, direction, category, amount, currency, description";
 const documentSelect =
-  "id, lease_id, ledger_entry_id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
+  "id, lease_id, ledger_entry_id, task_id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
+const maintenanceSelect =
+  "id, title, category, priority, status, due_date, due_time, actual_cost_amount, actual_cost_currency";
 const listTimelineContextLimit = 1000;
 const detailRecordLimit = 12;
 const unitRelationshipBatchSize = 75;
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type UnitRowWithProperty = UnitRecord & {
+  property: UnitPropertyRecord | UnitPropertyRecord[] | null;
+};
+type PagedUnitRowsResult = {
+  propertiesById: Map<string, UnitPropertyRecord>;
+  totalCount: number;
+  units: UnitRecord[];
+};
 
 export async function getUnitsScreenData(
   organizationId: string,
@@ -54,6 +68,247 @@ export async function getUnitsScreenData(
     viewQuery.leaseStatus === "missing" || viewQuery.occupancy === "unoccupied"
       ? await getActiveLeaseUnitIds(organizationId)
       : null;
+
+  if (canUsePagedUnitBaseQuery(viewQuery)) {
+    return getPagedUnitsScreenData({
+      activeLeaseUnitIds,
+      organizationId,
+      supabase,
+      viewQuery,
+    });
+  }
+
+  return getCompleteUnitsScreenData({
+    activeLeaseUnitIds,
+    organizationId,
+    supabase,
+    viewQuery,
+  });
+}
+
+export async function getUnitPropertyOptions(
+  organizationId: string,
+): Promise<UnitPropertyOption[]> {
+  const supabase = await createSupabaseServerClient();
+  const propertiesResult = await supabase
+    .from("properties")
+    .select(propertySelect)
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .order("code", { ascending: true });
+
+  if (propertiesResult.error) {
+    throw new Error(
+      `Could not load unit property options: ${propertiesResult.error.message}`,
+    );
+  }
+
+  return (propertiesResult.data ?? []).map((property) => ({
+    id: property.id,
+    label: `${property.code} - ${property.name}`,
+  }));
+}
+
+function canUsePagedUnitBaseQuery(viewQuery: UnitViewQuery) {
+  return (
+    viewQuery.query.trim().length === 0 &&
+    (viewQuery.sort === "property_asc" ||
+      viewQuery.sort === "unit_asc" ||
+      viewQuery.sort === "status_asc")
+  );
+}
+
+async function getPagedUnitsScreenData({
+  activeLeaseUnitIds,
+  organizationId,
+  supabase,
+  viewQuery,
+}: {
+  activeLeaseUnitIds: ReadonlySet<string> | null;
+  organizationId: string;
+  supabase: SupabaseServerClient;
+  viewQuery: UnitViewQuery;
+}) {
+  let rowsResult = await getPagedUnitRows({
+    activeLeaseUnitIds,
+    organizationId,
+    page: viewQuery.page,
+    pageSize: viewQuery.pageSize,
+    supabase,
+    viewQuery,
+  });
+  let pagination = buildUnitPagination({
+    page: viewQuery.page,
+    pageSize: viewQuery.pageSize,
+    totalCount: rowsResult.totalCount,
+  });
+
+  if (pagination.page !== viewQuery.page && rowsResult.totalCount > 0) {
+    rowsResult = await getPagedUnitRows({
+      activeLeaseUnitIds,
+      organizationId,
+      page: pagination.page,
+      pageSize: viewQuery.pageSize,
+      supabase,
+      viewQuery,
+    });
+    pagination = buildUnitPagination({
+      page: pagination.page,
+      pageSize: viewQuery.pageSize,
+      totalCount: rowsResult.totalCount,
+    });
+  }
+
+  return {
+    pagination,
+    units: await loadUnitSummariesForRows({
+      organizationId,
+      propertiesById: rowsResult.propertiesById,
+      supabase,
+      unitRows: rowsResult.units,
+    }),
+  };
+}
+
+async function getPagedUnitRows({
+  activeLeaseUnitIds,
+  organizationId,
+  page,
+  pageSize,
+  supabase,
+  viewQuery,
+}: {
+  activeLeaseUnitIds: ReadonlySet<string> | null;
+  organizationId: string;
+  page: number;
+  pageSize: number;
+  supabase: SupabaseServerClient;
+  viewQuery: UnitViewQuery;
+}): Promise<PagedUnitRowsResult> {
+  const range = getRange(page, pageSize);
+  let unitsQuery = supabase
+    .from("units")
+    .select(unitWithPropertySelect, { count: "exact" })
+    .eq("organization_id", organizationId);
+
+  unitsQuery = applyUnitBaseFilters(unitsQuery, viewQuery, activeLeaseUnitIds);
+  unitsQuery = applyUnitBaseSort(unitsQuery, viewQuery);
+
+  const unitsResult = await unitsQuery.range(range.from, range.to);
+
+  if (unitsResult.error) {
+    throw new Error(`Could not load units: ${unitsResult.error.message}`);
+  }
+
+  const rows = (unitsResult.data ?? []) as UnitRowWithProperty[];
+  const { propertiesById, units } = splitUnitRowsAndProperties(rows);
+
+  return {
+    propertiesById,
+    totalCount:
+      typeof unitsResult.count === "number" ? unitsResult.count : units.length,
+    units,
+  };
+}
+
+function applyUnitBaseFilters(
+  query: Awaited<ReturnType<SupabaseServerClient["from"]>["select"]>,
+  viewQuery: UnitViewQuery,
+  activeLeaseUnitIds: ReadonlySet<string> | null,
+) {
+  let filteredQuery = query;
+
+  if (viewQuery.archiveState === "active") {
+    filteredQuery = filteredQuery.is("archived_at", null);
+  } else if (viewQuery.archiveState === "archived") {
+    filteredQuery = filteredQuery.not("archived_at", "is", null);
+  }
+
+  if (viewQuery.propertyId !== "all") {
+    filteredQuery = filteredQuery.eq("property_id", viewQuery.propertyId);
+  }
+
+  if (viewQuery.status !== "all") {
+    filteredQuery = filteredQuery.eq("status", viewQuery.status);
+  }
+
+  if (viewQuery.occupancy === "unoccupied") {
+    filteredQuery = filteredQuery
+      .neq("status", "occupied")
+      .neq("status", "inactive");
+  }
+
+  if (activeLeaseUnitIds && activeLeaseUnitIds.size > 0) {
+    filteredQuery = filteredQuery.not(
+      "id",
+      "in",
+      formatPostgrestInFilter(activeLeaseUnitIds),
+    );
+  }
+
+  return filteredQuery;
+}
+
+function applyUnitBaseSort(
+  query: ReturnType<typeof applyUnitBaseFilters>,
+  viewQuery: UnitViewQuery,
+) {
+  let sortedQuery = query;
+
+  if (viewQuery.archiveState === "all") {
+    sortedQuery = sortedQuery.order("archived_at", {
+      ascending: true,
+      nullsFirst: true,
+    });
+  }
+
+  if (viewQuery.sort === "unit_asc") {
+    return sortedQuery
+      .order("unit_number", { ascending: true })
+      .order("property(code)", { ascending: true })
+      .order("property(name)", { ascending: true });
+  }
+
+  if (viewQuery.sort === "status_asc") {
+    return sortedQuery
+      .order("status", { ascending: true })
+      .order("property(code)", { ascending: true })
+      .order("unit_number", { ascending: true });
+  }
+
+  return sortedQuery
+    .order("property(code)", { ascending: true })
+    .order("property(name)", { ascending: true })
+    .order("unit_number", { ascending: true });
+}
+
+function splitUnitRowsAndProperties(rows: UnitRowWithProperty[]) {
+  const propertiesById = new Map<string, UnitPropertyRecord>();
+  const units = rows.map((row) => {
+    const { property, ...unit } = row;
+    const propertyRow = Array.isArray(property) ? property[0] : property;
+
+    if (propertyRow) {
+      propertiesById.set(propertyRow.id, propertyRow);
+    }
+
+    return unit;
+  });
+
+  return { propertiesById, units };
+}
+
+async function getCompleteUnitsScreenData({
+  activeLeaseUnitIds,
+  organizationId,
+  supabase,
+  viewQuery,
+}: {
+  activeLeaseUnitIds: ReadonlySet<string> | null;
+  organizationId: string;
+  supabase: SupabaseServerClient;
+  viewQuery: UnitViewQuery;
+}) {
   let unitsQuery = supabase
     .from("units")
     .select(unitSelect)
@@ -96,10 +351,8 @@ export async function getUnitsScreenData(
   }
 
   const unitRows = unitsResult.data ?? [];
-  const unitIds = new Set(unitRows.map((unit) => unit.id));
-  const propertyIds = new Set(unitRows.map((unit) => unit.property_id));
 
-  if (unitIds.size === 0) {
+  if (unitRows.length === 0) {
     return {
       pagination: buildUnitPagination({
         page: viewQuery.page,
@@ -110,45 +363,13 @@ export async function getUnitsScreenData(
     };
   }
 
-  const [
-    propertiesResult,
-    leaseRows,
-    timelineContextRows,
-    ledgerTotalRows,
-    currencySettings,
-  ] = await Promise.all([
-    supabase
-      .from("properties")
-      .select(propertySelect)
-      .eq("organization_id", organizationId)
-      .in("id", [...propertyIds])
-      .is("archived_at", null),
-    getLeaseRowsForUnits(supabase, organizationId, [...unitIds]),
-    getTimelineContextRowsForUnits(supabase, organizationId, [...unitIds]),
-    getLedgerTotalRowsForUnits(supabase, organizationId, [...unitIds]),
-    getOrganizationCurrencySettings(organizationId),
-  ]);
-
-  if (propertiesResult.error) {
-    throw new Error(`Could not load unit properties: ${propertiesResult.error.message}`);
-  }
-
-  const propertiesById = indexById(propertiesResult.data ?? []);
-  const leasesByUnitId = groupByUnitId(leaseRows);
-  const ledgerByUnitId = groupByUnitId(ledgerTotalRows);
-  const latestTimelineByUnitId = indexLatestTimelineByUnitId(timelineContextRows);
-  const units = unitRows
-    .map((unit) =>
-      buildUnitSummary({
-        activeLease: selectCurrentLease(leasesByUnitId.get(unit.id) ?? []),
-        currencySettings,
-        latestTimelineEvent: latestTimelineByUnitId.get(unit.id),
-        ledgerEntries: ledgerByUnitId.get(unit.id) ?? [],
-        property: propertiesById.get(unit.property_id),
-        unit,
-      }),
-    )
-    .toSorted(compareUnitSummaries);
+  const units = (
+    await loadUnitSummariesForRows({
+      organizationId,
+      supabase,
+      unitRows,
+    })
+  ).toSorted(compareUnitSummaries);
   const filteredUnits = filterUnitSummaries(units, viewQuery);
   const sortedUnits = sortUnitSummaries(filteredUnits, viewQuery.sort);
   const pagination = buildUnitPagination({
@@ -161,6 +382,64 @@ export async function getUnitsScreenData(
     pagination,
     units: getUnitPageSummaries(sortedUnits, pagination),
   };
+}
+
+async function loadUnitSummariesForRows({
+  organizationId,
+  propertiesById,
+  supabase,
+  unitRows,
+}: {
+  organizationId: string;
+  propertiesById?: Map<string, UnitPropertyRecord>;
+  supabase: SupabaseServerClient;
+  unitRows: UnitRecord[];
+}) {
+  const unitIds = new Set(unitRows.map((unit) => unit.id));
+
+  if (unitIds.size === 0) {
+    return [];
+  }
+
+  const propertyIds = new Set(unitRows.map((unit) => unit.property_id));
+  let unitPropertiesById = propertiesById;
+
+  if (!unitPropertiesById) {
+    const propertiesResult = await supabase
+      .from("properties")
+      .select(propertySelect)
+      .eq("organization_id", organizationId)
+      .in("id", [...propertyIds])
+      .is("archived_at", null);
+
+    if (propertiesResult.error) {
+      throw new Error(
+        `Could not load unit properties: ${propertiesResult.error.message}`,
+      );
+    }
+
+    unitPropertiesById = indexById(propertiesResult.data ?? []);
+  }
+
+  const [leaseRows, timelineContextRows, ledgerTotalRows] =
+    await Promise.all([
+      getLeaseRowsForUnits(supabase, organizationId, [...unitIds]),
+      getTimelineContextRowsForUnits(supabase, organizationId, [...unitIds]),
+      getLedgerTotalRowsForUnits(supabase, organizationId, [...unitIds]),
+    ]);
+  const leasesByUnitId = groupByUnitId(leaseRows);
+  const ledgerByUnitId = groupByUnitId(ledgerTotalRows);
+  const latestTimelineByUnitId = indexLatestTimelineByUnitId(timelineContextRows);
+
+  return unitRows.map((unit) =>
+    buildUnitSummary({
+      activeLease: selectCurrentLease(leasesByUnitId.get(unit.id) ?? []),
+      latestTimelineEvent: latestTimelineByUnitId.get(unit.id),
+      ledgerEntries: ledgerByUnitId.get(unit.id) ?? [],
+      property: unitPropertiesById.get(unit.property_id),
+      unit,
+    }),
+  );
 }
 
 export async function getUnitDetail(organizationId: string, unitId: string) {
@@ -189,6 +468,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
     ledgerResult,
     ledgerTotalsResult,
     documentsResult,
+    maintenanceResult,
     activityResult,
   ] = await Promise.all([
     supabase
@@ -237,6 +517,15 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       .order("uploaded_at", { ascending: false })
       .limit(detailRecordLimit),
     supabase
+      .from("tasks")
+      .select(maintenanceSelect, { count: "exact" })
+      .eq("organization_id", organizationId)
+      .eq("unit_id", unit.id)
+      .is("archived_at", null)
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(50),
+    supabase
       .from("activity_logs")
       .select(
         "id, entity_type, entity_id, action, previous_values, new_values, created_at",
@@ -275,13 +564,19 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
     throw new Error(`Could not load unit documents: ${documentsResult.error.message}`);
   }
 
+  if (maintenanceResult.error) {
+    throw new Error(
+      `Could not load unit maintenance cases: ${maintenanceResult.error.message}`,
+    );
+  }
+
   if (activityResult.error) {
     throw new Error(`Could not load unit activity: ${activityResult.error.message}`);
   }
 
   const activeLease = selectCurrentLease(leaseRows);
-  const [currencySettings, documents, people] = await Promise.all([
-    getOrganizationCurrencySettings(organizationId),
+  const maintenanceRows = (maintenanceResult.data ?? []) as UnitMaintenanceRecord[];
+  const [documents, people] = await Promise.all([
     addSignedDocumentUrls(documentsResult.data ?? [], supabase),
     getActiveLeasePeople(supabase, organizationId, activeLease),
   ]);
@@ -292,11 +587,15 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
     counts: {
       documents: documentsResult.count ?? 0,
       ledgerEntries: ledgerResult.count ?? ledgerResult.data?.length ?? 0,
+      maintenanceCases:
+        maintenanceResult.count ?? maintenanceRows.length,
+      openMaintenanceCases: maintenanceRows.filter(isOpenMaintenanceTask).length,
+      overdueMaintenanceCases: maintenanceRows.filter(isOverdueMaintenanceTask).length,
       timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
     },
-    currencySettings,
     documents,
     ledgerEntries: ledgerTotalsResult.data ?? [],
+    maintenanceCases: maintenanceRows,
     people,
     property: propertyResult.data ?? undefined,
     recentLedgerEntries: ledgerResult.data ?? [],
@@ -566,6 +865,15 @@ function getUnitPageSummaries(units: UnitSummary[], pagination: UnitPagination) 
   return units.slice(start, pagination.to);
 }
 
+function getRange(page: number, pageSize: number) {
+  const from = (Math.max(page, 1) - 1) * pageSize;
+
+  return {
+    from,
+    to: from + pageSize - 1,
+  };
+}
+
 async function getLeaseRowsForUnits(
   supabase: SupabaseServerClient,
   organizationId: string,
@@ -738,6 +1046,18 @@ function compareStrings(first: string, second: string) {
     numeric: true,
     sensitivity: "base",
   });
+}
+
+function isOpenMaintenanceTask(task: UnitMaintenanceRecord) {
+  return task.status !== "completed" && task.status !== "cancelled";
+}
+
+function isOverdueMaintenanceTask(task: UnitMaintenanceRecord) {
+  return (
+    isOpenMaintenanceTask(task) &&
+    Boolean(task.due_date) &&
+    task.due_date! < new Date().toISOString().slice(0, 10)
+  );
 }
 
 async function getActiveLeaseUnitIds(organizationId: string) {

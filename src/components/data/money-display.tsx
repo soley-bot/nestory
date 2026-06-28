@@ -4,7 +4,6 @@ import type { MoneyDisplayValue } from "@/lib/money/format";
 type MoneyDisplayProps = {
   align?: "left" | "right";
   className?: string;
-  showSecondary?: boolean;
   size?: "compact" | "large";
   value: MoneyDisplayValue;
 };
@@ -12,7 +11,6 @@ type MoneyDisplayProps = {
 export function MoneyDisplay({
   align = "left",
   className,
-  showSecondary = true,
   size = "compact",
   value,
 }: MoneyDisplayProps) {
@@ -32,11 +30,6 @@ export function MoneyDisplay({
       >
         {value.primary}
       </span>
-      {showSecondary ? (
-        <span className="mt-0.5 min-w-0 break-words text-xs font-normal text-muted tabular-nums [overflow-wrap:anywhere]">
-          {value.secondary}
-        </span>
-      ) : null}
     </span>
   );
 }

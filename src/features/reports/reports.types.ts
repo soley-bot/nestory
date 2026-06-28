@@ -30,6 +30,7 @@ export type ReportSourceRecordType =
   | "document"
   | "lease"
   | "ledger"
+  | "maintenance"
   | "owner"
   | "property"
   | "timeline"
@@ -59,6 +60,7 @@ export type TrustedReportRow = {
   cells: Record<string, string>;
   href?: string;
   id: string;
+  sourceCount: number;
   sourceLinks: ReportSourceLink[];
   sourceSummary: string;
   tone?: "danger" | "neutral" | "success" | "warning";
@@ -79,6 +81,7 @@ export type TrustedReport = {
   summary: TraceableReportMetric[];
   title: string;
   totalsTraceLabel: string;
+  totalRowCount?: number;
 };
 
 export type OccupancyReportRow = {
@@ -159,10 +162,6 @@ export type ProfitLossReport = {
 };
 
 export type ReportsScreenData = {
-  currencySettings: {
-    khrPerUsd: number;
-    preferredCurrency: CurrencyCode;
-  };
   occupancyReport?: OccupancyReport;
   profitLossReport?: ProfitLossReport;
   propertyOptions: ReportPropertyOption[];

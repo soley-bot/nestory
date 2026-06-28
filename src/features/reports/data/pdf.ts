@@ -1,4 +1,4 @@
-import { getReportsScreenData } from "@/features/reports/data/reports";
+import { getOccupancyReportData } from "@/features/reports/data/reports";
 import {
   formatLongReportDate,
   getReportScopeLabel,
@@ -84,7 +84,7 @@ export async function getReportPdf(
     throw new Error("PDF export is only available for vacancy/risk reports.");
   }
 
-  const data = await getReportsScreenData(organizationId, viewQuery);
+  const data = await getOccupancyReportData(organizationId, viewQuery);
   const report = data.occupancyReport;
   const scopeLabel = getReportScopeLabel(viewQuery.propertyId, data.propertyOptions);
   const filenameScope =

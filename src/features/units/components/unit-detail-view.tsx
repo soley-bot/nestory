@@ -21,6 +21,7 @@ import type {
   UnitDetail,
   UnitDocumentContext,
   UnitLedgerContext,
+  UnitMaintenanceContext,
   UnitTimelineContext,
 } from "@/features/units/unit.types";
 import type { RecentChange } from "@/features/activity/activity.types";
@@ -64,6 +65,9 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
                 <ActionLink href={unit.hrefs.ledger} icon={<Landmark size={14} />}>
                   Ledger
                 </ActionLink>
+                <ActionLink href={unit.hrefs.maintenance} icon={<Wrench size={14} />}>
+                  Maintenance
+                </ActionLink>
                 <ActionLink href={unit.hrefs.timeline} icon={<ListTree size={14} />}>
                   Timeline
                 </ActionLink>
@@ -88,7 +92,7 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
               <Detail label="Occupancy" value={unit.hasActiveLease ? "Leased" : "No active lease"} />
               <Detail
                 label="Records"
-                value={`${unit.counts.ledgerEntries} ledger / ${unit.counts.timelineEvents} timeline / ${unit.counts.documents} docs`}
+                value={`${unit.counts.ledgerEntries} ledger / ${unit.counts.timelineEvents} timeline / ${unit.counts.maintenanceCases ?? 0} maintenance / ${unit.counts.documents} docs`}
               />
             </dl>
           </section>
@@ -217,6 +221,31 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
 
           <section className="rounded-md border border-border bg-surface">
             <SectionTitle
+              description={`${unit.counts.openMaintenanceCases ?? 0} open / ${
+                unit.counts.overdueMaintenanceCases ?? 0
+              } overdue`}
+              icon={<Wrench size={16} />}
+              title="Maintenance cases"
+            />
+            <div className="divide-y divide-border">
+              {unit.recentMaintenanceCases.length === 0 ? (
+                <EmptyRow
+                  actionHref={unit.hrefs.addMaintenanceCase}
+                  actionLabel="New case"
+                  label="No unit-level maintenance cases yet."
+                />
+              ) : null}
+              {unit.recentMaintenanceCases.map((maintenanceCase) => (
+                <MaintenanceRow
+                  maintenanceCase={maintenanceCase}
+                  key={maintenanceCase.id}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-md border border-border bg-surface">
+            <SectionTitle
               description={`${unit.counts.timelineEvents} active timeline records`}
               icon={<ListTree size={16} />}
               title="Timeline and maintenance"
@@ -308,9 +337,10 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
               <CheckCircle2 className="text-muted" size={16} />
               <h2 className="text-base font-semibold">Record completeness</h2>
             </div>
-            <dl className="mt-4 grid grid-cols-3 gap-2 text-sm">
+            <dl className="mt-4 grid grid-cols-4 gap-2 text-sm">
               <CountDetail label="Ledger" value={unit.counts.ledgerEntries} />
               <CountDetail label="Timeline" value={unit.counts.timelineEvents} />
+              <CountDetail label="Cases" value={unit.counts.maintenanceCases ?? 0} />
               <CountDetail label="Docs" value={unit.counts.documents} />
             </dl>
           </section>
@@ -483,7 +513,7 @@ function TimelineRow({ event }: { event: UnitTimelineContext }) {
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
           <Badge tone="neutral">{event.eventType}</Badge>
           {event.costDisplay ? (
-            <MoneyDisplay align="right" showSecondary={false} value={event.costDisplay} />
+            <MoneyDisplay align="right" value={event.costDisplay} />
           ) : null}
         </div>
       </div>
@@ -516,6 +546,38 @@ function LedgerRow({ entry }: { entry: UnitLedgerContext }) {
           </div>
         </div>
         <MoneyDisplay align="right" value={entry.amountDisplay} />
+      </div>
+    </Link>
+  );
+}
+
+function MaintenanceRow({
+  maintenanceCase,
+}: {
+  maintenanceCase: UnitMaintenanceContext;
+}) {
+  return (
+    <Link
+      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+      href={maintenanceCase.href}
+      prefetch={false}
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="break-words font-medium">{maintenanceCase.title}</p>
+          <p className="mt-1 text-xs text-muted">
+            {maintenanceCase.category} / {maintenanceCase.dueLabel}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+          <Badge tone={maintenanceCase.statusTone}>
+            {maintenanceCase.statusLabel}
+          </Badge>
+          <Badge tone="neutral">{maintenanceCase.priorityLabel}</Badge>
+          <span className="text-xs font-medium text-muted">
+            {maintenanceCase.actualCostLabel}
+          </span>
+        </div>
       </div>
     </Link>
   );

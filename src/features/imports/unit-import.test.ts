@@ -20,8 +20,8 @@ describe("unit import", () => {
   it("parses quoted CSV cells and auto-maps common unit headers", () => {
     const parsed = parseCsv(
       [
-        "Property Code,Unit no. / Floor,Price,Currency,Status,Remark",
-        'CTR,"12A / 12","1,200",USD,Available,"Corner unit, clean"',
+        "Property Code,Unit no. / Floor,Price,Status,Remark",
+        'CTR,"12A / 12","1,200",Available,"Corner unit, clean"',
       ].join("\n"),
     );
     const mapping = autoMapUnitImportHeaders(parsed.headers);
@@ -35,7 +35,6 @@ describe("unit import", () => {
     expect(mapping.unitNumber).toBe("Unit no. / Floor");
     expect(rows[0]).toMatchObject({
       currentRentAmount: 1200,
-      currentRentCurrency: "USD",
       floor: "12",
       propertyId: properties[0].id,
       status: "vacant",
@@ -46,7 +45,7 @@ describe("unit import", () => {
 
   it("flags rows that do not match an active property", () => {
     const parsed = parseCsv(
-      ["Property Code,Unit no. / Floor,Price,Currency", "MISS,9B,700,USD"].join(
+      ["Property Code,Unit no. / Floor,Price", "MISS,9B,700"].join(
         "\n",
       ),
     );

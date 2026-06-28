@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildTrustedReport } from "@/features/reports/data/trusted-report";
+import {
+  buildTrustedReport,
+  getTrustedReportSourceRequirements,
+} from "@/features/reports/data/trusted-report";
 
 type TrustedReportInput = Parameters<typeof buildTrustedReport>[0];
 
@@ -11,10 +14,6 @@ function makeReportInput(
   overrides: TrustedReportInputOverrides = {},
 ): TrustedReportInput {
   const base: TrustedReportInput = {
-    currencySettings: {
-      khrPerUsd: 4100,
-      preferredCurrency: "USD",
-    },
     documents: [
       {
         file_name: "receipt, June.pdf",
@@ -48,6 +47,27 @@ function makeReportInput(
         id: "ledger-expense",
         property_id: "property-1",
         transaction_date: "2026-06-10",
+        unit_id: "unit-1",
+      },
+    ],
+    maintenanceTasks: [
+      {
+        actual_cost_amount: 90,
+        actual_cost_currency: "USD",
+        category: "AC",
+        cost_estimate_amount: 150,
+        cost_estimate_currency: "USD",
+        created_at: "2026-06-09T00:00:00.000Z",
+        due_date: "2026-06-10",
+        due_time: "15:00",
+        id: "task-1",
+        ledger_entry_id: "ledger-expense",
+        priority: "high",
+        property_id: "property-1",
+        recurrence_frequency: "none",
+        status: "in_progress",
+        timeline_event_id: "timeline-1",
+        title: "AC repair",
         unit_id: "unit-1",
       },
     ],
@@ -151,7 +171,63 @@ function metricValue(report: ReturnType<typeof buildTrustedReport>, label: strin
   return report.summary.find((metric) => metric.label === label);
 }
 
+function enabledSourceKeys(
+  requirements: ReturnType<typeof getTrustedReportSourceRequirements>,
+) {
+  return Object.entries(requirements)
+    .filter(([, enabled]) => enabled)
+    .map(([key]) => key)
+    .toSorted();
+}
+
 describe("trusted reports", () => {
+  it("declares focused source requirements for each report kind", () => {
+    const expectations = [
+      {
+        report: "income-expense",
+        sources: ["ledgerEntries", "units"],
+      },
+      {
+        report: "lease-expiry",
+        sources: ["leases", "units"],
+      },
+      {
+        report: "maintenance-cost",
+        sources: ["ledgerEntries", "maintenanceTasks", "timelineEvents", "units"],
+      },
+      {
+        report: "missing-data",
+        sources: ["documents", "leases", "owners", "units"],
+      },
+      {
+        report: "owner-statement",
+        sources: ["ledgerEntries", "owners", "people"],
+      },
+      {
+        report: "property-performance",
+        sources: ["ledgerEntries", "leases", "timelineEvents", "units"],
+      },
+      {
+        report: "rent-roll",
+        sources: ["documents", "leases", "units"],
+      },
+      {
+        report: "unit-performance",
+        sources: ["documents", "ledgerEntries", "timelineEvents", "units"],
+      },
+      {
+        report: "vacancy-risk",
+        sources: ["documents", "leases", "units"],
+      },
+    ] as const;
+
+    for (const { report, sources } of expectations) {
+      expect(enabledSourceKeys(getTrustedReportSourceRequirements(report))).toEqual(
+        sources.toSorted(),
+      );
+    }
+  });
+
   it("calculates unit performance from ledger and timeline source rows", () => {
     const report = buildTrustedReport(makeReportInput());
     const unitRow = report.rows.find((row) => row.id === "unit-1");
@@ -220,6 +296,37 @@ describe("trusted reports", () => {
     expect(report.rows[0]?.cells).toMatchObject({
       occupancy: "1/2",
       risk: "1",
+    });
+  });
+
+  it("builds maintenance cost report from cases without double-counting linked rows", () => {
+    const report = buildTrustedReport(
+      makeReportInput({
+        viewQuery: {
+          report: "maintenance-cost",
+        },
+      }),
+    );
+
+    expect(report.rows).toHaveLength(1);
+    expect(report.rows[0]?.cells).toMatchObject({
+      amount: "USD 90.00 / Est. USD 150.00",
+      category: "Ac",
+      source: "Case",
+      status: "In Progress",
+    });
+    expect(report.rows[0]?.sourceLinks.map((source) => source.recordType)).toEqual(
+      expect.arrayContaining(["maintenance", "ledger", "timeline"]),
+    );
+    expect(metricValue(report, "Cases")).toMatchObject({
+      sourceCount: 1,
+      value: "1",
+    });
+    expect(metricValue(report, "Actual cost")).toMatchObject({
+      value: "USD 90.00",
+    });
+    expect(metricValue(report, "Estimated")).toMatchObject({
+      value: "USD 150.00",
     });
   });
 });

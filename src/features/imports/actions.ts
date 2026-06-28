@@ -2,11 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { Constants } from "@/types/database";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { UnitImportCommitRow } from "@/features/imports/import.types";
-import type { CurrencyCode } from "@/lib/money/format";
 
 export type UnitImportActionState = {
   message?: string;
@@ -25,28 +23,15 @@ const unitStatusSchema = z.enum([
   "inactive",
 ]);
 
-const currencySchema = z.enum(Constants.public.Enums.currency_code);
-
-const importRowSchema = z
-  .object({
-    currentRentAmount: z.number().nonnegative().nullable(),
-    currentRentCurrency: currencySchema.nullable(),
-    floor: z.string().trim().max(40),
-    propertyId: z.uuid(),
-    sizeSqm: z.number().nonnegative().nullable(),
-    sourceRowNumber: z.number().int().positive(),
-    status: unitStatusSchema,
-    unitNumber: z.string().trim().min(1).max(40),
-  })
-  .superRefine((row, context) => {
-    if ((row.currentRentAmount === null) !== (row.currentRentCurrency === null)) {
-      context.addIssue({
-        code: "custom",
-        message: "Price and currency must be provided together.",
-        path: ["currentRentAmount"],
-      });
-    }
-  });
+const importRowSchema = z.object({
+  currentRentAmount: z.number().nonnegative().nullable(),
+  floor: z.string().trim().max(40),
+  propertyId: z.uuid(),
+  sizeSqm: z.number().nonnegative().nullable(),
+  sourceRowNumber: z.number().int().positive(),
+  status: unitStatusSchema,
+  unitNumber: z.string().trim().min(1).max(40),
+});
 
 const importRowsSchema = z.array(importRowSchema).min(1).max(500);
 
@@ -204,7 +189,7 @@ function createImportedUnit({
 }) {
   return supabase.rpc("create_unit", {
     p_current_rent_amount: row.currentRentAmount,
-    p_current_rent_currency: row.currentRentCurrency as CurrencyCode | null,
+    p_current_rent_currency: row.currentRentAmount === null ? null : "USD",
     p_floor: nullableString(row.floor),
     p_organization_id: organizationId,
     p_property_id: row.propertyId,
@@ -227,7 +212,7 @@ function updateImportedUnit({
 }) {
   return supabase.rpc("update_unit", {
     p_current_rent_amount: row.currentRentAmount,
-    p_current_rent_currency: row.currentRentCurrency as CurrencyCode | null,
+    p_current_rent_currency: row.currentRentAmount === null ? null : "USD",
     p_floor: nullableString(row.floor),
     p_organization_id: organizationId,
     p_property_id: row.propertyId,

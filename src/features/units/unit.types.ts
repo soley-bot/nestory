@@ -80,9 +80,24 @@ export type UnitLedgerContext = {
   transactionDate: string;
 };
 
+export type UnitMaintenanceContext = {
+  actualCostLabel: string;
+  category: string;
+  dueLabel: string;
+  href: string;
+  id: string;
+  priorityLabel: string;
+  statusLabel: string;
+  statusTone: UnitBadgeTone;
+  title: string;
+};
+
 export type UnitRecordCounts = {
   documents: number;
   ledgerEntries: number;
+  maintenanceCases?: number;
+  openMaintenanceCases?: number;
+  overdueMaintenanceCases?: number;
   timelineEvents: number;
 };
 
@@ -133,10 +148,12 @@ export type UnitDetailHrefs = {
   addLease: string;
   addLedgerEntry: string;
   addTimelineEvent: string;
+  addMaintenanceCase: string;
   documents: string;
   ledger: string;
   lease?: string;
   leases: string;
+  maintenance: string;
   property: string;
   repairAction: string;
   tenantPerson?: string;
@@ -197,6 +214,7 @@ export type UnitDetail = UnitSummary & {
   hrefs: UnitDetailHrefs;
   repairAction: UnitRepairAction;
   recentLedgerEntries: UnitLedgerContext[];
+  recentMaintenanceCases: UnitMaintenanceContext[];
   recentTimelineEvents: UnitTimelineContext[];
   sizeLabel: string;
   tenantLinks: UnitPersonLink[];

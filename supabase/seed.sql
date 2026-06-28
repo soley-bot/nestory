@@ -182,11 +182,8 @@ SELECT
     WHEN unit_number_index <= 470 THEN 'vacant'
     ELSE 'maintenance'
   END,
-  CASE
-    WHEN unit_number_index % 7 = 0 THEN (1500000 + (property_number * 30000) + (unit_in_property * 15000))::numeric(14, 2)
-    ELSE (420 + (property_number * 12) + (unit_in_property * 18))::numeric(14, 2)
-  END,
-  CASE WHEN unit_number_index % 7 = 0 THEN 'KHR'::public.currency_code ELSE 'USD'::public.currency_code END,
+  (420 + (property_number * 12) + (unit_in_property * 18))::numeric(14, 2),
+  'USD'::public.currency_code,
   '00000000-0000-0000-0000-000000000101',
   '00000000-0000-0000-0000-000000000101',
   CASE WHEN unit_number_index % 97 = 0 THEN now() - interval '5 days' ELSE NULL END,
@@ -231,16 +228,10 @@ SELECT
   ),
   date '2024-01-01' + (lease_number % 540),
   date '2024-01-01' + (lease_number % 540) + 365,
-  CASE
-    WHEN lease_number % 7 = 0 THEN (1500000 + (property_number * 30000) + (unit_in_property * 15000))::numeric(14, 2)
-    ELSE (420 + (property_number * 12) + (unit_in_property * 18))::numeric(14, 2)
-  END,
-  CASE WHEN lease_number % 7 = 0 THEN 'KHR'::public.currency_code ELSE 'USD'::public.currency_code END,
-  CASE
-    WHEN lease_number % 7 = 0 THEN ((1500000 + (property_number * 30000) + (unit_in_property * 15000)) * 2)::numeric(14, 2)
-    ELSE ((420 + (property_number * 12) + (unit_in_property * 18)) * 2)::numeric(14, 2)
-  END,
-  CASE WHEN lease_number % 7 = 0 THEN 'KHR'::public.currency_code ELSE 'USD'::public.currency_code END,
+  (420 + (property_number * 12) + (unit_in_property * 18))::numeric(14, 2),
+  'USD'::public.currency_code,
+  ((420 + (property_number * 12) + (unit_in_property * 18)) * 2)::numeric(14, 2),
+  'USD'::public.currency_code,
   CASE
     WHEN lease_number % 23 = 0 THEN 'ended'
     WHEN lease_number % 17 = 0 THEN 'notice_given'
@@ -713,11 +704,10 @@ SELECT
     ELSE (ARRAY['Rent', 'Deposit', 'Late Fee', 'Parking'])[(entry_number % 4) + 1]
   END,
   CASE
-    WHEN entry_number % 9 = 0 THEN (120000 + (entry_number * 1350))::numeric(14, 2)
     WHEN entry_number % 4 = 0 THEN (35 + (entry_number % 160) * 4.25)::numeric(14, 2)
     ELSE (380 + (entry_number % 220) * 5.5)::numeric(14, 2)
   END,
-  CASE WHEN entry_number % 9 = 0 THEN 'KHR'::public.currency_code ELSE 'USD'::public.currency_code END,
+  'USD'::public.currency_code,
   format('Stress seed ledger entry %s for load testing.', entry_number),
   '00000000-0000-0000-0000-000000000101',
   '00000000-0000-0000-0000-000000000101',
@@ -793,14 +783,11 @@ SELECT
   format('Stress seed timeline event %s. This row is intentionally realistic enough to exercise filters and drawers.', event_number),
   CASE
     WHEN event_number % 11 IN (3, 4, 5) THEN
-      CASE WHEN event_number % 9 = 0 THEN (90000 + (event_number * 850))::numeric(14, 2)
-      ELSE (45 + (event_number % 300) * 3.75)::numeric(14, 2)
-      END
+      (45 + (event_number % 300) * 3.75)::numeric(14, 2)
     ELSE NULL
   END,
   CASE
-    WHEN event_number % 11 IN (3, 4, 5) THEN
-      CASE WHEN event_number % 9 = 0 THEN 'KHR'::public.currency_code ELSE 'USD'::public.currency_code END
+    WHEN event_number % 11 IN (3, 4, 5) THEN 'USD'::public.currency_code
     ELSE NULL
   END,
   '00000000-0000-0000-0000-000000000101',

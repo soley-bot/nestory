@@ -215,7 +215,6 @@ export function LedgerScreen({
       </div>
 
       <RecordPreviewDrawer
-        description="Selected transaction detail, risk, receipts, and actions."
         onClose={() => setPreviewOpen(false)}
         open={previewOpen && Boolean(selectedEntry)}
         title="Ledger preview"

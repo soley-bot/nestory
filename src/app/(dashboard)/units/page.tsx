@@ -1,8 +1,9 @@
 import { UnitScreen } from "@/features/units/components/unit-screen";
-import { getPropertySummaries } from "@/features/properties/data/properties";
-import { getUnitsScreenData } from "@/features/units/data/units";
+import {
+  getUnitPropertyOptions,
+  getUnitsScreenData,
+} from "@/features/units/data/units";
 import { parseUnitSearchParams } from "@/features/units/unit.filters";
-import type { UnitPropertyOption } from "@/features/units/unit.types";
 import { requireAdminContext } from "@/lib/auth/context";
 import { getUuidSearchParam } from "@/lib/validation/search-params";
 
@@ -14,9 +15,9 @@ export default async function UnitsPage({ searchParams }: UnitsPageProps) {
   const context = await requireAdminContext();
   const params = await searchParams;
   const viewQuery = parseUnitSearchParams(params);
-  const [{ pagination, units }, properties] = await Promise.all([
+  const [{ pagination, units }, propertyOptions] = await Promise.all([
     getUnitsScreenData(context.organizationId, viewQuery),
-    getPropertySummaries(context.organizationId),
+    getUnitPropertyOptions(context.organizationId),
   ]);
   const initialUnitId = getUuidSearchParam(params.unitId);
 
@@ -25,18 +26,9 @@ export default async function UnitsPage({ searchParams }: UnitsPageProps) {
       key={initialUnitId ?? "units"}
       initialUnitId={initialUnitId}
       pagination={pagination}
-      propertyOptions={toPropertyOptions(properties)}
+      propertyOptions={propertyOptions}
       units={units}
       viewQuery={viewQuery}
     />
   );
-}
-
-function toPropertyOptions(
-  properties: Awaited<ReturnType<typeof getPropertySummaries>>,
-): UnitPropertyOption[] {
-  return properties.map((property) => ({
-    id: property.id,
-    label: `${property.code} - ${property.name}`,
-  }));
 }

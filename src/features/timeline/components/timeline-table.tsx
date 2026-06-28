@@ -1,4 +1,8 @@
 import { FileText, Lock } from "lucide-react";
+import {
+  previewRowClassName,
+  selectedPreviewRowClassName,
+} from "@/components/data/interactive-table";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
@@ -67,8 +71,8 @@ export function TimelineTable({
               <tr
                 aria-selected={selectedEventId === event.id}
                 className={cn(
-                  "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent-soft",
-                  selectedEventId === event.id && "bg-surface-muted",
+                  previewRowClassName,
+                  selectedEventId === event.id && selectedPreviewRowClassName,
                   event.archivedAt && "text-muted",
                 )}
                 key={event.id}

@@ -21,6 +21,7 @@ import type {
   PropertyDetailLease,
   PropertyDocumentContext,
   PropertyLedgerContext,
+  PropertyMaintenanceContext,
   PropertyOwnerHistory,
   PropertyTimelineContext,
 } from "@/features/properties/data/property-detail";
@@ -65,6 +66,9 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
                 <ActionLink href={property.hrefs.ledger} icon={<Landmark size={14} />}>
                   Ledger
                 </ActionLink>
+                <ActionLink href={property.hrefs.maintenance} icon={<Wrench size={14} />}>
+                  Maintenance
+                </ActionLink>
                 <ActionLink href={property.hrefs.timeline} icon={<ListTree size={14} />}>
                   Timeline
                 </ActionLink>
@@ -84,7 +88,7 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
               <Detail label="Net income" moneyValue={property.netIncome} />
               <Detail
                 label="Records"
-                value={`${property.counts.ledgerEntries} ledger / ${property.counts.timelineEvents} timeline / ${property.counts.documents} docs`}
+                value={`${property.counts.ledgerEntries} ledger / ${property.counts.timelineEvents} timeline / ${property.counts.maintenanceCases ?? 0} maintenance / ${property.counts.documents} docs`}
               />
               <Detail label="Active leases" value={String(property.counts.activeLeases)} />
               <Detail label="Notes" value={property.notesLabel} />
@@ -237,6 +241,31 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
 
           <section className="rounded-md border border-border bg-surface">
             <SectionTitle
+              description={`${property.counts.openMaintenanceCases ?? 0} open / ${
+                property.counts.overdueMaintenanceCases ?? 0
+              } overdue`}
+              icon={<Wrench size={16} />}
+              title="Maintenance cases"
+            />
+            <div className="divide-y divide-border">
+              {property.recentMaintenanceCases.length === 0 ? (
+                <EmptyRow
+                  actionHref={property.hrefs.addMaintenanceCase}
+                  actionLabel="New case"
+                  label="No property maintenance cases yet."
+                />
+              ) : null}
+              {property.recentMaintenanceCases.map((maintenanceCase) => (
+                <MaintenanceRow
+                  key={maintenanceCase.id}
+                  maintenanceCase={maintenanceCase}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-md border border-border bg-surface">
+            <SectionTitle
               description={`${property.counts.timelineEvents} active timeline records`}
               icon={<ListTree size={16} />}
               title="Timeline history"
@@ -328,9 +357,10 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
               <CheckCircle2 className="text-muted" size={16} />
               <h2 className="text-base font-semibold">Record completeness</h2>
             </div>
-            <dl className="mt-4 grid grid-cols-3 gap-2 text-sm">
+            <dl className="mt-4 grid grid-cols-4 gap-2 text-sm">
               <CountDetail label="Ledger" value={property.counts.ledgerEntries} />
               <CountDetail label="Timeline" value={property.counts.timelineEvents} />
+              <CountDetail label="Cases" value={property.counts.maintenanceCases ?? 0} />
               <CountDetail label="Docs" value={property.counts.documents} />
             </dl>
           </section>
@@ -536,7 +566,7 @@ function LeaseRow({ lease }: { lease: PropertyDetailLease }) {
         </div>
         <div className="shrink-0 text-right">
           <Badge tone="success">{lease.statusLabel}</Badge>
-          <MoneyDisplay align="right" showSecondary={false} value={lease.rentDisplay} />
+          <MoneyDisplay align="right" value={lease.rentDisplay} />
         </div>
       </div>
     </Link>
@@ -574,6 +604,38 @@ function LedgerRow({ entry }: { entry: PropertyLedgerContext }) {
   );
 }
 
+function MaintenanceRow({
+  maintenanceCase,
+}: {
+  maintenanceCase: PropertyMaintenanceContext;
+}) {
+  return (
+    <Link
+      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+      href={maintenanceCase.href}
+      prefetch={false}
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="break-words font-medium">{maintenanceCase.title}</p>
+          <p className="mt-1 text-xs text-muted">
+            {maintenanceCase.category} / {maintenanceCase.unitLabel} /{" "}
+            {maintenanceCase.dueLabel}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+          <Badge tone={maintenanceCase.statusTone}>
+            {maintenanceCase.statusLabel}
+          </Badge>
+          <span className="text-xs font-medium text-muted">
+            {maintenanceCase.actualCostLabel}
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function TimelineRow({ event }: { event: PropertyTimelineContext }) {
   return (
     <Link
@@ -596,7 +658,7 @@ function TimelineRow({ event }: { event: PropertyTimelineContext }) {
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
           <Badge tone="neutral">{event.eventType}</Badge>
           {event.costDisplay ? (
-            <MoneyDisplay align="right" showSecondary={false} value={event.costDisplay} />
+            <MoneyDisplay align="right" value={event.costDisplay} />
           ) : null}
         </div>
       </div>

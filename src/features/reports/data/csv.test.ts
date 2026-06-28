@@ -24,6 +24,7 @@ describe("trusted report CSV export", () => {
           },
           href: "/units/unit-1",
           id: "unit-1",
+          sourceCount: 2,
           sourceLinks: [
             {
               href: "/units/unit-1",

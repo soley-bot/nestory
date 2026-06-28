@@ -7,7 +7,6 @@ import type {
   UnitImportPreviewRow,
   UnitImportStatus,
 } from "@/features/imports/import.types";
-import type { CurrencyCode } from "@/lib/money/format";
 
 const unitStatuses: UnitImportStatus[] = [
   "vacant",
@@ -32,7 +31,6 @@ const fieldCandidates: Record<UnitImportField, string[]> = {
   ],
   remark: ["remark", "remarks", "note", "notes", "comment", "comments"],
   rentAmount: ["price", "rent", "currentrent", "monthlyrent", "amount"],
-  rentCurrency: ["currency", "rentcurrency", "pricecurrency"],
   sizeSqm: ["size", "sizesqm", "sqm", "area", "areasqm"],
   status: ["status", "availability", "occupancy", "state"],
   type: ["type", "unittype", "roomtype"],
@@ -56,7 +54,6 @@ export const unitImportFields: Array<{
   { key: "floor", label: "Floor" },
   { key: "status", label: "Status" },
   { key: "rentAmount", label: "Price" },
-  { key: "rentCurrency", label: "Currency" },
   { key: "sizeSqm", label: "Size" },
   { key: "type", label: "Type" },
   { key: "inclusion", label: "Inclusion" },
@@ -164,7 +161,6 @@ export function toCommitRows(
     .filter((row) => !row.issues.some((issue) => issue.level === "error"))
     .map((row) => ({
       currentRentAmount: row.currentRentAmount,
-      currentRentCurrency: row.currentRentCurrency,
       floor: row.floor,
       propertyId: row.propertyId,
       sizeSqm: row.sizeSqm,
@@ -182,11 +178,10 @@ export function buildUnitImportTemplateCsv() {
       "Type",
       "Inclusion",
       "Price",
-      "Currency",
       "Status",
       "Remark",
     ],
-    ["CTR", "12A / 12", "Studio", "Furnished", "850", "USD", "Vacant", ""],
+    ["CTR", "12A / 12", "Studio", "Furnished", "850", "Vacant", ""],
   ]
     .map((row) => row.map(escapeCsvCell).join(","))
     .join("\r\n");
@@ -214,10 +209,7 @@ function buildPreviewRow({
     readMappedValue(record.raw, mapping.inclusion) || "Not recorded";
   const remark = readMappedValue(record.raw, mapping.remark);
   const status = normalizeStatus(readMappedValue(record.raw, mapping.status));
-  const money = parseMoney(
-    readMappedValue(record.raw, mapping.rentAmount),
-    readMappedValue(record.raw, mapping.rentCurrency),
-  );
+  const money = parseMoney(readMappedValue(record.raw, mapping.rentAmount));
   const sizeSqm = parseOptionalNumber(readMappedValue(record.raw, mapping.sizeSqm));
 
   for (const field of requiredFields) {
@@ -288,7 +280,6 @@ function buildPreviewRow({
       ? "Needs review"
       : "Create or update",
     currentRentAmount: money.amount,
-    currentRentCurrency: money.currency,
     floor,
     inclusionLabel,
     issues,
@@ -399,43 +390,38 @@ function normalizeStatus(value: string): UnitImportStatus | null {
     : null;
 }
 
-function parseMoney(amountValue: string, currencyValue: string) {
+function parseMoney(amountValue: string) {
   const amountText = amountValue.trim();
-  const currencyText = currencyValue.trim().toUpperCase();
-  const detectedCurrency = amountText.toUpperCase().includes("KHR")
-    ? "KHR"
-    : amountText.toUpperCase().includes("USD")
-      ? "USD"
-      : currencyText;
 
   if (!amountText) {
     return {
       amount: null,
-      currency: null,
     };
   }
 
-  const amount = Number(amountText.replace(/[^0-9.-]/g, ""));
+  const normalizedAmount = amountText
+    .replace(/\bUSD\b/gi, "")
+    .replace(/[$,]/g, "")
+    .trim();
+
+  if (/[A-Za-z]/.test(normalizedAmount)) {
+    return {
+      amount: null,
+      error: "Price must be a USD amount.",
+    };
+  }
+
+  const amount = Number(normalizedAmount.replace(/[^0-9.-]/g, ""));
 
   if (!Number.isFinite(amount) || amount < 0) {
     return {
       amount: null,
-      currency: null,
       error: "Price must be a non-negative number.",
-    };
-  }
-
-  if (detectedCurrency !== "USD" && detectedCurrency !== "KHR") {
-    return {
-      amount: null,
-      currency: null,
-      error: "Currency must be USD or KHR when price is provided.",
     };
   }
 
   return {
     amount,
-    currency: detectedCurrency as CurrencyCode,
   };
 }
 

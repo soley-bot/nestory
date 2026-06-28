@@ -183,7 +183,6 @@ export function PropertyScreen({
       </div>
 
       <RecordPreviewDrawer
-        description="Selected row details and linked property actions."
         onClose={() => setPreviewOpen(false)}
         open={previewOpen && Boolean(selectedProperty)}
         title="Property preview"

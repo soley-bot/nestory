@@ -11,6 +11,7 @@ type DocumentFieldErrors = {
   document?: string[];
   documentId?: string[];
   propertyId?: string[];
+  taskId?: string[];
   unitId?: string[];
 };
 
@@ -29,14 +30,19 @@ const metadataSchema = z
       .min(2, "Enter a category.")
       .max(80, "Keep the category under 80 characters."),
     propertyId: z.uuid("Choose a property."),
+    taskId: z.string().trim(),
     unitId: z.string().trim(),
   })
   .superRefine((data, context) => {
-    if (!data.unitId) {
-      return;
+    if (data.taskId && !z.uuid().safeParse(data.taskId).success) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose a valid maintenance case.",
+        path: ["taskId"],
+      });
     }
 
-    if (!z.uuid().safeParse(data.unitId).success) {
+    if (data.unitId && !z.uuid().safeParse(data.unitId).success) {
       context.addIssue({
         code: "custom",
         message: "Choose a valid unit.",
@@ -72,6 +78,7 @@ export async function createDocumentAction(
   const parsed = metadataSchema.safeParse({
     category: readString(formData, "category"),
     propertyId: readString(formData, "propertyId"),
+    taskId: readString(formData, "taskId"),
     unitId: readString(formData, "unitId"),
   });
   const file = formData.get("document");
@@ -97,11 +104,13 @@ export async function createDocumentAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const taskId = parsed.data.taskId || null;
   const unitId = parsed.data.unitId || null;
   const validationState = await validateDocumentLink({
     organizationId: context.organizationId,
     propertyId: parsed.data.propertyId,
     supabase,
+    taskId,
     unitId,
   });
 
@@ -136,6 +145,7 @@ export async function createDocumentAction(
       property_id: parsed.data.propertyId,
       size_bytes: file.size,
       storage_path: storagePath,
+      task_id: taskId,
       unit_id: unitId,
       uploaded_by: context.userId,
     })
@@ -159,6 +169,7 @@ export async function createDocumentAction(
       category: parsed.data.category,
       file_name: file.name,
       property_id: parsed.data.propertyId,
+      task_id: taskId,
       unit_id: unitId,
     },
     organizationId: context.organizationId,
@@ -186,6 +197,7 @@ export async function updateDocumentAction(
   const parsed = metadataSchema.safeParse({
     category: readString(formData, "category"),
     propertyId: readString(formData, "propertyId"),
+    taskId: readString(formData, "taskId"),
     unitId: readString(formData, "unitId"),
   });
 
@@ -206,11 +218,13 @@ export async function updateDocumentAction(
     context.organizationId,
     parsedDocumentId.data,
   );
+  const taskId = parsed.data.taskId || null;
   const unitId = parsed.data.unitId || null;
   const validationState = await validateDocumentLink({
     organizationId: context.organizationId,
     propertyId: parsed.data.propertyId,
     supabase,
+    taskId,
     unitId,
   });
 
@@ -223,6 +237,7 @@ export async function updateDocumentAction(
     .update({
       category: parsed.data.category,
       property_id: parsed.data.propertyId,
+      task_id: taskId,
       unit_id: unitId,
     })
     .eq("organization_id", context.organizationId)
@@ -242,6 +257,7 @@ export async function updateDocumentAction(
     newValues: {
       category: parsed.data.category,
       property_id: parsed.data.propertyId,
+      task_id: taskId,
       unit_id: unitId,
     },
     organizationId: context.organizationId,
@@ -349,11 +365,13 @@ async function validateDocumentLink({
   organizationId,
   propertyId,
   supabase,
+  taskId,
   unitId,
 }: {
   organizationId: string;
   propertyId: string;
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  taskId: string | null;
   unitId: string | null;
 }): Promise<DocumentActionState> {
   const propertyResult = await supabase
@@ -371,30 +389,63 @@ async function validateDocumentLink({
     };
   }
 
-  if (!unitId) {
-    return { status: "success" };
+  if (unitId) {
+    const unitResult = await supabase
+      .from("units")
+      .select("id, property_id")
+      .eq("organization_id", organizationId)
+      .eq("id", unitId)
+      .is("archived_at", null)
+      .maybeSingle();
+
+    if (unitResult.error || !unitResult.data) {
+      return {
+        fieldErrors: { unitId: ["Choose an active unit."] },
+        status: "error",
+      };
+    }
+
+    if (unitResult.data.property_id !== propertyId) {
+      return {
+        fieldErrors: { unitId: ["Choose a unit under the selected property."] },
+        status: "error",
+      };
+    }
   }
 
-  const unitResult = await supabase
-    .from("units")
-    .select("id, property_id")
-    .eq("organization_id", organizationId)
-    .eq("id", unitId)
-    .is("archived_at", null)
-    .maybeSingle();
+  if (taskId) {
+    const taskResult = await supabase
+      .from("tasks")
+      .select("id, property_id, unit_id")
+      .eq("organization_id", organizationId)
+      .eq("id", taskId)
+      .is("archived_at", null)
+      .maybeSingle();
 
-  if (unitResult.error || !unitResult.data) {
-    return {
-      fieldErrors: { unitId: ["Choose an active unit."] },
-      status: "error",
-    };
-  }
+    if (taskResult.error || !taskResult.data) {
+      return {
+        fieldErrors: { taskId: ["Choose an active maintenance case."] },
+        status: "error",
+      };
+    }
 
-  if (unitResult.data.property_id !== propertyId) {
-    return {
-      fieldErrors: { unitId: ["Choose a unit under the selected property."] },
-      status: "error",
-    };
+    if (taskResult.data.property_id !== propertyId) {
+      return {
+        fieldErrors: {
+          taskId: ["Choose a maintenance case under the selected property."],
+        },
+        status: "error",
+      };
+    }
+
+    if (taskResult.data.unit_id && taskResult.data.unit_id !== unitId) {
+      return {
+        fieldErrors: {
+          taskId: ["Choose the task unit before linking this document."],
+        },
+        status: "error",
+      };
+    }
   }
 
   return { status: "success" };
@@ -407,7 +458,7 @@ async function getDocumentPathContext(
 ) {
   const { data } = await supabase
     .from("documents")
-    .select("category, file_name, property_id, unit_id, archived_at")
+    .select("category, file_name, property_id, task_id, unit_id, archived_at")
     .eq("organization_id", organizationId)
     .eq("id", documentId)
     .maybeSingle();
@@ -470,6 +521,7 @@ function revalidateDocumentPaths({
   revalidatePath("/documents");
   revalidatePath("/ledger");
   revalidatePath("/leases");
+  revalidatePath("/maintenance");
   revalidatePath("/properties");
   revalidatePath("/reports");
   revalidatePath("/timeline");

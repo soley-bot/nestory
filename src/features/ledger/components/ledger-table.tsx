@@ -1,4 +1,8 @@
 import { ArrowDownCircle, ArrowUpCircle, Lock } from "lucide-react";
+import {
+  previewRowClassName,
+  selectedPreviewRowClassName,
+} from "@/components/data/interactive-table";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/dates/format";
@@ -48,8 +52,8 @@ export function LedgerTable({
             {entries.map((entry) => (
               <tr
                 className={cn(
-                  "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                  selectedEntryId === entry.id && "bg-surface-muted",
+                  previewRowClassName,
+                  selectedEntryId === entry.id && selectedPreviewRowClassName,
                   entry.archivedAt && "text-muted",
                 )}
                 key={entry.id}

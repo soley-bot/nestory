@@ -1,5 +1,3 @@
-import type { CurrencyCode } from "@/lib/money/format";
-
 export type ImportPropertyOption = {
   code: string;
   id: string;
@@ -16,7 +14,6 @@ export type UnitImportStatus =
 
 export type UnitImportCommitRow = {
   currentRentAmount: number | null;
-  currentRentCurrency: CurrencyCode | null;
   floor: string;
   propertyId: string;
   sizeSqm: number | null;
@@ -46,7 +43,6 @@ export type UnitImportField =
   | "floor"
   | "status"
   | "rentAmount"
-  | "rentCurrency"
   | "sizeSqm"
   | "type"
   | "inclusion"

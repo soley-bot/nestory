@@ -2,16 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { Constants } from "@/types/database";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import type { CurrencyCode } from "@/lib/money/format";
 import type { LedgerDirection } from "@/features/ledger/ledger.types";
 
 type LedgerFieldErrors = {
   amount?: string[];
   category?: string[];
-  currency?: string[];
   description?: string[];
   direction?: string[];
   entryId?: string[];
@@ -37,7 +34,6 @@ const createLedgerEntrySchema = z
       .trim()
       .min(2, "Enter a category.")
       .max(80, "Keep the category under 80 characters."),
-    currency: z.enum(Constants.public.Enums.currency_code),
     description: z
       .string()
       .trim()
@@ -111,7 +107,6 @@ export async function createLedgerEntryAction(
   const parsed = createLedgerEntrySchema.safeParse({
     amount: readString(formData, "amount"),
     category: readString(formData, "category"),
-    currency: readString(formData, "currency"),
     description: readString(formData, "description"),
     direction: readString(formData, "direction"),
     propertyId: readString(formData, "propertyId"),
@@ -128,7 +123,7 @@ export async function createLedgerEntryAction(
   const { error } = await supabase.rpc("create_ledger_entry", {
     p_amount: Number(parsed.data.amount),
     p_category: parsed.data.category,
-    p_currency: parsed.data.currency as CurrencyCode,
+    p_currency: "USD",
     p_description: parsed.data.description,
     p_direction: parsed.data.direction as LedgerDirection,
     p_organization_id: context.organizationId,
@@ -166,7 +161,6 @@ export async function updateLedgerEntryAction(
   const parsed = createLedgerEntrySchema.safeParse({
     amount: readString(formData, "amount"),
     category: readString(formData, "category"),
-    currency: readString(formData, "currency"),
     description: readString(formData, "description"),
     direction: readString(formData, "direction"),
     propertyId: readString(formData, "propertyId"),
@@ -195,7 +189,7 @@ export async function updateLedgerEntryAction(
   const { error } = await supabase.rpc("update_ledger_entry", {
     p_amount: Number(parsed.data.amount),
     p_category: parsed.data.category,
-    p_currency: parsed.data.currency as CurrencyCode,
+    p_currency: "USD",
     p_description: parsed.data.description,
     p_direction: parsed.data.direction as LedgerDirection,
     p_entry_id: parsedEntryId.data,

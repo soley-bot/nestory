@@ -1,0 +1,2 @@
+export const HIGH_COST_AMOUNT = 1_000;
+export const MAINTENANCE_UPCOMING_WINDOW_DAYS = 7;
