@@ -1,4 +1,5 @@
 import type { createSupabaseServerClient } from "@/lib/db/server";
+import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 
 type QueryError = {
   message: string;
@@ -29,6 +30,7 @@ export type UntypedQueryBuilder = PromiseLike<UntypedQueryResult> & {
     column: string,
     options?: { ascending?: boolean; nullsFirst?: boolean },
   ): UntypedQueryBuilder;
+  range(from: number, to: number): UntypedQueryBuilder;
   select(columns?: string, options?: QueryOptions): UntypedQueryBuilder;
   single(): PromiseLike<UntypedQueryResult>;
   update(values: Record<string, unknown>): UntypedQueryBuilder;
@@ -45,12 +47,12 @@ export function asUntypedSupabase(
 }
 
 export function isMissingPeopleSchemaMessage(message: string) {
-  const normalized = message.toLowerCase();
-
-  return (
-    normalized.includes("could not find the table") ||
-    normalized.includes("does not exist") ||
-    normalized.includes("schema cache") ||
-    normalized.includes("relation") && normalized.includes("people")
-  );
+  return isMissingSchemaObjectMessage(message, [
+    "people",
+    "person_roles",
+    "person_contacts",
+    "lease_parties",
+    "property_owners",
+    "vendor_profiles",
+  ]);
 }

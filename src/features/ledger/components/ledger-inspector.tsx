@@ -1,7 +1,9 @@
 import Link from "next/link";
 import {
   Archive,
+  AlertTriangle,
   CalendarDays,
+  CheckCircle2,
   ExternalLink,
   Landmark,
   Lock,
@@ -88,13 +90,58 @@ export function LedgerInspector({
       </div>
 
       <div className="space-y-5 p-4 text-sm sm:p-5">
+        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+                Next action
+              </p>
+              <p className="mt-1 font-semibold">{entry.nextAction.label}</p>
+            </div>
+            <Badge tone={entry.nextAction.tone}>
+              {getRiskBadgeLabel(entry.nextAction.tone)}
+            </Badge>
+          </div>
+          <p className="mt-2 leading-6 text-muted">
+            {entry.nextAction.description}
+          </p>
+          <Link
+            className="mt-2 inline-flex items-center gap-1.5 font-medium text-accent hover:underline"
+            href={entry.nextAction.href}
+          >
+            Open action
+            <ExternalLink size={13} />
+          </Link>
+        </section>
+
+        <section>
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+            Risk
+          </p>
+          <div className="mt-2 space-y-2">
+            {entry.riskIndicators.map((risk) => (
+              <RiskRow key={risk.id} risk={risk} />
+            ))}
+          </div>
+        </section>
+
         <InspectorRow icon={<CalendarDays size={16} />} label="Transaction date">
           {formatDate(entry.transactionDate)}
         </InspectorRow>
         <InspectorRow icon={<Landmark size={16} />} label="Property">
-          {entry.propertyName}
+          <Link
+            className="font-medium text-accent hover:underline"
+            href={entry.hrefs.property}
+          >
+            {entry.propertyName}
+          </Link>
           {entry.unitNumber ? (
-            <span className="block text-muted">Unit {entry.unitNumber}</span>
+            <Link
+              className="block text-muted hover:text-accent hover:underline"
+              href={entry.hrefs.unit ?? entry.hrefs.property}
+            >
+              Unit {entry.unitNumber}
+            </Link>
           ) : (
             <span className="block text-muted">Property level</span>
           )}
@@ -128,9 +175,7 @@ export function LedgerInspector({
               </div>
               <Link
                 className="inline-flex min-h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-surface-muted"
-                href={`/timeline?eventId=${encodeURIComponent(
-                  entry.relatedTimelineEvent.id,
-                )}`}
+                href={entry.hrefs.timeline}
               >
                 <ExternalLink size={14} />
                 Open timeline event
@@ -162,6 +207,33 @@ export function LedgerInspector({
             documents={entry.documents}
             emptyLabel="No receipts attached yet."
           />
+        </div>
+      </div>
+
+      <div className="border-t border-border p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+            History
+          </p>
+          <Badge>{entry.recordCounts.activity}</Badge>
+        </div>
+        <div className="mt-3 space-y-2">
+          {entry.activity.length === 0 ? (
+            <MiniRow label="Activity" value="No entry activity logged yet." />
+          ) : (
+            entry.activity.slice(0, 4).map((change) => (
+              <Link
+                className="block rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-muted"
+                href={change.href}
+                key={change.id}
+              >
+                <MiniRow
+                  label={`${change.actionLabel} / ${change.entityLabel}`}
+                  value={`${change.recordLabel} / ${formatDate(change.createdAt)}`}
+                />
+              </Link>
+            ))
+          )}
         </div>
       </div>
 
@@ -243,4 +315,59 @@ function DirectionBadge({ direction }: { direction: LedgerEntry["direction"] }) 
   }
 
   return <Badge tone="warning">Expense</Badge>;
+}
+
+function RiskRow({
+  risk,
+}: {
+  risk: LedgerEntry["riskIndicators"][number];
+}) {
+  const Icon =
+    risk.tone === "success"
+      ? CheckCircle2
+      : risk.tone === "danger" || risk.tone === "warning"
+        ? AlertTriangle
+        : CalendarDays;
+
+  return (
+    <div className="flex min-w-0 gap-2 rounded-md border border-border px-2.5 py-2">
+      <Icon className="mt-0.5 shrink-0 text-muted" size={14} />
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate font-medium">{risk.label}</p>
+          <Badge className="px-2 text-xs" tone={risk.tone}>
+            {getRiskBadgeLabel(risk.tone)}
+          </Badge>
+        </div>
+        <p className="mt-0.5 text-xs leading-5 text-muted">
+          {risk.description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MiniRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 text-sm">
+      <p className="truncate font-medium" title={label}>
+        {label}
+      </p>
+      <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-muted">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function getRiskBadgeLabel(tone: LedgerEntry["riskIndicators"][number]["tone"]) {
+  if (tone === "success") {
+    return "Ready";
+  }
+
+  if (tone === "danger") {
+    return "Risk";
+  }
+
+  return "Review";
 }

@@ -1,8 +1,12 @@
 import Link from "next/link";
 import {
+  AlertTriangle,
   Archive,
   Building2,
+  CalendarDays,
+  CheckCircle2,
   ExternalLink,
+  FileText,
   Landmark,
   ListTree,
   Pencil,
@@ -11,6 +15,7 @@ import {
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
+import { formatDate } from "@/lib/dates/format";
 import type { LeaseSummary } from "@/features/leases/lease.types";
 
 type LeaseInspectorProps = {
@@ -88,15 +93,84 @@ export function LeaseInspector({
 
         <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
           <div className="flex items-center gap-2 text-muted">
+            <CheckCircle2 size={15} />
+            <p className="text-xs font-medium uppercase tracking-[0.06em]">
+              Next action
+            </p>
+          </div>
+          <Badge className="mt-2" tone={lease.nextAction.tone}>
+            {lease.nextAction.label}
+          </Badge>
+          <p className="mt-2 text-xs leading-5 text-muted">
+            {lease.nextAction.description}
+          </p>
+          <Link
+            className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md border border-border text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+            href={lease.nextAction.href}
+            prefetch={false}
+          >
+            Open action
+          </Link>
+        </section>
+
+        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <div className="flex items-center gap-2 text-muted">
+            <AlertTriangle size={15} />
+            <p className="text-xs font-medium uppercase tracking-[0.06em]">
+              Risk
+            </p>
+          </div>
+          <div className="mt-2 space-y-2">
+            {lease.riskIndicators.map((indicator) => (
+              <div key={indicator.id}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="min-w-0 break-words text-sm font-medium">
+                    {indicator.label}
+                  </p>
+                  <Badge tone={indicator.tone}>{indicator.tone}</Badge>
+                </div>
+                <p className="mt-0.5 text-xs leading-5 text-muted">
+                  {indicator.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <div className="flex items-center gap-2 text-muted">
             <Users size={15} />
             <p className="text-xs font-medium uppercase tracking-[0.06em]">
               Tenant parties
             </p>
           </div>
-          <p className="mt-2 text-sm font-medium">{lease.partySummary}</p>
-          <p className="mt-1 text-xs leading-5 text-muted">
-            Primary tenant
-          </p>
+          {lease.parties.length === 0 ? (
+            <>
+              <p className="mt-2 text-sm font-medium">{lease.partySummary}</p>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                No durable People link is visible.
+              </p>
+            </>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {lease.parties.slice(0, 3).map((party) => (
+                <Link
+                  className="block rounded-md border border-border bg-surface px-2.5 py-2 text-sm transition-colors hover:bg-surface-muted"
+                  href={party.href}
+                  key={party.id}
+                  prefetch={false}
+                >
+                  <span className="block break-words font-medium">
+                    {party.label}
+                  </span>
+                  <span className="mt-0.5 block break-words text-xs text-muted">
+                    {party.roleLabel}
+                    {party.isPrimary ? " / Primary" : ""} / {party.contactLabel}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
@@ -110,6 +184,127 @@ export function LeaseInspector({
           <p className="mt-1 text-xs leading-5 text-muted">
             {lease.propertyName}
           </p>
+        </section>
+
+        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <div className="flex items-center gap-2 text-muted">
+            <CalendarDays size={15} />
+            <p className="text-xs font-medium uppercase tracking-[0.06em]">
+              Terms and deposits
+            </p>
+          </div>
+          <div className="mt-2 space-y-2">
+            {lease.terms.length === 0 ? (
+              <MiniRow label="Current term" value={lease.termLabel} />
+            ) : (
+              lease.terms.slice(0, 2).map((term) => (
+                <MiniRow
+                  key={term.id}
+                  label={`${term.statusLabel} term`}
+                  value={`${term.datesLabel} / ${term.rentLabel}`}
+                />
+              ))
+            )}
+            {lease.deposits.length === 0 ? (
+              <MiniRow label="Deposit" value={lease.depositLabel} />
+            ) : (
+              lease.deposits.slice(0, 2).map((deposit) => (
+                <MiniRow
+                  key={deposit.id}
+                  label={`${deposit.typeLabel} deposit`}
+                  value={`${deposit.amountLabel} / ${deposit.statusLabel}`}
+                />
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <div className="flex items-center gap-2 text-muted">
+            <FileText size={15} />
+            <p className="text-xs font-medium uppercase tracking-[0.06em]">
+              Documents
+            </p>
+          </div>
+          <div className="mt-2 space-y-2">
+            {lease.documents.length === 0 ? (
+              <MiniRow label="Evidence" value="No lease documents attached" />
+            ) : (
+              lease.documents.slice(0, 3).map((document) =>
+                document.url ? (
+                  <a
+                    className="block rounded-md border border-border bg-surface px-2.5 py-2 text-sm transition-colors hover:bg-surface-muted"
+                    href={document.url}
+                    key={document.id}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <span className="block break-words font-medium">
+                      {document.fileName}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted">
+                      {document.category} / {formatDate(document.uploadedAt)}
+                    </span>
+                  </a>
+                ) : (
+                  <MiniRow
+                    key={document.id}
+                    label={document.category}
+                    value={document.fileName}
+                  />
+                ),
+              )
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <div className="flex items-center gap-2 text-muted">
+            <ListTree size={15} />
+            <p className="text-xs font-medium uppercase tracking-[0.06em]">
+              History
+            </p>
+          </div>
+          <div className="mt-2 space-y-2">
+            {lease.timeline.length === 0 ? (
+              <MiniRow label="Timeline" value="No lease timeline events yet" />
+            ) : (
+              lease.timeline.slice(0, 3).map((event) => (
+                <Link
+                  className="block rounded-md border border-border bg-surface px-2.5 py-2 text-sm transition-colors hover:bg-surface-muted"
+                  href={event.href}
+                  key={event.id}
+                  prefetch={false}
+                >
+                  <span className="block break-words font-medium">
+                    {event.title}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    {event.eventDateLabel} / {event.typeLabel}
+                  </span>
+                </Link>
+              ))
+            )}
+            {lease.activity.length === 0 ? (
+              <MiniRow label="Activity" value="No lease activity yet" />
+            ) : (
+              lease.activity.slice(0, 3).map((change) => (
+                <Link
+                  className="block rounded-md border border-border bg-surface px-2.5 py-2 text-sm transition-colors hover:bg-surface-muted"
+                  href={change.href}
+                  key={change.id}
+                  prefetch={false}
+                >
+                  <span className="block break-words font-medium">
+                    {change.actionLabel}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    {formatDate(change.createdAt)} / {change.recordLabel}
+                  </span>
+                </Link>
+              ))
+            )}
+          </div>
         </section>
 
         <div className="grid grid-cols-4 gap-2 text-sm">
@@ -183,9 +378,7 @@ export function LeaseInspector({
           <Link
             aria-label={`Open timeline filtered to ${lease.tenantName}`}
             className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-            href={`/timeline?propertyId=${lease.propertyId}&query=${encodeURIComponent(
-              lease.tenantName,
-            )}`}
+            href={lease.hrefs.timeline}
             title="Open lease timeline"
           >
             <ListTree size={15} />
@@ -193,9 +386,7 @@ export function LeaseInspector({
           <Link
             aria-label={`Open ledger filtered to ${lease.tenantName}`}
             className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-            href={`/ledger?propertyId=${lease.propertyId}&query=${encodeURIComponent(
-              lease.tenantName,
-            )}`}
+            href={lease.hrefs.ledger}
             title="Open lease ledger"
           >
             <Landmark size={15} />
@@ -203,6 +394,15 @@ export function LeaseInspector({
         </div>
       </div>
     </aside>
+  );
+}
+
+function MiniRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-surface px-2.5 py-2 text-sm">
+      <p className="break-words font-medium">{value}</p>
+      <p className="mt-0.5 text-xs text-muted">{label}</p>
+    </div>
   );
 }
 

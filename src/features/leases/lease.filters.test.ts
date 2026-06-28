@@ -17,6 +17,7 @@ describe("parseLeaseSearchParams", () => {
         query: "  unit   a1  ",
         sort: "end_asc",
         status: "current",
+        unitId: "22222222-2222-4222-8222-222222222222",
       }),
     ).toEqual({
       archiveState: "all",
@@ -28,6 +29,7 @@ describe("parseLeaseSearchParams", () => {
       query: "unit   a1",
       sort: "end_asc",
       status: "current",
+      unitId: "22222222-2222-4222-8222-222222222222",
     });
   });
 
@@ -42,6 +44,7 @@ describe("parseLeaseSearchParams", () => {
         propertyId: "not-a-uuid",
         sort: "created_desc",
         status: "expired",
+        unitId: "not-a-uuid",
       }),
     ).toEqual({
       archiveState: "active",
@@ -53,6 +56,7 @@ describe("parseLeaseSearchParams", () => {
       query: "",
       sort: "start_desc",
       status: "all",
+      unitId: "all",
     });
   });
 });

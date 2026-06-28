@@ -290,6 +290,8 @@ export async function restorePropertyAction(
 
 function revalidatePropertyPaths(propertyId?: string | null) {
   revalidatePath("/overview");
+  revalidatePath("/documents");
+  revalidatePath("/leases");
   revalidatePath("/people");
   revalidatePath("/properties");
   revalidatePath("/units");
@@ -351,6 +353,12 @@ async function syncPrimaryOwnerLink({
   const ownersToEnd = currentOwners.filter(
     (owner) => owner.person_id !== ownerPersonId,
   );
+  const ownerWasChanged =
+    ownersToEnd.length > 0 ||
+    Boolean(
+      ownerPersonId &&
+        !currentOwners.some((owner) => owner.person_id === ownerPersonId),
+    );
 
   if (ownersToEnd.length > 0) {
     const endResult = await supabase
@@ -374,30 +382,52 @@ async function syncPrimaryOwnerLink({
     }
   }
 
-  if (
-    !ownerPersonId ||
-    currentOwners.some((owner) => owner.person_id === ownerPersonId)
-  ) {
-    return { status: "success" };
+  const ownerAlreadyCurrent =
+    ownerPersonId &&
+    currentOwners.some((owner) => owner.person_id === ownerPersonId);
+
+  if (ownerPersonId && !ownerAlreadyCurrent) {
+    const insertResult = await supabase.from("property_owners").insert({
+      created_by: userId,
+      is_primary: true,
+      organization_id: organizationId,
+      ownership_label: "Primary",
+      person_id: ownerPersonId,
+      property_id: propertyId,
+      started_on: today,
+      updated_at: now,
+      updated_by: userId,
+    });
+
+    if (insertResult.error) {
+      return {
+        message: propertyActionErrorMessage(insertResult.error.message),
+        status: "error",
+      };
+    }
   }
 
-  const insertResult = await supabase.from("property_owners").insert({
-    created_by: userId,
-    is_primary: true,
-    organization_id: organizationId,
-    ownership_label: "Primary",
-    person_id: ownerPersonId,
-    property_id: propertyId,
-    started_on: today,
-    updated_at: now,
-    updated_by: userId,
-  });
+  if (ownerWasChanged) {
+    const activityResult = await supabase.from("activity_logs").insert({
+      action: "property_owner_updated",
+      actor_id: userId,
+      entity_id: propertyId,
+      entity_type: "property",
+      new_values: {
+        owner_person_id: ownerPersonId,
+      },
+      organization_id: organizationId,
+      previous_values: {
+        owner_person_ids: currentOwners.map((owner) => owner.person_id),
+      },
+    });
 
-  if (insertResult.error) {
-    return {
-      message: propertyActionErrorMessage(insertResult.error.message),
-      status: "error",
-    };
+    if (activityResult.error) {
+      return {
+        message: propertyActionErrorMessage(activityResult.error.message),
+        status: "error",
+      };
+    }
   }
 
   return { status: "success" };

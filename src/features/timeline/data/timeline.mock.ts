@@ -1,6 +1,15 @@
 import type { TimelineEvent } from "@/features/timeline/timeline.types";
 
-const timelineEventRows: Omit<TimelineEvent, "documents" | "isLocked">[] = [
+const timelineEventRows: Omit<
+  TimelineEvent,
+  | "activity"
+  | "documents"
+  | "hrefs"
+  | "isLocked"
+  | "nextAction"
+  | "recordCounts"
+  | "riskIndicators"
+>[] = [
   {
     id: "evt_001",
     eventDate: "2026-06-12",
@@ -102,8 +111,29 @@ const timelineEventRows: Omit<TimelineEvent, "documents" | "isLocked">[] = [
 
 export const timelineEvents: TimelineEvent[] = timelineEventRows.map((event) => ({
   ...event,
+  activity: [],
   documents: [],
+  hrefs: {
+    documents: `/documents?query=${encodeURIComponent(event.title)}`,
+    ledger: event.ledgerEntryId ? `/ledger?entryId=${event.ledgerEntryId}` : undefined,
+    property: `/properties/${event.propertyId}`,
+    timeline: `/timeline?archiveState=all&eventId=${event.id}`,
+    unit: event.unitId ? `/units/${event.unitId}` : undefined,
+  },
   isLocked: false,
+  nextAction: {
+    description: "Review linked records and supporting history.",
+    href: `/timeline?archiveState=all&eventId=${event.id}`,
+    label: "Review event",
+    tone: "neutral",
+  },
+  recordCounts: {
+    activity: 0,
+    documents: 0,
+    linkedRecords:
+      Number(Boolean(event.relatedLease)) + Number(Boolean(event.relatedLedgerEntry)),
+  },
+  riskIndicators: [],
 }));
 
 export const eventTypes = Array.from(

@@ -1,5 +1,6 @@
 import type { TimelineEventType } from "@/features/timeline/timeline.types";
 import type { LinkedDocument } from "@/features/documents/document.types";
+import type { RecentChange } from "@/features/activity/activity.types";
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
 export type UnitBadgeTone = "neutral" | "success" | "warning" | "danger" | "accent";
@@ -188,6 +189,7 @@ export type UnitSummary = {
 
 export type UnitDetail = UnitSummary & {
   activeLease?: UnitLeaseSummary;
+  activity: RecentChange[];
   counts: UnitRecordCounts;
   documents: UnitDocumentContext[];
   financialSummary: UnitFinancialSummary;

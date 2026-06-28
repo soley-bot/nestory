@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
@@ -63,10 +63,9 @@ export function LeaseScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const createInitialValues = getLeaseCreateInitialValues(
-    searchParams,
-    propertyOptions,
-    unitOptions,
+  const createInitialValues = useMemo(
+    () => getLeaseCreateInitialValues(searchParams, propertyOptions, unitOptions),
+    [propertyOptions, searchParams, unitOptions],
   );
   const createIntent = getLeaseCreateIntent(searchParams, createInitialValues);
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
@@ -161,7 +160,11 @@ export function LeaseScreen({
         </div>
       ) : null}
 
-      <LeaseFilters properties={propertyOptions} viewQuery={viewQuery} />
+      <LeaseFilters
+        properties={propertyOptions}
+        units={unitOptions}
+        viewQuery={viewQuery}
+      />
 
       {reviewContext ? (
         <LeaseReviewStrip
@@ -284,7 +287,6 @@ function getHrefWithoutActionParam(
   const nextParams = new URLSearchParams(searchParams.toString());
   nextParams.delete("action");
   nextParams.delete("source");
-  nextParams.delete("unitId");
 
   const queryString = nextParams.toString();
   return queryString ? `${pathname}?${queryString}` : pathname;

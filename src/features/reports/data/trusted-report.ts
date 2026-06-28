@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { formatDate } from "@/lib/dates/format";
+import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import {
   convertMoney,
   formatMoney,
@@ -32,6 +33,11 @@ export const REPORT_OPTIONS: Array<{ label: string; value: ReportKind }> = [
   { label: "Missing data", value: "missing-data" },
 ];
 
+const reportLeaseSelect =
+  "id, property_id, unit_id, tenant_name, primary_tenant_person_id, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
+const legacyReportLeaseSelect =
+  "id, property_id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
+
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 type PropertyRow = {
@@ -60,7 +66,7 @@ type LeaseRow = {
   lease_start_date: string;
   monthly_rent_amount: number;
   monthly_rent_currency: CurrencyCode;
-  primary_tenant_person_id: string | null;
+  primary_tenant_person_id?: string | null;
   property_id: string;
   status: string;
   tenant_name: string;
@@ -1488,15 +1494,29 @@ async function loadReportLeases(
 ) {
   const result = await supabase
     .from("leases")
-    .select(
-      "id, property_id, unit_id, tenant_name, primary_tenant_person_id, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency",
-    )
+    .select(reportLeaseSelect)
     .eq("organization_id", organizationId)
     .in("property_id", propertyIds)
     .is("archived_at", null)
     .order("lease_start_date", { ascending: false });
 
   if (result.error) {
+    if (isMissingSchemaObjectMessage(result.error.message, ["primary_tenant_person_id"])) {
+      const fallbackResult = await supabase
+        .from("leases")
+        .select(legacyReportLeaseSelect)
+        .eq("organization_id", organizationId)
+        .in("property_id", propertyIds)
+        .is("archived_at", null)
+        .order("lease_start_date", { ascending: false });
+
+      if (fallbackResult.error) {
+        throw new Error(`Could not load report leases: ${fallbackResult.error.message}`);
+      }
+
+      return fallbackResult.data ?? [];
+    }
+
     throw new Error(`Could not load report leases: ${result.error.message}`);
   }
 

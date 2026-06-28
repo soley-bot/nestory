@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Archive, Lock, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
@@ -40,7 +40,11 @@ const restoreInitialState: LedgerActionState = {};
 const periodLockInitialState: LedgerActionState = {};
 
 type DrawerState =
-  | { mode: "add"; entry?: never }
+  | {
+      entry?: never;
+      initialValues?: Partial<Pick<LedgerEntry, "propertyId" | "unitId">>;
+      mode: "add";
+    }
   | { mode: "archive"; entry: LedgerEntry }
   | { mode: "edit"; entry: LedgerEntry }
   | { mode: "restore"; entry: LedgerEntry }
@@ -74,8 +78,14 @@ export function LedgerScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const createInitialValues = useMemo(
+    () => getLedgerCreateInitialValues(viewQuery, propertyOptions, unitOptions),
+    [propertyOptions, unitOptions, viewQuery],
+  );
   const [drawerState, setDrawerState] = useState<DrawerState | null>(() =>
-    searchParams.get("action") === "create" ? { mode: "add" } : null,
+    searchParams.get("action") === "create"
+      ? { initialValues: createInitialValues, mode: "add" }
+      : null,
   );
   const [selectedEntryId, setSelectedEntryId] = useState(
     initialEntryId ?? entries[0]?.id ?? "",
@@ -115,12 +125,12 @@ export function LedgerScreen({
 
     queueMicrotask(() => {
       setStatusMessage(null);
-      setDrawerState({ mode: "add" });
+      setDrawerState({ initialValues: createInitialValues, mode: "add" });
     });
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [pathname, router, searchParams]);
+  }, [createInitialValues, pathname, router, searchParams]);
 
   return (
     <div className="min-h-screen">
@@ -146,7 +156,7 @@ export function LedgerScreen({
             <Button
               onClick={() => {
                 setStatusMessage(null);
-                setDrawerState({ mode: "add" });
+                setDrawerState({ initialValues: createInitialValues, mode: "add" });
               }}
               variant="primary"
             >
@@ -170,7 +180,11 @@ export function LedgerScreen({
         </div>
       ) : null}
 
-      <LedgerFilters properties={propertyOptions} viewQuery={viewQuery} />
+      <LedgerFilters
+        properties={propertyOptions}
+        units={unitOptions}
+        viewQuery={viewQuery}
+      />
 
       {reviewContext ? (
         <LedgerReviewStrip
@@ -267,6 +281,9 @@ export function LedgerScreen({
           ) : (
             <LedgerEntryForm
               entry={drawerState.entry}
+              initialValues={
+                drawerState.mode === "add" ? drawerState.initialValues : undefined
+              }
               key={`${drawerState.mode}-${drawerState.entry?.id ?? "new"}`}
               mode={drawerState.mode}
               onClose={() => setDrawerState(null)}
@@ -471,6 +488,34 @@ function getSelectedPropertyLabel(
   }
 
   return properties.find((property) => property.id === propertyId)?.label;
+}
+
+function getLedgerCreateInitialValues(
+  viewQuery: LedgerViewQuery,
+  properties: LedgerPropertyOption[],
+  units: LedgerUnitOption[],
+): Partial<Pick<LedgerEntry, "propertyId" | "unitId">> | undefined {
+  const requestedUnit =
+    viewQuery.unitId === "all"
+      ? undefined
+      : units.find((unit) => unit.id === viewQuery.unitId);
+  const propertyId =
+    requestedUnit?.propertyId ??
+    (viewQuery.propertyId !== "all" &&
+    properties.some((property) => property.id === viewQuery.propertyId)
+      ? viewQuery.propertyId
+      : "");
+  const unitId =
+    requestedUnit && requestedUnit.propertyId === propertyId ? requestedUnit.id : "";
+
+  if (!propertyId && !unitId) {
+    return undefined;
+  }
+
+  return {
+    propertyId,
+    unitId,
+  };
 }
 
 function ArchivePanel({

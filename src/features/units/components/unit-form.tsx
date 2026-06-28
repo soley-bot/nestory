@@ -30,6 +30,7 @@ const statusOptions: { label: string; value: UnitStatusValue }[] = [
 type UnitFormProps = {
   mode?: "create" | "edit";
   defaultCurrency?: CurrencyCode;
+  initialValues?: Partial<Pick<UnitSummary["formValues"], "propertyId">>;
   onClose: () => void;
   onSuccess?: (message: string) => void;
   properties: UnitPropertyOption[];
@@ -37,6 +38,7 @@ type UnitFormProps = {
 };
 
 export function UnitForm({
+  initialValues,
   mode = "create",
   onClose,
   onSuccess,
@@ -48,7 +50,7 @@ export function UnitForm({
     isEditMode ? updateUnitAction : createUnitAction,
     initialState,
   );
-  const defaults = getUnitDefaults(unit);
+  const defaults = getUnitDefaults(unit, initialValues);
   const propertyOptions = ensureSelectedProperty(properties, defaults.propertyId);
   const propertyLabel = getPropertyLabel(propertyOptions, defaults.propertyId);
   const selectedStatus = defaults.status || "vacant";
@@ -240,7 +242,10 @@ function ReadOnlyValue({ children }: { children: React.ReactNode }) {
   );
 }
 
-function getUnitDefaults(unit?: UnitDetail | UnitSummary | null) {
+function getUnitDefaults(
+  unit?: UnitDetail | UnitSummary | null,
+  initialValues: Partial<Pick<UnitSummary["formValues"], "propertyId">> = {},
+) {
   const formValues = unit?.formValues;
   const parsedRent = parseRentLabel(unit?.rentLabel);
 
@@ -253,7 +258,8 @@ function getUnitDefaults(unit?: UnitDetail | UnitSummary | null) {
     floor:
       formValues?.floor ??
       (unit?.floorLabel && unit.floorLabel !== "Not set" ? unit.floorLabel : ""),
-    propertyId: formValues?.propertyId ?? unit?.propertyId ?? "",
+    propertyId:
+      formValues?.propertyId ?? unit?.propertyId ?? initialValues.propertyId ?? "",
     sizeSqm: toInputNumber(formValues?.sizeSqm ?? parseSizeLabel(unit)),
     status: formValues?.status ?? normalizeStoredValue(unit?.statusLabel ?? ""),
     unitNumber: formValues?.unitNumber ?? unit?.unitNumber ?? "",

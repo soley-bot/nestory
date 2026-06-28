@@ -1,8 +1,11 @@
 import Link from "next/link";
 import {
   Archive,
+  AlertTriangle,
   BriefcaseBusiness,
   Building2,
+  CalendarDays,
+  CheckCircle2,
   ExternalLink,
   FileText,
   Mail,
@@ -14,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatRole } from "@/features/people/people.labels";
 import type { PeopleSummary } from "@/features/people/people.types";
+import { formatDate } from "@/lib/dates/format";
 
 type PeopleInspectorProps = {
   getPersonHref: (id: string) => string;
@@ -113,6 +117,41 @@ export function PeopleInspector({
         </dl>
 
         <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+                Next action
+              </p>
+              <p className="mt-1 text-sm font-semibold">
+                {person.nextAction.label}
+              </p>
+            </div>
+            <Badge tone={person.nextAction.tone}>{person.nextAction.label}</Badge>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            {person.nextAction.description}
+          </p>
+          <Link
+            className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
+            href={person.nextAction.href}
+          >
+            Open action
+            <ExternalLink size={13} />
+          </Link>
+        </section>
+
+        <section>
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+            Risk
+          </p>
+          <div className="mt-2 space-y-2">
+            {person.riskIndicators.map((risk) => (
+              <RiskRow key={risk.id} risk={risk} />
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
           <div className="flex items-center gap-2 text-muted">
             <BriefcaseBusiness size={15} />
             <p className="text-xs font-medium uppercase tracking-[0.06em]">
@@ -123,6 +162,71 @@ export function PeopleInspector({
             <LinkedLease person={person} />
             <LinkedOwnerProperty person={person} />
             <LinkedVendor person={person} />
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+              Documents
+            </p>
+            <Link
+              className="text-xs font-medium text-accent hover:underline"
+              href={person.hrefs.documents}
+            >
+              Open all
+            </Link>
+          </div>
+          <div className="mt-2 space-y-2">
+            {person.documents.length === 0 ? (
+              <MiniRow label="Evidence" value="No related documents attached" />
+            ) : (
+              person.documents.slice(0, 3).map((document) => (
+                <Link
+                  className="block rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-muted"
+                  href={document.url ?? person.hrefs.documents}
+                  key={document.id}
+                  target={document.url ? "_blank" : undefined}
+                >
+                  <MiniRow
+                    label={document.fileName}
+                    value={`${document.category} / ${formatDate(document.uploadedAt)}`}
+                  />
+                </Link>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+              History
+            </p>
+            <Link
+              className="text-xs font-medium text-accent hover:underline"
+              href={person.hrefs.timeline}
+            >
+              Timeline
+            </Link>
+          </div>
+          <div className="mt-2 space-y-2">
+            {person.activity.length === 0 ? (
+              <MiniRow label="Activity" value="No person activity logged yet" />
+            ) : (
+              person.activity.slice(0, 4).map((change) => (
+                <Link
+                  className="block rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-muted"
+                  href={change.href}
+                  key={change.id}
+                >
+                  <MiniRow
+                    label={`${change.actionLabel} / ${change.entityLabel}`}
+                    value={`${change.recordLabel} / ${formatDate(change.createdAt)}`}
+                  />
+                </Link>
+              ))
+            )}
           </div>
         </section>
 
@@ -148,7 +252,7 @@ export function PeopleInspector({
           <Link
             aria-label={`Open leases filtered to ${person.displayName}`}
             className={iconButtonClassName}
-            href={`/leases?query=${encodeURIComponent(person.displayName)}`}
+            href={person.hrefs.leases}
             title="Open related leases"
           >
             <FileText size={15} />
@@ -216,44 +320,56 @@ function IconDetail({
 }
 
 function LinkedLease({ person }: { person: PeopleSummary }) {
-  if (!person.linked.activeLease) {
+  if (person.linked.activeLeases.length === 0) {
     return <LinkedEmpty label="Lease" value="No active lease link" />;
   }
 
-  const lease = person.linked.activeLease;
-
   return (
-    <LinkedBlock
-      icon={<FileText size={14} />}
-      label={`${person.linked.activeLeaseCount} active lease${
-        person.linked.activeLeaseCount === 1 ? "" : "s"
-      }`}
-      value={`${lease.unitLabel} / ${lease.propertyLabel}`}
-    />
+    <div className="space-y-2">
+      {person.linked.activeLeases.slice(0, 3).map((lease) => (
+        <Link
+          className="block rounded-md border border-border bg-surface px-2.5 py-2 transition-colors hover:bg-surface-muted"
+          href={lease.href}
+          key={lease.id}
+          title="Open lease"
+        >
+          <LinkedBlock
+            icon={<FileText size={14} />}
+            label={`${person.linked.activeLeaseCount} active lease${
+              person.linked.activeLeaseCount === 1 ? "" : "s"
+            }`}
+            value={`${lease.unitLabel} / ${lease.propertyLabel}`}
+          />
+        </Link>
+      ))}
+    </div>
   );
 }
 
 function LinkedOwnerProperty({ person }: { person: PeopleSummary }) {
-  if (!person.linked.ownerProperty) {
+  if (person.linked.ownerProperties.length === 0) {
     return <LinkedEmpty label="Ownership" value="No property ownership" />;
   }
 
-  const property = person.linked.ownerProperty;
-
   return (
-    <Link
-      className="block rounded-md border border-border bg-surface px-2.5 py-2 transition-colors hover:bg-surface-muted"
-      href={`/properties/${property.id}`}
-      title="Open owned property"
-    >
-      <LinkedBlock
-        icon={<Building2 size={14} />}
-        label={`${person.linked.ownerPropertyCount} owner propert${
-          person.linked.ownerPropertyCount === 1 ? "y" : "ies"
-        }`}
-        value={`${property.ownershipLabel} / ${property.label}`}
-      />
-    </Link>
+    <div className="space-y-2">
+      {person.linked.ownerProperties.slice(0, 3).map((property) => (
+        <Link
+          className="block rounded-md border border-border bg-surface px-2.5 py-2 transition-colors hover:bg-surface-muted"
+          href={property.href}
+          key={property.id}
+          title="Open owned property"
+        >
+          <LinkedBlock
+            icon={<Building2 size={14} />}
+            label={`${person.linked.ownerPropertyCount} owner propert${
+              person.linked.ownerPropertyCount === 1 ? "y" : "ies"
+            }`}
+            value={`${property.ownershipLabel} / ${property.label}`}
+          />
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -300,6 +416,61 @@ function LinkedEmpty({ label, value }: { label: string; value: string }) {
     <div className="text-sm">
       <p className="font-medium text-muted">{label}</p>
       <p className="mt-0.5 text-xs text-muted">{value}</p>
+    </div>
+  );
+}
+
+function RiskRow({
+  risk,
+}: {
+  risk: PeopleSummary["riskIndicators"][number];
+}) {
+  const Icon =
+    risk.tone === "success"
+      ? CheckCircle2
+      : risk.tone === "danger"
+        ? AlertTriangle
+        : CalendarDays;
+
+  return (
+    <div className="flex min-w-0 gap-2 rounded-md border border-border px-2.5 py-2">
+      <Icon className="mt-0.5 shrink-0 text-muted" size={14} />
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-sm font-medium">{risk.label}</p>
+          <Badge className="px-2 text-xs" tone={risk.tone}>
+            {getRiskBadgeLabel(risk.tone)}
+          </Badge>
+        </div>
+        <p className="mt-0.5 text-xs leading-5 text-muted">
+          {risk.description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function getRiskBadgeLabel(tone: PeopleSummary["riskIndicators"][number]["tone"]) {
+  if (tone === "success") {
+    return "Ready";
+  }
+
+  if (tone === "danger") {
+    return "Risk";
+  }
+
+  return "Review";
+}
+
+function MiniRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 text-sm">
+      <p className="truncate font-medium" title={label}>
+        {label}
+      </p>
+      <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-muted">
+        {value}
+      </p>
     </div>
   );
 }

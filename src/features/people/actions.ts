@@ -35,6 +35,18 @@ type RoleActionRow = {
   role: PersonRoleValue;
 };
 
+type PeopleActivitySnapshot = {
+  archived_at?: string | null;
+  display_name?: string;
+  legal_name?: string | null;
+  notes?: string | null;
+  party_type?: string;
+  primary_email?: string | null;
+  primary_phone?: string | null;
+  roles?: PersonRoleValue[];
+  tax_identifier?: string | null;
+};
+
 const personIdSchema = z.uuid("Choose a person.");
 const partyTypeSchema = z.enum(["individual", "company"]);
 const roleSchema = z.enum(["tenant", "owner", "vendor"]);
@@ -162,6 +174,15 @@ export async function createPersonAction(
     return roleState;
   }
 
+  await logPeopleActivity({
+    action: "created",
+    actorId: context.userId,
+    entityId: personId,
+    newValues: toPeopleActivityValues(parsed.data),
+    organizationId: context.organizationId,
+    supabase,
+  });
+
   revalidatePeoplePaths();
 
   return {
@@ -191,6 +212,11 @@ export async function updatePersonAction(
 
   const supabase = asUntypedSupabase(await createSupabaseServerClient());
   const now = new Date().toISOString();
+  const previousValues = await getPersonActivitySnapshot(
+    supabase,
+    context.organizationId,
+    parsedPersonId.data,
+  );
   const updateResult = await supabase
     .from("people")
     .update({
@@ -225,6 +251,16 @@ export async function updatePersonAction(
   if (roleState.status === "error") {
     return roleState;
   }
+
+  await logPeopleActivity({
+    action: "updated",
+    actorId: context.userId,
+    entityId: parsedPersonId.data,
+    newValues: toPeopleActivityValues(parsed.data),
+    organizationId: context.organizationId,
+    previousValues,
+    supabase,
+  });
 
   revalidatePeoplePaths();
 
@@ -277,6 +313,11 @@ async function updatePersonArchiveState({
 
   const supabase = asUntypedSupabase(await createSupabaseServerClient());
   const now = new Date().toISOString();
+  const previousValues = await getPersonActivitySnapshot(
+    supabase,
+    context.organizationId,
+    parsedPersonId.data,
+  );
   const result = await supabase
     .from("people")
     .update({
@@ -294,6 +335,19 @@ async function updatePersonArchiveState({
       status: "error",
     };
   }
+
+  await logPeopleActivity({
+    action: archived ? "archived" : "restored",
+    actorId: context.userId,
+    entityId: parsedPersonId.data,
+    newValues: {
+      archived_at: archived ? now : null,
+      display_name: previousValues?.display_name,
+    },
+    organizationId: context.organizationId,
+    previousValues,
+    supabase,
+  });
 
   revalidatePeoplePaths();
 
@@ -391,6 +445,101 @@ async function syncPersonRoles({
   return { status: "success" };
 }
 
+async function getPersonActivitySnapshot(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  personId: string,
+): Promise<PeopleActivitySnapshot | undefined> {
+  const [personResult, rolesResult] = await Promise.all([
+    supabase
+      .from("people")
+      .select(
+        "display_name, legal_name, party_type, primary_email, primary_phone, tax_identifier, notes, archived_at",
+      )
+      .eq("organization_id", organizationId)
+      .eq("id", personId)
+      .maybeSingle(),
+    supabase
+      .from("person_roles")
+      .select("id, role, archived_at")
+      .eq("organization_id", organizationId)
+      .eq("person_id", personId),
+  ]);
+
+  if (personResult.error || rolesResult.error || !isRecord(personResult.data)) {
+    return undefined;
+  }
+
+  return compactActivityValues({
+    archived_at: readRecordNullableString(personResult.data, "archived_at"),
+    display_name: readRecordString(personResult.data, "display_name"),
+    legal_name: readRecordNullableString(personResult.data, "legal_name"),
+    notes: readRecordNullableString(personResult.data, "notes"),
+    party_type: readRecordString(personResult.data, "party_type"),
+    primary_email: readRecordNullableString(personResult.data, "primary_email"),
+    primary_phone: readRecordNullableString(personResult.data, "primary_phone"),
+    roles: asRoleActionRows(rolesResult.data)
+      .filter((role) => !role.archivedAt)
+      .map((role) => role.role),
+    tax_identifier: readRecordNullableString(personResult.data, "tax_identifier"),
+  });
+}
+
+async function logPeopleActivity({
+  action,
+  actorId,
+  entityId,
+  newValues,
+  organizationId,
+  previousValues,
+  supabase,
+}: {
+  action: string;
+  actorId: string;
+  entityId: string;
+  newValues: PeopleActivitySnapshot;
+  organizationId: string;
+  previousValues?: PeopleActivitySnapshot;
+  supabase: UntypedSupabaseClient;
+}) {
+  const result = await supabase.from("activity_logs").insert({
+    action,
+    actor_id: actorId,
+    entity_id: entityId,
+    entity_type: "person",
+    new_values: compactActivityValues(newValues),
+    organization_id: organizationId,
+    previous_values: previousValues ? compactActivityValues(previousValues) : null,
+  });
+
+  if (result.error) {
+    console.warn(`Could not log people activity: ${result.error.message}`);
+  }
+}
+
+function toPeopleActivityValues(
+  values: z.infer<typeof peopleMutationSchema>,
+): PeopleActivitySnapshot {
+  return compactActivityValues({
+    display_name: values.displayName,
+    legal_name: nullableString(values.legalName),
+    notes: nullableString(values.notes),
+    party_type: values.partyType,
+    primary_email: nullableString(values.primaryEmail),
+    primary_phone: nullableString(values.primaryPhone),
+    roles: values.roles,
+    tax_identifier: nullableString(values.taxIdentifier),
+  });
+}
+
+function compactActivityValues(
+  values: PeopleActivitySnapshot,
+): PeopleActivitySnapshot {
+  return Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== undefined),
+  ) as PeopleActivitySnapshot;
+}
+
 function asRoleActionRows(data: unknown): RoleActionRow[] {
   if (!Array.isArray(data)) {
     return [];
@@ -452,10 +601,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function revalidatePeoplePaths() {
   revalidatePath("/overview");
+  revalidatePath("/documents");
+  revalidatePath("/ledger");
   revalidatePath("/people");
   revalidatePath("/tenants");
   revalidatePath("/leases");
   revalidatePath("/properties");
+  revalidatePath("/timeline");
   revalidatePath("/units");
   revalidatePath("/reports");
 }

@@ -15,15 +15,17 @@ import {
 } from "@/features/ledger/ledger.filters";
 import type {
   LedgerPropertyOption,
+  LedgerUnitOption,
   LedgerViewQuery,
 } from "@/features/ledger/ledger.types";
 
 type LedgerFiltersProps = {
   properties: LedgerPropertyOption[];
+  units: LedgerUnitOption[];
   viewQuery: LedgerViewQuery;
 };
 
-export function LedgerFilters({ properties, viewQuery }: LedgerFiltersProps) {
+export function LedgerFilters({ properties, units, viewQuery }: LedgerFiltersProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -34,6 +36,7 @@ export function LedgerFilters({ properties, viewQuery }: LedgerFiltersProps) {
   });
   const hasAdvancedFilters =
     viewQuery.propertyId !== "all" ||
+    viewQuery.unitId !== "all" ||
     viewQuery.direction !== "all" ||
     viewQuery.archiveState !== "active" ||
     viewQuery.period !== "all" ||
@@ -46,8 +49,20 @@ export function LedgerFilters({ properties, viewQuery }: LedgerFiltersProps) {
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
   const compactSelectClassName = "h-8 px-2 text-[13px]";
+  const visibleUnitOptions =
+    viewQuery.propertyId === "all"
+      ? units
+      : units.filter(
+          (unit) =>
+            unit.propertyId === viewQuery.propertyId || unit.id === viewQuery.unitId,
+        );
 
-  function replaceParam(name: string, value: string, defaultValue: string) {
+  function replaceParam(
+    name: string,
+    value: string,
+    defaultValue: string,
+    deleteNames: string[] = [],
+  ) {
     const nextParams = new URLSearchParams(searchParams.toString());
 
     if (value === defaultValue || value.trim() === "") {
@@ -58,6 +73,9 @@ export function LedgerFilters({ properties, viewQuery }: LedgerFiltersProps) {
 
     nextParams.delete("page");
     nextParams.delete("entryId");
+    for (const deleteName of deleteNames) {
+      nextParams.delete(deleteName);
+    }
     const queryString = nextParams.toString();
 
     startTransition(() => {
@@ -135,13 +153,15 @@ export function LedgerFilters({ properties, viewQuery }: LedgerFiltersProps) {
 
         {advancedOpen ? (
           <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(180px,240px)_minmax(150px,180px)_minmax(130px,160px)_minmax(130px,170px)_minmax(84px,104px)]"
+            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(180px,240px)_minmax(180px,240px)_minmax(150px,180px)_minmax(130px,160px)_minmax(130px,170px)_minmax(84px,104px)]"
             id="ledger-advanced-search"
           >
             <SelectControl
               ariaLabel="Filter by property"
               className={compactSelectClassName}
-              onValueChange={(value) => replaceParam("propertyId", value, "all")}
+              onValueChange={(value) =>
+                replaceParam("propertyId", value, "all", ["unitId"])
+              }
               options={[
                 { label: "All properties", value: "all" },
                 ...properties.map((propertyOption) => ({
@@ -150,6 +170,20 @@ export function LedgerFilters({ properties, viewQuery }: LedgerFiltersProps) {
                 })),
               ]}
               value={viewQuery.propertyId}
+            />
+
+            <SelectControl
+              ariaLabel="Filter by unit"
+              className={compactSelectClassName}
+              onValueChange={(value) => replaceParam("unitId", value, "all")}
+              options={[
+                { label: "All units", value: "all" },
+                ...visibleUnitOptions.map((unitOption) => ({
+                  label: unitOption.label,
+                  value: unitOption.id,
+                })),
+              ]}
+              value={viewQuery.unitId}
             />
 
             <SelectControl

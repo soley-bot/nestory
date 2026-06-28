@@ -166,6 +166,7 @@ export function buildUnitSummary({
 
 export function buildUnitDetail({
   activeLease,
+  activity = [],
   counts,
   currencySettings,
   currentDate,
@@ -178,6 +179,7 @@ export function buildUnitDetail({
   unit,
 }: {
   activeLease?: UnitLeaseRecord;
+  activity?: UnitDetail["activity"];
   counts: UnitRecordCounts;
   currencySettings?: Partial<CurrencyDisplaySettings> | null;
   currentDate?: Date;
@@ -209,7 +211,11 @@ export function buildUnitDetail({
     ledgerEntries,
   });
   const repairAction = buildUnitRepairAction({
+    activeLease,
+    counts,
+    financialSummary,
     hrefs,
+    rentUsd: summary.rentUsd,
     recentTimelineEvents,
     statusValue: summary.statusValue,
     unitId: unit.id,
@@ -221,6 +227,7 @@ export function buildUnitDetail({
     activeLease: activeLease
       ? toLeaseSummary(activeLease, currencySettings)
       : undefined,
+    activity,
     counts,
     documents: documents.map(toDocumentContext),
     financialSummary,
@@ -607,13 +614,21 @@ function buildUnitHealthIndicators({
 }
 
 function buildUnitRepairAction({
+  activeLease,
+  counts,
+  financialSummary,
   hrefs,
+  rentUsd,
   recentTimelineEvents,
   statusValue,
   unitId,
   unitNumber,
 }: {
+  activeLease?: UnitLeaseRecord;
+  counts: UnitRecordCounts;
+  financialSummary: UnitFinancialSummary;
   hrefs: UnitDetailHrefs;
+  rentUsd: number;
   recentTimelineEvents: UnitTimelineRecord[];
   statusValue: UnitStatusValue;
   unitId: string;
@@ -623,11 +638,50 @@ function buildUnitRepairAction({
     isRepairEventType(event.event_type),
   );
 
+  if (!activeLease) {
+    return {
+      description:
+        statusValue === "occupied"
+          ? `Unit ${unitNumber} is marked occupied, but no active lease is linked.`
+          : `Unit ${unitNumber} does not have an active lease yet.`,
+      href: hrefs.addLease,
+      label: "Add lease",
+      tone: statusValue === "occupied" ? "danger" : "warning",
+    };
+  }
+
+  if (rentUsd <= 0) {
+    return {
+      description: "Record current rent so unit performance and reports stay useful.",
+      href: hrefs.ledger,
+      label: "Review rent",
+      tone: "danger",
+    };
+  }
+
+  if (financialSummary.noiUsd < 0) {
+    return {
+      description: "Review unit income and expenses because trailing NOI is negative.",
+      href: hrefs.ledger,
+      label: "Review ledger",
+      tone: "danger",
+    };
+  }
+
   if (statusValue === "maintenance") {
     return {
       description: `Unit ${unitNumber} is marked maintenance. Log the next repair, inspection, or completion note.`,
       href: hrefs.addTimelineEvent,
       label: "Log repair follow-up",
+      tone: "warning",
+    };
+  }
+
+  if (counts.documents === 0) {
+    return {
+      description: "Attach lease, receipt, inspection, or repair evidence to this unit.",
+      href: hrefs.documents,
+      label: "Attach evidence",
       tone: "warning",
     };
   }
@@ -671,7 +725,7 @@ export function buildUnitDetailHrefs({
     addLedgerEntry: buildHref("/ledger", {
       action: "create",
       propertyId: unit.property_id,
-      query: unit.unit_number,
+      unitId: unit.id,
     }),
     addTimelineEvent: buildHref("/timeline", {
       action: "create",
@@ -681,7 +735,7 @@ export function buildUnitDetailHrefs({
     documents: "/documents",
     ledger: buildHref("/ledger", {
       propertyId: unit.property_id,
-      query: unit.unit_number,
+      unitId: unit.id,
     }),
     lease: activeLease
       ? buildHref("/leases", {
@@ -691,7 +745,7 @@ export function buildUnitDetailHrefs({
       : undefined,
     leases: buildHref("/leases", {
       propertyId: unit.property_id,
-      query: unit.unit_number,
+      unitId: unit.id,
     }),
     property: `/properties/${unit.property_id}`,
     repairAction: buildHref("/timeline", {

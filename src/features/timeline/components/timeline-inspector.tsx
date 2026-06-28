@@ -1,7 +1,10 @@
 import Link from "next/link";
 import {
   Archive,
+  AlertTriangle,
   CalendarDays,
+  CheckCircle2,
+  ExternalLink,
   Landmark,
   Link2,
   Lock,
@@ -92,9 +95,7 @@ export function TimelineInspector({
           <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
             <Link
               className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] font-medium transition-colors hover:bg-surface-muted"
-              href={`/ledger?entryId=${encodeURIComponent(
-                event.ledgerEntryId ?? "",
-              )}`}
+              href={event.hrefs.ledger ?? event.hrefs.timeline}
             >
               <Landmark size={15} />
               Open linked ledger entry
@@ -177,13 +178,58 @@ export function TimelineInspector({
       )}
 
       <div className="space-y-4 p-4 text-sm">
+        <section className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+                Next action
+              </p>
+              <p className="mt-1 font-semibold">{event.nextAction.label}</p>
+            </div>
+            <Badge tone={event.nextAction.tone}>
+              {getRiskBadgeLabel(event.nextAction.tone)}
+            </Badge>
+          </div>
+          <p className="mt-2 leading-6 text-muted">
+            {event.nextAction.description}
+          </p>
+          <Link
+            className="mt-2 inline-flex items-center gap-1.5 font-medium text-accent hover:underline"
+            href={event.nextAction.href}
+          >
+            Open action
+            <ExternalLink size={13} />
+          </Link>
+        </section>
+
+        <section>
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+            Risk
+          </p>
+          <div className="mt-2 space-y-2">
+            {event.riskIndicators.map((risk) => (
+              <RiskRow key={risk.id} risk={risk} />
+            ))}
+          </div>
+        </section>
+
         <InspectorRow icon={<CalendarDays size={16} />} label="Event date">
           {formatDate(event.eventDate)}
         </InspectorRow>
         <InspectorRow icon={<Landmark size={16} />} label="Property">
-          {event.propertyName}
+          <Link
+            className="font-medium text-accent hover:underline"
+            href={event.hrefs.property}
+          >
+            {event.propertyName}
+          </Link>
           {event.unitNumber ? (
-            <span className="block text-muted">Unit {event.unitNumber}</span>
+            <Link
+              className="block text-muted hover:text-accent hover:underline"
+              href={event.hrefs.unit ?? event.hrefs.property}
+            >
+              Unit {event.unitNumber}
+            </Link>
           ) : null}
         </InspectorRow>
         <InspectorRow icon={<UserRound size={16} />} label="Created by">
@@ -221,18 +267,49 @@ export function TimelineInspector({
         </p>
         <div className="mt-3 space-y-2">
           {event.relatedLease ? (
-            <LinkedRecord icon={<Link2 size={15} />} label={event.relatedLease} />
+            <LinkedRecord
+              href={event.hrefs.lease}
+              icon={<Link2 size={15} />}
+              label={event.relatedLease}
+            />
           ) : null}
           {event.relatedLedgerEntry ? (
             <LinkedRecord
               icon={<Landmark size={15} />}
               label={`Ledger entry: ${event.relatedLedgerEntry}`}
-              href={`/ledger?entryId=${encodeURIComponent(event.ledgerEntryId ?? "")}`}
+              href={event.hrefs.ledger}
             />
           ) : null}
           {!event.relatedLease && !event.relatedLedgerEntry ? (
             <p className="text-sm text-muted">No linked records yet.</p>
           ) : null}
+        </div>
+      </div>
+
+      <div className="border-t border-border p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+            History
+          </p>
+          <Badge>{event.recordCounts.activity}</Badge>
+        </div>
+        <div className="mt-3 space-y-2">
+          {event.activity.length === 0 ? (
+            <MiniRow label="Activity" value="No event activity logged yet." />
+          ) : (
+            event.activity.slice(0, 4).map((change) => (
+              <Link
+                className="block rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-surface-muted"
+                href={change.href}
+                key={change.id}
+              >
+                <MiniRow
+                  label={`${change.actionLabel} / ${change.entityLabel}`}
+                  value={`${change.recordLabel} / ${formatDate(change.createdAt)}`}
+                />
+              </Link>
+            ))
+          )}
         </div>
       </div>
     </aside>
@@ -288,4 +365,63 @@ function LinkedRecord({
       <span className="min-w-0 break-words">{label}</span>
     </div>
   );
+}
+
+function RiskRow({
+  risk,
+}: {
+  risk: TimelineEvent["riskIndicators"][number];
+}) {
+  const Icon =
+    risk.tone === "success"
+      ? CheckCircle2
+      : risk.tone === "danger" || risk.tone === "warning"
+        ? AlertTriangle
+        : CalendarDays;
+
+  return (
+    <div className="flex min-w-0 gap-2 rounded-md border border-border px-2.5 py-2">
+      <Icon className="mt-0.5 shrink-0 text-muted" size={14} />
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate font-medium">{risk.label}</p>
+          <Badge className="px-2 text-xs" tone={risk.tone}>
+            {getRiskBadgeLabel(risk.tone)}
+          </Badge>
+        </div>
+        <p className="mt-0.5 text-xs leading-5 text-muted">
+          {risk.description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MiniRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 text-sm">
+      <p className="truncate font-medium" title={label}>
+        {label}
+      </p>
+      <p className="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-muted">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function getRiskBadgeLabel(tone: TimelineEvent["riskIndicators"][number]["tone"]) {
+  if (tone === "success") {
+    return "Ready";
+  }
+
+  if (tone === "danger") {
+    return "Risk";
+  }
+
+  if (tone === "accent") {
+    return "Linked";
+  }
+
+  return "Review";
 }

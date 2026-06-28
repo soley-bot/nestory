@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileText, Plus, ScrollText } from "lucide-react";
@@ -18,14 +18,17 @@ import { UnitInspector } from "@/features/units/components/unit-inspector";
 import { UnitsTable } from "@/features/units/components/units-table";
 import type {
   UnitDisplayMode,
+  UnitFormValues,
   UnitPagination,
   UnitPropertyOption,
   UnitSummary,
   UnitViewQuery,
 } from "@/features/units/unit.types";
 
+type UnitCreateInitialValues = Partial<Pick<UnitFormValues, "propertyId">>;
+
 type DrawerState =
-  | { mode: "create"; unit?: never }
+  | { initialValues?: UnitCreateInitialValues; mode: "create"; unit?: never }
   | { mode: "edit"; unit: UnitSummary }
   | { mode: "archive"; unit: UnitSummary }
   | { mode: "restore"; unit: UnitSummary };
@@ -61,8 +64,14 @@ export function UnitScreen({
     propertyOptions,
     viewQuery.propertyId,
   );
+  const createInitialValues = useMemo(
+    () => getUnitCreateInitialValues(viewQuery, propertyOptions),
+    [propertyOptions, viewQuery],
+  );
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    searchParams.get("action") === "create" ? { mode: "create" } : null,
+    searchParams.get("action") === "create"
+      ? { initialValues: createInitialValues, mode: "create" }
+      : null,
   );
   const [displayMode, setDisplayMode] = useState<UnitDisplayMode>("table");
   const [selectedUnitId, setSelectedUnitId] = useState(() =>
@@ -87,12 +96,12 @@ export function UnitScreen({
 
     queueMicrotask(() => {
       setStatusMessage(null);
-      setDrawer({ mode: "create" });
+      setDrawer({ initialValues: createInitialValues, mode: "create" });
     });
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [pathname, router, searchParams]);
+  }, [createInitialValues, pathname, router, searchParams]);
 
   return (
     <div className="min-h-screen">
@@ -120,7 +129,7 @@ export function UnitScreen({
             <Button
               onClick={() => {
                 setStatusMessage(null);
-                setDrawer({ mode: "create" });
+                setDrawer({ initialValues: createInitialValues, mode: "create" });
               }}
               variant="primary"
             >
@@ -230,6 +239,9 @@ export function UnitScreen({
           ) : (
             <UnitForm
               key={`${drawer.mode}-${drawer.unit?.id ?? "new"}`}
+              initialValues={
+                drawer.mode === "create" ? drawer.initialValues : undefined
+              }
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
@@ -368,6 +380,22 @@ function getSelectedPropertyLabel(
   }
 
   return properties.find((property) => property.id === propertyId)?.label;
+}
+
+function getUnitCreateInitialValues(
+  viewQuery: UnitViewQuery,
+  properties: UnitPropertyOption[],
+): UnitCreateInitialValues | undefined {
+  if (
+    viewQuery.propertyId === "all" ||
+    !properties.some((property) => property.id === viewQuery.propertyId)
+  ) {
+    return undefined;
+  }
+
+  return {
+    propertyId: viewQuery.propertyId,
+  };
 }
 
 function getUnitDrawerTitle(drawer: DrawerState) {

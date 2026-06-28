@@ -22,6 +22,7 @@ const initialState: TimelineActionState = {};
 type TimelineEventFormProps = {
   event?: TimelineEvent | null;
   eventTypes: TimelineEventType[];
+  initialValues?: Partial<Pick<TimelineEvent, "propertyId" | "unitId">>;
   mode?: "create" | "edit";
   onClose: () => void;
   onSuccess?: (message: string) => void;
@@ -32,6 +33,7 @@ type TimelineEventFormProps = {
 export function TimelineEventForm({
   event,
   eventTypes,
+  initialValues,
   mode = "create",
   onClose,
   onSuccess,
@@ -40,9 +42,11 @@ export function TimelineEventForm({
 }: TimelineEventFormProps) {
   const isEditMode = mode === "edit";
   const [selectedPropertyId, setSelectedPropertyId] = useState(
-    event?.propertyId ?? "",
+    event?.propertyId ?? initialValues?.propertyId ?? "",
   );
-  const [selectedUnitId, setSelectedUnitId] = useState(event?.unitId ?? "");
+  const [selectedUnitId, setSelectedUnitId] = useState(
+    event?.unitId ?? initialValues?.unitId ?? "",
+  );
   const [state, action, pending] = useActionState(
     isEditMode ? updateTimelineEventAction : createTimelineEventAction,
     initialState,

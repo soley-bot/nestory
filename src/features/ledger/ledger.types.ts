@@ -1,10 +1,41 @@
 import type { CurrencyCode } from "@/lib/money/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
+import type { RecentChange } from "@/features/activity/activity.types";
 import type { LinkedDocument } from "@/features/documents/document.types";
 
 export type LedgerDirection = "income" | "expense";
 
+export type LedgerRecordCounts = {
+  activity: number;
+  documents: number;
+  timelineEvents: number;
+};
+
+export type LedgerRiskIndicator = {
+  description: string;
+  id: string;
+  label: string;
+  tone: "neutral" | "success" | "warning" | "danger" | "accent";
+};
+
+export type LedgerDetailHrefs = {
+  documents: string;
+  ledger: string;
+  property: string;
+  reports: string;
+  timeline: string;
+  unit?: string;
+};
+
+export type LedgerNextAction = {
+  description: string;
+  href: string;
+  label: string;
+  tone: LedgerRiskIndicator["tone"];
+};
+
 export type LedgerEntry = {
+  activity: RecentChange[];
   amount: number;
   archivedAt?: string;
   category: string;
@@ -12,15 +43,19 @@ export type LedgerEntry = {
   description: string;
   documents: LinkedDocument[];
   direction: LedgerDirection;
+  hrefs: LedgerDetailHrefs;
   id: string;
   isLocked: boolean;
+  nextAction: LedgerNextAction;
   propertyCode: string;
   propertyId: string;
   propertyName: string;
+  recordCounts: LedgerRecordCounts;
   relatedTimelineEvent?: {
     id: string;
     title: string;
   };
+  riskIndicators: LedgerRiskIndicator[];
   transactionDate: string;
   unitId?: string;
   unitNumber?: string;
@@ -74,6 +109,7 @@ export type LedgerViewQuery = {
   propertyId: string;
   query: string;
   sort: LedgerSortKey;
+  unitId: string;
 };
 
 export type LedgerPagination = {

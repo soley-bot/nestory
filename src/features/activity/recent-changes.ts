@@ -24,6 +24,8 @@ const actionLabels: Record<string, string> = {
   created_from_ledger: "Created from ledger",
   created_from_ledger_update: "Recreated from ledger",
   document_attached: "Document attached",
+  lease_created: "Created",
+  lease_updated: "Updated",
   locked: "Period locked",
   receipt_attached: "Receipt attached",
   restored: "Restored",

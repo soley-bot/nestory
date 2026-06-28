@@ -98,6 +98,19 @@ describe("buildUnitDetail", () => {
     expect(
       buildUnitDetail({
         activeLease: lease,
+        activity: [
+          {
+            action: "unit_updated",
+            actionLabel: "Updated",
+            createdAt: "2026-06-05T09:00:00.000Z",
+            details: [],
+            entityLabel: "Unit",
+            href: "/units/unit-1",
+            id: "activity-1",
+            recordLabel: "12A",
+            tone: "neutral",
+          },
+        ],
         counts: {
           documents: 2,
           ledgerEntries: 3,
@@ -178,6 +191,12 @@ describe("buildUnitDetail", () => {
         statusLabel: "Active",
         tenantName: "Dara Tenant",
       },
+      activity: [
+        {
+          actionLabel: "Updated",
+          href: "/units/unit-1",
+        },
+      ],
       counts: {
         documents: 2,
         ledgerEntries: 3,
@@ -201,7 +220,8 @@ describe("buildUnitDetail", () => {
       hrefs: {
         addLease:
           "/leases?action=create&propertyId=property-1&source=vacancy&unitId=unit-1",
-        ledger: "/ledger?propertyId=property-1&query=12A",
+        addLedgerEntry: "/ledger?action=create&propertyId=property-1&unitId=unit-1",
+        ledger: "/ledger?propertyId=property-1&unitId=unit-1",
         timeline: "/timeline?propertyId=property-1&unitId=unit-1",
       },
       recentLedgerEntries: [
@@ -225,6 +245,31 @@ describe("buildUnitDetail", () => {
           href: "/people?archiveState=all&personId=person-1",
         },
       ],
+    });
+  });
+});
+
+describe("buildUnitDetail next action", () => {
+  it("prioritizes adding a lease for an occupied unit without one", () => {
+    expect(
+      buildUnitDetail({
+        counts: {
+          documents: 0,
+          ledgerEntries: 0,
+          timelineEvents: 0,
+        },
+        documents: [],
+        ledgerEntries: [],
+        people: [],
+        property,
+        recentLedgerEntries: [],
+        recentTimelineEvents: [],
+        unit,
+      }).repairAction,
+    ).toMatchObject({
+      href: "/leases?action=create&propertyId=property-1&source=vacancy&unitId=unit-1",
+      label: "Add lease",
+      tone: "danger",
     });
   });
 });
@@ -291,7 +336,7 @@ describe("buildUnitDetailHrefs", () => {
         unit,
       }),
     ).toMatchObject({
-      addLedgerEntry: "/ledger?action=create&propertyId=property-1&query=12A",
+      addLedgerEntry: "/ledger?action=create&propertyId=property-1&unitId=unit-1",
       addTimelineEvent: "/timeline?action=create&propertyId=property-1&unitId=unit-1",
       lease: "/leases?archiveState=all&leaseId=lease-1",
       property: "/properties/property-1",

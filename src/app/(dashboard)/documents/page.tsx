@@ -1,17 +1,28 @@
-import { PageHeader } from "@/components/layout/page-header";
+import { DocumentScreen } from "@/features/documents/components/document-screen";
+import { getDocumentsScreenData } from "@/features/documents/data/documents";
+import { parseDocumentSearchParams } from "@/features/documents/document.filters";
+import { requireAdminContext } from "@/lib/auth/context";
+import { getUuidSearchParam } from "@/lib/validation/search-params";
 
-export default function DocumentsPage() {
+type DocumentsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function DocumentsPage({ searchParams }: DocumentsPageProps) {
+  const context = await requireAdminContext();
+  const params = await searchParams;
+  const viewQuery = parseDocumentSearchParams(params);
+  const data = await getDocumentsScreenData(context.organizationId, viewQuery);
+  const initialDocumentId = getUuidSearchParam(params.documentId);
+
   return (
-    <div>
-      <PageHeader
-        description="Document metadata will live in Postgres, while files live in Supabase Storage."
-        title="Documents"
-      />
-      <div className="px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="rounded-md border border-border bg-surface p-4 text-sm text-muted lg:max-w-3xl">
-          Document upload starts once Supabase storage policies are ready.
-        </div>
-      </div>
-    </div>
+    <DocumentScreen
+      documents={data.documents}
+      initialDocumentId={initialDocumentId}
+      pagination={data.pagination}
+      propertyOptions={data.propertyOptions}
+      unitOptions={data.unitOptions}
+      viewQuery={viewQuery}
+    />
   );
 }

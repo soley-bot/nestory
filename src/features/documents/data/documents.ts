@@ -1,0 +1,436 @@
+import { toRecentChange } from "@/features/activity/recent-changes";
+import {
+  buildDocumentPagination,
+  parseDocumentSearchParams,
+} from "@/features/documents/document.filters";
+import type {
+  DocumentLinkedRecord,
+  DocumentScreenData,
+  DocumentSummary,
+  DocumentViewQuery,
+  LinkedDocument,
+} from "@/features/documents/document.types";
+import { createSupabaseServerClient } from "@/lib/db/server";
+
+type DocumentRow = {
+  archived_at: string | null;
+  category: string;
+  file_name: string;
+  id: string;
+  lease_id: string | null;
+  ledger_entry_id: string | null;
+  mime_type: string;
+  property_id: string | null;
+  size_bytes: number;
+  storage_path: string;
+  timeline_event_id: string | null;
+  unit_id: string | null;
+  uploaded_at: string;
+};
+
+type PropertyRow = {
+  code: string;
+  id: string;
+  name: string;
+};
+
+type UnitRow = {
+  id: string;
+  property_id: string;
+  unit_number: string;
+};
+
+type LeaseRow = {
+  id: string;
+  tenant_name: string;
+};
+
+type LedgerRow = {
+  category: string;
+  direction: string;
+  id: string;
+};
+
+type TimelineRow = {
+  id: string;
+  title: string;
+};
+
+export async function getDocumentsScreenData(
+  organizationId: string,
+  viewQuery: DocumentViewQuery = parseDocumentSearchParams({}),
+): Promise<DocumentScreenData> {
+  const supabase = await createSupabaseServerClient();
+  const { from, to } = getRange(viewQuery.page, viewQuery.pageSize);
+
+  const [propertiesResult, unitsResult] = await Promise.all([
+    supabase
+      .from("properties")
+      .select("id, name, code")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .order("name", { ascending: true }),
+    supabase
+      .from("units")
+      .select("id, property_id, unit_number")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null),
+  ]);
+
+  if (propertiesResult.error) {
+    throw new Error(`Could not load document properties: ${propertiesResult.error.message}`);
+  }
+
+  if (unitsResult.error) {
+    throw new Error(`Could not load document units: ${unitsResult.error.message}`);
+  }
+
+  let documentsQuery = supabase
+    .from("documents")
+    .select(
+      "id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at, archived_at, property_id, unit_id, lease_id, ledger_entry_id, timeline_event_id",
+      { count: "exact" },
+    )
+    .eq("organization_id", organizationId);
+
+  if (viewQuery.archiveState === "active") {
+    documentsQuery = documentsQuery.is("archived_at", null);
+  } else if (viewQuery.archiveState === "archived") {
+    documentsQuery = documentsQuery.not("archived_at", "is", null);
+  }
+
+  if (viewQuery.propertyId !== "all") {
+    documentsQuery = documentsQuery.eq("property_id", viewQuery.propertyId);
+  }
+
+  if (viewQuery.unitId !== "all") {
+    documentsQuery = documentsQuery.eq("unit_id", viewQuery.unitId);
+  }
+
+  if (viewQuery.query) {
+    const token = viewQuery.query.replace(/[,%()]/g, " ").trim().replace(/\s+/g, "%");
+    documentsQuery = documentsQuery.or(`file_name.ilike.%${token}%,category.ilike.%${token}%`);
+  }
+
+  const documentsResult = await documentsQuery
+    .order("uploaded_at", { ascending: false })
+    .range(from, to);
+
+  if (documentsResult.error) {
+    throw new Error(`Could not load documents: ${documentsResult.error.message}`);
+  }
+
+  const rows = documentsResult.data ?? [];
+  const documentIds = rows.map((document) => document.id);
+  const leaseIds = rows.flatMap((document) => document.lease_id ?? []);
+  const ledgerIds = rows.flatMap((document) => document.ledger_entry_id ?? []);
+  const timelineIds = rows.flatMap((document) => document.timeline_event_id ?? []);
+  const [leases, ledgerEntries, timelineEvents, activityRows] = await Promise.all([
+    getRowsById(supabase, "leases", "id, tenant_name", organizationId, leaseIds),
+    getRowsById(
+      supabase,
+      "ledger_entries",
+      "id, category, direction",
+      organizationId,
+      ledgerIds,
+    ),
+    getRowsById(supabase, "timeline_events", "id, title", organizationId, timelineIds),
+    getDocumentActivity(supabase, organizationId, documentIds),
+  ]);
+  const propertiesById = indexById(propertiesResult.data ?? []);
+  const unitsById = indexById(unitsResult.data ?? []);
+  const leasesById = indexById(leases as unknown as LeaseRow[]);
+  const ledgerById = indexById(ledgerEntries as unknown as LedgerRow[]);
+  const timelineById = indexById(timelineEvents as unknown as TimelineRow[]);
+  const activityByDocumentId = groupActivityByDocumentId(activityRows);
+  const documents = await Promise.all(
+    rows.map(async (document) =>
+      toDocumentSummary({
+        activity: activityByDocumentId.get(document.id) ?? [],
+        document,
+        ledgerEntry: document.ledger_entry_id
+          ? ledgerById.get(document.ledger_entry_id)
+          : undefined,
+        lease: document.lease_id ? leasesById.get(document.lease_id) : undefined,
+        property: document.property_id
+          ? propertiesById.get(document.property_id)
+          : undefined,
+        supabase,
+        timelineEvent: document.timeline_event_id
+          ? timelineById.get(document.timeline_event_id)
+          : undefined,
+        unit: document.unit_id ? unitsById.get(document.unit_id) : undefined,
+      }),
+    ),
+  );
+
+  return {
+    documents,
+    pagination: buildDocumentPagination({
+      page: viewQuery.page,
+      pageSize: viewQuery.pageSize,
+      totalCount: documentsResult.count ?? documents.length,
+    }),
+    propertyOptions: (propertiesResult.data ?? []).map((property) => ({
+      id: property.id,
+      label: `${property.code} - ${property.name}`,
+    })),
+    unitOptions: (unitsResult.data ?? []).map((unit) => {
+      const property = propertiesById.get(unit.property_id);
+
+      return {
+        id: unit.id,
+        label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+        propertyId: unit.property_id,
+      };
+    }),
+  };
+}
+
+async function toDocumentSummary({
+  activity,
+  document,
+  ledgerEntry,
+  lease,
+  property,
+  supabase,
+  timelineEvent,
+  unit,
+}: {
+  activity: ReturnType<typeof toRecentChange>[];
+  document: DocumentRow;
+  ledgerEntry?: LedgerRow;
+  lease?: LeaseRow;
+  property?: PropertyRow;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  timelineEvent?: TimelineRow;
+  unit?: UnitRow;
+}): Promise<DocumentSummary> {
+  const { data } = await supabase.storage
+    .from("nestory-documents")
+    .createSignedUrl(document.storage_path, 60 * 60);
+  const linkedRecords = buildLinkedRecords({
+    document,
+    ledgerEntry,
+    lease,
+    property,
+    timelineEvent,
+    unit,
+  });
+  const hrefs = {
+    document: `/documents?archiveState=all&documentId=${document.id}`,
+    ledger: document.ledger_entry_id
+      ? `/ledger?archiveState=all&entryId=${document.ledger_entry_id}`
+      : undefined,
+    lease: document.lease_id
+      ? `/leases?archiveState=all&leaseId=${document.lease_id}`
+      : undefined,
+    property: document.property_id ? `/properties/${document.property_id}` : undefined,
+    timeline: document.timeline_event_id
+      ? `/timeline?archiveState=all&eventId=${document.timeline_event_id}`
+      : undefined,
+    unit: document.unit_id ? `/units/${document.unit_id}` : undefined,
+  };
+  const linked = linkedRecords.length > 0;
+  const isArchived = Boolean(document.archived_at);
+  const linkedDocument: LinkedDocument = {
+    category: document.category,
+    fileName: document.file_name,
+    id: document.id,
+    mimeType: document.mime_type,
+    sizeBytes: document.size_bytes,
+    uploadedAt: document.uploaded_at,
+    url: data?.signedUrl,
+  };
+
+  return {
+    ...linkedDocument,
+    activity,
+    archivedAt: document.archived_at ?? undefined,
+    formValues: {
+      category: document.category,
+      propertyId: document.property_id ?? "",
+      unitId: document.unit_id,
+    },
+    hrefs,
+    isArchived,
+    linkedRecords,
+    nextAction: isArchived
+      ? {
+          description: "Restore this document if it should return to active evidence.",
+          href: hrefs.document,
+          label: "Review restore",
+          tone: "warning",
+        }
+      : !linked
+        ? {
+            description: "Attach this file to a property or unit context.",
+            href: hrefs.document,
+            label: "Add link",
+            tone: "warning",
+          }
+        : {
+            description: "Open the file or review its linked operational record.",
+            href: data?.signedUrl ?? hrefs.document,
+            label: "Review file",
+            tone: "neutral",
+          },
+    riskIndicators: [
+      {
+        description: isArchived
+          ? "Archived documents are hidden from active evidence lists."
+          : "This document appears in active evidence lists.",
+        id: "archive",
+        label: isArchived ? "Archived" : "Active evidence",
+        tone: isArchived ? "warning" : "success",
+      },
+      {
+        description: linked
+          ? "This document is connected to at least one operational record."
+          : "This document is not connected to a property, unit, lease, ledger, or timeline record.",
+        id: "links",
+        label: linked ? "Linked" : "Link missing",
+        tone: linked ? "success" : "warning",
+      },
+      {
+        description: data?.signedUrl
+          ? "A temporary signed URL is available for review."
+          : "The file exists in metadata, but a signed URL was not returned.",
+        id: "file",
+        label: data?.signedUrl ? "File available" : "File unavailable",
+        tone: data?.signedUrl ? "success" : "danger",
+      },
+    ],
+    storagePath: document.storage_path,
+  };
+}
+
+function buildLinkedRecords({
+  document,
+  ledgerEntry,
+  lease,
+  property,
+  timelineEvent,
+  unit,
+}: {
+  document: DocumentRow;
+  ledgerEntry?: LedgerRow;
+  lease?: LeaseRow;
+  property?: PropertyRow;
+  timelineEvent?: TimelineRow;
+  unit?: UnitRow;
+}): DocumentLinkedRecord[] {
+  return [
+    property && document.property_id
+      ? {
+          href: `/properties/${document.property_id}`,
+          label: `${property.code} / ${property.name}`,
+          type: "Property",
+        }
+      : null,
+    unit && document.unit_id
+      ? {
+          href: `/units/${document.unit_id}`,
+          label: `Unit ${unit.unit_number}`,
+          type: "Unit",
+        }
+      : null,
+    lease && document.lease_id
+      ? {
+          href: `/leases?archiveState=all&leaseId=${document.lease_id}`,
+          label: lease.tenant_name,
+          type: "Lease",
+        }
+      : null,
+    ledgerEntry && document.ledger_entry_id
+      ? {
+          href: `/ledger?archiveState=all&entryId=${document.ledger_entry_id}`,
+          label: `${ledgerEntry.direction} / ${ledgerEntry.category}`,
+          type: "Ledger",
+        }
+      : null,
+    timelineEvent && document.timeline_event_id
+      ? {
+          href: `/timeline?archiveState=all&eventId=${document.timeline_event_id}`,
+          label: timelineEvent.title,
+          type: "Timeline",
+        }
+      : null,
+  ].filter((record): record is DocumentLinkedRecord => Boolean(record));
+}
+
+async function getRowsById(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  table: "leases" | "ledger_entries" | "timeline_events",
+  select: string,
+  organizationId: string,
+  ids: string[],
+) {
+  const uniqueIds = [...new Set(ids)];
+
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const result = await supabase
+    .from(table)
+    .select(select)
+    .eq("organization_id", organizationId)
+    .in("id", uniqueIds);
+
+  if (result.error) {
+    throw new Error(`Could not load document ${table}: ${result.error.message}`);
+  }
+
+  return result.data ?? [];
+}
+
+async function getDocumentActivity(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  documentIds: string[],
+) {
+  if (documentIds.length === 0) {
+    return [];
+  }
+
+  const result = await supabase
+    .from("activity_logs")
+    .select("id, entity_type, entity_id, action, previous_values, new_values, created_at")
+    .eq("organization_id", organizationId)
+    .eq("entity_type", "document")
+    .in("entity_id", documentIds)
+    .order("created_at", { ascending: false })
+    .limit(120);
+
+  if (result.error) {
+    throw new Error(`Could not load document activity: ${result.error.message}`);
+  }
+
+  return result.data ?? [];
+}
+
+function groupActivityByDocumentId(rows: Parameters<typeof toRecentChange>[0][]) {
+  const grouped = new Map<string, ReturnType<typeof toRecentChange>[]>();
+
+  for (const row of rows) {
+    const group = grouped.get(row.entity_id) ?? [];
+    group.push(toRecentChange(row));
+    grouped.set(row.entity_id, group);
+  }
+
+  return grouped;
+}
+
+function indexById<T extends { id: string }>(rows: T[]) {
+  return new Map(rows.map((row) => [row.id, row]));
+}
+
+function getRange(page: number, pageSize: number) {
+  const from = (page - 1) * pageSize;
+
+  return {
+    from,
+    to: from + pageSize - 1,
+  };
+}

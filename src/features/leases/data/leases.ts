@@ -1,4 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
+import { toRecentChange } from "@/features/activity/recent-changes";
 import type { CurrencyDisplaySettings } from "@/lib/money/format";
 import {
   getLeaseEndDateScope,
@@ -6,8 +8,14 @@ import {
 } from "@/features/leases/lease.filters";
 import {
   buildLeaseSummary,
+  type LeaseDepositRow,
+  type LeaseDocumentRow,
+  type LeaseOccupancyRow,
+  type LeasePartyRow,
   type LeasePropertyRow,
   type LeaseRow,
+  type LeaseTermRow,
+  type LeaseTimelineRow,
   type LeaseUnitRow,
 } from "@/features/leases/data/lease-summary";
 import type {
@@ -22,6 +30,11 @@ const leaseSelect =
   "id, property_id, unit_id, tenant_name, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, deposit_amount, deposit_currency, status, archived_at";
 const propertySelect = "id, code, name, archived_at";
 const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
+type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type OptionalLeaseBackboneResult<T> = {
+  data: T[] | null;
+  error: { message: string } | null;
+};
 
 export async function getLeasesScreenData(
   organizationId: string,
@@ -74,6 +87,10 @@ export async function getLeasesScreenData(
 
     if (viewQuery.propertyId !== "all") {
       leasesQuery = leasesQuery.eq("property_id", viewQuery.propertyId);
+    }
+
+    if (viewQuery.unitId !== "all") {
+      leasesQuery = leasesQuery.eq("unit_id", viewQuery.unitId);
     }
 
     if (viewQuery.status === "current") {
@@ -147,8 +164,17 @@ export async function getLeasesScreenData(
       totalCount: sortedLeases.length,
     });
 
+    const visibleLeases = getLeasePageSummaries(sortedLeases, pagination);
+
     return {
-      leases: getLeasePageSummaries(sortedLeases, pagination),
+      leases: await enrichLeaseSummaries({
+        currencySettings,
+        leases: visibleLeases,
+        organizationId,
+        propertiesById,
+        supabase,
+        unitsById,
+      }),
       pagination,
       propertyOptions: toPropertyOptions(properties),
       unitOptions: toUnitOptions(units, propertiesById),
@@ -193,10 +219,352 @@ export async function getLeasesScreenData(
   );
 
   return {
-    leases,
+    leases: await enrichLeaseSummaries({
+      currencySettings,
+      leases,
+      organizationId,
+      propertiesById,
+      supabase,
+      unitsById,
+    }),
     pagination,
     propertyOptions: toPropertyOptions(properties),
     unitOptions: toUnitOptions(units, propertiesById),
+  };
+}
+
+async function enrichLeaseSummaries({
+  currencySettings,
+  leases,
+  organizationId,
+  propertiesById,
+  supabase,
+  unitsById,
+}: {
+  currencySettings?: Partial<CurrencyDisplaySettings> | null;
+  leases: LeaseSummary[];
+  organizationId: string;
+  propertiesById: Map<string, LeasePropertyRow>;
+  supabase: SupabaseServerClient;
+  unitsById: Map<string, LeaseUnitRow>;
+}) {
+  if (leases.length === 0) {
+    return leases;
+  }
+
+  const leaseIds = leases.map((lease) => lease.id);
+  const unitIds = new Set(leases.flatMap((lease) => (lease.unitId ? [lease.unitId] : [])));
+  const propertyIds = new Set(leases.map((lease) => lease.propertyId));
+  const [
+    partiesResult,
+    termsResult,
+    occupanciesResult,
+    depositsResult,
+    documentsResult,
+    timelineResult,
+    activityResult,
+    ledgerResult,
+  ] = await Promise.all([
+    supabase
+      .from("lease_parties")
+      .select("id, lease_id, person_id, party_role, is_primary, started_on, ended_on, archived_at")
+      .eq("organization_id", organizationId)
+      .in("lease_id", leaseIds)
+      .order("is_primary", { ascending: false })
+      .order("party_role", { ascending: true }),
+    supabase
+      .from("lease_terms")
+      .select("id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, status, archived_at")
+      .eq("organization_id", organizationId)
+      .in("lease_id", leaseIds)
+      .order("term_sequence", { ascending: false }),
+    supabase
+      .from("lease_occupancies")
+      .select(
+        "id, lease_id, unit_id, status, scheduled_move_in_date, actual_move_in_date, scheduled_move_out_date, actual_move_out_date, archived_at",
+      )
+      .eq("organization_id", organizationId)
+      .in("lease_id", leaseIds)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("lease_deposits")
+      .select("id, lease_id, deposit_type, amount, currency, status, archived_at")
+      .eq("organization_id", organizationId)
+      .in("lease_id", leaseIds)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("documents")
+      .select("id, lease_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at")
+      .eq("organization_id", organizationId)
+      .in("lease_id", leaseIds)
+      .is("archived_at", null)
+      .order("uploaded_at", { ascending: false }),
+    supabase
+      .from("timeline_events")
+      .select("id, lease_id, event_date, event_type, title")
+      .eq("organization_id", organizationId)
+      .in("lease_id", leaseIds)
+      .is("archived_at", null)
+      .order("event_date", { ascending: false })
+      .order("id", { ascending: false }),
+    supabase
+      .from("activity_logs")
+      .select("id, entity_type, entity_id, action, previous_values, new_values, created_at")
+      .eq("organization_id", organizationId)
+      .eq("entity_type", "lease")
+      .in("entity_id", leaseIds)
+      .order("created_at", { ascending: false }),
+    buildLeaseLedgerQuery(supabase, organizationId, propertyIds, unitIds),
+  ]);
+
+  const partyData = getOptionalLeaseBackboneRows(
+    partiesResult,
+    "lease parties",
+    "lease_parties",
+  );
+  const termData = getOptionalLeaseBackboneRows(
+    termsResult,
+    "lease terms",
+    "lease_terms",
+  );
+  const occupancyData = getOptionalLeaseBackboneRows(
+    occupanciesResult,
+    "lease occupancies",
+    "lease_occupancies",
+  );
+  const depositData = getOptionalLeaseBackboneRows(
+    depositsResult,
+    "lease deposits",
+    "lease_deposits",
+  );
+
+  if (documentsResult.error) {
+    throw new Error(`Could not load lease documents: ${documentsResult.error.message}`);
+  }
+
+  if (timelineResult.error) {
+    throw new Error(`Could not load lease timeline: ${timelineResult.error.message}`);
+  }
+
+  if (activityResult.error) {
+    throw new Error(`Could not load lease activity: ${activityResult.error.message}`);
+  }
+
+  if (ledgerResult.error) {
+    throw new Error(`Could not load lease ledger context: ${ledgerResult.error.message}`);
+  }
+
+  const partyRows = await addLeasePartyPeople(
+    partyData,
+    organizationId,
+    supabase,
+  );
+  const documents = await addSignedDocumentUrls(documentsResult.data ?? [], supabase);
+  const partiesByLeaseId = groupByLeaseId(partyRows);
+  const termsByLeaseId = groupByLeaseId(termData as LeaseTermRow[]);
+  const occupanciesByLeaseId = groupByLeaseId(
+    occupancyData as LeaseOccupancyRow[],
+  );
+  const depositsByLeaseId = groupByLeaseId(
+    depositData as LeaseDepositRow[],
+  );
+  const documentsByLeaseId = groupByLeaseId(documents);
+  const timelineByLeaseId = groupByLeaseId(
+    (timelineResult.data ?? []) as LeaseTimelineRow[],
+  );
+  const activityByLeaseId = groupActivityByLeaseId(activityResult.data ?? []);
+  const ledgerRows = ledgerResult.data ?? [];
+
+  return leases.map((lease) => {
+    const leaseRow = summaryToLeaseRow(lease);
+
+    return buildLeaseSummary({
+      activity: activityByLeaseId.get(lease.id) ?? [],
+      currencySettings,
+      documents: documentsByLeaseId.get(lease.id) ?? [],
+      ledgerEntryCount: countRelatedLedgerRows(lease, ledgerRows),
+      lease: leaseRow,
+      occupancies: occupanciesByLeaseId.get(lease.id) ?? [],
+      parties: partiesByLeaseId.get(lease.id) ?? [],
+      property: propertiesById.get(lease.propertyId),
+      terms: termsByLeaseId.get(lease.id) ?? [],
+      deposits: depositsByLeaseId.get(lease.id) ?? [],
+      timelineEvents: timelineByLeaseId.get(lease.id) ?? [],
+      unit: lease.unitId ? unitsById.get(lease.unitId) : undefined,
+    });
+  });
+}
+
+export function getOptionalLeaseBackboneRows<T>(
+  result: OptionalLeaseBackboneResult<T>,
+  label: string,
+  schemaObject: string,
+) {
+  if (!result.error) {
+    return result.data ?? [];
+  }
+
+  if (isMissingSchemaObjectMessage(result.error.message, [schemaObject])) {
+    return [];
+  }
+
+  throw new Error(`Could not load ${label}: ${result.error.message}`);
+}
+
+function buildLeaseLedgerQuery(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  propertyIds: ReadonlySet<string>,
+  unitIds: ReadonlySet<string>,
+) {
+  let query = supabase
+    .from("ledger_entries")
+    .select("id, property_id, unit_id")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null);
+
+  if (unitIds.size > 0) {
+    query = query.in("unit_id", [...unitIds]);
+  } else {
+    query = query.in("property_id", [...propertyIds]);
+  }
+
+  return query;
+}
+
+async function addLeasePartyPeople(
+  rows: Array<{
+    archived_at: string | null;
+    ended_on: string | null;
+    id: string;
+    is_primary: boolean;
+    lease_id: string;
+    party_role: string;
+    person_id: string;
+  }>,
+  organizationId: string,
+  supabase: SupabaseServerClient,
+): Promise<LeasePartyRow[]> {
+  const personIds = new Set(rows.map((row) => row.person_id));
+
+  if (personIds.size === 0) {
+    return rows;
+  }
+
+  const peopleResult = await supabase
+    .from("people")
+    .select("id, display_name, primary_email, primary_phone")
+    .eq("organization_id", organizationId)
+    .in("id", [...personIds]);
+
+  if (peopleResult.error) {
+    if (isMissingSchemaObjectMessage(peopleResult.error.message, ["people"])) {
+      return rows.map((row) => ({
+        ...row,
+        person_name: "Linked person",
+        primary_email: null,
+        primary_phone: null,
+      }));
+    }
+
+    throw new Error(`Could not load lease party people: ${peopleResult.error.message}`);
+  }
+
+  const peopleById = new Map(
+    (peopleResult.data ?? []).map((person) => [person.id, person]),
+  );
+
+  return rows.map((row) => {
+    const person = peopleById.get(row.person_id);
+
+    return {
+      ...row,
+      person_name: person?.display_name ?? "Linked person",
+      primary_email: person?.primary_email ?? null,
+      primary_phone: person?.primary_phone ?? null,
+    };
+  });
+}
+
+async function addSignedDocumentUrls(
+  rows: Array<LeaseDocumentRow & { storage_path: string }>,
+  supabase: SupabaseServerClient,
+): Promise<LeaseDocumentRow[]> {
+  return Promise.all(
+    rows.map(async (row) => {
+      const { data } = await supabase.storage
+        .from("nestory-documents")
+        .createSignedUrl(row.storage_path, 60 * 60);
+
+      return {
+        category: row.category,
+        file_name: row.file_name,
+        id: row.id,
+        lease_id: row.lease_id,
+        mime_type: row.mime_type,
+        size_bytes: row.size_bytes,
+        uploaded_at: row.uploaded_at,
+        url: data?.signedUrl,
+      };
+    }),
+  );
+}
+
+function groupByLeaseId<T extends { lease_id: string | null }>(rows: T[]) {
+  const grouped = new Map<string, T[]>();
+
+  for (const row of rows) {
+    if (!row.lease_id) {
+      continue;
+    }
+
+    const group = grouped.get(row.lease_id) ?? [];
+    group.push(row);
+    grouped.set(row.lease_id, group);
+  }
+
+  return grouped;
+}
+
+function groupActivityByLeaseId(
+  rows: Array<Parameters<typeof toRecentChange>[0]>,
+) {
+  const grouped = new Map<string, ReturnType<typeof toRecentChange>[]>();
+
+  for (const row of rows) {
+    const group = grouped.get(row.entity_id) ?? [];
+    group.push(toRecentChange(row));
+    grouped.set(row.entity_id, group);
+  }
+
+  return grouped;
+}
+
+function countRelatedLedgerRows(
+  lease: LeaseSummary,
+  rows: Array<{ property_id: string; unit_id: string | null }>,
+) {
+  return rows.filter((row) =>
+    lease.unitId
+      ? row.unit_id === lease.unitId
+      : row.property_id === lease.propertyId && !row.unit_id,
+  ).length;
+}
+
+function summaryToLeaseRow(lease: LeaseSummary): LeaseRow {
+  return {
+    archived_at: lease.isArchived ? "archived" : null,
+    deposit_amount: lease.formValues.depositAmount ?? null,
+    deposit_currency: lease.formValues.depositCurrency ?? null,
+    id: lease.id,
+    lease_end_date: lease.formValues.leaseEndDate,
+    lease_start_date: lease.formValues.leaseStartDate,
+    monthly_rent_amount: lease.formValues.monthlyRentAmount,
+    monthly_rent_currency: lease.formValues.monthlyRentCurrency,
+    property_id: lease.propertyId,
+    status: lease.statusValue,
+    tenant_name: lease.tenantName,
+    unit_id: lease.unitId,
   };
 }
 

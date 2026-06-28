@@ -32,6 +32,7 @@ export function parseLeaseSearchParams(
     query: (getFirstValue(params.query) || "").trim().slice(0, 120),
     sort: parseSort(params.sort),
     status: parseStatus(params.status),
+    unitId: parseUuidFilter(params.unitId),
   };
 }
 

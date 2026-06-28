@@ -21,6 +21,7 @@ const initialState: LedgerActionState = {};
 
 type LedgerEntryFormProps = {
   entry?: LedgerEntry;
+  initialValues?: Partial<Pick<LedgerEntry, "propertyId" | "unitId">>;
   mode?: "add" | "edit";
   defaultCurrency?: CurrencyCode;
   onClose: () => void;
@@ -31,6 +32,7 @@ type LedgerEntryFormProps = {
 
 export function LedgerEntryForm({
   entry,
+  initialValues,
   mode = "add",
   defaultCurrency = "USD",
   onClose,
@@ -40,9 +42,11 @@ export function LedgerEntryForm({
 }: LedgerEntryFormProps) {
   const isEditMode = mode === "edit";
   const [selectedPropertyId, setSelectedPropertyId] = useState(
-    entry?.propertyId ?? "",
+    entry?.propertyId ?? initialValues?.propertyId ?? "",
   );
-  const [selectedUnitId, setSelectedUnitId] = useState(entry?.unitId ?? "");
+  const [selectedUnitId, setSelectedUnitId] = useState(
+    entry?.unitId ?? initialValues?.unitId ?? "",
+  );
   const [state, action, pending] = useActionState(
     isEditMode ? updateLedgerEntryAction : createLedgerEntryAction,
     initialState,

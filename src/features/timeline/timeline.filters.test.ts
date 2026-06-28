@@ -8,7 +8,7 @@ import {
 import type { TimelineEvent } from "@/features/timeline/timeline.types";
 
 const events: TimelineEvent[] = [
-  {
+  withTimelineDetailContext({
     createdBy: "Admin",
     description: "Bathroom work completed",
     documents: [],
@@ -23,8 +23,8 @@ const events: TimelineEvent[] = [
     title: "Renovation completed",
     unitId: "unit-1",
     unitNumber: "12B",
-  },
-  {
+  }),
+  withTimelineDetailContext({
     archivedAt: "2026-06-16T09:00:00.000Z",
     createdBy: "Admin",
     description: "Lease renewal discussion",
@@ -41,7 +41,7 @@ const events: TimelineEvent[] = [
     title: "Rent review",
     unitId: "unit-2",
     unitNumber: "04C",
-  },
+  }),
 ];
 
 describe("filterTimelineEvents", () => {
@@ -109,6 +109,42 @@ describe("filterTimelineEvents", () => {
     ).toEqual([events[1]]);
   });
 });
+
+function withTimelineDetailContext(
+  event: Omit<
+    TimelineEvent,
+    | "activity"
+    | "hrefs"
+    | "nextAction"
+    | "recordCounts"
+    | "riskIndicators"
+  >,
+): TimelineEvent {
+  return {
+    ...event,
+    activity: [],
+    hrefs: {
+      documents: `/documents?query=${encodeURIComponent(event.title)}`,
+      ledger: event.ledgerEntryId ? `/ledger?entryId=${event.ledgerEntryId}` : undefined,
+      property: `/properties/${event.propertyId}`,
+      timeline: `/timeline?archiveState=all&eventId=${event.id}`,
+      unit: event.unitId ? `/units/${event.unitId}` : undefined,
+    },
+    nextAction: {
+      description: "Review linked records and supporting history.",
+      href: "/timeline",
+      label: "Review event",
+      tone: "neutral",
+    },
+    recordCounts: {
+      activity: 0,
+      documents: event.documents.length,
+      linkedRecords: Number(Boolean(event.relatedLease)) +
+        Number(Boolean(event.relatedLedgerEntry)),
+    },
+    riskIndicators: [],
+  };
+}
 
 describe("parseTimelineSearchParams", () => {
   it("normalizes missing and invalid URL state", () => {

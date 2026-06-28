@@ -166,7 +166,10 @@ export async function createTimelineEventAction(
     };
   }
 
-  revalidateTimelinePaths({ unitIds: [unitId] });
+  revalidateTimelinePaths({
+    propertyIds: [parsed.data.propertyId],
+    unitIds: [unitId],
+  });
 
   return {
     message: "Timeline event added.",
@@ -237,7 +240,10 @@ export async function updateTimelineEventAction(
     };
   }
 
-  revalidateTimelinePaths({ unitIds: [pathContext?.unit_id, unitId] });
+  revalidateTimelinePaths({
+    propertyIds: [pathContext?.property_id, parsed.data.propertyId],
+    unitIds: [pathContext?.unit_id, unitId],
+  });
 
   return {
     message: "Timeline event updated.",
@@ -279,7 +285,10 @@ export async function archiveTimelineEventAction(
     };
   }
 
-  revalidateTimelinePaths({ unitIds: [pathContext?.unit_id] });
+  revalidateTimelinePaths({
+    propertyIds: [pathContext?.property_id],
+    unitIds: [pathContext?.unit_id],
+  });
 
   return {
     message: "Timeline event archived.",
@@ -321,7 +330,10 @@ export async function restoreTimelineEventAction(
     };
   }
 
-  revalidateTimelinePaths({ unitIds: [pathContext?.unit_id] });
+  revalidateTimelinePaths({
+    propertyIds: [pathContext?.property_id],
+    unitIds: [pathContext?.unit_id],
+  });
 
   return {
     message: "Timeline event restored.",
@@ -449,6 +461,7 @@ export async function attachTimelineDocumentAction(
 
   revalidateTimelinePaths({
     includeDocuments: true,
+    propertyIds: [event.property_id],
     unitIds: [event.unit_id],
   });
 
@@ -465,7 +478,7 @@ async function getTimelinePathContext(
 ) {
   const { data } = await supabase
     .from("timeline_events")
-    .select("unit_id")
+    .select("property_id, unit_id")
     .eq("id", eventId)
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -475,9 +488,11 @@ async function getTimelinePathContext(
 
 function revalidateTimelinePaths({
   includeDocuments = false,
+  propertyIds = [],
   unitIds = [],
 }: {
   includeDocuments?: boolean;
+  propertyIds?: Array<string | null | undefined>;
   unitIds?: Array<string | null | undefined>;
 } = {}) {
   revalidatePath("/overview");
@@ -490,6 +505,10 @@ function revalidateTimelinePaths({
 
   if (includeDocuments) {
     revalidatePath("/documents");
+  }
+
+  for (const propertyId of new Set(propertyIds.filter(Boolean))) {
+    revalidatePath(`/properties/${propertyId}`);
   }
 
   for (const unitId of new Set(unitIds.filter(Boolean))) {

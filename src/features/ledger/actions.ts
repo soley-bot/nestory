@@ -144,7 +144,10 @@ export async function createLedgerEntryAction(
     };
   }
 
-  revalidateLedgerPaths({ unitIds: [unitId] });
+  revalidateLedgerPaths({
+    propertyIds: [parsed.data.propertyId],
+    unitIds: [unitId],
+  });
 
   return {
     message: "Ledger entry added.",
@@ -209,7 +212,10 @@ export async function updateLedgerEntryAction(
     };
   }
 
-  revalidateLedgerPaths({ unitIds: [pathContext?.unit_id, unitId] });
+  revalidateLedgerPaths({
+    propertyIds: [pathContext?.property_id, parsed.data.propertyId],
+    unitIds: [pathContext?.unit_id, unitId],
+  });
 
   return {
     message: "Ledger entry updated.",
@@ -251,7 +257,10 @@ export async function archiveLedgerEntryAction(
     };
   }
 
-  revalidateLedgerPaths({ unitIds: [pathContext?.unit_id] });
+  revalidateLedgerPaths({
+    propertyIds: [pathContext?.property_id],
+    unitIds: [pathContext?.unit_id],
+  });
 
   return {
     message: "Ledger entry archived.",
@@ -293,7 +302,10 @@ export async function restoreLedgerEntryAction(
     };
   }
 
-  revalidateLedgerPaths({ unitIds: [pathContext?.unit_id] });
+  revalidateLedgerPaths({
+    propertyIds: [pathContext?.property_id],
+    unitIds: [pathContext?.unit_id],
+  });
 
   return {
     message: "Ledger entry restored.",
@@ -469,7 +481,11 @@ export async function attachLedgerReceiptAction(
     };
   }
 
-  revalidateLedgerPaths({ includeDocuments: true, unitIds: [entry.unit_id] });
+  revalidateLedgerPaths({
+    includeDocuments: true,
+    propertyIds: [entry.property_id],
+    unitIds: [entry.unit_id],
+  });
 
   return {
     message: "Receipt attached.",
@@ -492,7 +508,7 @@ async function getLedgerPathContext(
 ) {
   const { data } = await supabase
     .from("ledger_entries")
-    .select("unit_id")
+    .select("property_id, unit_id")
     .eq("id", entryId)
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -505,12 +521,14 @@ function revalidateLedgerPaths({
   includeProperties = true,
   includeReports = true,
   includeUnits = true,
+  propertyIds = [],
   unitIds = [],
 }: {
   includeDocuments?: boolean;
   includeProperties?: boolean;
   includeReports?: boolean;
   includeUnits?: boolean;
+  propertyIds?: Array<string | null | undefined>;
   unitIds?: Array<string | null | undefined>;
 } = {}) {
   revalidatePath("/overview");
@@ -532,6 +550,10 @@ function revalidateLedgerPaths({
 
   if (includeUnits) {
     revalidatePath("/units");
+  }
+
+  for (const propertyId of new Set(propertyIds.filter(Boolean))) {
+    revalidatePath(`/properties/${propertyId}`);
   }
 
   for (const unitId of new Set(unitIds.filter(Boolean))) {

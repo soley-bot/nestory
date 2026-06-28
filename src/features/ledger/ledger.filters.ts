@@ -25,6 +25,7 @@ export const DEFAULT_LEDGER_VIEW_QUERY: LedgerViewQuery = {
   propertyId: "all",
   query: "",
   sort: DEFAULT_LEDGER_SORT,
+  unitId: "all",
 };
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,6 +40,7 @@ type LedgerFilterOptions = {
   period?: LedgerPeriodFilter;
   propertyId: string;
   query: string;
+  unitId?: string;
 };
 
 type LedgerSearchParams = Record<string, string | string[] | undefined>;
@@ -59,6 +61,7 @@ export function filterLedgerEntries(
     period = "all",
     propertyId,
     query,
+    unitId = "all",
   }: LedgerFilterOptions,
 ) {
   const tokens = query
@@ -76,6 +79,7 @@ export function filterLedgerEntries(
       direction === "all" || entry.direction === direction;
     const matchesProperty =
       propertyId === "all" || entry.propertyId === propertyId;
+    const matchesUnit = unitId === "all" || entry.unitId === unitId;
     const matchesArchiveState =
       archiveState === "all" ||
       (archiveState === "archived"
@@ -105,6 +109,7 @@ export function filterLedgerEntries(
       matchesDirection &&
       matchesMinAmount &&
       matchesProperty &&
+      matchesUnit &&
       matchesQuery
     );
   });
@@ -125,6 +130,7 @@ export function parseLedgerSearchParams(
     propertyId: parsePropertyId(params.propertyId),
     query: (getFirstValue(params.query) || "").trim().slice(0, 120),
     sort: parseSort(params.sort),
+    unitId: parseUnitId(params.unitId),
   });
 }
 
@@ -143,6 +149,7 @@ export function normalizeLedgerViewQuery(
     propertyId: query.propertyId?.trim() || DEFAULT_LEDGER_VIEW_QUERY.propertyId,
     query: (query.query ?? "").trim().slice(0, 120),
     sort: parseSort(query.sort),
+    unitId: parseUnitId(query.unitId),
   };
 }
 
@@ -158,7 +165,8 @@ export function isDefaultLedgerViewQuery(query: LedgerViewQuery) {
     query.period === DEFAULT_LEDGER_VIEW_QUERY.period &&
     query.propertyId === DEFAULT_LEDGER_VIEW_QUERY.propertyId &&
     query.query === DEFAULT_LEDGER_VIEW_QUERY.query &&
-    query.sort === DEFAULT_LEDGER_VIEW_QUERY.sort
+    query.sort === DEFAULT_LEDGER_VIEW_QUERY.sort &&
+    query.unitId === DEFAULT_LEDGER_VIEW_QUERY.unitId
   );
 }
 
@@ -338,6 +346,12 @@ function parsePeriod(
 }
 
 function parsePropertyId(value: string | string[] | undefined) {
+  const candidate = getFirstValue(value);
+
+  return candidate && uuidPattern.test(candidate) ? candidate : "all";
+}
+
+function parseUnitId(value: string | string[] | undefined) {
   const candidate = getFirstValue(value);
 
   return candidate && uuidPattern.test(candidate) ? candidate : "all";

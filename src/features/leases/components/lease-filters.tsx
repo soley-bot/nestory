@@ -16,15 +16,17 @@ import {
 } from "@/features/leases/lease.filters";
 import type {
   LeasePropertyOption,
+  LeaseUnitOption,
   LeaseViewQuery,
 } from "@/features/leases/lease.types";
 
 type LeaseFiltersProps = {
   properties: LeasePropertyOption[];
+  units: LeaseUnitOption[];
   viewQuery: LeaseViewQuery;
 };
 
-export function LeaseFilters({ properties, viewQuery }: LeaseFiltersProps) {
+export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -35,6 +37,7 @@ export function LeaseFilters({ properties, viewQuery }: LeaseFiltersProps) {
   });
   const hasAdvancedFilters =
     viewQuery.propertyId !== "all" ||
+    viewQuery.unitId !== "all" ||
     viewQuery.status !== "all" ||
     viewQuery.archiveState !== DEFAULT_LEASE_ARCHIVE_STATE ||
     viewQuery.endsWithinDays !== null ||
@@ -45,8 +48,20 @@ export function LeaseFilters({ properties, viewQuery }: LeaseFiltersProps) {
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
   const compactSelectClassName = "h-8 px-2 text-[13px]";
+  const visibleUnitOptions =
+    viewQuery.propertyId === "all"
+      ? units
+      : units.filter(
+          (unit) =>
+            unit.propertyId === viewQuery.propertyId || unit.id === viewQuery.unitId,
+        );
 
-  function replaceParam(name: string, value: string, defaultValue: string) {
+  function replaceParam(
+    name: string,
+    value: string,
+    defaultValue: string,
+    deleteNames: string[] = [],
+  ) {
     const nextParams = new URLSearchParams(searchParams.toString());
 
     if (value === defaultValue || value.trim() === "") {
@@ -56,6 +71,10 @@ export function LeaseFilters({ properties, viewQuery }: LeaseFiltersProps) {
     }
 
     nextParams.delete("page");
+    nextParams.delete("leaseId");
+    for (const deleteName of deleteNames) {
+      nextParams.delete(deleteName);
+    }
     const queryString = nextParams.toString();
 
     startTransition(() => {
@@ -133,13 +152,15 @@ export function LeaseFilters({ properties, viewQuery }: LeaseFiltersProps) {
 
         {advancedOpen ? (
           <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(160px,220px)_minmax(132px,150px)_minmax(132px,150px)_minmax(132px,160px)_minmax(84px,104px)]"
+            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(160px,220px)_minmax(160px,220px)_minmax(132px,150px)_minmax(132px,150px)_minmax(132px,160px)_minmax(84px,104px)]"
             id="lease-advanced-search"
           >
             <SelectControl
               ariaLabel="Filter leases by property"
               className={compactSelectClassName}
-              onValueChange={(value) => replaceParam("propertyId", value, "all")}
+              onValueChange={(value) =>
+                replaceParam("propertyId", value, "all", ["unitId"])
+              }
               options={[
                 { label: "All properties", value: "all" },
                 ...properties.map((property) => ({
@@ -148,6 +169,20 @@ export function LeaseFilters({ properties, viewQuery }: LeaseFiltersProps) {
                 })),
               ]}
               value={viewQuery.propertyId}
+            />
+
+            <SelectControl
+              ariaLabel="Filter leases by unit"
+              className={compactSelectClassName}
+              onValueChange={(value) => replaceParam("unitId", value, "all")}
+              options={[
+                { label: "All units", value: "all" },
+                ...visibleUnitOptions.map((unit) => ({
+                  label: unit.label,
+                  value: unit.id,
+                })),
+              ]}
+              value={viewQuery.unitId}
             />
 
             <SelectControl

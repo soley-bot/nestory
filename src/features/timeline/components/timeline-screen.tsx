@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Archive, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
@@ -35,7 +35,11 @@ const documentInitialState: TimelineActionState = {};
 const restoreInitialState: TimelineActionState = {};
 
 type DrawerState =
-  | { mode: "create"; event: null }
+  | {
+      event: null;
+      initialValues?: Partial<Pick<TimelineEvent, "propertyId" | "unitId">>;
+      mode: "create";
+    }
   | { mode: "edit"; event: TimelineEvent }
   | { mode: "archive"; event: TimelineEvent }
   | { mode: "restore"; event: TimelineEvent }
@@ -68,9 +72,13 @@ export function TimelineScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const createInitialValues = useMemo(
+    () => getTimelineCreateInitialValues(viewQuery, propertyOptions, unitOptions),
+    [propertyOptions, unitOptions, viewQuery],
+  );
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
     searchParams.get("action") === "create"
-      ? { event: null, mode: "create" }
+      ? { event: null, initialValues: createInitialValues, mode: "create" }
       : null,
   );
   const [selectedEventId, setSelectedEventId] = useState(initialEventId ?? "");
@@ -105,12 +113,12 @@ export function TimelineScreen({
 
     queueMicrotask(() => {
       setStatusMessage(null);
-      setDrawer({ event: null, mode: "create" });
+      setDrawer({ event: null, initialValues: createInitialValues, mode: "create" });
     });
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [pathname, router, searchParams]);
+  }, [createInitialValues, pathname, router, searchParams]);
 
   return (
     <div className="min-h-screen">
@@ -127,7 +135,11 @@ export function TimelineScreen({
             <Button
               onClick={() => {
                 setStatusMessage(null);
-                setDrawer({ event: null, mode: "create" });
+                setDrawer({
+                  event: null,
+                  initialValues: createInitialValues,
+                  mode: "create",
+                });
               }}
               variant="primary"
             >
@@ -232,6 +244,9 @@ export function TimelineScreen({
             <TimelineEventForm
               event={drawer.event}
               eventTypes={eventTypes}
+              initialValues={
+                drawer.mode === "create" ? drawer.initialValues : undefined
+              }
               key={`${drawer.mode}-${drawer.event?.id ?? "new"}`}
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
@@ -303,6 +318,35 @@ function getHrefWithoutActionParam(
 
   const queryString = nextParams.toString();
   return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+function getTimelineCreateInitialValues(
+  viewQuery: TimelineViewQuery,
+  properties: TimelinePropertyOption[],
+  units: TimelineUnitOption[],
+): Partial<Pick<TimelineEvent, "propertyId" | "unitId">> | undefined {
+  const requestedUnit = viewQuery.unitId
+    ? units.find((unit) => unit.id === viewQuery.unitId)
+    : undefined;
+  const propertyId =
+    requestedUnit?.propertyId ??
+    (viewQuery.propertyId !== "all" &&
+    properties.some((property) => property.id === viewQuery.propertyId)
+      ? viewQuery.propertyId
+      : "");
+  const unitId =
+    requestedUnit && (!propertyId || requestedUnit.propertyId === propertyId)
+      ? requestedUnit.id
+      : "";
+
+  if (!propertyId && !unitId) {
+    return undefined;
+  }
+
+  return {
+    propertyId,
+    unitId,
+  };
 }
 
 type TimelineReviewContext = {

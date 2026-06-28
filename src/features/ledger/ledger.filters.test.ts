@@ -10,7 +10,7 @@ import {
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
 
 const entries: LedgerEntry[] = [
-  {
+  withLedgerDetailContext({
     amount: 850,
     category: "Rent",
     currency: "USD",
@@ -23,9 +23,10 @@ const entries: LedgerEntry[] = [
     propertyId: "property-1",
     propertyName: "Soley Residence",
     transactionDate: "2026-06-01",
+    unitId: "unit-a1",
     unitNumber: "A1",
-  },
-  {
+  }),
+  withLedgerDetailContext({
     amount: 2400,
     category: "Roof",
     currency: "USD",
@@ -38,9 +39,10 @@ const entries: LedgerEntry[] = [
     propertyId: "property-1",
     propertyName: "Soley Residence",
     transactionDate: "2026-05-24",
+    unitId: "unit-a2",
     unitNumber: "A2",
-  },
-  {
+  }),
+  withLedgerDetailContext({
     amount: 120,
     archivedAt: "2026-06-16T09:00:00.000Z",
     category: "Maintenance",
@@ -58,7 +60,7 @@ const entries: LedgerEntry[] = [
       title: "Expense - Air-conditioner service",
     },
     transactionDate: "2026-06-04",
-  },
+  }),
 ];
 
 describe("filterLedgerEntries", () => {
@@ -71,6 +73,18 @@ describe("filterLedgerEntries", () => {
         query: "",
       }),
     ).toEqual([entries[0]]);
+  });
+
+  it("filters by supported unit route state", () => {
+    expect(
+      filterLedgerEntries(entries, {
+        archiveState: "all",
+        direction: "all",
+        propertyId: "property-1",
+        query: "",
+        unitId: "unit-a2",
+      }),
+    ).toEqual([entries[1]]);
   });
 
   it("matches query tokens across linked record fields", () => {
@@ -140,6 +154,44 @@ describe("filterLedgerEntries", () => {
   });
 });
 
+function withLedgerDetailContext(
+  entry: Omit<
+    LedgerEntry,
+    | "activity"
+    | "hrefs"
+    | "nextAction"
+    | "recordCounts"
+    | "riskIndicators"
+  >,
+): LedgerEntry {
+  return {
+    ...entry,
+    activity: [],
+    hrefs: {
+      documents: `/documents?query=${encodeURIComponent(entry.category)}`,
+      ledger: `/ledger?archiveState=all&entryId=${entry.id}`,
+      property: `/properties/${entry.propertyId}`,
+      reports: "/reports",
+      timeline: entry.relatedTimelineEvent
+        ? `/timeline?archiveState=all&eventId=${entry.relatedTimelineEvent.id}`
+        : "/timeline",
+      unit: entry.unitId ? `/units/${entry.unitId}` : undefined,
+    },
+    nextAction: {
+      description: "Review the synced timeline event and reporting context.",
+      href: "/timeline",
+      label: "Review timeline",
+      tone: "neutral",
+    },
+    recordCounts: {
+      activity: 0,
+      documents: entry.documents.length,
+      timelineEvents: entry.relatedTimelineEvent ? 1 : 0,
+    },
+    riskIndicators: [],
+  };
+}
+
 describe("parseLedgerSearchParams", () => {
   it("normalizes URL state for server-backed ledger views", () => {
     expect(
@@ -155,6 +207,7 @@ describe("parseLedgerSearchParams", () => {
         propertyId: "11111111-1111-4111-8111-111111111111",
         query: "  roof   repair  ",
         sort: "amount_desc",
+        unitId: "22222222-2222-4222-8222-222222222222",
       }),
     ).toEqual({
       archiveState: "archived",
@@ -168,6 +221,7 @@ describe("parseLedgerSearchParams", () => {
       propertyId: "11111111-1111-4111-8111-111111111111",
       query: "roof   repair",
       sort: "amount_desc",
+      unitId: "22222222-2222-4222-8222-222222222222",
     });
   });
 
@@ -184,6 +238,7 @@ describe("parseLedgerSearchParams", () => {
         period: "last_month",
         propertyId: "not-a-uuid",
         sort: "category_desc",
+        unitId: "not-a-uuid",
       }),
     ).toMatchObject({
       archiveState: "active",
@@ -196,6 +251,7 @@ describe("parseLedgerSearchParams", () => {
       period: "all",
       propertyId: "all",
       sort: "date_desc",
+      unitId: "all",
     });
   });
 

@@ -1,4 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
+import { toRecentChange } from "@/features/activity/recent-changes";
 import { getOrganizationCurrencySettings } from "@/features/settings/data/settings";
 import {
   ACTIVE_UNIT_LEASE_STATUSES,
@@ -27,6 +29,8 @@ const unitSelect =
 const propertySelect = "id, code, name";
 const leaseSelect =
   "id, unit_id, tenant_name, primary_tenant_person_id, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
+const legacyLeaseSelect =
+  "id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
 const timelineContextSelect =
   "id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency";
 const ledgerTotalsSelect =
@@ -185,6 +189,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
     ledgerResult,
     ledgerTotalsResult,
     documentsResult,
+    activityResult,
   ] = await Promise.all([
     supabase
       .from("properties")
@@ -231,15 +236,28 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       .is("archived_at", null)
       .order("uploaded_at", { ascending: false })
       .limit(detailRecordLimit),
+    supabase
+      .from("activity_logs")
+      .select(
+        "id, entity_type, entity_id, action, previous_values, new_values, created_at",
+      )
+      .eq("organization_id", organizationId)
+      .eq("entity_type", "unit")
+      .eq("entity_id", unit.id)
+      .order("created_at", { ascending: false })
+      .limit(6),
   ]);
 
   if (propertyResult.error) {
     throw new Error(`Could not load unit property: ${propertyResult.error.message}`);
   }
 
-  if (leasesResult.error) {
-    throw new Error(`Could not load unit leases: ${leasesResult.error.message}`);
-  }
+  const leaseRows = await getUnitDetailLeaseRows(
+    supabase,
+    organizationId,
+    unit.id,
+    leasesResult,
+  );
 
   if (timelineResult.error) {
     throw new Error(`Could not load unit timeline events: ${timelineResult.error.message}`);
@@ -257,7 +275,11 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
     throw new Error(`Could not load unit documents: ${documentsResult.error.message}`);
   }
 
-  const activeLease = selectCurrentLease(leasesResult.data ?? []);
+  if (activityResult.error) {
+    throw new Error(`Could not load unit activity: ${activityResult.error.message}`);
+  }
+
+  const activeLease = selectCurrentLease(leaseRows);
   const [currencySettings, documents, people] = await Promise.all([
     getOrganizationCurrencySettings(organizationId),
     addSignedDocumentUrls(documentsResult.data ?? [], supabase),
@@ -266,6 +288,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
 
   return buildUnitDetail({
     activeLease,
+    activity: (activityResult.data ?? []).map(toRecentChange),
     counts: {
       documents: documentsResult.count ?? 0,
       ledgerEntries: ledgerResult.count ?? ledgerResult.data?.length ?? 0,
@@ -304,14 +327,16 @@ async function getActiveLeasePeople(
     .is("archived_at", null);
 
   if (partiesResult.error) {
-    throw new Error(
-      `Could not load unit tenant links: ${partiesResult.error.message}`,
-    );
-  }
-
-  for (const party of partiesResult.data ?? []) {
-    if (party.person_id) {
-      personIds.add(party.person_id);
+    if (!isMissingSchemaObjectMessage(partiesResult.error.message, ["lease_parties"])) {
+      throw new Error(
+        `Could not load unit tenant links: ${partiesResult.error.message}`,
+      );
+    }
+  } else {
+    for (const party of partiesResult.data ?? []) {
+      if (party.person_id) {
+        personIds.add(party.person_id);
+      }
     }
   }
 
@@ -328,6 +353,10 @@ async function getActiveLeasePeople(
     .order("display_name", { ascending: true });
 
   if (peopleResult.error) {
+    if (isMissingSchemaObjectMessage(peopleResult.error.message, ["people"])) {
+      return [];
+    }
+
     throw new Error(`Could not load unit tenant people: ${peopleResult.error.message}`);
   }
 
@@ -551,14 +580,83 @@ async function getLeaseRowsForUnits(
       .is("archived_at", null)
       .order("lease_start_date", { ascending: false });
 
-    if (result.error) {
-      throw new Error(`Could not load unit leases: ${result.error.message}`);
-    }
-
-    return result.data ?? [];
+    return getUnitLeaseRowsForBatch(
+      supabase,
+      organizationId,
+      batch,
+      result,
+    );
   });
 
   return rows;
+}
+
+async function getUnitDetailLeaseRows(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  unitId: string,
+  result: {
+    data: UnitLeaseRecord[] | null;
+    error: { message: string } | null;
+  },
+) {
+  if (!result.error) {
+    return result.data ?? [];
+  }
+
+  if (!isMissingPrimaryTenantColumnMessage(result.error.message)) {
+    throw new Error(`Could not load unit leases: ${result.error.message}`);
+  }
+
+  const fallbackResult = await supabase
+    .from("leases")
+    .select(legacyLeaseSelect)
+    .eq("organization_id", organizationId)
+    .eq("unit_id", unitId)
+    .is("archived_at", null)
+    .order("lease_start_date", { ascending: false });
+
+  if (fallbackResult.error) {
+    throw new Error(`Could not load unit leases: ${fallbackResult.error.message}`);
+  }
+
+  return fallbackResult.data ?? [];
+}
+
+async function getUnitLeaseRowsForBatch(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  batch: string[],
+  result: {
+    data: UnitLeaseRecord[] | null;
+    error: { message: string } | null;
+  },
+) {
+  if (!result.error) {
+    return result.data ?? [];
+  }
+
+  if (!isMissingPrimaryTenantColumnMessage(result.error.message)) {
+    throw new Error(`Could not load unit leases: ${result.error.message}`);
+  }
+
+  const fallbackResult = await supabase
+    .from("leases")
+    .select(legacyLeaseSelect)
+    .eq("organization_id", organizationId)
+    .in("unit_id", batch)
+    .is("archived_at", null)
+    .order("lease_start_date", { ascending: false });
+
+  if (fallbackResult.error) {
+    throw new Error(`Could not load unit leases: ${fallbackResult.error.message}`);
+  }
+
+  return fallbackResult.data ?? [];
+}
+
+function isMissingPrimaryTenantColumnMessage(message: string) {
+  return isMissingSchemaObjectMessage(message, ["primary_tenant_person_id"]);
 }
 
 async function getTimelineContextRowsForUnits(

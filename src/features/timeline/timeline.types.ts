@@ -1,4 +1,5 @@
 import type { CurrencyCode } from "@/lib/money/format";
+import type { RecentChange } from "@/features/activity/activity.types";
 import type { LinkedDocument } from "@/features/documents/document.types";
 
 export type TimelineEventType =
@@ -14,7 +15,37 @@ export type TimelineEventType =
   | "Document Added"
   | "General Note";
 
+export type TimelineRecordCounts = {
+  activity: number;
+  documents: number;
+  linkedRecords: number;
+};
+
+export type TimelineRiskIndicator = {
+  description: string;
+  id: string;
+  label: string;
+  tone: "neutral" | "success" | "warning" | "danger" | "accent";
+};
+
+export type TimelineDetailHrefs = {
+  documents: string;
+  ledger?: string;
+  lease?: string;
+  property: string;
+  timeline: string;
+  unit?: string;
+};
+
+export type TimelineNextAction = {
+  description: string;
+  href: string;
+  label: string;
+  tone: TimelineRiskIndicator["tone"];
+};
+
 export type TimelineEvent = {
+  activity: RecentChange[];
   id: string;
   archivedAt?: string;
   eventDate: string;
@@ -30,12 +61,17 @@ export type TimelineEvent = {
   currency?: CurrencyCode;
   documents: LinkedDocument[];
   hasAttachment: boolean;
+  hrefs: TimelineDetailHrefs;
   isLocked: boolean;
   ledgerEntryId?: string;
+  nextAction: TimelineNextAction;
+  recordCounts: TimelineRecordCounts;
   createdBy: string;
   relatedDocument?: string;
   relatedLease?: string;
+  relatedLeaseId?: string;
   relatedLedgerEntry?: string;
+  riskIndicators: TimelineRiskIndicator[];
 };
 
 export type TimelinePropertyOption = {

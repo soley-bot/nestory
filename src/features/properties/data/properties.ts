@@ -1,10 +1,16 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { toRecentChange } from "@/features/activity/recent-changes";
 import type { CurrencyDisplaySettings } from "@/lib/money/format";
 import {
   buildPropertySummary,
   type PropertySummary,
 } from "@/features/properties/data/property-summary";
-import { buildPropertyDetail } from "@/features/properties/data/property-detail";
+import {
+  buildPropertyDetail,
+  type PropertyDetailDocumentRecord,
+  type PropertyDetailLedgerRecord,
+  type PropertyOwnerHistoryRecord,
+} from "@/features/properties/data/property-detail";
 import {
   DEFAULT_PROPERTY_SORT,
   parsePropertySearchParams,
@@ -26,6 +32,8 @@ type ActiveOwnerLink = {
   label: string;
   personId: string;
 };
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 type PropertySummaryOptions = {
   archiveState?: PropertyArchiveState;
@@ -196,14 +204,25 @@ export async function getPropertyDetail(
   currencySettings?: Partial<CurrencyDisplaySettings> | null,
 ) {
   const supabase = await createSupabaseServerClient();
+  const detailRecordLimit = 8;
 
-  const [propertyResult, unitsResult, ledgerResult] = await Promise.all([
+  const [
+    propertyResult,
+    unitsResult,
+    ownerRowsResult,
+    activeLeasesResult,
+    timelineResult,
+    ledgerResult,
+    documentsResult,
+    activityResult,
+  ] = await Promise.all([
     supabase
       .from("properties")
-      .select("id, name, code, property_type, owner, address, status, archived_at")
+      .select(
+        "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at",
+      )
       .eq("organization_id", organizationId)
       .eq("id", propertyId)
-      .is("archived_at", null)
       .maybeSingle(),
     supabase
       .from("units")
@@ -214,11 +233,69 @@ export async function getPropertyDetail(
       .eq("property_id", propertyId)
       .order("unit_number", { ascending: true }),
     supabase
-      .from("ledger_entries")
-      .select("property_id, direction, amount, currency")
+      .from("property_owners")
+      .select(
+        "id, person_id, ownership_label, is_primary, started_on, ended_on, archived_at",
+      )
       .eq("organization_id", organizationId)
       .eq("property_id", propertyId)
-      .is("archived_at", null),
+      .order("started_on", { ascending: false, nullsFirst: false }),
+    supabase
+      .from("leases")
+      .select(
+        "id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, archived_at",
+        { count: "exact" },
+      )
+      .eq("organization_id", organizationId)
+      .eq("property_id", propertyId)
+      .in("status", ["active", "notice_given"])
+      .is("archived_at", null)
+      .order("lease_end_date", { ascending: true })
+      .limit(detailRecordLimit),
+    supabase
+      .from("timeline_events")
+      .select(
+        "id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency",
+        { count: "exact" },
+      )
+      .eq("organization_id", organizationId)
+      .eq("property_id", propertyId)
+      .is("archived_at", null)
+      .order("event_date", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(detailRecordLimit),
+    supabase
+      .from("ledger_entries")
+      .select(
+        "id, unit_id, transaction_date, direction, category, amount, currency, description",
+        { count: "exact" },
+      )
+      .eq("organization_id", organizationId)
+      .eq("property_id", propertyId)
+      .is("archived_at", null)
+      .order("transaction_date", { ascending: false })
+      .order("id", { ascending: false }),
+    supabase
+      .from("documents")
+      .select(
+        "id, unit_id, lease_id, ledger_entry_id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at",
+        { count: "exact" },
+      )
+      .eq("organization_id", organizationId)
+      .eq("property_id", propertyId)
+      .is("archived_at", null)
+      .order("uploaded_at", { ascending: false })
+      .limit(detailRecordLimit),
+    supabase
+      .from("activity_logs")
+      .select(
+        "id, entity_type, entity_id, action, previous_values, new_values, created_at",
+      )
+      .eq("organization_id", organizationId)
+      .eq("entity_type", "property")
+      .eq("entity_id", propertyId)
+      .order("created_at", { ascending: false })
+      .limit(6),
   ]);
 
   if (propertyResult.error) {
@@ -233,16 +310,102 @@ export async function getPropertyDetail(
     throw new Error(`Could not load property units: ${unitsResult.error.message}`);
   }
 
+  if (ownerRowsResult.error) {
+    throw new Error(
+      `Could not load property owner history: ${ownerRowsResult.error.message}`,
+    );
+  }
+
+  if (activeLeasesResult.error) {
+    throw new Error(
+      `Could not load property leases: ${activeLeasesResult.error.message}`,
+    );
+  }
+
+  if (timelineResult.error) {
+    throw new Error(
+      `Could not load property timeline: ${timelineResult.error.message}`,
+    );
+  }
+
   if (ledgerResult.error) {
     throw new Error(`Could not load property ledger: ${ledgerResult.error.message}`);
   }
 
+  if (documentsResult.error) {
+    throw new Error(
+      `Could not load property documents: ${documentsResult.error.message}`,
+    );
+  }
+
+  if (activityResult.error) {
+    throw new Error(
+      `Could not load property activity: ${activityResult.error.message}`,
+    );
+  }
+
+  const ownerRows = ownerRowsResult.data ?? [];
+  const ownerNameByPersonId = await getPeopleDisplayNames(
+    organizationId,
+    new Set(ownerRows.map((owner) => owner.person_id)),
+  );
+  const ownerHistory = ownerRows.map(
+    (owner): PropertyOwnerHistoryRecord => ({
+      ...owner,
+      person_name: ownerNameByPersonId.get(owner.person_id) ?? "Linked owner",
+    }),
+  );
+  const activeOwner = ownerHistory.find(
+    (owner) => owner.is_primary && !owner.archived_at && !owner.ended_on,
+  );
+  const documents = await addSignedPropertyDocumentUrls(
+    documentsResult.data ?? [],
+    supabase,
+  );
+  const ledgerEntries = (ledgerResult.data ?? []) as PropertyDetailLedgerRecord[];
+
   return buildPropertyDetail({
+    activeLeases: activeLeasesResult.data ?? [],
+    activeOwner: activeOwner
+      ? {
+          label: activeOwner.person_name,
+          personId: activeOwner.person_id,
+        }
+      : null,
+    activity: (activityResult.data ?? []).map(toRecentChange),
     currencySettings,
-    ledgerEntries: ledgerResult.data ?? [],
+    documents,
+    ledgerEntries,
+    ownerHistory,
     property: propertyResult.data,
+    recentLedgerEntries: ledgerEntries.slice(0, detailRecordLimit),
+    recentTimelineEvents: timelineResult.data ?? [],
+    recordCounts: {
+      activeLeases: activeLeasesResult.count ?? activeLeasesResult.data?.length ?? 0,
+      documents: documentsResult.count ?? documents.length,
+      ledgerEntries: ledgerResult.count ?? ledgerEntries.length,
+      timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
+    },
     units: unitsResult.data ?? [],
   });
+}
+
+async function addSignedPropertyDocumentUrls(
+  rows: PropertyDetailDocumentRecord[],
+  supabase: SupabaseServerClient,
+): Promise<PropertyDetailDocumentRecord[]> {
+  return Promise.all(
+    rows.map(async (row) => {
+      const { data } = await supabase.storage
+        .from("nestory-documents")
+        .createSignedUrl(row.storage_path, 60 * 60);
+
+      return {
+        ...row,
+        url: data?.signedUrl,
+      };
+    }),
+  );
 }
 
 function groupByProperty<T extends { property_id: string }>(rows: T[]) {

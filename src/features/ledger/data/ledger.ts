@@ -8,8 +8,11 @@ import {
 } from "@/features/ledger/ledger.filters";
 import type {
   LedgerEntry,
+  LedgerNextAction,
   LedgerPeriodLock,
   LedgerPropertyOption,
+  LedgerRecordCounts,
+  LedgerRiskIndicator,
   LedgerUnitOption,
   LedgerViewQuery,
 } from "@/features/ledger/ledger.types";
@@ -183,6 +186,10 @@ export async function getLedgerScreenData(
     ledgerQuery = ledgerQuery.eq("property_id", viewQuery.propertyId);
   }
 
+  if (viewQuery.unitId !== "all") {
+    ledgerQuery = ledgerQuery.eq("unit_id", viewQuery.unitId);
+  }
+
   const dateScope = getLedgerTransactionDateScope(viewQuery);
 
   if (dateScope.from) {
@@ -231,16 +238,19 @@ export async function getLedgerScreenData(
 
   const entriesPage = ledgerResult.data ?? [];
   const visibleEntryIds = entriesPage.map((entry) => entry.id);
-  const [timelineEvents, documents] = await Promise.all([
+  const [timelineEvents, documents, activityRows] = await Promise.all([
     getLinkedTimelineEvents(supabase, organizationId, visibleEntryIds),
     getLinkedLedgerDocuments(supabase, organizationId, visibleEntryIds),
+    getLinkedLedgerActivity(supabase, organizationId, visibleEntryIds),
   ]);
   const timelineEventsByLedgerEntryId =
     indexTimelineEventsByLedgerEntryId(timelineEvents);
   const documentsWithUrls = await addSignedDocumentUrls(documents, supabase);
   const documentsByLedgerEntryId = groupDocumentsByLedgerEntryId(documentsWithUrls);
+  const activityByLedgerEntryId = groupActivityByLedgerEntryId(activityRows);
   const entries = entriesPage.map((entry) =>
     toLedgerEntry({
+      activity: activityByLedgerEntryId.get(entry.id) ?? [],
       documents: documentsByLedgerEntryId.get(entry.id) ?? [],
       entry,
       isLocked: isDateLocked(entry.transaction_date, periodLocks),
@@ -280,6 +290,7 @@ export async function getLedgerScreenData(
 }
 
 function toLedgerEntry({
+  activity,
   documents,
   entry,
   isLocked,
@@ -287,6 +298,7 @@ function toLedgerEntry({
   relatedTimelineEvent,
   unit,
 }: {
+  activity: ReturnType<typeof toRecentChange>[];
   documents: LinkedDocument[];
   entry: LedgerEntryRow;
   isLocked: boolean;
@@ -294,7 +306,15 @@ function toLedgerEntry({
   relatedTimelineEvent?: TimelineEventRow;
   unit?: UnitRow;
 }): LedgerEntry {
+  const hrefs = buildLedgerDetailHrefs(entry, relatedTimelineEvent);
+  const recordCounts: LedgerRecordCounts = {
+    activity: activity.length,
+    documents: documents.length,
+    timelineEvents: relatedTimelineEvent ? 1 : 0,
+  };
+
   return {
+    activity,
     amount: entry.amount,
     archivedAt: entry.archived_at ?? undefined,
     category: entry.category,
@@ -302,17 +322,33 @@ function toLedgerEntry({
     description: entry.description ?? "",
     documents,
     direction: entry.direction === "expense" ? "expense" : "income",
+    hrefs,
     id: entry.id,
     isLocked,
+    nextAction: buildLedgerNextAction({
+      hrefs,
+      isArchived: Boolean(entry.archived_at),
+      isLocked,
+      recordCounts,
+      relatedTimelineEvent,
+    }),
     propertyCode: property?.code ?? "Unknown",
     propertyId: entry.property_id,
     propertyName: property?.name ?? "Unknown property",
+    recordCounts,
     relatedTimelineEvent: relatedTimelineEvent
       ? {
           id: relatedTimelineEvent.id,
           title: relatedTimelineEvent.title,
         }
       : undefined,
+    riskIndicators: buildLedgerRiskIndicators({
+      isArchived: Boolean(entry.archived_at),
+      isLocked,
+      recordCounts,
+      relatedTimelineEvent,
+      unitId: entry.unit_id,
+    }),
     transactionDate: entry.transaction_date,
     unitId: entry.unit_id ?? undefined,
     unitNumber: unit?.unit_number,
@@ -375,6 +411,180 @@ function groupDocumentsByLedgerEntryId(rows: LedgerDocumentWithLink[]) {
   }
 
   return grouped;
+}
+
+function groupActivityByLedgerEntryId(
+  rows: Parameters<typeof toRecentChange>[0][],
+) {
+  const grouped = new Map<string, ReturnType<typeof toRecentChange>[]>();
+
+  for (const row of rows) {
+    const group = grouped.get(row.entity_id) ?? [];
+    group.push(toRecentChange(row));
+    grouped.set(row.entity_id, group);
+  }
+
+  return grouped;
+}
+
+function buildLedgerDetailHrefs(
+  entry: LedgerEntryRow,
+  relatedTimelineEvent?: TimelineEventRow,
+) {
+  return {
+    documents: buildHref("/documents", {
+      query: entry.category,
+    }),
+    ledger: buildHref("/ledger", {
+      archiveState: "all",
+      entryId: entry.id,
+      query: entry.category,
+    }),
+    property: `/properties/${entry.property_id}`,
+    reports: "/reports",
+    timeline: relatedTimelineEvent
+      ? buildHref("/timeline", {
+          archiveState: "all",
+          eventId: relatedTimelineEvent.id,
+          query: relatedTimelineEvent.title,
+        })
+      : buildHref("/timeline", {
+          archiveState: "all",
+          propertyId: entry.property_id,
+          query: entry.category,
+          unitId: entry.unit_id ?? undefined,
+        }),
+    unit: entry.unit_id ? `/units/${entry.unit_id}` : undefined,
+  };
+}
+
+function buildLedgerRiskIndicators({
+  isArchived,
+  isLocked,
+  recordCounts,
+  relatedTimelineEvent,
+  unitId,
+}: {
+  isArchived: boolean;
+  isLocked: boolean;
+  recordCounts: LedgerRecordCounts;
+  relatedTimelineEvent?: TimelineEventRow;
+  unitId: string | null;
+}): LedgerRiskIndicator[] {
+  return [
+    {
+      description: isLocked
+        ? "The accounting month is locked, so this entry cannot be changed."
+        : "The accounting month is open for corrections.",
+      id: "lock",
+      label: isLocked ? "Period locked" : "Period open",
+      tone: isLocked ? "warning" : "success",
+    },
+    {
+      description: isArchived
+        ? "Archived entries stay available for audit but are excluded from active totals."
+        : "This entry is included in active ledger totals.",
+      id: "archive",
+      label: isArchived ? "Archived" : "Active totals",
+      tone: isArchived ? "warning" : "success",
+    },
+    {
+      description: relatedTimelineEvent
+        ? "A timeline event is linked and can show this transaction in history."
+        : "No linked timeline event was found. Editing the entry can recreate the sync record.",
+      id: "timeline",
+      label: relatedTimelineEvent ? "Timeline linked" : "Timeline missing",
+      tone: relatedTimelineEvent ? "success" : "warning",
+    },
+    {
+      description:
+        recordCounts.documents > 0
+          ? "Receipt or invoice evidence is attached."
+          : "No receipt or invoice evidence is attached yet.",
+      id: "documents",
+      label: recordCounts.documents > 0 ? "Receipt attached" : "Receipt missing",
+      tone: recordCounts.documents > 0 ? "success" : "warning",
+    },
+    {
+      description: unitId
+        ? "This entry is scoped to a unit record."
+        : "This entry is property-level and not tied to a specific unit.",
+      id: "scope",
+      label: unitId ? "Unit scoped" : "Property level",
+      tone: unitId ? "success" : "neutral",
+    },
+  ];
+}
+
+function buildLedgerNextAction({
+  hrefs,
+  isArchived,
+  isLocked,
+  recordCounts,
+  relatedTimelineEvent,
+}: {
+  hrefs: LedgerEntry["hrefs"];
+  isArchived: boolean;
+  isLocked: boolean;
+  recordCounts: LedgerRecordCounts;
+  relatedTimelineEvent?: TimelineEventRow;
+}): LedgerNextAction {
+  if (isLocked) {
+    return {
+      description: "Unlock the accounting period before editing or restoring this entry.",
+      href: hrefs.ledger,
+      label: "Review lock",
+      tone: "warning",
+    };
+  }
+
+  if (isArchived) {
+    return {
+      description: "Restore this entry if it should return to active ledger totals.",
+      href: hrefs.ledger,
+      label: "Review restore",
+      tone: "warning",
+    };
+  }
+
+  if (!relatedTimelineEvent) {
+    return {
+      description: "Edit and save this entry to recreate its linked timeline record.",
+      href: hrefs.ledger,
+      label: "Repair timeline",
+      tone: "warning",
+    };
+  }
+
+  if (recordCounts.documents === 0) {
+    return {
+      description: "Attach a receipt or invoice so reports have evidence.",
+      href: hrefs.documents,
+      label: "Attach receipt",
+      tone: "warning",
+    };
+  }
+
+  return {
+    description: "Review the synced timeline event and reporting context.",
+    href: hrefs.timeline,
+    label: "Review timeline",
+    tone: "neutral",
+  };
+}
+
+function buildHref(pathname: string, params: Record<string, string | undefined>) {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      searchParams.set(key, value);
+    }
+  }
+
+  const query = searchParams.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 function toLedgerPeriodLocks(rows: PeriodLockRow[]): LedgerPeriodLock[] {
@@ -440,6 +650,31 @@ async function getLinkedLedgerDocuments(
 
   if (result.error) {
     throw new Error(`Could not load ledger documents: ${result.error.message}`);
+  }
+
+  return result.data ?? [];
+}
+
+async function getLinkedLedgerActivity(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  ledgerEntryIds: string[],
+) {
+  if (ledgerEntryIds.length === 0) {
+    return [];
+  }
+
+  const result = await supabase
+    .from("activity_logs")
+    .select("id, entity_type, entity_id, action, previous_values, new_values, created_at")
+    .eq("organization_id", organizationId)
+    .eq("entity_type", "ledger_entry")
+    .in("entity_id", ledgerEntryIds)
+    .order("created_at", { ascending: false })
+    .limit(120);
+
+  if (result.error) {
+    throw new Error(`Could not load ledger entry activity: ${result.error.message}`);
   }
 
   return result.data ?? [];
