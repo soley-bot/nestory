@@ -7,6 +7,13 @@ import type {
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
 import { normalizePageSize } from "@/lib/query/screen-query";
+import {
+  getFirstSearchParam,
+  getPositiveIntegerSearchParam,
+  getTrimmedSearchParam,
+  getUuidOrAllSearchParam,
+  type SearchParamValue,
+} from "@/lib/validation/search-params";
 
 export const DEFAULT_TIMELINE_PAGE_SIZE = 50;
 export const TIMELINE_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
@@ -25,9 +32,6 @@ const TIMELINE_EVENT_TYPE_VALUES: readonly TimelineEventType[] = [
   "Document Added",
   "General Note",
 ];
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export type TimelineFilterInput = {
   archiveState?: TimelineArchiveState;
   eventType: string;
@@ -36,7 +40,7 @@ export type TimelineFilterInput = {
   unitId?: string;
 };
 
-type TimelineSearchParams = Record<string, string | string[] | undefined>;
+type TimelineSearchParams = Record<string, SearchParamValue>;
 type TimelineSearchParamUpdate = Record<string, string | number | null | undefined>;
 
 export function filterTimelineEvents(
@@ -89,12 +93,12 @@ export function parseTimelineSearchParams(
   return {
     archiveState: parseArchiveState(params.archiveState),
     eventType: parseEventType(params.eventType),
-    page: parsePositiveInteger(params.page, 1),
+    page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
-    propertyId: parseUuidFilter(params.propertyId),
-    query: (getFirstValue(params.query) || "").trim().slice(0, 120),
+    propertyId: getUuidOrAllSearchParam(params.propertyId),
+    query: getTrimmedSearchParam(params.query),
     sort: parseSort(params.sort),
-    unitId: parseUuidFilter(params.unitId),
+    unitId: getUuidOrAllSearchParam(params.unitId),
   };
 }
 
@@ -195,27 +199,21 @@ export function buildTimelineSearchString(
 function parseArchiveState(
   value: string | string[] | undefined,
 ): TimelineArchiveState {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "archived" || candidate === "all" ? candidate : "active";
 }
 
 function parseEventType(value: string | string[] | undefined): TimelineEventType | "all" {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate && TIMELINE_EVENT_TYPE_VALUES.includes(candidate as TimelineEventType)
     ? (candidate as TimelineEventType)
     : "all";
 }
 
-function parseUuidFilter(value: string | string[] | undefined) {
-  const candidate = getFirstValue(value);
-
-  return candidate && uuidPattern.test(candidate) ? candidate : "all";
-}
-
 function parseSort(value: string | string[] | undefined): TimelineSortKey {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "date_asc" ||
     candidate === "type_asc" ||
@@ -235,22 +233,9 @@ function parsePageSize(value: string | string[] | undefined) {
 }
 
 function parseOptionalInteger(value: string | string[] | undefined) {
-  const parsed = Number.parseInt(getFirstValue(value) ?? "", 10);
+  const parsed = Number.parseInt(getFirstSearchParam(value) ?? "", 10);
 
   return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function parsePositiveInteger(
-  value: string | string[] | undefined,
-  fallback: number,
-) {
-  const parsed = Number.parseInt(getFirstValue(value) ?? "", 10);
-
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function getFirstValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
 }
 
 function compareDate(left: string, right: string) {

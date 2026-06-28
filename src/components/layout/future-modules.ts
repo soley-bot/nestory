@@ -23,18 +23,6 @@ export const FUTURE_MODULES: FutureModule[] = [
       "Needs lease terms, ledger structure, currency handling, receipt documents, and auditable balance changes.",
   },
   {
-    name: "Tasks & maintenance",
-    path: "/maintenance",
-    status: "Planned",
-    group: "Operations",
-    summary:
-      "Requests, repairs, assignments, vendor notes, and completion history.",
-    reason:
-      "Maintenance should attach to stable property, unit, tenant, lease, and record history instead of becoming a separate task tracker.",
-    recordRoomDependency:
-      "Needs the record room to identify the exact unit, lease period, prior repairs, documents, and ledger impact for each job.",
-  },
-  {
     name: "Communications",
     path: "/communications",
     status: "Planned",

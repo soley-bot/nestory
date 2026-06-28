@@ -12,7 +12,7 @@ export default async function LeasesPage({ searchParams }: LeasesPageProps) {
   const context = await requireAdminContext();
   const params = await searchParams;
   const viewQuery = parseLeaseSearchParams(params);
-  const { leases, pagination, propertyOptions, unitOptions } =
+  const { leases, pagination, propertyOptions, tenantOptions, unitOptions } =
     await getLeasesScreenData(context.organizationId, viewQuery);
   const initialLeaseId = getUuidSearchParam(params.leaseId);
 
@@ -23,6 +23,7 @@ export default async function LeasesPage({ searchParams }: LeasesPageProps) {
       leases={leases}
       pagination={pagination}
       propertyOptions={propertyOptions}
+      tenantOptions={tenantOptions}
       unitOptions={unitOptions}
       viewQuery={viewQuery}
     />

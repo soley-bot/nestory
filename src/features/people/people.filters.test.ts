@@ -121,18 +121,18 @@ describe("canUsePagedPeopleBaseQuery", () => {
     ).toBe(true);
   });
 
-  it("keeps query and derived-sort views off the base-row pager", () => {
+  it("keeps query views off the base-row pager", () => {
     expect(
       canUsePagedPeopleBaseQuery(parsePeopleSearchParams({ query: "central" })),
     ).toBe(false);
     expect(
       canUsePagedPeopleBaseQuery(
-        parsePeopleSearchParams({ sort: "linked_desc" }),
+        parsePeopleSearchParams({ sort: "updated_desc" }),
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canUsePagedPeopleBaseQuery(parsePeopleSearchParams({ archiveState: "all" })),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 
@@ -259,7 +259,7 @@ describe("buildPeopleSummary", () => {
 
     expect(summary.contact.label).toBe("dara@example.com");
     expect(summary.hrefs.addLease).toBe(
-      "/leases?action=create&query=Dara+Person",
+      "/leases?action=create&tenantPersonId=person-1",
     );
     expect(summary.hrefs.addTimelineEvent).toBe(
       "/timeline?action=create&propertyId=property-1&query=Dara+Person&unitId=unit-1",
@@ -310,7 +310,7 @@ function buildPersonSummary(
     },
     hasUsefulContact: false,
     hrefs: {
-      addLease: "/leases?action=create&query=Dara+Person",
+      addLease: "/leases?action=create&tenantPersonId=person-1",
       addTimelineEvent: "/timeline?action=create&query=Dara+Person",
       documents: "/documents?query=Dara+Person",
       ledger: "/ledger?query=Dara+Person",

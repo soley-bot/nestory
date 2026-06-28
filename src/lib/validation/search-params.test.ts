@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getUuidSearchParam } from "@/lib/validation/search-params";
+import {
+  getPositiveIntegerSearchParam,
+  getTrimmedSearchParam,
+  getUuidOrAllSearchParam,
+  getUuidSearchParam,
+} from "@/lib/validation/search-params";
 
 describe("getUuidSearchParam", () => {
   it("accepts a valid UUID string", () => {
@@ -19,5 +24,11 @@ describe("getUuidSearchParam", () => {
 
   it("rejects invalid values", () => {
     expect(getUuidSearchParam("javascript:alert(1)")).toBeUndefined();
+  });
+
+  it("normalizes common filter values", () => {
+    expect(getUuidOrAllSearchParam("not-a-uuid")).toBe("all");
+    expect(getPositiveIntegerSearchParam("0", 50)).toBe(50);
+    expect(getTrimmedSearchParam("  Central   ")).toBe("Central");
   });
 });

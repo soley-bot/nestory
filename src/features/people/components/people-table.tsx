@@ -26,7 +26,6 @@ type PeopleTableProps = {
   onOpenPerson: (id: string) => void;
   onSelectPerson: (id: string) => void;
   people: PeopleSummary[];
-  schemaNotice?: string;
   selectedPersonId: string;
 };
 
@@ -37,10 +36,9 @@ export function PeopleTable({
   onOpenPerson,
   onSelectPerson,
   people,
-  schemaNotice,
   selectedPersonId,
 }: PeopleTableProps) {
-  const emptyMessage = schemaNotice ?? getEmptyMessage(archiveState);
+  const emptyMessage = getEmptyMessage(archiveState);
 
   return (
     <div>

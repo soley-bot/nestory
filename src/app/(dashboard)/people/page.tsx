@@ -22,7 +22,7 @@ async function PeoplePageContent({ searchParams }: PeoplePageProps) {
   const context = await requireAdminContext();
   const params = await searchParams;
   const viewQuery = parsePeopleSearchParams(params);
-  const { pagination, people, schemaNotice } = await getPeopleScreenData(
+  const { pagination, people } = await getPeopleScreenData(
     context.organizationId,
     viewQuery,
   );
@@ -34,7 +34,6 @@ async function PeoplePageContent({ searchParams }: PeoplePageProps) {
       initialPersonId={initialPersonId}
       pagination={pagination}
       people={people}
-      schemaNotice={schemaNotice}
       viewQuery={viewQuery}
     />
   );

@@ -32,6 +32,7 @@ export type LeaseRow = Pick<
   | "lease_start_date"
   | "monthly_rent_amount"
   | "monthly_rent_currency"
+  | "primary_tenant_person_id"
   | "property_id"
   | "status"
   | "tenant_name"
@@ -165,6 +166,7 @@ export function buildLeaseSummary({
     monthlyRentCurrency: rentCurrency,
     propertyId: lease.property_id,
     status: statusValue,
+    tenantPersonId: lease.primary_tenant_person_id ?? "",
     tenantName: lease.tenant_name,
     unitId: lease.unit_id,
   };

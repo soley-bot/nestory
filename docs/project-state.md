@@ -43,8 +43,9 @@ Current implemented or scaffolded product areas include:
 - Imports.
 - Reports.
 - Settings.
-- Planned placeholders for maintenance, payments, communications, workflows,
-  tenant portal, roadmap, and tenants.
+- Maintenance.
+- Planned placeholders for payments, communications, workflows, tenant portal,
+  roadmap, and tenants.
 
 The current product direction is reusable-core first: company-specific branding,
 settings, reports, workflows, and integrations should layer on top of shared PMS

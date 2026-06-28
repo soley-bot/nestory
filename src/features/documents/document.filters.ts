@@ -3,22 +3,29 @@ import type {
   DocumentPagination,
   DocumentViewQuery,
 } from "@/features/documents/document.types";
+import {
+  getFirstSearchParam,
+  getPositiveIntegerSearchParam,
+  getTrimmedSearchParam,
+  getUuidOrAllSearchParam,
+  type SearchParamValue,
+} from "@/lib/validation/search-params";
 
 export const DEFAULT_DOCUMENT_PAGE_SIZE = 50;
 
-type DocumentSearchParams = Record<string, string | string[] | undefined>;
+type DocumentSearchParams = Record<string, SearchParamValue>;
 
 export function parseDocumentSearchParams(
   params: DocumentSearchParams,
 ): DocumentViewQuery {
   return {
     archiveState: parseArchiveState(params.archiveState),
-    page: parsePositiveInteger(params.page, 1),
+    page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
-    propertyId: parseUuidFilter(params.propertyId),
-    query: (getFirstValue(params.query) || "").trim().slice(0, 120),
-    taskId: parseUuidFilter(params.taskId),
-    unitId: parseUuidFilter(params.unitId),
+    propertyId: getUuidOrAllSearchParam(params.propertyId),
+    query: getTrimmedSearchParam(params.query),
+    taskId: getUuidOrAllSearchParam(params.taskId),
+    unitId: getUuidOrAllSearchParam(params.unitId),
   };
 }
 
@@ -49,34 +56,13 @@ export function buildDocumentPagination({
 function parseArchiveState(
   value: string | string[] | undefined,
 ): DocumentArchiveState {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "archived" || candidate === "all" ? candidate : "active";
 }
 
 function parsePageSize(value: string | string[] | undefined) {
-  const candidate = parsePositiveInteger(value, DEFAULT_DOCUMENT_PAGE_SIZE);
+  const candidate = getPositiveIntegerSearchParam(value, DEFAULT_DOCUMENT_PAGE_SIZE);
 
   return [25, 50, 100].includes(candidate) ? candidate : DEFAULT_DOCUMENT_PAGE_SIZE;
-}
-
-function parsePositiveInteger(
-  value: string | string[] | undefined,
-  fallback: number,
-) {
-  const parsed = Number.parseInt(getFirstValue(value) ?? "", 10);
-
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function parseUuidFilter(value: string | string[] | undefined) {
-  const candidate = getFirstValue(value);
-
-  return candidate && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
-    ? candidate
-    : "all";
-}
-
-function getFirstValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
 }

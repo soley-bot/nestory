@@ -5,22 +5,28 @@ import type {
   PeopleStatusFilter,
   PeopleViewQuery,
 } from "@/features/people/people.types";
+import {
+  getFirstSearchParam,
+  getPositiveIntegerSearchParam,
+  getTrimmedSearchParam,
+  type SearchParamValue,
+} from "@/lib/validation/search-params";
 
 export const DEFAULT_PEOPLE_ARCHIVE_STATE: PeopleArchiveState = "active";
 export const DEFAULT_PEOPLE_PAGE_SIZE = 50;
 export const PEOPLE_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 export const DEFAULT_PEOPLE_SORT: PeopleSortKey = "name_asc";
 
-type PeopleSearchParams = Record<string, string | string[] | undefined>;
+type PeopleSearchParams = Record<string, SearchParamValue>;
 
 export function parsePeopleSearchParams(
   params: PeopleSearchParams,
 ): PeopleViewQuery {
   return {
     archiveState: parsePeopleArchiveState(params.archiveState),
-    page: parsePositiveInteger(params.page, 1),
+    page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
-    query: (getFirstValue(params.query) || "").trim().slice(0, 120),
+    query: getTrimmedSearchParam(params.query),
     role: parseRole(params.role),
     sort: parseSort(params.sort),
     status: parseStatus(params.status),
@@ -30,7 +36,7 @@ export function parsePeopleSearchParams(
 export function parsePeopleArchiveState(
   value: string | string[] | undefined,
 ): PeopleArchiveState {
-  const archiveState = getFirstValue(value);
+  const archiveState = getFirstSearchParam(value);
 
   if (archiveState === "archived" || archiveState === "all") {
     return archiveState;
@@ -40,7 +46,7 @@ export function parsePeopleArchiveState(
 }
 
 function parseRole(value: string | string[] | undefined): PeopleRoleFilter {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "tenant" ||
     candidate === "owner" ||
@@ -50,7 +56,7 @@ function parseRole(value: string | string[] | undefined): PeopleRoleFilter {
 }
 
 function parseStatus(value: string | string[] | undefined): PeopleStatusFilter {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "active" ||
     candidate === "inactive" ||
@@ -61,34 +67,19 @@ function parseStatus(value: string | string[] | undefined): PeopleStatusFilter {
 }
 
 function parseSort(value: string | string[] | undefined): PeopleSortKey {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
-  return candidate === "role_asc" ||
-    candidate === "linked_desc" ||
-    candidate === "updated_desc"
+  return candidate === "updated_desc"
     ? candidate
     : DEFAULT_PEOPLE_SORT;
 }
 
 function parsePageSize(value: string | string[] | undefined) {
-  const candidate = parsePositiveInteger(value, DEFAULT_PEOPLE_PAGE_SIZE);
+  const candidate = getPositiveIntegerSearchParam(value, DEFAULT_PEOPLE_PAGE_SIZE);
 
   return PEOPLE_PAGE_SIZE_OPTIONS.includes(
     candidate as (typeof PEOPLE_PAGE_SIZE_OPTIONS)[number],
   )
     ? candidate
     : DEFAULT_PEOPLE_PAGE_SIZE;
-}
-
-function parsePositiveInteger(
-  value: string | string[] | undefined,
-  fallback: number,
-) {
-  const parsed = Number.parseInt(getFirstValue(value) ?? "", 10);
-
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function getFirstValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
 }

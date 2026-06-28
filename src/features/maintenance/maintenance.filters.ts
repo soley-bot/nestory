@@ -7,12 +7,17 @@ import type {
   MaintenanceStatus,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
+import {
+  getFirstSearchParam,
+  getPositiveIntegerSearchParam,
+  getTrimmedSearchParam,
+  getUuidOrAllSearchParam,
+  type SearchParamValue,
+} from "@/lib/validation/search-params";
 
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const monthPattern = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
-type MaintenanceSearchParams = Record<string, string | string[] | undefined>;
+type MaintenanceSearchParams = Record<string, SearchParamValue>;
 
 export const DEFAULT_MAINTENANCE_PAGE_SIZE = 25;
 export const DEFAULT_MAINTENANCE_SORT: MaintenanceSortKey = "due_asc";
@@ -23,17 +28,17 @@ export function parseMaintenanceSearchParams(
   return {
     archiveState: parseArchiveState(params.archiveState),
     month: parseMonth(params.month),
-    page: parsePositiveInteger(params.page, 1),
+    page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
     priority: parsePriority(params.priority),
-    propertyId: parseUuidFilter(params.propertyId),
-    query: getFirstValue(params.query)?.trim() ?? "",
+    propertyId: getUuidOrAllSearchParam(params.propertyId),
+    query: getTrimmedSearchParam(params.query),
     review: parseReview(params.review),
     scope: parseScope(params.scope),
     sort: parseSort(params.sort),
     status: parseStatus(params.status),
-    taskId: parseUuidFilter(params.taskId),
-    unitId: parseUuidFilter(params.unitId),
+    taskId: getUuidOrAllSearchParam(params.taskId),
+    unitId: getUuidOrAllSearchParam(params.unitId),
   };
 }
 
@@ -64,7 +69,7 @@ export function buildMaintenancePagination({
 function parseArchiveState(
   value: string | string[] | undefined,
 ): MaintenanceArchiveState {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "archived" || candidate === "all" ? candidate : "active";
 }
@@ -72,7 +77,7 @@ function parseArchiveState(
 function parsePriority(
   value: string | string[] | undefined,
 ): MaintenancePriority | "all" {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "low" ||
     candidate === "normal" ||
@@ -85,7 +90,7 @@ function parsePriority(
 function parseReview(
   value: string | string[] | undefined,
 ): MaintenanceReviewFilter {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "open" ||
     candidate === "overdue" ||
@@ -100,7 +105,7 @@ function parseReview(
 }
 
 function parseSort(value: string | string[] | undefined): MaintenanceSortKey {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "priority_desc" ||
     candidate === "cost_desc" ||
@@ -110,13 +115,13 @@ function parseSort(value: string | string[] | undefined): MaintenanceSortKey {
 }
 
 function parseScope(value: string | string[] | undefined): MaintenanceScope {
-  return getFirstValue(value) === "all" ? "all" : "focused";
+  return getFirstSearchParam(value) === "all" ? "all" : "focused";
 }
 
 function parseStatus(
   value: string | string[] | undefined,
 ): MaintenanceStatus | "all" {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "pending" ||
     candidate === "scheduled" ||
@@ -128,41 +133,25 @@ function parseStatus(
     : "all";
 }
 
-function parseUuidFilter(value: string | string[] | undefined) {
-  const candidate = getFirstValue(value);
-
-  return candidate && uuidPattern.test(candidate) ? candidate : "all";
-}
-
 function parseMonth(value: string | string[] | undefined) {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate && monthPattern.test(candidate) ? candidate : getCurrentMonthValue();
 }
 
 function parsePageSize(value: string | string[] | undefined) {
-  const parsed = parsePositiveInteger(value, DEFAULT_MAINTENANCE_PAGE_SIZE);
+  const parsed = getPositiveIntegerSearchParam(
+    value,
+    DEFAULT_MAINTENANCE_PAGE_SIZE,
+  );
 
   return [10, 25, 50, 100].includes(parsed)
     ? parsed
     : DEFAULT_MAINTENANCE_PAGE_SIZE;
 }
 
-function parsePositiveInteger(
-  value: string | string[] | undefined,
-  fallback: number,
-) {
-  const parsed = Number.parseInt(getFirstValue(value) ?? "", 10);
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
 function getCurrentMonthValue() {
   const now = new Date();
 
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function getFirstValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
 }

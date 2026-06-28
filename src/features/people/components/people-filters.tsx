@@ -249,8 +249,6 @@ export function PeopleFilters({
               onValueChange={(value) => replaceParam("sort", value, DEFAULT_PEOPLE_SORT)}
               options={[
                 { label: "Name", value: "name_asc" },
-                { label: "Role", value: "role_asc" },
-                { label: "Linked records", value: "linked_desc" },
                 { label: "Recently updated", value: "updated_desc" },
               ]}
               value={viewQuery.sort}

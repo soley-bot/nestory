@@ -38,6 +38,11 @@ export type LeaseUnitOption = {
   propertyId: string;
 };
 
+export type LeaseTenantOption = {
+  id: string;
+  label: string;
+};
+
 export type LeaseFormValues = {
   depositAmount?: number | null;
   depositCurrency?: CurrencyCode | null;
@@ -47,6 +52,7 @@ export type LeaseFormValues = {
   monthlyRentCurrency: CurrencyCode;
   propertyId: string;
   status: LeaseStatusValue;
+  tenantPersonId: string;
   tenantName: string;
   unitId?: string | null;
 };

@@ -22,14 +22,16 @@ import type {
   LeasePagination,
   LeasePropertyOption,
   LeaseSummary,
+  LeaseTenantOption,
   LeaseUnitOption,
   LeaseViewQuery,
 } from "@/features/leases/lease.types";
 
 const leaseSelect =
-  "id, property_id, unit_id, tenant_name, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, deposit_amount, deposit_currency, status, archived_at";
+  "id, property_id, unit_id, tenant_name, primary_tenant_person_id, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, deposit_amount, deposit_currency, status, archived_at";
 const propertySelect = "id, code, name, archived_at";
 const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
+const tenantSelect = "id, display_name, primary_email, primary_phone";
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type OptionalLeaseBackboneResult<T> = {
   data: T[] | null;
@@ -42,7 +44,7 @@ export async function getLeasesScreenData(
   viewQuery: LeaseViewQuery = parseLeaseSearchParams({}),
 ) {
   const supabase = await createSupabaseServerClient();
-  const [propertiesResult, unitsResult] = await Promise.all([
+  const [propertiesResult, unitsResult, tenantsResult] = await Promise.all([
     supabase
       .from("properties")
       .select(propertySelect)
@@ -53,6 +55,12 @@ export async function getLeasesScreenData(
       .select(unitSelect)
       .eq("organization_id", organizationId)
       .order("unit_number", { ascending: true }),
+    supabase
+      .from("people")
+      .select(tenantSelect)
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .order("display_name", { ascending: true }),
   ]);
 
   if (propertiesResult.error) {
@@ -65,12 +73,19 @@ export async function getLeasesScreenData(
     throw new Error(`Could not load lease units: ${unitsResult.error.message}`);
   }
 
+  if (tenantsResult.error) {
+    throw new Error(
+      `Could not load lease tenant people: ${tenantsResult.error.message}`,
+    );
+  }
+
   const properties = (propertiesResult.data ?? []) as Array<
     LeasePropertyRow & { archived_at: string | null }
   >;
   const units = (unitsResult.data ?? []) as Array<
     LeaseUnitRow & { archived_at: string | null }
   >;
+  const tenantOptions = toTenantOptions(tenantsResult.data ?? []);
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
   const buildLeasesQuery = ({
@@ -206,6 +221,7 @@ export async function getLeasesScreenData(
         leases: [],
         pagination,
         propertyOptions: toPropertyOptions(properties),
+        tenantOptions,
         unitOptions: toUnitOptions(units, propertiesById),
       };
     }
@@ -245,6 +261,7 @@ export async function getLeasesScreenData(
       }),
       pagination,
       propertyOptions: toPropertyOptions(properties),
+      tenantOptions,
       unitOptions: toUnitOptions(units, propertiesById),
     };
   }
@@ -296,6 +313,7 @@ export async function getLeasesScreenData(
     }),
     pagination,
     propertyOptions: toPropertyOptions(properties),
+    tenantOptions,
     unitOptions: toUnitOptions(units, propertiesById),
   };
 }
@@ -633,6 +651,7 @@ function summaryToLeaseRow(lease: LeaseSummary): LeaseRow {
     lease_start_date: lease.formValues.leaseStartDate,
     monthly_rent_amount: lease.formValues.monthlyRentAmount,
     monthly_rent_currency: lease.formValues.monthlyRentCurrency,
+    primary_tenant_person_id: lease.formValues.tenantPersonId || null,
     property_id: lease.propertyId,
     status: lease.statusValue,
     tenant_name: lease.tenantName,
@@ -669,6 +688,26 @@ function toUnitOptions(
         unit.archived_at ? " (archived)" : ""
       }`,
       propertyId: unit.property_id,
+    };
+  });
+}
+
+function toTenantOptions(
+  people: Array<{
+    id: string;
+    display_name: string;
+    primary_email: string | null;
+    primary_phone: string | null;
+  }>,
+): LeaseTenantOption[] {
+  return people.map((person) => {
+    const contact = [person.primary_email, person.primary_phone]
+      .filter(Boolean)
+      .join(" / ");
+
+    return {
+      id: person.id,
+      label: contact ? `${person.display_name} / ${contact}` : person.display_name,
     };
   });
 }

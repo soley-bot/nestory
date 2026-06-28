@@ -24,6 +24,7 @@ const lease = {
   lease_start_date: "2026-02-01",
   monthly_rent_amount: 850,
   monthly_rent_currency: "USD" as const,
+  primary_tenant_person_id: "person-1",
   property_id: "property-1",
   status: "active",
   tenant_name: "Dara Tenant",
@@ -39,6 +40,7 @@ describe("buildLeaseSummary", () => {
     });
 
     expect(summary.tenantName).toBe("Dara Tenant");
+    expect(summary.formValues.tenantPersonId).toBe("person-1");
     expect(summary.partySummary).toBe("Dara Tenant");
     expect(summary.unitLabel).toBe("Unit 12A / Floor 12");
     expect(summary.statusLabel).toBe("Active");

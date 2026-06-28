@@ -21,6 +21,7 @@ import type {
   LeasePagination,
   LeasePropertyOption,
   LeaseSummary,
+  LeaseTenantOption,
   LeaseUnitOption,
   LeaseViewQuery,
 } from "@/features/leases/lease.types";
@@ -30,7 +31,9 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-type LeaseCreateInitialValues = Partial<Pick<LeaseFormValues, "propertyId" | "unitId">>;
+type LeaseCreateInitialValues = Partial<
+  Pick<LeaseFormValues, "propertyId" | "tenantPersonId" | "unitId">
+>;
 type LeaseCreateIntent = "fill-vacancy" | "standard";
 
 type DrawerState =
@@ -49,6 +52,7 @@ type LeaseScreenProps = {
   leases: LeaseSummary[];
   pagination: LeasePagination;
   propertyOptions: LeasePropertyOption[];
+  tenantOptions: LeaseTenantOption[];
   unitOptions: LeaseUnitOption[];
   viewQuery: LeaseViewQuery;
 };
@@ -58,6 +62,7 @@ export function LeaseScreen({
   leases,
   pagination,
   propertyOptions,
+  tenantOptions,
   unitOptions,
   viewQuery,
 }: LeaseScreenProps) {
@@ -65,8 +70,14 @@ export function LeaseScreen({
   const router = useRouter();
   const searchParams = useSearchParams();
   const createInitialValues = useMemo(
-    () => getLeaseCreateInitialValues(searchParams, propertyOptions, unitOptions),
-    [propertyOptions, searchParams, unitOptions],
+    () =>
+      getLeaseCreateInitialValues(
+        searchParams,
+        propertyOptions,
+        tenantOptions,
+        unitOptions,
+      ),
+    [propertyOptions, searchParams, tenantOptions, unitOptions],
   );
   const createIntent = getLeaseCreateIntent(searchParams, createInitialValues);
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
@@ -247,6 +258,7 @@ export function LeaseScreen({
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
               properties={propertyOptions}
+              tenants={tenantOptions}
               units={unitOptions}
             />
           )}
@@ -284,6 +296,7 @@ function getHrefWithoutActionParam(
   const nextParams = new URLSearchParams(searchParams.toString());
   nextParams.delete("action");
   nextParams.delete("source");
+  nextParams.delete("tenantPersonId");
 
   const queryString = nextParams.toString();
   return queryString ? `${pathname}?${queryString}` : pathname;
@@ -301,9 +314,15 @@ function getLeaseCreateIntent(
 function getLeaseCreateInitialValues(
   searchParams: { get(name: string): string | null },
   properties: LeasePropertyOption[],
+  tenants: LeaseTenantOption[],
   units: LeaseUnitOption[],
 ): LeaseCreateInitialValues | undefined {
   const requestedPropertyId = searchParams.get("propertyId") ?? "";
+  const requestedTenantPersonId = tenants.some(
+    (tenant) => tenant.id === searchParams.get("tenantPersonId"),
+  )
+    ? searchParams.get("tenantPersonId") ?? ""
+    : "";
   const requestedUnitId = searchParams.get("unitId") ?? "";
   const requestedUnit = units.find((unit) => unit.id === requestedUnitId);
   const propertyId =
@@ -316,19 +335,20 @@ function getLeaseCreateInitialValues(
       ? requestedUnit.id
       : "";
 
-  if (!propertyId && !unitId) {
+  if (!propertyId && !unitId && !requestedTenantPersonId) {
     return undefined;
   }
 
   return {
     propertyId,
+    tenantPersonId: requestedTenantPersonId,
     unitId,
   };
 }
 
 function getLeaseFormKey(drawer: Extract<DrawerState, { mode: "create" | "edit" }>) {
   if (drawer.mode === "create") {
-    return `create-${drawer.initialValues?.unitId ?? drawer.initialValues?.propertyId ?? "new"}`;
+    return `create-${drawer.initialValues?.tenantPersonId ?? drawer.initialValues?.unitId ?? drawer.initialValues?.propertyId ?? "new"}`;
   }
 
   return `edit-${drawer.lease.id}`;
@@ -357,10 +377,10 @@ function getLeaseDrawerTitle(drawer: DrawerState) {
 function getLeaseDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "create") {
     if (drawer.intent === "fill-vacancy") {
-      return "Create an active lease for the selected vacant unit. Saving the lease will mark the unit occupied.";
+      return "Create an active lease for the selected vacant unit and tenant. Saving the lease will mark the unit occupied.";
     }
 
-    return "Create a lease record tied to a tenant, property, optional unit, rent, and deposit.";
+    return "Create a lease record tied to a People tenant, property, optional unit, rent, and deposit.";
   }
 
   if (drawer.mode === "edit") {

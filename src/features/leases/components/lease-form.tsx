@@ -15,6 +15,7 @@ import type {
   LeasePropertyOption,
   LeaseStatusValue,
   LeaseSummary,
+  LeaseTenantOption,
   LeaseUnitOption,
 } from "@/features/leases/lease.types";
 
@@ -36,10 +37,13 @@ type LeaseFormProps = {
   onClose: () => void;
   onSuccess?: (message: string) => void;
   properties: LeasePropertyOption[];
+  tenants: LeaseTenantOption[];
   units: LeaseUnitOption[];
 };
 
-type LeaseFormInitialValues = Partial<Pick<LeaseFormValues, "propertyId" | "unitId">>;
+type LeaseFormInitialValues = Partial<
+  Pick<LeaseFormValues, "propertyId" | "tenantPersonId" | "unitId">
+>;
 
 export function LeaseForm({
   initialValues,
@@ -48,6 +52,7 @@ export function LeaseForm({
   onClose,
   onSuccess,
   properties,
+  tenants,
   units,
 }: LeaseFormProps) {
   const isEditMode = mode === "edit";
@@ -73,6 +78,11 @@ export function LeaseForm({
   const normalizedStatusOptions = ensureSelectedStatus(
     statusOptions,
     defaults.status,
+  );
+  const tenantOptions = ensureSelectedTenant(
+    tenants,
+    defaults.tenantPersonId,
+    defaults.tenantName,
   );
   const formUnitId =
     selectedUnitId && unitOptions.some((unit) => unit.id === selectedUnitId)
@@ -118,13 +128,19 @@ export function LeaseForm({
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
-          <Field label="Tenant" error={state.fieldErrors?.tenantName?.[0]}>
-            <Input
-              defaultValue={defaults.tenantName}
-              name="tenantName"
-              placeholder="Tenant or company name"
+          <Field label="Tenant" error={state.fieldErrors?.tenantPersonId?.[0]}>
+            <SelectControl
+              ariaLabel="Tenant"
+              defaultValue={defaults.tenantPersonId}
+              name="tenantPersonId"
+              options={[
+                { label: "Select tenant", value: "" },
+                ...tenantOptions.map((tenant) => ({
+                  label: tenant.label,
+                  value: tenant.id,
+                })),
+              ]}
               required
-              type="text"
             />
           </Field>
 
@@ -291,6 +307,8 @@ function getLeaseDefaults(
     monthlyRentAmount: toInputNumber(formValues?.monthlyRentAmount),
     propertyId: formValues?.propertyId ?? initialValues.propertyId ?? "",
     status: formValues?.status ?? "active",
+    tenantPersonId:
+      formValues?.tenantPersonId ?? initialValues.tenantPersonId ?? "",
     tenantName: formValues?.tenantName ?? "",
     unitId: formValues?.unitId ?? initialValues.unitId ?? "",
   };
@@ -330,6 +348,27 @@ function ensureSelectedUnit(
   const selectedUnit = allUnits.find((unit) => unit.id === selectedUnitId);
 
   return selectedUnit ? [...scopedUnits, selectedUnit] : scopedUnits;
+}
+
+function ensureSelectedTenant(
+  tenants: LeaseTenantOption[],
+  selectedTenantId: string,
+  selectedTenantName: string,
+) {
+  if (
+    !selectedTenantId ||
+    tenants.some((tenant) => tenant.id === selectedTenantId)
+  ) {
+    return tenants;
+  }
+
+  return [
+    ...tenants,
+    {
+      id: selectedTenantId,
+      label: selectedTenantName || "Current tenant",
+    },
+  ];
 }
 
 function ensureSelectedStatus(

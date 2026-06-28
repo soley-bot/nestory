@@ -8,6 +8,13 @@ import type {
   LedgerViewQuery,
 } from "@/features/ledger/ledger.types";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
+import {
+  getFirstSearchParam,
+  getPositiveIntegerSearchParam,
+  getTrimmedSearchParam,
+  getUuidOrAllSearchParam,
+  type SearchParamValue,
+} from "@/lib/validation/search-params";
 
 export const DEFAULT_LEDGER_PAGE_SIZE = 50;
 export const LEDGER_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
@@ -26,9 +33,6 @@ export const DEFAULT_LEDGER_VIEW_QUERY: LedgerViewQuery = {
   sort: DEFAULT_LEDGER_SORT,
   unitId: "all",
 };
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 type LedgerFilterOptions = {
   archiveState?: LedgerArchiveState;
   currentDate?: Date;
@@ -42,7 +46,7 @@ type LedgerFilterOptions = {
   unitId?: string;
 };
 
-type LedgerSearchParams = Record<string, string | string[] | undefined>;
+type LedgerSearchParams = Record<string, SearchParamValue>;
 type DateScope = {
   before?: string;
   from?: string;
@@ -123,13 +127,13 @@ export function parseLedgerSearchParams(
     dateTo: parseDateFilter(params.dateTo),
     direction: parseDirection(params.direction),
     minAmount: parseMinAmount(params.minAmount),
-    page: parsePositiveInteger(params.page, 1),
+    page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
     period: parsePeriod(params.period),
-    propertyId: parsePropertyId(params.propertyId),
-    query: (getFirstValue(params.query) || "").trim().slice(0, 120),
+    propertyId: getUuidOrAllSearchParam(params.propertyId),
+    query: getTrimmedSearchParam(params.query),
     sort: parseSort(params.sort),
-    unitId: parseUnitId(params.unitId),
+    unitId: getUuidOrAllSearchParam(params.unitId),
   });
 }
 
@@ -288,13 +292,13 @@ export function buildLedgerSnapshotFromEntries(
 }
 
 function parseArchiveState(value: string | string[] | undefined): LedgerArchiveState {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "archived" || candidate === "all" ? candidate : "active";
 }
 
 function parseDateFilter(value: string | string[] | undefined) {
-  const candidate = getFirstValue(value)?.trim() ?? "";
+  const candidate = getFirstSearchParam(value)?.trim() ?? "";
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) {
     return "";
@@ -309,7 +313,7 @@ function parseDateFilter(value: string | string[] | undefined) {
 }
 
 function parseDirection(value: string | string[] | undefined) {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "income" || candidate === "expense" ? candidate : "all";
 }
@@ -334,27 +338,19 @@ function parseMinAmount(
 function parsePeriod(
   value: LedgerPeriodFilter | string | string[] | undefined,
 ): LedgerPeriodFilter {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "current_month" || candidate === "last_30_days"
     ? candidate
     : "all";
 }
 
-function parsePropertyId(value: string | string[] | undefined) {
-  const candidate = getFirstValue(value);
-
-  return candidate && uuidPattern.test(candidate) ? candidate : "all";
-}
-
 function parseUnitId(value: string | string[] | undefined) {
-  const candidate = getFirstValue(value);
-
-  return candidate && uuidPattern.test(candidate) ? candidate : "all";
+  return getUuidOrAllSearchParam(value);
 }
 
 function parseSort(value: string | string[] | undefined): LedgerSortKey {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "date_asc" ||
     candidate === "amount_desc" ||
@@ -365,26 +361,13 @@ function parseSort(value: string | string[] | undefined): LedgerSortKey {
 }
 
 function parsePageSize(value: string | string[] | undefined) {
-  const candidate = parsePositiveInteger(value, DEFAULT_LEDGER_PAGE_SIZE);
+  const candidate = getPositiveIntegerSearchParam(value, DEFAULT_LEDGER_PAGE_SIZE);
 
   return LEDGER_PAGE_SIZE_OPTIONS.includes(
     candidate as (typeof LEDGER_PAGE_SIZE_OPTIONS)[number],
   )
     ? candidate
     : DEFAULT_LEDGER_PAGE_SIZE;
-}
-
-function parsePositiveInteger(
-  value: string | string[] | undefined,
-  fallback: number,
-) {
-  const parsed = Number.parseInt(getFirstValue(value) ?? "", 10);
-
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function getFirstValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
 }
 
 function compareStrings(first: string, second: string) {

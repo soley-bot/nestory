@@ -33,7 +33,6 @@ type PeopleScreenProps = {
   initialPersonId?: string;
   pagination: PeoplePagination;
   people: PeopleSummary[];
-  schemaNotice?: string;
   viewQuery: PeopleViewQuery;
 };
 
@@ -41,7 +40,6 @@ export function PeopleScreen({
   initialPersonId,
   pagination,
   people,
-  schemaNotice,
   viewQuery,
 }: PeopleScreenProps) {
   const pathname = usePathname();
@@ -142,13 +140,13 @@ export function PeopleScreen({
         title="People"
       />
 
-      {statusMessage || schemaNotice ? (
+      {statusMessage ? (
         <div className="px-4 pt-5 sm:px-6 lg:px-6">
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role={schemaNotice ? "alert" : "status"}
+            role="status"
           >
-            {statusMessage ?? schemaNotice}
+            {statusMessage}
           </p>
         </div>
       ) : null}
@@ -174,7 +172,6 @@ export function PeopleScreen({
             onOpenPerson={openPersonRecord}
             onSelectPerson={previewPerson}
             people={people}
-            schemaNotice={schemaNotice}
             selectedPersonId={selectedPerson?.id ?? ""}
           />
           <PaginationControls attached={isTableMode} pagination={pagination} />

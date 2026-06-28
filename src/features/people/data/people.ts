@@ -30,12 +30,6 @@ import {
   formatPartyType,
   formatRole,
 } from "@/features/people/people.labels";
-import {
-  asUntypedSupabase,
-  isMissingPeopleSchemaMessage,
-  type UntypedQueryBuilder,
-  type UntypedSupabaseClient,
-} from "@/features/people/data/untyped-supabase";
 
 const peopleSelect =
   "id, display_name, legal_name, party_type, primary_email, primary_phone, tax_identifier, notes, archived_at, updated_at, created_at";
@@ -58,6 +52,12 @@ const activitySelect =
   "id, entity_type, entity_id, action, previous_values, new_values, created_at";
 
 type UnknownRecord = Record<string, unknown>;
+type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type PeopleQueryResult = {
+  count?: number | null;
+  data: unknown;
+  error: { message: string } | null;
+};
 
 type PersonRow = {
   archivedAt: string | null;
@@ -157,40 +157,42 @@ type PeopleSummaryLoadResult = {
   summaries: PeopleSummary[];
 };
 
+type PeopleDataTable =
+  | "documents"
+  | "lease_parties"
+  | "leases"
+  | "people"
+  | "person_contacts"
+  | "person_roles"
+  | "properties"
+  | "property_owners"
+  | "units"
+  | "vendor_profiles";
+
 type PeopleIdPrefilter = {
   excludeIds: Set<string>;
   includeIds: Set<string> | null;
   requireMissingPrimaryContact: boolean;
 };
 
-type PeopleIdPrefilterResult =
-  | { kind: "ready"; filter: PeopleIdPrefilter }
-  | { kind: "missing_schema"; schemaNotice: string };
-
 type PeopleIdQueryResult =
   | { kind: "ready"; ids: Set<string> }
-  | { kind: "missing_schema"; schemaNotice: string }
   | { kind: "unsupported" };
 
-type PagedPeopleRowsResult =
-  | { kind: "ready"; people: PersonRow[]; totalCount: number }
-  | { kind: "missing_schema"; schemaNotice: string };
-
-type SearchableQueryBuilder = UntypedQueryBuilder & {
-  or(filters: string): UntypedQueryBuilder;
+type PagedPeopleRowsResult = {
+  people: PersonRow[];
+  totalCount: number;
 };
 
 export async function getPeopleScreenData(
   organizationId: string,
   viewQuery: PeopleViewQuery = parsePeopleSearchParams({}),
 ): Promise<PeopleScreenData> {
-  const rawSupabase = await createSupabaseServerClient();
-  const supabase = asUntypedSupabase(rawSupabase);
+  const supabase = await createSupabaseServerClient();
 
   if (canUsePagedPeopleBaseQuery(viewQuery)) {
     return getPagedPeopleScreenData({
       organizationId,
-      rawSupabase,
       supabase,
       viewQuery,
     });
@@ -199,7 +201,6 @@ export async function getPeopleScreenData(
   if (canUseBoundedPeopleSearchQuery(viewQuery)) {
     return getQueryFilteredPeopleScreenData({
       organizationId,
-      rawSupabase,
       supabase,
       viewQuery,
     });
@@ -207,7 +208,6 @@ export async function getPeopleScreenData(
 
   return getCompletePeopleScreenData({
     organizationId,
-    rawSupabase,
     supabase,
     viewQuery,
   });
@@ -215,7 +215,6 @@ export async function getPeopleScreenData(
 
 export function canUsePagedPeopleBaseQuery(viewQuery: PeopleViewQuery) {
   return (
-    viewQuery.archiveState !== "all" &&
     viewQuery.query.trim().length === 0 &&
     canUsePeopleBaseSort(viewQuery.sort)
   );
@@ -231,13 +230,11 @@ function canUsePeopleBaseSort(sort: PeopleViewQuery["sort"]) {
 
 async function getPagedPeopleScreenData({
   organizationId,
-  rawSupabase,
   supabase,
   viewQuery,
 }: {
   organizationId: string;
-  rawSupabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
   viewQuery: PeopleViewQuery;
 }): Promise<PeopleScreenData> {
   const idFilterResult = await getPeopleIdPrefilter({
@@ -246,22 +243,14 @@ async function getPagedPeopleScreenData({
     viewQuery,
   });
 
-  if (idFilterResult.kind === "missing_schema") {
-    return emptyPeopleData(viewQuery, idFilterResult.schemaNotice);
-  }
-
   let rowsResult = await getPagedPeopleRows({
-    idFilter: idFilterResult.filter,
+    idFilter: idFilterResult,
     organizationId,
     page: viewQuery.page,
     pageSize: viewQuery.pageSize,
     supabase,
     viewQuery,
   });
-
-  if (rowsResult.kind === "missing_schema") {
-    return emptyPeopleData(viewQuery, rowsResult.schemaNotice);
-  }
 
   let pagination = buildPeoplePagination({
     page: viewQuery.page,
@@ -271,17 +260,13 @@ async function getPagedPeopleScreenData({
 
   if (pagination.page !== viewQuery.page && rowsResult.totalCount > 0) {
     rowsResult = await getPagedPeopleRows({
-      idFilter: idFilterResult.filter,
+      idFilter: idFilterResult,
       organizationId,
       page: pagination.page,
       pageSize: viewQuery.pageSize,
       supabase,
       viewQuery,
     });
-
-    if (rowsResult.kind === "missing_schema") {
-      return emptyPeopleData(viewQuery, rowsResult.schemaNotice);
-    }
 
     pagination = buildPeoplePagination({
       page: pagination.page,
@@ -307,20 +292,18 @@ async function getPagedPeopleScreenData({
     people: await addSignedDocumentUrlsToPeople(
       pagePeople,
       documentsById,
-      rawSupabase,
+      supabase,
     ),
   };
 }
 
 async function getQueryFilteredPeopleScreenData({
   organizationId,
-  rawSupabase,
   supabase,
   viewQuery,
 }: {
   organizationId: string;
-  rawSupabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
   viewQuery: PeopleViewQuery;
 }): Promise<PeopleScreenData> {
   const [idFilterResult, queryIdsResult] = await Promise.all([
@@ -328,31 +311,29 @@ async function getQueryFilteredPeopleScreenData({
     getPeopleIdsMatchingQuery({ organizationId, supabase, viewQuery }),
   ]);
 
-  if (idFilterResult.kind === "missing_schema") {
-    return emptyPeopleData(viewQuery, idFilterResult.schemaNotice);
-  }
-
-  if (queryIdsResult.kind === "missing_schema") {
-    return emptyPeopleData(viewQuery, queryIdsResult.schemaNotice);
-  }
-
   if (queryIdsResult.kind === "unsupported") {
     return getCompletePeopleScreenData({
       organizationId,
-      rawSupabase,
       supabase,
       viewQuery,
     });
   }
 
-  const idFilter = mergePeopleIdPrefilters(idFilterResult.filter, {
+  const idFilter = mergePeopleIdPrefilters(idFilterResult, {
     excludeIds: new Set<string>(),
     includeIds: queryIdsResult.ids,
     requireMissingPrimaryContact: false,
   });
 
   if (idFilter.includeIds?.size === 0) {
-    return emptyPeopleData(viewQuery);
+    return {
+      pagination: buildPeoplePagination({
+        page: viewQuery.page,
+        pageSize: viewQuery.pageSize,
+        totalCount: 0,
+      }),
+      people: [],
+    };
   }
 
   const rowsResult = await getPeopleRowsForFilter({
@@ -361,10 +342,6 @@ async function getQueryFilteredPeopleScreenData({
     supabase,
     viewQuery,
   });
-
-  if (rowsResult.kind === "missing_schema") {
-    return emptyPeopleData(viewQuery, rowsResult.schemaNotice);
-  }
 
   const filteredPeople = await filterPeopleRowsByQuery({
     organizationId,
@@ -396,20 +373,18 @@ async function getQueryFilteredPeopleScreenData({
     people: await addSignedDocumentUrlsToPeople(
       pagePeople,
       documentsById,
-      rawSupabase,
+      supabase,
     ),
   };
 }
 
 async function getCompletePeopleScreenData({
   organizationId,
-  rawSupabase,
   supabase,
   viewQuery,
 }: {
   organizationId: string;
-  rawSupabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
   viewQuery: PeopleViewQuery;
 }): Promise<PeopleScreenData> {
   const excludedPersonIds = await getExcludedPersonIdsForStatus(
@@ -440,10 +415,6 @@ async function getCompletePeopleScreenData({
   const peopleResult = await peopleQuery;
 
   if (peopleResult.error) {
-    if (isMissingPeopleSchemaMessage(peopleResult.error.message)) {
-      return emptyPeopleData(viewQuery, "People tables are not available yet.");
-    }
-
     throw new Error(`Could not load people: ${peopleResult.error.message}`);
   }
 
@@ -470,7 +441,7 @@ async function getCompletePeopleScreenData({
     people: await addSignedDocumentUrlsToPeople(
       pagePeople,
       documentsById,
-      rawSupabase,
+      supabase,
     ),
   };
 }
@@ -487,11 +458,11 @@ async function getPagedPeopleRows({
   organizationId: string;
   page: number;
   pageSize: number;
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
   viewQuery: PeopleViewQuery;
 }): Promise<PagedPeopleRowsResult> {
   if (idFilter.includeIds?.size === 0) {
-    return { kind: "ready", people: [], totalCount: 0 };
+    return { people: [], totalCount: 0 };
   }
 
   const start = (Math.max(page, 1) - 1) * pageSize;
@@ -507,23 +478,16 @@ async function getPagedPeopleRows({
       idFilter,
     ),
     viewQuery.sort,
+    viewQuery.archiveState,
   ).range(start, start + pageSize - 1);
 
   if (result.error) {
-    if (isMissingPeopleSchemaMessage(result.error.message)) {
-      return {
-        kind: "missing_schema",
-        schemaNotice: "People tables are not available yet.",
-      };
-    }
-
     throw new Error(`Could not load people: ${result.error.message}`);
   }
 
   const people = asRows(result.data, toPersonRow);
 
   return {
-    kind: "ready",
     people,
     totalCount: typeof result.count === "number" ? result.count : people.length,
   };
@@ -537,11 +501,11 @@ async function getPeopleRowsForFilter({
 }: {
   idFilter: PeopleIdPrefilter;
   organizationId: string;
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
   viewQuery: PeopleViewQuery;
 }): Promise<PagedPeopleRowsResult> {
   if (idFilter.includeIds?.size === 0) {
-    return { kind: "ready", people: [], totalCount: 0 };
+    return { people: [], totalCount: 0 };
   }
 
   const result = await applyPeopleBaseSort(
@@ -556,30 +520,23 @@ async function getPeopleRowsForFilter({
       idFilter,
     ),
     viewQuery.sort,
+    viewQuery.archiveState,
   );
 
   if (result.error) {
-    if (isMissingPeopleSchemaMessage(result.error.message)) {
-      return {
-        kind: "missing_schema",
-        schemaNotice: "People tables are not available yet.",
-      };
-    }
-
     throw new Error(`Could not load people: ${result.error.message}`);
   }
 
   const people = asRows(result.data, toPersonRow);
 
   return {
-    kind: "ready",
     people,
     totalCount: typeof result.count === "number" ? result.count : people.length,
   };
 }
 
 function applyPeopleArchiveFilter(
-  query: UntypedQueryBuilder,
+  query: ReturnType<SupabaseServerClient["from"]>,
   archiveState: PeopleArchiveState,
 ) {
   if (archiveState === "active") {
@@ -594,20 +551,30 @@ function applyPeopleArchiveFilter(
 }
 
 function applyPeopleBaseSort(
-  query: UntypedQueryBuilder,
+  query: ReturnType<SupabaseServerClient["from"]>,
   sort: PeopleViewQuery["sort"],
+  archiveState: PeopleArchiveState,
 ) {
+  let nextQuery = query;
+
+  if (archiveState === "all") {
+    nextQuery = nextQuery.order("archived_at", {
+      ascending: true,
+      nullsFirst: true,
+    });
+  }
+
   if (sort === "updated_desc") {
-    return query
+    return nextQuery
       .order("updated_at", { ascending: false })
       .order("display_name", { ascending: true });
   }
 
-  return query.order("display_name", { ascending: true });
+  return nextQuery.order("display_name", { ascending: true });
 }
 
 function applyPeopleIdPrefilter(
-  query: UntypedQueryBuilder,
+  query: ReturnType<SupabaseServerClient["from"]>,
   idFilter: PeopleIdPrefilter,
 ) {
   let nextQuery = query;
@@ -637,9 +604,9 @@ async function getPeopleIdPrefilter({
   viewQuery,
 }: {
   organizationId: string;
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
   viewQuery: PeopleViewQuery;
-}): Promise<PeopleIdPrefilterResult> {
+}): Promise<PeopleIdPrefilter> {
   let filter: PeopleIdPrefilter = {
     excludeIds: new Set<string>(),
     includeIds: null,
@@ -652,10 +619,6 @@ async function getPeopleIdPrefilter({
       role: viewQuery.role,
       supabase,
     });
-
-    if (roleIdsResult.kind === "missing_schema") {
-      return roleIdsResult;
-    }
 
     if (roleIdsResult.kind === "unsupported") {
       throw new Error("Unsupported people role filter.");
@@ -675,10 +638,6 @@ async function getPeopleIdPrefilter({
       supabase,
     });
 
-    if (activeIdsResult.kind === "missing_schema") {
-      return activeIdsResult;
-    }
-
     if (activeIdsResult.kind === "unsupported") {
       throw new Error("Unsupported people status filter.");
     }
@@ -693,14 +652,6 @@ async function getPeopleIdPrefilter({
       getPeopleIdsFromRoles({ organizationId, supabase }),
       getPeopleIdsFromRoles({ organizationId, status: "active", supabase }),
     ]);
-
-    if (visibleRoleIdsResult.kind === "missing_schema") {
-      return visibleRoleIdsResult;
-    }
-
-    if (activeIdsResult.kind === "missing_schema") {
-      return activeIdsResult;
-    }
 
     if (
       visibleRoleIdsResult.kind === "unsupported" ||
@@ -720,10 +671,6 @@ async function getPeopleIdPrefilter({
       supabase,
     });
 
-    if (visibleRoleIdsResult.kind === "missing_schema") {
-      return visibleRoleIdsResult;
-    }
-
     if (visibleRoleIdsResult.kind === "unsupported") {
       throw new Error("Unsupported people no-role filter.");
     }
@@ -739,10 +686,6 @@ async function getPeopleIdPrefilter({
       organizationId,
     );
 
-    if (usefulContactIdsResult.kind === "missing_schema") {
-      return usefulContactIdsResult;
-    }
-
     if (usefulContactIdsResult.kind === "unsupported") {
       throw new Error("Unsupported people missing-contact filter.");
     }
@@ -754,7 +697,7 @@ async function getPeopleIdPrefilter({
     });
   }
 
-  return { kind: "ready", filter };
+  return filter;
 }
 
 function mergePeopleIdPrefilters(
@@ -779,7 +722,7 @@ async function loadPeopleSummariesForRows({
 }: {
   organizationId: string;
   people: PersonRow[];
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
 }): Promise<PeopleSummaryLoadResult> {
   const personIds = new Set(people.map((person) => person.id));
   const [roles, contacts, leaseParties, propertyOwners, vendorProfiles] =
@@ -795,7 +738,6 @@ async function loadPeopleSummariesForRows({
         organizationId,
         toContactRow,
         { column: "person_id", values: personIds },
-        true,
       ),
       getRows(
         supabase,
@@ -804,7 +746,6 @@ async function loadPeopleSummariesForRows({
         organizationId,
         toLeasePartyRow,
         { column: "person_id", values: personIds },
-        true,
       ),
       getRows(
         supabase,
@@ -813,7 +754,6 @@ async function loadPeopleSummariesForRows({
         organizationId,
         toPropertyOwnerRow,
         { column: "person_id", values: personIds },
-        true,
       ),
       getRows(
         supabase,
@@ -822,7 +762,6 @@ async function loadPeopleSummariesForRows({
         organizationId,
         toVendorProfileRow,
         { column: "person_id", values: personIds },
-        true,
       ),
     ]);
   const leaseIds = new Set(leaseParties.map((party) => party.leaseId));
@@ -833,7 +772,6 @@ async function loadPeopleSummariesForRows({
     organizationId,
     toLeaseRow,
     { column: "id", values: leaseIds },
-    true,
   );
   const propertyIds = new Set([
     ...leases.map((lease) => lease.propertyId),
@@ -871,7 +809,6 @@ async function loadPeopleSummariesForRows({
         column: "id",
         values: unitIds,
       },
-      true,
     ),
     getRows(
       supabase,
@@ -883,7 +820,6 @@ async function loadPeopleSummariesForRows({
         column: "lease_id",
         values: leaseIds,
       },
-      true,
     ),
     getRows(
       supabase,
@@ -895,7 +831,6 @@ async function loadPeopleSummariesForRows({
         column: "property_id",
         values: propertyIds,
       },
-      true,
     ),
     getRows(
       supabase,
@@ -907,7 +842,6 @@ async function loadPeopleSummariesForRows({
         column: "unit_id",
         values: unitIds,
       },
-      true,
     ),
     getPersonActivityRows(supabase, organizationId, personIds),
   ]);
@@ -953,13 +887,12 @@ async function loadPeopleSummariesForRows({
 }
 
 async function getRows<T>(
-  supabase: UntypedSupabaseClient,
-  table: string,
+  supabase: SupabaseServerClient,
+  table: PeopleDataTable,
   columns: string,
   organizationId: string,
   mapper: (row: UnknownRecord) => T | null,
   filter?: { column: string; values: ReadonlySet<string> },
-  optional = false,
 ) {
   if (filter && filter.values.size === 0) {
     return [];
@@ -977,10 +910,6 @@ async function getRows<T>(
   const result = await query;
 
   if (result.error) {
-    if (optional && isMissingPeopleSchemaMessage(result.error.message)) {
-      return [];
-    }
-
     throw new Error(`Could not load ${table}: ${result.error.message}`);
   }
 
@@ -993,7 +922,7 @@ async function getPeopleIdsMatchingQuery({
   viewQuery,
 }: {
   organizationId: string;
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
   viewQuery: PeopleViewQuery;
 }): Promise<PeopleIdQueryResult> {
   const tokens = getPeopleQueryTokens(viewQuery);
@@ -1028,7 +957,7 @@ async function getPeopleIdsMatchingQueryToken({
   token,
 }: {
   organizationId: string;
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
   token: string;
 }): Promise<PeopleIdQueryResult> {
   const pattern = toPostgrestIlikeToken(token);
@@ -1063,15 +992,7 @@ async function getPeopleIdsMatchingQueryToken({
     linkedUnitIdsResult,
     syntheticLabelIdsResult,
   ];
-  const missingSchema = results.find(
-    (result): result is Extract<PeopleIdQueryResult, { kind: "missing_schema" }> =>
-      result.kind === "missing_schema",
-  );
   const unsupported = results.some((result) => result.kind === "unsupported");
-
-  if (missingSchema) {
-    return missingSchema;
-  }
 
   if (unsupported) {
     return { kind: "unsupported" };
@@ -1088,13 +1009,15 @@ async function getPeopleIdsMatchingQueryToken({
 }
 
 async function getPeopleIdsMatchingBaseToken(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   pattern: string,
 ): Promise<PeopleIdQueryResult> {
-  const result = await applyPostgrestOr(
-    supabase.from("people").select("id").eq("organization_id", organizationId),
-    [
+  const result = await supabase
+    .from("people")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .or([
       `display_name.ilike.%${pattern}%`,
       `legal_name.ilike.%${pattern}%`,
       `party_type.ilike.%${pattern}%`,
@@ -1102,17 +1025,9 @@ async function getPeopleIdsMatchingBaseToken(
       `primary_phone.ilike.%${pattern}%`,
       `tax_identifier.ilike.%${pattern}%`,
       `notes.ilike.%${pattern}%`,
-    ].join(","),
-  );
+    ].join(","));
 
   if (result.error) {
-    if (isMissingPeopleSchemaMessage(result.error.message)) {
-      return {
-        kind: "missing_schema",
-        schemaNotice: "People tables are not available yet.",
-      };
-    }
-
     throw new Error(`Could not load people search filters: ${result.error.message}`);
   }
 
@@ -1123,73 +1038,67 @@ async function getPeopleIdsMatchingBaseToken(
 }
 
 async function getPeopleIdsMatchingRoleToken(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   pattern: string,
 ): Promise<PeopleIdQueryResult> {
-  const result = await applyPostgrestOr(
-    supabase
-      .from("person_roles")
-      .select("person_id")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null),
-    `role.ilike.%${pattern}%`,
-  );
+  const result = await supabase
+    .from("person_roles")
+    .select("person_id")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .or(`role.ilike.%${pattern}%`);
 
   return readPersonIdQueryResult(result, "people role search filters");
 }
 
 async function getPeopleIdsMatchingContactToken(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   pattern: string,
 ): Promise<PeopleIdQueryResult> {
-  const result = await applyPostgrestOr(
-    supabase
-      .from("person_contacts")
-      .select("person_id")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null),
-    [
+  const result = await supabase
+    .from("person_contacts")
+    .select("person_id")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .or([
       `contact_name.ilike.%${pattern}%`,
       `contact_type.ilike.%${pattern}%`,
       `email.ilike.%${pattern}%`,
       `phone.ilike.%${pattern}%`,
-    ].join(","),
-  );
+    ].join(","));
 
   return readPersonIdQueryResult(
     result,
     "people contact search filters",
-    true,
   );
 }
 
 async function getPeopleIdsMatchingVendorToken(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   pattern: string,
 ): Promise<PeopleIdQueryResult> {
-  const result = await applyPostgrestOr(
-    supabase
-      .from("vendor_profiles")
-      .select("person_id")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null),
-    [`service_category.ilike.%${pattern}%`, `service_area.ilike.%${pattern}%`].join(
-      ",",
-    ),
-  );
+  const result = await supabase
+    .from("vendor_profiles")
+    .select("person_id")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .or(
+      [`service_category.ilike.%${pattern}%`, `service_area.ilike.%${pattern}%`].join(
+        ",",
+      ),
+    );
 
   return readPersonIdQueryResult(
     result,
     "people vendor search filters",
-    true,
   );
 }
 
 async function getPeopleIdsMatchingLinkedPropertyToken(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   pattern: string,
 ): Promise<PeopleIdQueryResult> {
@@ -1231,7 +1140,7 @@ async function getPeopleIdsMatchingLinkedPropertyToken(
 }
 
 async function getPeopleIdsMatchingLinkedUnitToken(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   pattern: string,
 ): Promise<PeopleIdQueryResult> {
@@ -1253,7 +1162,7 @@ async function getPeopleIdsMatchingLinkedUnitToken(
 }
 
 async function getPeopleIdsMatchingSyntheticLabelToken(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   token: string,
 ): Promise<PeopleIdQueryResult> {
@@ -1271,15 +1180,7 @@ async function getPeopleIdsMatchingSyntheticLabelToken(
       ? getPeopleIdsForActiveLeasesWithoutUnits(supabase, organizationId)
       : readyPeopleIdSet(),
   ]);
-  const missingSchema = results.find(
-    (result): result is Extract<PeopleIdQueryResult, { kind: "missing_schema" }> =>
-      result.kind === "missing_schema",
-  );
   const unsupported = results.some((result) => result.kind === "unsupported");
-
-  if (missingSchema) {
-    return missingSchema;
-  }
 
   if (unsupported) {
     return { kind: "unsupported" };
@@ -1296,7 +1197,7 @@ async function getPeopleIdsMatchingSyntheticLabelToken(
 }
 
 async function getPeopleIdsWithoutVisibleRoles(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<PeopleIdQueryResult> {
   const [allPeopleIdsResult, visibleRoleIdsResult] = await Promise.all([
@@ -1319,7 +1220,7 @@ async function getPeopleIdsWithoutVisibleRoles(
 }
 
 async function getPeopleIdsWithoutUsefulContacts(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<PeopleIdQueryResult> {
   const [missingPrimaryIdsResult, usefulContactIdsResult] = await Promise.all([
@@ -1342,7 +1243,7 @@ async function getPeopleIdsWithoutUsefulContacts(
 }
 
 async function getAllPeopleIds(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<PeopleIdQueryResult> {
   const result = await supabase
@@ -1351,13 +1252,6 @@ async function getAllPeopleIds(
     .eq("organization_id", organizationId);
 
   if (result.error) {
-    if (isMissingPeopleSchemaMessage(result.error.message)) {
-      return {
-        kind: "missing_schema",
-        schemaNotice: "People tables are not available yet.",
-      };
-    }
-
     throw new Error(`Could not load people id filters: ${result.error.message}`);
   }
 
@@ -1368,7 +1262,7 @@ async function getAllPeopleIds(
 }
 
 async function getPeopleIdsWithoutPrimaryContact(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<PeopleIdQueryResult> {
   const result = await supabase
@@ -1379,13 +1273,6 @@ async function getPeopleIdsWithoutPrimaryContact(
     .is("primary_phone", null);
 
   if (result.error) {
-    if (isMissingPeopleSchemaMessage(result.error.message)) {
-      return {
-        kind: "missing_schema",
-        schemaNotice: "People tables are not available yet.",
-      };
-    }
-
     throw new Error(`Could not load people contact filters: ${result.error.message}`);
   }
 
@@ -1396,7 +1283,7 @@ async function getPeopleIdsWithoutPrimaryContact(
 }
 
 async function getPeopleIdsForVisibleVendorProfiles(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<PeopleIdQueryResult> {
   const result = await supabase
@@ -1405,11 +1292,11 @@ async function getPeopleIdsForVisibleVendorProfiles(
     .eq("organization_id", organizationId)
     .is("archived_at", null);
 
-  return readPersonIdQueryResult(result, "people vendor profile filters", true);
+  return readPersonIdQueryResult(result, "people vendor profile filters");
 }
 
 async function getPeopleIdsForActiveLeasesWithoutUnits(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<PeopleIdQueryResult> {
   const result = await supabase
@@ -1434,17 +1321,15 @@ async function getPeopleIdsForActiveLeasesWithoutUnits(
 }
 
 async function getPropertyIdsMatchingToken(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   pattern: string,
 ): Promise<PeopleIdQueryResult> {
-  const result = await applyPostgrestOr(
-    supabase
-      .from("properties")
-      .select("id")
-      .eq("organization_id", organizationId),
-    [`code.ilike.%${pattern}%`, `name.ilike.%${pattern}%`].join(","),
-  );
+  const result = await supabase
+    .from("properties")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .or([`code.ilike.%${pattern}%`, `name.ilike.%${pattern}%`].join(","));
 
   if (result.error) {
     throw new Error(`Could not load people property search filters: ${result.error.message}`);
@@ -1457,14 +1342,15 @@ async function getPropertyIdsMatchingToken(
 }
 
 async function getUnitIdsMatchingToken(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   pattern: string,
 ): Promise<PeopleIdQueryResult> {
-  const result = await applyPostgrestOr(
-    supabase.from("units").select("id").eq("organization_id", organizationId),
-    `unit_number.ilike.%${pattern}%`,
-  );
+  const result = await supabase
+    .from("units")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .or(`unit_number.ilike.%${pattern}%`);
 
   if (result.error) {
     throw new Error(`Could not load people unit search filters: ${result.error.message}`);
@@ -1477,7 +1363,7 @@ async function getUnitIdsMatchingToken(
 }
 
 async function getPeopleIdsForCurrentOwnerProperties(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   propertyIds: ReadonlySet<string>,
 ): Promise<PeopleIdQueryResult> {
@@ -1492,12 +1378,11 @@ async function getPeopleIdsForCurrentOwnerProperties(
   return readPersonIdQueryResult(
     result,
     "people owner property search filters",
-    true,
   );
 }
 
 async function getPeopleIdsForActiveLeaseProperties(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   propertyIds: ReadonlySet<string>,
 ): Promise<PeopleIdQueryResult> {
@@ -1523,7 +1408,7 @@ async function getPeopleIdsForActiveLeaseProperties(
 }
 
 async function getPeopleIdsForActiveLeaseUnits(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   unitIds: ReadonlySet<string>,
 ): Promise<PeopleIdQueryResult> {
@@ -1549,7 +1434,7 @@ async function getPeopleIdsForActiveLeaseUnits(
 }
 
 async function getPeopleIdsForActiveLeaseIds(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   leaseIds: ReadonlySet<string>,
 ): Promise<PeopleIdQueryResult> {
@@ -1568,27 +1453,14 @@ async function getPeopleIdsForActiveLeaseIds(
   return readPersonIdQueryResult(
     result,
     "people lease party search filters",
-    true,
   );
 }
 
 function readPersonIdQueryResult(
-  result: Awaited<UntypedQueryBuilder>,
+  result: PeopleQueryResult,
   label: string,
-  optional = false,
 ): PeopleIdQueryResult {
   if (result.error) {
-    if (optional && isMissingPeopleSchemaMessage(result.error.message)) {
-      return { kind: "ready", ids: new Set<string>() };
-    }
-
-    if (isMissingPeopleSchemaMessage(result.error.message)) {
-      return {
-        kind: "missing_schema",
-        schemaNotice: "People tables are not available yet.",
-      };
-    }
-
     throw new Error(`Could not load ${label}: ${result.error.message}`);
   }
 
@@ -1606,7 +1478,7 @@ async function filterPeopleRowsByQuery({
 }: {
   organizationId: string;
   people: PersonRow[];
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
   viewQuery: PeopleViewQuery;
 }) {
   const tokens = getPeopleQueryTokens(viewQuery);
@@ -1629,7 +1501,6 @@ async function filterPeopleRowsByQuery({
         organizationId,
         toContactRow,
         { column: "person_id", values: personIds },
-        true,
       ),
       getRows(
         supabase,
@@ -1638,7 +1509,6 @@ async function filterPeopleRowsByQuery({
         organizationId,
         toLeasePartyRow,
         { column: "person_id", values: personIds },
-        true,
       ),
       getRows(
         supabase,
@@ -1647,7 +1517,6 @@ async function filterPeopleRowsByQuery({
         organizationId,
         toPropertyOwnerRow,
         { column: "person_id", values: personIds },
-        true,
       ),
       getRows(
         supabase,
@@ -1656,7 +1525,6 @@ async function filterPeopleRowsByQuery({
         organizationId,
         toVendorProfileRow,
         { column: "person_id", values: personIds },
-        true,
       ),
     ]);
   const leaseIds = new Set(leaseParties.map((party) => party.leaseId));
@@ -1667,7 +1535,6 @@ async function filterPeopleRowsByQuery({
     organizationId,
     toLeaseRow,
     { column: "id", values: leaseIds },
-    true,
   );
   const propertyIds = new Set([
     ...leases.map((lease) => lease.propertyId),
@@ -1692,7 +1559,6 @@ async function filterPeopleRowsByQuery({
       organizationId,
       toUnitRow,
       { column: "id", values: unitIds },
-      true,
     ),
   ]);
   const rolesByPerson = groupByPersonId(roles);
@@ -1721,7 +1587,7 @@ async function filterPeopleRowsByQuery({
 }
 
 async function getPersonActivityRows(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   personIds: ReadonlySet<string>,
 ) {
@@ -2177,7 +2043,7 @@ function buildPeopleDetailHrefs(
   return {
     addLease: buildHref("/leases", {
       action: "create",
-      query: person.displayName,
+      tenantPersonId: person.id,
     }),
     addTimelineEvent: buildHref("/timeline", {
       action: "create",
@@ -2476,7 +2342,7 @@ function personMatchesQueryTokens({
 }
 
 async function getExcludedPersonIdsForStatus(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   status: PeopleViewQuery["status"],
 ) {
@@ -2492,7 +2358,7 @@ async function getExcludedPersonIdsForStatus(
 }
 
 async function getPeopleIdsWithVisibleRoles(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ) {
   const result = await getPeopleIdsFromRoles({ organizationId, supabase });
@@ -2513,7 +2379,7 @@ async function getPeopleIdsFromRoles({
   organizationId: string;
   role?: PersonRoleValue;
   status?: PersonRoleStatus;
-  supabase: UntypedSupabaseClient;
+  supabase: SupabaseServerClient;
 }): Promise<PeopleIdQueryResult> {
   let query = supabase
     .from("person_roles")
@@ -2535,7 +2401,7 @@ async function getPeopleIdsFromRoles({
 }
 
 async function getPeopleIdsWithUsefulContacts(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<PeopleIdQueryResult> {
   const [emailResult, phoneResult] = await Promise.all([
@@ -2558,7 +2424,7 @@ async function getPeopleIdsWithUsefulContacts(
 }
 
 async function getPeopleIdsFromContactValue(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   column: "email" | "phone",
 ): Promise<PeopleIdQueryResult> {
@@ -2569,7 +2435,7 @@ async function getPeopleIdsFromContactValue(
     .is("archived_at", null)
     .not(column, "is", null);
 
-  return readPersonIdQueryResult(result, "people contact filters", true);
+  return readPersonIdQueryResult(result, "people contact filters");
 }
 
 function hasUsefulPersonContact(person: PersonRow, contacts: ContactRow[]) {
@@ -2594,20 +2460,6 @@ function sortPeopleSummaries(
   sort = DEFAULT_PEOPLE_SORT,
 ) {
   return [...people].sort((first, second) => {
-    if (sort === "role_asc") {
-      return (
-        compareStrings(first.roleLabel, second.roleLabel) ||
-        comparePeopleSummaries(first, second)
-      );
-    }
-
-    if (sort === "linked_desc") {
-      return (
-        getLinkedCount(second) - getLinkedCount(first) ||
-        comparePeopleSummaries(first, second)
-      );
-    }
-
     if (sort === "updated_desc") {
       return (
         Date.parse(second.updatedAt) - Date.parse(first.updatedAt) ||
@@ -2671,21 +2523,6 @@ function getPeoplePageRows(people: PersonRow[], pagination: PeoplePagination) {
   return people.slice(start, pagination.to);
 }
 
-function emptyPeopleData(
-  viewQuery: PeopleViewQuery,
-  schemaNotice?: string,
-): PeopleScreenData {
-  return {
-    pagination: buildPeoplePagination({
-      page: viewQuery.page,
-      pageSize: viewQuery.pageSize,
-      totalCount: 0,
-    }),
-    people: [],
-    schemaNotice,
-  };
-}
-
 function getPeopleStatus({
   activeRoleCount,
   isArchived,
@@ -2717,14 +2554,6 @@ function isActiveLease(lease: LeaseRow | undefined): lease is LeaseRow {
 
   return !["cancelled", "canceled", "ended", "terminated"].includes(
     lease.status.toLowerCase(),
-  );
-}
-
-function getLinkedCount(person: PeopleSummary) {
-  return (
-    person.linked.activeLeaseCount +
-    person.linked.ownerPropertyCount +
-    Number(Boolean(person.linked.vendorProfile))
   );
 }
 
@@ -3059,9 +2888,6 @@ function readyPeopleIdSet(ids = new Set<string>()): PeopleIdQueryResult {
   return { kind: "ready", ids };
 }
 
-function applyPostgrestOr(query: UntypedQueryBuilder, filters: string) {
-  return (query as SearchableQueryBuilder).or(filters);
-}
 
 function formatPostgrestInFilter(values: ReadonlySet<string>) {
   return `(${[...values].join(",")})`;

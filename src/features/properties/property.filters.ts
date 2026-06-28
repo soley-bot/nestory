@@ -5,12 +5,18 @@ import type {
   PropertySortKey,
   PropertyViewQuery,
 } from "@/features/properties/property.types";
+import {
+  getFirstSearchParam,
+  getPositiveIntegerSearchParam,
+  getTrimmedSearchParam,
+  type SearchParamValue,
+} from "@/lib/validation/search-params";
 
 export const DEFAULT_PROPERTY_PAGE_SIZE = 50;
 export const PROPERTY_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 export const DEFAULT_PROPERTY_SORT: PropertySortKey = "code_asc";
 
-type PropertySearchParams = Record<string, string | string[] | undefined>;
+type PropertySearchParams = Record<string, SearchParamValue>;
 
 const PROPERTY_STATUS_VALUES = ["active", "under_renovation", "inactive"] as const;
 
@@ -21,9 +27,9 @@ export function parsePropertySearchParams(
     archiveState: parseArchiveState(params.archiveState),
     netStatus: parseNetStatus(params.netStatus),
     ownerStatus: parseOwnerStatus(params.ownerStatus),
-    page: parsePositiveInteger(params.page, 1),
+    page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
-    query: (getFirstValue(params.query) || "").trim().slice(0, 120),
+    query: getTrimmedSearchParam(params.query),
     sort: parseSort(params.sort),
     status: parseStatus(params.status),
   };
@@ -32,25 +38,25 @@ export function parsePropertySearchParams(
 function parseNetStatus(
   value: string | string[] | undefined,
 ): PropertyNetStatusFilter {
-  return getFirstValue(value) === "negative" ? "negative" : "all";
+  return getFirstSearchParam(value) === "negative" ? "negative" : "all";
 }
 
 function parseOwnerStatus(
   value: string | string[] | undefined,
 ): PropertyOwnerStatusFilter {
-  return getFirstValue(value) === "missing" ? "missing" : "all";
+  return getFirstSearchParam(value) === "missing" ? "missing" : "all";
 }
 
 function parseArchiveState(
   value: string | string[] | undefined,
 ): PropertyArchiveState {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "archived" || candidate === "all" ? candidate : "active";
 }
 
 function parseStatus(value: string | string[] | undefined) {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return PROPERTY_STATUS_VALUES.includes(
     candidate as (typeof PROPERTY_STATUS_VALUES)[number],
@@ -60,7 +66,7 @@ function parseStatus(value: string | string[] | undefined) {
 }
 
 function parseSort(value: string | string[] | undefined): PropertySortKey {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "name_asc" ||
     candidate === "status_asc" ||
@@ -71,24 +77,11 @@ function parseSort(value: string | string[] | undefined): PropertySortKey {
 }
 
 function parsePageSize(value: string | string[] | undefined) {
-  const candidate = parsePositiveInteger(value, DEFAULT_PROPERTY_PAGE_SIZE);
+  const candidate = getPositiveIntegerSearchParam(value, DEFAULT_PROPERTY_PAGE_SIZE);
 
   return PROPERTY_PAGE_SIZE_OPTIONS.includes(
     candidate as (typeof PROPERTY_PAGE_SIZE_OPTIONS)[number],
   )
     ? candidate
     : DEFAULT_PROPERTY_PAGE_SIZE;
-}
-
-function parsePositiveInteger(
-  value: string | string[] | undefined,
-  fallback: number,
-) {
-  const parsed = Number.parseInt(getFirstValue(value) ?? "", 10);
-
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function getFirstValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
 }

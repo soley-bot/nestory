@@ -24,11 +24,7 @@ export type PeopleStatusFilter =
   | "missing_contact"
   | "all";
 
-export type PeopleSortKey =
-  | "name_asc"
-  | "role_asc"
-  | "linked_desc"
-  | "updated_desc";
+export type PeopleSortKey = "name_asc" | "updated_desc";
 
 export type PeopleFormValues = {
   displayName: string;
@@ -173,5 +169,4 @@ export type PeopleSummary = {
 export type PeopleScreenData = {
   pagination: PeoplePagination;
   people: PeopleSummary[];
-  schemaNotice?: string;
 };

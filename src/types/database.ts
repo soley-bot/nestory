@@ -1581,6 +1581,14 @@ export type Database = {
         Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
       }
+      archive_lease: {
+        Args: { p_lease_id: string; p_organization_id: string }
+        Returns: string
+      }
+      archive_person: {
+        Args: { p_organization_id: string; p_person_id: string }
+        Returns: string
+      }
       archive_property: {
         Args: { p_organization_id: string; p_property_id: string }
         Returns: string
@@ -1614,6 +1622,24 @@ export type Database = {
         }
         Returns: string
       }
+      create_lease: {
+        Args: {
+          p_deposit_amount: number | null
+          p_deposit_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          p_lease_end_date: string
+          p_lease_start_date: string
+          p_monthly_rent_amount: number
+          p_monthly_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_organization_id: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_status: string
+          p_unit_id: string | null
+        }
+        Returns: string
+      }
       create_maintenance_task: {
         Args: {
           p_category: string
@@ -1635,6 +1661,20 @@ export type Database = {
           p_title: string
           p_unit_id: string | null
           p_vendor_person_id: string | null
+        }
+        Returns: string
+      }
+      create_person: {
+        Args: {
+          p_display_name: string
+          p_legal_name: string | null
+          p_notes: string | null
+          p_organization_id: string
+          p_party_type: string
+          p_primary_email: string | null
+          p_primary_phone: string | null
+          p_roles: string[]
+          p_tax_identifier: string | null
         }
         Returns: string
       }
@@ -1685,6 +1725,14 @@ export type Database = {
         Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
       }
+      restore_lease: {
+        Args: { p_lease_id: string; p_organization_id: string }
+        Returns: string
+      }
+      restore_person: {
+        Args: { p_organization_id: string; p_person_id: string }
+        Returns: string
+      }
       restore_property: {
         Args: { p_organization_id: string; p_property_id: string }
         Returns: string
@@ -1721,6 +1769,25 @@ export type Database = {
         }
         Returns: string
       }
+      update_lease: {
+        Args: {
+          p_deposit_amount: number | null
+          p_deposit_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          p_lease_end_date: string
+          p_lease_id: string
+          p_lease_start_date: string
+          p_monthly_rent_amount: number
+          p_monthly_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_organization_id: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_status: string
+          p_unit_id: string | null
+        }
+        Returns: string
+      }
       update_maintenance_task: {
         Args: {
           p_actual_cost_amount: number | null
@@ -1748,6 +1815,21 @@ export type Database = {
           p_title: string
           p_unit_id: string | null
           p_vendor_person_id: string | null
+        }
+        Returns: string
+      }
+      update_person: {
+        Args: {
+          p_display_name: string
+          p_legal_name: string | null
+          p_notes: string | null
+          p_organization_id: string
+          p_party_type: string
+          p_person_id: string
+          p_primary_email: string | null
+          p_primary_phone: string | null
+          p_roles: string[]
+          p_tax_identifier: string | null
         }
         Returns: string
       }

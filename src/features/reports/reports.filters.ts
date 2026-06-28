@@ -3,13 +3,16 @@ import type {
   ReportStatusFilter,
   ReportsViewQuery,
 } from "@/features/reports/reports.types";
+import {
+  getFirstSearchParam,
+  getUuidOrAllSearchParam,
+  type SearchParamValue,
+} from "@/lib/validation/search-params";
 
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const monthPattern = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const datePattern = /^(\d{4})-(0[1-9]|1[0-2])-\d{2}$/;
 
-type ReportSearchParams = Record<string, string | string[] | undefined>;
+type ReportSearchParams = Record<string, SearchParamValue>;
 
 export const DEFAULT_REPORT_KIND: ReportKind = "rent-roll";
 export const DEFAULT_REPORT_STATUS: ReportStatusFilter = "all";
@@ -19,7 +22,7 @@ export function parseReportSearchParams(
 ): ReportsViewQuery {
   return {
     month: parseMonth(params.month, params.date),
-    propertyId: parseUuidFilter(params.propertyId),
+    propertyId: getUuidOrAllSearchParam(params.propertyId),
     report: parseReportKind(params.report),
     status: parseStatus(params.status),
   };
@@ -37,7 +40,7 @@ export function getReportMonthRange(month: string) {
 }
 
 function parseReportKind(value: string | string[] | undefined): ReportKind {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   if (candidate === "profit-loss") {
     return "income-expense";
@@ -60,7 +63,7 @@ function parseReportKind(value: string | string[] | undefined): ReportKind {
 }
 
 function parseStatus(value: string | string[] | undefined): ReportStatusFilter {
-  const candidate = getFirstValue(value);
+  const candidate = getFirstSearchParam(value);
 
   return candidate === "all" ||
     candidate === "occupied" ||
@@ -72,23 +75,17 @@ function parseStatus(value: string | string[] | undefined): ReportStatusFilter {
     : DEFAULT_REPORT_STATUS;
 }
 
-function parseUuidFilter(value: string | string[] | undefined) {
-  const candidate = getFirstValue(value);
-
-  return candidate && uuidPattern.test(candidate) ? candidate : "all";
-}
-
 function parseMonth(
   monthValue: string | string[] | undefined,
   dateValue: string | string[] | undefined,
 ) {
-  const month = getFirstValue(monthValue);
+  const month = getFirstSearchParam(monthValue);
 
   if (month && monthPattern.test(month)) {
     return month;
   }
 
-  const date = getFirstValue(dateValue);
+  const date = getFirstSearchParam(dateValue);
 
   if (date && datePattern.test(date)) {
     return date.slice(0, 7);
@@ -101,8 +98,4 @@ function getCurrentMonthValue() {
   const now = new Date();
 
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function getFirstValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
 }
