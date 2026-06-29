@@ -197,6 +197,9 @@ function TrustedReportTableRow({
   columns: TrustedReport["columns"];
   row: TrustedReportRow;
 }) {
+  const visibleSourceLinks = row.sourceLinks.slice(0, 5);
+  const hiddenSourceLinkCount = row.sourceLinks.length - visibleSourceLinks.length;
+
   return (
     <tr className="align-top hover:bg-surface-muted/70 print:break-inside-avoid print:hover:bg-white">
       <td className="w-[220px] border-b border-border px-3 py-2.5">
@@ -234,7 +237,7 @@ function TrustedReportTableRow({
       ))}
       <td className="max-w-[260px] border-b border-border px-3 py-2.5">
         <div className="flex flex-wrap gap-1.5">
-          {row.sourceLinks.slice(0, 5).map((source) =>
+          {visibleSourceLinks.map((source) =>
             source.href ? (
               <Link
                 className="inline-flex min-h-6 max-w-[180px] items-center rounded-md border border-border bg-surface-muted px-2 text-xs font-medium text-foreground-muted hover:text-foreground"
@@ -259,9 +262,9 @@ function TrustedReportTableRow({
               </span>
             ),
           )}
-          {row.sourceCount > row.sourceLinks.length ? (
+          {hiddenSourceLinkCount > 0 ? (
             <span className="inline-flex min-h-6 items-center rounded-md border border-border bg-surface px-2 text-xs font-medium text-muted">
-              +{row.sourceCount - row.sourceLinks.length}
+              +{hiddenSourceLinkCount}
             </span>
           ) : null}
         </div>
