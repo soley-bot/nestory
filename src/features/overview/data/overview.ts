@@ -11,6 +11,12 @@ import type { CurrencyCode } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
 const activeLeaseStatuses = ["active", "notice_given"] as const;
+const openMaintenanceStatuses = [
+  "pending",
+  "scheduled",
+  "in_progress",
+  "blocked",
+] as const;
 const largeExpenseReviewThreshold = 1000;
 const largeExpenseReviewHref = `/ledger?direction=expense&sort=amount_desc&period=last_30_days&minAmount=${largeExpenseReviewThreshold}`;
 const monthLabelFormatter = new Intl.DateTimeFormat("en-US", {
@@ -93,6 +99,7 @@ export async function getOverviewScreenData(
     rolesResult,
     contactsResult,
     propertyOwnersResult,
+    openMaintenanceResult,
     recentActivityResult,
   ] = await Promise.all([
     supabase
@@ -150,6 +157,12 @@ export async function getOverviewScreenData(
       .is("archived_at", null)
       .is("ended_on", null),
     supabase
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .in("status", [...openMaintenanceStatuses]),
+    supabase
       .from("activity_logs")
       .select(
         "id, entity_type, entity_id, action, previous_values, new_values, created_at",
@@ -168,6 +181,7 @@ export async function getOverviewScreenData(
   assertNoError(rolesResult.error, "overview person roles");
   assertNoError(contactsResult.error, "overview person contacts");
   assertNoError(propertyOwnersResult.error, "overview property owners");
+  assertNoError(openMaintenanceResult.error, "overview maintenance");
   assertNoError(recentActivityResult.error, "overview activity");
 
   const properties = (propertiesResult.data ?? []) as PropertyRow[];
@@ -179,6 +193,7 @@ export async function getOverviewScreenData(
   const roles = (rolesResult.data ?? []) as PersonRoleRow[];
   const contacts = (contactsResult.data ?? []) as PersonContactRow[];
   const propertyOwners = (propertyOwnersResult.data ?? []) as PropertyOwnerRow[];
+  const openMaintenanceCount = openMaintenanceResult.count ?? 0;
   const activeProperties = properties;
   const currentLeasedUnitIds = new Set(
     currentLeases.flatMap((lease) => (lease.unit_id ? [lease.unit_id] : [])),
@@ -235,6 +250,7 @@ export async function getOverviewScreenData(
     leasesEndingSoon,
     missingOwnerLinks,
     negativeNetProperties,
+    openMaintenanceCount,
     peopleMissingContacts,
     peopleWithoutRoles,
     vacantUnits,
@@ -392,7 +408,7 @@ function buildDashboardSummary({
   }
 
   return {
-    actionHref: "/timeline",
+    actionHref: attentionTotal > 0 ? "#focus-now" : "/timeline",
     actionLabel: attentionTotal > 0 ? "Review records" : "Open timeline",
     detail:
       attentionTotal > 0
@@ -471,6 +487,7 @@ function buildAttentionItems({
   leasesEndingSoon,
   missingOwnerLinks,
   negativeNetProperties,
+  openMaintenanceCount,
   peopleMissingContacts,
   peopleWithoutRoles,
   vacantUnits,
@@ -480,6 +497,7 @@ function buildAttentionItems({
   leasesEndingSoon: LeaseRow[];
   missingOwnerLinks: PropertyRow[];
   negativeNetProperties: PropertyRow[];
+  openMaintenanceCount: number;
   peopleMissingContacts: PersonRow[];
   peopleWithoutRoles: PersonRow[];
   vacantUnits: UnitRow[];
@@ -491,6 +509,15 @@ function buildAttentionItems({
           helper: "Next 60 days",
           href: "/leases?status=current&endsWithin=60d&sort=end_asc",
           label: "Leases ending in 60d",
+          tone: "warning",
+        }
+      : null,
+    openMaintenanceCount > 0
+      ? {
+          count: openMaintenanceCount,
+          helper: "Open cases",
+          href: "/maintenance?review=open",
+          label: "Open maintenance",
           tone: "warning",
         }
       : null,
