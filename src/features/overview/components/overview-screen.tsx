@@ -71,7 +71,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
       },
     },
     {
-      href: "#focus-now",
+      href: data.dashboardSummary.actionHref,
       icon: AlertTriangle,
       metric: { ...attentionMetric, label: "Open checks" },
     },
