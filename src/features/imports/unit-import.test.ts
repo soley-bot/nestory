@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   autoMapUnitImportHeaders,
   buildUnitImportPreviewRows,
+  getUnitImportCleanupItems,
   parseCsv,
   toCommitRows,
 } from "@/features/imports/unit-import";
@@ -45,9 +46,7 @@ describe("unit import", () => {
 
   it("flags rows that do not match an active property", () => {
     const parsed = parseCsv(
-      ["Property Code,Unit no. / Floor,Price", "MISS,9B,700"].join(
-        "\n",
-      ),
+      ["Property Code,Unit no. / Floor,Price", "MISS,9B,700"].join("\n"),
     );
     const rows = buildUnitImportPreviewRows({
       mapping: autoMapUnitImportHeaders(parsed.headers),
@@ -58,5 +57,35 @@ describe("unit import", () => {
     expect(rows[0].issues.some((issue) => issue.level === "error")).toBe(true);
     expect(toCommitRows(rows)).toHaveLength(0);
   });
-});
 
+  it("builds a cleanup queue from preview issues", () => {
+    const parsed = parseCsv(
+      [
+        "Property Code,Unit no. / Floor,Type,Inclusion",
+        "MISS,,Studio,Furnished",
+      ].join("\n"),
+    );
+    const rows = buildUnitImportPreviewRows({
+      mapping: autoMapUnitImportHeaders(parsed.headers),
+      properties,
+      records: parsed.records,
+    });
+    const items = getUnitImportCleanupItems(rows);
+
+    expect(items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: "error",
+          message: 'Property "MISS" does not match an active property.',
+          propertyLabel: "MISS",
+          sourceRowNumber: 2,
+          unitNumber: "Not mapped",
+        }),
+        expect.objectContaining({
+          level: "warning",
+          message: "Type is preview-only until the unit schema stores it.",
+        }),
+      ]),
+    );
+  });
+});

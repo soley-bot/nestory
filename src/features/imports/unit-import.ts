@@ -1,6 +1,7 @@
 import type {
   ImportPropertyOption,
   ParsedCsvRecord,
+  UnitImportCleanupItem,
   UnitImportCommitRow,
   UnitImportField,
   UnitImportMapping,
@@ -105,7 +106,8 @@ export function autoMapUnitImportHeaders(headers: string[]): UnitImportMapping {
       const normalizedHeader = normalizeKey(header);
       return candidates.some(
         (candidate) =>
-          normalizedHeader === candidate || normalizedHeader.includes(candidate),
+          normalizedHeader === candidate ||
+          normalizedHeader.includes(candidate),
       );
     });
 
@@ -152,6 +154,20 @@ export function getUnitImportStats(rows: UnitImportPreviewRow[]) {
     totalCount: rows.length,
     warningCount,
   };
+}
+
+export function getUnitImportCleanupItems(
+  rows: UnitImportPreviewRow[],
+): UnitImportCleanupItem[] {
+  return rows.flatMap((row) =>
+    row.issues.map((issue) => ({
+      level: issue.level,
+      message: issue.message,
+      propertyLabel: row.propertyLabel || "Not mapped",
+      sourceRowNumber: row.sourceRowNumber,
+      unitNumber: row.unitNumber || "Not mapped",
+    })),
+  );
 }
 
 export function toCommitRows(
@@ -203,14 +219,17 @@ function buildPreviewRow({
     readMappedValue(record.raw, mapping.unitNumber),
   );
   const unitNumber = unitAndFloor.unitNumber;
-  const floor = readMappedValue(record.raw, mapping.floor) || unitAndFloor.floor;
+  const floor =
+    readMappedValue(record.raw, mapping.floor) || unitAndFloor.floor;
   const typeLabel = readMappedValue(record.raw, mapping.type) || "Not recorded";
   const inclusionLabel =
     readMappedValue(record.raw, mapping.inclusion) || "Not recorded";
   const remark = readMappedValue(record.raw, mapping.remark);
   const status = normalizeStatus(readMappedValue(record.raw, mapping.status));
   const money = parseMoney(readMappedValue(record.raw, mapping.rentAmount));
-  const sizeSqm = parseOptionalNumber(readMappedValue(record.raw, mapping.sizeSqm));
+  const sizeSqm = parseOptionalNumber(
+    readMappedValue(record.raw, mapping.sizeSqm),
+  );
 
   for (const field of requiredFields) {
     if (!mapping[field]) {
@@ -249,7 +268,8 @@ function buildPreviewRow({
   if (status === null) {
     issues.push({
       level: "error",
-      message: "Status must be vacant, occupied, reserved, maintenance, or inactive.",
+      message:
+        "Status must be vacant, occupied, reserved, maintenance, or inactive.",
     });
   }
 
@@ -357,17 +377,22 @@ function makeUniqueHeaders(headers: string[]) {
 }
 
 function readMappedValue(raw: Record<string, string>, header?: string) {
-  return header ? raw[header]?.trim() ?? "" : "";
+  return header ? (raw[header]?.trim() ?? "") : "";
 }
 
 function splitUnitAndFloor(value: string) {
-  const [unitNumber = "", floor = ""] = value.split("/").map((part) => part.trim());
+  const [unitNumber = "", floor = ""] = value
+    .split("/")
+    .map((part) => part.trim());
 
   return { floor, unitNumber };
 }
 
 function normalizeStatus(value: string): UnitImportStatus | null {
-  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
 
   if (!normalized) {
     return "vacant";
@@ -468,7 +493,10 @@ function normalizeLookup(value: string) {
 }
 
 function normalizeKey(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function getFieldLabel(field: UnitImportField) {
@@ -482,4 +510,3 @@ function escapeCsvCell(value: string) {
 
   return `"${value.replaceAll('"', '""')}"`;
 }
-

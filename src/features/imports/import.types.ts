@@ -6,11 +6,7 @@ export type ImportPropertyOption = {
 };
 
 export type UnitImportStatus =
-  | "vacant"
-  | "occupied"
-  | "reserved"
-  | "maintenance"
-  | "inactive";
+  "vacant" | "occupied" | "reserved" | "maintenance" | "inactive";
 
 export type UnitImportCommitRow = {
   currentRentAmount: number | null;
@@ -25,6 +21,12 @@ export type UnitImportCommitRow = {
 export type UnitImportIssue = {
   level: "error" | "warning";
   message: string;
+};
+
+export type UnitImportCleanupItem = UnitImportIssue & {
+  propertyLabel: string;
+  sourceRowNumber: number;
+  unitNumber: string;
 };
 
 export type UnitImportPreviewRow = UnitImportCommitRow & {
@@ -54,4 +56,3 @@ export type ParsedCsvRecord = {
   raw: Record<string, string>;
   rowNumber: number;
 };
-

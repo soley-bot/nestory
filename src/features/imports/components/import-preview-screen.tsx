@@ -7,6 +7,7 @@ import {
   Database,
   Download,
   FileText,
+  ListChecks,
   RotateCcw,
   Upload,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import {
 import type {
   ImportPropertyOption,
   ParsedCsvRecord,
+  UnitImportCleanupItem,
   UnitImportField,
   UnitImportMapping,
   UnitImportPreviewRow,
@@ -29,6 +31,7 @@ import {
   autoMapUnitImportHeaders,
   buildUnitImportPreviewRows,
   buildUnitImportTemplateCsv,
+  getUnitImportCleanupItems,
   getUnitImportStats,
   parseCsv,
   toCommitRows,
@@ -69,6 +72,7 @@ export function ImportPreviewScreen({
     [mapping, parsedFile, propertyOptions],
   );
   const stats = getUnitImportStats(rows);
+  const cleanupItems = getUnitImportCleanupItems(rows);
   const commitRows = toCommitRows(rows);
   const templateHref = `data:text/csv;charset=utf-8,${encodeURIComponent(
     buildUnitImportTemplateCsv(),
@@ -149,7 +153,9 @@ export function ImportPreviewScreen({
               </div>
               <div className="space-y-3 p-4">
                 <label className="block">
-                  <span className="mb-2 block text-sm font-medium">CSV file</span>
+                  <span className="mb-2 block text-sm font-medium">
+                    CSV file
+                  </span>
                   <input
                     accept=".csv,text/csv"
                     className="block w-full rounded-md border border-border bg-surface text-[13px] file:mr-3 file:h-8 file:border-0 file:border-r file:border-border file:bg-surface-muted file:px-2.5 file:text-[13px] file:font-medium file:text-foreground hover:file:bg-surface-muted"
@@ -181,7 +187,7 @@ export function ImportPreviewScreen({
               </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
               <ImportStat
                 icon={<Database size={15} />}
                 label="Rows"
@@ -194,10 +200,17 @@ export function ImportPreviewScreen({
               />
               <ImportStat
                 icon={<AlertTriangle size={15} />}
-                label="Needs review"
+                label="Errors"
                 value={String(stats.errorCount)}
               />
+              <ImportStat
+                icon={<ListChecks size={15} />}
+                label="Warnings"
+                value={String(stats.warningCount)}
+              />
             </div>
+
+            <CleanupQueue items={cleanupItems} />
 
             {actionState.message ? (
               <p
@@ -241,7 +254,10 @@ export function ImportPreviewScreen({
 
             <div className="grid gap-3 p-4 sm:grid-cols-2">
               {unitImportFields.map((field) => (
-                <label className="block min-w-0 text-sm font-medium" key={field.key}>
+                <label
+                  className="block min-w-0 text-sm font-medium"
+                  key={field.key}
+                >
                   {field.label}
                   {field.required ? (
                     <span className="ml-1 text-danger">*</span>
@@ -270,14 +286,20 @@ export function ImportPreviewScreen({
               </p>
             </div>
             <form action={formAction}>
-              <input name="rows" type="hidden" value={JSON.stringify(commitRows)} />
+              <input
+                name="rows"
+                type="hidden"
+                value={JSON.stringify(commitRows)}
+              />
               <Button
                 disabled={pending || commitRows.length === 0}
                 type="submit"
                 variant="primary"
               >
                 <Upload size={15} />
-                {pending ? "Committing..." : `Commit ${commitRows.length} valid`}
+                {pending
+                  ? "Committing..."
+                  : `Commit ${commitRows.length} valid`}
               </Button>
             </form>
           </div>
@@ -318,12 +340,17 @@ export function ImportPreviewScreen({
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-muted" colSpan={9}>
+                    <td
+                      className="px-4 py-8 text-center text-muted"
+                      colSpan={9}
+                    >
                       No rows loaded.
                     </td>
                   </tr>
                 ) : (
-                  rows.map((row) => <PreviewRow key={row.sourceRowNumber} row={row} />)
+                  rows.map((row) => (
+                    <PreviewRow key={row.sourceRowNumber} row={row} />
+                  ))
                 )}
               </tbody>
             </table>
@@ -354,6 +381,58 @@ function ImportStat({
   );
 }
 
+function CleanupQueue({ items }: { items: UnitImportCleanupItem[] }) {
+  const visibleItems = items.slice(0, 8);
+
+  return (
+    <div className="rounded-md border border-border bg-surface">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <ListChecks className="shrink-0 text-muted" size={16} />
+          <h2 className="truncate text-base font-semibold">Cleanup queue</h2>
+        </div>
+        <Badge tone={items.length > 0 ? "warning" : "success"}>
+          {items.length}
+        </Badge>
+      </div>
+      <div className="max-h-64 overflow-auto p-3">
+        {items.length === 0 ? (
+          <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+            No cleanup items.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {visibleItems.map((item, index) => (
+              <div
+                className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+                key={`${item.sourceRowNumber}-${item.level}-${item.message}-${index}`}
+              >
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="font-medium">
+                    Row {item.sourceRowNumber} / {item.unitNumber}
+                  </span>
+                  <Badge tone={item.level === "error" ? "danger" : "warning"}>
+                    {item.level}
+                  </Badge>
+                </div>
+                <p className="text-muted">{item.propertyLabel}</p>
+                <p className="mt-1">{item.message}</p>
+              </div>
+            ))}
+            {items.length > visibleItems.length ? (
+              <p className="px-1 text-xs text-muted">
+                {items.length - visibleItems.length} more item
+                {items.length - visibleItems.length === 1 ? "" : "s"} in the
+                preview table.
+              </p>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PreviewRow({ row }: { row: UnitImportPreviewRow }) {
   const hasError = row.issues.some((issue) => issue.level === "error");
   const price =
@@ -374,7 +453,9 @@ function PreviewRow({ row }: { row: UnitImportPreviewRow }) {
       </td>
       <td className="border-b border-border px-3 py-2.5">
         <span className="font-medium">{row.unitNumber || "Not mapped"}</span>
-        {row.floor ? <span className="ml-2 text-muted">Floor {row.floor}</span> : null}
+        {row.floor ? (
+          <span className="ml-2 text-muted">Floor {row.floor}</span>
+        ) : null}
       </td>
       <td className="border-b border-border px-3 py-2.5 text-muted">
         {row.typeLabel}
@@ -395,7 +476,9 @@ function PreviewRow({ row }: { row: UnitImportPreviewRow }) {
           <ul className="space-y-1">
             {row.issues.map((issue) => (
               <li
-                className={issue.level === "error" ? "text-danger" : "text-muted"}
+                className={
+                  issue.level === "error" ? "text-danger" : "text-muted"
+                }
                 key={`${issue.level}-${issue.message}`}
               >
                 {issue.message}
@@ -407,4 +490,3 @@ function PreviewRow({ row }: { row: UnitImportPreviewRow }) {
     </tr>
   );
 }
-

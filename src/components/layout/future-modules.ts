@@ -12,17 +12,6 @@ export type FutureModule = {
 
 export const FUTURE_MODULES: FutureModule[] = [
   {
-    name: "Payments",
-    path: "/payments",
-    status: "Planned",
-    group: "Money",
-    summary: "Tenant balances, rent collection, receipts, and payment history.",
-    reason:
-      "Payments come after lease obligations, balances, and accounting rules are dependable.",
-    recordRoomDependency:
-      "Needs lease terms, ledger structure, currency handling, receipt documents, and auditable balance changes.",
-  },
-  {
     name: "Communications",
     path: "/communications",
     status: "Planned",

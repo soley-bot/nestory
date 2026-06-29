@@ -46,7 +46,10 @@ const initialState: DocumentActionState = {};
 type DrawerState =
   | {
       initialValues?: Partial<
-        Pick<DocumentSummary["formValues"], "propertyId" | "taskId" | "unitId">
+        Pick<
+          DocumentSummary["formValues"],
+          "category" | "propertyId" | "taskId" | "unitId"
+        >
       >;
       mode: "create";
     }
@@ -72,9 +75,16 @@ export function DocumentScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const searchParamString = searchParams.toString();
   const createInitialValues = useMemo(
-    () => getDocumentCreateInitialValues(viewQuery, propertyOptions, unitOptions),
-    [propertyOptions, unitOptions, viewQuery],
+    () =>
+      getDocumentCreateInitialValues(
+        viewQuery,
+        propertyOptions,
+        unitOptions,
+        searchParamString,
+      ),
+    [propertyOptions, searchParamString, unitOptions, viewQuery],
   );
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
     searchParams.get("action") === "create"
@@ -257,7 +267,9 @@ function DocumentFilters({
     nextParams.delete("taskId");
 
     const query = nextParams.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
   };
 
   return (
@@ -271,7 +283,9 @@ function DocumentFilters({
         />
         <SelectControl
           ariaLabel="Archive state"
-          onValueChange={(value) => replaceParam("archiveState", value, "active")}
+          onValueChange={(value) =>
+            replaceParam("archiveState", value, "active")
+          }
           options={[
             { label: "Active", value: "active" },
             { label: "Archived", value: "archived" },
@@ -379,7 +393,9 @@ function DocumentTable({
                       : "No linked records"}
                   </p>
                 </td>
-                <td className="px-1.5 py-2">{formatDate(document.uploadedAt)}</td>
+                <td className="px-1.5 py-2">
+                  {formatDate(document.uploadedAt)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -444,6 +460,8 @@ function DocumentInspector({
           label={document.nextAction.label}
         />
 
+        <DocumentLinkedRecords records={document.linkedRecords} />
+
         <div className="grid grid-cols-3 gap-2">
           <Button onClick={() => onEdit(document)} type="button">
             <Pencil size={15} />
@@ -485,7 +503,10 @@ function DocumentForm({
 }: {
   document?: DocumentSummary;
   initialValues?: Partial<
-    Pick<DocumentSummary["formValues"], "propertyId" | "taskId" | "unitId">
+    Pick<
+      DocumentSummary["formValues"],
+      "category" | "propertyId" | "taskId" | "unitId"
+    >
   >;
   mode: "create" | "edit";
   onClose: () => void;
@@ -498,7 +519,8 @@ function DocumentForm({
     initialState,
   );
   const defaults = {
-    category: document?.formValues.category ?? "General",
+    category:
+      document?.formValues.category ?? initialValues?.category ?? "General",
     propertyId:
       document?.formValues.propertyId ?? initialValues?.propertyId ?? "",
     taskId: document?.formValues.taskId ?? initialValues?.taskId ?? "",
@@ -522,7 +544,9 @@ function DocumentForm({
       encType="multipart/form-data"
     >
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
-        {document ? <input name="documentId" type="hidden" value={document.id} /> : null}
+        {document ? (
+          <input name="documentId" type="hidden" value={document.id} />
+        ) : null}
         {defaults.taskId ? (
           <input name="taskId" type="hidden" value={defaults.taskId} />
         ) : null}
@@ -660,7 +684,11 @@ function DocumentArchivePanel({
             type="submit"
             variant="primary"
           >
-            {mode === "archive" ? <Archive size={15} /> : <RotateCcw size={15} />}
+            {mode === "archive" ? (
+              <Archive size={15} />
+            ) : (
+              <RotateCcw size={15} />
+            )}
             {pending ? "Saving..." : mode === "archive" ? "Archive" : "Restore"}
           </Button>
         </div>
@@ -718,6 +746,46 @@ function DocumentAttentionNote({
   );
 }
 
+function DocumentLinkedRecords({
+  records,
+}: {
+  records: DocumentSummary["linkedRecords"];
+}) {
+  return (
+    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="truncate font-semibold">Linked records</p>
+        <Badge tone={records.length > 0 ? "success" : "warning"}>
+          {records.length > 0 ? `${records.length} linked` : "No links"}
+        </Badge>
+      </div>
+      {records.length === 0 ? (
+        <p className="text-sm text-muted">No operational record is linked.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {records.map((record) => (
+            <Link
+              className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-surface px-2.5 py-2 text-sm transition-colors hover:bg-surface-muted"
+              href={record.href}
+              key={`${record.type}-${record.href}`}
+            >
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-muted">
+                  {record.type}
+                </span>
+                <span className="block truncate font-medium">
+                  {record.label}
+                </span>
+              </span>
+              <ExternalLink className="shrink-0 text-accent" size={13} />
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function getDocumentAttentionItem(items: DocumentSummary["riskIndicators"]) {
   return items.find((item) => item.tone !== "success");
 }
@@ -744,7 +812,9 @@ function getDocumentCreateInitialValues(
   viewQuery: DocumentViewQuery,
   properties: DocumentPropertyOption[],
   units: DocumentUnitOption[],
+  searchParamString: string,
 ) {
+  const category = getCreateCategory(searchParamString);
   const requestedUnit =
     viewQuery.unitId === "all"
       ? undefined
@@ -756,15 +826,24 @@ function getDocumentCreateInitialValues(
       ? viewQuery.propertyId
       : "");
 
-  if (!propertyId) {
+  if (!propertyId && !category) {
     return undefined;
   }
 
   return {
+    category,
     propertyId,
     taskId: viewQuery.taskId === "all" ? undefined : viewQuery.taskId,
     unitId: requestedUnit?.id,
   };
+}
+
+function getCreateCategory(searchParamString: string) {
+  const category = new URLSearchParams(searchParamString)
+    .get("category")
+    ?.trim();
+
+  return category ? category.slice(0, 80) : undefined;
 }
 
 function getHrefWithoutActionParam(
@@ -773,6 +852,7 @@ function getHrefWithoutActionParam(
 ) {
   const nextParams = new URLSearchParams(searchParams.toString());
   nextParams.delete("action");
+  nextParams.delete("category");
 
   const query = nextParams.toString();
   return query ? `${pathname}?${query}` : pathname;
