@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { cn } from "@/lib/utils";
 
 const monthNames = [
@@ -159,12 +160,11 @@ function formatMonthLabel(value: string) {
 }
 
 function getCurrentMonthValue() {
-  const now = new Date();
-  return toMonthValue(now.getFullYear(), now.getMonth() + 1);
+  return getBusinessMonthValue();
 }
 
 function getYearFromMonth(value: string) {
-  return parseMonthValue(value)?.year ?? new Date().getFullYear();
+  return parseMonthValue(value)?.year ?? Number(getBusinessMonthValue().slice(0, 4));
 }
 
 function parseMonthValue(value: string) {

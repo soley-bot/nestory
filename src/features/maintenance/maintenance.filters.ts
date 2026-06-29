@@ -14,6 +14,7 @@ import {
   getUuidOrAllSearchParam,
   type SearchParamValue,
 } from "@/lib/validation/search-params";
+import { getBusinessMonthValue } from "@/lib/dates/business-date";
 
 const monthPattern = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
@@ -151,7 +152,5 @@ function parsePageSize(value: string | string[] | undefined) {
 }
 
 function getCurrentMonthValue() {
-  const now = new Date();
-
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return getBusinessMonthValue();
 }

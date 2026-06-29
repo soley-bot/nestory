@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
 
@@ -126,11 +127,9 @@ export function DatePickerField({
               <button
                 className="rounded-md px-2 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
                 onClick={() => {
-                  const today = new Date();
-                  setValue(toDateValue(today));
-                  setVisibleMonth(
-                    new Date(today.getFullYear(), today.getMonth(), 1),
-                  );
+                  const today = getBusinessDateValue();
+                  setValue(today);
+                  setVisibleMonth(getVisibleMonth(today));
                   setOpen(false);
                 }}
                 type="button"
@@ -172,7 +171,7 @@ function getCalendarDays(visibleMonth: Date) {
 
 function getVisibleMonth(value: string) {
   const parsed = parseDateValue(value);
-  const date = parsed ?? new Date();
+  const date = parsed ?? parseDateValue(getBusinessDateValue()) ?? new Date();
 
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
