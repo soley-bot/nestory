@@ -31,6 +31,7 @@ import {
   restoreDocumentAction,
   updateDocumentAction,
 } from "@/features/documents/actions";
+import { getSelectedDocument } from "@/features/documents/document-selection";
 import type {
   DocumentPagination,
   DocumentPropertyOption,
@@ -100,24 +101,27 @@ export function DocumentScreen({
   const focusedDocument = initialDocumentId
     ? documents.find((document) => document.id === initialDocumentId) ?? null
     : null;
-  const selectedDocument =
-    documents.find((document) => document.id === selectedDocumentId) ??
-    focusedDocument ??
-    documents[0] ??
-    null;
+  const focusedDocumentId = focusedDocument?.id;
+  const selectedDocument = getSelectedDocument({
+    documents,
+    focusedDocumentId: initialDocumentId,
+    selectedDocumentId,
+  });
   const reviewContext = getDocumentReviewContext(viewQuery, {
     hasFocusedDocument: Boolean(focusedDocument),
     hasFocusedDocumentIntent: Boolean(initialDocumentId),
   });
 
   useEffect(() => {
-    if (initialDocumentId) {
-      queueMicrotask(() => {
-        setSelectedDocumentId(initialDocumentId);
-        setPreviewOpen(true);
-      });
+    if (!focusedDocumentId) {
+      return;
     }
-  }, [initialDocumentId]);
+
+    queueMicrotask(() => {
+      setSelectedDocumentId(focusedDocumentId);
+      setPreviewOpen(true);
+    });
+  }, [focusedDocumentId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
