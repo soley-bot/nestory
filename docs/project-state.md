@@ -45,11 +45,12 @@ Current implemented or scaffolded product areas include:
 - Leases.
 - Documents.
 - Imports.
-- Payments.
 - Reports.
 - Settings.
 - Maintenance.
 - Tenants redirecting into People with the tenant role filter.
+- Payments remains a direct ledger-backed route, but it is not exposed in the
+  app shell until the receivables/payment backbone exists.
 
 Future communications, workflows, tenant portal, and roadmap pages are not
 exposed in the app shell. Keep them in roadmap docs until there is real product
