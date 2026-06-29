@@ -7,7 +7,6 @@ import {
   BarChart3,
   Building2,
   ChevronDown,
-  ClipboardList,
   FileText,
   FolderOpen,
   Home,
@@ -28,7 +27,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOutAction } from "@/features/auth/actions";
-import { FUTURE_MODULE_PATHS } from "@/components/layout/future-modules";
 
 type NavItem = {
   href: string;
@@ -86,13 +84,6 @@ const moreNavItems: NavItem[] = [
   { href: "/documents", label: "Documents", icon: FolderOpen, badge: "Draft" },
   { href: "/reports", label: "Reports", icon: FileText, badge: "Draft" },
   { href: "/import", label: "Import data", icon: Upload },
-  {
-    href: "/roadmap",
-    label: "Roadmap",
-    icon: ClipboardList,
-    badge: "Planned",
-    activeHrefs: FUTURE_MODULE_PATHS,
-  },
 ];
 
 const desktopNavGroups: NavGroup[] = [
@@ -210,7 +201,9 @@ export function AppShell({
   const isMobileMoreActive = mobileMoreItems.some((item) =>
     isNavItemActive(pathname, item),
   );
-  const sidebarToggleLabel = sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
+  const sidebarToggleLabel = sidebarCollapsed
+    ? "Expand sidebar"
+    : "Collapse sidebar";
 
   function toggleTheme() {
     const currentTheme =
@@ -346,7 +339,9 @@ export function AppShell({
                 </button>
                 <form action={signOutAction}>
                   <button
-                    aria-label={userEmail ? `Sign out ${userEmail}` : "Sign out"}
+                    aria-label={
+                      userEmail ? `Sign out ${userEmail}` : "Sign out"
+                    }
                     className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground"
                     title={userEmail ? `Sign out ${userEmail}` : "Sign out"}
                     type="submit"
@@ -534,7 +529,9 @@ export function AppShell({
                         <span className="min-w-0 flex-1 truncate">
                           {item.label}
                         </span>
-                        {item.badge ? <NavBadgeLabel badge={item.badge} /> : null}
+                        {item.badge ? (
+                          <NavBadgeLabel badge={item.badge} />
+                        ) : null}
                       </Link>
                     );
                   })}
@@ -549,11 +546,7 @@ export function AppShell({
   );
 }
 
-function ThemeToggle({
-  onToggle,
-}: {
-  onToggle: () => void;
-}) {
+function ThemeToggle({ onToggle }: { onToggle: () => void }) {
   return (
     <button
       aria-label="Toggle color theme"

@@ -45,8 +45,11 @@ Current implemented or scaffolded product areas include:
 - Reports.
 - Settings.
 - Maintenance.
-- Planned placeholders for communications, workflows, tenant portal, roadmap,
-  and tenants.
+- Tenants redirecting into People with the tenant role filter.
+
+Future communications, workflows, tenant portal, and roadmap pages are not
+exposed in the app shell. Keep them in roadmap docs until there is real product
+behavior behind them.
 
 The current product direction is reusable-core first: company-specific branding,
 settings, reports, workflows, and integrations should layer on top of shared PMS
