@@ -209,6 +209,27 @@ describe("toRecentChange", () => {
     });
   });
 
+  it("preserves document focus ids with a useful file-name query", () => {
+    expect(
+      toRecentChange({
+        action: "document_attached",
+        created_at: "2026-06-17T10:45:00.000Z",
+        entity_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        entity_type: "document",
+        id: "log-document",
+        new_values: {
+          category: "Lease",
+          file_name: "signed lease.pdf",
+        },
+        previous_values: null,
+      }),
+    ).toMatchObject({
+      entityLabel: "Document",
+      href: "/documents?archiveState=all&documentId=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb&query=signed+lease.pdf",
+      recordLabel: "signed lease.pdf",
+    });
+  });
+
   it("does not add brittle fallback text queries to focused lease and person links", () => {
     expect(
       toRecentChange({

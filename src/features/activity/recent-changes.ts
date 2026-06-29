@@ -68,6 +68,7 @@ const fieldLabels: Record<string, string> = {
   due_time: "Due time",
   event_date: "Event date",
   event_type: "Event type",
+  file_name: "File name",
   floor: "Floor",
   lease_id: "Lease",
   ledger_entry_id: "Ledger link",
@@ -136,6 +137,8 @@ function getRecordLabel(log: ActivityLogSnapshot) {
     getString(previousValues, "name") ??
     getString(nextValues, "unit_number") ??
     getString(previousValues, "unit_number") ??
+    getString(nextValues, "file_name") ??
+    getString(previousValues, "file_name") ??
     getString(nextValues, "category") ??
     getString(previousValues, "category");
 
@@ -153,6 +156,10 @@ function getFallbackRecordLabel(entityType: string) {
 
   if (entityType === "ledger_period") {
     return "Period lock";
+  }
+
+  if (entityType === "document") {
+    return "Document";
   }
 
   if (entityType === "task") {
@@ -265,6 +272,14 @@ function getActivityHref(log: ActivityLogSnapshot, recordLabel: string) {
       archiveState: "all",
       personId: log.entity_id,
       query: getFocusedQuery(recordLabel, "Person"),
+    });
+  }
+
+  if (log.entity_type === "document") {
+    return buildModuleHref("/documents", {
+      archiveState: "all",
+      documentId: log.entity_id,
+      query: getFocusedQuery(recordLabel, "Document"),
     });
   }
 
