@@ -3,6 +3,7 @@ import {
   autoMapUnitImportHeaders,
   buildUnitImportPreviewRows,
   getUnitImportCleanupItems,
+  mergeUnitImportUpdate,
   parseCsv,
   toCommitRows,
 } from "@/features/imports/unit-import";
@@ -37,6 +38,12 @@ describe("unit import", () => {
     expect(rows[0]).toMatchObject({
       currentRentAmount: 1200,
       floor: "12",
+      mappedFields: {
+        currentRentAmount: true,
+        floor: true,
+        sizeSqm: false,
+        status: true,
+      },
       propertyId: properties[0].id,
       status: "vacant",
       unitNumber: "12A",
@@ -63,6 +70,32 @@ describe("unit import", () => {
       unitNumber: "12A",
     });
     expect(toCommitRows(rows)).toHaveLength(1);
+  });
+
+  it("preserves existing unit fields when sparse import rows update a unit", () => {
+    const parsed = parseCsv(["Property Code,Unit no.", "CTR,12A"].join("\n"));
+    const rows = buildUnitImportPreviewRows({
+      mapping: autoMapUnitImportHeaders(parsed.headers),
+      properties,
+      records: parsed.records,
+    });
+    const [commitRow] = toCommitRows(rows);
+
+    expect(
+      mergeUnitImportUpdate(commitRow, {
+        currentRentAmount: 900,
+        currentRentCurrency: "USD",
+        floor: "12",
+        sizeSqm: 55,
+        status: "occupied",
+      }),
+    ).toEqual({
+      currentRentAmount: 900,
+      currentRentCurrency: "USD",
+      floor: "12",
+      sizeSqm: 55,
+      status: "occupied",
+    });
   });
 
   it("flags rows that do not match an active property", () => {

@@ -11,11 +11,19 @@ export type UnitImportStatus =
 export type UnitImportCommitRow = {
   currentRentAmount: number | null;
   floor: string;
+  mappedFields: UnitImportMappedFields;
   propertyId: string;
   sizeSqm: number | null;
   sourceRowNumber: number;
   status: UnitImportStatus;
   unitNumber: string;
+};
+
+export type UnitImportMappedFields = {
+  currentRentAmount: boolean;
+  floor: boolean;
+  sizeSqm: boolean;
+  status: boolean;
 };
 
 export type UnitImportIssue = {

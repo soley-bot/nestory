@@ -4,6 +4,7 @@ import type {
   UnitImportCleanupItem,
   UnitImportCommitRow,
   UnitImportField,
+  UnitImportMappedFields,
   UnitImportMapping,
   UnitImportPreviewRow,
   UnitImportStatus,
@@ -179,12 +180,40 @@ export function toCommitRows(
     .map((row) => ({
       currentRentAmount: row.currentRentAmount,
       floor: row.floor,
+      mappedFields: row.mappedFields,
       propertyId: row.propertyId,
       sizeSqm: row.sizeSqm,
       sourceRowNumber: row.sourceRowNumber,
       status: row.status,
       unitNumber: row.unitNumber,
     }));
+}
+
+export function mergeUnitImportUpdate(
+  row: UnitImportCommitRow,
+  existing: {
+    currentRentAmount: number | null;
+    currentRentCurrency: "USD" | null;
+    floor: string | null;
+    sizeSqm: number | null;
+    status: UnitImportStatus;
+  },
+) {
+  const currentRentAmount = row.mappedFields.currentRentAmount
+    ? row.currentRentAmount
+    : existing.currentRentAmount;
+
+  return {
+    currentRentAmount,
+    currentRentCurrency: row.mappedFields.currentRentAmount
+      ? row.currentRentAmount === null
+        ? null
+        : "USD"
+      : existing.currentRentCurrency,
+    floor: row.mappedFields.floor ? row.floor : (existing.floor ?? ""),
+    sizeSqm: row.mappedFields.sizeSqm ? row.sizeSqm : existing.sizeSqm,
+    status: row.mappedFields.status ? row.status : existing.status,
+  };
 }
 
 export function buildUnitImportTemplateCsv() {
@@ -222,6 +251,7 @@ function buildPreviewRow({
   const unitNumber = unitAndFloor.unitNumber;
   const floor =
     readMappedValue(record.raw, mapping.floor) || unitAndFloor.floor;
+  const mappedFields = getMappedFields(mapping, unitAndFloor.floor);
   const typeLabel = readMappedValue(record.raw, mapping.type) || "Not recorded";
   const inclusionLabel =
     readMappedValue(record.raw, mapping.inclusion) || "Not recorded";
@@ -304,6 +334,7 @@ function buildPreviewRow({
     floor,
     inclusionLabel,
     issues,
+    mappedFields,
     propertyId: property?.id ?? "",
     propertyLabel: property?.label ?? propertyInput,
     raw: record.raw,
@@ -313,6 +344,18 @@ function buildPreviewRow({
     status: status ?? "vacant",
     typeLabel,
     unitNumber,
+  };
+}
+
+function getMappedFields(
+  mapping: UnitImportMapping,
+  unitNumberFloor: string,
+): UnitImportMappedFields {
+  return {
+    currentRentAmount: Boolean(mapping.rentAmount),
+    floor: Boolean(mapping.floor || unitNumberFloor),
+    sizeSqm: Boolean(mapping.sizeSqm),
+    status: Boolean(mapping.status),
   };
 }
 

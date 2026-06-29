@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { UnitImportCommitRow } from "@/features/imports/import.types";
+import { mergeUnitImportUpdate } from "@/features/imports/unit-import";
 
 export type UnitImportActionState = {
   message?: string;
@@ -13,6 +14,17 @@ export type UnitImportActionState = {
     created: number;
     updated: number;
   };
+};
+
+type ExistingImportUnit = {
+  current_rent_amount: number | null;
+  current_rent_currency: "USD" | null;
+  floor: string | null;
+  id: string;
+  property_id: string;
+  size_sqm: number | null;
+  status: UnitImportCommitRow["status"];
+  unit_number: string;
 };
 
 const unitStatusSchema = z.enum([
@@ -26,6 +38,12 @@ const unitStatusSchema = z.enum([
 const importRowSchema = z.object({
   currentRentAmount: z.number().nonnegative().nullable(),
   floor: z.string().trim().max(40),
+  mappedFields: z.object({
+    currentRentAmount: z.boolean(),
+    floor: z.boolean(),
+    sizeSqm: z.boolean(),
+    status: z.boolean(),
+  }),
   propertyId: z.uuid(),
   sizeSqm: z.number().nonnegative().nullable(),
   sourceRowNumber: z.number().int().positive(),
@@ -105,7 +123,9 @@ export async function commitUnitImportAction(
 
   const existingUnitsResult = await supabase
     .from("units")
-    .select("id, property_id, unit_number")
+    .select(
+      "id, property_id, unit_number, floor, size_sqm, status, current_rent_amount, current_rent_currency",
+    )
     .eq("organization_id", context.organizationId)
     .in("property_id", propertyIds)
     .is("archived_at", null);
@@ -118,10 +138,14 @@ export async function commitUnitImportAction(
   }
 
   const existingUnits = new Map(
-    (existingUnitsResult.data ?? []).map((unit) => [
-      getUnitKey(unit.property_id, unit.unit_number),
-      unit.id,
-    ]),
+    (existingUnitsResult.data ?? []).map((unit) => {
+      const existingUnit = normalizeExistingImportUnit(unit);
+
+      return [
+        getUnitKey(existingUnit.property_id, existingUnit.unit_number),
+        existingUnit,
+      ];
+    }),
   );
   const affectedPropertyIds = new Set<string>();
   const affectedUnitIds = new Set<string>();
@@ -129,15 +153,15 @@ export async function commitUnitImportAction(
   let updated = 0;
 
   for (const row of parsed.data) {
-    const existingUnitId = existingUnits.get(
+    const existingUnit = existingUnits.get(
       getUnitKey(row.propertyId, row.unitNumber),
     );
-    const mutation = existingUnitId
+    const mutation = existingUnit
       ? await updateImportedUnit({
+          existingUnit,
           organizationId: context.organizationId,
           row,
           supabase,
-          unitId: existingUnitId,
         })
       : await createImportedUnit({
           organizationId: context.organizationId,
@@ -157,11 +181,20 @@ export async function commitUnitImportAction(
 
     affectedPropertyIds.add(row.propertyId);
 
-    if (existingUnitId) {
-      affectedUnitIds.add(existingUnitId);
+    if (existingUnit) {
+      affectedUnitIds.add(existingUnit.id);
       updated += 1;
     } else if (typeof mutation.data === "string") {
-      existingUnits.set(getUnitKey(row.propertyId, row.unitNumber), mutation.data);
+      existingUnits.set(getUnitKey(row.propertyId, row.unitNumber), {
+        current_rent_amount: row.currentRentAmount,
+        current_rent_currency: row.currentRentAmount === null ? null : "USD",
+        floor: nullableString(row.floor),
+        id: mutation.data,
+        property_id: row.propertyId,
+        size_sqm: row.sizeSqm,
+        status: row.status,
+        unit_number: row.unitNumber,
+      });
       affectedUnitIds.add(mutation.data);
       created += 1;
     }
@@ -200,27 +233,57 @@ function createImportedUnit({
 }
 
 function updateImportedUnit({
+  existingUnit,
   organizationId,
   row,
   supabase,
-  unitId,
 }: {
+  existingUnit: ExistingImportUnit;
   organizationId: string;
   row: UnitImportCommitRow;
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-  unitId: string;
 }) {
+  const values = mergeUnitImportUpdate(row, {
+    currentRentAmount: existingUnit.current_rent_amount,
+    currentRentCurrency: existingUnit.current_rent_currency,
+    floor: existingUnit.floor,
+    sizeSqm: existingUnit.size_sqm,
+    status: existingUnit.status,
+  });
+
   return supabase.rpc("update_unit", {
-    p_current_rent_amount: row.currentRentAmount,
-    p_current_rent_currency: row.currentRentAmount === null ? null : "USD",
-    p_floor: nullableString(row.floor),
+    p_current_rent_amount: values.currentRentAmount,
+    p_current_rent_currency: values.currentRentCurrency,
+    p_floor: nullableString(values.floor),
     p_organization_id: organizationId,
     p_property_id: row.propertyId,
-    p_size_sqm: row.sizeSqm,
-    p_status: row.status,
-    p_unit_id: unitId,
+    p_size_sqm: values.sizeSqm,
+    p_status: values.status,
+    p_unit_id: existingUnit.id,
     p_unit_number: row.unitNumber,
   });
+}
+
+function normalizeExistingImportUnit(unit: {
+  current_rent_amount: number | null;
+  current_rent_currency: string | null;
+  floor: string | null;
+  id: string;
+  property_id: string;
+  size_sqm: number | null;
+  status: string;
+  unit_number: string;
+}): ExistingImportUnit {
+  return {
+    current_rent_amount: unit.current_rent_amount,
+    current_rent_currency: unit.current_rent_currency === "USD" ? "USD" : null,
+    floor: unit.floor,
+    id: unit.id,
+    property_id: unit.property_id,
+    size_sqm: unit.size_sqm,
+    status: unitStatusSchema.parse(unit.status),
+    unit_number: unit.unit_number,
+  };
 }
 
 function findDuplicateRowMessage(rows: UnitImportCommitRow[]) {
