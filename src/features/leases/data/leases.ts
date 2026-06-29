@@ -139,6 +139,10 @@ export async function getLeasesScreenData(
         leasesQuery = leasesQuery.eq("status", viewQuery.status);
       }
 
+      if (viewQuery.tenantStatus === "missing") {
+        leasesQuery = leasesQuery.is("primary_tenant_person_id", null);
+      }
+
       const endDateScope = getLeaseEndDateScope(viewQuery);
 
       if (endDateScope.from) {

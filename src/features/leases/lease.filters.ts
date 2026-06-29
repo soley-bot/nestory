@@ -2,6 +2,7 @@ import type {
   LeaseArchiveState,
   LeaseSortKey,
   LeaseStatusFilter,
+  LeaseTenantStatusFilter,
   LeaseViewQuery,
 } from "@/features/leases/lease.types";
 import {
@@ -38,6 +39,7 @@ export function parseLeaseSearchParams(
     query: getTrimmedSearchParam(params.query),
     sort: parseSort(params.sort),
     status: parseStatus(params.status),
+    tenantStatus: parseTenantStatus(params.tenantStatus),
     unitId: getUuidOrAllSearchParam(params.unitId),
   };
 }
@@ -113,6 +115,12 @@ function parseStatus(value: string | string[] | undefined): LeaseStatusFilter {
     candidate === "terminated"
     ? candidate
     : "all";
+}
+
+function parseTenantStatus(
+  value: string | string[] | undefined,
+): LeaseTenantStatusFilter {
+  return getFirstSearchParam(value) === "missing" ? "missing" : "all";
 }
 
 function parseSort(value: string | string[] | undefined): LeaseSortKey {

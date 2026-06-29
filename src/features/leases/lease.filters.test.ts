@@ -18,6 +18,7 @@ describe("parseLeaseSearchParams", () => {
         query: "  unit   a1  ",
         sort: "end_asc",
         status: "current",
+        tenantStatus: "missing",
         unitId: "22222222-2222-4222-8222-222222222222",
       }),
     ).toEqual({
@@ -31,6 +32,7 @@ describe("parseLeaseSearchParams", () => {
       query: "unit   a1",
       sort: "end_asc",
       status: "current",
+      tenantStatus: "missing",
       unitId: "22222222-2222-4222-8222-222222222222",
     });
   });
@@ -47,6 +49,7 @@ describe("parseLeaseSearchParams", () => {
         propertyId: "not-a-uuid",
         sort: "created_desc",
         status: "expired",
+        tenantStatus: "linked",
         unitId: "not-a-uuid",
       }),
     ).toEqual({
@@ -60,6 +63,7 @@ describe("parseLeaseSearchParams", () => {
       query: "",
       sort: "start_desc",
       status: "all",
+      tenantStatus: "all",
       unitId: "all",
     });
   });

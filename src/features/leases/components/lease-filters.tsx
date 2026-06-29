@@ -39,6 +39,7 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
     viewQuery.propertyId !== "all" ||
     viewQuery.unitId !== "all" ||
     viewQuery.status !== "all" ||
+    viewQuery.tenantStatus !== "all" ||
     viewQuery.archiveState !== DEFAULT_LEASE_ARCHIVE_STATE ||
     viewQuery.endsWithinDays !== null ||
     viewQuery.endMonth !== "" ||
@@ -152,7 +153,7 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
 
         {advancedOpen ? (
           <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(160px,220px)_minmax(160px,220px)_minmax(132px,150px)_minmax(132px,150px)_minmax(132px,160px)_minmax(84px,104px)]"
+            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(160px,220px)_minmax(160px,220px)_minmax(132px,150px)_minmax(132px,160px)_minmax(132px,150px)_minmax(132px,160px)_minmax(84px,104px)]"
             id="lease-advanced-search"
           >
             <SelectControl
@@ -200,6 +201,19 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
                 { label: "Cancelled", value: "cancelled" },
               ]}
               value={viewQuery.status}
+            />
+
+            <SelectControl
+              ariaLabel="Filter leases by tenant link"
+              className={compactSelectClassName}
+              onValueChange={(value) =>
+                replaceParam("tenantStatus", value, "all")
+              }
+              options={[
+                { label: "All tenant links", value: "all" },
+                { label: "Missing tenant link", value: "missing" },
+              ]}
+              value={viewQuery.tenantStatus}
             />
 
             <SelectControl

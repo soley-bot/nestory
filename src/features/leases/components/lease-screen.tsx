@@ -472,6 +472,14 @@ function getLeaseReviewContext(
     };
   }
 
+  if (viewQuery.tenantStatus === "missing") {
+    return {
+      countLabel: "missing a tenant link",
+      description: "Showing leases without a linked People tenant.",
+      nextStep: "Select a lease, then edit it to choose the tenant record.",
+    };
+  }
+
   if (viewQuery.status !== "all") {
     if (viewQuery.status === "current") {
       return {

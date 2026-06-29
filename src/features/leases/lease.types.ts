@@ -26,6 +26,7 @@ export type LeaseStatusValue =
   | "terminated";
 
 export type LeaseStatusFilter = LeaseStatusValue | "all" | "current";
+export type LeaseTenantStatusFilter = "all" | "missing";
 
 export type LeasePropertyOption = {
   id: string;
@@ -77,6 +78,7 @@ export type LeaseViewQuery = {
   query: string;
   sort: LeaseSortKey;
   status: LeaseStatusFilter;
+  tenantStatus: LeaseTenantStatusFilter;
   unitId: string;
 };
 
