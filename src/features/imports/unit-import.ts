@@ -312,6 +312,13 @@ function buildPreviewRow({
 
   if (money.error) {
     issues.push({ level: "error", message: money.error });
+  } else if (money.amount === null) {
+    issues.push({
+      level: "warning",
+      message: mapping.rentAmount
+        ? "Price is blank; unit will import without current rent."
+        : "Price column is not mapped; unit will import without current rent.",
+    });
   }
 
   if (sizeSqm.error) {

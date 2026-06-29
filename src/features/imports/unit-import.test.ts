@@ -124,6 +124,26 @@ describe("unit import", () => {
     });
   });
 
+  it("warns when rent is missing but still allows commit", () => {
+    const parsed = parseCsv(["Property Code,Unit no.", "CTR,12A"].join("\n"));
+    const rows = buildUnitImportPreviewRows({
+      mapping: autoMapUnitImportHeaders(parsed.headers),
+      properties,
+      records: parsed.records,
+    });
+
+    expect(rows[0].issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: "warning",
+          message:
+            "Price column is not mapped; unit will import without current rent.",
+        }),
+      ]),
+    );
+    expect(toCommitRows(rows)).toHaveLength(1);
+  });
+
   it("flags rows that do not match an active property", () => {
     const parsed = parseCsv(
       ["Property Code,Unit no. / Floor,Price", "MISS,9B,700"].join("\n"),
