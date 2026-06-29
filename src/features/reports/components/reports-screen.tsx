@@ -243,7 +243,9 @@ function TrustedReportTableRow({
                 prefetch={false}
                 title={`${source.recordType}: ${source.label}`}
               >
-                <span className="truncate">{source.recordType}</span>
+                <span className="truncate">
+                  {source.recordType}: {source.label}
+                </span>
               </Link>
             ) : (
               <span
@@ -251,7 +253,9 @@ function TrustedReportTableRow({
                 key={`${source.recordType}-${source.id}`}
                 title={`${source.recordType}: ${source.label}`}
               >
-                <span className="truncate">{source.recordType}</span>
+                <span className="truncate">
+                  {source.recordType}: {source.label}
+                </span>
               </span>
             ),
           )}
