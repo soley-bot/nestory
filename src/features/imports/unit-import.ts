@@ -133,12 +133,14 @@ export function buildUnitImportPreviewRows({
 }): UnitImportPreviewRow[] {
   const propertyIndex = buildPropertyIndex(properties);
 
-  return records.map((record) =>
-    buildPreviewRow({
-      mapping,
-      propertyIndex,
-      record,
-    }),
+  return flagDuplicateUnitRows(
+    records.map((record) =>
+      buildPreviewRow({
+        mapping,
+        propertyIndex,
+        record,
+      }),
+    ),
   );
 }
 
@@ -349,6 +351,43 @@ function buildPreviewRow({
     typeLabel,
     unitNumber,
   };
+}
+
+function flagDuplicateUnitRows(rows: UnitImportPreviewRow[]) {
+  const rowsByUnit = new Map<string, UnitImportPreviewRow[]>();
+
+  for (const row of rows) {
+    if (!row.propertyId || !row.unitNumber) {
+      continue;
+    }
+
+    const key = `${row.propertyId}:${normalizeLookup(row.unitNumber)}`;
+    const group = rowsByUnit.get(key);
+
+    if (group) {
+      group.push(row);
+    } else {
+      rowsByUnit.set(key, [row]);
+    }
+  }
+
+  for (const group of rowsByUnit.values()) {
+    if (group.length < 2) {
+      continue;
+    }
+
+    const rowNumbers = group.map((row) => row.sourceRowNumber).join(", ");
+
+    for (const row of group) {
+      row.actionLabel = "Needs review";
+      row.issues.push({
+        level: "error",
+        message: `Duplicate unit import rows for this property/unit: rows ${rowNumbers}. Keep one row before committing.`,
+      });
+    }
+  }
+
+  return rows;
 }
 
 function getMappedFields(

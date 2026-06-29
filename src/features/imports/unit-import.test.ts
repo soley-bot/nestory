@@ -72,6 +72,32 @@ describe("unit import", () => {
     expect(toCommitRows(rows)).toHaveLength(1);
   });
 
+  it("flags duplicate unit rows before commit", () => {
+    const parsed = parseCsv(
+      [
+        "Property Code,Unit no. / Floor,Price",
+        "CTR,12A / 12,850",
+        "CTR,12a / 12,900",
+      ].join("\n"),
+    );
+    const rows = buildUnitImportPreviewRows({
+      mapping: autoMapUnitImportHeaders(parsed.headers),
+      properties,
+      records: parsed.records,
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.actionLabel === "Needs review")).toBe(true);
+    expect(
+      rows.every((row) =>
+        row.issues.some((issue) =>
+          issue.message.includes("Duplicate unit import rows"),
+        ),
+      ),
+    ).toBe(true);
+    expect(toCommitRows(rows)).toHaveLength(0);
+  });
+
   it("preserves existing unit fields when sparse import rows update a unit", () => {
     const parsed = parseCsv(["Property Code,Unit no.", "CTR,12A"].join("\n"));
     const rows = buildUnitImportPreviewRows({
