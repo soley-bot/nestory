@@ -354,8 +354,11 @@ function getUnitReviewContext({
   return null;
 }
 
-function getVacantUnitsReportHref(propertyId: string) {
-  const params = new URLSearchParams({ status: "vacant" });
+export function getVacantUnitsReportHref(propertyId: string) {
+  const params = new URLSearchParams({
+    report: "vacancy-risk",
+    status: "vacant",
+  });
 
   if (propertyId !== "all") {
     params.set("propertyId", propertyId);
