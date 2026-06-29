@@ -66,4 +66,43 @@ describe("trusted report CSV export", () => {
     expect(csv).toContain("Metric,Value,Detail,Source count");
     expect(csv).toContain("Income,USD 500.00,Income ledger rows in period,1");
   });
+
+  it("keeps exported spreadsheet formulas inert", () => {
+    const report: TrustedReport = {
+      columns: [{ key: "risk", label: "Risk" }],
+      description: "Risk export.",
+      emptyDescription: "No rows.",
+      emptyTitle: "No rows",
+      exportFilenameBase: "risk",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      kind: "missing-data",
+      periodLabel: "June 2026",
+      rows: [
+        {
+          cells: { risk: "+missing owner" },
+          id: "row-1",
+          sourceCount: 1,
+          sourceLinks: [],
+          sourceSummary: "1 source row",
+          title: "=unsafe title",
+        },
+      ],
+      scopeLabel: "All properties",
+      summary: [
+        {
+          detail: "@source detail",
+          label: "Rows",
+          sourceCount: 1,
+          value: "-1",
+        },
+      ],
+      title: "Missing Data",
+      totalsTraceLabel: "Trace",
+    };
+
+    const csv = buildTrustedReportCsv(report);
+
+    expect(csv).toContain("1,'=unsafe title,'+missing owner,,");
+    expect(csv).toContain("Rows,'-1,'@source detail,1");
+  });
 });

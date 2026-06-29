@@ -84,9 +84,15 @@ function toCsv(rows: string[][]) {
 }
 
 function escapeCsvCell(value: string) {
-  if (!/[",\r\n]/.test(value)) {
-    return value;
+  const safeValue = toSpreadsheetSafeValue(value);
+
+  if (!/[",\r\n]/.test(safeValue)) {
+    return safeValue;
   }
 
-  return `"${value.replaceAll('"', '""')}"`;
+  return `"${safeValue.replaceAll('"', '""')}"`;
+}
+
+function toSpreadsheetSafeValue(value: string) {
+  return /^[\t\r\n ]*[=+\-@]/.test(value) ? `'${value}` : value;
 }
