@@ -8,7 +8,10 @@ import {
   parseLedgerSearchParams,
   sortLedgerEntries,
 } from "@/features/ledger/ledger.filters";
-import { getLedgerCreateInitialValues } from "@/features/ledger/components/ledger-screen";
+import {
+  getLedgerCreateInitialValues,
+  getLedgerReviewContext,
+} from "@/features/ledger/components/ledger-screen";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
 
 const entries: LedgerEntry[] = [
@@ -342,5 +345,29 @@ describe("ledger create defaults", () => {
         [],
       ),
     ).toEqual({ direction: "expense" });
+  });
+});
+
+describe("ledger review context", () => {
+  it("keeps dashboard large-expense threshold visible in the landing state", () => {
+    expect(
+      getLedgerReviewContext(
+        {
+          ...DEFAULT_LEDGER_VIEW_QUERY,
+          direction: "expense",
+          minAmount: 1000,
+          period: "last_30_days",
+          sort: "amount_desc",
+        },
+        {
+          hasFocusedEntry: false,
+          hasFocusedEntryIntent: false,
+        },
+      ),
+    ).toMatchObject({
+      countLabel: "from recent expenses at 1,000 or more",
+      description:
+        "Dashboard expense review shows expenses from the last 30 days at 1,000 or more.",
+    });
   });
 });

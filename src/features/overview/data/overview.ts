@@ -11,6 +11,8 @@ import type { CurrencyCode } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
 const activeLeaseStatuses = ["active", "notice_given"] as const;
+const largeExpenseReviewThreshold = 1000;
+const largeExpenseReviewHref = `/ledger?direction=expense&sort=amount_desc&period=last_30_days&minAmount=${largeExpenseReviewThreshold}`;
 const monthLabelFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
 });
@@ -381,7 +383,7 @@ function buildDashboardSummary({
 
   if (largeRecentExpenses.length > 0) {
     return {
-      actionHref: "/ledger?direction=expense&sort=amount_desc&period=last_30_days",
+      actionHref: largeExpenseReviewHref,
       actionLabel: "Review expenses",
       detail: `${largeRecentExpenses.length} expenses in 30 days are above the review threshold.`,
       headline: "Recent expenses deserve a closer look.",
@@ -550,7 +552,7 @@ function buildAttentionItems({
       ? {
           count: largeRecentExpenses.length,
           helper: "Last 30 days above review threshold",
-          href: "/ledger?direction=expense&sort=amount_desc&period=last_30_days",
+          href: largeExpenseReviewHref,
           label: "Large expenses, 30d",
           tone: "warning",
         }
@@ -695,8 +697,6 @@ function getLargeRecentExpenses({
   ledgerRows: LedgerWindowRow[];
   recentExpenseStart: string;
 }) {
-  const threshold = 1000;
-
   return ledgerRows.filter((row) => {
     if (
       row.direction !== "expense" ||
@@ -705,7 +705,7 @@ function getLargeRecentExpenses({
       return false;
     }
 
-    return Number(row.amount) >= threshold;
+    return Number(row.amount) >= largeExpenseReviewThreshold;
   });
 }
 

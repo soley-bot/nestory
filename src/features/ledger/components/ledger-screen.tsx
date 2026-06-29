@@ -389,7 +389,7 @@ function LedgerReviewStrip({
   );
 }
 
-function getLedgerReviewContext(
+export function getLedgerReviewContext(
   viewQuery: LedgerViewQuery,
   focusedState: FocusedLedgerState,
 ): LedgerReviewContext | null {
@@ -419,9 +419,13 @@ function getLedgerReviewContext(
   }
 
   if (viewQuery.period === "last_30_days" && viewQuery.direction === "expense") {
+    const threshold = viewQuery.minAmount
+      ? ` at ${formatLedgerAmountThreshold(viewQuery.minAmount)} or more`
+      : "";
+
     return {
-      countLabel: "from recent expenses",
-      description: "Dashboard expense review shows expenses from the last 30 days.",
+      countLabel: `from recent expenses${threshold}`,
+      description: `Dashboard expense review shows expenses from the last 30 days${threshold}.`,
       nextStep: "Check the largest entries first, then attach receipts or correct records.",
     };
   }
@@ -466,6 +470,13 @@ function formatLedgerDateRange(dateFrom: string, dateTo: string) {
   }
 
   return `entries through ${formatDate(dateTo)}`;
+}
+
+function formatLedgerAmountThreshold(value: number) {
+  return value.toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+  });
 }
 
 function getSelectedPropertyLabel(
