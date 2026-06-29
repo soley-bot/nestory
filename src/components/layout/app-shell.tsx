@@ -22,6 +22,7 @@ import {
   Sun,
   Upload,
   Users,
+  Wallet,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -73,6 +74,7 @@ const navGroups: NavGroup[] = [
         activeHrefs: ["/tenants"],
       },
       { href: "/ledger", label: "Ledger", icon: Landmark },
+      { href: "/payments", label: "Payments", icon: Wallet },
     ],
   },
 ];
@@ -111,6 +113,7 @@ const mobileMoreItems = [
   { href: "/leases", label: "Leases", icon: ScrollText },
   { href: "/people", label: "People", icon: Users, activeHrefs: ["/tenants"] },
   { href: "/maintenance", label: "Maintenance", icon: Wrench },
+  { href: "/payments", label: "Payments", icon: Wallet },
   ...moreNavItems,
 ] satisfies NavItem[];
 

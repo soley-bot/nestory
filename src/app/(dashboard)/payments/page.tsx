@@ -35,7 +35,7 @@ export default async function PaymentsPage() {
             </Link>
             <Link
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
-              href="/ledger?action=create"
+              href="/ledger?direction=income&action=create"
             >
               <Plus size={15} />
               Add payment
