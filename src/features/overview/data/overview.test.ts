@@ -38,6 +38,47 @@ describe("getOverviewScreenData", () => {
     expect(data.attentionTotal).toBe(2);
     expect(data.dashboardSummary.actionHref).toBe("#focus-now");
   });
+
+  it("links missing lease tenant records to the lease repair view", async () => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub([
+        { data: [] },
+        { data: [] },
+        {
+          data: [
+            {
+              lease_end_date: "2099-01-01",
+              primary_tenant_person_id: null,
+              unit_id: null,
+            },
+          ],
+        },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { count: 0, data: [] },
+        { data: [] },
+      ]),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+    );
+
+    expect(data.attentionItems).toContainEqual({
+      count: 1,
+      helper: "No People tenant link",
+      href: "/leases?status=current&tenantStatus=missing",
+      label: "Leases missing tenant link",
+      tone: "warning",
+    });
+    expect(data.dashboardSummary.actionHref).toBe(
+      "/leases?status=current&tenantStatus=missing",
+    );
+  });
 });
 
 type SupabaseResult = {

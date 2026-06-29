@@ -37,6 +37,7 @@ type UnitRow = {
 
 type LeaseRow = {
   lease_end_date: string;
+  primary_tenant_person_id: string | null;
   unit_id: string | null;
 };
 
@@ -116,7 +117,7 @@ export async function getOverviewScreenData(
       .neq("status", "inactive"),
     supabase
       .from("leases")
-      .select("unit_id, lease_end_date")
+      .select("unit_id, lease_end_date, primary_tenant_person_id")
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .in("status", [...activeLeaseStatuses]),
@@ -227,6 +228,9 @@ export async function getOverviewScreenData(
     (person) => !activeRolePersonIds.has(person.id),
   );
   const leasesEndingSoon = getLeasesEndingSoon(currentLeases, businessToday);
+  const missingTenantLeases = currentLeases.filter(
+    (lease) => !lease.primary_tenant_person_id,
+  );
   const largeRecentExpenses = getLargeRecentExpenses({
     ledgerRows,
     recentExpenseStart,
@@ -248,6 +252,7 @@ export async function getOverviewScreenData(
     largeRecentExpenses,
     leaseGapUnits: nonVacantLeaseGapUnits,
     leasesEndingSoon,
+    missingTenantLeases,
     missingOwnerLinks,
     negativeNetProperties,
     openMaintenanceCount,
@@ -264,6 +269,7 @@ export async function getOverviewScreenData(
       largeRecentExpenses,
       leaseGapUnits: nonVacantLeaseGapUnits,
       leasesEndingSoon,
+      missingTenantLeases,
       missingOwnerLinks,
       negativeNetProperties,
       peopleMissingContacts,
@@ -309,6 +315,7 @@ function buildDashboardSummary({
   largeRecentExpenses,
   leaseGapUnits,
   leasesEndingSoon,
+  missingTenantLeases,
   missingOwnerLinks,
   negativeNetProperties,
   peopleMissingContacts,
@@ -319,6 +326,7 @@ function buildDashboardSummary({
   largeRecentExpenses: LedgerWindowRow[];
   leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
+  missingTenantLeases: LeaseRow[];
   missingOwnerLinks: PropertyRow[];
   negativeNetProperties: PropertyRow[];
   peopleMissingContacts: PersonRow[];
@@ -363,6 +371,16 @@ function buildDashboardSummary({
       actionLabel: "Review leases",
       detail: `${leasesEndingSoon.length} leases end in 60 days. Start renewal or move-out planning here.`,
       headline: "Lease renewals need attention.",
+      tone: "warning" as const,
+    };
+  }
+
+  if (missingTenantLeases.length > 0) {
+    return {
+      actionHref: "/leases?status=current&tenantStatus=missing",
+      actionLabel: "Review tenant links",
+      detail: `${missingTenantLeases.length} current leases are missing a linked People tenant.`,
+      headline: "Lease tenant links need cleanup.",
       tone: "warning" as const,
     };
   }
@@ -485,6 +503,7 @@ function buildAttentionItems({
   largeRecentExpenses,
   leaseGapUnits,
   leasesEndingSoon,
+  missingTenantLeases,
   missingOwnerLinks,
   negativeNetProperties,
   openMaintenanceCount,
@@ -495,6 +514,7 @@ function buildAttentionItems({
   largeRecentExpenses: LedgerWindowRow[];
   leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
+  missingTenantLeases: LeaseRow[];
   missingOwnerLinks: PropertyRow[];
   negativeNetProperties: PropertyRow[];
   openMaintenanceCount: number;
@@ -536,6 +556,15 @@ function buildAttentionItems({
           helper: "No active lease link",
           href: "/units?leaseStatus=missing",
           label: "Lease gaps",
+          tone: "warning",
+        }
+      : null,
+    missingTenantLeases.length > 0
+      ? {
+          count: missingTenantLeases.length,
+          helper: "No People tenant link",
+          href: "/leases?status=current&tenantStatus=missing",
+          label: "Leases missing tenant link",
           tone: "warning",
         }
       : null,
