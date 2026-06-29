@@ -88,13 +88,11 @@ export type TimelineUnitOption = {
 export type TimelineArchiveState = "active" | "archived" | "all";
 
 export type TimelineSortKey =
-  | "date_desc"
-  | "date_asc"
-  | "type_asc"
-  | "property_asc";
+  "date_desc" | "date_asc" | "type_asc" | "property_asc";
 
 export type TimelineViewQuery = {
   archiveState: TimelineArchiveState;
+  eventId: string | null;
   eventType: TimelineEventType | "all";
   page: number;
   pageSize: number;

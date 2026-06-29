@@ -1,9 +1,5 @@
 export type PeopleBadgeTone =
-  | "neutral"
-  | "success"
-  | "warning"
-  | "danger"
-  | "accent";
+  "neutral" | "success" | "warning" | "danger" | "accent";
 
 export type PeopleArchiveState = "active" | "archived" | "all";
 
@@ -18,11 +14,7 @@ export type PersonRoleStatus = "active" | "inactive";
 export type PeopleRoleFilter = PersonRoleValue | "all";
 
 export type PeopleStatusFilter =
-  | "active"
-  | "inactive"
-  | "no_role"
-  | "missing_contact"
-  | "all";
+  "active" | "inactive" | "no_role" | "missing_contact" | "all";
 
 export type PeopleSortKey = "name_asc" | "updated_desc";
 
@@ -135,6 +127,7 @@ export type PeopleViewQuery = {
   archiveState: PeopleArchiveState;
   page: number;
   pageSize: number;
+  personId: string | null;
   query: string;
   role: PeopleRoleFilter;
   sort: PeopleSortKey;

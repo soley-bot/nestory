@@ -21,6 +21,7 @@ import type { CurrencyCode } from "@/lib/money/format";
 
 const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
   archiveState: "active",
+  eventId: null,
   eventType: "all",
   page: 1,
   pageSize: DEFAULT_TIMELINE_PAGE_SIZE,
@@ -176,15 +177,21 @@ export async function getTimelineScreenData(
     page === viewQuery.page ? firstEventsResult : await fetchEventsPage(page);
 
   if (eventsResult.error) {
-    throw new Error(`Could not load timeline events: ${eventsResult.error.message}`);
+    throw new Error(
+      `Could not load timeline events: ${eventsResult.error.message}`,
+    );
   }
 
   if (propertiesResult.error) {
-    throw new Error(`Could not load timeline properties: ${propertiesResult.error.message}`);
+    throw new Error(
+      `Could not load timeline properties: ${propertiesResult.error.message}`,
+    );
   }
 
   if (unitsResult.error) {
-    throw new Error(`Could not load timeline units: ${unitsResult.error.message}`);
+    throw new Error(
+      `Could not load timeline units: ${unitsResult.error.message}`,
+    );
   }
 
   if (periodLocksResult.error) {
@@ -234,15 +241,21 @@ export async function getTimelineScreenData(
   ]);
 
   if (leasesResult.error) {
-    throw new Error(`Could not load timeline leases: ${leasesResult.error.message}`);
+    throw new Error(
+      `Could not load timeline leases: ${leasesResult.error.message}`,
+    );
   }
 
   if (ledgerResult.error) {
-    throw new Error(`Could not load timeline ledger entries: ${ledgerResult.error.message}`);
+    throw new Error(
+      `Could not load timeline ledger entries: ${ledgerResult.error.message}`,
+    );
   }
 
   if (documentsResult.error) {
-    throw new Error(`Could not load timeline documents: ${documentsResult.error.message}`);
+    throw new Error(
+      `Could not load timeline documents: ${documentsResult.error.message}`,
+    );
   }
 
   const propertiesById = indexById(propertiesResult.data ?? []);
@@ -386,24 +399,28 @@ function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
     nextQuery = nextQuery.not("archived_at", "is", null);
   }
 
-  if (viewQuery.propertyId !== "all") {
-    nextQuery = nextQuery.eq("property_id", viewQuery.propertyId);
-  }
+  if (viewQuery.eventId) {
+    nextQuery = nextQuery.eq("id", viewQuery.eventId);
+  } else {
+    if (viewQuery.propertyId !== "all") {
+      nextQuery = nextQuery.eq("property_id", viewQuery.propertyId);
+    }
 
-  if (viewQuery.unitId && viewQuery.unitId !== "all") {
-    nextQuery = nextQuery.eq("unit_id", viewQuery.unitId);
-  }
+    if (viewQuery.unitId && viewQuery.unitId !== "all") {
+      nextQuery = nextQuery.eq("unit_id", viewQuery.unitId);
+    }
 
-  if (viewQuery.eventType !== "all") {
-    nextQuery = nextQuery.eq("event_type", viewQuery.eventType);
-  }
+    if (viewQuery.eventType !== "all") {
+      nextQuery = nextQuery.eq("event_type", viewQuery.eventType);
+    }
 
-  const searchPattern = getSearchPattern(viewQuery.query);
+    const searchPattern = getSearchPattern(viewQuery.query);
 
-  if (searchPattern) {
-    nextQuery = nextQuery.or(
-      `title.ilike.${searchPattern},description.ilike.${searchPattern}`,
-    );
+    if (searchPattern) {
+      nextQuery = nextQuery.or(
+        `title.ilike.${searchPattern},description.ilike.${searchPattern}`,
+      );
+    }
   }
 
   return nextQuery;
@@ -457,10 +474,12 @@ async function addSignedDocumentUrls(
     return [];
   }
 
-  const { data } = await supabase.storage.from("nestory-documents").createSignedUrls(
-    rows.map((row) => row.storage_path),
-    60 * 60,
-  );
+  const { data } = await supabase.storage
+    .from("nestory-documents")
+    .createSignedUrls(
+      rows.map((row) => row.storage_path),
+      60 * 60,
+    );
 
   return rows.map((row, index) => ({
     category: row.category,
@@ -485,7 +504,9 @@ async function getLinkedTimelineActivity(
 
   const result = await supabase
     .from("activity_logs")
-    .select("id, entity_type, entity_id, action, previous_values, new_values, created_at")
+    .select(
+      "id, entity_type, entity_id, action, previous_values, new_values, created_at",
+    )
     .eq("organization_id", organizationId)
     .eq("entity_type", "timeline_event")
     .in("entity_id", eventIds)
@@ -493,7 +514,9 @@ async function getLinkedTimelineActivity(
     .limit(120);
 
   if (result.error) {
-    throw new Error(`Could not load timeline event activity: ${result.error.message}`);
+    throw new Error(
+      `Could not load timeline event activity: ${result.error.message}`,
+    );
   }
 
   return result.data ?? [];
@@ -594,7 +617,9 @@ function buildTimelineRiskIndicators({
         ? "Ledger-linked events must be edited from Ledger to keep totals in sync."
         : "This event can be edited directly from Timeline.",
       id: "ledger",
-      label: event.ledger_entry_id ? "Ledger controlled" : "Timeline controlled",
+      label: event.ledger_entry_id
+        ? "Ledger controlled"
+        : "Timeline controlled",
       tone: event.ledger_entry_id ? "accent" : "success",
     },
     {
@@ -603,7 +628,8 @@ function buildTimelineRiskIndicators({
           ? "Supporting documents are attached."
           : "No supporting documents are attached yet.",
       id: "documents",
-      label: recordCounts.documents > 0 ? "Evidence attached" : "Evidence missing",
+      label:
+        recordCounts.documents > 0 ? "Evidence attached" : "Evidence missing",
       tone: recordCounts.documents > 0 ? "success" : "warning",
     },
     {
@@ -650,7 +676,8 @@ function buildTimelineNextAction({
 
   if (isLedgerLinked) {
     return {
-      description: "Use Ledger for edits so the financial record and history stay aligned.",
+      description:
+        "Use Ledger for edits so the financial record and history stay aligned.",
       href: hrefs.ledger ?? hrefs.timeline,
       label: "Open ledger",
       tone: "accent",
@@ -674,7 +701,10 @@ function buildTimelineNextAction({
   };
 }
 
-function buildHref(pathname: string, params: Record<string, string | undefined>) {
+function buildHref(
+  pathname: string,
+  params: Record<string, string | undefined>,
+) {
   const searchParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {

@@ -7,6 +7,7 @@ import type {
 } from "@/features/people/people.types";
 import {
   getFirstSearchParam,
+  getNullableUuidSearchParam,
   getPositiveIntegerSearchParam,
   getTrimmedSearchParam,
   type SearchParamValue,
@@ -26,6 +27,7 @@ export function parsePeopleSearchParams(
     archiveState: parsePeopleArchiveState(params.archiveState),
     page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
+    personId: getNullableUuidSearchParam(params.personId),
     query: getTrimmedSearchParam(params.query),
     role: parseRole(params.role),
     sort: parseSort(params.sort),
@@ -69,13 +71,14 @@ function parseStatus(value: string | string[] | undefined): PeopleStatusFilter {
 function parseSort(value: string | string[] | undefined): PeopleSortKey {
   const candidate = getFirstSearchParam(value);
 
-  return candidate === "updated_desc"
-    ? candidate
-    : DEFAULT_PEOPLE_SORT;
+  return candidate === "updated_desc" ? candidate : DEFAULT_PEOPLE_SORT;
 }
 
 function parsePageSize(value: string | string[] | undefined) {
-  const candidate = getPositiveIntegerSearchParam(value, DEFAULT_PEOPLE_PAGE_SIZE);
+  const candidate = getPositiveIntegerSearchParam(
+    value,
+    DEFAULT_PEOPLE_PAGE_SIZE,
+  );
 
   return PEOPLE_PAGE_SIZE_OPTIONS.includes(
     candidate as (typeof PEOPLE_PAGE_SIZE_OPTIONS)[number],

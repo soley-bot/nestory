@@ -10,6 +10,7 @@ import type {
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 import {
   getFirstSearchParam,
+  getNullableUuidSearchParam,
   getPositiveIntegerSearchParam,
   getTrimmedSearchParam,
   getUuidOrAllSearchParam,
@@ -24,6 +25,7 @@ export const DEFAULT_LEDGER_VIEW_QUERY: LedgerViewQuery = {
   dateFrom: "",
   dateTo: "",
   direction: "all",
+  entryId: null,
   minAmount: null,
   page: 1,
   pageSize: DEFAULT_LEDGER_PAGE_SIZE,
@@ -67,11 +69,7 @@ export function filterLedgerEntries(
     unitId = "all",
   }: LedgerFilterOptions,
 ) {
-  const tokens = query
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const dateScope = getLedgerTransactionDateScope(
     { dateFrom, dateTo, period },
     currentDate,
@@ -100,10 +98,7 @@ export function filterLedgerEntries(
       .join(" ")
       .toLowerCase();
     const matchesQuery = tokens.every((token) => haystack.includes(token));
-    const matchesDateScope = isDateInScope(
-      entry.transactionDate,
-      dateScope,
-    );
+    const matchesDateScope = isDateInScope(entry.transactionDate, dateScope);
     const matchesMinAmount = minAmount === null || entry.amount >= minAmount;
 
     return (
@@ -126,6 +121,7 @@ export function parseLedgerSearchParams(
     dateFrom: parseDateFilter(params.dateFrom),
     dateTo: parseDateFilter(params.dateTo),
     direction: parseDirection(params.direction),
+    entryId: getNullableUuidSearchParam(params.entryId),
     minAmount: parseMinAmount(params.minAmount),
     page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
@@ -145,11 +141,13 @@ export function normalizeLedgerViewQuery(
     dateFrom: parseDateFilter(query.dateFrom),
     dateTo: parseDateFilter(query.dateTo),
     direction: parseDirection(query.direction),
+    entryId: getNullableUuidSearchParam(query.entryId ?? undefined),
     minAmount: parseMinAmount(query.minAmount),
     page: Math.max(1, Math.floor(query.page ?? DEFAULT_LEDGER_VIEW_QUERY.page)),
     pageSize: parsePageSize(String(query.pageSize ?? "")),
     period: parsePeriod(query.period),
-    propertyId: query.propertyId?.trim() || DEFAULT_LEDGER_VIEW_QUERY.propertyId,
+    propertyId:
+      query.propertyId?.trim() || DEFAULT_LEDGER_VIEW_QUERY.propertyId,
     query: (query.query ?? "").trim().slice(0, 120),
     sort: parseSort(query.sort),
     unitId: parseUnitId(query.unitId),
@@ -162,6 +160,7 @@ export function isDefaultLedgerViewQuery(query: LedgerViewQuery) {
     query.dateFrom === DEFAULT_LEDGER_VIEW_QUERY.dateFrom &&
     query.dateTo === DEFAULT_LEDGER_VIEW_QUERY.dateTo &&
     query.direction === DEFAULT_LEDGER_VIEW_QUERY.direction &&
+    query.entryId === DEFAULT_LEDGER_VIEW_QUERY.entryId &&
     query.minAmount === DEFAULT_LEDGER_VIEW_QUERY.minAmount &&
     query.page === DEFAULT_LEDGER_VIEW_QUERY.page &&
     query.pageSize === DEFAULT_LEDGER_VIEW_QUERY.pageSize &&
@@ -291,7 +290,9 @@ export function buildLedgerSnapshotFromEntries(
   };
 }
 
-function parseArchiveState(value: string | string[] | undefined): LedgerArchiveState {
+function parseArchiveState(
+  value: string | string[] | undefined,
+): LedgerArchiveState {
   const candidate = getFirstSearchParam(value);
 
   return candidate === "archived" || candidate === "all" ? candidate : "active";
@@ -318,9 +319,7 @@ function parseDirection(value: string | string[] | undefined) {
   return candidate === "income" || candidate === "expense" ? candidate : "all";
 }
 
-function parseMinAmount(
-  value: number | string | string[] | null | undefined,
-) {
+function parseMinAmount(value: number | string | string[] | null | undefined) {
   if (value === null || value === undefined) {
     return null;
   }
@@ -361,7 +360,10 @@ function parseSort(value: string | string[] | undefined): LedgerSortKey {
 }
 
 function parsePageSize(value: string | string[] | undefined) {
-  const candidate = getPositiveIntegerSearchParam(value, DEFAULT_LEDGER_PAGE_SIZE);
+  const candidate = getPositiveIntegerSearchParam(
+    value,
+    DEFAULT_LEDGER_PAGE_SIZE,
+  );
 
   return LEDGER_PAGE_SIZE_OPTIONS.includes(
     candidate as (typeof LEDGER_PAGE_SIZE_OPTIONS)[number],
@@ -431,17 +433,11 @@ function addDays(date: string, days: number) {
   return nextDate.toISOString().slice(0, 10);
 }
 
-function maxDateString(
-  first: string | undefined,
-  second: string,
-) {
+function maxDateString(first: string | undefined, second: string) {
   return first && first > second ? first : second;
 }
 
-function minDateString(
-  first: string | undefined,
-  second: string,
-) {
+function minDateString(first: string | undefined, second: string) {
   return first && first < second ? first : second;
 }
 

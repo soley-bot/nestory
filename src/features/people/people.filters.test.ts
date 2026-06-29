@@ -18,6 +18,7 @@ describe("parsePeopleSearchParams", () => {
       archiveState: DEFAULT_PEOPLE_ARCHIVE_STATE,
       page: 1,
       pageSize: DEFAULT_PEOPLE_PAGE_SIZE,
+      personId: null,
       query: "",
       role: "all",
       sort: DEFAULT_PEOPLE_SORT,
@@ -31,6 +32,7 @@ describe("parsePeopleSearchParams", () => {
         archiveState: "all",
         page: "3",
         pageSize: "100",
+        personId: "33333333-3333-4333-8333-333333333333",
         query: "  tenant owner vendor  ",
         role: "tenant",
         status: "missing_contact",
@@ -40,6 +42,7 @@ describe("parsePeopleSearchParams", () => {
       archiveState: "all",
       page: 3,
       pageSize: 100,
+      personId: "33333333-3333-4333-8333-333333333333",
       query: "tenant owner vendor",
       role: "tenant",
       status: "missing_contact",
@@ -52,6 +55,7 @@ describe("parsePeopleSearchParams", () => {
       parsePeopleSearchParams({
         page: "-1",
         pageSize: "999",
+        personId: "not-a-uuid",
         role: "manager",
         sort: "random",
         status: "draft",
@@ -59,6 +63,7 @@ describe("parsePeopleSearchParams", () => {
     ).toMatchObject({
       page: 1,
       pageSize: DEFAULT_PEOPLE_PAGE_SIZE,
+      personId: null,
       role: "all",
       sort: DEFAULT_PEOPLE_SORT,
       status: "all",
@@ -117,7 +122,9 @@ describe("canUsePagedPeopleBaseQuery", () => {
       ),
     ).toBe(true);
     expect(
-      canUsePagedPeopleBaseQuery(parsePeopleSearchParams({ status: "no_role" })),
+      canUsePagedPeopleBaseQuery(
+        parsePeopleSearchParams({ status: "no_role" }),
+      ),
     ).toBe(true);
   });
 
@@ -131,7 +138,20 @@ describe("canUsePagedPeopleBaseQuery", () => {
       ),
     ).toBe(true);
     expect(
-      canUsePagedPeopleBaseQuery(parsePeopleSearchParams({ archiveState: "all" })),
+      canUsePagedPeopleBaseQuery(
+        parsePeopleSearchParams({ archiveState: "all" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps focused person links on the database-paged path", () => {
+    expect(
+      canUsePagedPeopleBaseQuery(
+        parsePeopleSearchParams({
+          personId: "33333333-3333-4333-8333-333333333333",
+          query: "central",
+        }),
+      ),
     ).toBe(true);
   });
 });
@@ -266,7 +286,8 @@ describe("buildPeopleSummary", () => {
     );
     expect(summary.linked.activeLeases[0]).toMatchObject({
       href: "/leases?archiveState=all&leaseId=lease-1&query=Dara+Person",
-      ledgerHref: "/ledger?propertyId=property-1&query=Dara+Person&unitId=unit-1",
+      ledgerHref:
+        "/ledger?propertyId=property-1&query=Dara+Person&unitId=unit-1",
       propertyLabel: "CR / Central Residence",
       unitLabel: "Unit 12A",
     });

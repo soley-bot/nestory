@@ -17,10 +17,7 @@ import type {
 } from "@/features/ledger/ledger.types";
 import type { LinkedDocument } from "@/features/documents/document.types";
 import type { CurrencyCode } from "@/lib/money/format";
-import {
-  getQueryTokens,
-  textMatchesToken,
-} from "@/lib/query/screen-query";
+import { getQueryTokens, textMatchesToken } from "@/lib/query/screen-query";
 
 const ledgerEntrySelect =
   "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, archived_at";
@@ -122,11 +119,15 @@ export async function getLedgerScreenData(
   ]);
 
   if (propertiesResult.error) {
-    throw new Error(`Could not load ledger properties: ${propertiesResult.error.message}`);
+    throw new Error(
+      `Could not load ledger properties: ${propertiesResult.error.message}`,
+    );
   }
 
   if (unitsResult.error) {
-    throw new Error(`Could not load ledger units: ${unitsResult.error.message}`);
+    throw new Error(
+      `Could not load ledger units: ${unitsResult.error.message}`,
+    );
   }
 
   if (periodLocksResult.error) {
@@ -146,7 +147,7 @@ export async function getLedgerScreenData(
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
   const periodLocks = toLedgerPeriodLocks(periodLocksResult.data ?? []);
-  const searchTokens = getQueryTokens(viewQuery.query);
+  const searchTokens = viewQuery.entryId ? [] : getQueryTokens(viewQuery.query);
   const relatedLedgerEntryIds =
     searchTokens.length > 0
       ? await getLedgerEntryIdsMatchingTimelineSearch(
@@ -162,7 +163,8 @@ export async function getLedgerScreenData(
     searchTokens,
     units,
   });
-  const { from, to } = getRange(viewQuery.page, viewQuery.pageSize);
+  const page = viewQuery.entryId ? 1 : viewQuery.page;
+  const { from, to } = getRange(page, viewQuery.pageSize);
 
   let ledgerQuery = supabase
     .from("ledger_entries")
@@ -175,34 +177,38 @@ export async function getLedgerScreenData(
     ledgerQuery = ledgerQuery.not("archived_at", "is", null);
   }
 
-  if (viewQuery.direction !== "all") {
-    ledgerQuery = ledgerQuery.eq("direction", viewQuery.direction);
-  }
+  if (viewQuery.entryId) {
+    ledgerQuery = ledgerQuery.eq("id", viewQuery.entryId);
+  } else {
+    if (viewQuery.direction !== "all") {
+      ledgerQuery = ledgerQuery.eq("direction", viewQuery.direction);
+    }
 
-  if (viewQuery.propertyId !== "all") {
-    ledgerQuery = ledgerQuery.eq("property_id", viewQuery.propertyId);
-  }
+    if (viewQuery.propertyId !== "all") {
+      ledgerQuery = ledgerQuery.eq("property_id", viewQuery.propertyId);
+    }
 
-  if (viewQuery.unitId !== "all") {
-    ledgerQuery = ledgerQuery.eq("unit_id", viewQuery.unitId);
-  }
+    if (viewQuery.unitId !== "all") {
+      ledgerQuery = ledgerQuery.eq("unit_id", viewQuery.unitId);
+    }
 
-  const dateScope = getLedgerTransactionDateScope(viewQuery);
+    const dateScope = getLedgerTransactionDateScope(viewQuery);
 
-  if (dateScope.from) {
-    ledgerQuery = ledgerQuery.gte("transaction_date", dateScope.from);
-  }
+    if (dateScope.from) {
+      ledgerQuery = ledgerQuery.gte("transaction_date", dateScope.from);
+    }
 
-  if (dateScope.before) {
-    ledgerQuery = ledgerQuery.lt("transaction_date", dateScope.before);
-  }
+    if (dateScope.before) {
+      ledgerQuery = ledgerQuery.lt("transaction_date", dateScope.before);
+    }
 
-  if (viewQuery.minAmount !== null) {
-    ledgerQuery = ledgerQuery.gte("amount", viewQuery.minAmount);
-  }
+    if (viewQuery.minAmount !== null) {
+      ledgerQuery = ledgerQuery.gte("amount", viewQuery.minAmount);
+    }
 
-  for (const searchGroup of searchGroups) {
-    ledgerQuery = ledgerQuery.or(searchGroup);
+    for (const searchGroup of searchGroups) {
+      ledgerQuery = ledgerQuery.or(searchGroup);
+    }
   }
 
   if (viewQuery.sort === "date_asc") {
@@ -230,7 +236,9 @@ export async function getLedgerScreenData(
   const ledgerResult = await ledgerQuery.range(from, to);
 
   if (ledgerResult.error) {
-    throw new Error(`Could not load ledger entries: ${ledgerResult.error.message}`);
+    throw new Error(
+      `Could not load ledger entries: ${ledgerResult.error.message}`,
+    );
   }
 
   const entriesPage = ledgerResult.data ?? [];
@@ -243,7 +251,8 @@ export async function getLedgerScreenData(
   const timelineEventsByLedgerEntryId =
     indexTimelineEventsByLedgerEntryId(timelineEvents);
   const documentsWithUrls = await addSignedDocumentUrls(documents, supabase);
-  const documentsByLedgerEntryId = groupDocumentsByLedgerEntryId(documentsWithUrls);
+  const documentsByLedgerEntryId =
+    groupDocumentsByLedgerEntryId(documentsWithUrls);
   const activityByLedgerEntryId = groupActivityByLedgerEntryId(activityRows);
   const entries = entriesPage.map((entry) =>
     toLedgerEntry({
@@ -260,17 +269,15 @@ export async function getLedgerScreenData(
   return {
     entries,
     pagination: buildLedgerPagination({
-      page: viewQuery.page,
+      page,
       pageSize: viewQuery.pageSize,
       totalCount: ledgerResult.count ?? entries.length,
     }),
     periodLocks,
-    propertyOptions: properties.map(
-      (property): LedgerPropertyOption => ({
-        id: property.id,
-        label: `${property.code} - ${property.name}`,
-      }),
-    ),
+    propertyOptions: properties.map((property): LedgerPropertyOption => ({
+      id: property.id,
+      label: `${property.code} - ${property.name}`,
+    })),
     recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
     unitOptions: units.map((unit): LedgerUnitOption => {
       const property = propertiesById.get(unit.property_id);
@@ -375,10 +382,12 @@ async function addSignedDocumentUrls(
     return [];
   }
 
-  const { data } = await supabase.storage.from("nestory-documents").createSignedUrls(
-    rows.map((row) => row.storage_path),
-    60 * 60,
-  );
+  const { data } = await supabase.storage
+    .from("nestory-documents")
+    .createSignedUrls(
+      rows.map((row) => row.storage_path),
+      60 * 60,
+    );
 
   return rows.map((row, index) => ({
     category: row.category,
@@ -499,7 +508,8 @@ function buildLedgerRiskIndicators({
           ? "Receipt or invoice evidence is attached."
           : "No receipt or invoice evidence is attached yet.",
       id: "documents",
-      label: recordCounts.documents > 0 ? "Receipt attached" : "Receipt missing",
+      label:
+        recordCounts.documents > 0 ? "Receipt attached" : "Receipt missing",
       tone: recordCounts.documents > 0 ? "success" : "warning",
     },
     {
@@ -528,7 +538,8 @@ function buildLedgerNextAction({
 }): LedgerNextAction {
   if (isLocked) {
     return {
-      description: "Unlock the accounting period before editing or restoring this entry.",
+      description:
+        "Unlock the accounting period before editing or restoring this entry.",
       href: hrefs.ledger,
       label: "Review lock",
       tone: "warning",
@@ -537,7 +548,8 @@ function buildLedgerNextAction({
 
   if (isArchived) {
     return {
-      description: "Restore this entry if it should return to active ledger totals.",
+      description:
+        "Restore this entry if it should return to active ledger totals.",
       href: hrefs.ledger,
       label: "Review restore",
       tone: "warning",
@@ -546,7 +558,8 @@ function buildLedgerNextAction({
 
   if (!relatedTimelineEvent) {
     return {
-      description: "Edit and save this entry to recreate its linked timeline record.",
+      description:
+        "Edit and save this entry to recreate its linked timeline record.",
       href: hrefs.ledger,
       label: "Repair timeline",
       tone: "warning",
@@ -570,7 +583,10 @@ function buildLedgerNextAction({
   };
 }
 
-function buildHref(pathname: string, params: Record<string, string | undefined>) {
+function buildHref(
+  pathname: string,
+  params: Record<string, string | undefined>,
+) {
   const searchParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
@@ -663,7 +679,9 @@ async function getLinkedLedgerActivity(
 
   const result = await supabase
     .from("activity_logs")
-    .select("id, entity_type, entity_id, action, previous_values, new_values, created_at")
+    .select(
+      "id, entity_type, entity_id, action, previous_values, new_values, created_at",
+    )
     .eq("organization_id", organizationId)
     .eq("entity_type", "ledger_entry")
     .in("entity_id", ledgerEntryIds)
@@ -671,7 +689,9 @@ async function getLinkedLedgerActivity(
     .limit(120);
 
   if (result.error) {
-    throw new Error(`Could not load ledger entry activity: ${result.error.message}`);
+    throw new Error(
+      `Could not load ledger entry activity: ${result.error.message}`,
+    );
   }
 
   return result.data ?? [];
@@ -732,8 +752,10 @@ function buildLedgerSearchGroups({
     addInCondition(
       conditions,
       "property_id",
-      findMatchingIds(properties, token, (property) =>
-        `${property.code} ${property.name}`,
+      findMatchingIds(
+        properties,
+        token,
+        (property) => `${property.code} ${property.name}`,
       ),
     );
     addInCondition(

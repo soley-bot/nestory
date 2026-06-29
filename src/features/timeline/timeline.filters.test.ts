@@ -113,11 +113,7 @@ describe("filterTimelineEvents", () => {
 function withTimelineDetailContext(
   event: Omit<
     TimelineEvent,
-    | "activity"
-    | "hrefs"
-    | "nextAction"
-    | "recordCounts"
-    | "riskIndicators"
+    "activity" | "hrefs" | "nextAction" | "recordCounts" | "riskIndicators"
   >,
 ): TimelineEvent {
   return {
@@ -125,7 +121,9 @@ function withTimelineDetailContext(
     activity: [],
     hrefs: {
       documents: `/documents?query=${encodeURIComponent(event.title)}`,
-      ledger: event.ledgerEntryId ? `/ledger?entryId=${event.ledgerEntryId}` : undefined,
+      ledger: event.ledgerEntryId
+        ? `/ledger?entryId=${event.ledgerEntryId}`
+        : undefined,
       property: `/properties/${event.propertyId}`,
       timeline: `/timeline?archiveState=all&eventId=${event.id}`,
       unit: event.unitId ? `/units/${event.unitId}` : undefined,
@@ -139,7 +137,8 @@ function withTimelineDetailContext(
     recordCounts: {
       activity: 0,
       documents: event.documents.length,
-      linkedRecords: Number(Boolean(event.relatedLease)) +
+      linkedRecords:
+        Number(Boolean(event.relatedLease)) +
         Number(Boolean(event.relatedLedgerEntry)),
     },
     riskIndicators: [],
@@ -157,6 +156,7 @@ describe("parseTimelineSearchParams", () => {
       }),
     ).toEqual({
       archiveState: "active",
+      eventId: null,
       eventType: "all",
       page: 1,
       pageSize: 100,
@@ -169,10 +169,12 @@ describe("parseTimelineSearchParams", () => {
 
   it("keeps valid filter, sort, and pagination state", () => {
     const propertyId = "11111111-1111-4111-8111-111111111111";
+    const eventId = "33333333-3333-4333-8333-333333333333";
 
     expect(
       parseTimelineSearchParams({
         archiveState: "all",
+        eventId,
         eventType: "Repair",
         page: "3",
         pageSize: "50",
@@ -182,6 +184,7 @@ describe("parseTimelineSearchParams", () => {
       }),
     ).toEqual({
       archiveState: "all",
+      eventId,
       eventType: "Repair",
       page: 3,
       pageSize: 50,
@@ -195,16 +198,17 @@ describe("parseTimelineSearchParams", () => {
 
 describe("sortTimelineEvents", () => {
   it("sorts by ascending date", () => {
-    expect(sortTimelineEvents(events, "date_asc").map((event) => event.id)).toEqual([
-      "event-2",
-      "event-1",
-    ]);
+    expect(
+      sortTimelineEvents(events, "date_asc").map((event) => event.id),
+    ).toEqual(["event-2", "event-1"]);
   });
 });
 
 describe("paginateTimelineEvents", () => {
   it("clamps empty and over-large pages", () => {
-    expect(paginateTimelineEvents([], { page: 4, pageSize: 25 }).pagination).toEqual({
+    expect(
+      paginateTimelineEvents([], { page: 4, pageSize: 25 }).pagination,
+    ).toEqual({
       from: 0,
       page: 1,
       pageSize: 25,

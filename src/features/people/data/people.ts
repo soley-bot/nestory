@@ -1,4 +1,7 @@
-import { toRecentChange, type ActivityLogSnapshot } from "@/features/activity/recent-changes";
+import {
+  toRecentChange,
+  type ActivityLogSnapshot,
+} from "@/features/activity/recent-changes";
 import type { LinkedDocument } from "@/features/documents/document.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
@@ -26,10 +29,7 @@ import type {
   PersonRoleSummary,
   PersonRoleValue,
 } from "@/features/people/people.types";
-import {
-  formatPartyType,
-  formatRole,
-} from "@/features/people/people.labels";
+import { formatPartyType, formatRole } from "@/features/people/people.labels";
 
 const peopleSelect =
   "id, display_name, legal_name, party_type, primary_email, primary_phone, tax_identifier, notes, archived_at, updated_at, created_at";
@@ -52,7 +52,9 @@ const activitySelect =
   "id, entity_type, entity_id, action, previous_values, new_values, created_at";
 
 type UnknownRecord = Record<string, unknown>;
-type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type SupabaseServerClient = Awaited<
+  ReturnType<typeof createSupabaseServerClient>
+>;
 type PeopleQueryResult = {
   count?: number | null;
   data: unknown;
@@ -176,8 +178,7 @@ type PeopleIdPrefilter = {
 };
 
 type PeopleIdQueryResult =
-  | { kind: "ready"; ids: Set<string> }
-  | { kind: "unsupported" };
+  { kind: "ready"; ids: Set<string> } | { kind: "unsupported" };
 
 type PagedPeopleRowsResult = {
   people: PersonRow[];
@@ -215,13 +216,16 @@ export async function getPeopleScreenData(
 
 export function canUsePagedPeopleBaseQuery(viewQuery: PeopleViewQuery) {
   return (
-    viewQuery.query.trim().length === 0 &&
-    canUsePeopleBaseSort(viewQuery.sort)
+    Boolean(viewQuery.personId) ||
+    (viewQuery.query.trim().length === 0 &&
+      canUsePeopleBaseSort(viewQuery.sort))
   );
 }
 
 function canUseBoundedPeopleSearchQuery(viewQuery: PeopleViewQuery) {
-  return viewQuery.query.trim().length > 0 && canUsePeopleBaseSort(viewQuery.sort);
+  return (
+    viewQuery.query.trim().length > 0 && canUsePeopleBaseSort(viewQuery.sort)
+  );
 }
 
 function canUsePeopleBaseSort(sort: PeopleViewQuery["sort"]) {
@@ -613,6 +617,13 @@ async function getPeopleIdPrefilter({
     requireMissingPrimaryContact: false,
   };
 
+  if (viewQuery.personId) {
+    return {
+      ...filter,
+      includeIds: new Set([viewQuery.personId]),
+    };
+  }
+
   if (viewQuery.role !== "all") {
     const roleIdsResult = await getPeopleIdsFromRoles({
       organizationId,
@@ -709,7 +720,7 @@ function mergePeopleIdPrefilters(
     includeIds:
       first.includeIds && second.includeIds
         ? intersectSets(first.includeIds, second.includeIds)
-        : first.includeIds ?? second.includeIds,
+        : (first.includeIds ?? second.includeIds),
     requireMissingPrimaryContact:
       first.requireMissingPrimaryContact || second.requireMissingPrimaryContact,
   };
@@ -799,17 +810,10 @@ async function loadPeopleSummariesForRows({
         values: propertyIds,
       },
     ),
-    getRows(
-      supabase,
-      "units",
-      unitSelect,
-      organizationId,
-      toUnitRow,
-      {
-        column: "id",
-        values: unitIds,
-      },
-    ),
+    getRows(supabase, "units", unitSelect, organizationId, toUnitRow, {
+      column: "id",
+      values: unitIds,
+    }),
     getRows(
       supabase,
       "documents",
@@ -1017,18 +1021,22 @@ async function getPeopleIdsMatchingBaseToken(
     .from("people")
     .select("id")
     .eq("organization_id", organizationId)
-    .or([
-      `display_name.ilike.%${pattern}%`,
-      `legal_name.ilike.%${pattern}%`,
-      `party_type.ilike.%${pattern}%`,
-      `primary_email.ilike.%${pattern}%`,
-      `primary_phone.ilike.%${pattern}%`,
-      `tax_identifier.ilike.%${pattern}%`,
-      `notes.ilike.%${pattern}%`,
-    ].join(","));
+    .or(
+      [
+        `display_name.ilike.%${pattern}%`,
+        `legal_name.ilike.%${pattern}%`,
+        `party_type.ilike.%${pattern}%`,
+        `primary_email.ilike.%${pattern}%`,
+        `primary_phone.ilike.%${pattern}%`,
+        `tax_identifier.ilike.%${pattern}%`,
+        `notes.ilike.%${pattern}%`,
+      ].join(","),
+    );
 
   if (result.error) {
-    throw new Error(`Could not load people search filters: ${result.error.message}`);
+    throw new Error(
+      `Could not load people search filters: ${result.error.message}`,
+    );
   }
 
   return {
@@ -1062,17 +1070,16 @@ async function getPeopleIdsMatchingContactToken(
     .select("person_id")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
-    .or([
-      `contact_name.ilike.%${pattern}%`,
-      `contact_type.ilike.%${pattern}%`,
-      `email.ilike.%${pattern}%`,
-      `phone.ilike.%${pattern}%`,
-    ].join(","));
+    .or(
+      [
+        `contact_name.ilike.%${pattern}%`,
+        `contact_type.ilike.%${pattern}%`,
+        `email.ilike.%${pattern}%`,
+        `phone.ilike.%${pattern}%`,
+      ].join(","),
+    );
 
-  return readPersonIdQueryResult(
-    result,
-    "people contact search filters",
-  );
+  return readPersonIdQueryResult(result, "people contact search filters");
 }
 
 async function getPeopleIdsMatchingVendorToken(
@@ -1086,15 +1093,13 @@ async function getPeopleIdsMatchingVendorToken(
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .or(
-      [`service_category.ilike.%${pattern}%`, `service_area.ilike.%${pattern}%`].join(
-        ",",
-      ),
+      [
+        `service_category.ilike.%${pattern}%`,
+        `service_area.ilike.%${pattern}%`,
+      ].join(","),
     );
 
-  return readPersonIdQueryResult(
-    result,
-    "people vendor search filters",
-  );
+  return readPersonIdQueryResult(result, "people vendor search filters");
 }
 
 async function getPeopleIdsMatchingLinkedPropertyToken(
@@ -1238,7 +1243,10 @@ async function getPeopleIdsWithoutUsefulContacts(
 
   return {
     kind: "ready",
-    ids: differenceSets(missingPrimaryIdsResult.ids, usefulContactIdsResult.ids),
+    ids: differenceSets(
+      missingPrimaryIdsResult.ids,
+      usefulContactIdsResult.ids,
+    ),
   };
 }
 
@@ -1252,7 +1260,9 @@ async function getAllPeopleIds(
     .eq("organization_id", organizationId);
 
   if (result.error) {
-    throw new Error(`Could not load people id filters: ${result.error.message}`);
+    throw new Error(
+      `Could not load people id filters: ${result.error.message}`,
+    );
   }
 
   return {
@@ -1273,7 +1283,9 @@ async function getPeopleIdsWithoutPrimaryContact(
     .is("primary_phone", null);
 
   if (result.error) {
-    throw new Error(`Could not load people contact filters: ${result.error.message}`);
+    throw new Error(
+      `Could not load people contact filters: ${result.error.message}`,
+    );
   }
 
   return {
@@ -1306,7 +1318,9 @@ async function getPeopleIdsForActiveLeasesWithoutUnits(
     .is("unit_id", null);
 
   if (result.error) {
-    throw new Error(`Could not load people no-unit lease filters: ${result.error.message}`);
+    throw new Error(
+      `Could not load people no-unit lease filters: ${result.error.message}`,
+    );
   }
 
   return getPeopleIdsForActiveLeaseIds(
@@ -1332,7 +1346,9 @@ async function getPropertyIdsMatchingToken(
     .or([`code.ilike.%${pattern}%`, `name.ilike.%${pattern}%`].join(","));
 
   if (result.error) {
-    throw new Error(`Could not load people property search filters: ${result.error.message}`);
+    throw new Error(
+      `Could not load people property search filters: ${result.error.message}`,
+    );
   }
 
   return {
@@ -1353,7 +1369,9 @@ async function getUnitIdsMatchingToken(
     .or(`unit_number.ilike.%${pattern}%`);
 
   if (result.error) {
-    throw new Error(`Could not load people unit search filters: ${result.error.message}`);
+    throw new Error(
+      `Could not load people unit search filters: ${result.error.message}`,
+    );
   }
 
   return {
@@ -1393,7 +1411,9 @@ async function getPeopleIdsForActiveLeaseProperties(
     .in("property_id", [...propertyIds]);
 
   if (result.error) {
-    throw new Error(`Could not load people lease property search filters: ${result.error.message}`);
+    throw new Error(
+      `Could not load people lease property search filters: ${result.error.message}`,
+    );
   }
 
   return getPeopleIdsForActiveLeaseIds(
@@ -1419,7 +1439,9 @@ async function getPeopleIdsForActiveLeaseUnits(
     .in("unit_id", [...unitIds]);
 
   if (result.error) {
-    throw new Error(`Could not load people lease unit search filters: ${result.error.message}`);
+    throw new Error(
+      `Could not load people lease unit search filters: ${result.error.message}`,
+    );
   }
 
   return getPeopleIdsForActiveLeaseIds(
@@ -1450,10 +1472,7 @@ async function getPeopleIdsForActiveLeaseIds(
     .is("archived_at", null)
     .is("ended_on", null);
 
-  return readPersonIdQueryResult(
-    result,
-    "people lease party search filters",
-  );
+  return readPersonIdQueryResult(result, "people lease party search filters");
 }
 
 function readPersonIdQueryResult(
@@ -1552,14 +1571,10 @@ async function filterPeopleRowsByQuery({
       toPropertyRow,
       { column: "id", values: propertyIds },
     ),
-    getRows(
-      supabase,
-      "units",
-      unitSelect,
-      organizationId,
-      toUnitRow,
-      { column: "id", values: unitIds },
-    ),
+    getRows(supabase, "units", unitSelect, organizationId, toUnitRow, {
+      column: "id",
+      values: unitIds,
+    }),
   ]);
   const rolesByPerson = groupByPersonId(roles);
   const contactsByPerson = groupByPersonId(contacts);
@@ -1648,7 +1663,10 @@ async function addSignedDocumentUrlsToPeople(
     return people;
   }
 
-  const signedDocuments = await addSignedDocumentUrls(visibleDocuments, supabase);
+  const signedDocuments = await addSignedDocumentUrls(
+    visibleDocuments,
+    supabase,
+  );
   const signedDocumentsById = indexById(signedDocuments);
 
   return people.map((person) => ({
@@ -1696,7 +1714,10 @@ function groupDocumentsByPerson({
 }) {
   const grouped = new Map<string, LinkedDocument[]>();
   const documentsByLeaseId = groupDocumentsByContext(documents, "leaseId");
-  const documentsByPropertyId = groupDocumentsByContext(documents, "propertyId");
+  const documentsByPropertyId = groupDocumentsByContext(
+    documents,
+    "propertyId",
+  );
   const documentsByUnitId = groupDocumentsByContext(documents, "unitId");
 
   for (const personId of new Set([
@@ -1722,9 +1743,7 @@ function groupDocumentsByPerson({
     addDocumentsForIds(personDocuments, propertyIds, documentsByPropertyId);
     addDocumentsForIds(personDocuments, unitIds, documentsByUnitId);
 
-    const sortedPersonDocuments = sortDocuments(
-      [...personDocuments.values()],
-    );
+    const sortedPersonDocuments = sortDocuments([...personDocuments.values()]);
 
     if (sortedPersonDocuments.length > 0) {
       grouped.set(personId, sortedPersonDocuments);
@@ -1892,7 +1911,9 @@ function getPrimaryContact(
 ): PeopleContactSummary {
   const primary = contacts
     .filter((contact) => !contact.archivedAt)
-    .toSorted((first, second) => Number(second.isPrimary) - Number(first.isPrimary))
+    .toSorted(
+      (first, second) => Number(second.isPrimary) - Number(first.isPrimary),
+    )
     .at(0);
   const email = person.primaryEmail ?? primary?.email ?? null;
   const phone = person.primaryPhone ?? primary?.phone ?? null;
@@ -2010,16 +2031,18 @@ function buildPropertyLink(
     href: `/properties/${property.id}`,
     id: property.id,
     label: `${property.code} / ${property.name}`,
-    ownershipLabel: owner.ownershipLabel ?? (owner.isPrimary ? "Primary" : "Owner"),
+    ownershipLabel:
+      owner.ownershipLabel ?? (owner.isPrimary ? "Primary" : "Owner"),
   };
 }
 
 function buildVendorLink(profile: VendorProfileRow): PeopleVendorLink {
   return {
     id: profile.id,
-    label: [profile.serviceCategory, profile.serviceArea]
-      .filter(Boolean)
-      .join(" / ") || "Vendor profile",
+    label:
+      [profile.serviceCategory, profile.serviceArea]
+        .filter(Boolean)
+        .join(" / ") || "Vendor profile",
     preferred: profile.preferred,
     status: profile.status,
   };
@@ -2131,7 +2154,8 @@ function buildPeopleRiskIndicators({
           ? "Related lease, property, or unit documents are attached."
           : "No related lease, property, or unit documents are attached yet.",
       id: "documents",
-      label: recordCounts.documents > 0 ? "Evidence attached" : "Evidence missing",
+      label:
+        recordCounts.documents > 0 ? "Evidence attached" : "Evidence missing",
       tone: recordCounts.documents > 0 ? "success" : "warning",
     },
   ];
@@ -2165,7 +2189,8 @@ function buildPeopleNextAction({
 
   if (!hasActiveRole) {
     return {
-      description: "Assign tenant, owner, or vendor before linking work to this person.",
+      description:
+        "Assign tenant, owner, or vendor before linking work to this person.",
       href: detailHrefs.people,
       label: "Assign role",
       tone: "warning",
@@ -2174,7 +2199,8 @@ function buildPeopleNextAction({
 
   if (!hasUsefulContact) {
     return {
-      description: "Add email or phone so follow-up and billing context are usable.",
+      description:
+        "Add email or phone so follow-up and billing context are usable.",
       href: detailHrefs.people,
       label: "Add contact",
       tone: "warning",
@@ -2187,7 +2213,8 @@ function buildPeopleNextAction({
     !linked.vendorProfile
   ) {
     return {
-      description: "Connect this person to a lease, owner record, or vendor profile.",
+      description:
+        "Connect this person to a lease, owner record, or vendor profile.",
       href: detailHrefs.addLease,
       label: "Link record",
       tone: "accent",
@@ -2247,7 +2274,10 @@ export function filterPeopleSummaries(
   });
 }
 
-function matchesArchive(person: PeopleSummary, archiveState: PeopleArchiveState) {
+function matchesArchive(
+  person: PeopleSummary,
+  archiveState: PeopleArchiveState,
+) {
   if (archiveState === "all") {
     return true;
   }
@@ -2869,15 +2899,14 @@ function isActiveLeaseSearchRow(lease: {
 }
 
 function getPeopleQueryTokens(viewQuery: PeopleViewQuery) {
-  return viewQuery.query
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
+  return viewQuery.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 }
 
 function toPostgrestIlikeToken(token: string) {
-  return token.replace(/[,%()]/g, " ").trim().replace(/\s+/g, "%");
+  return token
+    .replace(/[,%()]/g, " ")
+    .trim()
+    .replace(/\s+/g, "%");
 }
 
 function tokenMatchesSyntheticLabel(token: string, label: string) {
@@ -2887,7 +2916,6 @@ function tokenMatchesSyntheticLabel(token: string, label: string) {
 function readyPeopleIdSet(ids = new Set<string>()): PeopleIdQueryResult {
   return { kind: "ready", ids };
 }
-
 
 function formatPostgrestInFilter(values: ReadonlySet<string>) {
   return `(${[...values].join(",")})`;
@@ -2929,7 +2957,10 @@ function differenceSets<T>(first: ReadonlySet<T>, second: ReadonlySet<T>) {
   return difference;
 }
 
-function buildHref(pathname: string, params: Record<string, string | undefined>) {
+function buildHref(
+  pathname: string,
+  params: Record<string, string | undefined>,
+) {
   const searchParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {

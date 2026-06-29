@@ -159,11 +159,7 @@ describe("filterLedgerEntries", () => {
 function withLedgerDetailContext(
   entry: Omit<
     LedgerEntry,
-    | "activity"
-    | "hrefs"
-    | "nextAction"
-    | "recordCounts"
-    | "riskIndicators"
+    "activity" | "hrefs" | "nextAction" | "recordCounts" | "riskIndicators"
   >,
 ): LedgerEntry {
   return {
@@ -202,6 +198,7 @@ describe("parseLedgerSearchParams", () => {
         dateFrom: "2026-06-01",
         dateTo: "2026-06-30",
         direction: "expense",
+        entryId: "33333333-3333-4333-8333-333333333333",
         minAmount: "500.75",
         page: "3",
         pageSize: "50",
@@ -216,6 +213,7 @@ describe("parseLedgerSearchParams", () => {
       dateFrom: "2026-06-01",
       dateTo: "2026-06-30",
       direction: "expense",
+      entryId: "33333333-3333-4333-8333-333333333333",
       minAmount: 500.75,
       page: 3,
       pageSize: 50,
@@ -234,6 +232,7 @@ describe("parseLedgerSearchParams", () => {
         dateFrom: "2026-02-31",
         dateTo: "next-week",
         direction: "transfer",
+        entryId: "not-a-uuid",
         minAmount: "0",
         page: "-1",
         pageSize: "500",
@@ -247,6 +246,7 @@ describe("parseLedgerSearchParams", () => {
       dateFrom: "",
       dateTo: "",
       direction: "all",
+      entryId: null,
       minAmount: null,
       page: 1,
       pageSize: 50,

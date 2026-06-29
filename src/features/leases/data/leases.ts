@@ -32,7 +32,9 @@ const leaseSelect =
 const propertySelect = "id, code, name, archived_at";
 const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
 const tenantSelect = "id, display_name, primary_email, primary_phone";
-type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type SupabaseServerClient = Awaited<
+  ReturnType<typeof createSupabaseServerClient>
+>;
 type OptionalLeaseBackboneResult<T> = {
   data: T[] | null;
   error: { message: string } | null;
@@ -120,40 +122,46 @@ export async function getLeasesScreenData(
       leasesQuery = leasesQuery.not("archived_at", "is", null);
     }
 
-    if (viewQuery.propertyId !== "all") {
-      leasesQuery = leasesQuery.eq("property_id", viewQuery.propertyId);
-    }
+    if (viewQuery.leaseId) {
+      leasesQuery = leasesQuery.eq("id", viewQuery.leaseId);
+    } else {
+      if (viewQuery.propertyId !== "all") {
+        leasesQuery = leasesQuery.eq("property_id", viewQuery.propertyId);
+      }
 
-    if (viewQuery.unitId !== "all") {
-      leasesQuery = leasesQuery.eq("unit_id", viewQuery.unitId);
-    }
+      if (viewQuery.unitId !== "all") {
+        leasesQuery = leasesQuery.eq("unit_id", viewQuery.unitId);
+      }
 
-    if (viewQuery.status === "current") {
-      leasesQuery = leasesQuery.in("status", ["active", "notice_given"]);
-    } else if (viewQuery.status !== "all") {
-      leasesQuery = leasesQuery.eq("status", viewQuery.status);
-    }
+      if (viewQuery.status === "current") {
+        leasesQuery = leasesQuery.in("status", ["active", "notice_given"]);
+      } else if (viewQuery.status !== "all") {
+        leasesQuery = leasesQuery.eq("status", viewQuery.status);
+      }
 
-    const endDateScope = getLeaseEndDateScope(viewQuery);
+      const endDateScope = getLeaseEndDateScope(viewQuery);
 
-    if (endDateScope.from) {
-      leasesQuery = leasesQuery.gte("lease_end_date", endDateScope.from);
-    }
+      if (endDateScope.from) {
+        leasesQuery = leasesQuery.gte("lease_end_date", endDateScope.from);
+      }
 
-    if (endDateScope.before) {
-      leasesQuery = leasesQuery.lt("lease_end_date", endDateScope.before);
+      if (endDateScope.before) {
+        leasesQuery = leasesQuery.lt("lease_end_date", endDateScope.before);
+      }
     }
 
     if (currency) {
       leasesQuery = leasesQuery.eq("monthly_rent_currency", currency);
     }
 
-    for (const filter of buildLeaseSearchFilters(viewQuery, {
-      properties,
-      units,
-      propertiesById,
-    })) {
-      leasesQuery = leasesQuery.or(filter);
+    if (!viewQuery.leaseId) {
+      for (const filter of buildLeaseSearchFilters(viewQuery, {
+        properties,
+        units,
+        propertiesById,
+      })) {
+        leasesQuery = leasesQuery.or(filter);
+      }
     }
 
     if (sort === "none") {
@@ -354,14 +362,18 @@ async function enrichLeaseSummaries({
   ] = await Promise.all([
     supabase
       .from("lease_parties")
-      .select("id, lease_id, person_id, party_role, is_primary, started_on, ended_on, archived_at")
+      .select(
+        "id, lease_id, person_id, party_role, is_primary, started_on, ended_on, archived_at",
+      )
       .eq("organization_id", organizationId)
       .in("lease_id", detailLeaseIds)
       .order("is_primary", { ascending: false })
       .order("party_role", { ascending: true }),
     supabase
       .from("lease_terms")
-      .select("id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, status, archived_at")
+      .select(
+        "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, status, archived_at",
+      )
       .eq("organization_id", organizationId)
       .in("lease_id", detailLeaseIds)
       .order("term_sequence", { ascending: false }),
@@ -375,13 +387,17 @@ async function enrichLeaseSummaries({
       .order("updated_at", { ascending: false }),
     supabase
       .from("lease_deposits")
-      .select("id, lease_id, deposit_type, amount, currency, status, archived_at")
+      .select(
+        "id, lease_id, deposit_type, amount, currency, status, archived_at",
+      )
       .eq("organization_id", organizationId)
       .in("lease_id", detailLeaseIds)
       .order("updated_at", { ascending: false }),
     supabase
       .from("documents")
-      .select("id, lease_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at")
+      .select(
+        "id, lease_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at",
+      )
       .eq("organization_id", organizationId)
       .in("lease_id", detailLeaseIds)
       .is("archived_at", null)
@@ -396,7 +412,9 @@ async function enrichLeaseSummaries({
       .order("id", { ascending: false }),
     supabase
       .from("activity_logs")
-      .select("id, entity_type, entity_id, action, previous_values, new_values, created_at")
+      .select(
+        "id, entity_type, entity_id, action, previous_values, new_values, created_at",
+      )
       .eq("organization_id", organizationId)
       .eq("entity_type", "lease")
       .in("entity_id", detailLeaseIds)
@@ -426,19 +444,27 @@ async function enrichLeaseSummaries({
   );
 
   if (documentsResult.error) {
-    throw new Error(`Could not load lease documents: ${documentsResult.error.message}`);
+    throw new Error(
+      `Could not load lease documents: ${documentsResult.error.message}`,
+    );
   }
 
   if (timelineResult.error) {
-    throw new Error(`Could not load lease timeline: ${timelineResult.error.message}`);
+    throw new Error(
+      `Could not load lease timeline: ${timelineResult.error.message}`,
+    );
   }
 
   if (activityResult.error) {
-    throw new Error(`Could not load lease activity: ${activityResult.error.message}`);
+    throw new Error(
+      `Could not load lease activity: ${activityResult.error.message}`,
+    );
   }
 
   if (ledgerResult.error) {
-    throw new Error(`Could not load lease ledger context: ${ledgerResult.error.message}`);
+    throw new Error(
+      `Could not load lease ledger context: ${ledgerResult.error.message}`,
+    );
   }
 
   const partyRows = await addLeasePartyPeople(
@@ -446,15 +472,16 @@ async function enrichLeaseSummaries({
     organizationId,
     supabase,
   );
-  const documents = await addSignedDocumentUrls(documentsResult.data ?? [], supabase);
+  const documents = await addSignedDocumentUrls(
+    documentsResult.data ?? [],
+    supabase,
+  );
   const partiesByLeaseId = groupByLeaseId(partyRows);
   const termsByLeaseId = groupByLeaseId(termData as LeaseTermRow[]);
   const occupanciesByLeaseId = groupByLeaseId(
     occupancyData as LeaseOccupancyRow[],
   );
-  const depositsByLeaseId = groupByLeaseId(
-    depositData as LeaseDepositRow[],
-  );
+  const depositsByLeaseId = groupByLeaseId(depositData as LeaseDepositRow[]);
   const documentsByLeaseId = groupByLeaseId(documents);
   const timelineByLeaseId = groupByLeaseId(
     (timelineResult.data ?? []) as LeaseTimelineRow[],
@@ -557,7 +584,9 @@ async function addLeasePartyPeople(
       }));
     }
 
-    throw new Error(`Could not load lease party people: ${peopleResult.error.message}`);
+    throw new Error(
+      `Could not load lease party people: ${peopleResult.error.message}`,
+    );
   }
 
   const peopleById = new Map(
@@ -707,7 +736,9 @@ function toTenantOptions(
 
     return {
       id: person.id,
-      label: contact ? `${person.display_name} / ${contact}` : person.display_name,
+      label: contact
+        ? `${person.display_name} / ${contact}`
+        : person.display_name,
     };
   });
 }
@@ -743,13 +774,7 @@ function buildLeaseSearchFilters(
         const property = propertiesById.get(unit.property_id);
 
         return normalizeSearchText(
-          [
-            "unit",
-            unit.unit_number,
-            unit.floor,
-            property?.code,
-            property?.name,
-          ]
+          ["unit", unit.unit_number, unit.floor, property?.code, property?.name]
             .filter(Boolean)
             .join(" "),
         ).includes(token);
@@ -767,7 +792,9 @@ function buildLeaseSearchFilters(
     }
 
     if (propertyIds.length > 0) {
-      conditions.push(`property_id.in.(${uniqueStrings(propertyIds).join(",")})`);
+      conditions.push(
+        `property_id.in.(${uniqueStrings(propertyIds).join(",")})`,
+      );
     }
 
     if (token === "unit" || token === "units") {

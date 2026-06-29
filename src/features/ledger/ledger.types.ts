@@ -91,17 +91,14 @@ export type LedgerArchiveState = "active" | "archived" | "all";
 export type LedgerPeriodFilter = "all" | "current_month" | "last_30_days";
 
 export type LedgerSortKey =
-  | "date_desc"
-  | "date_asc"
-  | "amount_desc"
-  | "amount_asc"
-  | "property_asc";
+  "date_desc" | "date_asc" | "amount_desc" | "amount_asc" | "property_asc";
 
 export type LedgerViewQuery = {
   archiveState: LedgerArchiveState;
   dateFrom: string;
   dateTo: string;
   direction: "all" | LedgerDirection;
+  entryId: string | null;
   minAmount: number | null;
   page: number;
   pageSize: number;

@@ -9,6 +9,7 @@ import type {
 import { normalizePageSize } from "@/lib/query/screen-query";
 import {
   getFirstSearchParam,
+  getNullableUuidSearchParam,
   getPositiveIntegerSearchParam,
   getTrimmedSearchParam,
   getUuidOrAllSearchParam,
@@ -41,13 +42,20 @@ export type TimelineFilterInput = {
 };
 
 type TimelineSearchParams = Record<string, SearchParamValue>;
-type TimelineSearchParamUpdate = Record<string, string | number | null | undefined>;
+type TimelineSearchParamUpdate = Record<
+  string,
+  string | number | null | undefined
+>;
 
 export function filterTimelineEvents(
   events: TimelineEvent[],
   filters: TimelineFilterInput,
 ) {
-  const queryTokens = filters.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const queryTokens = filters.query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
 
   return events.filter((event) => {
     const matchesEventType =
@@ -55,7 +63,9 @@ export function filterTimelineEvents(
     const matchesProperty =
       filters.propertyId === "all" || event.propertyId === filters.propertyId;
     const matchesUnit =
-      !filters.unitId || filters.unitId === "all" || event.unitId === filters.unitId;
+      !filters.unitId ||
+      filters.unitId === "all" ||
+      event.unitId === filters.unitId;
     const archiveState = filters.archiveState ?? "active";
     const matchesArchiveState =
       archiveState === "all" ||
@@ -92,6 +102,7 @@ export function parseTimelineSearchParams(
 ): TimelineViewQuery {
   return {
     archiveState: parseArchiveState(params.archiveState),
+    eventId: getNullableUuidSearchParam(params.eventId),
     eventType: parseEventType(params.eventType),
     page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
@@ -204,10 +215,13 @@ function parseArchiveState(
   return candidate === "archived" || candidate === "all" ? candidate : "active";
 }
 
-function parseEventType(value: string | string[] | undefined): TimelineEventType | "all" {
+function parseEventType(
+  value: string | string[] | undefined,
+): TimelineEventType | "all" {
   const candidate = getFirstSearchParam(value);
 
-  return candidate && TIMELINE_EVENT_TYPE_VALUES.includes(candidate as TimelineEventType)
+  return candidate &&
+    TIMELINE_EVENT_TYPE_VALUES.includes(candidate as TimelineEventType)
     ? (candidate as TimelineEventType)
     : "all";
 }
