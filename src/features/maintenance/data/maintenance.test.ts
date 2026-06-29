@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildMaintenanceHrefs,
   buildMaintenanceSummary,
   getMaintenanceProgressState,
   maintenanceMatchesReview,
@@ -95,6 +96,23 @@ describe("maintenance progress helpers", () => {
     expect(maintenanceMatchesReview(maintenanceCase, "recurring")).toBe(true);
     expect(maintenanceMatchesReview(maintenanceCase, "reminders")).toBe(true);
     expect(maintenanceMatchesReview(maintenanceCase, "completed")).toBe(false);
+  });
+});
+
+describe("maintenance route contracts", () => {
+  it("opens document upload as maintenance evidence", () => {
+    const task = {
+      id: "task-1",
+      ledger_entry_id: null,
+      property_id: "property-1",
+      timeline_event_id: null,
+      unit_id: "unit-1",
+      vendor_person_id: null,
+    } as Parameters<typeof buildMaintenanceHrefs>[0];
+
+    expect(buildMaintenanceHrefs(task).documentUpload).toBe(
+      "/documents?action=create&category=Maintenance&propertyId=property-1&taskId=task-1&unitId=unit-1",
+    );
   });
 });
 

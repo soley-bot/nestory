@@ -563,11 +563,12 @@ function toMaintenanceCase({
   return maintenanceCase;
 }
 
-function buildMaintenanceHrefs(task: MaintenanceTaskRow) {
+export function buildMaintenanceHrefs(task: MaintenanceTaskRow) {
   return {
     documents: `/documents?archiveState=all&taskId=${task.id}`,
     documentUpload: buildHref("/documents", {
       action: "create",
+      category: "Maintenance",
       propertyId: task.property_id,
       taskId: task.id,
       unitId: task.unit_id ?? undefined,
