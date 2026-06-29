@@ -614,17 +614,23 @@ function DocumentForm({
         <Field label="Category" error={state.fieldErrors?.category?.[0]}>
           <Input defaultValue={defaults.category} name="category" required />
         </Field>
-        {mode === "create" ? (
-          <Field label="File" error={state.fieldErrors?.document?.[0]}>
-            <input
-              accept="application/pdf,image/jpeg,image/png,image/webp"
-              className="block w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
-              name="document"
-              required
-              type="file"
-            />
-          </Field>
-        ) : null}
+        <Field
+          label={mode === "create" ? "File" : "Replace file"}
+          error={state.fieldErrors?.document?.[0]}
+        >
+          <input
+            accept="application/pdf,image/jpeg,image/png,image/webp"
+            className="block w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
+            name="document"
+            required={mode === "create"}
+            type="file"
+          />
+          {mode === "edit" ? (
+            <p className="mt-1 text-xs text-muted">
+              Leave empty to keep the current file.
+            </p>
+          ) : null}
+        </Field>
         <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
           <SelectControl
             ariaLabel="Property"
@@ -1001,7 +1007,7 @@ function getDrawerDescription(drawer: DrawerState) {
   }
 
   if (drawer.mode === "edit") {
-    return "Update document category and property/unit context.";
+    return "Update document category, links, or replace the file.";
   }
 
   return drawer.mode === "archive"

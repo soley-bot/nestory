@@ -262,6 +262,47 @@ describe("toRecentChange", () => {
     });
   });
 
+  it("labels document replacement activity", () => {
+    expect(
+      toRecentChange({
+        action: "document_replaced",
+        created_at: "2026-06-17T10:48:00.000Z",
+        entity_id: "bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc",
+        entity_type: "document",
+        id: "log-document-replaced",
+        new_values: {
+          category: "Lease",
+          file_name: "renewed lease.pdf",
+          mime_type: "application/pdf",
+          size_bytes: 2048,
+        },
+        previous_values: {
+          category: "Lease",
+          file_name: "old lease.pdf",
+          mime_type: "application/pdf",
+          size_bytes: 1024,
+        },
+      }),
+    ).toMatchObject({
+      actionLabel: "File replaced",
+      details: [
+        {
+          after: "renewed lease.pdf",
+          before: "old lease.pdf",
+          field: "File name",
+        },
+        {
+          after: "2048",
+          before: "1024",
+          field: "File size",
+        },
+      ],
+      entityLabel: "Document",
+      href: "/documents?archiveState=all&documentId=bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc&query=renewed+lease.pdf",
+      recordLabel: "renewed lease.pdf",
+    });
+  });
+
   it("links archived maintenance case activity to the focused case", () => {
     expect(
       toRecentChange({

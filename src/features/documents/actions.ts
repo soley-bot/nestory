@@ -68,6 +68,19 @@ const documentMimeTypes = new Set([
   "image/webp",
 ]);
 
+type DocumentPathContext = {
+  archived_at: string | null;
+  category: string;
+  file_name: string;
+  lease_id: string | null;
+  mime_type: string;
+  property_id: string | null;
+  size_bytes: number;
+  storage_path: string;
+  task_id: string | null;
+  unit_id: string | null;
+};
+
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
@@ -131,8 +144,7 @@ export async function createDocumentAction(
     return validationState;
   }
 
-  const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
-  const storagePath = `${context.organizationId}/documents/${crypto.randomUUID()}-${safeFileName}`;
+  const storagePath = getDocumentStoragePath(context.organizationId, file.name);
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
     .upload(storagePath, file, {
@@ -216,6 +228,7 @@ export async function updateDocumentAction(
     taskId: readString(formData, "taskId"),
     unitId: readString(formData, "unitId"),
   });
+  const replacementFile = getReplacementFile(formData);
 
   if (!parsedDocumentId.success) {
     return {
@@ -228,12 +241,31 @@ export async function updateDocumentAction(
     return invalidFormState(parsed.error);
   }
 
+  if (replacementFile) {
+    const fileError = validateDocumentFile(replacementFile);
+
+    if (fileError) {
+      return {
+        fieldErrors: { document: [fileError] },
+        status: "error",
+      };
+    }
+  }
+
   const supabase = await createSupabaseServerClient();
   const previous = await getDocumentPathContext(
     supabase,
     context.organizationId,
     parsedDocumentId.data,
   );
+
+  if (!previous) {
+    return {
+      message: "We could not find that document.",
+      status: "error",
+    };
+  }
+
   const leaseId = parsed.data.leaseId || null;
   const taskId = parsed.data.taskId || null;
   const unitId = parsed.data.unitId || null;
@@ -250,38 +282,91 @@ export async function updateDocumentAction(
     return validationState;
   }
 
+  const replacementPath = replacementFile
+    ? getDocumentStoragePath(context.organizationId, replacementFile.name)
+    : null;
+
+  if (replacementFile && replacementPath) {
+    const { error: uploadError } = await supabase.storage
+      .from("nestory-documents")
+      .upload(replacementPath, replacementFile, {
+        cacheControl: "3600",
+        contentType: replacementFile.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      return {
+        message: "We could not upload the replacement file. Please try again.",
+        status: "error",
+      };
+    }
+  }
+
+  const updateValues = {
+    category: parsed.data.category,
+    lease_id: leaseId,
+    property_id: parsed.data.propertyId,
+    task_id: taskId,
+    unit_id: unitId,
+  };
+
+  if (replacementFile && replacementPath) {
+    Object.assign(updateValues, {
+      file_name: replacementFile.name,
+      mime_type: replacementFile.type,
+      size_bytes: replacementFile.size,
+      storage_path: replacementPath,
+    });
+  }
+
   const { error } = await supabase
     .from("documents")
-    .update({
-      category: parsed.data.category,
-      lease_id: leaseId,
-      property_id: parsed.data.propertyId,
-      task_id: taskId,
-      unit_id: unitId,
-    })
+    .update(updateValues)
     .eq("organization_id", context.organizationId)
     .eq("id", parsedDocumentId.data);
 
   if (error) {
+    if (replacementPath) {
+      await supabase.storage.from("nestory-documents").remove([replacementPath]);
+    }
+
     return {
       message: documentActionErrorMessage(error.message),
       status: "error",
     };
   }
 
+  if (replacementPath) {
+    const { error: removeError } = await supabase.storage
+      .from("nestory-documents")
+      .remove([previous.storage_path]);
+
+    if (removeError) {
+      console.warn(`Could not remove replaced document file: ${removeError.message}`);
+    }
+  }
+
   await logDocumentActivity({
-    action: "updated",
+    action: replacementFile ? "document_replaced" : "updated",
     actorId: context.userId,
     documentId: parsedDocumentId.data,
     newValues: {
       category: parsed.data.category,
+      ...(replacementFile
+        ? {
+            file_name: replacementFile.name,
+            mime_type: replacementFile.type,
+            size_bytes: replacementFile.size,
+          }
+        : {}),
       lease_id: leaseId,
       property_id: parsed.data.propertyId,
       task_id: taskId,
       unit_id: unitId,
     },
     organizationId: context.organizationId,
-    previousValues: previous ?? undefined,
+    previousValues: previous ? toDocumentActivityValues(previous) : undefined,
     supabase,
   });
   revalidateDocumentPaths({
@@ -290,7 +375,7 @@ export async function updateDocumentAction(
   });
 
   return {
-    message: "Document updated.",
+    message: replacementFile ? "Document file replaced." : "Document updated.",
     status: "success",
   };
 }
@@ -344,6 +429,14 @@ async function updateDocumentArchiveState({
     context.organizationId,
     parsedDocumentId.data,
   );
+
+  if (!previous) {
+    return {
+      message: "We could not find that document.",
+      status: "error",
+    };
+  }
+
   const now = new Date().toISOString();
   const { error } = await supabase
     .from("documents")
@@ -367,7 +460,7 @@ async function updateDocumentArchiveState({
     documentId: parsedDocumentId.data,
     newValues: { archived_at: archived ? now : null },
     organizationId: context.organizationId,
-    previousValues: previous ?? undefined,
+    previousValues: previous ? toDocumentActivityValues(previous) : undefined,
     supabase,
   });
   revalidateDocumentPaths({
@@ -511,12 +604,40 @@ async function getDocumentPathContext(
 ) {
   const { data } = await supabase
     .from("documents")
-    .select("category, file_name, lease_id, property_id, task_id, unit_id, archived_at")
+    .select(
+      "archived_at, category, file_name, lease_id, mime_type, property_id, size_bytes, storage_path, task_id, unit_id",
+    )
     .eq("organization_id", organizationId)
     .eq("id", documentId)
     .maybeSingle();
 
-  return data;
+  return data as DocumentPathContext | null;
+}
+
+function getReplacementFile(formData: FormData) {
+  const file = formData.get("document");
+
+  return file instanceof File && file.size > 0 ? file : null;
+}
+
+function getDocumentStoragePath(organizationId: string, fileName: string) {
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]+/g, "-");
+
+  return `${organizationId}/documents/${crypto.randomUUID()}-${safeFileName}`;
+}
+
+function toDocumentActivityValues(document: DocumentPathContext) {
+  return {
+    archived_at: document.archived_at,
+    category: document.category,
+    file_name: document.file_name,
+    lease_id: document.lease_id,
+    mime_type: document.mime_type,
+    property_id: document.property_id,
+    size_bytes: document.size_bytes,
+    task_id: document.task_id,
+    unit_id: document.unit_id,
+  };
 }
 
 async function logDocumentActivity({
