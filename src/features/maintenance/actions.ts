@@ -254,6 +254,79 @@ export async function updateMaintenanceCaseAction(
   };
 }
 
+export async function archiveMaintenanceCaseAction(
+  _state: MaintenanceActionState,
+  formData: FormData,
+): Promise<MaintenanceActionState> {
+  return updateMaintenanceArchiveState({
+    archived: true,
+    fallbackMessage: "Maintenance case archived.",
+    formData,
+  });
+}
+
+export async function restoreMaintenanceCaseAction(
+  _state: MaintenanceActionState,
+  formData: FormData,
+): Promise<MaintenanceActionState> {
+  return updateMaintenanceArchiveState({
+    archived: false,
+    fallbackMessage: "Maintenance case restored.",
+    formData,
+  });
+}
+
+async function updateMaintenanceArchiveState({
+  archived,
+  fallbackMessage,
+  formData,
+}: {
+  archived: boolean;
+  fallbackMessage: string;
+  formData: FormData;
+}): Promise<MaintenanceActionState> {
+  const context = await requireAdminContext();
+  const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
+
+  if (!parsedTaskId.success) {
+    return {
+      fieldErrors: { taskId: ["Choose a maintenance case."] },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const pathContext = await getMaintenancePathContext(
+    supabase,
+    context.organizationId,
+    parsedTaskId.data,
+  );
+  const payload = {
+    p_organization_id: context.organizationId,
+    p_task_id: parsedTaskId.data,
+  };
+  const { error } = archived
+    ? await supabase.rpc("archive_maintenance_task", payload)
+    : await supabase.rpc("restore_maintenance_task", payload);
+
+  if (error) {
+    return {
+      message: maintenanceActionErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidateMaintenancePaths({
+    propertyIds: [pathContext?.property_id],
+    unitIds: [pathContext?.unit_id],
+  });
+
+  return {
+    message: fallbackMessage,
+    status: "success",
+  };
+}
+
 function readMaintenanceForm(formData: FormData) {
   return {
     actualCostAmount: readString(formData, "actualCostAmount"),
@@ -291,6 +364,21 @@ function parseChecklistText(value: string) {
       };
     })
     .filter((item) => item.label.length > 0);
+}
+
+async function getMaintenancePathContext(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  taskId: string,
+) {
+  const { data } = await supabase
+    .from("tasks")
+    .select("property_id, unit_id")
+    .eq("organization_id", organizationId)
+    .eq("id", taskId)
+    .maybeSingle();
+
+  return data;
 }
 
 function revalidateMaintenancePaths({
@@ -333,6 +421,10 @@ function maintenanceActionErrorMessage(message: string) {
 
   if (message.includes("Unit not found")) {
     return "Choose a unit under the selected property.";
+  }
+
+  if (message.includes("Maintenance task not found")) {
+    return "We could not find that maintenance case.";
   }
 
   if (message.includes("Vendor/person not found")) {

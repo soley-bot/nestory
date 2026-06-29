@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  Archive,
   CalendarClock,
   CheckCircle2,
   ClipboardCheck,
@@ -13,6 +14,7 @@ import {
   ListChecks,
   Pencil,
   Plus,
+  RotateCcw,
   SlidersHorizontal,
   Wrench,
 } from "lucide-react";
@@ -37,6 +39,10 @@ import {
   type MaintenanceActionState,
   updateMaintenanceCaseAction,
 } from "@/features/maintenance/actions";
+import {
+  ArchiveMaintenancePanel,
+  RestoreMaintenancePanel,
+} from "@/features/maintenance/components/maintenance-drawer-panels";
 import type {
   MaintenanceCase,
   MaintenancePagination,
@@ -57,7 +63,7 @@ type DrawerState =
     }
   | {
       maintenanceCase: MaintenanceCase;
-      mode: "edit";
+      mode: "archive" | "edit" | "restore";
     };
 
 type MaintenanceScreenProps = {
@@ -228,37 +234,53 @@ export function MaintenanceScreen({
       >
         <MaintenanceInspector
           maintenanceCase={selectedCase}
+          onArchive={(maintenanceCase) =>
+            openDrawer({ maintenanceCase, mode: "archive" })
+          }
           onEdit={(maintenanceCase) =>
             openDrawer({ maintenanceCase, mode: "edit" })
+          }
+          onRestore={(maintenanceCase) =>
+            openDrawer({ maintenanceCase, mode: "restore" })
           }
         />
       </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer
-          description={
-            drawer.mode === "create"
-              ? "Create a maintenance case and schedule the operating record."
-              : "Update status, checklist, cost, and linked operating records."
-          }
+          description={getDrawerDescription(drawer)}
           onClose={() => setDrawer(null)}
           open
-          title={drawer.mode === "create" ? "New maintenance case" : "Edit maintenance case"}
+          title={getDrawerTitle(drawer)}
         >
-          <MaintenanceForm
-            initialValues={
-              drawer.mode === "create" ? drawer.initialValues : undefined
-            }
-            maintenanceCase={
-              drawer.mode === "edit" ? drawer.maintenanceCase : undefined
-            }
-            mode={drawer.mode}
-            onClose={() => setDrawer(null)}
-            onSuccess={setStatusMessage}
-            people={peopleOptions}
-            properties={propertyOptions}
-            units={unitOptions}
-          />
+          {drawer.mode === "archive" ? (
+            <ArchiveMaintenancePanel
+              maintenanceCase={drawer.maintenanceCase}
+              onClose={() => setDrawer(null)}
+              onSuccess={setStatusMessage}
+            />
+          ) : drawer.mode === "restore" ? (
+            <RestoreMaintenancePanel
+              maintenanceCase={drawer.maintenanceCase}
+              onClose={() => setDrawer(null)}
+              onSuccess={setStatusMessage}
+            />
+          ) : (
+            <MaintenanceForm
+              initialValues={
+                drawer.mode === "create" ? drawer.initialValues : undefined
+              }
+              maintenanceCase={
+                drawer.mode === "edit" ? drawer.maintenanceCase : undefined
+              }
+              mode={drawer.mode}
+              onClose={() => setDrawer(null)}
+              onSuccess={setStatusMessage}
+              people={peopleOptions}
+              properties={propertyOptions}
+              units={unitOptions}
+            />
+          )}
         </SideDrawer>
       ) : null}
     </div>
@@ -607,10 +629,14 @@ function MaintenanceTable({
 
 function MaintenanceInspector({
   maintenanceCase,
+  onArchive,
   onEdit,
+  onRestore,
 }: {
   maintenanceCase: MaintenanceCase | null;
+  onArchive: (maintenanceCase: MaintenanceCase) => void;
   onEdit: (maintenanceCase: MaintenanceCase) => void;
+  onRestore: (maintenanceCase: MaintenanceCase) => void;
 }) {
   if (!maintenanceCase) {
     return (
@@ -635,6 +661,9 @@ function MaintenanceInspector({
               <Badge tone={maintenanceCase.priorityTone}>
                 {maintenanceCase.priorityLabel}
               </Badge>
+              {maintenanceCase.isArchived ? (
+                <Badge tone="warning">Archived</Badge>
+              ) : null}
             </div>
             <h2 className="mt-3 break-words text-base font-semibold">
               {maintenanceCase.title}
@@ -697,19 +726,63 @@ function MaintenanceInspector({
           </div>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button onClick={() => onEdit(maintenanceCase)} type="button">
-            <Pencil size={15} />
-            Edit
+        {maintenanceCase.isArchived ? (
+          <Button onClick={() => onRestore(maintenanceCase)} type="button">
+            <RotateCcw size={15} />
+            Restore
           </Button>
-          <LinkButton href={maintenanceCase.hrefs.documentUpload}>
-            <FileText size={15} />
-            Upload doc
-          </LinkButton>
-        </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            <Button onClick={() => onEdit(maintenanceCase)} type="button">
+              <Pencil size={15} />
+              Edit
+            </Button>
+            <LinkButton href={maintenanceCase.hrefs.documentUpload}>
+              <FileText size={15} />
+              Upload doc
+            </LinkButton>
+            <Button
+              className="text-danger hover:text-danger"
+              onClick={() => onArchive(maintenanceCase)}
+              type="button"
+              variant="ghost"
+            >
+              <Archive size={15} />
+              Archive
+            </Button>
+          </div>
+        )}
       </div>
     </aside>
   );
+}
+
+function getDrawerTitle(drawer: DrawerState) {
+  if (drawer.mode === "create") {
+    return "New maintenance case";
+  }
+
+  if (drawer.mode === "edit") {
+    return "Edit maintenance case";
+  }
+
+  return drawer.mode === "archive"
+    ? "Archive maintenance case"
+    : "Restore maintenance case";
+}
+
+function getDrawerDescription(drawer: DrawerState) {
+  if (drawer.mode === "create") {
+    return "Create a maintenance case and schedule the operating record.";
+  }
+
+  if (drawer.mode === "edit") {
+    return "Update status, checklist, cost, and linked operating records.";
+  }
+
+  return drawer.mode === "archive"
+    ? "Hide this case from active views without deleting its history."
+    : "Return this case to active maintenance workflows.";
 }
 
 function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {

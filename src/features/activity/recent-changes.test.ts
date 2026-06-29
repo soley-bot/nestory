@@ -230,6 +230,28 @@ describe("toRecentChange", () => {
     });
   });
 
+  it("links archived maintenance case activity to the focused case", () => {
+    expect(
+      toRecentChange({
+        action: "archived",
+        created_at: "2026-06-17T10:50:00.000Z",
+        entity_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        entity_type: "task",
+        id: "log-maintenance",
+        new_values: {
+          title: "Fix AC leak",
+        },
+        previous_values: null,
+      }),
+    ).toMatchObject({
+      actionLabel: "Archived",
+      entityLabel: "Maintenance",
+      href: "/maintenance?archiveState=all&query=Fix+AC+leak&taskId=cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      recordLabel: "Fix AC leak",
+      tone: "warning",
+    });
+  });
+
   it("does not add brittle fallback text queries to focused lease and person links", () => {
     expect(
       toRecentChange({

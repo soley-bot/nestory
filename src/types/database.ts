@@ -1585,6 +1585,10 @@ export type Database = {
         Args: { p_lease_id: string; p_organization_id: string }
         Returns: string
       }
+      archive_maintenance_task: {
+        Args: { p_organization_id: string; p_task_id: string }
+        Returns: string
+      }
       archive_person: {
         Args: { p_organization_id: string; p_person_id: string }
         Returns: string
@@ -1727,6 +1731,10 @@ export type Database = {
       }
       restore_lease: {
         Args: { p_lease_id: string; p_organization_id: string }
+        Returns: string
+      }
+      restore_maintenance_task: {
+        Args: { p_organization_id: string; p_task_id: string }
         Returns: string
       }
       restore_person: {
