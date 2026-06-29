@@ -32,11 +32,8 @@ type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  badge?: NavBadge;
   activeHrefs?: string[];
 };
-
-type NavBadge = "Draft" | "Planned";
 
 type NavGroup = {
   id: string;
@@ -81,8 +78,8 @@ const navGroups: NavGroup[] = [
 ];
 
 const moreNavItems: NavItem[] = [
-  { href: "/documents", label: "Documents", icon: FolderOpen, badge: "Draft" },
-  { href: "/reports", label: "Reports", icon: FileText, badge: "Draft" },
+  { href: "/documents", label: "Documents", icon: FolderOpen },
+  { href: "/reports", label: "Reports", icon: FileText },
   { href: "/import", label: "Import data", icon: Upload },
 ];
 
@@ -130,21 +127,6 @@ function isNavItemActive(pathname: string, item: NavItem) {
     item.activeHrefs?.some(
       (href) => pathname === href || pathname.startsWith(`${href}/`),
     ) === true
-  );
-}
-
-function NavBadgeLabel({ badge }: { badge: NavBadge }) {
-  return (
-    <span
-      className={cn(
-        "ml-auto rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold leading-none",
-        badge === "Draft"
-          ? "border-foreground/15 bg-surface text-foreground"
-          : "border-border bg-surface-muted text-muted",
-      )}
-    >
-      {badge}
-    </span>
   );
 }
 
@@ -395,9 +377,6 @@ export function AppShell({
                           <span className="min-w-0 flex-1 truncate">
                             {item.label}
                           </span>
-                          {item.badge ? (
-                            <NavBadgeLabel badge={item.badge} />
-                          ) : null}
                         </Link>
                       );
                     })}
@@ -529,9 +508,6 @@ export function AppShell({
                         <span className="min-w-0 flex-1 truncate">
                           {item.label}
                         </span>
-                        {item.badge ? (
-                          <NavBadgeLabel badge={item.badge} />
-                        ) : null}
                       </Link>
                     );
                   })}
