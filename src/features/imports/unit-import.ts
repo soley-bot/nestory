@@ -67,7 +67,8 @@ export function parseCsv(text: string): {
 } {
   const parsedRows = parseCsvRows(text.replace(/^\uFEFF/, ""));
   const headerRow = parsedRows[0] ?? [];
-  const headers = makeUniqueHeaders(headerRow.map((header) => header.trim()));
+  const headerEntries = makeUniqueHeaderEntries(headerRow);
+  const headers = headerEntries.map((entry) => entry.header);
 
   if (headers.length === 0) {
     return { headers: [], records: [] };
@@ -82,7 +83,7 @@ export function parseCsv(text: string): {
 
     const raw: Record<string, string> = {};
 
-    headers.forEach((header, headerIndex) => {
+    headerEntries.forEach(({ header, index: headerIndex }) => {
       raw[header] = row[headerIndex]?.trim() ?? "";
     });
 
@@ -363,16 +364,21 @@ function parseCsvRows(text: string) {
   return rows;
 }
 
-function makeUniqueHeaders(headers: string[]) {
+function makeUniqueHeaderEntries(headers: string[]) {
   const counts = new Map<string, number>();
 
   return headers
-    .filter((header) => header.length > 0)
-    .map((header) => {
+    .map((header, index) => ({ header: header.trim(), index }))
+    .filter((entry) => entry.header.length > 0)
+    .map((entry) => {
+      const header = entry.header;
       const count = counts.get(header) ?? 0;
       counts.set(header, count + 1);
 
-      return count === 0 ? header : `${header} ${count + 1}`;
+      return {
+        header: count === 0 ? header : `${header} ${count + 1}`,
+        index: entry.index,
+      };
     });
 }
 

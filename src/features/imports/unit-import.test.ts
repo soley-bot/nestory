@@ -44,6 +44,27 @@ describe("unit import", () => {
     expect(toCommitRows(rows)).toHaveLength(1);
   });
 
+  it("keeps row values aligned when a spreadsheet has blank columns", () => {
+    const parsed = parseCsv(
+      ["Property Code,,Unit no. / Floor,Price", "CTR,,12A / 12,850"].join(
+        "\n",
+      ),
+    );
+    const rows = buildUnitImportPreviewRows({
+      mapping: autoMapUnitImportHeaders(parsed.headers),
+      properties,
+      records: parsed.records,
+    });
+
+    expect(rows[0]).toMatchObject({
+      currentRentAmount: 850,
+      floor: "12",
+      propertyId: properties[0].id,
+      unitNumber: "12A",
+    });
+    expect(toCommitRows(rows)).toHaveLength(1);
+  });
+
   it("flags rows that do not match an active property", () => {
     const parsed = parseCsv(
       ["Property Code,Unit no. / Floor,Price", "MISS,9B,700"].join("\n"),
