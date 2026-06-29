@@ -97,10 +97,18 @@ export function DocumentScreen({
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const focusedDocument = initialDocumentId
+    ? documents.find((document) => document.id === initialDocumentId) ?? null
+    : null;
   const selectedDocument =
     documents.find((document) => document.id === selectedDocumentId) ??
+    focusedDocument ??
     documents[0] ??
     null;
+  const reviewContext = getDocumentReviewContext(viewQuery, {
+    hasFocusedDocument: Boolean(focusedDocument),
+    hasFocusedDocumentIntent: Boolean(initialDocumentId),
+  });
 
   useEffect(() => {
     if (initialDocumentId) {
@@ -172,6 +180,13 @@ export function DocumentScreen({
         units={unitOptions}
         viewQuery={viewQuery}
       />
+
+      {reviewContext ? (
+        <DocumentReviewStrip
+          context={reviewContext}
+          count={pagination.totalCount}
+        />
+      ) : null}
 
       <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
         <div className="min-w-0 space-y-0">
@@ -320,6 +335,39 @@ function DocumentFilters({
           value={viewQuery.unitId}
         />
       </div>
+    </div>
+  );
+}
+
+type DocumentReviewContext = {
+  countLabel: string;
+  description: string;
+  nextStep: string;
+};
+
+type FocusedDocumentState = {
+  hasFocusedDocument: boolean;
+  hasFocusedDocumentIntent: boolean;
+};
+
+function DocumentReviewStrip({
+  context,
+  count,
+}: {
+  context: DocumentReviewContext;
+  count: number;
+}) {
+  return (
+    <div className="border-b border-border bg-surface-muted/35 px-4 py-2 sm:px-6 lg:px-6">
+      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <p className="min-w-0 truncate font-medium text-foreground">
+          {count} {count === 1 ? "document" : "documents"} {context.countLabel}
+        </p>
+        <p className="text-foreground-muted">{context.nextStep}</p>
+      </div>
+      <p className="mt-1 text-xs text-foreground-subtle">
+        {context.description}
+      </p>
     </div>
   );
 }
@@ -794,6 +842,46 @@ function DocumentLinkedRecords({
 
 function getDocumentAttentionItem(items: DocumentSummary["riskIndicators"]) {
   return items.find((item) => item.tone !== "success");
+}
+
+function getDocumentReviewContext(
+  viewQuery: DocumentViewQuery,
+  focusedState: FocusedDocumentState,
+): DocumentReviewContext | null {
+  if (focusedState.hasFocusedDocument) {
+    return {
+      countLabel: "in this document view",
+      description: "Opened from an exact document link with archived records included.",
+      nextStep: "The focused document is selected for preview review.",
+    };
+  }
+
+  if (focusedState.hasFocusedDocumentIntent) {
+    return {
+      countLabel: "in this document view",
+      description:
+        "Opened from an exact document link, but this page did not include the focused document.",
+      nextStep: "Review visible matches or broaden the current filters.",
+    };
+  }
+
+  if (viewQuery.taskId !== "all") {
+    return {
+      countLabel: "linked to this maintenance case",
+      description: "Opened from a maintenance evidence link.",
+      nextStep: "Upload or review evidence for the selected case.",
+    };
+  }
+
+  if (viewQuery.leaseId !== "all") {
+    return {
+      countLabel: "linked to this lease",
+      description: "Opened from a lease evidence link.",
+      nextStep: "Upload or review evidence for the selected lease.",
+    };
+  }
+
+  return null;
 }
 
 function Field({
