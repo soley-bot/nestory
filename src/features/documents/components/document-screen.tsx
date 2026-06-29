@@ -888,6 +888,22 @@ function getDocumentReviewContext(
     };
   }
 
+  if (viewQuery.unitId !== "all") {
+    return {
+      countLabel: "linked to this unit",
+      description: "Opened from a unit evidence link.",
+      nextStep: "Upload or review evidence for the selected unit.",
+    };
+  }
+
+  if (viewQuery.propertyId !== "all") {
+    return {
+      countLabel: "linked to this property",
+      description: "Opened from a property evidence link.",
+      nextStep: "Upload or review evidence for the selected property.",
+    };
+  }
+
   return null;
 }
 
