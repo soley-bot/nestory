@@ -6,16 +6,9 @@ import {
   selectCurrentLease,
 } from "@/features/units/data/unit-summary";
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
-import {
-  getReportMonthRange,
-} from "@/features/reports/reports.filters";
 import type {
   OccupancyReport,
   OccupancyReportRow,
-  ProfitLossCategoryGroup,
-  ProfitLossDirectionGroup,
-  ProfitLossReport,
-  ProfitLossReportEntry,
   ReportPropertyOption,
   ReportsScreenData,
   ReportsViewQuery,
@@ -27,20 +20,18 @@ import {
   formatMoneyDisplay,
   type CurrencyCode,
 } from "@/lib/money/format";
-import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
 const propertySelect = "id, code, name";
 const occupancyUnitSelect =
   "id, property_id, unit_number, floor, size_sqm, status, current_rent_amount, current_rent_currency";
 const occupancyLeaseSelect =
   "id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
-const profitLossEntrySelect =
-  "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description";
-const profitLossUnitSelect = "id, property_id, unit_number";
 const maxScreenReportRows = 75;
 const maxScreenSourceLinks = 5;
 
-type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type SupabaseServerClient = Awaited<
+  ReturnType<typeof createSupabaseServerClient>
+>;
 
 type PropertyRow = {
   code: string;
@@ -70,30 +61,6 @@ type OccupancyLeaseRow = {
   unit_id: string | null;
 };
 
-type ProfitLossEntryRow = {
-  amount: number;
-  category: string;
-  currency: CurrencyCode;
-  description: string | null;
-  direction: string;
-  id: string;
-  property_id: string;
-  transaction_date: string;
-  unit_id: string | null;
-};
-
-type ProfitLossUnitRow = {
-  id: string;
-  property_id: string;
-  unit_number: string;
-};
-
-type MoneyInput = {
-  amount: number;
-  currency: CurrencyCode;
-  direction?: "income" | "expense";
-};
-
 type ReportBaseData = {
   propertiesById: Map<string, PropertyRow>;
   propertyOptions: ReportPropertyOption[];
@@ -105,13 +72,6 @@ type OccupancyReportData = Pick<
   "propertyOptions" | "viewQuery"
 > & {
   occupancyReport: OccupancyReport;
-};
-
-type ProfitLossReportData = Pick<
-  ReportsScreenData,
-  "propertyOptions" | "viewQuery"
-> & {
-  profitLossReport: ProfitLossReport;
 };
 
 export async function getReportsScreenData(
@@ -153,26 +113,6 @@ export async function getOccupancyReportData(
     occupancyReport: await getOccupancyReport({
       organizationId,
       propertiesById,
-      supabase,
-      viewQuery,
-    }),
-    propertyOptions,
-    viewQuery,
-  };
-}
-
-export async function getProfitLossReportData(
-  organizationId: string,
-  viewQuery: ReportsViewQuery,
-): Promise<ProfitLossReportData> {
-  const { propertiesById, propertyOptions, supabase } =
-    await getReportBaseData(organizationId);
-
-  return {
-    profitLossReport: await getProfitLossReport({
-      organizationId,
-      propertiesById,
-      propertyOptions,
       supabase,
       viewQuery,
     }),
@@ -241,7 +181,9 @@ async function getOccupancyReport({
   ]);
 
   if (unitsResult.error) {
-    throw new Error(`Could not load report units: ${unitsResult.error.message}`);
+    throw new Error(
+      `Could not load report units: ${unitsResult.error.message}`,
+    );
   }
 
   if (leasesResult.error) {
@@ -280,121 +222,6 @@ async function getOccupancyReport({
   };
 }
 
-async function getProfitLossReport({
-  organizationId,
-  propertiesById,
-  propertyOptions,
-  supabase,
-  viewQuery,
-}: {
-  organizationId: string;
-  propertiesById: Map<string, PropertyRow>;
-  propertyOptions: ReportPropertyOption[];
-  supabase: SupabaseServerClient;
-  viewQuery: ReportsViewQuery;
-}): Promise<ProfitLossReport> {
-  const period = getReportMonthRange(viewQuery.month);
-  let entriesQuery = supabase
-    .from("ledger_entries")
-    .select(profitLossEntrySelect)
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .gte("transaction_date", period.start)
-    .lte("transaction_date", period.end)
-    .order("transaction_date", { ascending: true })
-    .order("created_at", { ascending: true });
-
-  if (viewQuery.propertyId !== "all") {
-    entriesQuery = entriesQuery.eq("property_id", viewQuery.propertyId);
-  }
-
-  const [entriesResult, unitsResult] = await Promise.all([
-    entriesQuery,
-    supabase
-      .from("units")
-      .select(profitLossUnitSelect)
-      .eq("organization_id", organizationId),
-  ]);
-
-  if (entriesResult.error) {
-    throw new Error(
-      `Could not load profit and loss entries: ${entriesResult.error.message}`,
-    );
-  }
-
-  if (unitsResult.error) {
-    throw new Error(
-      `Could not load profit and loss units: ${unitsResult.error.message}`,
-    );
-  }
-
-  return buildProfitLossReport({
-    entries: entriesResult.data ?? [],
-    generatedAt: new Date().toISOString(),
-    periodEnd: period.end,
-    periodStart: period.start,
-    propertiesById,
-    propertyLabel: getSelectedPropertyLabel(viewQuery.propertyId, propertyOptions),
-    unitsById: indexById(unitsResult.data ?? []),
-  });
-}
-
-function buildProfitLossReport({
-  entries,
-  generatedAt,
-  periodEnd,
-  periodStart,
-  propertiesById,
-  propertyLabel,
-  unitsById,
-}: {
-  entries: ProfitLossEntryRow[];
-  generatedAt: string;
-  periodEnd: string;
-  periodStart: string;
-  propertiesById: Map<string, PropertyRow>;
-  propertyLabel: string;
-  unitsById: Map<string, ProfitLossUnitRow>;
-}): ProfitLossReport {
-  const reportEntries = entries.map((entry) =>
-    toProfitLossReportEntry({
-      entry,
-      property: propertiesById.get(entry.property_id),
-      unit: entry.unit_id ? unitsById.get(entry.unit_id) : undefined,
-    }),
-  );
-  const incomeEntries = reportEntries.filter(
-    (entry) => entry.direction === "income",
-  );
-  const expenseEntries = reportEntries.filter(
-    (entry) => entry.direction === "expense",
-  );
-  const netInputs = toMoneyInputs(reportEntries, true);
-  const netDisplay = formatMoneyTotalsDisplay(netInputs);
-
-  return {
-    entryCount: reportEntries.length,
-    expenses: buildDirectionGroup("Expenses", expenseEntries),
-    generatedAt,
-    income: buildDirectionGroup("Income", incomeEntries),
-    netIncomeDisplay: netDisplay,
-    netOtherIncomeDisplay: formatMoneyTotalsDisplay([]),
-    netOperatingIncomeDisplay: netDisplay,
-    otherExpensesDisplay: formatMoneyTotalsDisplay([]),
-    otherIncomeDisplay: formatMoneyTotalsDisplay([]),
-    periodEnd,
-    periodLabel: `${formatDate(periodStart)} - ${formatDate(periodEnd)}`,
-    periodStart,
-    propertyLabel,
-    totalExpensesDisplay: formatMoneyTotalsDisplay(
-      toMoneyInputs(expenseEntries),
-    ),
-    totalIncomeDisplay: formatMoneyTotalsDisplay(
-      toMoneyInputs(incomeEntries),
-    ),
-  };
-}
-
 function toOccupancyReportRow({
   activeLease,
   property,
@@ -405,7 +232,8 @@ function toOccupancyReportRow({
   unit: OccupancyUnitRow;
 }): OccupancyReportRow {
   const statusValue = normalizeUnitStatus(unit.status);
-  const rentAmount = unit.current_rent_amount ?? activeLease?.monthly_rent_amount;
+  const rentAmount =
+    unit.current_rent_amount ?? activeLease?.monthly_rent_amount;
   const rentCurrency =
     unit.current_rent_currency ?? activeLease?.monthly_rent_currency;
   const rentDisplay =
@@ -433,72 +261,9 @@ function toOccupancyReportRow({
     statusLabel: formatUnitStatus(unit.status),
     statusTone: getUnitStatusTone(unit.status),
     statusValue,
-    typeLabel: unit.size_sqm === null ? "-" : `${formatNumber(unit.size_sqm)} sqm`,
+    typeLabel:
+      unit.size_sqm === null ? "-" : `${formatNumber(unit.size_sqm)} sqm`,
     unitNumber: unit.unit_number,
-  };
-}
-
-function toProfitLossReportEntry({
-  entry,
-  property,
-  unit,
-}: {
-  entry: ProfitLossEntryRow;
-  property?: PropertyRow;
-  unit?: ProfitLossUnitRow;
-}): ProfitLossReportEntry {
-  const direction = entry.direction === "expense" ? "expense" : "income";
-  const propertyLabel = property
-    ? `${property.code} / ${property.name}`
-    : "Unknown property";
-
-  return {
-    amount: entry.amount,
-    amountDisplay: formatMoneyDisplay(entry.amount, entry.currency),
-    category: normalizeCategory(entry.category),
-    currency: entry.currency,
-    date: entry.transaction_date,
-    description: entry.description ?? "",
-    direction,
-    id: entry.id,
-    name: unit ? `Unit ${unit.unit_number}` : "Property",
-    propertyLabel,
-    typeLabel: direction === "income" ? "Payment" : "Expense",
-  };
-}
-
-function buildDirectionGroup(
-  label: "Income" | "Expenses",
-  entries: ProfitLossReportEntry[],
-): ProfitLossDirectionGroup {
-  const groupsByCategory = new Map<string, ProfitLossReportEntry[]>();
-
-  for (const entry of entries) {
-    const group = groupsByCategory.get(entry.category) ?? [];
-    group.push(entry);
-    groupsByCategory.set(entry.category, group);
-  }
-
-  const groups: ProfitLossCategoryGroup[] = Array.from(groupsByCategory.entries())
-    .sort(([firstCategory], [secondCategory]) =>
-      firstCategory.localeCompare(secondCategory, undefined, {
-        numeric: true,
-        sensitivity: "base",
-      }),
-    )
-    .map(([category, categoryEntries]) => ({
-      category,
-      entries: categoryEntries,
-      totalDisplay: formatMoneyTotalsDisplay(
-        toMoneyInputs(categoryEntries),
-      ),
-    }));
-
-  return {
-    entryCount: entries.length,
-    groups,
-    label,
-    totalDisplay: formatMoneyTotalsDisplay(toMoneyInputs(entries)),
   };
 }
 
@@ -507,9 +272,7 @@ function getOccupancyRemark(
   activeLease?: OccupancyLeaseRow,
 ) {
   if (statusValue === "vacant") {
-    return activeLease
-      ? "Active lease recorded"
-      : "Available";
+    return activeLease ? "Active lease recorded" : "Available";
   }
 
   if (activeLease) {
@@ -553,8 +316,13 @@ function getStatusRank(status: OccupancyReportRow["statusValue"]) {
   return 4;
 }
 
-function normalizeUnitStatus(status: string): OccupancyReportRow["statusValue"] {
-  const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, "_");
+function normalizeUnitStatus(
+  status: string,
+): OccupancyReportRow["statusValue"] {
+  const normalized = status
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
 
   if (
     normalized === "occupied" ||
@@ -566,44 +334,6 @@ function normalizeUnitStatus(status: string): OccupancyReportRow["statusValue"] 
   }
 
   return "vacant";
-}
-
-function normalizeCategory(category: string) {
-  const normalized = category.trim().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
-
-  if (normalized.length === 0) {
-    return "Uncategorized";
-  }
-
-  return normalized
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
-
-function toMoneyInputs(
-  entries: ProfitLossReportEntry[],
-  includeDirection = false,
-): MoneyInput[] {
-  return entries.map((entry) => ({
-    amount: entry.amount,
-    currency: entry.currency,
-    direction: includeDirection ? entry.direction : undefined,
-  }));
-}
-
-function getSelectedPropertyLabel(
-  propertyId: string,
-  propertyOptions: ReportPropertyOption[],
-) {
-  if (propertyId === "all") {
-    return "All properties";
-  }
-
-  return (
-    propertyOptions.find((property) => property.id === propertyId)?.label ??
-    "Selected property"
-  );
 }
 
 function toPropertyOptions(properties: PropertyRow[]): ReportPropertyOption[] {

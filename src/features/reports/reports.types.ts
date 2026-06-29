@@ -1,4 +1,7 @@
-import type { UnitBadgeTone, UnitStatusValue } from "@/features/units/unit.types";
+import type {
+  UnitBadgeTone,
+  UnitStatusValue,
+} from "@/features/units/unit.types";
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
 export type ReportKind =
@@ -116,54 +119,8 @@ export type OccupancyReport = {
   };
 };
 
-export type ProfitLossReportEntry = {
-  amount: number;
-  amountDisplay: MoneyDisplayValue;
-  category: string;
-  currency: CurrencyCode;
-  date: string;
-  description: string;
-  direction: "income" | "expense";
-  id: string;
-  name: string;
-  propertyLabel: string;
-  typeLabel: string;
-};
-
-export type ProfitLossCategoryGroup = {
-  category: string;
-  entries: ProfitLossReportEntry[];
-  totalDisplay: MoneyDisplayValue;
-};
-
-export type ProfitLossDirectionGroup = {
-  entryCount: number;
-  groups: ProfitLossCategoryGroup[];
-  label: "Income" | "Expenses";
-  totalDisplay: MoneyDisplayValue;
-};
-
-export type ProfitLossReport = {
-  entryCount: number;
-  expenses: ProfitLossDirectionGroup;
-  generatedAt: string;
-  income: ProfitLossDirectionGroup;
-  netIncomeDisplay: MoneyDisplayValue;
-  netOtherIncomeDisplay: MoneyDisplayValue;
-  netOperatingIncomeDisplay: MoneyDisplayValue;
-  otherExpensesDisplay: MoneyDisplayValue;
-  otherIncomeDisplay: MoneyDisplayValue;
-  periodEnd: string;
-  periodLabel: string;
-  periodStart: string;
-  propertyLabel: string;
-  totalExpensesDisplay: MoneyDisplayValue;
-  totalIncomeDisplay: MoneyDisplayValue;
-};
-
 export type ReportsScreenData = {
   occupancyReport?: OccupancyReport;
-  profitLossReport?: ProfitLossReport;
   propertyOptions: ReportPropertyOption[];
   trustedReport: TrustedReport;
   viewQuery: ReportsViewQuery;
