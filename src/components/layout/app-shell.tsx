@@ -139,31 +139,32 @@ function getPathGroup(pathname: string) {
   );
 }
 
-function DesktopRailGroupButton({
+function DesktopRailGroupLink({
   group,
   isActive,
-  onSelect,
+  onNavigate,
 }: {
   group: NavGroup;
   isActive: boolean;
-  onSelect: () => void;
+  onNavigate?: () => void;
 }) {
   const Icon = group.icon;
+  const href = group.items[0]?.href ?? "/overview";
 
   return (
-    <button
+    <Link
       aria-label={group.label}
-      aria-pressed={isActive}
       className={cn(
         "flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:bg-surface hover:text-foreground",
         isActive && "border-border bg-surface text-foreground shadow-sm",
       )}
-      onClick={onSelect}
+      href={href}
+      onNavigate={onNavigate}
+      prefetch={false}
       title={group.label}
-      type="button"
     >
       <Icon size={15} />
-    </button>
+    </Link>
   );
 }
 
@@ -175,14 +176,8 @@ export function AppShell({
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pathGroup = getPathGroup(pathname);
-  const [selectedDesktopGroupId, setSelectedDesktopGroupId] = useState<
-    string | null
-  >(null);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
-  const selectedDesktopGroup =
-    desktopNavGroups.find((group) => group.id === selectedDesktopGroupId) ??
-    pathGroup ??
-    desktopNavGroups[0];
+  const selectedDesktopGroup = pathGroup ?? desktopNavGroups[0];
   const isSettingsActive = isNavItemActive(pathname, settingsItem);
   const isMobileMoreActive = mobileMoreItems.some((item) =>
     isNavItemActive(pathname, item),
@@ -214,10 +209,7 @@ export function AppShell({
               aria-label="Nestory dashboard"
               className="flex h-12 w-full items-center justify-center border-b border-border text-[13px] font-semibold text-foreground"
               href="/overview"
-              onClick={() => {
-                setSelectedDesktopGroupId("home");
-                setSidebarCollapsed(false);
-              }}
+              onNavigate={() => setSidebarCollapsed(false)}
               prefetch={false}
               title="Nestory"
             >
@@ -228,14 +220,11 @@ export function AppShell({
               className="flex flex-1 flex-col items-center gap-1 px-1 py-2"
             >
               {desktopNavGroups.map((group) => (
-                <DesktopRailGroupButton
+                <DesktopRailGroupLink
                   group={group}
                   isActive={selectedDesktopGroup.id === group.id}
                   key={group.id}
-                  onSelect={() => {
-                    setSelectedDesktopGroupId(group.id);
-                    setSidebarCollapsed(false);
-                  }}
+                  onNavigate={() => setSidebarCollapsed(false)}
                 />
               ))}
             </nav>
@@ -281,7 +270,6 @@ export function AppShell({
                 aria-label="Nestory dashboard"
                 className="flex h-12 w-full items-center justify-center border-b border-border text-[13px] font-semibold text-foreground"
                 href="/overview"
-                onClick={() => setSelectedDesktopGroupId("home")}
                 prefetch={false}
                 title="Nestory"
               >
@@ -292,11 +280,10 @@ export function AppShell({
                 className="flex flex-1 flex-col items-center gap-1 px-1 py-2"
               >
                 {desktopNavGroups.map((group) => (
-                  <DesktopRailGroupButton
+                  <DesktopRailGroupLink
                     group={group}
                     isActive={selectedDesktopGroup.id === group.id}
                     key={group.id}
-                    onSelect={() => setSelectedDesktopGroupId(group.id)}
                   />
                 ))}
               </nav>
@@ -343,7 +330,6 @@ export function AppShell({
                 <Link
                   className="min-w-0 leading-none text-foreground"
                   href="/overview"
-                  onClick={() => setSelectedDesktopGroupId("home")}
                   prefetch={false}
                 >
                   <span className="block truncate text-[13px] font-semibold">
