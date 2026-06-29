@@ -304,6 +304,20 @@ describe("trusted reports", () => {
     });
   });
 
+  it("opens scoped upload for missing unit evidence rows", () => {
+    const report = buildTrustedReport(
+      makeReportInput({
+        viewQuery: {
+          report: "missing-data",
+        },
+      }),
+    );
+
+    expect(report.rows.find((row) => row.id === "unit-docs-unit-2")).toMatchObject({
+      href: "/documents?action=create&propertyId=property-1&unitId=unit-2",
+    });
+  });
+
   it("builds maintenance cost report from cases without double-counting linked rows", () => {
     const report = buildTrustedReport(
       makeReportInput({

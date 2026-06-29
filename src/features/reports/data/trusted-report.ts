@@ -1035,6 +1035,7 @@ function buildMissingDataReport(context: ReportContext): TrustedReport {
 
     if (documents.length === 0) {
       rows.push(missingDataRow({
+        href: buildDocumentCreateHref(unit),
         issue: "Missing unit evidence",
         nextAction: "Attach lease, inspection, handover, or repair evidence.",
         record: unitLabel(unit),
@@ -1288,6 +1289,16 @@ function unitSource(unit: UnitRow): ReportSourceLink {
     label: `Unit ${unit.unit_number}`,
     recordType: "unit",
   };
+}
+
+function buildDocumentCreateHref(unit: UnitRow) {
+  const params = new URLSearchParams({
+    action: "create",
+    propertyId: unit.property_id,
+    unitId: unit.id,
+  });
+
+  return `/documents?${params.toString()}`;
 }
 
 function leaseSource(lease: LeaseRow): ReportSourceLink {
