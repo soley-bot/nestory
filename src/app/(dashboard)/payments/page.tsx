@@ -50,22 +50,22 @@ export default async function PaymentsPage() {
         <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <PaymentStat
             icon={<Wallet size={15} />}
-            label="Received"
+            label={data.totalReceivedLabel}
             value={data.totalReceived}
           />
           <PaymentStat
             icon={<ReceiptText size={15} />}
-            label="Entries"
-            value={String(data.rows.length)}
+            label={data.entryCountLabel}
+            value={data.entryCount}
           />
           <PaymentStat
             icon={<AlertTriangle size={15} />}
-            label="Missing receipts"
+            label={data.missingReceiptLabel}
             value={String(data.missingReceiptCount)}
           />
           <PaymentStat
             icon={<FileCheck size={15} />}
-            label="Receipt coverage"
+            label={data.receiptCoverageLabel}
             value={data.receiptCoverage}
           />
         </section>
@@ -74,11 +74,7 @@ export default async function PaymentsPage() {
           <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div>
               <h2 className="text-base font-semibold">Received payments</h2>
-              <p className="mt-1 text-sm text-muted">
-                {data.latestPaymentDate
-                  ? `Latest payment ${formatDate(data.latestPaymentDate)}`
-                  : "No active income entries recorded yet."}
-              </p>
+              <p className="mt-1 text-sm text-muted">{data.tableSummary}</p>
             </div>
             <Link
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
@@ -208,12 +204,13 @@ function PaymentStat({
 }
 
 async function getPaymentsData(organizationId: string) {
-  const { entries } = await getLedgerScreenData(organizationId, {
+  const { entries, pagination } = await getLedgerScreenData(organizationId, {
     ...DEFAULT_LEDGER_VIEW_QUERY,
     direction: "income",
     pageSize: 100,
   });
   const rows: LedgerEntry[] = entries;
+  const isLimited = pagination.totalCount > rows.length;
   const totalAmount = rows.reduce((sum, row) => sum + row.amount, 0);
   const receiptCount = rows.filter((row) => row.documents.length > 0).length;
   const receiptCoverage =
@@ -222,10 +219,48 @@ async function getPaymentsData(organizationId: string) {
       : "0%";
 
   return {
-    latestPaymentDate: rows[0]?.transactionDate,
+    entryCount: isLimited
+      ? `${rows.length}/${pagination.totalCount}`
+      : String(rows.length),
+    entryCountLabel: isLimited ? "Reviewed / total" : "Entries",
+    missingReceiptLabel: isLimited
+      ? "Latest missing receipts"
+      : "Missing receipts",
     missingReceiptCount: rows.length - receiptCount,
     receiptCoverage,
+    receiptCoverageLabel: isLimited
+      ? "Latest receipt coverage"
+      : "Receipt coverage",
     rows,
+    tableSummary: getPaymentsTableSummary({
+      isLimited,
+      latestPaymentDate: rows[0]?.transactionDate,
+      reviewedCount: rows.length,
+      totalCount: pagination.totalCount,
+    }),
     totalReceived: formatMoney(totalAmount, "USD"),
+    totalReceivedLabel: isLimited ? "Latest received" : "Received",
   };
+}
+
+function getPaymentsTableSummary({
+  isLimited,
+  latestPaymentDate,
+  reviewedCount,
+  totalCount,
+}: {
+  isLimited: boolean;
+  latestPaymentDate?: string;
+  reviewedCount: number;
+  totalCount: number;
+}) {
+  if (!latestPaymentDate) {
+    return "No active income entries recorded yet.";
+  }
+
+  const latestLabel = `Latest payment ${formatDate(latestPaymentDate)}`;
+
+  return isLimited
+    ? `Showing latest ${reviewedCount} of ${totalCount} income entries. ${latestLabel}.`
+    : latestLabel;
 }
