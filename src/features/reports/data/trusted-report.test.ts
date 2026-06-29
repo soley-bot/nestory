@@ -314,7 +314,7 @@ describe("trusted reports", () => {
     );
 
     expect(report.rows.find((row) => row.id === "unit-docs-unit-2")).toMatchObject({
-      href: "/documents?action=create&propertyId=property-1&unitId=unit-2",
+      href: "/documents?action=create&category=Unit&propertyId=property-1&unitId=unit-2",
     });
   });
 

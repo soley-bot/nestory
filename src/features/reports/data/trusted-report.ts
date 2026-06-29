@@ -1294,6 +1294,7 @@ function unitSource(unit: UnitRow): ReportSourceLink {
 function buildDocumentCreateHref(unit: UnitRow) {
   const params = new URLSearchParams({
     action: "create",
+    category: "Unit",
     propertyId: unit.property_id,
     unitId: unit.id,
   });
