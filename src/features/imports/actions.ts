@@ -6,6 +6,7 @@ import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { UnitImportCommitRow } from "@/features/imports/import.types";
 import { mergeUnitImportUpdate } from "@/features/imports/unit-import";
+import type { Json } from "@/types/database";
 
 export type UnitImportActionState = {
   message?: string;
@@ -200,6 +201,14 @@ export async function commitUnitImportAction(
     }
   }
 
+  await logUnitImportActivity({
+    actorId: context.userId,
+    created,
+    organizationId: context.organizationId,
+    rows: parsed.data,
+    supabase,
+    updated,
+  });
   revalidateImportPaths(affectedPropertyIds, affectedUnitIds);
 
   return {
@@ -262,6 +271,42 @@ function updateImportedUnit({
     p_unit_id: existingUnit.id,
     p_unit_number: row.unitNumber,
   });
+}
+
+async function logUnitImportActivity({
+  actorId,
+  created,
+  organizationId,
+  rows,
+  supabase,
+  updated,
+}: {
+  actorId: string;
+  created: number;
+  organizationId: string;
+  rows: UnitImportCommitRow[];
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  updated: number;
+}) {
+  const { error } = await supabase.from("activity_logs").insert({
+    action: "unit_import_committed",
+    actor_id: actorId,
+    entity_id: crypto.randomUUID(),
+    entity_type: "import",
+    new_values: {
+      created_count: created,
+      import_type: "unit",
+      row_count: rows.length,
+      source_row_numbers: rows.map((row) => row.sourceRowNumber),
+      updated_count: updated,
+    } satisfies Json,
+    organization_id: organizationId,
+    previous_values: null,
+  });
+
+  if (error) {
+    console.warn(`Could not log unit import activity: ${error.message}`);
+  }
 }
 
 function normalizeExistingImportUnit(unit: {

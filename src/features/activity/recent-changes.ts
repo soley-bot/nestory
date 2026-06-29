@@ -35,6 +35,7 @@ const actionLabels: Record<string, string> = {
   receipt_attached: "Receipt attached",
   restored: "Restored",
   restored_from_ledger: "Restored from ledger",
+  unit_import_committed: "Unit import committed",
   unit_archived: "Archived",
   unit_created: "Created",
   unit_restored: "Restored",
@@ -71,6 +72,8 @@ const fieldLabels: Record<string, string> = {
   event_type: "Event type",
   file_name: "File name",
   floor: "Floor",
+  created_count: "Created",
+  import_type: "Import type",
   lease_id: "Lease",
   ledger_entry_id: "Ledger link",
   mime_type: "File type",
@@ -79,9 +82,11 @@ const fieldLabels: Record<string, string> = {
   recurrence_frequency: "Recurrence",
   reminder_date: "Reminder date",
   reminder_time: "Reminder time",
+  row_count: "Rows",
   size_sqm: "Size",
   size_bytes: "File size",
   status: "Status",
+  source_row_numbers: "Source rows",
   task_id: "Maintenance case",
   tenant_request_id: "Maintenance request",
   timeline_event_id: "Timeline link",
@@ -89,6 +94,7 @@ const fieldLabels: Record<string, string> = {
   transaction_date: "Transaction date",
   unit_id: "Unit",
   unit_number: "Unit number",
+  updated_count: "Updated",
 };
 
 const referenceFields = new Set([
@@ -192,6 +198,10 @@ function getFallbackRecordLabel(entityType: string) {
     return "Lease";
   }
 
+  if (entityType === "import") {
+    return "Import batch";
+  }
+
   if (entityType === "person") {
     return "Person";
   }
@@ -226,6 +236,10 @@ function getEntityLabel(entityType: string) {
 
   if (entityType === "ledger_period") {
     return "Period lock";
+  }
+
+  if (entityType === "import") {
+    return "Import";
   }
 
   if (entityType === "unit") {
@@ -301,6 +315,10 @@ function getActivityHref(log: ActivityLogSnapshot, recordLabel: string) {
     });
   }
 
+  if (log.entity_type === "import") {
+    return "/import";
+  }
+
   if (log.entity_type === "ledger_period") {
     const periodStart =
       getString(toRecord(log.new_values), "period_start") ??
@@ -364,6 +382,10 @@ function getTone(action: string): RecentChangeTone {
   }
 
   if (action.includes("create")) {
+    return "success";
+  }
+
+  if (action.includes("import_committed")) {
     return "success";
   }
 

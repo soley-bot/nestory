@@ -148,6 +148,62 @@ describe("toRecentChange", () => {
     });
   });
 
+  it("links unit import activity back to the import workflow", () => {
+    expect(
+      toRecentChange({
+        action: "unit_import_committed",
+        created_at: "2026-06-17T09:05:00.000Z",
+        entity_id: "57575757-5757-4575-8575-575757575757",
+        entity_type: "import",
+        id: "log-unit-import",
+        new_values: {
+          created_count: 2,
+          import_type: "unit",
+          row_count: 3,
+          source_row_numbers: [2, 3, 4],
+          updated_count: 1,
+        },
+        previous_values: null,
+      }),
+    ).toEqual({
+      action: "unit_import_committed",
+      actionLabel: "Unit import committed",
+      createdAt: "2026-06-17T09:05:00.000Z",
+      details: [
+        {
+          after: "2",
+          before: "-",
+          field: "Created",
+        },
+        {
+          after: "unit",
+          before: "-",
+          field: "Import type",
+        },
+        {
+          after: "3",
+          before: "-",
+          field: "Rows",
+        },
+        {
+          after: "[2,3,4]",
+          before: "-",
+          field: "Source rows",
+        },
+        {
+          after: "1",
+          before: "-",
+          field: "Updated",
+        },
+      ],
+      entityLabel: "Import",
+      href: "/import",
+      id: "log-unit-import",
+      recordLabel: "Import batch",
+      tone: "success",
+    });
+  });
+
   it("surfaces unit status changes as status history", () => {
     expect(
       toRecentChange({
