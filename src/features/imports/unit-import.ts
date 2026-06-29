@@ -20,6 +20,16 @@ const unitStatuses: UnitImportStatus[] = [
 
 const requiredFields: UnitImportField[] = ["property", "unitNumber"];
 
+type PropertyLookup =
+  | {
+      kind: "ambiguous";
+      labels: string[];
+    }
+  | {
+      kind: "match";
+      property: ImportPropertyOption;
+    };
+
 const fieldCandidates: Record<UnitImportField, string[]> = {
   floor: ["floor", "level", "storey"],
   inclusion: ["inclusion", "included", "furnished", "furniture", "includes"],
@@ -243,12 +253,14 @@ function buildPreviewRow({
   record,
 }: {
   mapping: UnitImportMapping;
-  propertyIndex: Map<string, ImportPropertyOption>;
+  propertyIndex: Map<string, PropertyLookup>;
   record: ParsedCsvRecord;
 }): UnitImportPreviewRow {
   const issues: UnitImportPreviewRow["issues"] = [];
   const propertyInput = readMappedValue(record.raw, mapping.property);
-  const property = propertyIndex.get(normalizeLookup(propertyInput));
+  const propertyMatch = propertyIndex.get(normalizeLookup(propertyInput));
+  const property =
+    propertyMatch?.kind === "match" ? propertyMatch.property : undefined;
   const unitAndFloor = splitUnitAndFloor(
     readMappedValue(record.raw, mapping.unitNumber),
   );
@@ -277,6 +289,15 @@ function buildPreviewRow({
 
   if (!propertyInput) {
     issues.push({ level: "error", message: "Property is required." });
+  } else if (propertyMatch?.kind === "ambiguous") {
+    issues.push({
+      actionHref: buildPropertyCleanupHref(propertyInput),
+      actionLabel: "Review properties",
+      level: "error",
+      message: `Property "${propertyInput}" matches multiple active properties: ${propertyMatch.labels.join(
+        ", ",
+      )}.`,
+    });
   } else if (!property) {
     issues.push({
       actionHref: "/properties?action=create",
@@ -574,7 +595,7 @@ function parseOptionalNumber(value: string) {
 }
 
 function buildPropertyIndex(properties: ImportPropertyOption[]) {
-  const index = new Map<string, ImportPropertyOption>();
+  const index = new Map<string, PropertyLookup>();
 
   for (const property of properties) {
     for (const value of [
@@ -585,15 +606,49 @@ function buildPropertyIndex(properties: ImportPropertyOption[]) {
       `${property.code} - ${property.name}`,
       `${property.code} / ${property.name}`,
     ]) {
-      index.set(normalizeLookup(value), property);
+      addPropertyLookup(index, value, property);
     }
   }
 
   return index;
 }
 
+function addPropertyLookup(
+  index: Map<string, PropertyLookup>,
+  value: string,
+  property: ImportPropertyOption,
+) {
+  const key = normalizeLookup(value);
+  const current = index.get(key);
+
+  if (!current) {
+    index.set(key, { kind: "match", property });
+    return;
+  }
+
+  if (current.kind === "match" && current.property.id === property.id) {
+    return;
+  }
+
+  const labels =
+    current.kind === "match"
+      ? [current.property.label, property.label]
+      : [...current.labels, property.label];
+
+  index.set(key, {
+    kind: "ambiguous",
+    labels: [...new Set(labels)],
+  });
+}
+
 function normalizeLookup(value: string) {
   return value.trim().toLowerCase();
+}
+
+function buildPropertyCleanupHref(propertyInput: string) {
+  const params = new URLSearchParams({ query: propertyInput });
+
+  return `/properties?${params.toString()}`;
 }
 
 function buildUnitCleanupHref(propertyId: string, unitNumber: string) {

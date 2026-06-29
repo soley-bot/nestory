@@ -161,6 +161,38 @@ describe("unit import", () => {
     expect(toCommitRows(rows)).toHaveLength(0);
   });
 
+  it("blocks ambiguous property matches before commit", () => {
+    const parsed = parseCsv(
+      ["Property Code,Unit no. / Floor,Price", "CTR,9B,700"].join("\n"),
+    );
+    const rows = buildUnitImportPreviewRows({
+      mapping: autoMapUnitImportHeaders(parsed.headers),
+      properties: [
+        ...properties,
+        {
+          code: "CTR",
+          id: "22222222-2222-4222-8222-222222222222",
+          label: "CTR - City Tower",
+          name: "City Tower",
+        },
+      ],
+      records: parsed.records,
+    });
+
+    expect(rows[0].issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actionHref: "/properties?query=CTR",
+          actionLabel: "Review properties",
+          level: "error",
+          message:
+            'Property "CTR" matches multiple active properties: CTR - Central Residence, CTR - City Tower.',
+        }),
+      ]),
+    );
+    expect(toCommitRows(rows)).toHaveLength(0);
+  });
+
   it("builds a cleanup queue from preview issues", () => {
     const parsed = parseCsv(
       [
