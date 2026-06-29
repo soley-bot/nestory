@@ -314,6 +314,11 @@ function buildPreviewRow({
     issues.push({ level: "error", message: money.error });
   } else if (money.amount === null) {
     issues.push({
+      actionHref:
+        property && unitNumber
+          ? buildUnitCleanupHref(property.id, unitNumber)
+          : undefined,
+      actionLabel: property && unitNumber ? "Review unit rent" : undefined,
       level: "warning",
       message: mapping.rentAmount
         ? "Price is blank; unit will import without current rent."
@@ -589,6 +594,15 @@ function buildPropertyIndex(properties: ImportPropertyOption[]) {
 
 function normalizeLookup(value: string) {
   return value.trim().toLowerCase();
+}
+
+function buildUnitCleanupHref(propertyId: string, unitNumber: string) {
+  const params = new URLSearchParams({
+    propertyId,
+    query: unitNumber,
+  });
+
+  return `/units?${params.toString()}`;
 }
 
 function normalizeKey(value: string) {

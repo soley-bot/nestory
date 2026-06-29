@@ -135,6 +135,9 @@ describe("unit import", () => {
     expect(rows[0].issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          actionHref:
+            "/units?propertyId=11111111-1111-4111-8111-111111111111&query=12A",
+          actionLabel: "Review unit rent",
           level: "warning",
           message:
             "Price column is not mapped; unit will import without current rent.",
