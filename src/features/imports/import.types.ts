@@ -27,6 +27,8 @@ export type UnitImportMappedFields = {
 };
 
 export type UnitImportIssue = {
+  actionHref?: string;
+  actionLabel?: string;
   level: "error" | "warning";
   message: string;
 };

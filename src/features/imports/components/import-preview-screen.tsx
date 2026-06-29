@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -417,6 +418,14 @@ function CleanupQueue({ items }: { items: UnitImportCleanupItem[] }) {
                 </div>
                 <p className="text-muted">{item.propertyLabel}</p>
                 <p className="mt-1">{item.message}</p>
+                {item.actionHref && item.actionLabel ? (
+                  <Link
+                    className="mt-2 inline-flex h-7 items-center rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground transition-colors hover:bg-surface-muted"
+                    href={item.actionHref}
+                  >
+                    {item.actionLabel}
+                  </Link>
+                ) : null}
               </div>
             ))}
             {items.length > visibleItems.length ? (

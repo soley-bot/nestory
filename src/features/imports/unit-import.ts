@@ -163,6 +163,8 @@ export function getUnitImportCleanupItems(
 ): UnitImportCleanupItem[] {
   return rows.flatMap((row) =>
     row.issues.map((issue) => ({
+      actionHref: issue.actionHref,
+      actionLabel: issue.actionLabel,
       level: issue.level,
       message: issue.message,
       propertyLabel: row.propertyLabel || "Not mapped",
@@ -275,6 +277,8 @@ function buildPreviewRow({
     issues.push({ level: "error", message: "Property is required." });
   } else if (!property) {
     issues.push({
+      actionHref: "/properties?action=create",
+      actionLabel: "Add property",
       level: "error",
       message: `Property "${propertyInput}" does not match an active property.`,
     });

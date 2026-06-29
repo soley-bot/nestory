@@ -129,6 +129,8 @@ describe("unit import", () => {
     expect(items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          actionHref: "/properties?action=create",
+          actionLabel: "Add property",
           level: "error",
           message: 'Property "MISS" does not match an active property.',
           propertyLabel: "MISS",
