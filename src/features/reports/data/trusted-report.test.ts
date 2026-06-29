@@ -248,6 +248,11 @@ describe("trusted reports", () => {
         "document",
       ]),
     );
+    expect(
+      unitRow?.sourceLinks.find((source) => source.recordType === "document"),
+    ).toMatchObject({
+      href: "/documents?archiveState=all&documentId=doc-1",
+    });
     expect(metricValue(report, "Income")).toMatchObject({
       sourceCount: 1,
       value: "USD 500.00",

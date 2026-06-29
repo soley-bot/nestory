@@ -14,6 +14,7 @@ export type DocumentArchiveState = "active" | "archived" | "all";
 
 export type DocumentViewQuery = {
   archiveState: DocumentArchiveState;
+  documentId: string;
   leaseId: string;
   page: number;
   pageSize: number;

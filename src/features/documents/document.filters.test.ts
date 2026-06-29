@@ -9,6 +9,7 @@ describe("parseDocumentSearchParams", () => {
   it("normalizes default document filters", () => {
     expect(parseDocumentSearchParams({})).toEqual({
       archiveState: "active",
+      documentId: "all",
       leaseId: "all",
       page: 1,
       pageSize: DEFAULT_DOCUMENT_PAGE_SIZE,
@@ -23,6 +24,7 @@ describe("parseDocumentSearchParams", () => {
     expect(
       parseDocumentSearchParams({
         archiveState: "all",
+        documentId: "55555555-5555-4555-8555-555555555555",
         leaseId: "44444444-4444-4444-8444-444444444444",
         page: "2",
         pageSize: "100",
@@ -33,6 +35,7 @@ describe("parseDocumentSearchParams", () => {
       }),
     ).toEqual({
       archiveState: "all",
+      documentId: "55555555-5555-4555-8555-555555555555",
       leaseId: "44444444-4444-4444-8444-444444444444",
       page: 2,
       pageSize: 100,
@@ -47,6 +50,7 @@ describe("parseDocumentSearchParams", () => {
     expect(
       parseDocumentSearchParams({
         archiveState: "deleted",
+        documentId: "not-a-uuid",
         page: "-1",
         pageSize: "500",
         leaseId: "not-a-uuid",
@@ -55,6 +59,7 @@ describe("parseDocumentSearchParams", () => {
       }),
     ).toMatchObject({
       archiveState: "active",
+      documentId: "all",
       leaseId: "all",
       page: 1,
       pageSize: DEFAULT_DOCUMENT_PAGE_SIZE,

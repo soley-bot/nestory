@@ -105,6 +105,10 @@ export async function getDocumentsScreenData(
     documentsQuery = documentsQuery.not("archived_at", "is", null);
   }
 
+  if (viewQuery.documentId !== "all") {
+    documentsQuery = documentsQuery.eq("id", viewQuery.documentId);
+  }
+
   if (viewQuery.propertyId !== "all") {
     documentsQuery = documentsQuery.eq("property_id", viewQuery.propertyId);
   }

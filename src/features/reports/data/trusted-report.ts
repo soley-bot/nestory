@@ -1328,7 +1328,7 @@ function maintenanceTaskSource(task: MaintenanceTaskRow): ReportSourceLink {
 
 function documentSource(document: DocumentRow): ReportSourceLink {
   return {
-    href: "/documents",
+    href: `/documents?archiveState=all&documentId=${document.id}`,
     id: document.id,
     label: document.file_name,
     recordType: "document",
