@@ -42,7 +42,7 @@ const periodLockInitialState: LedgerActionState = {};
 type DrawerState =
   | {
       entry?: never;
-      initialValues?: Partial<Pick<LedgerEntry, "propertyId" | "unitId">>;
+      initialValues?: LedgerCreateInitialValues;
       mode: "add";
     }
   | { mode: "archive"; entry: LedgerEntry }
@@ -475,11 +475,13 @@ function getSelectedPropertyLabel(
   return properties.find((property) => property.id === propertyId)?.label;
 }
 
-function getLedgerCreateInitialValues(
+export function getLedgerCreateInitialValues(
   viewQuery: LedgerViewQuery,
   properties: LedgerPropertyOption[],
   units: LedgerUnitOption[],
-): Partial<Pick<LedgerEntry, "propertyId" | "unitId">> | undefined {
+): LedgerCreateInitialValues | undefined {
+  const direction =
+    viewQuery.direction === "all" ? undefined : viewQuery.direction;
   const requestedUnit =
     viewQuery.unitId === "all"
       ? undefined
@@ -493,15 +495,20 @@ function getLedgerCreateInitialValues(
   const unitId =
     requestedUnit && requestedUnit.propertyId === propertyId ? requestedUnit.id : "";
 
-  if (!propertyId && !unitId) {
+  if (!direction && !propertyId && !unitId) {
     return undefined;
   }
 
   return {
-    propertyId,
-    unitId,
+    ...(direction ? { direction } : {}),
+    ...(propertyId ? { propertyId } : {}),
+    ...(unitId ? { unitId } : {}),
   };
 }
+
+type LedgerCreateInitialValues = Partial<
+  Pick<LedgerEntry, "direction" | "propertyId" | "unitId">
+>;
 
 function ArchivePanel({
   entry,

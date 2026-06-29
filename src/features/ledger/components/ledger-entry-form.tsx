@@ -20,7 +20,9 @@ const initialState: LedgerActionState = {};
 
 type LedgerEntryFormProps = {
   entry?: LedgerEntry;
-  initialValues?: Partial<Pick<LedgerEntry, "propertyId" | "unitId">>;
+  initialValues?: Partial<
+    Pick<LedgerEntry, "direction" | "propertyId" | "unitId">
+  >;
   mode?: "add" | "edit";
   onClose: () => void;
   onSuccess?: (message: string) => void;
@@ -117,7 +119,9 @@ export function LedgerEntryForm({
           <Field label="Direction" error={state.fieldErrors?.direction?.[0]}>
             <SelectControl
               ariaLabel="Direction"
-              defaultValue={entry?.direction ?? "income"}
+              defaultValue={
+                entry?.direction ?? initialValues?.direction ?? "income"
+              }
               name="direction"
               options={[
                 { label: "Income", value: "income" },

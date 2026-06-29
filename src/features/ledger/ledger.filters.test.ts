@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_LEDGER_VIEW_QUERY,
   buildLedgerPagination,
   buildLedgerSnapshotFromEntries,
   filterLedgerEntries,
@@ -7,6 +8,7 @@ import {
   parseLedgerSearchParams,
   sortLedgerEntries,
 } from "@/features/ledger/ledger.filters";
+import { getLedgerCreateInitialValues } from "@/features/ledger/components/ledger-screen";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
 
 const entries: LedgerEntry[] = [
@@ -328,5 +330,17 @@ describe("ledger list helpers", () => {
     expect(snapshot.totalIncome.primary).toBe("USD 850.00");
     expect(snapshot.totalExpense.primary).toBe("USD 2,520.00");
     expect(snapshot.lockedPeriodCount).toBe("2");
+  });
+});
+
+describe("ledger create defaults", () => {
+  it("carries an expense route into the add-entry drawer", () => {
+    expect(
+      getLedgerCreateInitialValues(
+        { ...DEFAULT_LEDGER_VIEW_QUERY, direction: "expense" },
+        [],
+        [],
+      ),
+    ).toEqual({ direction: "expense" });
   });
 });
