@@ -4,6 +4,10 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Archive, Lock, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
+import {
+  getInitialRecordId,
+  getSelectedRecord,
+} from "@/components/data/record-selection";
 import { Button } from "@/components/ui/button";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
@@ -85,8 +89,8 @@ export function LedgerScreen({
       ? { initialValues: createInitialValues, mode: "add" }
       : null,
   );
-  const [selectedEntryId, setSelectedEntryId] = useState(
-    initialEntryId ?? entries[0]?.id ?? "",
+  const [selectedEntryId, setSelectedEntryId] = useState(() =>
+    getInitialRecordId(entries, initialEntryId),
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -95,11 +99,11 @@ export function LedgerScreen({
     ? entries.find((entry) => entry.id === initialEntryId) ?? null
     : null;
   const focusedEntryId = focusedEntry?.id;
-  const selectedEntry =
-    entries.find((entry) => entry.id === selectedEntryId) ??
-    focusedEntry ??
-    entries[0] ??
-    null;
+  const selectedEntry = getSelectedRecord({
+    focusedRecordId: initialEntryId,
+    records: entries,
+    selectedRecordId: selectedEntryId,
+  });
   const reviewContext = getLedgerReviewContext(viewQuery, {
     hasFocusedEntry: Boolean(focusedEntry),
     hasFocusedEntryIntent: Boolean(initialEntryId),

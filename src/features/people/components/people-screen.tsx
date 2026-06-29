@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Pencil, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
+import {
+  getInitialRecordId,
+  getSelectedRecord,
+} from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
@@ -59,11 +63,11 @@ export function PeopleScreen({
     ? people.find((person) => person.id === initialPersonId) ?? null
     : null;
   const focusedPersonId = focusedPerson?.id;
-  const selectedPerson =
-    people.find((person) => person.id === selectedPersonId) ??
-    focusedPerson ??
-    people[0] ??
-    null;
+  const selectedPerson = getSelectedRecord({
+    focusedRecordId: initialPersonId,
+    records: people,
+    selectedRecordId: selectedPersonId,
+  });
   const reviewContext = getPeopleReviewContext(viewQuery, {
     hasFocusedPerson: Boolean(focusedPerson),
     hasFocusedPersonIntent: Boolean(initialPersonId),
@@ -228,15 +232,6 @@ export function PeopleScreen({
       ) : null}
     </div>
   );
-}
-
-function getInitialRecordId<TRecord extends { id: string }>(
-  records: TRecord[],
-  initialId?: string,
-) {
-  return initialId && records.some((record) => record.id === initialId)
-    ? initialId
-    : records[0]?.id ?? "";
 }
 
 function getFocusedRecordHref(

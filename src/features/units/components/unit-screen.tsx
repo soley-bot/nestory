@@ -5,6 +5,10 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileText, Plus, ScrollText } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
+import {
+  getInitialRecordId,
+  getSelectedRecord,
+} from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
@@ -81,8 +85,15 @@ export function UnitScreen({
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const selectedUnit =
-    units.find((unit) => unit.id === selectedUnitId) ?? units[0] ?? null;
+  const focusedUnit = initialUnitId
+    ? units.find((unit) => unit.id === initialUnitId) ?? null
+    : null;
+  const focusedUnitId = focusedUnit?.id;
+  const selectedUnit = getSelectedRecord({
+    focusedRecordId: initialUnitId,
+    records: units,
+    selectedRecordId: selectedUnitId,
+  });
   const fillVacancyHref =
     (isVacantReview || isLeaseReview) && selectedUnit && !selectedUnit.hasActiveLease
       ? getCreateLeaseHref(selectedUnit)
@@ -102,10 +113,13 @@ export function UnitScreen({
   };
 
   useEffect(() => {
-    if (initialUnitId) {
-      queueMicrotask(() => setPreviewOpen(true));
+    if (focusedUnitId) {
+      queueMicrotask(() => {
+        setSelectedUnitId(focusedUnitId);
+        setPreviewOpen(true);
+      });
     }
-  }, [initialUnitId]);
+  }, [focusedUnitId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -257,15 +271,6 @@ export function UnitScreen({
       ) : null}
     </div>
   );
-}
-
-function getInitialRecordId<TRecord extends { id: string }>(
-  records: TRecord[],
-  initialId?: string,
-) {
-  return initialId && records.some((record) => record.id === initialId)
-    ? initialId
-    : records[0]?.id ?? "";
 }
 
 function getHrefWithoutActionParam(

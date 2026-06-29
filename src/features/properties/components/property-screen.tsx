@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Pencil, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
+import {
+  getInitialRecordId,
+  getSelectedRecord,
+} from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
@@ -59,10 +63,15 @@ export function PropertyScreen({
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const selectedProperty =
-    properties.find((property) => property.id === selectedPropertyId) ??
-    properties[0] ??
-    null;
+  const focusedProperty = initialPropertyId
+    ? properties.find((property) => property.id === initialPropertyId) ?? null
+    : null;
+  const focusedPropertyId = focusedProperty?.id;
+  const selectedProperty = getSelectedRecord({
+    focusedRecordId: initialPropertyId,
+    records: properties,
+    selectedRecordId: selectedPropertyId,
+  });
   const reviewContext = getPropertyReviewContext(viewQuery);
   const openPropertyRecord = (propertyId: string) => {
     router.push(`/properties/${propertyId}`);
@@ -78,10 +87,13 @@ export function PropertyScreen({
   };
 
   useEffect(() => {
-    if (initialPropertyId) {
-      queueMicrotask(() => setPreviewOpen(true));
+    if (focusedPropertyId) {
+      queueMicrotask(() => {
+        setSelectedPropertyId(focusedPropertyId);
+        setPreviewOpen(true);
+      });
     }
-  }, [initialPropertyId]);
+  }, [focusedPropertyId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -234,15 +246,6 @@ export function PropertyScreen({
       ) : null}
     </div>
   );
-}
-
-function getInitialRecordId<TRecord extends { id: string }>(
-  records: TRecord[],
-  initialId?: string,
-) {
-  return initialId && records.some((record) => record.id === initialId)
-    ? initialId
-    : records[0]?.id ?? "";
 }
 
 function getHrefWithoutActionParam(

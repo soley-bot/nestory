@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
+import {
+  getInitialRecordId,
+  getSelectedRecord,
+} from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
@@ -98,11 +102,11 @@ export function LeaseScreen({
     ? leases.find((lease) => lease.id === initialLeaseId) ?? null
     : null;
   const focusedLeaseId = focusedLease?.id;
-  const selectedLease =
-    leases.find((lease) => lease.id === selectedLeaseId) ??
-    focusedLease ??
-    leases[0] ??
-    null;
+  const selectedLease = getSelectedRecord({
+    focusedRecordId: initialLeaseId,
+    records: leases,
+    selectedRecordId: selectedLeaseId,
+  });
   const reviewContext = getLeaseReviewContext(viewQuery, {
     hasFocusedLease: Boolean(focusedLease),
     hasFocusedLeaseIntent: Boolean(initialLeaseId),
@@ -266,15 +270,6 @@ export function LeaseScreen({
       ) : null}
     </div>
   );
-}
-
-function getInitialRecordId<TRecord extends { id: string }>(
-  records: TRecord[],
-  initialId?: string,
-) {
-  return initialId && records.some((record) => record.id === initialId)
-    ? initialId
-    : records[0]?.id ?? "";
 }
 
 function getFocusedRecordHref(

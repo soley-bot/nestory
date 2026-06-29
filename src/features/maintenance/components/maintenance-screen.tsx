@@ -21,6 +21,10 @@ import {
   selectedPreviewRowClassName,
 } from "@/components/data/interactive-table";
 import { PaginationControls } from "@/components/data/pagination-controls";
+import {
+  getInitialRecordId,
+  getSelectedRecord,
+} from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,24 +93,30 @@ export function MaintenanceScreen({
       ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
-  const [selectedTaskId, setSelectedTaskId] = useState(
-    initialTaskId ?? cases[0]?.id ?? "",
+  const [selectedTaskId, setSelectedTaskId] = useState(() =>
+    getInitialRecordId(cases, initialTaskId),
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const selectedCase =
-    cases.find((maintenanceCase) => maintenanceCase.id === selectedTaskId) ??
-    cases[0] ??
-    null;
+  const focusedCase = initialTaskId
+    ? cases.find((maintenanceCase) => maintenanceCase.id === initialTaskId) ??
+      null
+    : null;
+  const focusedTaskId = focusedCase?.id;
+  const selectedCase = getSelectedRecord({
+    focusedRecordId: initialTaskId,
+    records: cases,
+    selectedRecordId: selectedTaskId,
+  });
 
   useEffect(() => {
-    if (initialTaskId) {
+    if (focusedTaskId) {
       queueMicrotask(() => {
-        setSelectedTaskId(initialTaskId);
+        setSelectedTaskId(focusedTaskId);
         setPreviewOpen(true);
       });
     }
-  }, [initialTaskId]);
+  }, [focusedTaskId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {

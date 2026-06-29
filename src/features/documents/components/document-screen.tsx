@@ -17,6 +17,10 @@ import {
   selectedPreviewRowClassName,
 } from "@/components/data/interactive-table";
 import { PaginationControls } from "@/components/data/pagination-controls";
+import {
+  getInitialRecordId,
+  getSelectedRecord,
+} from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,7 +35,6 @@ import {
   restoreDocumentAction,
   updateDocumentAction,
 } from "@/features/documents/actions";
-import { getSelectedDocument } from "@/features/documents/document-selection";
 import type {
   DocumentPagination,
   DocumentPropertyOption,
@@ -93,8 +96,8 @@ export function DocumentScreen({
       ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
-  const [selectedDocumentId, setSelectedDocumentId] = useState(
-    initialDocumentId ?? documents[0]?.id ?? "",
+  const [selectedDocumentId, setSelectedDocumentId] = useState(() =>
+    getInitialRecordId(documents, initialDocumentId),
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -102,10 +105,10 @@ export function DocumentScreen({
     ? documents.find((document) => document.id === initialDocumentId) ?? null
     : null;
   const focusedDocumentId = focusedDocument?.id;
-  const selectedDocument = getSelectedDocument({
-    documents,
-    focusedDocumentId: initialDocumentId,
-    selectedDocumentId,
+  const selectedDocument = getSelectedRecord({
+    focusedRecordId: initialDocumentId,
+    records: documents,
+    selectedRecordId: selectedDocumentId,
   });
   const reviewContext = getDocumentReviewContext(viewQuery, {
     hasFocusedDocument: Boolean(focusedDocument),

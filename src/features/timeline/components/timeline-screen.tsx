@@ -4,6 +4,10 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Archive, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
+import {
+  getInitialRecordId,
+  getSelectedRecord,
+} from "@/components/data/record-selection";
 import { Button } from "@/components/ui/button";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -79,7 +83,9 @@ export function TimelineScreen({
       ? { event: null, initialValues: createInitialValues, mode: "create" }
       : null,
   );
-  const [selectedEventId, setSelectedEventId] = useState(initialEventId ?? "");
+  const [selectedEventId, setSelectedEventId] = useState(() =>
+    getInitialRecordId(events, initialEventId),
+  );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -87,11 +93,11 @@ export function TimelineScreen({
     ? events.find((event) => event.id === initialEventId) ?? null
     : null;
   const focusedEventId = focusedEvent?.id;
-  const selectedEvent =
-    events.find((event) => event.id === selectedEventId) ??
-    focusedEvent ??
-    events[0] ??
-    null;
+  const selectedEvent = getSelectedRecord({
+    focusedRecordId: initialEventId,
+    records: events,
+    selectedRecordId: selectedEventId,
+  });
   const reviewContext = getTimelineReviewContext({
     hasFocusedEvent: Boolean(focusedEvent),
     hasFocusedEventIntent: Boolean(initialEventId),
