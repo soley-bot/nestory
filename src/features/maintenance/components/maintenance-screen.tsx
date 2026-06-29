@@ -147,15 +147,21 @@ export function MaintenanceScreen({
     <div className="min-h-screen">
       <PageHeader
         actions={
-          <Button
-            onClick={() =>
-              openDrawer({ initialValues: createInitialValues, mode: "create" })
-            }
-            variant="primary"
-          >
-            <Plus size={15} />
-            New case
-          </Button>
+          <>
+            <LinkButton href={getMaintenanceReportHref(viewQuery)}>
+              <FileText size={15} />
+              Make report
+            </LinkButton>
+            <Button
+              onClick={() =>
+                openDrawer({ initialValues: createInitialValues, mode: "create" })
+              }
+              variant="primary"
+            >
+              <Plus size={15} />
+              New case
+            </Button>
+          </>
         }
         description="Open work orders, scheduled repairs, and unit/property maintenance history."
         title="Maintenance"
@@ -1231,6 +1237,21 @@ function buildClearFiltersHref(
 
   const query = nextParams.toString();
   return query ? `${pathname}?${query}` : pathname;
+}
+
+export function getMaintenanceReportHref(
+  viewQuery: Pick<MaintenanceViewQuery, "month" | "propertyId">,
+) {
+  const params = new URLSearchParams({
+    month: viewQuery.month,
+    report: "maintenance-cost",
+  });
+
+  if (viewQuery.propertyId !== "all") {
+    params.set("propertyId", viewQuery.propertyId);
+  }
+
+  return `/reports?${params.toString()}`;
 }
 
 function getAdvancedFilterCount(viewQuery: MaintenanceViewQuery) {
