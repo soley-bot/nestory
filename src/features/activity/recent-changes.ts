@@ -112,7 +112,7 @@ export function toRecentChange(log: ActivityLogSnapshot): RecentChange {
 
   return {
     action: log.action,
-    actionLabel: actionLabels[log.action] ?? toReadableAction(log.action),
+    actionLabel: getActionLabel(log),
     createdAt: log.created_at,
     details: getChangeDetails(log),
     entityLabel: getEntityLabel(log.entity_type),
@@ -121,6 +121,21 @@ export function toRecentChange(log: ActivityLogSnapshot): RecentChange {
     recordLabel,
     tone: getTone(log.action),
   };
+}
+
+function getActionLabel(log: ActivityLogSnapshot) {
+  if (log.action === "unit_updated" && hasChangedValue(log, "status")) {
+    return "Status changed";
+  }
+
+  return actionLabels[log.action] ?? toReadableAction(log.action);
+}
+
+function hasChangedValue(log: ActivityLogSnapshot, key: string) {
+  const nextValues = toRecord(log.new_values);
+  const previousValues = toRecord(log.previous_values);
+
+  return !isSameJsonValue(previousValues[key], nextValues[key]);
 }
 
 function getRecordLabel(log: ActivityLogSnapshot) {

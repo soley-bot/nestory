@@ -148,6 +148,38 @@ describe("toRecentChange", () => {
     });
   });
 
+  it("surfaces unit status changes as status history", () => {
+    expect(
+      toRecentChange({
+        action: "unit_updated",
+        created_at: "2026-06-17T09:15:00.000Z",
+        entity_id: "56565656-5656-4565-8565-565656565656",
+        entity_type: "unit",
+        id: "log-unit-status",
+        new_values: {
+          status: "maintenance",
+          unit_number: "04-02",
+        },
+        previous_values: {
+          status: "vacant",
+          unit_number: "04-02",
+        },
+      }),
+    ).toMatchObject({
+      actionLabel: "Status changed",
+      details: [
+        {
+          after: "maintenance",
+          before: "vacant",
+          field: "Status",
+        },
+      ],
+      entityLabel: "Unit",
+      href: "/units/56565656-5656-4565-8565-565656565656",
+      recordLabel: "04-02",
+    });
+  });
+
   it("links ledger period activity to the affected month", () => {
     expect(
       toRecentChange({
