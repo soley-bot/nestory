@@ -337,16 +337,22 @@ function buildTasksQuery(
     query = query.not("archived_at", "is", null);
   }
 
-  if (viewQuery.propertyId !== "all") {
+  if (viewQuery.taskId !== "all") {
+    query = query.eq("id", viewQuery.taskId);
+  } else if (viewQuery.propertyId !== "all") {
     query = query.eq("property_id", viewQuery.propertyId);
   }
 
-  if (viewQuery.unitId !== "all") {
+  if (viewQuery.taskId === "all" && viewQuery.unitId !== "all") {
     query = query.eq("unit_id", viewQuery.unitId);
   }
 
   if (viewQuery.taskId !== "all") {
-    query = query.eq("id", viewQuery.taskId);
+    return query
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("priority", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1_000);
   }
 
   if (viewQuery.status !== "all") {
@@ -613,11 +619,15 @@ function toLinkedDocument(document: DocumentRow): MaintenanceLinkedDocument {
   };
 }
 
-function filterMaintenanceCases(
+export function filterMaintenanceCases(
   cases: MaintenanceCase[],
   viewQuery: MaintenanceViewQuery,
   today: string,
 ) {
+  if (viewQuery.taskId !== "all") {
+    return cases.filter((maintenanceCase) => maintenanceCase.id === viewQuery.taskId);
+  }
+
   const tokens = viewQuery.query
     .trim()
     .toLowerCase()

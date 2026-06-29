@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   buildMaintenanceHrefs,
   buildMaintenanceSummary,
+  filterMaintenanceCases,
   getMaintenanceProgressState,
   maintenanceMatchesReview,
 } from "@/features/maintenance/data/maintenance";
-import type { MaintenanceCase } from "@/features/maintenance/maintenance.types";
+import type {
+  MaintenanceCase,
+  MaintenanceViewQuery,
+} from "@/features/maintenance/maintenance.types";
 
 function makeCase(
   overrides: Partial<MaintenanceCase> = {},
@@ -71,6 +75,27 @@ function makeCase(
   };
 }
 
+function makeViewQuery(
+  overrides: Partial<MaintenanceViewQuery> = {},
+): MaintenanceViewQuery {
+  return {
+    archiveState: "all",
+    month: "2026-06",
+    page: 1,
+    pageSize: 25,
+    priority: "all",
+    propertyId: "all",
+    query: "",
+    review: "open",
+    scope: "focused",
+    sort: "due_asc",
+    status: "all",
+    taskId: "all",
+    unitId: "all",
+    ...overrides,
+  };
+}
+
 describe("maintenance progress helpers", () => {
   it("classifies completed, overdue, due-today, and upcoming states", () => {
     expect(getMaintenanceProgressState({ dueDate: "2026-06-20", status: "completed" }, "2026-06-28")).toBe("completed");
@@ -97,6 +122,22 @@ describe("maintenance progress helpers", () => {
     expect(maintenanceMatchesReview(maintenanceCase, "reminders")).toBe(true);
     expect(maintenanceMatchesReview(maintenanceCase, "completed")).toBe(false);
   });
+
+  it("keeps an exact task selection even outside the current review queue", () => {
+    const completedCase = makeCase({
+      id: "task-completed",
+      isOpen: false,
+      status: "completed",
+    });
+
+    expect(
+      filterMaintenanceCases(
+        [makeCase({ id: "task-open" }), completedCase],
+        makeViewQuery({ taskId: "task-completed" }),
+        "2026-06-28",
+      ),
+    ).toEqual([completedCase]);
+  });
 });
 
 describe("maintenance route contracts", () => {
@@ -112,6 +153,9 @@ describe("maintenance route contracts", () => {
 
     expect(buildMaintenanceHrefs(task).documentUpload).toBe(
       "/documents?action=create&category=Maintenance&propertyId=property-1&taskId=task-1&unitId=unit-1",
+    );
+    expect(buildMaintenanceHrefs(task).task).toBe(
+      "/maintenance?archiveState=all&taskId=task-1",
     );
   });
 });
