@@ -1209,12 +1209,14 @@ function buildClearFiltersHref(
     "month",
     "page",
     "priority",
+    "propertyId",
     "query",
     "review",
     "scope",
     "sort",
     "status",
     "taskId",
+    "unitId",
   ].forEach((key) => nextParams.delete(key));
 
   const query = nextParams.toString();
