@@ -175,12 +175,13 @@ export function AppShell({
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pathGroup = getPathGroup(pathname);
-  const [selectedDesktopGroupId, setSelectedDesktopGroupId] = useState(
-    pathGroup?.id ?? "home",
-  );
+  const [selectedDesktopGroupId, setSelectedDesktopGroupId] = useState<
+    string | null
+  >(null);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const selectedDesktopGroup =
     desktopNavGroups.find((group) => group.id === selectedDesktopGroupId) ??
+    pathGroup ??
     desktopNavGroups[0];
   const isSettingsActive = isNavItemActive(pathname, settingsItem);
   const isMobileMoreActive = mobileMoreItems.some((item) =>
