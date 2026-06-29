@@ -37,6 +37,7 @@ export function buildTrustedReportCsv(report: TrustedReport) {
       ...report.columns.map((column) => column.label),
       "Source records",
       "Source ids",
+      "Source links",
     ],
   ];
 
@@ -45,7 +46,16 @@ export function buildTrustedReportCsv(report: TrustedReport) {
   }
 
   if (report.rows.length === 0) {
-    rows.push(["", report.emptyTitle, report.emptyDescription, "", ""]);
+    rows.push([
+      "",
+      report.emptyTitle,
+      ...report.columns.map((_, index) =>
+        index === 0 ? report.emptyDescription : "",
+      ),
+      "",
+      "",
+      "",
+    ]);
   }
 
   rows.push([]);
@@ -76,6 +86,9 @@ function toCsvRow(
       .map((source) => `${source.recordType}:${source.label}`)
       .join(" | "),
     row.sourceLinks.map((source) => source.id).join(" | "),
+    row.sourceLinks
+      .flatMap((source) => (source.href ? [source.href] : []))
+      .join(" | "),
   ];
 }
 

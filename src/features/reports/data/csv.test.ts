@@ -3,7 +3,7 @@ import { buildTrustedReportCsv } from "@/features/reports/data/csv";
 import type { TrustedReport } from "@/features/reports/reports.types";
 
 describe("trusted report CSV export", () => {
-  it("exports report metadata, source records, source ids, and metrics", () => {
+  it("exports report metadata, source records, source ids, source links, and metrics", () => {
     const report: TrustedReport = {
       columns: [
         { key: "income", label: "Income", align: "right" },
@@ -60,9 +60,12 @@ describe("trusted report CSV export", () => {
     const csv = buildTrustedReportCsv(report);
 
     expect(csv).toContain("Report,Unit Performance");
-    expect(csv).toContain("Source records,Source ids");
+    expect(csv).toContain("Source records,Source ids,Source links");
     expect(csv).toContain("\"unit:Unit A1 | ledger:Rent, June\"");
     expect(csv).toContain("unit-1 | ledger-income");
+    expect(csv).toContain(
+      "/units/unit-1 | /ledger?archiveState=all&entryId=ledger-income",
+    );
     expect(csv).toContain("Metric,Value,Detail,Source count");
     expect(csv).toContain("Income,USD 500.00,Income ledger rows in period,1");
   });
@@ -102,7 +105,34 @@ describe("trusted report CSV export", () => {
 
     const csv = buildTrustedReportCsv(report);
 
-    expect(csv).toContain("1,'=unsafe title,'+missing owner,,");
+    expect(csv).toContain("1,'=unsafe title,'+missing owner,,,");
     expect(csv).toContain("Rows,'-1,'@source detail,1");
+  });
+
+  it("keeps empty rows aligned with report columns and source columns", () => {
+    const report: TrustedReport = {
+      columns: [
+        { key: "record", label: "Record" },
+        { key: "issue", label: "Issue" },
+      ],
+      description: "Missing data export.",
+      emptyDescription: "No missing data.",
+      emptyTitle: "No rows",
+      exportFilenameBase: "missing-data",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      kind: "missing-data",
+      periodLabel: "June 2026",
+      rows: [],
+      scopeLabel: "All properties",
+      summary: [],
+      title: "Missing Data",
+      totalsTraceLabel: "Trace",
+    };
+
+    const csv = buildTrustedReportCsv(report);
+
+    expect(csv).toContain(
+      "Row,Title,Record,Issue,Source records,Source ids,Source links\r\n,No rows,No missing data.,,,,",
+    );
   });
 });
