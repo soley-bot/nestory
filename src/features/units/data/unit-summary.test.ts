@@ -218,9 +218,13 @@ describe("buildUnitDetail", () => {
         rentRevenueUsd: 900,
       },
       hrefs: {
+        addDocument:
+          "/documents?action=create&category=Unit&propertyId=property-1&unitId=unit-1",
         addLease:
           "/leases?action=create&propertyId=property-1&source=vacancy&unitId=unit-1",
         addLedgerEntry: "/ledger?action=create&propertyId=property-1&unitId=unit-1",
+        documents:
+          "/documents?archiveState=all&propertyId=property-1&unitId=unit-1",
         ledger: "/ledger?propertyId=property-1&unitId=unit-1",
         timeline: "/timeline?propertyId=property-1&unitId=unit-1",
       },
@@ -270,6 +274,30 @@ describe("buildUnitDetail next action", () => {
       href: "/leases?action=create&propertyId=property-1&source=vacancy&unitId=unit-1",
       label: "Add lease",
       tone: "danger",
+    });
+  });
+
+  it("opens scoped upload when unit evidence is missing", () => {
+    expect(
+      buildUnitDetail({
+        activeLease: lease,
+        counts: {
+          documents: 0,
+          ledgerEntries: 0,
+          timelineEvents: 0,
+        },
+        documents: [],
+        ledgerEntries: [],
+        people: [],
+        property,
+        recentLedgerEntries: [],
+        recentTimelineEvents: [],
+        unit,
+      }).repairAction,
+    ).toMatchObject({
+      href: "/documents?action=create&category=Unit&propertyId=property-1&unitId=unit-1",
+      label: "Attach evidence",
+      tone: "warning",
     });
   });
 });
@@ -336,8 +364,11 @@ describe("buildUnitDetailHrefs", () => {
         unit,
       }),
     ).toMatchObject({
+      addDocument:
+        "/documents?action=create&category=Unit&propertyId=property-1&unitId=unit-1",
       addLedgerEntry: "/ledger?action=create&propertyId=property-1&unitId=unit-1",
       addTimelineEvent: "/timeline?action=create&propertyId=property-1&unitId=unit-1",
+      documents: "/documents?archiveState=all&propertyId=property-1&unitId=unit-1",
       lease: "/leases?archiveState=all&leaseId=lease-1",
       property: "/properties/property-1",
       tenantPerson: "/people?archiveState=all&personId=person-1",

@@ -145,6 +145,7 @@ export type UnitRepairAction = {
 };
 
 export type UnitDetailHrefs = {
+  addDocument: string;
   addLease: string;
   addLedgerEntry: string;
   addTimelineEvent: string;

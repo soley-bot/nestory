@@ -236,6 +236,58 @@ describe("buildPropertyDetail", () => {
       label: "Log maintenance case",
     });
   });
+
+  it("opens scoped upload when property evidence is missing", () => {
+    const detail = buildPropertyDetail({
+      activeLeases: [
+        {
+          id: "lease-1",
+          lease_end_date: "2027-05-31",
+          lease_start_date: "2026-06-01",
+          monthly_rent_amount: 1200,
+          monthly_rent_currency: "USD",
+          status: "active",
+          tenant_name: "Dara Tenant",
+          unit_id: "unit-1",
+        },
+      ],
+      activeOwner: {
+        label: "Jane Owner",
+        personId: "person-owner",
+      },
+      documents: [],
+      ledgerEntries: [
+        {
+          amount: 1200,
+          category: "Rent",
+          currency: "USD",
+          description: null,
+          direction: "income",
+          id: "entry-1",
+          transaction_date: "2026-06-01",
+          unit_id: "unit-1",
+        },
+      ],
+      property,
+      units: [
+        {
+          archived_at: null,
+          current_rent_amount: 1200,
+          current_rent_currency: "USD",
+          floor: "4",
+          id: "unit-1",
+          status: "occupied",
+          unit_number: "04-01",
+        },
+      ],
+    });
+
+    expect(detail.nextAction).toMatchObject({
+      href: "/documents?action=create&category=Property&propertyId=property-1",
+      label: "Attach evidence",
+      tone: "warning",
+    });
+  });
 });
 
 describe("buildPropertyDetailHrefs", () => {
@@ -246,10 +298,12 @@ describe("buildPropertyDetailHrefs", () => {
         propertyId: "property-1",
       }),
     ).toMatchObject({
+      addDocument: "/documents?action=create&category=Property&propertyId=property-1",
       addLedgerEntry: "/ledger?action=create&propertyId=property-1",
       addLease: "/leases?action=create&propertyId=property-1",
       addTimelineEvent: "/timeline?action=create&propertyId=property-1",
       addUnit: "/units?action=create&propertyId=property-1",
+      documents: "/documents?archiveState=all&propertyId=property-1",
       ownerPerson: "/people?archiveState=all&personId=person-owner",
       units: "/units?archiveState=all&propertyId=property-1",
     });

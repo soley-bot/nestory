@@ -186,6 +186,7 @@ export type PropertyDetailCounts = {
 };
 
 export type PropertyDetailHrefs = {
+  addDocument: string;
   addLedgerEntry: string;
   addLease: string;
   addMaintenanceCase: string;
@@ -365,6 +366,11 @@ export function buildPropertyDetailHrefs({
   propertyId: string;
 }): PropertyDetailHrefs {
   return {
+    addDocument: buildHref("/documents", {
+      action: "create",
+      category: "Property",
+      propertyId,
+    }),
     addLedgerEntry: buildHref("/ledger", {
       action: "create",
       propertyId,
@@ -385,7 +391,10 @@ export function buildPropertyDetailHrefs({
       action: "create",
       propertyId,
     }),
-    documents: "/documents",
+    documents: buildHref("/documents", {
+      archiveState: "all",
+      propertyId,
+    }),
     ledger: buildHref("/ledger", {
       archiveState: "all",
       propertyId,
@@ -863,7 +872,7 @@ function buildPropertyNextAction({
   if (counts.documents === 0) {
     return {
       description: "Attach ownership, lease, receipt, or inspection evidence to the record.",
-      href: hrefs.documents,
+      href: hrefs.addDocument,
       label: "Attach evidence",
       tone: "warning",
     };

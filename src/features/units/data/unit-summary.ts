@@ -739,7 +739,7 @@ function buildUnitRepairAction({
   if (counts.documents === 0) {
     return {
       description: "Attach lease, receipt, inspection, or repair evidence to this unit.",
-      href: hrefs.documents,
+      href: hrefs.addDocument,
       label: "Attach evidence",
       tone: "warning",
     };
@@ -775,6 +775,12 @@ export function buildUnitDetailHrefs({
   unit: Pick<UnitRecord, "id" | "property_id" | "unit_number">;
 }): UnitDetailHrefs {
   return {
+    addDocument: buildHref("/documents", {
+      action: "create",
+      category: "Unit",
+      propertyId: unit.property_id,
+      unitId: unit.id,
+    }),
     addLease: buildHref("/leases", {
       action: "create",
       propertyId: unit.property_id,
@@ -796,7 +802,11 @@ export function buildUnitDetailHrefs({
       propertyId: unit.property_id,
       unitId: unit.id,
     }),
-    documents: "/documents",
+    documents: buildHref("/documents", {
+      archiveState: "all",
+      propertyId: unit.property_id,
+      unitId: unit.id,
+    }),
     ledger: buildHref("/ledger", {
       propertyId: unit.property_id,
       unitId: unit.id,
