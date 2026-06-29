@@ -10,6 +10,7 @@ type DocumentFieldErrors = {
   category?: string[];
   document?: string[];
   documentId?: string[];
+  leaseId?: string[];
   propertyId?: string[];
   taskId?: string[];
   unitId?: string[];
@@ -29,11 +30,20 @@ const metadataSchema = z
       .trim()
       .min(2, "Enter a category.")
       .max(80, "Keep the category under 80 characters."),
+    leaseId: z.string().trim(),
     propertyId: z.uuid("Choose a property."),
     taskId: z.string().trim(),
     unitId: z.string().trim(),
   })
   .superRefine((data, context) => {
+    if (data.leaseId && !z.uuid().safeParse(data.leaseId).success) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose a valid lease.",
+        path: ["leaseId"],
+      });
+    }
+
     if (data.taskId && !z.uuid().safeParse(data.taskId).success) {
       context.addIssue({
         code: "custom",
@@ -77,6 +87,7 @@ export async function createDocumentAction(
   const context = await requireAdminContext();
   const parsed = metadataSchema.safeParse({
     category: readString(formData, "category"),
+    leaseId: readString(formData, "leaseId"),
     propertyId: readString(formData, "propertyId"),
     taskId: readString(formData, "taskId"),
     unitId: readString(formData, "unitId"),
@@ -104,9 +115,11 @@ export async function createDocumentAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const leaseId = parsed.data.leaseId || null;
   const taskId = parsed.data.taskId || null;
   const unitId = parsed.data.unitId || null;
   const validationState = await validateDocumentLink({
+    leaseId,
     organizationId: context.organizationId,
     propertyId: parsed.data.propertyId,
     supabase,
@@ -140,6 +153,7 @@ export async function createDocumentAction(
     .insert({
       category: parsed.data.category,
       file_name: file.name,
+      lease_id: leaseId,
       mime_type: file.type,
       organization_id: context.organizationId,
       property_id: parsed.data.propertyId,
@@ -168,6 +182,7 @@ export async function createDocumentAction(
     newValues: {
       category: parsed.data.category,
       file_name: file.name,
+      lease_id: leaseId,
       property_id: parsed.data.propertyId,
       task_id: taskId,
       unit_id: unitId,
@@ -196,6 +211,7 @@ export async function updateDocumentAction(
   );
   const parsed = metadataSchema.safeParse({
     category: readString(formData, "category"),
+    leaseId: readString(formData, "leaseId"),
     propertyId: readString(formData, "propertyId"),
     taskId: readString(formData, "taskId"),
     unitId: readString(formData, "unitId"),
@@ -218,9 +234,11 @@ export async function updateDocumentAction(
     context.organizationId,
     parsedDocumentId.data,
   );
+  const leaseId = parsed.data.leaseId || null;
   const taskId = parsed.data.taskId || null;
   const unitId = parsed.data.unitId || null;
   const validationState = await validateDocumentLink({
+    leaseId,
     organizationId: context.organizationId,
     propertyId: parsed.data.propertyId,
     supabase,
@@ -236,6 +254,7 @@ export async function updateDocumentAction(
     .from("documents")
     .update({
       category: parsed.data.category,
+      lease_id: leaseId,
       property_id: parsed.data.propertyId,
       task_id: taskId,
       unit_id: unitId,
@@ -256,6 +275,7 @@ export async function updateDocumentAction(
     documentId: parsedDocumentId.data,
     newValues: {
       category: parsed.data.category,
+      lease_id: leaseId,
       property_id: parsed.data.propertyId,
       task_id: taskId,
       unit_id: unitId,
@@ -362,12 +382,14 @@ async function updateDocumentArchiveState({
 }
 
 async function validateDocumentLink({
+  leaseId,
   organizationId,
   propertyId,
   supabase,
   taskId,
   unitId,
 }: {
+  leaseId: string | null;
   organizationId: string;
   propertyId: string;
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -408,6 +430,37 @@ async function validateDocumentLink({
     if (unitResult.data.property_id !== propertyId) {
       return {
         fieldErrors: { unitId: ["Choose a unit under the selected property."] },
+        status: "error",
+      };
+    }
+  }
+
+  if (leaseId) {
+    const leaseResult = await supabase
+      .from("leases")
+      .select("id, property_id, unit_id")
+      .eq("organization_id", organizationId)
+      .eq("id", leaseId)
+      .is("archived_at", null)
+      .maybeSingle();
+
+    if (leaseResult.error || !leaseResult.data) {
+      return {
+        fieldErrors: { leaseId: ["Choose an active lease."] },
+        status: "error",
+      };
+    }
+
+    if (leaseResult.data.property_id !== propertyId) {
+      return {
+        fieldErrors: { leaseId: ["Choose a lease under the selected property."] },
+        status: "error",
+      };
+    }
+
+    if (leaseResult.data.unit_id && leaseResult.data.unit_id !== unitId) {
+      return {
+        fieldErrors: { leaseId: ["Choose the lease unit before linking this document."] },
         status: "error",
       };
     }
@@ -458,7 +511,7 @@ async function getDocumentPathContext(
 ) {
   const { data } = await supabase
     .from("documents")
-    .select("category, file_name, property_id, task_id, unit_id, archived_at")
+    .select("category, file_name, lease_id, property_id, task_id, unit_id, archived_at")
     .eq("organization_id", organizationId)
     .eq("id", documentId)
     .maybeSingle();

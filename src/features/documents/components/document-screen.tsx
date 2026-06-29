@@ -39,6 +39,7 @@ import type {
   DocumentViewQuery,
 } from "@/features/documents/document.types";
 import { formatDate } from "@/lib/dates/format";
+import { getUuidSearchParam } from "@/lib/validation/search-params";
 import { cn } from "@/lib/utils";
 
 const initialState: DocumentActionState = {};
@@ -48,7 +49,7 @@ type DrawerState =
       initialValues?: Partial<
         Pick<
           DocumentSummary["formValues"],
-          "category" | "propertyId" | "taskId" | "unitId"
+          "category" | "leaseId" | "propertyId" | "taskId" | "unitId"
         >
       >;
       mode: "create";
@@ -264,6 +265,7 @@ function DocumentFilters({
       nextParams.delete("unitId");
     }
 
+    nextParams.delete("leaseId");
     nextParams.delete("taskId");
 
     const query = nextParams.toString();
@@ -505,7 +507,7 @@ function DocumentForm({
   initialValues?: Partial<
     Pick<
       DocumentSummary["formValues"],
-      "category" | "propertyId" | "taskId" | "unitId"
+      "category" | "leaseId" | "propertyId" | "taskId" | "unitId"
     >
   >;
   mode: "create" | "edit";
@@ -521,6 +523,7 @@ function DocumentForm({
   const defaults = {
     category:
       document?.formValues.category ?? initialValues?.category ?? "General",
+    leaseId: document?.formValues.leaseId ?? initialValues?.leaseId ?? "",
     propertyId:
       document?.formValues.propertyId ?? initialValues?.propertyId ?? "",
     taskId: document?.formValues.taskId ?? initialValues?.taskId ?? "",
@@ -546,6 +549,9 @@ function DocumentForm({
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {document ? (
           <input name="documentId" type="hidden" value={document.id} />
+        ) : null}
+        {defaults.leaseId ? (
+          <input name="leaseId" type="hidden" value={defaults.leaseId} />
         ) : null}
         {defaults.taskId ? (
           <input name="taskId" type="hidden" value={defaults.taskId} />
@@ -815,6 +821,7 @@ function getDocumentCreateInitialValues(
   searchParamString: string,
 ) {
   const category = getCreateCategory(searchParamString);
+  const leaseId = getCreateLeaseId(searchParamString);
   const requestedUnit =
     viewQuery.unitId === "all"
       ? undefined
@@ -826,12 +833,13 @@ function getDocumentCreateInitialValues(
       ? viewQuery.propertyId
       : "");
 
-  if (!propertyId && !category) {
+  if (!propertyId && !category && !leaseId) {
     return undefined;
   }
 
   return {
     category,
+    leaseId,
     propertyId,
     taskId: viewQuery.taskId === "all" ? undefined : viewQuery.taskId,
     unitId: requestedUnit?.id,
@@ -844,6 +852,12 @@ function getCreateCategory(searchParamString: string) {
     ?.trim();
 
   return category ? category.slice(0, 80) : undefined;
+}
+
+function getCreateLeaseId(searchParamString: string) {
+  return getUuidSearchParam(
+    new URLSearchParams(searchParamString).get("leaseId") ?? undefined,
+  );
 }
 
 function getHrefWithoutActionParam(

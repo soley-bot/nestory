@@ -45,6 +45,10 @@ describe("buildLeaseSummary", () => {
     expect(summary.unitLabel).toBe("Unit 12A / Floor 12");
     expect(summary.statusLabel).toBe("Active");
     expect(summary.depositLabel).toBe("USD 1,200.00");
+    expect(summary.nextAction).toMatchObject({
+      href: "/documents?action=create&category=Lease&leaseId=lease-1&propertyId=property-1&unitId=unit-1",
+      label: "Attach evidence",
+    });
   });
 
   it("uses legacy lease data when no normalized deposit row exists", () => {
@@ -164,6 +168,12 @@ describe("buildLeaseSummary", () => {
     });
     expect(summary.hrefs.addLedgerEntry).toBe(
       "/ledger?action=create&propertyId=property-1&unitId=unit-1",
+    );
+    expect(summary.hrefs.addDocument).toBe(
+      "/documents?action=create&category=Lease&leaseId=lease-1&propertyId=property-1&unitId=unit-1",
+    );
+    expect(summary.hrefs.documents).toBe(
+      "/documents?archiveState=all&leaseId=lease-1",
     );
     expect(summary.hrefs.timeline).toBe(
       "/timeline?archiveState=all&propertyId=property-1&query=Dara+Tenant&unitId=unit-1",

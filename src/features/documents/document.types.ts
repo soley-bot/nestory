@@ -14,6 +14,7 @@ export type DocumentArchiveState = "active" | "archived" | "all";
 
 export type DocumentViewQuery = {
   archiveState: DocumentArchiveState;
+  leaseId: string;
   page: number;
   pageSize: number;
   propertyId: string;
@@ -44,6 +45,7 @@ export type DocumentUnitOption = {
 
 export type DocumentFormValues = {
   category: string;
+  leaseId?: string | null;
   propertyId: string;
   taskId?: string | null;
   unitId?: string | null;

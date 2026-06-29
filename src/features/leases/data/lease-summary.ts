@@ -251,6 +251,13 @@ export function buildLeaseDetailHrefs(
   lease: Pick<LeaseRow, "id" | "property_id" | "tenant_name" | "unit_id">,
 ): LeaseDetailHrefs {
   return {
+    addDocument: buildHref("/documents", {
+      action: "create",
+      category: "Lease",
+      leaseId: lease.id,
+      propertyId: lease.property_id,
+      unitId: lease.unit_id ?? undefined,
+    }),
     addLedgerEntry: buildHref("/ledger", {
       action: "create",
       propertyId: lease.property_id,
@@ -262,7 +269,8 @@ export function buildLeaseDetailHrefs(
       unitId: lease.unit_id ?? undefined,
     }),
     documents: buildHref("/documents", {
-      query: lease.tenant_name,
+      archiveState: "all",
+      leaseId: lease.id,
     }),
     ledger: buildHref("/ledger", {
       propertyId: lease.property_id,
@@ -515,7 +523,7 @@ function buildLeaseNextAction({
   if (recordCounts.documents === 0) {
     return {
       description: "Attach lease agreement, ID, deposit, or move-in evidence.",
-      href: hrefs.documents,
+      href: hrefs.addDocument,
       label: "Attach evidence",
       tone: "warning",
     };

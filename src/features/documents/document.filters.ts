@@ -20,6 +20,7 @@ export function parseDocumentSearchParams(
 ): DocumentViewQuery {
   return {
     archiveState: parseArchiveState(params.archiveState),
+    leaseId: getUuidOrAllSearchParam(params.leaseId),
     page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
     propertyId: getUuidOrAllSearchParam(params.propertyId),

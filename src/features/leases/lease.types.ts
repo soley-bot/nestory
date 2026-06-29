@@ -147,6 +147,7 @@ export type LeaseNextAction = {
 };
 
 export type LeaseDetailHrefs = {
+  addDocument: string;
   addLedgerEntry: string;
   addTimelineEvent: string;
   documents: string;

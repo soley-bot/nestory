@@ -113,6 +113,10 @@ export async function getDocumentsScreenData(
     documentsQuery = documentsQuery.eq("unit_id", viewQuery.unitId);
   }
 
+  if (viewQuery.leaseId !== "all") {
+    documentsQuery = documentsQuery.eq("lease_id", viewQuery.leaseId);
+  }
+
   if (viewQuery.taskId !== "all") {
     documentsQuery = documentsQuery.eq("task_id", viewQuery.taskId);
   }
@@ -265,6 +269,7 @@ function toDocumentSummary({
     archivedAt: document.archived_at ?? undefined,
     formValues: {
       category: document.category,
+      leaseId: document.lease_id,
       propertyId: document.property_id ?? "",
       taskId: document.task_id,
       unitId: document.unit_id,
