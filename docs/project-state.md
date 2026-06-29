@@ -29,6 +29,10 @@ Nestory is currently a Next.js App Router app with:
 - Shared primitives under `src/components/*`.
 - Shared utilities under `src/lib/*`.
 
+The root route redirects into `/overview`; unauthenticated users are then sent
+to `/login` by the auth proxy. Public marketing pages are not part of the MVP
+surface.
+
 Current implemented or scaffolded product areas include:
 
 - Auth and first workspace setup.
