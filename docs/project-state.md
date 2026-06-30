@@ -99,6 +99,10 @@ Known manual hardening:
 - Supabase Auth leaked password protection was previously reported as disabled.
   Enable it in Supabase Auth password settings when the project plan supports
   it.
+- 2026-06-30 advisor recheck still reports leaked password protection disabled.
+  SQL/runtime production repairs were applied for people/lease write RPCs,
+  maintenance archive RPCs, and first-customer FK indexes; security certification
+  still needs the Auth password setting enabled in Supabase.
 
 ## Hosted Auth And Callback Notes
 
@@ -157,3 +161,18 @@ Before using this file for production decisions, re-run or re-check:
 - Hosted Supabase security and performance advisors.
 - Supabase Auth callback URL configuration.
 - Vercel deployment region and protection settings.
+
+## 2026-06-30 First-Customer Readiness Pass
+
+- Local gates passed: `npm test`, `npm run lint`, `npx tsc --noEmit`, and
+  `npm run build`.
+- Vercel production deployment `nestory-atnn6wuey-soley-bots-projects.vercel.app`
+  is Ready, aliased to `https://nestory-bay.vercel.app`, and runs in `sin1`.
+- Public `/` returns the landing page; signed-out `/overview` redirects to
+  `/login`; `/auth/callback` without a code redirects to `/login`.
+- Hosted Supabase project `pfvmztxktkwyewvxfgot` is `ACTIVE_HEALTHY`; app table
+  RLS is enabled; production now has the RPCs required by People, Leases, and
+  Maintenance archive/restore actions.
+- Supabase performance advisors show INFO-only unused-index notices after the
+  FK-index repair. Supabase security advisors still show the Auth leaked
+  password protection warning.

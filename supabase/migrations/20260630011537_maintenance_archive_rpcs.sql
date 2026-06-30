@@ -1,0 +1,4 @@
+-- ponytail: Production bridge migration.
+-- The SQL body is already tracked in 20260629190500_maintenance_archive_rpcs.sql.
+-- This file records the connector-applied hosted migration version so future
+-- migration history reviews do not mistake the production repair for drift.

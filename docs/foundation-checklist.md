@@ -50,10 +50,10 @@ Run this flow on production after auth changes:
 4. Confirm `/auth/callback` exchanges the code and redirects.
 5. Confirm a first-time admin lands on `/setup`.
 6. Create a workspace.
-7. Confirm the app lands on `/timeline`.
+7. Confirm the app lands on `/overview`.
 8. Sign out.
 9. Sign back in.
-10. Confirm the existing admin lands directly on `/timeline`.
+10. Confirm the existing admin lands directly on `/overview`.
 
 ## Production Deployment Checks
 
