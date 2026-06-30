@@ -1,4 +1,12 @@
-import { Archive, Pencil, RotateCcw } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
+import {
+  Archive,
+  Building2,
+  Ellipsis,
+  ImagePlus,
+  Pencil,
+  RotateCcw,
+} from "lucide-react";
 import {
   previewRowClassName,
   RecordLink,
@@ -61,40 +69,40 @@ export function PropertiesTable({
 
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-muted px-3 py-2 text-xs text-muted">
-            <span>Single-click a row to open the preview drawer.</span>
-            <span className="font-medium text-foreground">
-              Linked names open full records.
-            </span>
-          </div>
           <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-            <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[24%]" />
-                <col className="w-[8%]" />
-                <col className="w-[21%]" />
-                <col className="w-[30%]" />
-                <col className="w-[6%]" />
-                <col className="w-[11%]" />
+                <col className="w-[23%]" />
+                <col className="w-[22%]" />
+                <col className="w-[17%]" />
+                <col className="w-[10%]" />
+                <col className="w-[13%]" />
+                <col className="w-[9%]" />
+                <col className="w-[5%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <th className="px-2.5 py-2.5 font-semibold">Property</th>
-                  <th className="px-1.5 py-2.5 text-center font-semibold">
-                    Status
-                  </th>
-                  <th className="px-1.5 py-2.5 font-semibold">Owner</th>
-                  <th className="px-1.5 py-2.5 font-semibold">Address</th>
+                  <th className="px-1.5 py-2.5 font-semibold">Location</th>
+                  <th className="px-1.5 py-2.5 font-semibold">Occupancy</th>
                   <th className="px-1.5 py-2.5 text-right font-semibold">
                     Units
                   </th>
-                  <th className="px-2 py-2.5 text-right font-semibold">Net</th>
+                  <th className="px-1.5 py-2.5 text-right font-semibold">
+                    Net
+                  </th>
+                  <th className="px-1.5 py-2.5 text-center font-semibold">
+                    Status
+                  </th>
+                  <th className="px-2 py-2.5 text-center font-semibold">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {properties.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={6}>
+                    <td className="px-4 py-8 text-center text-muted" colSpan={7}>
                       No properties match the current filters.
                     </td>
                   </tr>
@@ -119,43 +127,57 @@ export function PropertiesTable({
                     tabIndex={0}
                   >
                     <td className="px-2.5 py-2">
-                      <RecordLink
-                        href={`/properties/${property.id}`}
-                        title={`Open full property record: ${property.name}`}
-                      >
-                        {property.name}
-                      </RecordLink>
-                      <p
-                        className="mt-0.5 truncate text-xs text-muted"
-                        title={`${property.code} / ${property.type}`}
-                      >
-                        {property.code} / {property.type}
-                      </p>
-                    </td>
-                    <td className="px-1.5 py-2">
-                      <PropertyStatusBadges compact property={property} />
-                    </td>
-                    <td className="px-1.5 py-2">
-                      <p
-                        className="line-clamp-2 break-words leading-[18px]"
-                        title={property.owner}
-                      >
-                        {property.owner}
-                      </p>
+                      <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
+                        <PropertyThumbnail property={property} />
+                        <div className="min-w-0">
+                          <RecordLink
+                            href={`/properties/${property.id}`}
+                            title={`Open full property record: ${property.name}`}
+                          >
+                            {property.name}
+                          </RecordLink>
+                          <p
+                            className="mt-0.5 truncate text-xs text-muted"
+                            title={`${property.code} / ${property.type}`}
+                          >
+                            {property.code} / {property.type}
+                          </p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-1.5 py-2 text-foreground-muted">
                       <p
-                        className="line-clamp-2 break-words leading-[18px]"
+                        className="line-clamp-1 break-words leading-[18px]"
                         title={property.address}
                       >
                         {property.address}
                       </p>
+                      <p
+                        className="mt-0.5 truncate text-xs text-muted"
+                        title={property.owner}
+                      >
+                        Owner: {property.owner}
+                      </p>
+                    </td>
+                    <td className="px-1.5 py-2">
+                      <TableOccupancy property={property} />
                     </td>
                     <td className="whitespace-nowrap px-1.5 py-2 text-right font-medium tabular-nums">
                       {property.occupiedUnits}/{property.units}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-1.5 py-2">
                       <TableMoneyDisplay value={property.netIncome} />
+                    </td>
+                    <td className="px-1.5 py-2">
+                      <PropertyStatusBadges compact property={property} />
+                    </td>
+                    <td className="px-2 py-2">
+                      <PropertyActions
+                        onArchiveProperty={onArchiveProperty}
+                        onEditProperty={onEditProperty}
+                        onRestoreProperty={onRestoreProperty}
+                        property={property}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -203,26 +225,29 @@ function PropertyCard({
       tabIndex={0}
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <RecordLink
-            className="text-base font-semibold leading-5"
-            href={`/properties/${property.id}`}
-            title={`Open full property record: ${property.name}`}
-          >
-            {property.name}
-          </RecordLink>
-          <p
-            className="mt-1 truncate font-medium"
-            title={`${property.code} / ${property.type}`}
-          >
-            {property.code} / {property.type}
-          </p>
-          <p
-            className="mt-0.5 line-clamp-1 break-words text-[13px] text-foreground-muted"
-            title={property.address}
-          >
-            {property.address}
-          </p>
+        <div className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)] gap-3">
+          <PropertyThumbnail property={property} size="large" />
+          <div className="min-w-0">
+            <RecordLink
+              className="text-base font-semibold leading-5"
+              href={`/properties/${property.id}`}
+              title={`Open full property record: ${property.name}`}
+            >
+              {property.name}
+            </RecordLink>
+            <p
+              className="mt-1 truncate font-medium"
+              title={`${property.code} / ${property.type}`}
+            >
+              {property.code} / {property.type}
+            </p>
+            <p
+              className="mt-0.5 line-clamp-1 break-words text-[13px] text-foreground-muted"
+              title={property.address}
+            >
+              {property.address}
+            </p>
+          </div>
         </div>
         <PropertyStatusBadges property={property} />
       </div>
@@ -295,9 +320,9 @@ function PropertyActions({
   property: PropertySummary;
 }) {
   const wrapperClassName = cn("flex justify-center gap-1", className);
-  const iconButtonClassName = cn(
-    "inline-flex items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-50",
-    size === "touch" ? "h-9 w-9" : "h-[28px] w-[28px]",
+  const triggerClassName = cn(
+    "inline-flex items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-border hover:bg-surface-muted hover:text-foreground data-[state=open]:border-border data-[state=open]:bg-surface-muted data-[state=open]:text-foreground",
+    size === "touch" ? "h-9 w-9" : "h-8 w-8",
   );
 
   return (
@@ -305,49 +330,109 @@ function PropertyActions({
       className={wrapperClassName}
       onDoubleClick={(event) => event.stopPropagation()}
     >
-      {property.isArchived ? (
-        <button
-          aria-label={`Restore ${property.name}`}
-          className={cn(iconButtonClassName, "hover:text-accent")}
-          onClick={(event) => {
-            event.stopPropagation();
-            onRestoreProperty(property);
-          }}
-          title="Restore property"
-          type="button"
-        >
-          <RotateCcw size={14} />
-        </button>
-      ) : (
-        <>
+      <Popover.Root>
+        <Popover.Trigger asChild>
           <button
-            aria-label={`Edit ${property.name}`}
-            className={cn(iconButtonClassName, "hover:text-foreground")}
-            onClick={(event) => {
-              event.stopPropagation();
-              onEditProperty(property);
-            }}
-            title="Edit property"
+            aria-label={`Open actions for ${property.name}`}
+            className={triggerClassName}
+            onClick={(event) => event.stopPropagation()}
+            title="Actions"
             type="button"
           >
-            <Pencil size={14} />
+            <Ellipsis size={16} />
           </button>
-          <button
-            aria-label={`Archive ${property.name}`}
-            className={cn(iconButtonClassName, "hover:text-danger")}
-            onClick={(event) => {
-              event.stopPropagation();
-              onArchiveProperty(property);
-            }}
-            title="Archive property"
-            type="button"
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            align="end"
+            className="z-50 w-44 rounded-md border border-border bg-surface p-1.5 text-sm shadow-lg"
+            onClick={(event) => event.stopPropagation()}
+            side="bottom"
+            sideOffset={6}
           >
-            <Archive size={14} />
-          </button>
-        </>
-      )}
+            {property.isArchived ? (
+              <PropertyActionMenuButton
+                icon={<RotateCcw size={14} />}
+                label="Restore"
+                onClick={() => onRestoreProperty(property)}
+              />
+            ) : (
+              <>
+                <PropertyActionMenuButton
+                  icon={<ImagePlus size={14} />}
+                  label={property.thumbnailUrl ? "Add photo" : "Upload photo"}
+                  onClick={() => onEditProperty(property)}
+                />
+                <PropertyActionMenuButton
+                  icon={<Pencil size={14} />}
+                  label="Edit"
+                  onClick={() => onEditProperty(property)}
+                />
+                <PropertyActionMenuButton
+                  danger
+                  icon={<Archive size={14} />}
+                  label="Archive"
+                  onClick={() => onArchiveProperty(property)}
+                />
+              </>
+            )}
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
     </div>
   );
+}
+
+function PropertyActionMenuButton({
+  danger = false,
+  icon,
+  label,
+  onClick,
+}: {
+  danger?: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Popover.Close asChild>
+      <button
+        className={cn(
+          "flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted",
+          danger && "text-danger hover:text-danger",
+        )}
+        onClick={onClick}
+        type="button"
+      >
+        {icon}
+        <span>{label}</span>
+      </button>
+    </Popover.Close>
+  );
+}
+
+function occupancyToneClass(percent: number) {
+  if (percent < 50) {
+    return "text-danger";
+  }
+
+  if (percent < 85) {
+    return "text-warning";
+  }
+
+  return "text-success";
+}
+
+function occupancyBarClass(percent: number) {
+  if (percent < 50) {
+    return "bg-danger/80";
+  }
+
+  if (percent < 85) {
+    return "bg-warning/80";
+  }
+
+  return "bg-success/80";
 }
 
 function TableMoneyDisplay({ value }: { value: MoneyDisplayValue }) {
@@ -360,6 +445,65 @@ function TableMoneyDisplay({ value }: { value: MoneyDisplayValue }) {
     >
       <span className="font-semibold text-foreground">{primary}</span>
     </span>
+  );
+}
+
+function PropertyThumbnail({
+  property,
+  size = "small",
+}: {
+  property: PropertySummary;
+  size?: "large" | "small";
+}) {
+  const className = cn(
+    "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-muted",
+    size === "large" ? "size-[52px]" : "size-10",
+  );
+
+  if (property.thumbnailUrl) {
+    return (
+      <span
+        aria-hidden="true"
+        className={cn(className, "bg-cover bg-center")}
+        style={{ backgroundImage: `url(${property.thumbnailUrl})` }}
+      />
+    );
+  }
+
+  return (
+    <span className={className} aria-hidden="true">
+      <Building2 size={size === "large" ? 19 : 16} />
+    </span>
+  );
+}
+
+function TableOccupancy({ property }: { property: PropertySummary }) {
+  const occupancyRate =
+    property.units > 0
+      ? Math.round((property.occupiedUnits / property.units) * 100)
+      : 0;
+  const openUnits = Math.max(0, property.units - property.occupiedUnits);
+
+  return (
+    <div title={`${occupancyRate}% occupied, ${openUnits} open`}>
+      <div className="flex items-center justify-between gap-3">
+        <span
+          className={cn(
+            "text-[13px] font-semibold tabular-nums",
+            occupancyToneClass(occupancyRate),
+          )}
+        >
+          {occupancyRate}%
+        </span>
+        <span className="text-xs text-muted tabular-nums">{openUnits} open</span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-chart-track">
+        <span
+          className={cn("block h-full rounded-full", occupancyBarClass(occupancyRate))}
+          style={{ width: `${Math.max(occupancyRate, property.units > 0 ? 4 : 0)}%` }}
+        />
+      </div>
+    </div>
   );
 }
 

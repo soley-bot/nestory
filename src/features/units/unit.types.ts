@@ -202,6 +202,7 @@ export type UnitSummary = {
   statusValue: UnitStatusValue;
   statusLabel: string;
   statusTone: UnitBadgeTone;
+  thumbnailUrl?: string;
   unitNumber: string;
 };
 

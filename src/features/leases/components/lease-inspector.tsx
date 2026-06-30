@@ -43,9 +43,9 @@ export function LeaseInspector({
   }
 
   const iconButtonClassName =
-    "inline-flex h-8 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted";
   const primaryIconButtonClassName =
-    "inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-[13px] text-foreground transition-colors hover:bg-surface-muted";
 
   return (
     <aside className="bg-surface">
@@ -86,7 +86,7 @@ export function LeaseInspector({
           label={lease.nextAction.label}
         />
 
-        <div className="grid grid-cols-4 gap-2 text-sm">
+        <div className="grid grid-cols-2 gap-2 text-sm">
           <Link
             aria-label={`Open lease for ${lease.tenantName}`}
             className={iconButtonClassName}
@@ -95,6 +95,7 @@ export function LeaseInspector({
             title="Open lease"
           >
             <ExternalLink size={15} />
+            <span className="truncate">Open lease</span>
           </Link>
           {lease.unitId ? (
             <Link
@@ -105,6 +106,7 @@ export function LeaseInspector({
               title="Open unit"
             >
               <ExternalLink size={15} />
+              <span className="truncate">Open unit</span>
             </Link>
           ) : (
             <Link
@@ -115,6 +117,7 @@ export function LeaseInspector({
               title="Open property"
             >
               <ExternalLink size={15} />
+              <span className="truncate">Open property</span>
             </Link>
           )}
           {lease.isArchived ? (
@@ -126,6 +129,7 @@ export function LeaseInspector({
               type="button"
             >
               <RotateCcw size={15} />
+              <span className="truncate">Restore</span>
             </button>
           ) : (
             <button
@@ -136,6 +140,7 @@ export function LeaseInspector({
               type="button"
             >
               <Pencil size={15} />
+              <span className="truncate">Edit</span>
             </button>
           )}
           {!lease.isArchived ? (
@@ -147,6 +152,7 @@ export function LeaseInspector({
               type="button"
             >
               <Archive size={15} />
+              <span className="truncate">Archive</span>
             </button>
           ) : (
             <span aria-hidden="true" />
@@ -156,19 +162,21 @@ export function LeaseInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open timeline filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={lease.hrefs.timeline}
             title="Open lease timeline"
           >
             <ListTree size={15} />
+            <span className="truncate">Timeline</span>
           </Link>
           <Link
             aria-label={`Open ledger filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={lease.hrefs.ledger}
             title="Open lease ledger"
           >
             <Landmark size={15} />
+            <span className="truncate">Ledger</span>
           </Link>
         </div>
       </div>
@@ -220,15 +228,17 @@ function AttentionNote({
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? "Review" : "Action"}
           </Badge>
-          <Link
-            aria-label="Open action"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
-            href={href}
-            prefetch={false}
-            title="Open action"
-          >
-            <ExternalLink size={13} />
-          </Link>
+          {item ? null : (
+            <Link
+              aria-label="Open action"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+              href={href}
+              prefetch={false}
+              title="Open action"
+            >
+              <ExternalLink size={13} />
+            </Link>
+          )}
         </div>
       </div>
     </div>

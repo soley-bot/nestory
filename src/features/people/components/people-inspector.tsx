@@ -42,9 +42,9 @@ export function PeopleInspector({
   }
 
   const iconButtonClassName =
-    "inline-flex h-8 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted";
   const primaryIconButtonClassName =
-    "inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-[13px] text-foreground transition-colors hover:bg-surface-muted";
 
   return (
     <aside className="bg-surface">
@@ -98,7 +98,7 @@ export function PeopleInspector({
           fallbackLabel={person.nextAction.label}
         />
 
-        <div className="grid grid-cols-4 gap-2 text-sm">
+        <div className="grid grid-cols-2 gap-2 text-sm">
           <Link
             aria-label={`Open ${person.displayName}`}
             className={iconButtonClassName}
@@ -107,6 +107,7 @@ export function PeopleInspector({
             title="Open person"
           >
             <ExternalLink size={15} />
+            <span className="truncate">Open person</span>
           </Link>
           <Link
             aria-label={`Open leases filtered to ${person.displayName}`}
@@ -115,6 +116,7 @@ export function PeopleInspector({
             title="Open related leases"
           >
             <FileText size={15} />
+            <span className="truncate">Leases</span>
           </Link>
           {person.isArchived ? (
             <button
@@ -125,6 +127,7 @@ export function PeopleInspector({
               type="button"
             >
               <RotateCcw size={15} />
+              <span className="truncate">Restore</span>
             </button>
           ) : (
             <button
@@ -135,6 +138,7 @@ export function PeopleInspector({
               type="button"
             >
               <Pencil size={15} />
+              <span className="truncate">Edit</span>
             </button>
           )}
           {!person.isArchived ? (
@@ -146,6 +150,7 @@ export function PeopleInspector({
               type="button"
             >
               <Archive size={15} />
+              <span className="truncate">Archive</span>
             </button>
           ) : (
             <span aria-hidden="true" />
@@ -192,14 +197,16 @@ function AttentionNote({
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? getRiskBadgeLabel(item.tone) : "Action"}
           </Badge>
-          <Link
-            aria-label="Open action"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
-            href={href}
-            title="Open action"
-          >
-            <ExternalLink size={13} />
-          </Link>
+          {item ? null : (
+            <Link
+              aria-label="Open action"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+              href={href}
+              title="Open action"
+            >
+              <ExternalLink size={13} />
+            </Link>
+          )}
         </div>
       </div>
     </div>

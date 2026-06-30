@@ -73,42 +73,46 @@ export function PropertyInspector({
         <div className="grid grid-cols-3 gap-2 text-sm">
           <Link
             aria-label={`Open ${property.name}`}
-            className="inline-flex h-8 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
             href={`/properties/${property.id}`}
             prefetch={false}
             title="Open property"
           >
             <ExternalLink size={15} />
+            <span className="truncate">Open</span>
           </Link>
           {property.isArchived ? (
             <Button
               aria-label={`Restore ${property.name}`}
-              className="px-0"
+              className="px-2"
               onClick={() => onRestoreProperty(property)}
               title="Restore property"
               variant="primary"
             >
               <RotateCcw size={15} />
+              Restore
             </Button>
           ) : (
             <Button
               aria-label={`Edit ${property.name}`}
-              className="px-0"
+              className="px-2"
               onClick={() => onEditProperty(property)}
               title="Edit property"
             >
               <Pencil size={15} />
+              Edit
             </Button>
           )}
           {!property.isArchived ? (
             <Button
               aria-label={`Archive ${property.name}`}
-              className="px-0 text-danger hover:text-danger"
+              className="px-2 text-danger hover:text-danger"
               onClick={() => onArchiveProperty(property)}
               title="Archive property"
               variant="ghost"
             >
               <Archive size={15} />
+              Archive
             </Button>
           ) : (
             <span aria-hidden="true" />
@@ -118,27 +122,30 @@ export function PropertyInspector({
         <div className="grid grid-cols-3 gap-2">
           <Link
             aria-label={`Open units for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/units?propertyId=${property.id}`}
             title="Open property units"
           >
             <Home size={15} />
+            <span className="truncate">Units</span>
           </Link>
           <Link
             aria-label={`Open ledger for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/ledger?propertyId=${property.id}`}
             title="Open property ledger"
           >
             <Landmark size={15} />
+            <span className="truncate">Ledger</span>
           </Link>
           <Link
             aria-label={`Open timeline for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/timeline?propertyId=${property.id}`}
             title="Open property timeline"
           >
             <ListTree size={15} />
+            <span className="truncate">Timeline</span>
           </Link>
         </div>
       </div>

@@ -54,11 +54,11 @@ export function PropertyForm({
   ];
 
   useEffect(() => {
-    if (state.status === "success") {
+    if (state.status === "success" && isEditMode) {
       onSuccess?.(state.message ?? "Property saved.");
       onClose();
     }
-  }, [onClose, onSuccess, state.message, state.status]);
+  }, [isEditMode, onClose, onSuccess, state.message, state.status]);
 
   return (
     <form action={action} className="flex h-full flex-col">
@@ -172,6 +172,11 @@ export function PropertyForm({
           />
         </Field>
 
+        <InlineDocumentField
+          defaultCategory="Property photo"
+          error={state.fieldErrors?.document?.[0]}
+        />
+
         <Field label="Notes" error={state.fieldErrors?.notes?.[0]}>
           <textarea
             className="min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft"
@@ -185,25 +190,53 @@ export function PropertyForm({
       <div className="border-t border-border px-4 py-4 sm:px-5">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button className="w-full sm:w-auto" onClick={onClose} type="button">
-            Cancel
+            {state.status === "success" && !isEditMode ? "Close" : "Cancel"}
           </Button>
-          <Button
-            className="w-full sm:w-auto"
-            disabled={pending}
-            type="submit"
-            variant="primary"
-          >
-            {isEditMode
-              ? pending
-                ? "Saving..."
-                : "Save changes"
-              : pending
-                ? "Adding..."
-                : "Add property"}
-          </Button>
+          {state.status === "success" && !isEditMode ? null : (
+            <Button
+              className="w-full sm:w-auto"
+              disabled={pending}
+              type="submit"
+              variant="primary"
+            >
+              {isEditMode
+                ? pending
+                  ? "Saving..."
+                  : "Save changes"
+                : pending
+                  ? "Adding..."
+                  : "Add property"}
+            </Button>
+          )}
         </div>
       </div>
     </form>
+  );
+}
+
+function InlineDocumentField({
+  defaultCategory,
+  error,
+}: {
+  defaultCategory: string;
+  error?: string;
+}) {
+  return (
+    <section className="rounded-md border border-border bg-surface-muted p-3">
+      <p className="text-sm font-semibold">Photos and files</p>
+      <p className="mt-1 text-xs leading-5 text-muted">
+        Optional. Upload a photo, PDF, PNG, JPG, or WebP and it will be linked to
+        this property.
+      </p>
+      <input name="documentCategory" type="hidden" value={defaultCategory} />
+      <input
+        accept="application/pdf,image/jpeg,image/png,image/webp"
+        className="mt-3 block w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
+        name="document"
+        type="file"
+      />
+      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
+    </section>
   );
 }
 

@@ -127,12 +127,14 @@ export function buildUnitSummary({
   latestTimelineEvent,
   ledgerEntries,
   property,
+  thumbnailUrl,
   unit,
 }: {
   activeLease?: UnitLeaseRecord;
   latestTimelineEvent?: UnitTimelineRecord;
   ledgerEntries: UnitLedgerRecord[];
   property?: UnitPropertyRecord;
+  thumbnailUrl?: string;
   unit: UnitRecord;
 }): UnitSummary {
   const statusValue = normalizeUnitStatus(unit.status);
@@ -169,6 +171,7 @@ export function buildUnitSummary({
     statusValue,
     statusLabel: formatUnitStatus(unit.status),
     statusTone: getUnitStatusTone(unit.status),
+    thumbnailUrl,
     unitNumber: unit.unit_number,
   };
 }
@@ -205,6 +208,7 @@ export function buildUnitDetail({
     latestTimelineEvent: recentTimelineEvents[0],
     ledgerEntries,
     property,
+    thumbnailUrl: documents.find(isImageDocument)?.url,
     unit,
   });
   const tenantLinks = people.map(toPersonLink);
@@ -391,6 +395,10 @@ function toDocumentContext(document: UnitDocumentRecord): UnitDocumentContext {
     uploadedAt: document.uploaded_at,
     url: document.url,
   };
+}
+
+function isImageDocument(document: UnitDocumentRecord) {
+  return document.mime_type.startsWith("image/");
 }
 
 function getDocumentLinkedRecordLabel(document: UnitDocumentRecord) {

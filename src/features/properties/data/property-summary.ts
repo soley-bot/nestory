@@ -43,6 +43,7 @@ export type PropertySummary = {
   owner: string;
   status: string;
   statusTone: PropertyBadgeTone;
+  thumbnailUrl?: string;
   type: string;
   unitSummary: string;
   units: number;
@@ -59,11 +60,13 @@ export function buildPropertySummary({
   property,
   units,
   hasActiveOwnerLink = false,
+  thumbnailUrl,
 }: {
   activeOwner?: ActivePropertyOwnerLink | null;
   hasActiveOwnerLink?: boolean;
   ledgerEntries: PropertyLedgerRecord[];
   property: PropertyRecord;
+  thumbnailUrl?: string;
   units: PropertyUnitRecord[];
 }): PropertySummary {
   const status = normalizePropertyStatus(property.status);
@@ -94,6 +97,7 @@ export function buildPropertySummary({
     owner: activeOwner?.label ?? property.owner ?? "Unassigned",
     status: formatPropertyStatus(property.status),
     statusTone: getPropertyStatusTone(status),
+    thumbnailUrl,
     type: property.property_type,
     unitSummary:
       units.length === 0 ? "Property-only" : `${occupiedUnits}/${units.length} occupied`,

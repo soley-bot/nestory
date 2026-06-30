@@ -2,11 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { createDocumentAction } from "@/features/documents/actions";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type UnitFieldErrors = {
   currentRentAmount?: string[];
+  document?: string[];
   floor?: string[];
   propertyId?: string[];
   sizeSqm?: string[];
@@ -18,7 +20,9 @@ type UnitFieldErrors = {
 export type UnitActionState = {
   fieldErrors?: UnitFieldErrors;
   message?: string;
+  propertyId?: string;
   status?: "error" | "success";
+  unitId?: string;
 };
 
 const unitStatusSchema = z.enum([
@@ -95,6 +99,28 @@ function nullableNumber(value: string) {
   return value.length > 0 ? Number(value) : null;
 }
 
+function validateInlineDocumentFile(formData: FormData) {
+  const file = formData.get("document");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return "";
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    return "Files must be 10 MB or smaller.";
+  }
+
+  if (
+    !["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(
+      file.type,
+    )
+  ) {
+    return "Upload a PDF, JPG, PNG, or WebP file.";
+  }
+
+  return "";
+}
+
 export async function createUnitAction(
   _state: UnitActionState,
   formData: FormData,
@@ -104,6 +130,15 @@ export async function createUnitAction(
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
+  }
+
+  const documentError = validateInlineDocumentFile(formData);
+
+  if (documentError) {
+    return {
+      fieldErrors: { document: [documentError] },
+      status: "error",
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -126,11 +161,28 @@ export async function createUnitAction(
     };
   }
 
+  const documentState = await uploadInlineUnitDocument({
+    formData,
+    propertyId: parsed.data.propertyId,
+    unitId,
+  });
+
+  if (documentState?.status === "error") {
+    return {
+      message: "Unit added, but the file was not uploaded.",
+      propertyId: parsed.data.propertyId,
+      status: "success",
+      unitId,
+    };
+  }
+
   revalidateUnitPaths([parsed.data.propertyId], unitId);
 
   return {
-    message: "Unit added.",
+    message: documentState ? "Unit added and file uploaded." : "Unit added.",
+    propertyId: parsed.data.propertyId,
     status: "success",
+    unitId,
   };
 }
 
@@ -151,6 +203,15 @@ export async function updateUnitAction(
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
+  }
+
+  const documentError = validateInlineDocumentFile(formData);
+
+  if (documentError) {
+    return {
+      fieldErrors: { document: [documentError] },
+      status: "error",
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -189,14 +250,26 @@ export async function updateUnitAction(
     };
   }
 
+  const documentState = await uploadInlineUnitDocument({
+    formData,
+    propertyId: parsed.data.propertyId,
+    unitId: parsedUnitId.data,
+  });
+
+  if (documentState?.status === "error") {
+    return documentState;
+  }
+
   revalidateUnitPaths(
     [pathContext?.property_id, parsed.data.propertyId],
     parsedUnitId.data,
   );
 
   return {
-    message: "Unit updated.",
+    message: documentState ? "Unit updated and file uploaded." : "Unit updated.",
+    propertyId: parsed.data.propertyId,
     status: "success",
+    unitId: parsedUnitId.data,
   };
 }
 
@@ -288,6 +361,50 @@ function readUnitMutationInput(formData: FormData) {
     sizeSqm: readString(formData, "sizeSqm"),
     status: readString(formData, "status"),
     unitNumber: readString(formData, "unitNumber"),
+  };
+}
+
+async function uploadInlineUnitDocument({
+  formData,
+  propertyId,
+  unitId,
+}: {
+  formData: FormData;
+  propertyId: string;
+  unitId: string;
+}): Promise<UnitActionState | null> {
+  const file = formData.get("document");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return null;
+  }
+
+  const documentFormData = new FormData();
+  documentFormData.set("category", readString(formData, "documentCategory"));
+  documentFormData.set("document", file);
+  documentFormData.set("leaseId", "");
+  documentFormData.set("propertyId", propertyId);
+  documentFormData.set("taskId", "");
+  documentFormData.set("unitId", unitId);
+
+  const state = await createDocumentAction({}, documentFormData);
+
+  if (state.status === "error") {
+    return {
+      fieldErrors: {
+        document: state.fieldErrors?.document,
+      },
+      message: state.message ?? "Unit saved, but the file was not uploaded.",
+      propertyId,
+      status: "error",
+      unitId,
+    };
+  }
+
+  return {
+    propertyId,
+    status: "success",
+    unitId,
   };
 }
 

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { createDocumentAction } from "@/features/documents/actions";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -9,6 +10,7 @@ type PropertyFieldErrors = {
   acquisitionDate?: string[];
   address?: string[];
   code?: string[];
+  document?: string[];
   name?: string[];
   notes?: string[];
   owner?: string[];
@@ -21,6 +23,7 @@ type PropertyFieldErrors = {
 export type PropertyActionState = {
   fieldErrors?: PropertyFieldErrors;
   message?: string;
+  propertyId?: string;
   status?: "error" | "success";
 };
 
@@ -97,6 +100,28 @@ function nullableString(value: string) {
   return value.length > 0 ? value : null;
 }
 
+function validateInlineDocumentFile(formData: FormData) {
+  const file = formData.get("document");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return "";
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    return "Files must be 10 MB or smaller.";
+  }
+
+  if (
+    !["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(
+      file.type,
+    )
+  ) {
+    return "Upload a PDF, JPG, PNG, or WebP file.";
+  }
+
+  return "";
+}
+
 export async function createPropertyAction(
   _state: PropertyActionState,
   formData: FormData,
@@ -108,6 +133,15 @@ export async function createPropertyAction(
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
+  }
+
+  const documentError = validateInlineDocumentFile(formData);
+
+  if (documentError) {
+    return {
+      fieldErrors: { document: [documentError] },
+      status: "error",
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -142,10 +176,24 @@ export async function createPropertyAction(
     return ownerSyncResult;
   }
 
+  const documentState = await uploadInlinePropertyDocument({
+    formData,
+    propertyId,
+  });
+
+  if (documentState?.status === "error") {
+    return {
+      message: "Property added, but the file was not uploaded.",
+      propertyId,
+      status: "success",
+    };
+  }
+
   revalidatePropertyPaths(propertyId);
 
   return {
-    message: "Property added.",
+    message: documentState ? "Property added and file uploaded." : "Property added.",
+    propertyId,
     status: "success",
   };
 }
@@ -171,6 +219,15 @@ export async function updatePropertyAction(
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
+  }
+
+  const documentError = validateInlineDocumentFile(formData);
+
+  if (documentError) {
+    return {
+      fieldErrors: { document: [documentError] },
+      status: "error",
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -206,10 +263,22 @@ export async function updatePropertyAction(
     return ownerSyncResult;
   }
 
+  const documentState = await uploadInlinePropertyDocument({
+    formData,
+    propertyId: parsedPropertyId.data,
+  });
+
+  if (documentState?.status === "error") {
+    return documentState;
+  }
+
   revalidatePropertyPaths(parsedPropertyId.data);
 
   return {
-    message: "Property updated.",
+    message: documentState
+      ? "Property updated and file uploaded."
+      : "Property updated.",
+    propertyId: parsedPropertyId.data,
     status: "success",
   };
 }
@@ -302,6 +371,46 @@ function revalidatePropertyPaths(propertyId?: string | null) {
   if (propertyId) {
     revalidatePath(`/properties/${propertyId}`);
   }
+}
+
+async function uploadInlinePropertyDocument({
+  formData,
+  propertyId,
+}: {
+  formData: FormData;
+  propertyId: string;
+}): Promise<PropertyActionState | null> {
+  const file = formData.get("document");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return null;
+  }
+
+  const documentFormData = new FormData();
+  documentFormData.set("category", readString(formData, "documentCategory"));
+  documentFormData.set("document", file);
+  documentFormData.set("leaseId", "");
+  documentFormData.set("propertyId", propertyId);
+  documentFormData.set("taskId", "");
+  documentFormData.set("unitId", "");
+
+  const state = await createDocumentAction({}, documentFormData);
+
+  if (state.status === "error") {
+    return {
+      fieldErrors: {
+        document: state.fieldErrors?.document,
+      },
+      message: state.message ?? "Property saved, but the file was not uploaded.",
+      propertyId,
+      status: "error",
+    };
+  }
+
+  return {
+    propertyId,
+    status: "success",
+  };
 }
 
 async function syncPrimaryOwnerLink({

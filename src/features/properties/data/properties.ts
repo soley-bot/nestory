@@ -38,6 +38,12 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient
 
 const propertySelect =
   "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at";
+const propertyImageMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
+
+type PropertyImageRow = {
+  property_id: string;
+  storage_path: string;
+};
 
 type PropertySummaryOptions = {
   archiveState?: PropertyArchiveState;
@@ -126,7 +132,7 @@ async function loadPropertySummariesForRows({
   const ownerLinks =
     activeOwnerLinks ?? (await getActiveOwnerLinks(organizationId, propertyIds));
 
-  const [unitsResult, ledgerResult] = await Promise.all([
+  const [unitsResult, ledgerResult, imagesResult] = await Promise.all([
     supabase
       .from("units")
       .select("property_id, status")
@@ -139,6 +145,14 @@ async function loadPropertySummariesForRows({
       .eq("organization_id", organizationId)
       .in("property_id", [...propertyIds])
       .is("archived_at", null),
+    supabase
+      .from("documents")
+      .select("property_id, storage_path")
+      .eq("organization_id", organizationId)
+      .in("property_id", [...propertyIds])
+      .is("archived_at", null)
+      .in("mime_type", [...propertyImageMimeTypes])
+      .order("uploaded_at", { ascending: false }),
   ]);
 
   if (unitsResult.error) {
@@ -149,8 +163,16 @@ async function loadPropertySummariesForRows({
     throw new Error(`Could not load ledger totals: ${ledgerResult.error.message}`);
   }
 
+  if (imagesResult.error) {
+    throw new Error(`Could not load property images: ${imagesResult.error.message}`);
+  }
+
   const unitsByProperty = groupByProperty(unitsResult.data ?? []);
   const ledgerByProperty = groupByProperty(ledgerResult.data ?? []);
+  const thumbnailUrls = await getPropertyThumbnailUrls({
+    imageRows: (imagesResult.data ?? []) as PropertyImageRow[],
+    supabase,
+  });
 
   return properties.map((property): PropertySummary => {
     const units = unitsByProperty.get(property.id) ?? [];
@@ -161,9 +183,51 @@ async function loadPropertySummariesForRows({
       hasActiveOwnerLink: ownerLinks.has(property.id),
       ledgerEntries,
       property,
+      thumbnailUrl: thumbnailUrls.get(property.id),
       units,
     });
   });
+}
+
+async function getPropertyThumbnailUrls({
+  imageRows,
+  supabase,
+}: {
+  imageRows: PropertyImageRow[];
+  supabase: SupabaseServerClient;
+}) {
+  const firstImageByProperty = new Map<string, string>();
+
+  for (const row of imageRows) {
+    if (!firstImageByProperty.has(row.property_id)) {
+      firstImageByProperty.set(row.property_id, row.storage_path);
+    }
+  }
+
+  if (firstImageByProperty.size === 0) {
+    return new Map<string, string>();
+  }
+
+  const paths = [...firstImageByProperty.values()];
+  const { data } = await supabase.storage
+    .from("nestory-documents")
+    .createSignedUrls(paths, 60 * 60);
+  const urlByPath = new Map<string, string>();
+
+  paths.forEach((path, index) => {
+    const signedUrl = data?.[index]?.signedUrl;
+
+    if (signedUrl) {
+      urlByPath.set(path, signedUrl);
+    }
+  });
+
+  return new Map(
+    [...firstImageByProperty].flatMap(([propertyId, path]) => {
+      const signedUrl = urlByPath.get(path);
+      return signedUrl ? [[propertyId, signedUrl] as const] : [];
+    }),
+  );
 }
 
 export async function getPropertyOwnerOptions(

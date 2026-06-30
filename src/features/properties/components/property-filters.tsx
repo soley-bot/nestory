@@ -1,5 +1,6 @@
 "use client";
 
+import * as Popover from "@radix-ui/react-popover";
 import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import Link from "next/link";
@@ -55,10 +56,9 @@ export function PropertyFilters({
   const hasSearchQuery = viewQuery.query.trim().length > 0;
   const hasAdvancedFilters = activeFilters > 0;
   const hasAnyFilters = hasSearchQuery || hasAdvancedFilters;
-  const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
-  const compactSelectClassName = "h-8 px-2 text-[13px]";
+  const compactSelectClassName = "h-8 w-full px-2 text-[13px]";
 
   function replaceParam(name: string, value: string, defaultValue: string) {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -85,11 +85,11 @@ export function PropertyFilters({
   }
 
   return (
-    <div className="border-b border-border bg-surface px-4 py-2.5 sm:px-6 lg:px-6">
-      <div className="space-y-2">
-        <div className="flex flex-col gap-2 text-[13px] xl:flex-row xl:items-center">
+    <div className="border-b border-border bg-background px-4 py-2 sm:px-6 lg:px-6">
+      <div className="space-y-1.5">
+        <div className="flex flex-col gap-2 text-[13px] lg:flex-row lg:items-center lg:justify-between">
           <form
-            className="flex min-w-0 flex-1 gap-2"
+            className="flex min-w-0 flex-1 gap-1.5 lg:max-w-[460px]"
             onSubmit={handleSearchSubmit}
           >
             <label className="relative min-w-0 flex-1">
@@ -99,14 +99,14 @@ export function PropertyFilters({
                 size={16}
               />
               <Input
-                className="h-8 pl-9"
+                className="h-8 border-border bg-surface pl-9 text-[13px]"
                 onChange={(event) =>
                   setQueryState({
                     source: viewQuery.query,
                     value: event.target.value,
                   })
                 }
-                placeholder="Search property, code, owner, or address"
+                placeholder="Search properties..."
                 type="search"
                 value={query}
               />
@@ -122,187 +122,145 @@ export function PropertyFilters({
             </Button>
           </form>
 
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
             <ViewModeToggle
               displayMode={displayMode}
               onDisplayModeChange={onDisplayModeChange}
             />
-            <Button
-              aria-controls="property-advanced-search"
-              aria-expanded={advancedOpen}
-              className={cn(
-                "h-8 flex-1 gap-1.5 px-2.5 sm:flex-none",
-                hasAdvancedFilters &&
-                  "border-accent bg-accent-soft text-accent hover:bg-accent-soft",
-              )}
-              onClick={() => setAdvancedOpen((open) => !open)}
-              type="button"
-            >
-              <SlidersHorizontal size={14} />
-              <span>Filters</span>
-              {activeFilters > 0 ? (
-                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
-                  {activeFilters}
-                </span>
-              ) : null}
-            </Button>
-            <Link
-              aria-label="Reset property filters"
-              className={cn(
-                "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-                hasAnyFilters && "border-accent/40 text-accent",
-              )}
-              href={pathname}
-              scroll={false}
-              title="Reset filters"
-            >
-              <RotateCcw size={14} />
-              <span className="hidden sm:inline">Reset</span>
-            </Link>
+            <Popover.Root>
+              <Popover.Trigger asChild>
+                <button
+                  className={cn(
+                    "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted data-[state=open]:border-foreground sm:flex-none",
+                    hasAdvancedFilters &&
+                      "border-accent bg-accent-soft text-accent hover:bg-accent-soft",
+                  )}
+                  type="button"
+                >
+                  <SlidersHorizontal size={14} />
+                  <span>Filters</span>
+                  {activeFilters > 0 ? (
+                    <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                      {activeFilters}
+                    </span>
+                  ) : null}
+                </button>
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Content
+                  align="end"
+                  className="z-50 w-[min(calc(100vw-2rem),420px)] rounded-md border border-border bg-surface p-2 text-[13px] shadow-lg"
+                  id="property-advanced-search"
+                  side="bottom"
+                  sideOffset={6}
+                >
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    <SelectControl
+                      ariaLabel="Filter by status"
+                      className={compactSelectClassName}
+                      onValueChange={(value) => replaceParam("status", value, "all")}
+                      options={[
+                        { label: "All statuses", value: "all" },
+                        { label: "Active", value: "active" },
+                        { label: "Under renovation", value: "under_renovation" },
+                        { label: "Inactive", value: "inactive" },
+                      ]}
+                      value={viewQuery.status}
+                    />
+
+                    <SelectControl
+                      ariaLabel="Filter by owner link"
+                      className={compactSelectClassName}
+                      onValueChange={(value) =>
+                        replaceParam("ownerStatus", value, "all")
+                      }
+                      options={[
+                        { label: "All owner links", value: "all" },
+                        { label: "Missing owner link", value: "missing" },
+                      ]}
+                      value={viewQuery.ownerStatus}
+                    />
+
+                    <SelectControl
+                      ariaLabel="Filter by net income"
+                      className={compactSelectClassName}
+                      onValueChange={(value) =>
+                        replaceParam("netStatus", value, "all")
+                      }
+                      options={[
+                        { label: "All net results", value: "all" },
+                        { label: "Negative net income", value: "negative" },
+                      ]}
+                      value={viewQuery.netStatus}
+                    />
+
+                    <SelectControl
+                      ariaLabel="Filter by archive state"
+                      className={compactSelectClassName}
+                      onValueChange={(value) =>
+                        replaceParam("archiveState", value, "active")
+                      }
+                      options={[
+                        { label: "Active records", value: "active" },
+                        { label: "Archived", value: "archived" },
+                        { label: "All records", value: "all" },
+                      ]}
+                      value={viewQuery.archiveState}
+                    />
+
+                    <SelectControl
+                      ariaLabel="Sort properties"
+                      className={compactSelectClassName}
+                      onValueChange={(value) =>
+                        replaceParam("sort", value, DEFAULT_PROPERTY_SORT)
+                      }
+                      options={[
+                        { label: "Code", value: "code_asc" },
+                        { label: "Name", value: "name_asc" },
+                        { label: "Status", value: "status_asc" },
+                        { label: "Lowest net income", value: "net_asc" },
+                        { label: "Net income", value: "net_desc" },
+                      ]}
+                      value={viewQuery.sort}
+                    />
+
+                    <SelectControl
+                      ariaLabel="Rows per page"
+                      className={compactSelectClassName}
+                      onValueChange={(value) =>
+                        replaceParam(
+                          "pageSize",
+                          value,
+                          String(DEFAULT_PROPERTY_PAGE_SIZE),
+                        )
+                      }
+                      options={PROPERTY_PAGE_SIZE_OPTIONS.map((pageSize) => ({
+                        label: String(pageSize),
+                        value: String(pageSize),
+                      }))}
+                      value={String(viewQuery.pageSize)}
+                    />
+                  </div>
+                </Popover.Content>
+              </Popover.Portal>
+            </Popover.Root>
+            {hasAnyFilters ? (
+              <Link
+                aria-label="Reset property filters"
+                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-accent/40 bg-surface px-2 text-accent transition-colors hover:bg-surface-muted hover:text-accent"
+                href={pathname}
+                scroll={false}
+                title="Reset filters"
+              >
+                <RotateCcw size={14} />
+                <span className="hidden sm:inline">Reset</span>
+              </Link>
+            ) : null}
           </div>
         </div>
-
-        {hasAnyFilters ? (
-          <div
-            aria-label="Active property filters"
-            className="flex flex-wrap items-center gap-1.5 text-xs"
-          >
-            {hasSearchQuery ? (
-              <FilterChip label="Search" value={viewQuery.query} />
-            ) : null}
-            {viewQuery.status !== "all" ? (
-              <FilterChip
-                label="Status"
-                value={formatFilterValue(viewQuery.status)}
-              />
-            ) : null}
-            {viewQuery.archiveState !== "active" ? (
-              <FilterChip
-                label="Archive"
-                value={formatFilterValue(viewQuery.archiveState)}
-              />
-            ) : null}
-            {viewQuery.ownerStatus !== "all" ? (
-              <FilterChip label="Owner" value="Missing owner link" />
-            ) : null}
-            {viewQuery.netStatus !== "all" ? (
-              <FilterChip label="Net" value="Negative net income" />
-            ) : null}
-            {viewQuery.sort !== DEFAULT_PROPERTY_SORT ? (
-              <FilterChip
-                label="Sort"
-                value={formatFilterValue(viewQuery.sort)}
-              />
-            ) : null}
-            {viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE ? (
-              <FilterChip label="Rows" value={String(viewQuery.pageSize)} />
-            ) : null}
-          </div>
-        ) : null}
-
-        {advancedOpen ? (
-          <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(132px,160px)_minmax(132px,170px)_minmax(132px,170px)_minmax(132px,160px)_minmax(132px,170px)_minmax(84px,104px)]"
-            id="property-advanced-search"
-          >
-            <SelectControl
-              ariaLabel="Filter by status"
-              className={compactSelectClassName}
-              onValueChange={(value) => replaceParam("status", value, "all")}
-              options={[
-                { label: "All statuses", value: "all" },
-                { label: "Active", value: "active" },
-                { label: "Under renovation", value: "under_renovation" },
-                { label: "Inactive", value: "inactive" },
-              ]}
-              value={viewQuery.status}
-            />
-
-            <SelectControl
-              ariaLabel="Filter by owner link"
-              className={compactSelectClassName}
-              onValueChange={(value) => replaceParam("ownerStatus", value, "all")}
-              options={[
-                { label: "All owner links", value: "all" },
-                { label: "Missing owner link", value: "missing" },
-              ]}
-              value={viewQuery.ownerStatus}
-            />
-
-            <SelectControl
-              ariaLabel="Filter by net income"
-              className={compactSelectClassName}
-              onValueChange={(value) => replaceParam("netStatus", value, "all")}
-              options={[
-                { label: "All net results", value: "all" },
-                { label: "Negative net income", value: "negative" },
-              ]}
-              value={viewQuery.netStatus}
-            />
-
-            <SelectControl
-              ariaLabel="Filter by archive state"
-              className={compactSelectClassName}
-              onValueChange={(value) =>
-                replaceParam("archiveState", value, "active")
-              }
-              options={[
-                { label: "Active records", value: "active" },
-                { label: "Archived", value: "archived" },
-                { label: "All records", value: "all" },
-              ]}
-              value={viewQuery.archiveState}
-            />
-
-            <SelectControl
-              ariaLabel="Sort properties"
-              className={compactSelectClassName}
-              onValueChange={(value) =>
-                replaceParam("sort", value, DEFAULT_PROPERTY_SORT)
-              }
-              options={[
-                { label: "Code", value: "code_asc" },
-                { label: "Name", value: "name_asc" },
-                { label: "Status", value: "status_asc" },
-                { label: "Lowest net income", value: "net_asc" },
-                { label: "Net income", value: "net_desc" },
-              ]}
-              value={viewQuery.sort}
-            />
-
-            <SelectControl
-              ariaLabel="Rows per page"
-              className={compactSelectClassName}
-              onValueChange={(value) =>
-                replaceParam("pageSize", value, String(DEFAULT_PROPERTY_PAGE_SIZE))
-              }
-              options={PROPERTY_PAGE_SIZE_OPTIONS.map((pageSize) => ({
-                label: String(pageSize),
-                value: String(pageSize),
-              }))}
-              value={String(viewQuery.pageSize)}
-            />
-          </div>
-        ) : null}
       </div>
     </div>
   );
-}
-
-function FilterChip({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-accent/20 bg-accent-soft px-2 py-1 text-accent">
-      <span className="font-semibold">{label}</span>
-      <span className="min-w-0 truncate text-foreground">{value}</span>
-    </span>
-  );
-}
-
-function formatFilterValue(value: string) {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function ViewModeToggle({

@@ -42,9 +42,9 @@ export function UnitInspector({
   }
 
   const iconButtonClassName =
-    "inline-flex h-8 items-center justify-center rounded-md border border-border font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted";
   const primaryIconButtonClassName =
-    "inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-[13px] text-foreground transition-colors hover:bg-surface-muted";
 
   return (
     <aside className="bg-surface">
@@ -120,6 +120,7 @@ export function UnitInspector({
             title="Open unit"
           >
             <ExternalLink size={15} />
+            <span className="truncate">Open</span>
           </Link>
           {unit.isArchived ? (
             <button
@@ -130,6 +131,7 @@ export function UnitInspector({
               type="button"
             >
               <RotateCcw size={15} />
+              <span className="truncate">Restore</span>
             </button>
           ) : (
             <button
@@ -140,6 +142,7 @@ export function UnitInspector({
               type="button"
             >
               <Pencil size={15} />
+              <span className="truncate">Edit</span>
             </button>
           )}
           {!unit.isArchived ? (
@@ -151,6 +154,7 @@ export function UnitInspector({
               type="button"
             >
               <Archive size={15} />
+              <span className="truncate">Archive</span>
             </button>
           ) : (
             <span aria-hidden="true" />
@@ -160,21 +164,23 @@ export function UnitInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open timeline filtered to unit ${unit.unitNumber}`}
-            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/timeline?unitId=${unit.id}`}
             title="Open unit timeline"
           >
             <ListTree size={15} />
+            <span className="truncate">Timeline</span>
           </Link>
           <Link
             aria-label={`Open ledger filtered to unit ${unit.unitNumber}`}
-            className="inline-flex h-8 items-center justify-center rounded-md border border-border text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/ledger?propertyId=${unit.propertyId}&query=${encodeURIComponent(
               unit.unitNumber,
             )}`}
             title="Open unit ledger"
           >
             <Landmark size={15} />
+            <span className="truncate">Ledger</span>
           </Link>
         </div>
       </div>

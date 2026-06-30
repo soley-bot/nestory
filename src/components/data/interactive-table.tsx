@@ -4,7 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const previewRowClassName =
-  "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 hover:shadow-[inset_3px_0_0_var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
+  "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
 
 export const selectedPreviewRowClassName =
   "bg-surface-muted shadow-[inset_3px_0_0_var(--accent)]";

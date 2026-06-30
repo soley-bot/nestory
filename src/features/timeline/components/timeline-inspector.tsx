@@ -99,6 +99,7 @@ export function TimelineInspector({
               title="Open linked ledger entry"
             >
               <Landmark size={15} />
+              Ledger
             </Link>
           ) : null}
           {isArchived ? (
@@ -122,19 +123,20 @@ export function TimelineInspector({
             <>
               <Button
                 aria-label="Attach document"
-                className="px-0"
+                className="px-2"
                 onClick={() => onAttachDocument?.(event)}
                 title="Attach document"
                 type="button"
                 variant="secondary"
               >
                 <Upload size={15} />
+                Attach
               </Button>
               {!isLedgerLinked ? (
                 <>
                   <Button
                     aria-label="Edit timeline record"
-                    className="px-0"
+                    className="px-2"
                     disabled={isDisabled}
                     onClick={() => onEdit?.(event)}
                     title={
@@ -146,10 +148,11 @@ export function TimelineInspector({
                     variant="secondary"
                   >
                     <Pencil size={15} />
+                    Edit
                   </Button>
                   <Button
                     aria-label="Archive timeline record"
-                    className="border-danger/40 px-0 text-danger hover:bg-surface-muted"
+                    className="border-danger/40 px-2 text-danger hover:bg-surface-muted"
                     disabled={isDisabled}
                     onClick={() => onArchive?.(event)}
                     title={
@@ -161,6 +164,7 @@ export function TimelineInspector({
                     variant="secondary"
                   >
                     <Archive size={15} />
+                    Archive
                   </Button>
                 </>
               ) : null}
@@ -206,14 +210,16 @@ function AttentionNote({
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? "Review" : "Action"}
           </Badge>
-          <Link
-            aria-label="Open action"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
-            href={href}
-            title="Open action"
-          >
-            <ExternalLink size={13} />
-          </Link>
+          {item ? null : (
+            <Link
+              aria-label="Open action"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+              href={href}
+              title="Open action"
+            >
+              <ExternalLink size={13} />
+            </Link>
+          )}
         </div>
       </div>
     </div>

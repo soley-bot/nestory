@@ -599,7 +599,6 @@ function DocumentForm({
     <form
       action={action}
       className="flex h-full flex-col"
-      encType="multipart/form-data"
     >
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {document ? (
@@ -798,15 +797,17 @@ function DocumentAttentionNote({
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? "Review" : "Action"}
           </Badge>
-          <Link
-            aria-label="Open action"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
-            href={href}
-            target={href.startsWith("http") ? "_blank" : undefined}
-            title="Open action"
-          >
-            <ExternalLink size={13} />
-          </Link>
+          {item ? null : (
+            <Link
+              aria-label="Open action"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+              href={href}
+              target={href.startsWith("http") ? "_blank" : undefined}
+              title="Open action"
+            >
+              <ExternalLink size={13} />
+            </Link>
+          )}
         </div>
       </div>
     </div>

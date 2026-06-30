@@ -43,6 +43,7 @@ const documentSelect =
   "id, lease_id, ledger_entry_id, task_id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
 const maintenanceSelect =
   "id, title, category, priority, status, due_date, due_time, actual_cost_amount, actual_cost_currency";
+const unitImageMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 const listTimelineContextLimit = 1000;
 const detailRecordLimit = 12;
 const unitRelationshipBatchSize = 75;
@@ -55,6 +56,10 @@ type PagedUnitRowsResult = {
   propertiesById: Map<string, UnitPropertyRecord>;
   totalCount: number;
   units: UnitRecord[];
+};
+type UnitImageRow = {
+  storage_path: string;
+  unit_id: string | null;
 };
 
 export async function getUnitsScreenData(
@@ -419,15 +424,20 @@ async function loadUnitSummariesForRows({
     unitPropertiesById = indexById(propertiesResult.data ?? []);
   }
 
-  const [leaseRows, timelineContextRows, ledgerTotalRows] =
+  const [leaseRows, timelineContextRows, ledgerTotalRows, imageRows] =
     await Promise.all([
       getLeaseRowsForUnits(supabase, organizationId, [...unitIds]),
       getTimelineContextRowsForUnits(supabase, organizationId, [...unitIds]),
       getLedgerTotalRowsForUnits(supabase, organizationId, [...unitIds]),
+      getImageRowsForUnits(supabase, organizationId, [...unitIds]),
     ]);
   const leasesByUnitId = groupByUnitId(leaseRows);
   const ledgerByUnitId = groupByUnitId(ledgerTotalRows);
   const latestTimelineByUnitId = indexLatestTimelineByUnitId(timelineContextRows);
+  const thumbnailUrls = await getUnitThumbnailUrls({
+    imageRows,
+    supabase,
+  });
 
   return unitRows.map((unit) =>
     buildUnitSummary({
@@ -435,6 +445,7 @@ async function loadUnitSummariesForRows({
       latestTimelineEvent: latestTimelineByUnitId.get(unit.id),
       ledgerEntries: ledgerByUnitId.get(unit.id) ?? [],
       property: unitPropertiesById.get(unit.property_id),
+      thumbnailUrl: thumbnailUrls.get(unit.id),
       unit,
     }),
   );
@@ -944,6 +955,70 @@ async function getLedgerTotalRowsForUnits(
   });
 
   return rows;
+}
+
+async function getImageRowsForUnits(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  unitIds: string[],
+) {
+  return queryUnitIdBatches(unitIds, async (batch) => {
+    const result = await supabase
+      .from("documents")
+      .select("unit_id, storage_path")
+      .eq("organization_id", organizationId)
+      .in("unit_id", batch)
+      .is("archived_at", null)
+      .in("mime_type", [...unitImageMimeTypes])
+      .order("uploaded_at", { ascending: false });
+
+    if (result.error) {
+      throw new Error(`Could not load unit images: ${result.error.message}`);
+    }
+
+    return (result.data ?? []) as UnitImageRow[];
+  });
+}
+
+async function getUnitThumbnailUrls({
+  imageRows,
+  supabase,
+}: {
+  imageRows: UnitImageRow[];
+  supabase: SupabaseServerClient;
+}) {
+  const firstImageByUnit = new Map<string, string>();
+
+  for (const row of imageRows) {
+    if (row.unit_id && !firstImageByUnit.has(row.unit_id)) {
+      firstImageByUnit.set(row.unit_id, row.storage_path);
+    }
+  }
+
+  if (firstImageByUnit.size === 0) {
+    return new Map<string, string>();
+  }
+
+  const paths = [...firstImageByUnit.values()];
+  const { data } = await supabase.storage
+    .from("nestory-documents")
+    .createSignedUrls(paths, 60 * 60);
+  const urlByPath = new Map<string, string>();
+
+  paths.forEach((path, index) => {
+    const signedUrl = data?.[index]?.signedUrl;
+
+    if (signedUrl) {
+      urlByPath.set(path, signedUrl);
+    }
+  });
+
+  return new Map(
+    [...firstImageByUnit].flatMap(([unitId, path]) => {
+      const signedUrl = urlByPath.get(path);
+      return signedUrl ? [[unitId, signedUrl] as const] : [];
+    }),
+  );
 }
 
 async function queryUnitIdBatches<T>(

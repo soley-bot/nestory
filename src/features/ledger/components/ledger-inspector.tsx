@@ -117,7 +117,7 @@ export function LedgerInspector({
             <>
               <Button
                 aria-label="Attach receipt"
-                className="px-0"
+                className="px-2"
                 disabled={entry.isLocked}
                 onClick={() => onAttachReceipt(entry)}
                 title={
@@ -127,10 +127,11 @@ export function LedgerInspector({
                 }
               >
                 <Upload size={15} />
+                Attach
               </Button>
               <Button
                 aria-label="Edit ledger entry"
-                className="px-0"
+                className="px-2"
                 disabled={entry.isLocked}
                 onClick={() => onEditEntry(entry)}
                 title={
@@ -138,10 +139,11 @@ export function LedgerInspector({
                 }
               >
                 <Pencil size={15} />
+                Edit
               </Button>
               <Button
                 aria-label="Archive ledger entry"
-                className="px-0"
+                className="px-2"
                 disabled={entry.isLocked}
                 onClick={() => onArchiveEntry(entry)}
                 title={
@@ -149,6 +151,7 @@ export function LedgerInspector({
                 }
               >
                 <Archive size={15} />
+                Archive
               </Button>
             </>
           )}
@@ -200,14 +203,16 @@ function AttentionNote({
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? "Review" : "Action"}
           </Badge>
-          <Link
-            aria-label="Open action"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
-            href={href}
-            title="Open action"
-          >
-            <ExternalLink size={13} />
-          </Link>
+          {item ? null : (
+            <Link
+              aria-label="Open action"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+              href={href}
+              title="Open action"
+            >
+              <ExternalLink size={13} />
+            </Link>
+          )}
         </div>
       </div>
     </div>

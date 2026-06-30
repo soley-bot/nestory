@@ -43,17 +43,20 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
         <div className="space-y-3 xl:overflow-auto xl:pr-1">
           <section className="rounded-md border border-border bg-surface p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="break-words text-base font-semibold">
-                    {unit.propertyCode} / Unit {unit.unitNumber}
-                  </h2>
-                  <Badge tone={unit.statusTone}>{unit.statusLabel}</Badge>
-                  {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
+              <div className="grid min-w-0 gap-3 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-start">
+                <UnitHeroPhoto unit={unit} />
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="break-words text-base font-semibold">
+                      {unit.propertyCode} / Unit {unit.unitNumber}
+                    </h2>
+                    <Badge tone={unit.statusTone}>{unit.statusLabel}</Badge>
+                    {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
+                  </div>
+                  <p className="mt-1 break-words text-sm text-muted">
+                    {unit.propertyName} / Floor {unit.floorLabel} / {unit.sizeLabel}
+                  </p>
                 </div>
-                <p className="mt-1 break-words text-sm text-muted">
-                  {unit.propertyName} / Floor {unit.floorLabel} / {unit.sizeLabel}
-                </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <ActionLink href={unit.hrefs.property} icon={<Building2 size={14} />}>
@@ -392,6 +395,27 @@ function ActionLink({
       {icon}
       <span className="truncate">{children}</span>
     </Link>
+  );
+}
+
+function UnitHeroPhoto({ unit }: { unit: UnitDetail }) {
+  const className =
+    "flex aspect-[4/3] w-full max-w-[160px] items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-muted sm:max-w-none";
+
+  if (unit.thumbnailUrl) {
+    return (
+      <div
+        aria-hidden="true"
+        className={`${className} bg-cover bg-center`}
+        style={{ backgroundImage: `url(${unit.thumbnailUrl})` }}
+      />
+    );
+  }
+
+  return (
+    <div className={className} aria-hidden="true">
+      <Building2 size={22} />
+    </div>
   );
 }
 
