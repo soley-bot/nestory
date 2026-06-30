@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const navItems = [
-  { href: "#platform", label: "Platform" },
+  { href: "#workspace", label: "Workspace" },
+  { href: "#control", label: "Control" },
   { href: "#operations", label: "Operations" },
-  { href: "#method", label: "Method" },
   { href: "#start", label: "Start" },
 ];
 
@@ -26,7 +26,7 @@ export function LandingHeader() {
     <>
       {!isOpen ? (
         <header className="absolute inset-x-0 top-0 z-40">
-          <div className="mx-auto flex h-24 max-w-7xl items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
+          <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
             <Link
               aria-label="Nestory home"
               className="font-display leading-none text-[#060910]"
@@ -38,7 +38,7 @@ export function LandingHeader() {
               </span>
             </Link>
 
-            <div className="flex items-center gap-6 text-[11px] font-medium uppercase text-[#838995]">
+            <div className="flex items-center gap-7 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8b96aa]">
               <Link className="transition-colors hover:text-[#060910]" href="/login">
                 Sign in
               </Link>
@@ -48,7 +48,7 @@ export function LandingHeader() {
                 onClick={() => setIsOpen(true)}
                 type="button"
               >
-                <Menu size={24} strokeWidth={1.5} />
+                <Menu size={26} strokeWidth={1.45} />
               </button>
             </div>
           </div>
@@ -61,7 +61,7 @@ export function LandingHeader() {
           className="fixed inset-0 z-50 bg-[#090a0c] text-white"
           role="dialog"
         >
-          <div className="mx-auto flex h-24 max-w-7xl items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
+          <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
             <Link
               aria-label="Nestory home"
               className="font-display leading-none text-white"
@@ -74,7 +74,7 @@ export function LandingHeader() {
               </span>
             </Link>
 
-            <div className="flex items-center gap-6 text-[11px] font-medium uppercase text-white/55">
+            <div className="flex items-center gap-7 text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">
               <Link
                 className="transition-colors hover:text-white"
                 href="/login"
@@ -88,7 +88,7 @@ export function LandingHeader() {
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
-                <X size={26} strokeWidth={1.4} />
+                <X size={28} strokeWidth={1.35} />
               </button>
             </div>
           </div>
@@ -100,7 +100,7 @@ export function LandingHeader() {
             <div className="space-y-4 text-center">
               {navItems.map((item) => (
                 <a
-                  className="block text-5xl font-semibold leading-none text-white/32 transition-colors hover:text-white sm:text-6xl lg:text-7xl"
+                  className="font-display block text-4xl font-semibold leading-none text-white/35 transition-colors hover:text-white sm:text-5xl lg:text-6xl"
                   href={item.href}
                   key={item.href}
                   onClick={() => setIsOpen(false)}
@@ -109,11 +109,11 @@ export function LandingHeader() {
                 </a>
               ))}
               <Link
-                className="block pt-6 text-4xl font-semibold leading-none text-white/32 transition-colors hover:text-white sm:text-5xl lg:text-6xl"
+                className="font-display block pt-6 text-3xl font-semibold leading-none text-white/35 transition-colors hover:text-white sm:text-4xl lg:text-5xl"
                 href="/signup"
                 onClick={() => setIsOpen(false)}
               >
-                Create account
+                Create workspace
               </Link>
             </div>
           </nav>

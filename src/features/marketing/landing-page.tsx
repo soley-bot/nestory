@@ -8,215 +8,188 @@ import { RecordRoomPreview } from "./components/record-room-preview";
 const heroStats = [
   {
     label: "Portfolio",
-    text: "properties, units, owners, tenants, and documents organized from one workspace",
+    text: "properties, units, owners, tenants",
   },
   {
-    label: "Payments",
-    text: "rent collection, balances, and USD/KHR context kept visible for operators",
+    label: "Rent",
+    text: "collections, balances, deposits",
   },
   {
-    label: "Maintenance",
-    text: "requests, vendors, inspections, and unit condition tracked with the property",
+    label: "Operations",
+    text: "leases, maintenance, records",
   },
 ];
 
-const operations = [
+const photoTiles = [
   {
-    description: "See every property, building, unit, tenant, and owner relationship without spreadsheet hunting.",
+    alt: "High-rise residential portfolio",
+    src: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1100&q=82",
+  },
+  {
+    alt: "Modern residential unit with pool",
+    src: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1100&q=82",
+  },
+  {
+    alt: "Real estate agreement being reviewed",
+    src: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1100&q=82",
+  },
+  {
+    alt: "Building service and maintenance work",
+    src: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1100&q=82",
+  },
+];
+
+const modules = [
+  {
+    description: "Properties, units, owners, tenants.",
     href: "/properties",
     title: "Portfolio",
   },
   {
-    description: "Manage lease dates, tenant status, move-ins, renewals, deposits, and supporting documents.",
+    description: "Move-ins, renewals, deposits.",
     href: "/leases",
     title: "Leasing",
   },
   {
-    description: "Track payments, outstanding balances, unit-level performance, and monthly collection health.",
+    description: "Collections, balances, expenses.",
     href: "/ledger",
-    title: "Payments",
+    title: "Rent & accounting",
   },
   {
-    description: "Turn repairs, inspections, tasks, and service events into clear property operations.",
+    description: "Requests, vendors, inspections.",
     href: "/maintenance",
     title: "Maintenance",
   },
-];
-
-const methodSteps = [
   {
-    body: "Create the portfolio map: properties, units, owners, tenants, leases, and documents.",
-    label: "01",
-    title: "Set up",
+    description: "Agreements, invoices, receipts.",
+    href: "/documents",
+    title: "Documents",
   },
   {
-    body: "Run daily work from one PMS: payments, maintenance, documents, and operator notes.",
-    label: "02",
-    title: "Operate",
-  },
-  {
-    body: "Review occupancy, balances, overdue work, lease changes, and unit performance.",
-    label: "03",
-    title: "Control",
-  },
-  {
-    body: "Keep the history behind every operational decision, without making history the whole product.",
-    label: "04",
-    title: "Trace",
+    description: "Occupancy, collections, open repairs.",
+    href: "/reports",
+    title: "Reporting",
   },
 ];
 
 const proofStats = [
-  ["500+", "units seeded for realistic PMS-scale screen checks"],
-  ["790", "operational timeline events available behind the portfolio"],
-  ["686", "ledger entries separated from summary calculations"],
-  ["1", "simple admin workspace to start, before heavy role complexity"],
+  ["500+", "units"],
+  ["790", "records"],
+  ["686", "ledger entries"],
+  ["1", "workspace"],
 ];
-
-const portfolioImage =
-  "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1800&q=80";
-const unitsImage =
-  "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80";
-const leasingImage =
-  "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1200&q=80";
 
 export function LandingPage() {
   return (
-    <main className="bg-white text-[#080b12]">
+    <main className="bg-[#fdfdfc] text-[#080b12]">
+      <LandingMotion />
       <LandingHeader />
 
-      <section className="relative flex min-h-[78svh] flex-col px-6 pt-24 sm:min-h-[86svh] sm:px-10 sm:pt-28 lg:px-14">
-        <div className="mx-auto flex w-full max-w-7xl flex-1 items-center justify-center py-14 sm:py-20">
-          <h1 className="font-display max-w-6xl text-center text-4xl font-semibold leading-[1.04] sm:text-6xl lg:text-7xl">
-            Property Management System for growing portfolios.
-          </h1>
+      <section className="relative flex min-h-[92svh] flex-col px-6 pt-24 sm:min-h-[96svh] sm:px-10 lg:px-14">
+        <div className="mx-auto flex w-full max-w-[1360px] flex-1 items-center justify-center py-16">
+          <div
+            className="max-w-5xl text-center"
+            style={{ animation: "nestory-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
+          >
+            <h1 className="font-display text-4xl font-semibold leading-[1.08] text-[#080d1a] sm:text-5xl lg:text-6xl">
+              What if your whole portfolio stayed under control?
+            </h1>
+          </div>
         </div>
 
-        <div className="mx-auto grid w-full max-w-7xl gap-6 pb-8 text-center sm:grid-cols-3 sm:gap-8 sm:pb-12">
-          {heroStats.map((item) => (
-            <div key={item.label}>
-              <p className="font-display text-3xl font-semibold leading-none sm:text-5xl">
+        <div className="mx-auto grid w-full max-w-[1360px] gap-8 pb-10 text-center sm:grid-cols-3 sm:gap-10 sm:pb-12">
+          {heroStats.map((item, index) => (
+            <div
+              className="mx-auto max-w-sm"
+              key={item.label}
+              style={{
+                animation: "nestory-rise 850ms cubic-bezier(0.22, 1, 0.36, 1) both",
+                animationDelay: `${160 + index * 110}ms`,
+              }}
+            >
+              <p className="font-display text-2xl font-semibold leading-none text-[#080d1a] sm:text-3xl">
                 {item.label}
               </p>
-              <p className="mx-auto mt-3 max-w-xs text-sm leading-6 text-[#6e7681]">{item.text}</p>
+              <p className="mx-auto mt-3 max-w-[18rem] text-sm leading-6 text-[#768091]">{item.text}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="border-t border-[#edf0f3] px-6 py-20 sm:px-10 lg:px-14" id="platform">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-8 flex items-end justify-between gap-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8b929d]">
-              Property Management System
-            </p>
-            <p className="hidden text-sm text-[#6e7681] sm:block">Portfolio, operations, and records</p>
-          </div>
+      <section className="px-6 py-20 sm:px-10 lg:px-14" id="workspace">
+        <div className="mx-auto max-w-[1360px]">
+          <SectionIntro
+            actionHref="#control"
+            actionLabel="Discover"
+            kicker=""
+            subtitle="Portfolio, leases, rent, maintenance, and records in one calm place."
+            title="Workspace"
+          />
 
-          <div className="relative min-h-[540px] overflow-hidden rounded-md bg-[#080b12]">
-            <Image
-              alt="High-rise property portfolio placeholder"
-              className="object-cover opacity-78"
-              fill
-              priority
-              sizes="(min-width: 1024px) 1200px, 100vw"
-              src={portfolioImage}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#080b12]/70 via-[#080b12]/10 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 grid gap-8 p-6 text-white sm:p-10 lg:grid-cols-[1fr_420px] lg:p-12">
-              <div>
-                <h2 className="font-display max-w-3xl text-4xl font-semibold leading-[1.05] sm:text-6xl">
-                  Manage the portfolio, not just the paperwork.
-                </h2>
-                <p className="mt-5 max-w-2xl text-base leading-7 text-white/72">
-                  Nestory is positioned as a full PMS for Cambodian property teams:
-                  portfolio control, leasing, payments, maintenance, documents, and
-                  the operational history underneath it all.
-                </p>
-              </div>
-              <div className="self-end border-t border-white/30 pt-5">
-                <Link
-                  className="inline-flex items-center gap-2 text-sm font-semibold uppercase text-white transition-opacity hover:opacity-75"
-                  href="/signup"
-                >
-                  Create account
-                  <ArrowRight size={16} strokeWidth={1.8} />
-                </Link>
-              </div>
-            </div>
+          <div className="mt-12 grid gap-5 lg:grid-cols-4 lg:items-end">
+            {photoTiles.map((tile, index) => (
+              <PhotoTile
+                {...tile}
+                className={
+                  index === 0
+                    ? "lg:min-h-[540px]"
+                    : index === 1
+                      ? "lg:min-h-[475px] lg:translate-y-8"
+                      : index === 2
+                        ? "lg:min-h-[405px] lg:translate-y-16"
+                        : "lg:min-h-[540px]"
+                }
+                index={index}
+                key={tile.alt}
+              />
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="px-6 py-20 sm:px-10 lg:px-14">
-        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.52fr_0.48fr] lg:items-end">
-          <div>
-            <h2 className="font-display text-4xl font-semibold leading-tight sm:text-5xl">
-              The system operators open every morning.
-            </h2>
-            <p className="mt-4 max-w-xl text-base leading-7 text-[#6e7681]">
-              The app still keeps a complete history, but the front door is broader:
-              units, leases, rent, tasks, documents, owners, tenants, and reports.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <PhotoTile alt="Modern residential unit placeholder" label="Units" src={unitsImage} />
-            <PhotoTile alt="Real estate leasing placeholder" label="Leasing" src={leasingImage} />
+      <section className="px-6 py-24 sm:px-10 lg:px-14" id="control">
+        <div className="mx-auto max-w-[1360px]">
+          <SectionIntro
+            actionHref="/signup"
+            actionLabel="Start"
+            kicker=""
+            subtitle="Occupied, owed, open, late, changing. Clear at a glance."
+            title="Control"
+          />
+          <div className="mt-12">
+            <RecordRoomPreview />
           </div>
         </div>
       </section>
 
-      <section className="px-6 py-20 sm:px-10 lg:px-14">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
-            <div>
-              <h2 className="font-display text-4xl font-semibold leading-tight sm:text-5xl">
-                PMS workspace
-              </h2>
-              <p className="mt-4 max-w-xl text-base leading-7 text-[#6e7681]">
-                A practical operating system for property managers: portfolio status,
-                rent collection, maintenance, documents, and linked history in one place.
-              </p>
-            </div>
-            <Link
-              className="inline-flex h-11 items-center gap-2 text-sm font-semibold uppercase text-[#080b12] transition-opacity hover:opacity-65"
-              href="/signup"
-            >
-              Create account
-              <ArrowRight size={16} strokeWidth={1.8} />
-            </Link>
-          </div>
+      <section className="px-6 py-24 sm:px-10 lg:px-14" id="operations">
+        <div className="mx-auto max-w-[1360px]">
+          <SectionIntro
+            actionHref="/signup"
+            actionLabel="Start"
+            kicker=""
+            subtitle="Core PMS workflows, kept connected."
+            title="Operations"
+          />
 
-          <RecordRoomPreview />
-        </div>
-      </section>
-
-      <section className="px-6 py-20 sm:px-10 lg:px-14" id="operations">
-        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.42fr_0.58fr]">
-          <div>
-            <h2 className="font-display text-4xl font-semibold leading-tight sm:text-5xl">
-              Operations
-            </h2>
-            <p className="mt-4 max-w-md text-base leading-7 text-[#6e7681]">
-              The product story should feel like a PMS: one place to run the property
-              business, with record history built in.
-            </p>
-          </div>
-
-          <div className="border-t border-[#dfe4ea]">
-            {operations.map((item) => (
+          <div className="mt-12 border-t border-[#dfe4ea]">
+            {modules.map((item) => (
               <Link
-                className="group grid gap-4 border-b border-[#dfe4ea] py-7 text-[#080b12] transition-opacity hover:opacity-70 sm:grid-cols-[0.42fr_1fr_32px] sm:items-center"
+                className="group grid gap-4 border-b border-[#dfe4ea] py-7 text-[#080d1a] transition-opacity hover:opacity-70 md:grid-cols-[0.42fr_1fr_32px] md:items-center"
                 href={item.href}
                 key={item.title}
               >
-                <h3 className="font-display text-3xl font-semibold leading-tight">{item.title}</h3>
-                <p className="text-sm leading-6 text-[#6e7681]">{item.description}</p>
+                <h3 className="font-display text-2xl font-semibold leading-tight sm:text-3xl">
+                  {item.title}
+                </h3>
+                <p className="max-w-xl text-sm leading-6 text-[#7a8394]">
+                  {item.description}
+                </p>
                 <ArrowRight
-                  className="transition-transform group-hover:translate-x-1"
+                  aria-hidden="true"
+                  className="text-[#9aa3b2] transition-transform group-hover:translate-x-1"
                   size={20}
-                  strokeWidth={1.7}
+                  strokeWidth={1.6}
                 />
               </Link>
             ))}
@@ -224,90 +197,85 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="bg-[#07090d] px-6 py-24 text-white sm:px-10 lg:px-14" id="method">
-        <div className="mx-auto max-w-7xl">
-          <div className="max-w-5xl">
-            <h2 className="font-display text-5xl font-semibold leading-[1.05] sm:text-6xl lg:text-7xl">
-              PMS first. History built into every action.
-            </h2>
-            <p className="mt-8 max-w-2xl text-base leading-7 text-white/55">
-              Nestory can grow into a broader property management system without losing
-              the timeline and ledger foundation that makes the data trustworthy.
-            </p>
+      <section className="px-6 py-24 sm:px-10 lg:px-14" id="method">
+        <div className="mx-auto max-w-[1360px] rounded-lg bg-[#050607] px-8 py-14 text-white sm:px-12 sm:py-16 lg:px-16">
+          <div className="grid gap-10 lg:grid-cols-[0.55fr_0.45fr] lg:items-start">
+            <div>
+              <h2 className="font-display text-3xl font-semibold leading-[1.1] sm:text-4xl">
+                One system. Every property operation.
+              </h2>
+              <p className="mt-5 max-w-xl text-sm leading-6 text-white/55">
+                Leases, rent, maintenance, documents, and history stay connected.
+              </p>
+            </div>
+            <Link
+              className="inline-flex items-center gap-2 justify-self-start text-[12px] font-semibold uppercase tracking-[0.2em] text-white/70 transition-colors hover:text-white lg:justify-self-end"
+              href="/signup"
+            >
+              Create workspace
+              <ArrowRight size={16} strokeWidth={1.7} />
+            </Link>
           </div>
 
-          <div className="mt-20 grid gap-8 border-t border-white/14 pt-8 md:grid-cols-4">
-            {methodSteps.map((step) => (
-              <article key={step.label}>
-                <p className="text-sm font-semibold text-white/35">{step.label}</p>
-                <h3 className="font-display mt-5 text-2xl font-semibold">{step.title}</h3>
-                <p className="mt-4 text-sm leading-6 text-white/55">{step.body}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 py-20 sm:px-10 lg:px-14">
-        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.38fr_0.62fr]">
-          <div>
-            <h2 className="font-display text-4xl font-semibold leading-tight sm:text-5xl">
-              Scale
-            </h2>
-            <p className="mt-4 max-w-md text-base leading-7 text-[#6e7681]">
-              The interface is being shaped around PMS-scale data, not a small demo.
-            </p>
-          </div>
-
-          <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2">
+          <div className="mt-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
             {proofStats.map(([value, text]) => (
-              <div className="border-t border-[#dfe4ea] pt-5" key={value}>
-                <p className="font-display text-5xl font-semibold leading-none">{value}</p>
-                <p className="mt-4 text-sm leading-6 text-[#6e7681]">{text}</p>
+              <div key={value}>
+                <p className="font-display text-3xl font-semibold leading-none sm:text-4xl">{value}</p>
+                <p className="mt-5 max-w-48 text-[11px] font-semibold uppercase leading-5 tracking-[0.2em] text-[#a8c5df]">
+                  {text}
+                </p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="px-6 pb-16 pt-10 sm:px-10 lg:px-14" id="start">
-        <div className="mx-auto max-w-7xl border-t border-[#dfe4ea] pt-16">
-          <div className="grid gap-10 lg:grid-cols-[1fr_360px] lg:items-end">
-            <h2 className="font-display max-w-4xl text-5xl font-semibold leading-[1.05] sm:text-6xl">
-              A calmer way to run property operations.
-            </h2>
-            <div>
-              <Link
-                className="inline-flex h-12 items-center gap-2 bg-[#080b12] px-5 text-sm font-semibold uppercase text-white transition-opacity hover:opacity-80"
-                href="/signup"
-              >
-                Create admin account
-                <ArrowRight size={16} strokeWidth={1.8} />
-              </Link>
-              <p className="mt-4 text-sm leading-6 text-[#6e7681]">
-                Start with one PMS workspace and expand the operating modules from there.
-              </p>
-            </div>
+      <section className="px-6 pb-20 pt-12 sm:px-10 lg:px-14" id="start">
+        <div className="mx-auto grid max-w-[1360px] gap-10 border-t border-[#dfe4ea] pt-20 lg:grid-cols-[0.58fr_0.42fr] lg:items-center">
+          <h2 className="font-display max-w-4xl text-3xl font-semibold leading-[1.1] text-[#080d1a] sm:text-4xl">
+            Property management, kept under control.
+          </h2>
+          <div className="lg:justify-self-end lg:text-center">
+            <Link
+              className="inline-flex h-14 items-center gap-3 rounded-full bg-[#050607] px-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-white transition-transform hover:-translate-y-0.5 hover:bg-[#15171c]"
+              href="/signup"
+            >
+              Create workspace
+              <ArrowRight size={17} strokeWidth={1.8} />
+            </Link>
+            <p className="mt-5 text-sm italic leading-6 text-[#7a8394]">
+              Start with one clean admin workspace.
+            </p>
           </div>
         </div>
       </section>
 
-      <footer className="px-6 pb-10 sm:px-10 lg:px-14">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 border-t border-[#edf0f3] pt-8 text-sm text-[#6e7681] md:flex-row md:items-center md:justify-between">
-          <p>&copy; 2026 Nestory</p>
-          <div className="flex flex-wrap gap-6">
-            <a className="transition-colors hover:text-[#080b12]" href="#platform">
-              Platform
+      <footer className="bg-[#050607] px-6 py-16 text-white sm:px-10 lg:px-14">
+        <div className="mx-auto max-w-[1360px]">
+          <nav className="flex flex-col items-center gap-2 border-b border-white/10 pb-14 text-center font-display text-2xl font-semibold leading-tight text-white/35 sm:text-3xl">
+            <a className="transition-colors hover:text-white" href="#workspace">
+              Workspace
             </a>
-            <a className="transition-colors hover:text-[#080b12]" href="#operations">
+            <a className="transition-colors hover:text-white" href="#operations">
               Operations
             </a>
-            <Link className="transition-colors hover:text-[#080b12]" href="/login">
-              Sign in
+            <a className="transition-colors hover:text-white" href="#control">
+              Control
+            </a>
+            <Link className="transition-colors hover:text-white" href="/signup">
+              Start workspace
             </Link>
-            <Link className="transition-colors hover:text-[#080b12]" href="/signup">
-              Create account
-            </Link>
+          </nav>
+          <div className="mt-10 flex flex-col gap-6 text-sm text-white/50 md:flex-row md:items-center md:justify-between">
+            <p>&copy; 2026 Nestory</p>
+            <div className="flex flex-wrap gap-6">
+              <Link className="transition-colors hover:text-white" href="/login">
+                Sign in
+              </Link>
+              <Link className="transition-colors hover:text-white" href="/signup">
+                Create workspace
+              </Link>
+            </div>
           </div>
         </div>
       </footer>
@@ -315,28 +283,101 @@ export function LandingPage() {
   );
 }
 
+function SectionIntro({
+  actionHref,
+  actionLabel,
+  kicker,
+  subtitle,
+  title,
+}: {
+  actionHref: string;
+  actionLabel: string;
+  kicker: string;
+  subtitle: string;
+  title: string;
+}) {
+  return (
+    <div className="grid gap-8 md:grid-cols-[minmax(0,680px)_1fr] md:items-end">
+      <div>
+        {kicker ? (
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#c765ee]">
+            {kicker}
+          </p>
+        ) : null}
+        <h2 className="font-display text-3xl font-semibold leading-[1.1] text-[#080d1a] sm:text-4xl">
+          {title}
+        </h2>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-[#6f7887]">{subtitle}</p>
+      </div>
+      <Link
+        className="inline-flex items-center gap-2 justify-self-start text-[12px] font-semibold uppercase tracking-[0.2em] text-[#c765ee] transition-opacity hover:opacity-70 md:justify-self-end"
+        href={actionHref}
+      >
+        {actionLabel}
+        <ArrowRight size={16} strokeWidth={1.7} />
+      </Link>
+    </div>
+  );
+}
+
 function PhotoTile({
   alt,
-  label,
+  className,
+  index,
   src,
 }: {
   alt: string;
-  label: string;
+  className: string;
+  index: number;
   src: string;
 }) {
   return (
-    <figure className="group relative min-h-[300px] overflow-hidden rounded-md bg-[#080b12]">
-      <Image
-        alt={alt}
-        className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
-        fill
-        sizes="(min-width: 1024px) 300px, 50vw"
-        src={src}
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#080b12]/55 via-transparent to-transparent" />
-      <figcaption className="absolute bottom-5 left-5 text-sm font-semibold uppercase tracking-[0.16em] text-white">
-        {label}
-      </figcaption>
+    <figure
+      className="group"
+      style={{
+        animation: "nestory-rise 800ms cubic-bezier(0.22, 1, 0.36, 1) both",
+        animationDelay: `${index * 90}ms`,
+      }}
+    >
+      <div
+        className={`relative min-h-[360px] overflow-hidden rounded-lg bg-[#080d1a] ${className}`}
+      >
+        <Image
+          alt={alt}
+          className="object-cover transition-transform duration-700 group-hover:scale-[1.035]"
+          fill
+          sizes="(min-width: 1024px) 24vw, (min-width: 640px) 50vw, 100vw"
+          src={src}
+        />
+      </div>
     </figure>
+  );
+}
+
+function LandingMotion() {
+  return (
+    <style>
+      {`
+        @keyframes nestory-rise {
+          from {
+            opacity: 0;
+            transform: translateY(18px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          * {
+            animation-duration: 0.001ms !important;
+            animation-iteration-count: 1 !important;
+            scroll-behavior: auto !important;
+            transition-duration: 0.001ms !important;
+          }
+        }
+      `}
+    </style>
   );
 }

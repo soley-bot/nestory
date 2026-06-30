@@ -189,5 +189,5 @@ export async function setupOrganizationAction(
 export async function signOutAction() {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
-  redirect("/");
+  redirect("/login");
 }
