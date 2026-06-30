@@ -1025,6 +1025,7 @@ function buildMissingDataReport(context: ReportContext): TrustedReport {
 
     if (normalizeUnitStatus(unit.status) === "occupied" && !lease) {
       rows.push(missingDataRow({
+        href: buildLeaseCreateHref(unit),
         issue: "Occupied without active lease",
         nextAction: "Create or link the active lease.",
         record: unitLabel(unit),
@@ -1300,6 +1301,16 @@ function buildDocumentCreateHref(unit: UnitRow) {
   });
 
   return `/documents?${params.toString()}`;
+}
+
+function buildLeaseCreateHref(unit: UnitRow) {
+  const params = new URLSearchParams({
+    action: "create",
+    propertyId: unit.property_id,
+    unitId: unit.id,
+  });
+
+  return `/leases?${params.toString()}`;
 }
 
 function leaseSource(lease: LeaseRow): ReportSourceLink {

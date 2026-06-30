@@ -318,6 +318,21 @@ describe("trusted reports", () => {
     });
   });
 
+  it("opens scoped lease creation for occupied units without active leases", () => {
+    const report = buildTrustedReport(
+      makeReportInput({
+        leases: [],
+        viewQuery: {
+          report: "missing-data",
+        },
+      }),
+    );
+
+    expect(report.rows.find((row) => row.id === "unit-lease-unit-1")).toMatchObject({
+      href: "/leases?action=create&propertyId=property-1&unitId=unit-1",
+    });
+  });
+
   it("builds maintenance cost report from cases without double-counting linked rows", () => {
     const report = buildTrustedReport(
       makeReportInput({
