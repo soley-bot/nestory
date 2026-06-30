@@ -1,36 +1,34 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
-  Activity,
-  AlertTriangle,
-  ArrowRight,
-  Building2,
-  CalendarClock,
-  CheckCircle2,
-  CircleDollarSign,
-  type LucideIcon,
-  Plus,
-} from "lucide-react";
+  IconActivity,
+  IconAlertTriangle,
+  IconArrowRight,
+  IconBuilding,
+  IconCalendarClock,
+  IconCircleCheck,
+  IconCurrencyDollar,
+  IconPlus,
+  type TablerIcon,
+} from "@tabler/icons-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import type { RecentChangeTone } from "@/features/activity/activity.types";
+import {
+  OverviewLedgerAreaChart,
+  OverviewLeaseEndingDonut,
+  OverviewOccupancyBars,
+} from "@/features/overview/components/overview-charts";
 import type {
   OverviewAttentionItem,
   OverviewDashboardSummary,
-  OverviewLedgerPoint,
-  OverviewLeaseEndingPoint,
   OverviewMetric,
   OverviewMetricTone,
-  OverviewOccupancyPoint,
   OverviewQuickAction,
   OverviewScreenData,
 } from "@/features/overview/overview.types";
 import { formatDate } from "@/lib/dates/format";
-import {
-  formatMoney,
-  type CurrencyCode,
-  type MoneyDisplayValue,
-} from "@/lib/money/format";
+import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 type OverviewScreenProps = {
@@ -39,7 +37,7 @@ type OverviewScreenProps = {
 
 type PrimaryMetric = {
   href: string;
-  icon: LucideIcon;
+  icon: TablerIcon;
   metric: OverviewMetric;
 };
 
@@ -52,17 +50,17 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
   const primaryMetrics: PrimaryMetric[] = [
     {
       href: "/units?occupancy=unoccupied",
-      icon: Building2,
+      icon: IconBuilding,
       metric: occupancyMetric,
     },
     {
       href: "/ledger?period=current_month",
-      icon: CircleDollarSign,
+      icon: IconCurrencyDollar,
       metric: { ...ledgerMetric, label: "Current month net" },
     },
     {
       href: "/leases?status=current&endsWithin=60d&sort=end_asc",
-      icon: CalendarClock,
+      icon: IconCalendarClock,
       metric: {
         helper: "Leases ending in 60 days",
         label: "Lease risk, 60d",
@@ -72,7 +70,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
     },
     {
       href: data.dashboardSummary.actionHref,
-      icon: AlertTriangle,
+      icon: IconAlertTriangle,
       metric: { ...attentionMetric, label: "Open checks" },
     },
   ];
@@ -103,7 +101,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
             ))}
           </section>
 
-          <section className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+          <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
             <ChartPanel
               actionHref="/units?occupancy=unoccupied"
               actionLabel="Review open units"
@@ -176,7 +174,7 @@ function DashboardSummaryPanel({
             href={summary.actionHref}
           >
             <span className="truncate">{summary.actionLabel}</span>
-            <ArrowRight size={15} />
+            <IconArrowRight size={15} />
           </Link>
         </div>
       </div>
@@ -196,7 +194,7 @@ function PrimaryMetricTile({
   metric,
 }: {
   href: string;
-  icon: LucideIcon;
+  icon: TablerIcon;
   metric: OverviewMetric;
 }) {
   return (
@@ -223,7 +221,7 @@ function PrimaryMetricTile({
       </div>
       <div className="flex min-w-0 justify-end">
         <span className="sr-only">{metric.helper}</span>
-        <ArrowRight
+        <IconArrowRight
           className="shrink-0 text-foreground-subtle opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
           size={13}
         />
@@ -267,14 +265,14 @@ function FocusPanel({
     >
       <div className="flex items-start justify-between gap-3 border-b border-border px-3 py-2.5">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold tracking-tight">Focus now</h2>
+          <h2 className="text-[15px] font-semibold leading-5">Focus now</h2>
         </div>
         <Badge tone={total > 0 ? summary.tone : "success"}>{total}</Badge>
       </div>
 
       {items.length === 0 ? (
         <div className="m-4 flex items-start gap-3 rounded-md bg-success-soft px-3 py-3 text-sm text-success">
-          <CheckCircle2 className="mt-0.5 shrink-0" size={16} />
+          <IconCircleCheck className="mt-0.5 shrink-0" size={16} />
           <span>No open operating checks from the current data.</span>
         </div>
       ) : (
@@ -290,10 +288,12 @@ function FocusPanel({
                   {index + 1}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">
+                  <span className="block truncate text-[13px] font-medium leading-5">
                     {item.label}
                   </span>
-                  <span className="sr-only">{item.helper}</span>
+                  <span className="block truncate text-xs leading-4 text-foreground-subtle">
+                    {item.helper}
+                  </span>
                 </span>
                 <Badge className="shrink-0" tone={item.tone}>
                   {item.count}
@@ -334,7 +334,7 @@ function ChartPanel({
           <h2
             className={cn(
               "font-semibold tracking-tight",
-              priority === "primary" ? "text-base" : "text-sm",
+              "text-[15px] leading-5",
             )}
           >
             {title}
@@ -348,7 +348,7 @@ function ChartPanel({
           href={actionHref}
         >
           <span>{actionLabel}</span>
-          <ArrowRight size={12} />
+          <IconArrowRight size={12} />
         </Link>
       </div>
       <div className="pt-3">
@@ -358,157 +358,34 @@ function ChartPanel({
   );
 }
 
-function OccupancyChart({ points }: { points: OverviewOccupancyPoint[] }) {
+function OccupancyChart({
+  points,
+}: {
+  points: OverviewScreenData["occupancyByProperty"];
+}) {
   if (points.length === 0) {
     return <EmptyPanelText>No property/unit data yet.</EmptyPanelText>;
   }
 
-  const visiblePoints = points.slice(0, 4);
-  const hiddenCount = points.length - visiblePoints.length;
-
-  return (
-    <div className="space-y-2.5">
-      {visiblePoints.map((point) => {
-        return (
-        <Link
-          className="group block min-w-0 rounded-md px-2 py-1 transition-colors hover:bg-surface-muted"
-          href={point.href}
-          key={point.label}
-          prefetch={false}
-          title={`${point.label}: ${point.occupiedUnits}/${point.totalUnits} occupied`}
-        >
-          <div className="mb-1 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 text-xs">
-            <span className="min-w-0 truncate font-medium">{point.label}</span>
-            <span className="shrink-0 font-semibold tabular-nums">
-              {point.percent}%
-            </span>
-          </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_72px] items-center gap-3">
-            <div className="h-2 overflow-hidden rounded-full bg-chart-track">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-opacity group-hover:opacity-90",
-                  occupancyBarClass(point.percent),
-                )}
-                style={{ width: `${Math.max(point.percent, point.totalUnits > 0 ? 3 : 0)}%` }}
-              />
-            </div>
-            <span className="text-right text-[11px] text-foreground-subtle tabular-nums">
-              {point.unoccupiedUnits} open
-            </span>
-          </div>
-        </Link>
-        );
-      })}
-      {hiddenCount > 0 ? (
-        <Link
-          className="inline-flex rounded-md px-2 py-1 text-xs font-medium text-foreground-subtle transition-colors hover:bg-surface-muted hover:text-foreground"
-          href="/units?occupancy=unoccupied"
-        >
-          {hiddenCount} more properties
-        </Link>
-      ) : null}
-    </div>
-  );
+  return <OverviewOccupancyBars points={points} />;
 }
 
 function LedgerFlowChart({
   currency,
   points,
 }: {
-  currency: CurrencyCode;
-  points: OverviewLedgerPoint[];
+  currency: OverviewScreenData["ledgerCurrency"];
+  points: OverviewScreenData["ledgerFlow"];
 }) {
-  const maxValue = Math.max(
-    1,
-    ...points.flatMap((point) => [point.income, point.expense]),
-  );
-
-  return (
-    <div className="min-w-0">
-      <div className="mb-2 flex items-center gap-3 text-[11px] text-foreground-subtle">
-        <LegendSwatch className="bg-chart-accent" label="Income" />
-        <LegendSwatch className="bg-chart-neutral" label="Expense" />
-      </div>
-      <div className="flex h-32 items-end gap-2 border-b border-border pb-2">
-        {points.map((point) => (
-          <Link
-            className="group flex min-w-0 flex-1 flex-col items-center rounded-md px-1 py-1 transition-colors hover:bg-surface-muted"
-            href={point.href}
-            key={point.label}
-            prefetch={false}
-            title={`${point.label} ledger net ${formatCompactMoney(
-              point.net,
-              currency,
-            )}`}
-          >
-            <div className="flex h-24 w-full items-end justify-center gap-1">
-              <Bar
-                className="bg-chart-accent transition-opacity group-hover:opacity-90"
-                title={`${point.label} income ${formatCompactMoney(
-                  point.income,
-                  currency,
-                )}`}
-                value={point.income}
-                maxValue={maxValue}
-              />
-              <Bar
-                className="bg-chart-neutral transition-opacity group-hover:opacity-90"
-                title={`${point.label} expense ${formatCompactMoney(
-                  point.expense,
-                  currency,
-                )}`}
-                value={point.expense}
-                maxValue={maxValue}
-              />
-            </div>
-            <span className="mt-2 text-[11px] text-foreground-subtle">{point.label}</span>
-          </Link>
-        ))}
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-        <p className="text-foreground-subtle">Latest net</p>
-        <p className="text-right font-medium tabular-nums">
-          {formatCompactMoney(points.at(-1)?.net ?? 0, currency)}
-        </p>
-      </div>
-    </div>
-  );
+  return <OverviewLedgerAreaChart currency={currency} points={points} />;
 }
 
-function LeaseEndingChart({ points }: { points: OverviewLeaseEndingPoint[] }) {
-  const maxValue = Math.max(1, ...points.map((point) => point.count));
-  const total = points.reduce((sum, point) => sum + point.count, 0);
-
-  return (
-    <div className="min-w-0">
-      <div className="flex h-32 items-end gap-2 border-b border-border pb-2">
-        {points.map((point) => (
-          <Link
-            className="flex min-w-0 flex-1 flex-col items-center"
-            href={point.href}
-            key={point.label}
-            prefetch={false}
-            title={`${point.count} ending in ${point.label}`}
-          >
-            <div className="flex h-24 w-full items-end justify-center">
-              <Bar
-                className={cn(
-                  point.count > 0 ? "bg-chart-accent/80" : "bg-chart-track",
-                )}
-                value={point.count}
-                maxValue={maxValue}
-              />
-            </div>
-            <span className="mt-2 text-[11px] text-foreground-subtle">{point.label}</span>
-          </Link>
-        ))}
-      </div>
-      <p className="mt-2 text-xs text-foreground-muted">
-        {total} {total === 1 ? "ending" : "endings"} in view.
-      </p>
-    </div>
-  );
+function LeaseEndingChart({
+  points,
+}: {
+  points: OverviewScreenData["leaseEndings"];
+}) {
+  return <OverviewLeaseEndingDonut points={points} />;
 }
 
 function RecentActivityList({
@@ -520,8 +397,8 @@ function RecentActivityList({
     <section className="rounded-md border border-border bg-surface shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <Activity size={15} className="text-foreground-subtle" />
-          <h2 className="text-sm font-semibold tracking-tight">Recent activity</h2>
+          <IconActivity size={15} className="text-foreground-subtle" />
+          <h2 className="text-[15px] font-semibold leading-5">Recent activity</h2>
         </div>
         <Badge>{changes.length}</Badge>
       </div>
@@ -532,21 +409,26 @@ function RecentActivityList({
           {changes.slice(0, 4).map((change) => (
             <li className="min-w-0" key={change.id}>
               <Link
-                className="flex min-w-0 items-start justify-between gap-3 px-3 py-2 transition-colors hover:bg-surface-muted"
+                className="block min-w-0 px-3 py-2.5 transition-colors hover:bg-surface-muted"
                 href={change.href}
                 title={`Open ${change.entityLabel.toLowerCase()} record`}
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">
+                  <span className="block truncate text-[13px] font-medium leading-5">
                     {change.recordLabel}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs text-foreground-subtle">
+                  <span className="block truncate text-xs leading-4 text-foreground-subtle">
                     {change.entityLabel} / {formatDate(change.createdAt)}
                   </span>
+                  <span
+                    className={cn(
+                      "mt-1 block truncate text-[11px] font-medium leading-4",
+                      activityToneClass(change.tone),
+                    )}
+                  >
+                    {change.actionLabel}
+                  </span>
                 </span>
-                <Badge className="shrink-0" tone={toBadgeTone(change.tone)}>
-                  {change.actionLabel}
-                </Badge>
               </Link>
             </li>
           ))}
@@ -560,13 +442,13 @@ function QuickActions({ actions }: { actions: OverviewQuickAction[] }) {
   return (
     <section className="rounded-md border border-border bg-surface shadow-sm">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <Plus size={15} className="text-foreground-subtle" />
-        <h2 className="text-sm font-semibold tracking-tight">Quick actions</h2>
+        <IconPlus size={15} className="text-foreground-subtle" />
+        <h2 className="text-[15px] font-semibold leading-5">Quick actions</h2>
       </div>
       <div className="grid grid-cols-2 gap-2 p-3">
         {actions.map((action) => (
           <Link
-            className="inline-flex h-8 min-w-0 items-center justify-center rounded-md border border-border bg-surface px-2.5 text-center text-[13px] font-medium transition-colors hover:bg-surface-muted"
+            className="inline-flex min-h-9 min-w-0 items-center justify-center rounded-md border border-border bg-surface px-2.5 py-1.5 text-center text-[13px] font-medium leading-5 transition-colors hover:bg-surface-muted"
             href={action.href}
             key={action.label}
           >
@@ -575,43 +457,6 @@ function QuickActions({ actions }: { actions: OverviewQuickAction[] }) {
         ))}
       </div>
     </section>
-  );
-}
-
-function Bar({
-  className,
-  maxValue,
-  title,
-  value,
-}: {
-  className: string;
-  maxValue: number;
-  title?: string;
-  value: number;
-}) {
-  const height = value > 0 ? Math.max(5, Math.round((value / maxValue) * 100)) : 0;
-
-  return (
-    <span
-      className={cn("block w-full max-w-9 rounded-t-sm", className)}
-      style={{ height: `${height}%` }}
-      title={title}
-    />
-  );
-}
-
-function LegendSwatch({
-  className,
-  label,
-}: {
-  className: string;
-  label: string;
-}) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("h-2 w-2 rounded-full", className)} />
-      {label}
-    </span>
   );
 }
 
@@ -692,28 +537,18 @@ function toneIconClass(tone: OverviewMetricTone) {
   return "text-foreground-subtle";
 }
 
-function occupancyBarClass(percent: number) {
-  if (percent < 50) {
-    return "bg-danger/80";
+function activityToneClass(tone: RecentChangeTone) {
+  if (tone === "success") {
+    return "text-success";
   }
 
-  if (percent < 85) {
-    return "bg-warning/80";
+  if (tone === "warning") {
+    return "text-warning";
   }
 
-  return "bg-accent";
-}
-
-function toBadgeTone(tone: RecentChangeTone) {
-  return tone;
-}
-
-function formatCompactMoney(amount: number, currency: CurrencyCode) {
-  const absolute = Math.abs(amount);
-
-  if (currency === "USD" && absolute >= 1_000) {
-    return `${amount < 0 ? "-" : ""}USD ${(absolute / 1_000).toFixed(1)}k`;
+  if (tone === "accent") {
+    return "text-accent";
   }
 
-  return formatMoney(amount, currency);
+  return "text-foreground-subtle";
 }

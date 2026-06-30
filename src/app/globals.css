@@ -69,8 +69,8 @@
   --color-chart-accent: var(--chart-accent);
   --color-chart-neutral: var(--chart-neutral);
   --color-chart-track: var(--chart-track);
-  --font-sans: Arial, Helvetica, sans-serif;
-  --font-display: Arial, Helvetica, sans-serif;
+  --font-sans: var(--font-inter), Arial, Helvetica, sans-serif;
+  --font-display: var(--font-inter), Arial, Helvetica, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
