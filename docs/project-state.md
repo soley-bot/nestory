@@ -123,6 +123,10 @@ Expected Supabase Auth URL configuration:
 Expected callback behavior without a Supabase code:
 
 - `/auth/callback` should redirect to `/login`, not 404.
+- `/auth/confirm` accepts Supabase Auth `token_hash` email links and redirects
+  confirmed first-time admins to `/setup`.
+- Hosted signup email template should use the token-hash link form:
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`.
 
 ## Local Verification History
 
@@ -176,3 +180,7 @@ Before using this file for production decisions, re-run or re-check:
 - Supabase performance advisors show INFO-only unused-index notices after the
   FK-index repair. Supabase security advisors still show the Auth leaked
   password protection warning.
+- A real Gmail signup smoke exposed the default Supabase one-time confirmation
+  link returning `otp_expired` before setup. The app now has `/auth/confirm` for
+  token-hash confirmation links; the hosted Supabase email template still needs
+  to be changed before first-customer onboarding.

@@ -34,6 +34,8 @@ npm run db:types
   - Redirect URL: `http://localhost:3000/auth/callback`
   - Redirect URL: `https://nestory-bay.vercel.app/auth/callback`
   - Redirect URL: Vercel preview callback URLs when testing previews.
+- Confirm the signup email template uses the token-hash confirmation route:
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`.
 - Run hosted Supabase security advisors.
 - Run hosted Supabase performance advisors.
 - Treat `unused_index` INFO notices as expected until real usage data exists.
