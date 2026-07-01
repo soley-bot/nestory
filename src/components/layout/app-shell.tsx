@@ -44,8 +44,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOutAction } from "@/features/auth/actions";
-import { MaintenanceReminderNotifications } from "@/features/maintenance/components/maintenance-reminder-notifications";
-import type { MaintenanceReminderNotification } from "@/features/maintenance/maintenance.types";
 import type { WorkspaceRole } from "@/lib/auth/context";
 
 type NavItem = {
@@ -126,9 +124,9 @@ const navGroups: NavGroup[] = [
   },
   {
     id: "operations",
-    label: "Operations",
-    roomLabel: "Operations",
-    icon: ClipboardList,
+    label: "Maintenance",
+    roomLabel: "Maintenance",
+    icon: Wrench,
     items: [
       { href: "/maintenance", label: "Requests", icon: Wrench },
       { href: "/work-orders", label: "Work Orders", icon: ClipboardList },
@@ -209,7 +207,6 @@ const mobilePrimaryItems = [
 
 type AppShellProps = {
   children: React.ReactNode;
-  maintenanceReminders?: MaintenanceReminderNotification[];
   organizationName?: string;
   role?: WorkspaceRole;
   userEmail?: string;
@@ -314,7 +311,6 @@ function groupRailActiveClass(groupId: string) {
 
 export function AppShell({
   children,
-  maintenanceReminders = [],
   organizationName = "Admin workspace",
   role = "admin",
   userEmail,
@@ -389,6 +385,14 @@ export function AppShell({
             </nav>
             <div className="flex flex-col items-center gap-1 border-t border-border px-1 py-2">
               <ThemeToggle onToggle={toggleTheme} />
+              <ProfileMenu
+                email={userEmail}
+                menuClassName="bottom-0 left-10 right-auto top-auto"
+                onOpenChange={setProfileMenuOpen}
+                open={profileMenuOpen}
+                organizationName={organizationName}
+                role={role}
+              />
               {desktopNavGroups.some((group) => group.id === "settings") ? (
                 <DesktopRailGroupLink
                   group={settingsGroup}
@@ -489,6 +493,14 @@ export function AppShell({
                     {selectedDesktopGroup.roomLabel}
                   </span>
                 </Link>
+                <ProfileMenu
+                  email={userEmail}
+                  menuClassName="left-full right-auto top-0 ml-2"
+                  onOpenChange={setProfileMenuOpen}
+                  open={profileMenuOpen}
+                  organizationName={organizationName}
+                  role={role}
+                />
               </div>
 
               <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-3">
@@ -548,15 +560,6 @@ export function AppShell({
           sidebarCollapsed ? "lg:ml-14" : "lg:ml-[244px]",
         )}
       >
-        <div className="hidden h-12 items-center justify-end border-b border-border bg-surface px-4 print:hidden lg:flex">
-          <ProfileMenu
-            email={userEmail}
-            onOpenChange={setProfileMenuOpen}
-            open={profileMenuOpen}
-            organizationName={organizationName}
-            role={role}
-          />
-        </div>
         <div className="border-b border-border bg-surface print:hidden lg:hidden">
           <div className="flex items-center justify-between gap-3 px-4 py-2">
             <div className="flex min-w-0 items-center gap-3">
@@ -683,19 +686,20 @@ export function AppShell({
         </div>
         {children}
       </main>
-      <MaintenanceReminderNotifications reminders={maintenanceReminders} />
     </div>
   );
 }
 
 function ProfileMenu({
   email,
+  menuClassName,
   onOpenChange,
   open,
   organizationName,
   role,
 }: {
   email?: string;
+  menuClassName?: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   organizationName: string;
@@ -718,7 +722,10 @@ function ProfileMenu({
       </button>
       {open ? (
         <div
-          className="absolute right-0 top-10 z-40 w-64 rounded-md border border-border bg-surface p-2 shadow-lg"
+          className={cn(
+            "absolute right-0 top-10 z-40 w-64 rounded-md border border-border bg-surface p-2 shadow-lg",
+            menuClassName,
+          )}
           role="menu"
         >
           <div className="border-b border-border px-2 py-2">

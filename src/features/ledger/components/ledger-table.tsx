@@ -24,13 +24,13 @@ export function LedgerTable({
   return (
     <div className="overflow-hidden rounded-md border border-border bg-surface">
       <div className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]">
-        <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
-            <col className="w-[112px]" />
-            <col className="w-[112px]" />
+            <col className="w-[108px]" />
+            <col className="w-[110px]" />
             <col />
-            <col className="w-[180px]" />
-            <col className="w-[170px]" />
+            <col className="w-[156px]" />
+            <col className="w-[150px]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
@@ -73,14 +73,11 @@ export function LedgerTable({
                   <DirectionBadge direction={entry.direction} />
                 </td>
                 <td className="px-4 py-2">
-                  <p className="line-clamp-1 break-words font-medium text-foreground">
+                  <p className="truncate font-medium text-foreground">
                     {entry.category}
                   </p>
-                  <p className="mt-1 line-clamp-1 text-muted">
-                    {entry.description || "No description recorded."}
-                  </p>
                   {entry.archivedAt || entry.isLocked ? (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       {entry.archivedAt ? (
                         <Badge className="px-2 text-xs" tone="warning">
                           Archived
@@ -99,9 +96,11 @@ export function LedgerTable({
                   <p className="truncate font-medium" title={entry.propertyCode}>
                     {entry.propertyCode}
                   </p>
-                  <p className="mt-1 text-xs text-muted">
-                    {entry.unitNumber ? `Unit ${entry.unitNumber}` : "Property"}
-                  </p>
+                  {entry.unitNumber ? (
+                    <p className="mt-0.5 truncate text-xs text-muted">
+                      Unit {entry.unitNumber}
+                    </p>
+                  ) : null}
                 </td>
                 <td className="px-3 py-2">
                   <MoneyDisplay

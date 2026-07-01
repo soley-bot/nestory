@@ -76,23 +76,19 @@ export function UnitsTable({
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
           <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-            <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[780px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[24%]" />
-                <col className="w-[10%]" />
-                <col className="w-[7%]" />
-                <col className="w-[10%]" />
-                <col className="w-[13%]" />
                 <col className="w-[31%]" />
-                <col className="w-[5%]" />
+                <col className="w-[12%]" />
+                <col className="w-[13%]" />
+                <col className="w-[15%]" />
+                <col className="w-[22%]" />
+                <col className="w-[7%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <th className="px-2.5 py-2.5 font-semibold">Property</th>
                   <th className="px-1.5 py-2.5 font-semibold">Unit</th>
-                  <th className="px-1.5 py-2.5 text-center font-semibold">
-                    Floor
-                  </th>
                   <th className="px-1.5 py-2.5 text-center font-semibold">
                     Status
                   </th>
@@ -108,7 +104,7 @@ export function UnitsTable({
               <tbody>
                 {units.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={7}>
+                    <td className="px-4 py-8 text-center text-muted" colSpan={6}>
                       {getEmptyMessage(archiveState)}
                     </td>
                   </tr>
@@ -157,9 +153,6 @@ export function UnitsTable({
                       >
                         {unit.unitNumber}
                       </RecordLink>
-                    </td>
-                    <td className="px-1.5 py-2 text-center text-muted">
-                      {unit.floorLabel}
                     </td>
                     <td className="px-1.5 py-2">
                       <div className="flex flex-wrap justify-center gap-1.5">
@@ -278,8 +271,7 @@ function UnitCard({
         </div>
 
         <div className="mt-3 grid gap-2">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-foreground-muted">Floor {unit.floorLabel}</span>
+          <div className="flex items-center justify-end gap-3">
             {unit.rentDisplay ? (
               <TableMoneyDisplay value={unit.rentDisplay} />
             ) : (

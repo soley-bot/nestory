@@ -303,29 +303,20 @@ export function ImportPreviewScreen({
           </div>
 
           <div className="max-h-[min(360px,calc(100vh-500px))] overflow-auto">
-            <table className="w-full min-w-[980px] border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
               <thead className="bg-surface-muted text-[11px] uppercase tracking-[0] text-muted">
                 <tr>
                   <th className="border-b border-border px-3 py-2 font-semibold">
                     Row
                   </th>
                   <th className="border-b border-border px-3 py-2 font-semibold">
-                    Action
+                    Unit / Floor
                   </th>
                   <th className="border-b border-border px-3 py-2 font-semibold">
                     Property
                   </th>
-                  <th className="border-b border-border px-3 py-2 font-semibold">
-                    Unit / Floor
-                  </th>
-                  <th className="border-b border-border px-3 py-2 font-semibold">
-                    Type
-                  </th>
-                  <th className="border-b border-border px-3 py-2 font-semibold">
-                    Inclusion
-                  </th>
                   <th className="border-b border-border px-3 py-2 text-right font-semibold">
-                    Price
+                    Rent
                   </th>
                   <th className="border-b border-border px-3 py-2 font-semibold">
                     Status
@@ -340,7 +331,7 @@ export function ImportPreviewScreen({
                   <tr>
                     <td
                       className="px-4 py-8 text-center text-muted"
-                      colSpan={9}
+                      colSpan={6}
                     >
                       No rows loaded.
                     </td>
@@ -448,14 +439,9 @@ function PreviewRow({ row }: { row: UnitImportPreviewRow }) {
 
   return (
     <tr className="align-top hover:bg-surface-muted/60">
-      <td className="border-b border-border px-3 py-2.5 text-muted">
-        {row.sourceRowNumber}
-      </td>
       <td className="border-b border-border px-3 py-2.5">
+        <p className="font-medium text-foreground">{row.sourceRowNumber}</p>
         <Badge tone={hasError ? "warning" : "success"}>{row.actionLabel}</Badge>
-      </td>
-      <td className="border-b border-border px-3 py-2.5 font-medium">
-        {row.propertyLabel || "Not mapped"}
       </td>
       <td className="border-b border-border px-3 py-2.5">
         <span className="font-medium">{row.unitNumber || "Not mapped"}</span>
@@ -463,11 +449,8 @@ function PreviewRow({ row }: { row: UnitImportPreviewRow }) {
           <span className="ml-2 text-muted">Floor {row.floor}</span>
         ) : null}
       </td>
-      <td className="border-b border-border px-3 py-2.5 text-muted">
-        {row.typeLabel}
-      </td>
-      <td className="border-b border-border px-3 py-2.5 text-muted">
-        {row.inclusionLabel}
+      <td className="border-b border-border px-3 py-2.5 font-medium">
+        {row.propertyLabel || "Not mapped"}
       </td>
       <td className="border-b border-border px-3 py-2.5 text-right font-medium tabular-nums">
         {price}

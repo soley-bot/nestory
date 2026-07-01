@@ -395,18 +395,18 @@ function DocumentTable({
   return (
     <div className="overflow-hidden rounded-md border border-border bg-surface">
       <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-        <table className="w-full min-w-[820px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[720px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
-            <col className="w-[40%]" />
-            <col className="w-[16%]" />
-            <col className="w-[32%]" />
-            <col className="w-[12%]" />
+            <col />
+            <col className="w-[150px]" />
+            <col className="w-[112px]" />
+            <col className="w-[124px]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-2.5 py-2.5 font-semibold">Document</th>
               <th className="px-1.5 py-2.5 font-semibold">Category</th>
-              <th className="px-1.5 py-2.5 font-semibold">Linked records</th>
+              <th className="px-1.5 py-2.5 text-center font-semibold">Links</th>
               <th className="px-1.5 py-2.5 font-semibold">Uploaded</th>
             </tr>
           </thead>
@@ -440,19 +440,23 @@ function DocumentTable({
                   <p className="truncate font-medium" title={document.fileName}>
                     {document.fileName}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-muted">
-                    {document.mimeType}
+                  {document.isArchived ? (
+                    <Badge className="mt-1 px-2 text-xs" tone="warning">
+                      Archived
+                    </Badge>
+                  ) : null}
+                </td>
+                <td className="px-1.5 py-2">
+                  <p className="truncate" title={document.category}>
+                    {document.category}
                   </p>
                 </td>
-                <td className="px-1.5 py-2">{document.category}</td>
-                <td className="px-1.5 py-2">
-                  <p className="line-clamp-1 break-words">
-                    {document.linkedRecords.length > 0
-                      ? document.linkedRecords
-                          .map((record) => `${record.type}: ${record.label}`)
-                          .join(" / ")
-                      : "No linked records"}
-                  </p>
+                <td className="px-1.5 py-2 text-center">
+                  <Badge
+                    tone={document.linkedRecords.length > 0 ? "success" : "warning"}
+                  >
+                    {document.linkedRecords.length}
+                  </Badge>
                 </td>
                 <td className="px-1.5 py-2">
                   {formatDate(document.uploadedAt)}

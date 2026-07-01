@@ -1,24 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useDraggable,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
 import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
-  GripVertical,
   ListChecks,
   Repeat,
   UserRound,
@@ -26,12 +16,19 @@ import {
 } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { Badge } from "@/components/ui/badge";
+import type { BoardSurfaceProps } from "@/features/maintenance/components/maintenance-board-surface";
 import type {
   MaintenanceCase,
   MaintenancePagination,
   MaintenanceStatus,
 } from "@/features/maintenance/maintenance.types";
 import { cn } from "@/lib/utils";
+
+const BoardSurface = dynamic<BoardSurfaceProps>(() =>
+  import("@/features/maintenance/components/maintenance-board-surface").then(
+    (module) => module.BoardSurface,
+  ),
+);
 
 export type MaintenanceSurfaceVariant =
   | "agenda"
@@ -193,68 +190,6 @@ function InboxSurface({
         )}
       </aside>
     </div>
-  );
-}
-
-function BoardSurface({
-  cases,
-  emptyLabel,
-  onStatusChange,
-  onSelect,
-  selectedTaskId,
-  statusChangePending = false,
-}: SurfaceProps) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    }),
-    useSensor(KeyboardSensor),
-  );
-
-  function handleDragEnd(event: DragEndEvent) {
-    const taskId = String(event.active.id);
-    const nextStatus = String(event.over?.id ?? "");
-    const maintenanceCase = cases.find((candidate) => candidate.id === taskId);
-
-    if (
-      !maintenanceCase ||
-      !onStatusChange ||
-      !isMaintenanceStatus(nextStatus) ||
-      maintenanceCase.status === nextStatus
-    ) {
-      return;
-    }
-
-    onStatusChange(maintenanceCase, nextStatus);
-  }
-
-  if (cases.length === 0) {
-    return <EmptySurface label={emptyLabel} />;
-  }
-
-  return (
-    <DndContext
-      id="maintenance-status-board"
-      onDragEnd={handleDragEnd}
-      sensors={sensors}
-    >
-      <div className="overflow-x-auto">
-        <div className="grid min-w-[1320px] grid-cols-6 gap-3">
-          {BOARD_COLUMNS.map((column) => (
-            <BoardColumn
-              canMove={Boolean(onStatusChange) && !statusChangePending}
-              column={column}
-              key={column.status}
-              onSelect={onSelect}
-              selectedTaskId={selectedTaskId}
-              tasks={cases.filter(
-                (maintenanceCase) => maintenanceCase.status === column.status,
-              )}
-            />
-          ))}
-        </div>
-      </div>
-    </DndContext>
   );
 }
 
@@ -435,7 +370,6 @@ function RoutineSurface({
             <div className="grid gap-2 p-2 lg:grid-cols-2">
               {group.cases.map((maintenanceCase) => (
                 <MaintenanceCard
-                  compact
                   key={maintenanceCase.id}
                   maintenanceCase={maintenanceCase}
                   onSelect={onSelect}
@@ -487,7 +421,6 @@ function WorkloadSurface({
               <div className="space-y-2 p-2">
                 {group.cases.map((maintenanceCase) => (
                   <MaintenanceCard
-                    compact
                     key={maintenanceCase.id}
                     maintenanceCase={maintenanceCase}
                     onSelect={onSelect}
@@ -532,132 +465,11 @@ function SurfaceList({ children, emptyLabel }: {
   );
 }
 
-const BOARD_COLUMNS: Array<{
-  detail: string;
-  status: MaintenanceStatus;
-  title: string;
-}> = [
-  { detail: "Needs triage", status: "pending", title: "Pending" },
-  { detail: "Ready for a visit", status: "scheduled", title: "Scheduled" },
-  { detail: "Work is moving", status: "in_progress", title: "In progress" },
-  { detail: "Waiting on a blocker", status: "blocked", title: "Blocked" },
-  { detail: "Closed out", status: "completed", title: "Completed" },
-  { detail: "Stopped or voided", status: "cancelled", title: "Cancelled" },
-];
-
-function BoardColumn({
-  canMove,
-  column,
-  onSelect,
-  selectedTaskId,
-  tasks,
-}: {
-  canMove: boolean;
-  column: (typeof BOARD_COLUMNS)[number];
-  onSelect: (taskId: string) => void;
-  selectedTaskId: string;
-  tasks: MaintenanceCase[];
-}) {
-  const { isOver, setNodeRef } = useDroppable({
-    disabled: !canMove,
-    id: column.status,
-  });
-
-  return (
-    <section
-      className={cn(
-        "min-h-56 rounded-md border border-border bg-surface transition-colors",
-        isOver && "border-accent bg-accent-soft/40",
-      )}
-      data-status-column={column.status}
-      ref={setNodeRef}
-    >
-      <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
-        <div>
-          <p className="text-sm font-semibold">{column.title}</p>
-          <p className="text-xs text-muted">{column.detail}</p>
-        </div>
-        <Badge tone={tasks.length > 0 ? "accent" : "neutral"}>
-          {tasks.length}
-        </Badge>
-      </div>
-      <div className="space-y-2 p-2">
-        {tasks.length === 0 ? (
-          <p className="px-1 py-4 text-sm text-muted">No work here.</p>
-        ) : (
-          tasks.map((maintenanceCase) => (
-            <DraggableMaintenanceCard
-              canMove={canMove}
-              key={maintenanceCase.id}
-              maintenanceCase={maintenanceCase}
-              onSelect={onSelect}
-              selected={selectedTaskId === maintenanceCase.id}
-            />
-          ))
-        )}
-      </div>
-    </section>
-  );
-}
-
-function DraggableMaintenanceCard({
-  canMove,
-  maintenanceCase,
-  onSelect,
-  selected,
-}: {
-  canMove: boolean;
-  maintenanceCase: MaintenanceCase;
-  onSelect: (taskId: string) => void;
-  selected: boolean;
-}) {
-  const { attributes, isDragging, listeners, setNodeRef, transform } =
-    useDraggable({
-      data: { status: maintenanceCase.status },
-      disabled: !canMove,
-      id: maintenanceCase.id,
-    });
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
-
-  return (
-    <div
-      className={cn("relative", isDragging && "z-20 opacity-70")}
-      data-task-card={maintenanceCase.id}
-      ref={setNodeRef}
-      style={style}
-    >
-      <MaintenanceCard
-        compact
-        maintenanceCase={maintenanceCase}
-        onSelect={onSelect}
-        selected={selected}
-      />
-      {canMove ? (
-        <button
-          aria-label={`Move ${maintenanceCase.title}`}
-          className="absolute right-2 top-2 z-10 inline-flex size-7 cursor-grab touch-none items-center justify-center rounded-md border border-border bg-surface text-muted shadow-sm transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          data-drag-handle={maintenanceCase.id}
-          title="Drag to change status"
-          type="button"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={14} />
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
 function MaintenanceCard({
-  compact = false,
   maintenanceCase,
   onSelect,
   selected,
 }: {
-  compact?: boolean;
   maintenanceCase: MaintenanceCase;
   onSelect: (taskId: string) => void;
   selected: boolean;
@@ -669,15 +481,18 @@ function MaintenanceCard({
       type="button"
     >
       <CardHeader maintenanceCase={maintenanceCase} />
-      <div
-        className={cn(
-          "mt-3 grid gap-2 text-left text-xs text-muted",
-          compact ? "grid-cols-1" : "sm:grid-cols-3",
-        )}
-      >
-        <CardFact label="Due" value={maintenanceCase.dueLabel} />
-        <CardFact label="Reminder" value={maintenanceCase.reminderLabel} />
-        <CardFact label="Cost" value={maintenanceCase.actualCostLabel} />
+      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 text-left">
+        <Badge tone={maintenanceCase.progressTone}>
+          {maintenanceCase.progressLabel}
+        </Badge>
+        {maintenanceCase.priority !== "normal" ? (
+          <Badge tone={maintenanceCase.priorityTone}>
+            {maintenanceCase.priorityLabel}
+          </Badge>
+        ) : null}
+        <span className="ml-auto min-w-0 truncate text-xs font-medium text-muted">
+          {maintenanceCase.dueLabel}
+        </span>
       </div>
     </button>
   );
@@ -889,15 +704,6 @@ function CardHeader({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
   );
 }
 
-function CardFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <p className="uppercase tracking-[0] text-muted">{label}</p>
-      <p className="mt-0.5 truncate font-medium text-foreground">{value}</p>
-    </div>
-  );
-}
-
 function SectionTitle({
   detail,
   icon,
@@ -1102,8 +908,4 @@ function toCalendarDateKey(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-}
-
-function isMaintenanceStatus(value: string): value is MaintenanceStatus {
-  return BOARD_COLUMNS.some((column) => column.status === value);
 }

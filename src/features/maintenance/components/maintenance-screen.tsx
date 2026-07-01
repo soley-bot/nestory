@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   useActionState,
@@ -37,7 +38,6 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckboxControl } from "@/components/ui/checkbox-control";
-import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
@@ -61,6 +61,7 @@ import {
   ArchiveMaintenancePanel,
   RestoreMaintenancePanel,
 } from "@/features/maintenance/components/maintenance-drawer-panels";
+import { MaintenanceReminderNotifications } from "@/features/maintenance/components/maintenance-reminder-notifications";
 import {
   MaintenanceWorkflowSurface,
   type MaintenanceSurfaceVariant,
@@ -74,6 +75,7 @@ import type {
   MaintenanceChecklistItem,
   MaintenancePersonOption,
   MaintenancePropertyOption,
+  MaintenanceReminderNotification,
   MaintenanceStatus,
   MaintenanceSummary,
   MaintenanceUnitOption,
@@ -82,6 +84,13 @@ import type {
 import { cn } from "@/lib/utils";
 
 const initialState: MaintenanceActionState = {};
+const DatePickerField = dynamic(
+  () =>
+    import("@/components/ui/date-picker-field").then(
+      (module) => module.DatePickerField,
+    ),
+  { ssr: false },
+);
 
 type MaintenanceScopeFact = {
   label: string;
@@ -114,6 +123,7 @@ type MaintenanceScreenProps = {
   peopleOptions: MaintenancePersonOption[];
   propertyOptions: MaintenancePropertyOption[];
   recordLabel?: string;
+  reminders?: MaintenanceReminderNotification[];
   showReportAction?: boolean;
   showFilters?: boolean;
   showReviewTabs?: boolean;
@@ -141,6 +151,7 @@ export function MaintenanceScreen({
   peopleOptions,
   propertyOptions,
   recordLabel = "maintenance case",
+  reminders = [],
   showReportAction = true,
   showFilters = true,
   showReviewTabs = true,
@@ -404,6 +415,7 @@ export function MaintenanceScreen({
           )}
         </SideDrawer>
       ) : null}
+      <MaintenanceReminderNotifications reminders={reminders} />
     </div>
   );
 }
@@ -648,14 +660,13 @@ function MaintenanceTable({
   return (
     <div className="overflow-hidden rounded-md border border-border bg-surface">
       <div className="max-h-[min(620px,calc(100vh-350px))] overflow-auto">
-        <table className="w-full min-w-[1120px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
-            <col className="w-[27%]" />
-            <col className="w-[20%]" />
-            <col className="w-[12%]" />
-            <col className="w-[14%]" />
-            <col className="w-[15%]" />
-            <col className="w-[12%]" />
+            <col />
+            <col className="w-[210px]" />
+            <col className="w-[150px]" />
+            <col className="w-[150px]" />
+            <col className="w-[130px]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
@@ -663,16 +674,15 @@ function MaintenanceTable({
                 {capitalizeLabel(recordLabel)}
               </th>
               <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
-              <th className="px-1.5 py-2.5 font-semibold">Category</th>
               <th className="px-1.5 py-2.5 font-semibold">Status</th>
-              <th className="px-1.5 py-2.5 font-semibold">Due / Reminder</th>
+              <th className="px-1.5 py-2.5 font-semibold">Due</th>
               <th className="px-1.5 py-2.5 text-right font-semibold">Cost</th>
             </tr>
           </thead>
           <tbody>
             {cases.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-muted" colSpan={6}>
+                <td className="px-4 py-8 text-center text-muted" colSpan={5}>
                   {emptyLabel}
                 </td>
               </tr>
@@ -699,9 +709,11 @@ function MaintenanceTable({
                   <p className="truncate font-medium" title={maintenanceCase.title}>
                     {maintenanceCase.title}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-muted">
-                    {maintenanceCase.assigneeLabel}
-                  </p>
+                  {maintenanceCase.isArchived ? (
+                    <Badge className="mt-1 px-2 text-xs" tone="warning">
+                      Archived
+                    </Badge>
+                  ) : null}
                 </td>
                 <td className="px-1.5 py-2">
                   <p className="truncate">{maintenanceCase.propertyLabel}</p>
@@ -710,40 +722,29 @@ function MaintenanceTable({
                   </p>
                 </td>
                 <td className="px-1.5 py-2">
-                  <p className="truncate">{maintenanceCase.category}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted">
-                    {maintenanceCase.recurrenceLabel}
-                  </p>
-                </td>
-                <td className="px-1.5 py-2">
                   <div className="flex flex-wrap gap-1.5">
                     <Badge tone={maintenanceCase.statusTone}>
                       {maintenanceCase.statusLabel}
                     </Badge>
-                    <Badge tone={maintenanceCase.priorityTone}>
+                    {maintenanceCase.priorityLabel === "Normal" ? null : (
+                      <Badge tone={maintenanceCase.priorityTone}>
                       {maintenanceCase.priorityLabel}
-                    </Badge>
-                    <Badge tone={maintenanceCase.progressTone}>
-                      {maintenanceCase.progressLabel}
-                    </Badge>
+                      </Badge>
+                    )}
                   </div>
                 </td>
                 <td className="px-1.5 py-2">
-                  <p className="truncate">{maintenanceCase.dueLabel}</p>
                   <p
                     className={cn(
-                      "mt-0.5 truncate text-xs",
-                      maintenanceCase.isReminderDue ? "text-danger" : "text-muted",
+                      "truncate",
+                      maintenanceCase.progressTone === "danger" && "text-danger",
                     )}
                   >
-                    {maintenanceCase.reminderLabel}
+                    {maintenanceCase.dueLabel}
                   </p>
                 </td>
                 <td className="px-1.5 py-2 text-right">
                   <p className="font-medium">{maintenanceCase.actualCostLabel}</p>
-                  <p className="mt-0.5 text-xs text-muted">
-                    Est. {maintenanceCase.costEstimateLabel}
-                  </p>
                 </td>
               </tr>
             ))}

@@ -1,6 +1,9 @@
 import { MaintenanceScreen } from "@/features/maintenance/components/maintenance-screen";
 import type { MaintenanceSurfaceVariant } from "@/features/maintenance/components/maintenance-work-surfaces";
-import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
+import {
+  getMaintenanceReminderNotifications,
+  getMaintenanceScreenData,
+} from "@/features/maintenance/data/maintenance";
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
 import { requireWorkspaceContext } from "@/lib/auth/context";
@@ -48,11 +51,15 @@ export async function renderMaintenanceRoute({
   const context = await requireWorkspaceContext();
   const params = applyMaintenanceRouteDefaults(await searchParams, defaults);
   const viewQuery = parseMaintenanceSearchParams(params);
-  const data = await getMaintenanceScreenData(context.organizationId, viewQuery, {
+  const actor = {
     branchId: context.branchId,
     personId: context.personId,
     role: context.role,
-  });
+  };
+  const [data, reminders] = await Promise.all([
+    getMaintenanceScreenData(context.organizationId, viewQuery, actor),
+    getMaintenanceReminderNotifications(context.organizationId, actor),
+  ]);
   const initialTaskId = viewQuery.taskId === "all" ? undefined : viewQuery.taskId;
 
   return (
@@ -71,6 +78,7 @@ export async function renderMaintenanceRoute({
       peopleOptions={data.peopleOptions}
       propertyOptions={data.propertyOptions}
       recordLabel={recordLabel}
+      reminders={reminders}
       showFilters={showFilters}
       showReportAction={showReportAction}
       showReviewTabs={showReviewTabs}

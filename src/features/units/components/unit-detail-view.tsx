@@ -528,11 +528,6 @@ function TimelineRow({ event }: { event: UnitTimelineContext }) {
           <p className="mt-1 text-xs text-muted">
             {formatUnitTimelineContext(event)}
           </p>
-          {event.description ? (
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
-              {event.description}
-            </p>
-          ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
           <Badge tone="neutral">{event.eventType}</Badge>
@@ -561,12 +556,6 @@ function LedgerRow({ entry }: { entry: UnitLedgerContext }) {
             <Badge tone={entry.direction === "expense" ? "warning" : "success"}>
               {entry.direction}
             </Badge>
-            {entry.description ? (
-              <>
-                <span aria-hidden="true">/</span>
-                <span className="break-words">{entry.description}</span>
-              </>
-            ) : null}
           </div>
         </div>
         <MoneyDisplay align="right" value={entry.amountDisplay} />

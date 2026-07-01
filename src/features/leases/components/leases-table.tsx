@@ -48,26 +48,20 @@ export function LeasesTable({
 
       <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
         <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-          <table className="w-full min-w-[1040px] table-fixed border-collapse text-left text-[13px]">
+          <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
             <colgroup>
-              <col className="w-[11%]" />
-              <col className="w-[21%]" />
-              <col className="w-[20%]" />
-              <col className="w-[15%]" />
-              <col className="w-[13%]" />
-              <col className="w-[13%]" />
-              <col className="w-[7%]" />
+              <col />
+              <col className="w-[210px]" />
+              <col className="w-[170px]" />
+              <col className="w-[140px]" />
+              <col className="w-[100px]" />
             </colgroup>
             <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
               <tr>
-                <th className="px-2.5 py-2.5 font-semibold">Lease</th>
                 <th className="px-2 py-2.5 font-semibold">Tenant</th>
                 <th className="px-2 py-2.5 font-semibold">Unit</th>
                 <th className="px-2 py-2.5 font-semibold">Term</th>
                 <th className="px-2 py-2.5 text-right font-semibold">Rent</th>
-                <th className="px-2 py-2.5 text-right font-semibold">
-                  Deposit
-                </th>
                 <th className="px-1.5 py-2.5 text-center font-semibold">
                   Status
                 </th>
@@ -76,7 +70,7 @@ export function LeasesTable({
             <tbody>
               {leases.length === 0 ? (
                 <tr className="border-t border-border">
-                  <td className="px-4 py-8 text-center text-muted" colSpan={7}>
+                  <td className="px-4 py-8 text-center text-muted" colSpan={5}>
                     {getEmptyMessage(archiveState)}
                   </td>
                 </tr>
@@ -99,24 +93,13 @@ export function LeasesTable({
                   }}
                   tabIndex={0}
                 >
-                  <td className="px-2.5 py-2">
+                  <td className="px-2 py-2">
                     <RecordLink
                       href={getLeaseHref(lease.id)}
                       title={`Open lease for ${lease.tenantName}`}
                     >
-                      {lease.propertyCode}
-                    </RecordLink>
-                    <p className="mt-0.5 truncate text-xs text-muted">
-                      {lease.startDateLabel}
-                    </p>
-                  </td>
-                  <td className="px-2 py-2">
-                    <p
-                      className="line-clamp-2 break-words font-medium leading-[18px]"
-                      title={lease.tenantName}
-                    >
                       {lease.tenantName}
-                    </p>
+                    </RecordLink>
                   </td>
                   <td className="px-2 py-2">
                     <p className="truncate font-medium" title={lease.unitLabel}>
@@ -137,15 +120,6 @@ export function LeasesTable({
                   </td>
                   <td className="px-2 py-2 text-right align-top">
                     <TableMoneyDisplay value={lease.rentDisplay} />
-                  </td>
-                  <td className="px-2 py-2 text-right align-top">
-                    {lease.depositDisplay ? (
-                      <TableMoneyDisplay value={lease.depositDisplay} />
-                    ) : (
-                      <span className="text-xs text-muted">
-                        {lease.depositLabel}
-                      </span>
-                    )}
                   </td>
                   <td className="px-1.5 py-2">
                     <div className="flex flex-wrap justify-center gap-1.5">
@@ -238,12 +212,6 @@ function LeaseCard({
         <LeaseCardDetail align="right" label="Rent">
           <TableMoneyDisplay value={lease.rentDisplay} />
         </LeaseCardDetail>
-        <LeaseCardDetail label="Deposit" value={lease.depositLabel} />
-        <LeaseCardDetail
-          align="right"
-          label="Occupancy"
-          value={lease.occupancyLabel}
-        />
       </dl>
     </article>
   );

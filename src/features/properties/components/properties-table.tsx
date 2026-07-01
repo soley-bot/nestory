@@ -70,24 +70,18 @@ export function PropertiesTable({
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
           <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-            <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[23%]" />
-                <col className="w-[22%]" />
-                <col className="w-[17%]" />
-                <col className="w-[10%]" />
-                <col className="w-[13%]" />
-                <col className="w-[9%]" />
-                <col className="w-[5%]" />
+                <col className="w-[34%]" />
+                <col className="w-[27%]" />
+                <col className="w-[18%]" />
+                <col className="w-[14%]" />
+                <col className="w-[7%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <th className="px-2.5 py-2.5 font-semibold">Property</th>
-                  <th className="px-1.5 py-2.5 font-semibold">Location</th>
                   <th className="px-1.5 py-2.5 font-semibold">Occupancy</th>
-                  <th className="px-1.5 py-2.5 text-right font-semibold">
-                    Units
-                  </th>
                   <th className="px-1.5 py-2.5 text-right font-semibold">
                     Net
                   </th>
@@ -102,7 +96,7 @@ export function PropertiesTable({
               <tbody>
                 {properties.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={7}>
+                    <td className="px-4 py-8 text-center text-muted" colSpan={5}>
                       No properties match the current filters.
                     </td>
                   </tr>
@@ -145,25 +139,8 @@ export function PropertiesTable({
                         </div>
                       </div>
                     </td>
-                    <td className="px-1.5 py-2 text-foreground-muted">
-                      <p
-                        className="line-clamp-1 break-words leading-[18px]"
-                        title={property.address}
-                      >
-                        {property.address}
-                      </p>
-                      <p
-                        className="mt-0.5 truncate text-xs text-muted"
-                        title={property.owner}
-                      >
-                        Owner: {property.owner}
-                      </p>
-                    </td>
                     <td className="px-1.5 py-2">
                       <TableOccupancy property={property} />
-                    </td>
-                    <td className="whitespace-nowrap px-1.5 py-2 text-right font-medium tabular-nums">
-                      {property.occupiedUnits}/{property.units}
                     </td>
                     <td className="px-1.5 py-2">
                       <TableMoneyDisplay value={property.netIncome} />
@@ -240,12 +217,6 @@ function PropertyCard({
               title={`${property.code} / ${property.type}`}
             >
               {property.code} / {property.type}
-            </p>
-            <p
-              className="mt-0.5 line-clamp-1 break-words text-[13px] text-foreground-muted"
-              title={property.address}
-            >
-              {property.address}
             </p>
           </div>
         </div>

@@ -72,7 +72,10 @@ export async function getUnitsScreenData(
       ? await getActiveLeaseUnitIds(organizationId)
       : null;
 
-  if (canUsePagedUnitBaseQuery(viewQuery)) {
+  if (
+    canUsePagedUnitBaseQuery(viewQuery) &&
+    canApplyUnitLeaseExclusionInUrl(activeLeaseUnitIds)
+  ) {
     return getPagedUnitsScreenData({
       activeLeaseUnitIds,
       organizationId,
@@ -241,7 +244,11 @@ function applyUnitBaseFilters(
       .neq("status", "inactive");
   }
 
-  if (activeLeaseUnitIds && activeLeaseUnitIds.size > 0) {
+  if (
+    activeLeaseUnitIds &&
+    activeLeaseUnitIds.size > 0 &&
+    canApplyUnitLeaseExclusionInUrl(activeLeaseUnitIds)
+  ) {
     filteredQuery = filteredQuery.not(
       "id",
       "in",
@@ -250,6 +257,14 @@ function applyUnitBaseFilters(
   }
 
   return filteredQuery;
+}
+
+function canApplyUnitLeaseExclusionInUrl(
+  activeLeaseUnitIds: ReadonlySet<string> | null,
+) {
+  return (
+    !activeLeaseUnitIds || activeLeaseUnitIds.size <= unitRelationshipBatchSize
+  );
 }
 
 function applyUnitBaseSort(
@@ -339,7 +354,11 @@ async function getCompleteUnitsScreenData({
       .neq("status", "inactive");
   }
 
-  if (activeLeaseUnitIds && activeLeaseUnitIds.size > 0) {
+  if (
+    activeLeaseUnitIds &&
+    activeLeaseUnitIds.size > 0 &&
+    canApplyUnitLeaseExclusionInUrl(activeLeaseUnitIds)
+  ) {
     unitsQuery = unitsQuery.not(
       "id",
       "in",

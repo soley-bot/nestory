@@ -42,13 +42,13 @@ export function TimelineTable({
         </div>
       </div>
       <div className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]">
-        <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
-            <col className="w-[112px]" />
-            <col className="w-[128px]" />
+            <col className="w-[108px]" />
+            <col className="w-[126px]" />
             <col />
-            <col className="w-[180px]" />
-            <col className="w-[150px]" />
+            <col className="w-[156px]" />
+            <col className="w-[132px]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
@@ -92,24 +92,19 @@ export function TimelineTable({
                   <EventTypeBadge type={event.eventType} />
                 </td>
                 <td className="px-4 py-2">
-                  <div className="flex items-start gap-3">
-                    <div className="min-w-0">
-                      <p className="break-words font-medium text-foreground">
-                        {event.title}
-                      </p>
-                      <p className="mt-1 line-clamp-1 text-muted">
-                        {event.description || "No description recorded."}
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-2.5">
+                    <p className="min-w-0 truncate font-medium text-foreground">
+                      {event.title}
+                    </p>
                     {event.hasAttachment ? (
                       <FileText
-                        className="mt-0.5 shrink-0 text-muted"
+                        className="shrink-0 text-muted"
                         size={15}
                       />
                     ) : null}
                   </div>
                   {event.archivedAt || event.isLocked ? (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       {event.archivedAt ? (
                         <Badge className="px-2 text-xs" tone="warning">
                           Archived
@@ -128,9 +123,11 @@ export function TimelineTable({
                   <p className="truncate font-medium" title={event.propertyCode}>
                     {event.propertyCode}
                   </p>
-                  <p className="mt-1 text-xs text-muted">
-                    {event.unitNumber ? `Unit ${event.unitNumber}` : "Property"}
-                  </p>
+                  {event.unitNumber ? (
+                    <p className="mt-0.5 truncate text-xs text-muted">
+                      Unit {event.unitNumber}
+                    </p>
+                  ) : null}
                 </td>
                 <td className="px-3 py-2 text-right font-medium">
                   {event.cost !== undefined && event.currency

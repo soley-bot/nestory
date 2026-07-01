@@ -592,11 +592,6 @@ function LedgerRow({ entry }: { entry: PropertyLedgerContext }) {
             <span aria-hidden="true">/</span>
             <span>{entry.unitLabel}</span>
           </div>
-          {entry.description ? (
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
-              {entry.description}
-            </p>
-          ) : null}
         </div>
         <MoneyDisplay align="right" value={entry.amountDisplay} />
       </div>
@@ -649,11 +644,6 @@ function TimelineRow({ event }: { event: PropertyTimelineContext }) {
           <p className="mt-1 text-xs text-muted">
             {formatDate(event.eventDate)} / {event.eventType} / {event.unitLabel}
           </p>
-          {event.description ? (
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
-              {event.description}
-            </p>
-          ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
           <Badge tone="neutral">{event.eventType}</Badge>

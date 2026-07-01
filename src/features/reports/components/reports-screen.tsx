@@ -156,9 +156,7 @@ function TrustedReportTable({
                   {column.label}
                 </th>
               ))}
-              <th className="border-b border-border px-3 py-2">
-                Source rows
-              </th>
+              <th className="border-b border-border px-3 py-2">Sources</th>
             </tr>
           </thead>
           <tbody>
@@ -197,8 +195,8 @@ function TrustedReportTableRow({
   columns: TrustedReport["columns"];
   row: TrustedReportRow;
 }) {
-  const visibleSourceLinks = row.sourceLinks.slice(0, 5);
-  const hiddenSourceLinkCount = row.sourceLinks.length - visibleSourceLinks.length;
+  const primarySource = row.sourceLinks[0];
+  const hiddenSourceCount = row.sourceCount - (primarySource ? 1 : 0);
 
   return (
     <tr className="align-top hover:bg-surface-muted/70 print:break-inside-avoid print:hover:bg-white">
@@ -218,7 +216,6 @@ function TrustedReportTableRow({
             ) : (
               <span className="font-medium text-foreground">{row.title}</span>
             )}
-            <p className="mt-1 text-xs text-muted">{row.sourceSummary}</p>
           </div>
         </div>
       </td>
@@ -235,38 +232,31 @@ function TrustedReportTableRow({
           {row.cells[column.key] ?? "-"}
         </td>
       ))}
-      <td className="max-w-[260px] border-b border-border px-3 py-2.5">
-        <div className="flex flex-wrap gap-1.5">
-          {visibleSourceLinks.map((source) =>
-            source.href ? (
-              <Link
-                className="inline-flex min-h-6 max-w-[180px] items-center rounded-md border border-border bg-surface-muted px-2 text-xs font-medium text-foreground-muted hover:text-foreground"
-                href={source.href}
-                key={`${source.recordType}-${source.id}`}
-                prefetch={false}
-                title={`${source.recordType}: ${source.label}`}
-              >
-                <span className="truncate">
-                  {source.recordType}: {source.label}
-                </span>
-              </Link>
-            ) : (
-              <span
-                className="inline-flex min-h-6 max-w-[180px] items-center rounded-md border border-border bg-surface-muted px-2 text-xs font-medium text-foreground-muted"
-                key={`${source.recordType}-${source.id}`}
-                title={`${source.recordType}: ${source.label}`}
-              >
-                <span className="truncate">
-                  {source.recordType}: {source.label}
-                </span>
-              </span>
-            ),
-          )}
-          {hiddenSourceLinkCount > 0 ? (
-            <span className="inline-flex min-h-6 items-center rounded-md border border-border bg-surface px-2 text-xs font-medium text-muted">
-              +{hiddenSourceLinkCount}
+      <td className="w-[150px] border-b border-border px-3 py-2.5">
+        <div className="flex min-w-0 items-center justify-end gap-1.5">
+          {primarySource?.href ? (
+            <Link
+              className="inline-flex min-h-6 max-w-[94px] items-center rounded-md border border-border bg-surface-muted px-2 text-xs font-medium text-foreground-muted hover:text-foreground"
+              href={primarySource.href}
+              prefetch={false}
+              title={`${primarySource.recordType}: ${primarySource.label}`}
+            >
+              <span className="truncate">{primarySource.recordType}</span>
+            </Link>
+          ) : primarySource ? (
+            <span
+              className="inline-flex min-h-6 max-w-[94px] items-center rounded-md border border-border bg-surface-muted px-2 text-xs font-medium text-foreground-muted"
+              title={`${primarySource.recordType}: ${primarySource.label}`}
+            >
+              <span className="truncate">{primarySource.recordType}</span>
             </span>
           ) : null}
+          <span
+            className="inline-flex min-h-6 items-center rounded-md border border-border bg-surface px-2 text-xs font-medium text-muted"
+            title={row.sourceSummary}
+          >
+            {hiddenSourceCount > 0 ? `+${hiddenSourceCount}` : row.sourceCount}
+          </span>
         </div>
       </td>
     </tr>

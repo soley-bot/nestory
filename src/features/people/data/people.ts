@@ -50,6 +50,9 @@ const documentSelect =
   "id, category, file_name, mime_type, size_bytes, uploaded_at, storage_path, property_id, unit_id, lease_id";
 const activitySelect =
   "id, entity_type, entity_id, action, previous_values, new_values, created_at";
+// ponytail: keep PostgREST GET URLs short; use an RPC if people filters need
+// server-side pagination across thousands of matching linked records.
+const PEOPLE_IN_FILTER_BATCH_SIZE = 100;
 
 type UnknownRecord = Record<string, unknown>;
 type SupabaseServerClient = Awaited<
@@ -247,6 +250,10 @@ async function getPagedPeopleScreenData({
     viewQuery,
   });
 
+  if (isOversizedPeopleIdPrefilter(idFilterResult)) {
+    return getCompletePeopleScreenData({ organizationId, supabase, viewQuery });
+  }
+
   let rowsResult = await getPagedPeopleRows({
     idFilter: idFilterResult,
     organizationId,
@@ -329,6 +336,10 @@ async function getQueryFilteredPeopleScreenData({
     requireMissingPrimaryContact: false,
   });
 
+  if (isOversizedPeopleIdPrefilter(idFilter)) {
+    return getCompletePeopleScreenData({ organizationId, supabase, viewQuery });
+  }
+
   if (idFilter.includeIds?.size === 0) {
     return {
       pagination: buildPeoplePagination({
@@ -408,7 +419,10 @@ async function getCompletePeopleScreenData({
     peopleQuery = peopleQuery.not("archived_at", "is", null);
   }
 
-  if (excludedPersonIds.size > 0) {
+  if (
+    excludedPersonIds.size > 0 &&
+    excludedPersonIds.size <= PEOPLE_IN_FILTER_BATCH_SIZE
+  ) {
     peopleQuery = peopleQuery.not(
       "id",
       "in",
@@ -726,6 +740,13 @@ function mergePeopleIdPrefilters(
   };
 }
 
+function isOversizedPeopleIdPrefilter(idFilter: PeopleIdPrefilter) {
+  return (
+    (idFilter.includeIds?.size ?? 0) > PEOPLE_IN_FILTER_BATCH_SIZE ||
+    idFilter.excludeIds.size > PEOPLE_IN_FILTER_BATCH_SIZE
+  );
+}
+
 async function loadPeopleSummariesForRows({
   organizationId,
   people,
@@ -897,9 +918,18 @@ async function getRows<T>(
   organizationId: string,
   mapper: (row: UnknownRecord) => T | null,
   filter?: { column: string; values: ReadonlySet<string> },
-) {
+): Promise<T[]> {
   if (filter && filter.values.size === 0) {
     return [];
+  }
+
+  if (filter && filter.values.size > PEOPLE_IN_FILTER_BATCH_SIZE) {
+    return queryValueBatches([...filter.values], (batch) =>
+      getRows(supabase, table, columns, organizationId, mapper, {
+        column: filter.column,
+        values: new Set(batch),
+      }),
+    );
   }
 
   let query = supabase
@@ -1432,6 +1462,32 @@ async function getPeopleIdsForActiveLeaseUnits(
   organizationId: string,
   unitIds: ReadonlySet<string>,
 ): Promise<PeopleIdQueryResult> {
+  if (unitIds.size > PEOPLE_IN_FILTER_BATCH_SIZE) {
+    const leaseIds = await queryValueBatches([...unitIds], async (batch) => {
+      const result = await supabase
+        .from("leases")
+        .select("id, status, archived_at")
+        .eq("organization_id", organizationId)
+        .in("unit_id", batch);
+
+      if (result.error) {
+        throw new Error(
+          `Could not load people lease unit search filters: ${result.error.message}`,
+        );
+      }
+
+      return asRows(result.data, toLeaseSearchRow)
+        .filter(isActiveLeaseSearchRow)
+        .map((lease) => lease.id);
+    });
+
+    return getPeopleIdsForActiveLeaseIds(
+      supabase,
+      organizationId,
+      new Set(leaseIds),
+    );
+  }
+
   const result = await supabase
     .from("leases")
     .select("id, status, archived_at")
@@ -1462,6 +1518,28 @@ async function getPeopleIdsForActiveLeaseIds(
 ): Promise<PeopleIdQueryResult> {
   if (leaseIds.size === 0) {
     return { kind: "ready", ids: new Set<string>() };
+  }
+
+  if (leaseIds.size > PEOPLE_IN_FILTER_BATCH_SIZE) {
+    const personIds = await queryValueBatches([...leaseIds], async (batch) => {
+      const result = await supabase
+        .from("lease_parties")
+        .select("person_id")
+        .eq("organization_id", organizationId)
+        .in("lease_id", batch)
+        .is("archived_at", null)
+        .is("ended_on", null);
+
+      if (result.error) {
+        throw new Error(
+          `Could not load people lease party search filters: ${result.error.message}`,
+        );
+      }
+
+      return asRows(result.data, toPersonIdRow).map((row) => row.personId);
+    });
+
+    return { kind: "ready", ids: new Set(personIds) };
   }
 
   const result = await supabase
@@ -1605,9 +1683,35 @@ async function getPersonActivityRows(
   supabase: SupabaseServerClient,
   organizationId: string,
   personIds: ReadonlySet<string>,
-) {
+): Promise<ActivityLogSnapshot[]> {
   if (personIds.size === 0) {
     return [];
+  }
+
+  if (personIds.size > PEOPLE_IN_FILTER_BATCH_SIZE) {
+    const rows = await queryValueBatches([...personIds], async (batch) => {
+      const result = await supabase
+        .from("activity_logs")
+        .select(activitySelect)
+        .eq("organization_id", organizationId)
+        .eq("entity_type", "person")
+        .in("entity_id", batch)
+        .order("created_at", { ascending: false })
+        .limit(120);
+
+      if (result.error) {
+        throw new Error(`Could not load people activity: ${result.error.message}`);
+      }
+
+      return asRows(result.data, toActivityLogRow);
+    });
+
+    return rows
+      .toSorted(
+        (first, second) =>
+          Date.parse(second.created_at) - Date.parse(first.created_at),
+      )
+      .slice(0, 120);
   }
 
   const result = await supabase
@@ -2943,6 +3047,27 @@ function readyPeopleIdSet(ids = new Set<string>()): PeopleIdQueryResult {
 
 function formatPostgrestInFilter(values: ReadonlySet<string>) {
   return `(${[...values].join(",")})`;
+}
+
+async function queryValueBatches<T>(
+  values: string[],
+  queryBatch: (batch: string[]) => Promise<T[]>,
+): Promise<T[]> {
+  const rows: T[] = [];
+
+  for (
+    let index = 0;
+    index < values.length;
+    index += PEOPLE_IN_FILTER_BATCH_SIZE
+  ) {
+    rows.push(
+      ...(await queryBatch(
+        values.slice(index, index + PEOPLE_IN_FILTER_BATCH_SIZE),
+      )),
+    );
+  }
+
+  return rows;
 }
 
 function unionSets<T>(...sets: ReadonlySet<T>[]) {

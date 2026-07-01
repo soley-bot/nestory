@@ -2,8 +2,10 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
   buildPropertySummary,
+  type PropertyLedgerRecord,
   type PropertyRecord,
   type PropertySummary,
+  type PropertyUnitRecord,
 } from "@/features/properties/data/property-summary";
 import {
   buildPropertyDetail,
@@ -35,10 +37,21 @@ type ActiveOwnerLink = {
 };
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type ActiveOwnerRow = {
+  person_id: string;
+  property_id: string;
+};
+type PropertyPersonRow = {
+  display_name: string;
+  id: string;
+};
+type PropertyUnitSummaryRow = PropertyUnitRecord & { property_id: string };
+type PropertyLedgerSummaryRow = PropertyLedgerRecord & { property_id: string };
 
 const propertySelect =
   "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at";
 const propertyImageMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
+const propertyRelationshipBatchSize = 75;
 
 type PropertyImageRow = {
   property_id: string;
@@ -88,7 +101,11 @@ export async function getPropertySummaries(
     );
   }
 
-  if (activeOwnerLinks && activeOwnerLinks.size > 0) {
+  if (
+    activeOwnerLinks &&
+    activeOwnerLinks.size > 0 &&
+    canApplyPropertyOwnerExclusionInUrl(activeOwnerLinks)
+  ) {
     propertiesQuery = propertiesQuery.not(
       "id",
       "in",
@@ -103,13 +120,20 @@ export async function getPropertySummaries(
   }
 
   const propertyRows = propertiesResult.data ?? [];
-
-  return loadPropertySummariesForRows({
+  const summaries = await loadPropertySummariesForRows({
     activeOwnerLinks: activeOwnerLinks ?? undefined,
     organizationId,
     properties: propertyRows,
     supabase,
   });
+
+  if (options.ownerStatus === "missing") {
+    return summaries.filter((property) =>
+      propertyMatchesOwnerStatusFilter(property, "missing"),
+    );
+  }
+
+  return summaries;
 }
 
 async function loadPropertySummariesForRows({
@@ -132,45 +156,58 @@ async function loadPropertySummariesForRows({
   const ownerLinks =
     activeOwnerLinks ?? (await getActiveOwnerLinks(organizationId, propertyIds));
 
-  const [unitsResult, ledgerResult, imagesResult] = await Promise.all([
-    supabase
-      .from("units")
-      .select("property_id, status")
-      .eq("organization_id", organizationId)
-      .in("property_id", [...propertyIds])
-      .is("archived_at", null),
-    supabase
-      .from("ledger_entries")
-      .select("property_id, direction, amount, currency")
-      .eq("organization_id", organizationId)
-      .in("property_id", [...propertyIds])
-      .is("archived_at", null),
-    supabase
-      .from("documents")
-      .select("property_id, storage_path")
-      .eq("organization_id", organizationId)
-      .in("property_id", [...propertyIds])
-      .is("archived_at", null)
-      .in("mime_type", [...propertyImageMimeTypes])
-      .order("uploaded_at", { ascending: false }),
+  const propertyIdList = [...propertyIds];
+  const [unitRows, ledgerRows, imageRows] = await Promise.all([
+    queryValueBatches(propertyIdList, async (batch) => {
+      const result = await supabase
+        .from("units")
+        .select("property_id, status")
+        .eq("organization_id", organizationId)
+        .in("property_id", batch)
+        .is("archived_at", null);
+
+      if (result.error) {
+        throw new Error(`Could not load property units: ${result.error.message}`);
+      }
+
+      return (result.data ?? []) as PropertyUnitSummaryRow[];
+    }),
+    queryValueBatches(propertyIdList, async (batch) => {
+      const result = await supabase
+        .from("ledger_entries")
+        .select("property_id, direction, amount, currency")
+        .eq("organization_id", organizationId)
+        .in("property_id", batch)
+        .is("archived_at", null);
+
+      if (result.error) {
+        throw new Error(`Could not load ledger totals: ${result.error.message}`);
+      }
+
+      return (result.data ?? []) as PropertyLedgerSummaryRow[];
+    }),
+    queryValueBatches(propertyIdList, async (batch) => {
+      const result = await supabase
+        .from("documents")
+        .select("property_id, storage_path")
+        .eq("organization_id", organizationId)
+        .in("property_id", batch)
+        .is("archived_at", null)
+        .in("mime_type", [...propertyImageMimeTypes])
+        .order("uploaded_at", { ascending: false });
+
+      if (result.error) {
+        throw new Error(`Could not load property images: ${result.error.message}`);
+      }
+
+      return (result.data ?? []) as PropertyImageRow[];
+    }),
   ]);
 
-  if (unitsResult.error) {
-    throw new Error(`Could not load property units: ${unitsResult.error.message}`);
-  }
-
-  if (ledgerResult.error) {
-    throw new Error(`Could not load ledger totals: ${ledgerResult.error.message}`);
-  }
-
-  if (imagesResult.error) {
-    throw new Error(`Could not load property images: ${imagesResult.error.message}`);
-  }
-
-  const unitsByProperty = groupByProperty(unitsResult.data ?? []);
-  const ledgerByProperty = groupByProperty(ledgerResult.data ?? []);
+  const unitsByProperty = groupByProperty(unitRows);
+  const ledgerByProperty = groupByProperty(ledgerRows);
   const thumbnailUrls = await getPropertyThumbnailUrls({
-    imageRows: (imagesResult.data ?? []) as PropertyImageRow[],
+    imageRows,
     supabase,
   });
 
@@ -290,6 +327,14 @@ async function getPagedPropertiesScreenData({
     viewQuery.ownerStatus === "missing"
       ? await getActiveOwnerLinks(organizationId)
       : undefined;
+
+  if (
+    activeOwnerLinks &&
+    !canApplyPropertyOwnerExclusionInUrl(activeOwnerLinks)
+  ) {
+    return getCompletePropertiesScreenData({ organizationId, viewQuery });
+  }
+
   let rowsResult = await getPagedPropertyRows({
     activeOwnerLinks,
     organizationId,
@@ -393,7 +438,11 @@ function applyPropertyBaseFilters(
     );
   }
 
-  if (activeOwnerLinks && activeOwnerLinks.size > 0) {
+  if (
+    activeOwnerLinks &&
+    activeOwnerLinks.size > 0 &&
+    canApplyPropertyOwnerExclusionInUrl(activeOwnerLinks)
+  ) {
     filteredQuery = filteredQuery.not(
       "id",
       "in",
@@ -402,6 +451,12 @@ function applyPropertyBaseFilters(
   }
 
   return filteredQuery;
+}
+
+function canApplyPropertyOwnerExclusionInUrl(
+  activeOwnerLinks: ReadonlyMap<string, ActiveOwnerLink>,
+) {
+  return activeOwnerLinks.size <= propertyRelationshipBatchSize;
 }
 
 function applyPropertyBaseSort(
@@ -856,29 +911,9 @@ async function getActiveOwnerLinks(
   propertyIds?: ReadonlySet<string>,
 ) {
   const supabase = await createSupabaseServerClient();
-  let query = supabase
-    .from("property_owners")
-    .select("person_id, property_id")
-    .eq("organization_id", organizationId)
-    .eq("is_primary", true)
-    .is("archived_at", null)
-    .is("ended_on", null);
-
-  if (propertyIds) {
-    if (propertyIds.size === 0) {
-      return new Map<string, ActiveOwnerLink>();
-    }
-
-    query = query.in("property_id", [...propertyIds]);
-  }
-
-  const result = await query;
-
-  if (result.error) {
-    throw new Error(`Could not load property owner links: ${result.error.message}`);
-  }
-
-  const ownerRows = result.data ?? [];
+  const ownerRows = propertyIds
+    ? await getActiveOwnerRowsForProperties(supabase, organizationId, propertyIds)
+    : await getActiveOwnerRows(supabase, organizationId);
   const personIds = new Set(ownerRows.map((owner) => owner.person_id));
   const labelsByPerson = await getPeopleDisplayNames(organizationId, personIds);
   const links = new Map<string, ActiveOwnerLink>();
@@ -893,6 +928,52 @@ async function getActiveOwnerLinks(
   return links;
 }
 
+async function getActiveOwnerRows(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+): Promise<ActiveOwnerRow[]> {
+  const result = await supabase
+    .from("property_owners")
+    .select("person_id, property_id")
+    .eq("organization_id", organizationId)
+    .eq("is_primary", true)
+    .is("archived_at", null)
+    .is("ended_on", null);
+
+  if (result.error) {
+    throw new Error(`Could not load property owner links: ${result.error.message}`);
+  }
+
+  return (result.data ?? []) as ActiveOwnerRow[];
+}
+
+async function getActiveOwnerRowsForProperties(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  propertyIds: ReadonlySet<string>,
+): Promise<ActiveOwnerRow[]> {
+  if (propertyIds.size === 0) {
+    return [];
+  }
+
+  return queryValueBatches([...propertyIds], async (batch) => {
+    const result = await supabase
+      .from("property_owners")
+      .select("person_id, property_id")
+      .eq("organization_id", organizationId)
+      .eq("is_primary", true)
+      .in("property_id", batch)
+      .is("archived_at", null)
+      .is("ended_on", null);
+
+    if (result.error) {
+      throw new Error(`Could not load property owner links: ${result.error.message}`);
+    }
+
+    return (result.data ?? []) as ActiveOwnerRow[];
+  });
+}
+
 async function getPeopleDisplayNames(
   organizationId: string,
   personIds: ReadonlySet<string>,
@@ -902,17 +983,21 @@ async function getPeopleDisplayNames(
   }
 
   const supabase = await createSupabaseServerClient();
-  const result = await supabase
-    .from("people")
-    .select("id, display_name")
-    .eq("organization_id", organizationId)
-    .in("id", [...personIds]);
+  const people = await queryValueBatches([...personIds], async (batch) => {
+    const result = await supabase
+      .from("people")
+      .select("id, display_name")
+      .eq("organization_id", organizationId)
+      .in("id", batch);
 
-  if (result.error) {
-    throw new Error(`Could not load owner names: ${result.error.message}`);
-  }
+    if (result.error) {
+      throw new Error(`Could not load owner names: ${result.error.message}`);
+    }
 
-  return new Map((result.data ?? []).map((person) => [person.id, person.display_name]));
+    return (result.data ?? []) as PropertyPersonRow[];
+  });
+
+  return new Map(people.map((person) => [person.id, person.display_name]));
 }
 
 function getStoredPropertyStatusValues(status: PropertyStatusValue) {
@@ -937,4 +1022,25 @@ function isOverdueMaintenanceTask(task: PropertyDetailMaintenanceRecord) {
 
 function formatPostgrestInFilter(values: ReadonlySet<string>) {
   return `(${[...values].join(",")})`;
+}
+
+async function queryValueBatches<T>(
+  values: string[],
+  queryBatch: (batch: string[]) => Promise<T[]>,
+): Promise<T[]> {
+  const rows: T[] = [];
+
+  for (
+    let index = 0;
+    index < values.length;
+    index += propertyRelationshipBatchSize
+  ) {
+    rows.push(
+      ...(await queryBatch(
+        values.slice(index, index + propertyRelationshipBatchSize),
+      )),
+    );
+  }
+
+  return rows;
 }

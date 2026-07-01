@@ -18,7 +18,6 @@ import type {
   MaintenanceCategoryStat,
   MaintenanceLinkedDocument,
   MaintenanceActor,
-  MaintenancePagination,
   MaintenancePriority,
   MaintenanceProgressState,
   MaintenancePropertyOption,
@@ -52,6 +51,8 @@ const branchSelect = "id, name, code";
 const staffRoleSelect = "person_id";
 const documentSelect =
   "id, task_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
+const MAINTENANCE_QUERY_BATCH_SIZE = 1_000;
+const OPEN_TASK_STATUSES = ["pending", "scheduled", "in_progress", "blocked"];
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type UntypedSupabaseClient = {
@@ -217,19 +218,18 @@ export async function getMaintenanceScreenData(
     ((staffRolesResult.data ?? []) as StaffRoleRow[]).map((role) => role.person_id),
   );
 
-  const tasksResult = await buildTasksQuery(
-    untypedSupabase,
-    organizationId,
-    viewQuery,
-    actor,
-  );
-
-  if (tasksResult.error) {
-    throw new Error(`Could not load maintenance cases: ${tasksResult.error.message}`);
-  }
-
-  const taskRows = (tasksResult.data ?? []) as MaintenanceTaskRow[];
-  const allCases = taskRows.map((task) =>
+  const [pagedTasks, summaryTaskRows] = await Promise.all([
+    getPagedTaskRows(untypedSupabase, organizationId, viewQuery, today, currentTime, actor),
+    getSummaryTaskRows(
+      untypedSupabase,
+      organizationId,
+      viewQuery,
+      today,
+      currentTime,
+      actor,
+    ),
+  ]);
+  const pageCases = pagedTasks.rows.map((task) =>
     toMaintenanceCase({
       activity: [],
       branchesById,
@@ -242,14 +242,19 @@ export async function getMaintenanceScreenData(
       unitsById,
     }),
   );
-  const filteredCases = filterMaintenanceCases(allCases, viewQuery, today);
-  const sortedCases = sortMaintenanceCases(filteredCases, viewQuery.sort);
-  const pagination = buildMaintenancePagination({
-    page: viewQuery.page,
-    pageSize: viewQuery.pageSize,
-    totalCount: sortedCases.length,
-  });
-  const pageCases = getMaintenancePageCases(sortedCases, pagination);
+  const summaryCases = summaryTaskRows.map((task) =>
+    toMaintenanceCase({
+      activity: [],
+      branchesById,
+      documents: [],
+      peopleById,
+      propertiesById,
+      currentTime,
+      task,
+      today,
+      unitsById,
+    }),
+  );
   const pageTaskIds = pageCases.map((maintenanceCase) => maintenanceCase.id);
   const [documentRows, activityRows] = await Promise.all([
     getTaskDocuments(supabase, organizationId, pageTaskIds),
@@ -266,7 +271,7 @@ export async function getMaintenanceScreenData(
         toLinkedDocument,
       ),
     })),
-    pagination,
+    pagination: pagedTasks.pagination,
     branchOptions: toBranchOptions(
       ((branchesResult.data ?? []) as unknown) as BranchRow[],
     ),
@@ -275,7 +280,7 @@ export async function getMaintenanceScreenData(
       label: person.display_name,
     })),
     propertyOptions: toPropertyOptions(propertiesResult.data ?? []),
-    summary: buildMaintenanceSummary(filteredCases, today, viewQuery.month),
+    summary: buildMaintenanceSummary(summaryCases, today, viewQuery.month),
     staffOptions: (peopleResult.data ?? [])
       .filter((person) => staffPersonIds.has(person.id))
       .map((person) => ({
@@ -528,10 +533,108 @@ export function buildMaintenanceSummary(
   };
 }
 
+async function getPagedTaskRows(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  viewQuery: MaintenanceViewQuery,
+  today: string,
+  currentTime: string,
+  actor?: MaintenanceActor,
+) {
+  let result = await buildTasksQuery(
+    supabase,
+    organizationId,
+    viewQuery,
+    today,
+    currentTime,
+    actor,
+  ).range(getPageStart(viewQuery.page, viewQuery.pageSize), getPageEnd(viewQuery.page, viewQuery.pageSize));
+
+  if (result.error) {
+    throw new Error(`Could not load maintenance cases: ${result.error.message}`);
+  }
+
+  let pagination = buildMaintenancePagination({
+    page: viewQuery.page,
+    pageSize: viewQuery.pageSize,
+    totalCount: result.count ?? 0,
+  });
+
+  if (pagination.page !== viewQuery.page) {
+    result = await buildTasksQuery(
+      supabase,
+      organizationId,
+      { ...viewQuery, page: pagination.page },
+      today,
+      currentTime,
+      actor,
+    ).range(
+      getPageStart(pagination.page, pagination.pageSize),
+      getPageEnd(pagination.page, pagination.pageSize),
+    );
+
+    if (result.error) {
+      throw new Error(`Could not load maintenance cases: ${result.error.message}`);
+    }
+
+    pagination = {
+      ...pagination,
+      totalCount: result.count ?? pagination.totalCount,
+    };
+  }
+
+  return {
+    pagination,
+    rows: (result.data ?? []) as MaintenanceTaskRow[],
+  };
+}
+
+async function getSummaryTaskRows(
+  supabase: UntypedSupabaseClient,
+  organizationId: string,
+  viewQuery: MaintenanceViewQuery,
+  today: string,
+  currentTime: string,
+  actor?: MaintenanceActor,
+) {
+  const rows: MaintenanceTaskRow[] = [];
+  let from = 0;
+  let totalCount: number | null = null;
+
+  do {
+    const result = await buildTasksQuery(
+      supabase,
+      organizationId,
+      viewQuery,
+      today,
+      currentTime,
+      actor,
+    ).range(from, from + MAINTENANCE_QUERY_BATCH_SIZE - 1);
+
+    if (result.error) {
+      throw new Error(`Could not load maintenance summary: ${result.error.message}`);
+    }
+
+    totalCount = result.count ?? totalCount;
+    const batch = (result.data ?? []) as MaintenanceTaskRow[];
+    rows.push(...batch);
+
+    if (batch.length < MAINTENANCE_QUERY_BATCH_SIZE) {
+      break;
+    }
+
+    from += MAINTENANCE_QUERY_BATCH_SIZE;
+  } while (totalCount === null || rows.length < totalCount);
+
+  return rows;
+}
+
 function buildTasksQuery(
   supabase: UntypedSupabaseClient,
   organizationId: string,
   viewQuery: MaintenanceViewQuery,
+  today: string,
+  currentTime: string,
   actor?: MaintenanceActor,
 ) {
   let query = supabase
@@ -558,22 +661,157 @@ function buildTasksQuery(
   }
 
   if (viewQuery.taskId !== "all") {
-    return query
-      .order("due_date", { ascending: true, nullsFirst: false })
-      .order("priority", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(1_000);
+    return applyTaskSort(query, viewQuery.sort);
   }
 
   if (viewQuery.priority !== "all") {
     query = query.eq("priority", viewQuery.priority);
   }
 
+  if (viewQuery.status !== "all") {
+    query = query.eq("status", viewQuery.status);
+  }
+
+  query = applyReviewFilter(query, viewQuery, today, currentTime);
+  query = applySearchFilter(query, viewQuery.query);
+
+  return applyTaskSort(query, viewQuery.sort);
+}
+
+function applyReviewFilter(
+  query: ReturnType<UntypedSupabaseClient["from"]>,
+  viewQuery: MaintenanceViewQuery,
+  today: string,
+  currentTime: string,
+) {
+  if (viewQuery.review === "all" || viewQuery.review === "work_orders") {
+    return query;
+  }
+
+  if (viewQuery.review === "open") {
+    return query.in("status", OPEN_TASK_STATUSES);
+  }
+
+  if (viewQuery.review === "overdue") {
+    return query.in("status", OPEN_TASK_STATUSES).lt("due_date", today);
+  }
+
+  if (viewQuery.review === "scheduled") {
+    return query
+      .in("status", OPEN_TASK_STATUSES)
+      .or("due_date.not.is.null,reminder_date.not.is.null");
+  }
+
+  if (viewQuery.review === "upcoming") {
+    return query
+      .in("status", OPEN_TASK_STATUSES)
+      .gte("due_date", today)
+      .lte("due_date", addDaysIso(today, MAINTENANCE_UPCOMING_WINDOW_DAYS));
+  }
+
+  if (viewQuery.review === "reminders") {
+    return query
+      .in("status", OPEN_TASK_STATUSES)
+      .not("reminder_date", "is", null)
+      .or(
+        `reminder_date.lt.${today},and(reminder_date.eq.${today},or(reminder_time.is.null,reminder_time.lte.${currentTime}))`,
+      );
+  }
+
+  if (viewQuery.review === "inspections") {
+    return query.or(
+      "category.ilike.%inspect%,title.ilike.%inspect%,description.ilike.%inspect%",
+    );
+  }
+
+  if (viewQuery.review === "high_priority") {
+    return query.in("priority", ["high", "urgent"]);
+  }
+
+  if (viewQuery.review === "high_cost") {
+    return query.or(
+      `actual_cost_amount.gte.${HIGH_COST_AMOUNT},cost_estimate_amount.gte.${HIGH_COST_AMOUNT}`,
+    );
+  }
+
+  if (viewQuery.review === "recurring") {
+    return query.neq("recurrence_frequency", "none");
+  }
+
+  if (viewQuery.review === "completed") {
+    return query.eq("status", "completed");
+  }
+
+  return query;
+}
+
+function applySearchFilter(
+  query: ReturnType<UntypedSupabaseClient["from"]>,
+  search: string,
+) {
+  return getSearchTokens(search).reduce(
+    (currentQuery, token) =>
+      currentQuery.or(
+        [
+          `title.ilike.%${token}%`,
+          `description.ilike.%${token}%`,
+          `category.ilike.%${token}%`,
+          `status.ilike.%${token}%`,
+          `priority.ilike.%${token}%`,
+        ].join(","),
+      ),
+    query,
+  );
+}
+
+function applyTaskSort(
+  query: ReturnType<UntypedSupabaseClient["from"]>,
+  sort: MaintenanceViewQuery["sort"],
+) {
+  if (sort === "created_desc") {
+    return query.order("created_at", { ascending: false });
+  }
+
+  if (sort === "cost_desc") {
+    return query
+      .order("actual_cost_amount", { ascending: false, nullsFirst: false })
+      .order("cost_estimate_amount", { ascending: false, nullsFirst: false })
+      .order("due_date", { ascending: true, nullsFirst: false });
+  }
+
+  if (sort === "priority_desc") {
+    return query
+      .order("priority", { ascending: false })
+      .order("due_date", { ascending: true, nullsFirst: false });
+  }
+
   return query
     .order("due_date", { ascending: true, nullsFirst: false })
-    .order("priority", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(1_000);
+    .order("due_time", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false });
+}
+
+function getSearchTokens(search: string) {
+  return search
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => token.replace(/[%,]/g, ""));
+}
+
+function getPageStart(page: number, pageSize: number) {
+  return (Math.max(page, 1) - 1) * pageSize;
+}
+
+function getPageEnd(page: number, pageSize: number) {
+  return getPageStart(page, pageSize) + pageSize - 1;
+}
+
+function addDaysIso(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function applyActorTaskScope<T extends { eq: (column: string, value: string) => T }>(
@@ -899,43 +1137,6 @@ export function filterMaintenanceCases(
   });
 }
 
-function sortMaintenanceCases(
-  cases: MaintenanceCase[],
-  sort: MaintenanceViewQuery["sort"],
-) {
-  return [...cases].sort((first, second) => {
-    if (sort === "priority_desc") {
-      return (
-        priorityRank(second.priority) - priorityRank(first.priority) ||
-        compareDueDates(first, second)
-      );
-    }
-
-    if (sort === "cost_desc") {
-      return getDisplayCost(second) - getDisplayCost(first) || compareDueDates(first, second);
-    }
-
-    if (sort === "created_desc") {
-      return second.createdAt.localeCompare(first.createdAt);
-    }
-
-    return (
-      progressRank(first.progressState) - progressRank(second.progressState) ||
-      compareDueDates(first, second) ||
-      priorityRank(second.priority) - priorityRank(first.priority)
-    );
-  });
-}
-
-function getMaintenancePageCases(
-  cases: MaintenanceCase[],
-  pagination: MaintenancePagination,
-) {
-  const start = pagination.totalCount === 0 ? 0 : pagination.from - 1;
-
-  return cases.slice(start, pagination.to);
-}
-
 function buildCategoryStats(cases: MaintenanceCase[]): MaintenanceCategoryStat[] {
   const counts = new Map<string, number>();
 
@@ -1135,10 +1336,6 @@ function getActualCostAmount(maintenanceCase: MaintenanceCase) {
   return maintenanceCase.actualCostAmount;
 }
 
-function getDisplayCost(maintenanceCase: MaintenanceCase) {
-  return getActualCostAmount(maintenanceCase) || getEstimateCostAmount(maintenanceCase);
-}
-
 function getRawCaseCost(task: MaintenanceTaskRow) {
   return Math.max(
     Number(task.actual_cost_amount ?? 0),
@@ -1162,35 +1359,6 @@ function isReminderDue(task: MaintenanceTaskRow, today: string, currentTime: str
   }
 
   return !task.reminder_time || normalizeTime(task.reminder_time)! <= currentTime;
-}
-
-function compareDueDates(first: MaintenanceCase, second: MaintenanceCase) {
-  return getDateSortValue(first).localeCompare(getDateSortValue(second));
-}
-
-function getDateSortValue(maintenanceCase: MaintenanceCase) {
-  return `${maintenanceCase.dueDate ?? "9999-12-31"}T${maintenanceCase.dueTime ?? "23:59"}`;
-}
-
-function priorityRank(priority: MaintenancePriority) {
-  return {
-    low: 1,
-    normal: 2,
-    high: 3,
-    urgent: 4,
-  }[priority];
-}
-
-function progressRank(state: MaintenanceProgressState) {
-  return {
-    overdue: 0,
-    due_today: 1,
-    upcoming: 2,
-    open: 3,
-    scheduled: 4,
-    completed: 5,
-    cancelled: 6,
-  }[state];
 }
 
 function normalizeMaintenanceStatus(status: string): MaintenanceStatus {

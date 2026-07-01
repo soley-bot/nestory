@@ -1,5 +1,8 @@
 import { MaintenanceScreen } from "@/features/maintenance/components/maintenance-screen";
-import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
+import {
+  getMaintenanceReminderNotifications,
+  getMaintenanceScreenData,
+} from "@/features/maintenance/data/maintenance";
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 
@@ -11,11 +14,15 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   const context = await requireWorkspaceContext();
   const params = await searchParams;
   const viewQuery = parseMaintenanceSearchParams({ review: "all", ...params });
-  const data = await getMaintenanceScreenData(context.organizationId, viewQuery, {
+  const actor = {
     branchId: context.branchId,
     personId: context.personId,
     role: context.role,
-  });
+  };
+  const [data, reminders] = await Promise.all([
+    getMaintenanceScreenData(context.organizationId, viewQuery, actor),
+    getMaintenanceReminderNotifications(context.organizationId, actor),
+  ]);
   const initialTaskId = viewQuery.taskId === "all" ? undefined : viewQuery.taskId;
 
   return (
@@ -42,6 +49,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       peopleOptions={data.peopleOptions}
       propertyOptions={data.propertyOptions}
       recordLabel="task"
+      reminders={reminders}
       showReportAction={false}
       staffOptions={data.staffOptions}
       summary={data.summary}
