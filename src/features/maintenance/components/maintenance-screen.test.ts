@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getMaintenanceReportHref } from "@/features/maintenance/components/maintenance-screen";
+import { getMaintenanceReportHref } from "@/features/maintenance/maintenance.hrefs";
 
 describe("maintenance screen report links", () => {
   it("opens the maintenance cost report for the current month and property scope", () => {

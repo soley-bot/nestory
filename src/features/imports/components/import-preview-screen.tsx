@@ -15,6 +15,10 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  CSV_FILE_ACCEPT,
+  FileDropzoneField,
+} from "@/components/ui/file-dropzone-field";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   commitUnitImportAction,
@@ -86,13 +90,7 @@ export function ImportPreviewScreen({
     })),
   ];
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
+  async function handleFileSelect(file: File) {
     try {
       const text = await file.text();
       const parsed = parseCsv(text);
@@ -157,11 +155,10 @@ export function ImportPreviewScreen({
                   <span className="mb-2 block text-sm font-medium">
                     CSV file
                   </span>
-                  <input
-                    accept=".csv,text/csv"
-                    className="block w-full rounded-md border border-border bg-surface text-[13px] file:mr-3 file:h-8 file:border-0 file:border-r file:border-border file:bg-surface-muted file:px-2.5 file:text-[13px] file:font-medium file:text-foreground hover:file:bg-surface-muted"
-                    onChange={handleFileChange}
-                    type="file"
+                  <FileDropzoneField
+                    accept={CSV_FILE_ACCEPT}
+                    description="CSV only. Use the template when possible."
+                    onFile={handleFileSelect}
                   />
                 </label>
 

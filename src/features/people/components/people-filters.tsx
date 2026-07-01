@@ -12,7 +12,7 @@ import {
   Table2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   DEFAULT_PEOPLE_ARCHIVE_STATE,
@@ -104,7 +104,7 @@ export function PeopleFilters({
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                 size={16}
               />
-              <Input
+              <SearchInput
                 className="h-8 pl-9"
                 onChange={(event) =>
                   setQueryState({
@@ -113,7 +113,6 @@ export function PeopleFilters({
                   })
                 }
                 placeholder={searchPlaceholder}
-                type="search"
                 value={query}
               />
             </label>

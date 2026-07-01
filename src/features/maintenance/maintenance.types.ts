@@ -18,8 +18,11 @@ export type MaintenanceReviewFilter =
   | "all"
   | "open"
   | "overdue"
+  | "scheduled"
   | "upcoming"
   | "reminders"
+  | "work_orders"
+  | "inspections"
   | "high_priority"
   | "high_cost"
   | "recurring"
@@ -218,8 +221,20 @@ export type MaintenancePropertyStat = {
   inProgress: number;
   open: number;
   overdue: number;
+  pending: number;
   propertyId: string;
   propertyLabel: string;
+};
+
+export type MaintenanceUnitStat = {
+  completed: number;
+  inProgress: number;
+  open: number;
+  overdue: number;
+  pending: number;
+  propertyId: string;
+  unitId: string;
+  unitLabel: string;
 };
 
 export type MaintenanceRepeatedIssue = {
@@ -227,12 +242,25 @@ export type MaintenanceRepeatedIssue = {
   category: string;
   href: string;
   propertyLabel: string;
+  scopeLabel: string;
+  unitLabel: string;
+};
+
+export type MaintenanceReminderNotification = {
+  dueLabel: string;
+  href: string;
+  id: string;
+  propertyLabel: string;
+  reminderAt: string;
+  reminderLabel: string;
+  title: string;
   unitLabel: string;
 };
 
 export type MaintenanceSummary = {
   actualCostDisplay: MoneyDisplayValue;
   categoryStats: MaintenanceCategoryStat[];
+  blocked: number;
   completed: number;
   estimateCostDisplay: MoneyDisplayValue;
   highCost: number;
@@ -240,12 +268,15 @@ export type MaintenanceSummary = {
   inProgress: number;
   open: number;
   overdue: number;
+  pending: number;
   propertyStats: MaintenancePropertyStat[];
   recurring: number;
   reminderDue: number;
   repeatedIssues: MaintenanceRepeatedIssue[];
+  scheduled: number;
   total: number;
   upcoming: number;
+  unitStats: MaintenanceUnitStat[];
 };
 
 export type MaintenanceScreenData = {

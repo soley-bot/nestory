@@ -26,6 +26,7 @@ type MonthPickerFieldProps = {
   className?: string;
   defaultValue?: string;
   name: string;
+  onValueChange?: (value: string) => void;
   required?: boolean;
 };
 
@@ -34,6 +35,7 @@ export function MonthPickerField({
   className,
   defaultValue,
   name,
+  onValueChange,
   required = false,
 }: MonthPickerFieldProps) {
   const [open, setOpen] = useState(false);
@@ -105,6 +107,7 @@ export function MonthPickerField({
                     key={month}
                     onClick={() => {
                       setValue(monthValue);
+                      onValueChange?.(monthValue);
                       setOpen(false);
                     }}
                     type="button"
@@ -120,6 +123,7 @@ export function MonthPickerField({
                 className="rounded-md px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
                 onClick={() => {
                   setValue("");
+                  onValueChange?.("");
                   setOpen(false);
                 }}
                 type="button"
@@ -131,6 +135,7 @@ export function MonthPickerField({
                 onClick={() => {
                   const currentMonth = getCurrentMonthValue();
                   setValue(currentMonth);
+                  onValueChange?.(currentMonth);
                   setVisibleYear(getYearFromMonth(currentMonth));
                   setOpen(false);
                 }}

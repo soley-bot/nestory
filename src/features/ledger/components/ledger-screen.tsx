@@ -9,10 +9,15 @@ import {
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { Button } from "@/components/ui/button";
+import {
+  DOCUMENT_FILE_ACCEPT,
+  FileDropzoneField,
+} from "@/components/ui/file-dropzone-field";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/layout/page-header";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
 import { RecentChangesPopover } from "@/features/activity/components/recent-changes-popover";
@@ -707,12 +712,12 @@ function ReceiptPanel({
 
         <label className="block text-sm font-medium">
           Receipt file
-          <input
-            accept="application/pdf,image/jpeg,image/png,image/webp"
-            className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none file:mr-3 file:rounded-md file:border-0 file:bg-surface-muted file:px-3 file:py-1.5 file:text-sm file:font-medium focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          <FileDropzoneField
+            accept={DOCUMENT_FILE_ACCEPT}
+            className="mt-2"
+            description="PDF, JPG, PNG, or WebP up to 10 MB."
             name="receipt"
             required
-            type="file"
           />
           {state.fieldErrors?.receipt?.[0] ? (
             <p className="mt-1 text-xs text-danger">
@@ -812,8 +817,8 @@ function PeriodLockPanel({
 
         <label className="block text-sm font-medium">
           Reason
-          <textarea
-            className="mt-2 min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          <Textarea
+            className="mt-2"
             name="reason"
             placeholder="Month-end close, correction window, or audit note"
           />

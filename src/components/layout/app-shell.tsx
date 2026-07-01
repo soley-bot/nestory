@@ -44,6 +44,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOutAction } from "@/features/auth/actions";
+import { MaintenanceReminderNotifications } from "@/features/maintenance/components/maintenance-reminder-notifications";
+import type { MaintenanceReminderNotification } from "@/features/maintenance/maintenance.types";
 import type { WorkspaceRole } from "@/lib/auth/context";
 
 type NavItem = {
@@ -207,6 +209,7 @@ const mobilePrimaryItems = [
 
 type AppShellProps = {
   children: React.ReactNode;
+  maintenanceReminders?: MaintenanceReminderNotification[];
   organizationName?: string;
   role?: WorkspaceRole;
   userEmail?: string;
@@ -311,6 +314,7 @@ function groupRailActiveClass(groupId: string) {
 
 export function AppShell({
   children,
+  maintenanceReminders = [],
   organizationName = "Admin workspace",
   role = "admin",
   userEmail,
@@ -679,6 +683,7 @@ export function AppShell({
         </div>
         {children}
       </main>
+      <MaintenanceReminderNotifications reminders={maintenanceReminders} />
     </div>
   );
 }

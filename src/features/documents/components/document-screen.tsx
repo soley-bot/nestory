@@ -24,8 +24,13 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DOCUMENT_FILE_ACCEPT,
+  FileDropzoneField,
+} from "@/components/ui/file-dropzone-field";
 import { Input } from "@/components/ui/input";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
+import { SearchInput } from "@/components/ui/search-input";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
@@ -299,11 +304,10 @@ function DocumentFilters({
   return (
     <div className="border-b border-border px-4 py-3 sm:px-6 lg:px-6">
       <div className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_160px_220px_220px]">
-        <Input
+        <SearchInput
           defaultValue={viewQuery.query}
           onBlur={(event) => replaceParam("query", event.currentTarget.value)}
           placeholder="Search file name or category"
-          type="search"
         />
         <SelectControl
           ariaLabel="Archive state"
@@ -538,6 +542,7 @@ function DocumentInspector({
           <Link
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium transition-colors hover:bg-surface-muted"
             href={document.url ?? document.hrefs.document}
+            rel="noreferrer"
             target="_blank"
           >
             <ExternalLink size={15} />
@@ -599,6 +604,7 @@ function DocumentForm({
     <form
       action={action}
       className="flex h-full flex-col"
+      encType="multipart/form-data"
     >
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {document ? (
@@ -617,12 +623,11 @@ function DocumentForm({
           label={mode === "create" ? "File" : "Replace file"}
           error={state.fieldErrors?.document?.[0]}
         >
-          <input
-            accept="application/pdf,image/jpeg,image/png,image/webp"
-            className="block w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
+          <FileDropzoneField
+            accept={DOCUMENT_FILE_ACCEPT}
+            description="PDF, JPG, PNG, or WebP up to 10 MB."
             name="document"
             required={mode === "create"}
-            type="file"
           />
           {mode === "edit" ? (
             <p className="mt-1 text-xs text-muted">
@@ -802,6 +807,7 @@ function DocumentAttentionNote({
               aria-label="Open action"
               className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
               href={href}
+              rel={href.startsWith("http") ? "noreferrer" : undefined}
               target={href.startsWith("http") ? "_blank" : undefined}
               title="Open action"
             >

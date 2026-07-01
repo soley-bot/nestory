@@ -106,14 +106,17 @@ describe("maintenance progress helpers", () => {
     expect(getMaintenanceProgressState({ dueDate: "2026-07-03", status: "scheduled" }, "2026-06-28")).toBe("upcoming");
   });
 
-  it("matches open, overdue, high-cost, high-priority, recurring, and reminder reviews", () => {
+  it("matches open, overdue, inspection, high-cost, high-priority, recurring, and reminder reviews", () => {
     const maintenanceCase = makeCase({
       costEstimateAmount: 1_200,
+      dueDate: "2026-06-30",
       isHighCost: true,
       isOverdue: true,
       isReminderDue: true,
       priority: "urgent",
       recurrenceFrequency: "monthly",
+      status: "in_progress",
+      title: "Monthly inspection follow-up",
     });
 
     expect(maintenanceMatchesReview(maintenanceCase, "open")).toBe(true);
@@ -122,6 +125,9 @@ describe("maintenance progress helpers", () => {
     expect(maintenanceMatchesReview(maintenanceCase, "high_priority")).toBe(true);
     expect(maintenanceMatchesReview(maintenanceCase, "recurring")).toBe(true);
     expect(maintenanceMatchesReview(maintenanceCase, "reminders")).toBe(true);
+    expect(maintenanceMatchesReview(maintenanceCase, "scheduled")).toBe(true);
+    expect(maintenanceMatchesReview(maintenanceCase, "work_orders")).toBe(true);
+    expect(maintenanceMatchesReview(maintenanceCase, "inspections")).toBe(true);
     expect(maintenanceMatchesReview(maintenanceCase, "completed")).toBe(false);
   });
 
@@ -193,25 +199,45 @@ describe("buildMaintenanceSummary", () => {
         propertyLabel: "P2 - Property Two",
         status: "completed",
       }),
+      makeCase({
+        category: "Leaking",
+        id: "task-4",
+        propertyId: "property-1",
+        unitId: "unit-2",
+        unitLabel: "Unit A2",
+      }),
     ];
     const summary = buildMaintenanceSummary(cases, "2026-06-28", "2026-06");
 
     expect(summary).toMatchObject({
       actualCostDisplay: { primary: "USD 250.00" },
       highCost: 1,
-      open: 2,
+      open: 3,
       overdue: 1,
-      total: 3,
+      pending: 3,
+      total: 4,
     });
     expect(summary.categoryStats[0]).toMatchObject({
-      caseCount: 2,
+      caseCount: 3,
       category: "Leaking",
-      percentLabel: "67%",
+      percentLabel: "75%",
     });
     expect(summary.repeatedIssues[0]).toMatchObject({
-      caseCount: 2,
+      caseCount: 3,
       category: "Leaking",
       propertyLabel: "P1 - Property One",
+      scopeLabel: "Property-wide",
+      unitLabel: "Across units",
+    });
+    expect(summary.repeatedIssues[1]).toMatchObject({
+      caseCount: 2,
+      category: "Leaking",
+      scopeLabel: "Unit repeat",
+      unitLabel: "Unit A1",
+    });
+    expect(summary.unitStats[0]).toMatchObject({
+      open: 2,
+      pending: 2,
       unitLabel: "Unit A1",
     });
   });

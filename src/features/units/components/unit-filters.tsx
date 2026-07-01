@@ -13,7 +13,7 @@ import {
   Table2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   DEFAULT_UNIT_ARCHIVE_STATE,
@@ -103,7 +103,7 @@ export function UnitFilters({
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                 size={16}
               />
-              <Input
+              <SearchInput
                 className="h-8 border-border bg-surface pl-9 text-[13px]"
                 onChange={(event) =>
                   setQueryState({
@@ -112,7 +112,6 @@ export function UnitFilters({
                   })
                 }
                 placeholder="Search unit, property, tenant, or record"
-                type="search"
                 value={query}
               />
             </label>

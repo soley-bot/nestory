@@ -25,12 +25,20 @@ export default async function MaintenancePage({
       branchOptions={data.branchOptions}
       canManageTasks={context.role !== "member"}
       cases={data.cases}
+      createButtonLabel="New request"
+      description="New maintenance requests and open issues waiting for triage."
+      emptyLabel="No requests found."
+      flowLabel="Intake queue"
       initialTaskId={initialTaskId}
+      listLabel="requests"
       pagination={data.pagination}
       peopleOptions={data.peopleOptions}
       propertyOptions={data.propertyOptions}
+      recordLabel="request"
       staffOptions={data.staffOptions}
       summary={data.summary}
+      surfaceVariant="inbox"
+      title="Requests"
       unitOptions={data.unitOptions}
       viewQuery={viewQuery}
     />

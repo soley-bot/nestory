@@ -95,8 +95,11 @@ function parseReview(
 
   return candidate === "open" ||
     candidate === "overdue" ||
+    candidate === "scheduled" ||
     candidate === "upcoming" ||
     candidate === "reminders" ||
+    candidate === "work_orders" ||
+    candidate === "inspections" ||
     candidate === "high_priority" ||
     candidate === "high_cost" ||
     candidate === "recurring" ||

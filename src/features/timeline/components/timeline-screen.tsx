@@ -9,6 +9,10 @@ import {
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { Button } from "@/components/ui/button";
+import {
+  DOCUMENT_FILE_ACCEPT,
+  FileDropzoneField,
+} from "@/components/ui/file-dropzone-field";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
@@ -577,12 +581,12 @@ function TimelineDocumentPanel({
 
         <label className="block text-sm font-medium">
           Document file
-          <input
-            accept="application/pdf,image/jpeg,image/png,image/webp"
-            className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none file:mr-3 file:rounded-md file:border-0 file:bg-surface-muted file:px-3 file:py-1.5 file:text-sm file:font-medium focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          <FileDropzoneField
+            accept={DOCUMENT_FILE_ACCEPT}
+            className="mt-2"
+            description="PDF, JPG, PNG, or WebP up to 10 MB."
             name="document"
             required
-            type="file"
           />
           {state.fieldErrors?.document?.[0] ? (
             <p className="mt-1 text-xs text-danger">

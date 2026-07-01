@@ -15,7 +15,9 @@ import type {
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
+import { Textarea } from "@/components/ui/textarea";
 
 const initialState: TimelineActionState = {};
 
@@ -150,14 +152,13 @@ export function TimelineEventForm({
           />
         </Field>
 
-        <Field label="Cost" error={state.fieldErrors?.costAmount?.[0]}>
-          <Input
+          <Field label="Cost" error={state.fieldErrors?.costAmount?.[0]}>
+          <NumberInput
             defaultValue={event?.cost ?? ""}
             min="0"
             name="costAmount"
             placeholder="0.00"
             step="0.01"
-            type="number"
           />
         </Field>
       </div>
@@ -167,8 +168,7 @@ export function TimelineEventForm({
         label="Description"
         error={state.fieldErrors?.description?.[0]}
       >
-        <textarea
-          className="min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft"
+        <Textarea
           defaultValue={event?.description ?? ""}
           name="description"
           placeholder="Operational notes"

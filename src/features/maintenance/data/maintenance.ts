@@ -4,6 +4,10 @@ import {
   MAINTENANCE_UPCOMING_WINDOW_DAYS,
 } from "@/features/maintenance/maintenance.constants";
 import {
+  formatMaintenanceChecklistText,
+  parseMaintenanceChecklistValue,
+} from "@/features/maintenance/maintenance.checklist";
+import {
   buildMaintenancePagination,
   parseMaintenanceSearchParams,
 } from "@/features/maintenance/maintenance.filters";
@@ -12,7 +16,6 @@ import type {
   MaintenanceBranchOption,
   MaintenanceCase,
   MaintenanceCategoryStat,
-  MaintenanceChecklistItem,
   MaintenanceLinkedDocument,
   MaintenanceActor,
   MaintenancePagination,
@@ -22,10 +25,12 @@ import type {
   MaintenancePropertyStat,
   MaintenanceRecurrenceFrequency,
   MaintenanceRepeatedIssue,
+  MaintenanceReminderNotification,
   MaintenanceReviewFilter,
   MaintenanceScreenData,
   MaintenanceStatus,
   MaintenanceSummary,
+  MaintenanceUnitStat,
   MaintenanceUnitOption,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
@@ -270,7 +275,7 @@ export async function getMaintenanceScreenData(
       label: person.display_name,
     })),
     propertyOptions: toPropertyOptions(propertiesResult.data ?? []),
-    summary: buildMaintenanceSummary(allCases, today, viewQuery.month),
+    summary: buildMaintenanceSummary(filteredCases, today, viewQuery.month),
     staffOptions: (peopleResult.data ?? [])
       .filter((person) => staffPersonIds.has(person.id))
       .map((person) => ({
@@ -279,6 +284,110 @@ export async function getMaintenanceScreenData(
       })),
     unitOptions: toUnitOptions(unitsResult.data ?? [], propertiesById),
   };
+}
+
+export async function getMaintenanceReminderNotifications(
+  organizationId: string,
+  actor?: MaintenanceActor,
+): Promise<MaintenanceReminderNotification[]> {
+  const supabase = await createSupabaseServerClient();
+  const untypedSupabase = supabase as unknown as UntypedSupabaseClient;
+  let query = untypedSupabase
+    .from("tasks")
+    .select(
+      "id, property_id, unit_id, title, status, due_date, due_time, reminder_date, reminder_time",
+    )
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .not("reminder_date", "is", null)
+    .in("status", ["pending", "scheduled", "in_progress", "blocked"]);
+
+  query = applyActorTaskScope(query, actor);
+
+  const { data, error } = await query
+    .order("reminder_date", { ascending: true, nullsFirst: false })
+    .order("reminder_time", { ascending: true, nullsFirst: false })
+    .limit(100);
+
+  if (error) {
+    throw new Error(`Could not load maintenance reminders: ${error.message}`);
+  }
+
+  const taskRows = (data ?? []) as Array<
+    Pick<
+      MaintenanceTaskRow,
+      | "due_date"
+      | "due_time"
+      | "id"
+      | "property_id"
+      | "reminder_date"
+      | "reminder_time"
+      | "title"
+      | "unit_id"
+    >
+  >;
+
+  if (taskRows.length === 0) {
+    return [];
+  }
+
+  const propertyIds = [...new Set(taskRows.map((task) => task.property_id))];
+  const unitIds = [
+    ...new Set(taskRows.map((task) => task.unit_id).filter(Boolean) as string[]),
+  ];
+  const [propertiesResult, unitsResult] = await Promise.all([
+    supabase
+      .from("properties")
+      .select(propertySelect)
+      .eq("organization_id", organizationId)
+      .in("id", propertyIds),
+    unitIds.length > 0
+      ? supabase
+          .from("units")
+          .select(unitSelect)
+          .eq("organization_id", organizationId)
+          .in("id", unitIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (propertiesResult.error) {
+    throw new Error(
+      `Could not load reminder properties: ${propertiesResult.error.message}`,
+    );
+  }
+
+  if (unitsResult.error) {
+    throw new Error(`Could not load reminder units: ${unitsResult.error.message}`);
+  }
+
+  const propertiesById = indexById(propertiesResult.data ?? []);
+  const unitsById = indexById((unitsResult.data ?? []) as UnitRow[]);
+
+  return taskRows.map((task) => {
+    const property = propertiesById.get(task.property_id);
+    const unit = task.unit_id ? unitsById.get(task.unit_id) : undefined;
+    const reminderTime = normalizeTime(task.reminder_time) ?? "00:00";
+
+    return {
+      dueLabel: formatDateTimeLabel(task.due_date, task.due_time, "No due date"),
+      href: buildHref("/maintenance", {
+        archiveState: "all",
+        taskId: task.id,
+      }),
+      id: task.id,
+      propertyLabel: property
+        ? `${property.code} - ${property.name}`
+        : "Unknown property",
+      reminderAt: `${task.reminder_date}T${reminderTime}:00`,
+      reminderLabel: formatDateTimeLabel(
+        task.reminder_date,
+        task.reminder_time,
+        "No reminder",
+      ),
+      title: task.title,
+      unitLabel: unit ? `Unit ${unit.unit_number}` : "Property level",
+    };
+  });
 }
 
 export function isOpenMaintenanceStatus(status: MaintenanceStatus) {
@@ -326,12 +435,35 @@ export function maintenanceMatchesReview(
     return maintenanceCase.isOverdue;
   }
 
+  if (review === "scheduled") {
+    return (
+      maintenanceCase.isOpen &&
+      (Boolean(maintenanceCase.dueDate) || Boolean(maintenanceCase.reminderDate))
+    );
+  }
+
   if (review === "upcoming") {
     return maintenanceCase.isUpcoming;
   }
 
   if (review === "reminders") {
     return maintenanceCase.isReminderDue;
+  }
+
+  if (review === "work_orders") {
+    return true;
+  }
+
+  if (review === "inspections") {
+    const inspectionText = [
+      maintenanceCase.category,
+      maintenanceCase.title,
+      maintenanceCase.description,
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return inspectionText.includes("inspection") || inspectionText.includes("inspect");
   }
 
   if (review === "high_priority") {
@@ -369,6 +501,7 @@ export function buildMaintenanceSummary(
       cases.reduce((total, maintenanceCase) => total + getActualCostAmount(maintenanceCase), 0),
       "USD",
     ),
+    blocked: cases.filter((maintenanceCase) => maintenanceCase.status === "blocked").length,
     categoryStats,
     completed: cases.filter((maintenanceCase) => maintenanceCase.status === "completed").length,
     estimateCostDisplay: formatMoneyDisplay(
@@ -383,12 +516,15 @@ export function buildMaintenanceSummary(
     inProgress: cases.filter((maintenanceCase) => maintenanceCase.status === "in_progress").length,
     open: openCases.length,
     overdue: cases.filter((maintenanceCase) => maintenanceCase.isOverdue).length,
+    pending: cases.filter((maintenanceCase) => maintenanceCase.status === "pending").length,
     propertyStats: buildPropertyStats(cases),
     recurring: cases.filter((maintenanceCase) => maintenanceCase.recurrenceFrequency !== "none").length,
     reminderDue: cases.filter((maintenanceCase) => maintenanceCase.isReminderDue).length,
     repeatedIssues: buildRepeatedIssues(cases),
+    scheduled: cases.filter((maintenanceCase) => maintenanceCase.status === "scheduled").length,
     total: cases.length,
     upcoming: cases.filter((maintenanceCase) => isUpcomingCase(maintenanceCase, today)).length,
+    unitStats: buildUnitStats(cases),
   };
 }
 
@@ -403,13 +539,7 @@ function buildTasksQuery(
     .select(taskSelect, { count: "exact" })
     .eq("organization_id", organizationId);
 
-  if (actor?.role === "member") {
-    query = actor.personId
-      ? query.eq("assignee_person_id", actor.personId)
-      : query.eq("assignee_person_id", "00000000-0000-0000-0000-000000000000");
-  } else if (actor?.role === "manager" && actor.branchId) {
-    query = query.eq("branch_id", actor.branchId);
-  }
+  query = applyActorTaskScope(query, actor);
 
   if (viewQuery.archiveState === "active") {
     query = query.is("archived_at", null);
@@ -435,14 +565,6 @@ function buildTasksQuery(
       .limit(1_000);
   }
 
-  if (viewQuery.status !== "all") {
-    query = query.eq("status", viewQuery.status);
-  } else if (viewQuery.review === "open") {
-    query = query.in("status", ["pending", "scheduled", "in_progress", "blocked"]);
-  } else if (viewQuery.review === "completed") {
-    query = query.eq("status", "completed");
-  }
-
   if (viewQuery.priority !== "all") {
     query = query.eq("priority", viewQuery.priority);
   }
@@ -452,6 +574,23 @@ function buildTasksQuery(
     .order("priority", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(1_000);
+}
+
+function applyActorTaskScope<T extends { eq: (column: string, value: string) => T }>(
+  query: T,
+  actor?: MaintenanceActor,
+) {
+  if (actor?.role === "member") {
+    return actor.personId
+      ? query.eq("assignee_person_id", actor.personId)
+      : query.eq("assignee_person_id", "00000000-0000-0000-0000-000000000000");
+  }
+
+  if (actor?.role === "manager" && actor.branchId) {
+    return query.eq("branch_id", actor.branchId);
+  }
+
+  return query;
 }
 
 async function getTaskDocuments(
@@ -553,7 +692,7 @@ function toMaintenanceCase({
   const status = normalizeMaintenanceStatus(task.status);
   const priority = normalizeMaintenancePriority(task.priority);
   const recurrenceFrequency = normalizeRecurrence(task.recurrence_frequency);
-  const checklist = parseChecklist(task.checklist);
+  const checklist = parseMaintenanceChecklistValue(task.checklist);
   const progressState = getMaintenanceProgressState(
     {
       dueDate: task.due_date ?? undefined,
@@ -603,7 +742,7 @@ function toMaintenanceCase({
       assigneePersonId: task.assignee_person_id,
       branchId: task.branch_id,
       category: task.category,
-      checklistText: formatChecklistText(checklist),
+      checklistText: formatMaintenanceChecklistText(checklist),
       costEstimateAmount: task.cost_estimate_amount,
       description: task.description,
       dueDate: task.due_date,
@@ -831,6 +970,7 @@ function buildPropertyStats(cases: MaintenanceCase[]): MaintenancePropertyStat[]
         inProgress: 0,
         open: 0,
         overdue: 0,
+        pending: 0,
         propertyId: maintenanceCase.propertyId,
         propertyLabel: maintenanceCase.propertyLabel,
       };
@@ -845,6 +985,10 @@ function buildPropertyStats(cases: MaintenanceCase[]): MaintenancePropertyStat[]
 
     if (maintenanceCase.status === "in_progress") {
       stat.inProgress += 1;
+    }
+
+    if (maintenanceCase.status === "pending") {
+      stat.pending += 1;
     }
 
     if (maintenanceCase.isOverdue) {
@@ -864,24 +1008,89 @@ function buildPropertyStats(cases: MaintenanceCase[]): MaintenancePropertyStat[]
     .slice(0, 8);
 }
 
+function buildUnitStats(cases: MaintenanceCase[]): MaintenanceUnitStat[] {
+  const grouped = new Map<string, MaintenanceUnitStat>();
+
+  for (const maintenanceCase of cases) {
+    if (!maintenanceCase.unitId) {
+      continue;
+    }
+
+    const stat =
+      grouped.get(maintenanceCase.unitId) ??
+      {
+        completed: 0,
+        inProgress: 0,
+        open: 0,
+        overdue: 0,
+        pending: 0,
+        propertyId: maintenanceCase.propertyId,
+        unitId: maintenanceCase.unitId,
+        unitLabel: maintenanceCase.unitLabel,
+      };
+
+    if (maintenanceCase.isOpen) {
+      stat.open += 1;
+    }
+
+    if (maintenanceCase.status === "completed") {
+      stat.completed += 1;
+    }
+
+    if (maintenanceCase.status === "in_progress") {
+      stat.inProgress += 1;
+    }
+
+    if (maintenanceCase.status === "pending") {
+      stat.pending += 1;
+    }
+
+    if (maintenanceCase.isOverdue) {
+      stat.overdue += 1;
+    }
+
+    grouped.set(maintenanceCase.unitId, stat);
+  }
+
+  return Array.from(grouped.values())
+    .toSorted(
+      (first, second) =>
+        second.open - first.open ||
+        second.overdue - first.overdue ||
+        first.unitLabel.localeCompare(second.unitLabel),
+    )
+    .slice(0, 8);
+}
+
 function buildRepeatedIssues(cases: MaintenanceCase[]): MaintenanceRepeatedIssue[] {
   const grouped = new Map<string, MaintenanceCase[]>();
 
   for (const maintenanceCase of cases) {
-    const key = [
+    const propertyKey = [
+      "property",
+      maintenanceCase.propertyId,
+      maintenanceCase.category.toLowerCase(),
+    ].join(":");
+    const unitKey = [
+      "unit",
       maintenanceCase.propertyId,
       maintenanceCase.unitId ?? "property",
       maintenanceCase.category.toLowerCase(),
     ].join(":");
-    const group = grouped.get(key) ?? [];
-    group.push(maintenanceCase);
-    grouped.set(key, group);
+
+    for (const key of [propertyKey, unitKey]) {
+      const group = grouped.get(key) ?? [];
+      group.push(maintenanceCase);
+      grouped.set(key, group);
+    }
   }
 
   return Array.from(grouped.values())
     .filter((group) => group.length >= 2)
     .map((group) => {
       const first = group[0];
+      const unitIds = new Set(group.map((maintenanceCase) => maintenanceCase.unitId ?? "property"));
+      const isPropertyWide = unitIds.size > 1;
 
       return {
         caseCount: group.length,
@@ -889,15 +1098,17 @@ function buildRepeatedIssues(cases: MaintenanceCase[]): MaintenanceRepeatedIssue
         href: buildHref("/maintenance", {
           propertyId: first.propertyId,
           query: first.category,
-          unitId: first.unitId,
+          unitId: isPropertyWide ? undefined : first.unitId,
         }),
         propertyLabel: first.propertyLabel,
-        unitLabel: first.unitLabel,
+        scopeLabel: isPropertyWide ? "Property-wide" : "Unit repeat",
+        unitLabel: isPropertyWide ? "Across units" : first.unitLabel,
       };
     })
     .toSorted(
       (first, second) =>
         second.caseCount - first.caseCount ||
+        first.scopeLabel.localeCompare(second.scopeLabel) ||
         first.propertyLabel.localeCompare(second.propertyLabel),
     )
     .slice(0, 6);
@@ -933,48 +1144,6 @@ function getRawCaseCost(task: MaintenanceTaskRow) {
     Number(task.actual_cost_amount ?? 0),
     Number(task.cost_estimate_amount ?? 0),
   );
-}
-
-function parseChecklist(value: Json): MaintenanceChecklistItem[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item, index) => {
-    if (typeof item === "string" && item.trim()) {
-      return [
-        {
-          completed: false,
-          id: String(index + 1),
-          label: item.trim(),
-        },
-      ];
-    }
-
-    if (!item || Array.isArray(item) || typeof item !== "object") {
-      return [];
-    }
-
-    const label = typeof item.label === "string" ? item.label.trim() : "";
-
-    if (!label) {
-      return [];
-    }
-
-    return [
-      {
-        completed: item.completed === true,
-        id: typeof item.id === "string" ? item.id : String(index + 1),
-        label,
-      },
-    ];
-  });
-}
-
-function formatChecklistText(items: MaintenanceChecklistItem[]) {
-  return items
-    .map((item) => `${item.completed ? "[x]" : "[ ]"} ${item.label}`)
-    .join("\n");
 }
 
 function isReminderDue(task: MaintenanceTaskRow, today: string, currentTime: string) {

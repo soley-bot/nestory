@@ -79,4 +79,16 @@ describe("parseMaintenanceSearchParams", () => {
       unitId: "all",
     });
   });
+
+  it("accepts dedicated operations route filters", () => {
+    expect(parseMaintenanceSearchParams({ review: "scheduled" }).review).toBe(
+      "scheduled",
+    );
+    expect(parseMaintenanceSearchParams({ review: "work_orders" }).review).toBe(
+      "work_orders",
+    );
+    expect(parseMaintenanceSearchParams({ review: "inspections" }).review).toBe(
+      "inspections",
+    );
+  });
 });

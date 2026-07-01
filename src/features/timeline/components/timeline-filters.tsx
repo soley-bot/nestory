@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   DEFAULT_TIMELINE_PAGE_SIZE,
@@ -87,7 +87,7 @@ export function TimelineFilters({
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                 size={16}
               />
-              <Input
+              <SearchInput
                 className="h-8 pl-9"
                 onChange={(event) =>
                   setQueryState({
@@ -96,7 +96,6 @@ export function TimelineFilters({
                   })
                 }
                 placeholder="Search title or notes"
-                type="search"
                 value={query}
               />
             </label>

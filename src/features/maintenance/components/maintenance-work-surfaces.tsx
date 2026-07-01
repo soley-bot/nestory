@@ -1,0 +1,1109 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useState, type ReactNode } from "react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  GripVertical,
+  ListChecks,
+  Repeat,
+  UserRound,
+  Wrench,
+} from "lucide-react";
+import { PaginationControls } from "@/components/data/pagination-controls";
+import { Badge } from "@/components/ui/badge";
+import type {
+  MaintenanceCase,
+  MaintenancePagination,
+  MaintenanceStatus,
+} from "@/features/maintenance/maintenance.types";
+import { cn } from "@/lib/utils";
+
+export type MaintenanceSurfaceVariant =
+  | "agenda"
+  | "board"
+  | "checklist"
+  | "inbox"
+  | "routine"
+  | "table"
+  | "workload";
+
+type MaintenanceWorkflowSurfaceProps = {
+  cases: MaintenanceCase[];
+  emptyLabel: string;
+  month: string;
+  onCreateDate?: (dueDate: string) => void;
+  onStatusChange?: (
+    maintenanceCase: MaintenanceCase,
+    status: MaintenanceStatus,
+  ) => void;
+  onSelect: (taskId: string) => void;
+  pagination: MaintenancePagination;
+  selectedTaskId: string;
+  statusChangePending?: boolean;
+  variant: Exclude<MaintenanceSurfaceVariant, "table">;
+};
+
+export function MaintenanceWorkflowSurface({
+  cases,
+  emptyLabel,
+  month,
+  onCreateDate,
+  onStatusChange,
+  onSelect,
+  pagination,
+  selectedTaskId,
+  statusChangePending = false,
+  variant,
+}: MaintenanceWorkflowSurfaceProps) {
+  return (
+    <div className={variant === "agenda" ? "h-full min-h-0" : "space-y-3"}>
+      {variant === "inbox" ? (
+        <InboxSurface
+          cases={cases}
+          emptyLabel={emptyLabel}
+          onSelect={onSelect}
+          selectedTaskId={selectedTaskId}
+        />
+      ) : variant === "board" ? (
+        <BoardSurface
+          cases={cases}
+          emptyLabel={emptyLabel}
+          onStatusChange={onStatusChange}
+          onSelect={onSelect}
+          selectedTaskId={selectedTaskId}
+          statusChangePending={statusChangePending}
+        />
+      ) : variant === "agenda" ? (
+        <AgendaSurface
+          cases={cases}
+          emptyLabel={emptyLabel}
+          month={month}
+          onCreateDate={onCreateDate}
+          onSelect={onSelect}
+          selectedTaskId={selectedTaskId}
+        />
+      ) : variant === "checklist" ? (
+        <ChecklistSurface
+          cases={cases}
+          emptyLabel={emptyLabel}
+          onSelect={onSelect}
+          selectedTaskId={selectedTaskId}
+        />
+      ) : variant === "routine" ? (
+        <RoutineSurface
+          cases={cases}
+          emptyLabel={emptyLabel}
+          onSelect={onSelect}
+          selectedTaskId={selectedTaskId}
+        />
+      ) : (
+        <WorkloadSurface
+          cases={cases}
+          emptyLabel={emptyLabel}
+          onSelect={onSelect}
+          selectedTaskId={selectedTaskId}
+        />
+      )}
+      {pagination.totalPages > 1 ? (
+        <PaginationControls pagination={pagination} />
+      ) : null}
+    </div>
+  );
+}
+
+function InboxSurface({
+  cases,
+  emptyLabel,
+  onSelect,
+  selectedTaskId,
+}: SurfaceProps) {
+  const attentionCases = cases.filter(
+    (maintenanceCase) =>
+      maintenanceCase.isOverdue || maintenanceCase.isReminderDue,
+  );
+
+  return (
+    <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="space-y-2">
+        <SectionTitle
+          detail="Newest intake first"
+          icon={<ClipboardCheck size={15} />}
+          title="Triage inbox"
+        />
+        <SurfaceList emptyLabel={emptyLabel}>
+          {cases.map((maintenanceCase) => (
+            <MaintenanceCard
+              key={maintenanceCase.id}
+              maintenanceCase={maintenanceCase}
+              onSelect={onSelect}
+              selected={selectedTaskId === maintenanceCase.id}
+            />
+          ))}
+        </SurfaceList>
+      </section>
+      <aside className="rounded-md border border-border bg-surface">
+        <div className="border-b border-border px-3 py-2">
+          <p className="text-xs font-medium uppercase tracking-[0] text-muted">
+            Needs triage
+          </p>
+          <p className="mt-0.5 text-sm font-semibold">
+            {attentionCases.length} urgent follow-up
+          </p>
+        </div>
+        {attentionCases.length === 0 ? (
+          <p className="px-3 py-4 text-sm text-muted">Nothing urgent in this view.</p>
+        ) : (
+          <div className="divide-y divide-border">
+            {attentionCases.slice(0, 6).map((maintenanceCase) => (
+              <button
+                className="block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-surface-muted"
+                key={maintenanceCase.id}
+                onClick={() => onSelect(maintenanceCase.id)}
+                type="button"
+              >
+                <span className="block truncate font-medium">
+                  {maintenanceCase.title}
+                </span>
+                <span className="mt-1 flex flex-wrap gap-1.5">
+                  <Badge tone={maintenanceCase.progressTone}>
+                    {maintenanceCase.progressLabel}
+                  </Badge>
+                  <Badge tone={maintenanceCase.priorityTone}>
+                    {maintenanceCase.priorityLabel}
+                  </Badge>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+}
+
+function BoardSurface({
+  cases,
+  emptyLabel,
+  onStatusChange,
+  onSelect,
+  selectedTaskId,
+  statusChangePending = false,
+}: SurfaceProps) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor),
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const taskId = String(event.active.id);
+    const nextStatus = String(event.over?.id ?? "");
+    const maintenanceCase = cases.find((candidate) => candidate.id === taskId);
+
+    if (
+      !maintenanceCase ||
+      !onStatusChange ||
+      !isMaintenanceStatus(nextStatus) ||
+      maintenanceCase.status === nextStatus
+    ) {
+      return;
+    }
+
+    onStatusChange(maintenanceCase, nextStatus);
+  }
+
+  if (cases.length === 0) {
+    return <EmptySurface label={emptyLabel} />;
+  }
+
+  return (
+    <DndContext
+      id="maintenance-status-board"
+      onDragEnd={handleDragEnd}
+      sensors={sensors}
+    >
+      <div className="overflow-x-auto">
+        <div className="grid min-w-[1320px] grid-cols-6 gap-3">
+          {BOARD_COLUMNS.map((column) => (
+            <BoardColumn
+              canMove={Boolean(onStatusChange) && !statusChangePending}
+              column={column}
+              key={column.status}
+              onSelect={onSelect}
+              selectedTaskId={selectedTaskId}
+              tasks={cases.filter(
+                (maintenanceCase) => maintenanceCase.status === column.status,
+              )}
+            />
+          ))}
+        </div>
+      </div>
+    </DndContext>
+  );
+}
+
+function AgendaSurface({
+  cases,
+  month,
+  onCreateDate,
+}: SurfaceProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [activeCase, setActiveCase] = useState<MaintenanceCase | null>(null);
+  const calendarDays = getCalendarDays(month);
+  const casesByDate = groupCasesByCalendarDate(cases);
+  const monthLinks = getCalendarMonthLinks(pathname, searchParams, month);
+
+  return (
+    <section className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface">
+      <div className="flex flex-col gap-2 border-b border-border px-4 py-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-2">
+          <CalendarNavLink href={monthLinks.today} label="Today">
+            Today
+          </CalendarNavLink>
+          <CalendarNavLink href={monthLinks.previous} label="Previous month">
+            <ChevronLeft size={15} />
+          </CalendarNavLink>
+          <CalendarNavLink href={monthLinks.next} label="Next month">
+            <ChevronRight size={15} />
+          </CalendarNavLink>
+          <h2 className="ml-2 truncate text-xl font-normal leading-7">
+            {formatMonthLabel(month)}
+          </h2>
+        </div>
+        <div className="inline-flex h-7 items-center self-start rounded-md border border-border bg-background px-3 text-sm font-medium lg:self-auto">
+          Month
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-x-auto">
+        <div className="flex h-full min-w-[980px] flex-col">
+          <div className="grid shrink-0 grid-cols-7 border-b border-border bg-background">
+            {WEEKDAY_LABELS.map((label) => (
+              <span
+                className="border-r border-border px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0] text-muted last:border-r-0"
+                key={label}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+          <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6">
+            {calendarDays.map((day, index) => (
+              <CalendarDayCell
+                day={day}
+                dayCases={casesByDate.get(day.date) ?? []}
+                key={day.date}
+                onActivateCase={setActiveCase}
+                onCreateDate={onCreateDate}
+                showBottomBorder={index < 35}
+                showRightBorder={index % 7 !== 6}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+      {activeCase ? (
+        <CalendarEventPopover
+          maintenanceCase={activeCase}
+          onClose={() => setActiveCase(null)}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function ChecklistSurface({
+  cases,
+  emptyLabel,
+  onSelect,
+  selectedTaskId,
+}: SurfaceProps) {
+  if (cases.length === 0) {
+    return <EmptySurface label={emptyLabel} />;
+  }
+
+  return (
+    <section className="space-y-2">
+      <SectionTitle
+        detail="Checklist and result review"
+        icon={<ListChecks size={15} />}
+        title="Inspection cards"
+      />
+      <div className="grid gap-3 lg:grid-cols-2">
+        {cases.map((maintenanceCase) => (
+          <button
+            className={cardClassName(selectedTaskId === maintenanceCase.id)}
+            key={maintenanceCase.id}
+            onClick={() => onSelect(maintenanceCase.id)}
+            type="button"
+          >
+            <CardHeader maintenanceCase={maintenanceCase} />
+            <div className="mt-3 rounded-md border border-border bg-surface-muted/60 px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0] text-muted">
+                  Checklist
+                </p>
+                <Badge
+                  tone={
+                    maintenanceCase.checklistTotalCount > 0 &&
+                    maintenanceCase.checklistDoneCount ===
+                      maintenanceCase.checklistTotalCount
+                      ? "success"
+                      : "neutral"
+                  }
+                >
+                  {maintenanceCase.checklistDoneCount}/
+                  {maintenanceCase.checklistTotalCount}
+                </Badge>
+              </div>
+              <div className="mt-2 space-y-1.5 text-left text-xs">
+                {maintenanceCase.checklist.length === 0 ? (
+                  <p className="text-muted">No checklist items yet.</p>
+                ) : (
+                  maintenanceCase.checklist.slice(0, 3).map((item) => (
+                    <p className="flex items-start gap-2" key={item.id}>
+                      {item.completed ? (
+                        <CheckCircle2
+                          className="mt-0.5 shrink-0 text-success"
+                          size={13}
+                        />
+                      ) : (
+                        <ListChecks
+                          className="mt-0.5 shrink-0 text-muted"
+                          size={13}
+                        />
+                      )}
+                      <span className={cn(item.completed && "text-muted line-through")}>
+                        {item.label}
+                      </span>
+                    </p>
+                  ))
+                )}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RoutineSurface({
+  cases,
+  emptyLabel,
+  onSelect,
+  selectedTaskId,
+}: SurfaceProps) {
+  const groups = groupCases(cases, (maintenanceCase) => ({
+    key: maintenanceCase.recurrenceFrequency,
+    label: maintenanceCase.recurrenceLabel,
+    tone: "accent",
+  }));
+
+  return (
+    <section className="space-y-3">
+      <SectionTitle
+        detail="Preventive work by cadence"
+        icon={<Repeat size={15} />}
+        title="Routine plan"
+      />
+      {groups.length === 0 ? (
+        <EmptySurface label={emptyLabel} />
+      ) : (
+        groups.map((group) => (
+          <div className="rounded-md border border-border bg-surface" key={group.key}>
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <p className="text-sm font-semibold">{group.label}</p>
+              <Badge tone={group.tone}>{group.cases.length}</Badge>
+            </div>
+            <div className="grid gap-2 p-2 lg:grid-cols-2">
+              {group.cases.map((maintenanceCase) => (
+                <MaintenanceCard
+                  compact
+                  key={maintenanceCase.id}
+                  maintenanceCase={maintenanceCase}
+                  onSelect={onSelect}
+                  selected={selectedTaskId === maintenanceCase.id}
+                />
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+    </section>
+  );
+}
+
+function WorkloadSurface({
+  cases,
+  emptyLabel,
+  onSelect,
+  selectedTaskId,
+}: SurfaceProps) {
+  const groups = groupCases(cases, (maintenanceCase) => ({
+    key: maintenanceCase.assigneePersonId ?? "unassigned",
+    label: maintenanceCase.assigneeLabel,
+    tone: maintenanceCase.assigneePersonId ? "accent" : "warning",
+  }));
+
+  return (
+    <section className="space-y-3">
+      <SectionTitle
+        detail="Grouped by assignee"
+        icon={<UserRound size={15} />}
+        title="Staff workload"
+      />
+      {groups.length === 0 ? (
+        <EmptySurface label={emptyLabel} />
+      ) : (
+        <div className="grid gap-3 xl:grid-cols-3">
+          {groups.map((group) => (
+            <div className="rounded-md border border-border bg-surface" key={group.key}>
+              <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+                <div>
+                  <p className="text-sm font-semibold">{group.label}</p>
+                  <p className="text-xs text-muted">
+                    {group.cases.filter((maintenanceCase) => maintenanceCase.isOverdue).length} overdue
+                  </p>
+                </div>
+                <Badge tone={group.tone}>{group.cases.length}</Badge>
+              </div>
+              <div className="space-y-2 p-2">
+                {group.cases.map((maintenanceCase) => (
+                  <MaintenanceCard
+                    compact
+                    key={maintenanceCase.id}
+                    maintenanceCase={maintenanceCase}
+                    onSelect={onSelect}
+                    selected={selectedTaskId === maintenanceCase.id}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+type SurfaceProps = {
+  cases: MaintenanceCase[];
+  emptyLabel: string;
+  month?: string;
+  onCreateDate?: (dueDate: string) => void;
+  onStatusChange?: (
+    maintenanceCase: MaintenanceCase,
+    status: MaintenanceStatus,
+  ) => void;
+  onSelect: (taskId: string) => void;
+  selectedTaskId: string;
+  statusChangePending?: boolean;
+};
+
+function SurfaceList({ children, emptyLabel }: {
+  children: ReactNode;
+  emptyLabel: string;
+}) {
+  return (
+    <div className="space-y-2">
+      {Array.isArray(children) && children.length === 0 ? (
+        <EmptySurface label={emptyLabel} />
+      ) : (
+        children
+      )}
+    </div>
+  );
+}
+
+const BOARD_COLUMNS: Array<{
+  detail: string;
+  status: MaintenanceStatus;
+  title: string;
+}> = [
+  { detail: "Needs triage", status: "pending", title: "Pending" },
+  { detail: "Ready for a visit", status: "scheduled", title: "Scheduled" },
+  { detail: "Work is moving", status: "in_progress", title: "In progress" },
+  { detail: "Waiting on a blocker", status: "blocked", title: "Blocked" },
+  { detail: "Closed out", status: "completed", title: "Completed" },
+  { detail: "Stopped or voided", status: "cancelled", title: "Cancelled" },
+];
+
+function BoardColumn({
+  canMove,
+  column,
+  onSelect,
+  selectedTaskId,
+  tasks,
+}: {
+  canMove: boolean;
+  column: (typeof BOARD_COLUMNS)[number];
+  onSelect: (taskId: string) => void;
+  selectedTaskId: string;
+  tasks: MaintenanceCase[];
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    disabled: !canMove,
+    id: column.status,
+  });
+
+  return (
+    <section
+      className={cn(
+        "min-h-56 rounded-md border border-border bg-surface transition-colors",
+        isOver && "border-accent bg-accent-soft/40",
+      )}
+      data-status-column={column.status}
+      ref={setNodeRef}
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+        <div>
+          <p className="text-sm font-semibold">{column.title}</p>
+          <p className="text-xs text-muted">{column.detail}</p>
+        </div>
+        <Badge tone={tasks.length > 0 ? "accent" : "neutral"}>
+          {tasks.length}
+        </Badge>
+      </div>
+      <div className="space-y-2 p-2">
+        {tasks.length === 0 ? (
+          <p className="px-1 py-4 text-sm text-muted">No work here.</p>
+        ) : (
+          tasks.map((maintenanceCase) => (
+            <DraggableMaintenanceCard
+              canMove={canMove}
+              key={maintenanceCase.id}
+              maintenanceCase={maintenanceCase}
+              onSelect={onSelect}
+              selected={selectedTaskId === maintenanceCase.id}
+            />
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function DraggableMaintenanceCard({
+  canMove,
+  maintenanceCase,
+  onSelect,
+  selected,
+}: {
+  canMove: boolean;
+  maintenanceCase: MaintenanceCase;
+  onSelect: (taskId: string) => void;
+  selected: boolean;
+}) {
+  const { attributes, isDragging, listeners, setNodeRef, transform } =
+    useDraggable({
+      data: { status: maintenanceCase.status },
+      disabled: !canMove,
+      id: maintenanceCase.id,
+    });
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined;
+
+  return (
+    <div
+      className={cn("relative", isDragging && "z-20 opacity-70")}
+      data-task-card={maintenanceCase.id}
+      ref={setNodeRef}
+      style={style}
+    >
+      <MaintenanceCard
+        compact
+        maintenanceCase={maintenanceCase}
+        onSelect={onSelect}
+        selected={selected}
+      />
+      {canMove ? (
+        <button
+          aria-label={`Move ${maintenanceCase.title}`}
+          className="absolute right-2 top-2 z-10 inline-flex size-7 cursor-grab touch-none items-center justify-center rounded-md border border-border bg-surface text-muted shadow-sm transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          data-drag-handle={maintenanceCase.id}
+          title="Drag to change status"
+          type="button"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={14} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function MaintenanceCard({
+  compact = false,
+  maintenanceCase,
+  onSelect,
+  selected,
+}: {
+  compact?: boolean;
+  maintenanceCase: MaintenanceCase;
+  onSelect: (taskId: string) => void;
+  selected: boolean;
+}) {
+  return (
+    <button
+      className={cardClassName(selected)}
+      onClick={() => onSelect(maintenanceCase.id)}
+      type="button"
+    >
+      <CardHeader maintenanceCase={maintenanceCase} />
+      <div
+        className={cn(
+          "mt-3 grid gap-2 text-left text-xs text-muted",
+          compact ? "grid-cols-1" : "sm:grid-cols-3",
+        )}
+      >
+        <CardFact label="Due" value={maintenanceCase.dueLabel} />
+        <CardFact label="Reminder" value={maintenanceCase.reminderLabel} />
+        <CardFact label="Cost" value={maintenanceCase.actualCostLabel} />
+      </div>
+    </button>
+  );
+}
+
+function CalendarDayCell({
+  day,
+  dayCases,
+  onActivateCase,
+  onCreateDate,
+  showBottomBorder,
+  showRightBorder,
+}: {
+  day: ReturnType<typeof getCalendarDays>[number];
+  dayCases: MaintenanceCase[];
+  onActivateCase: (maintenanceCase: MaintenanceCase) => void;
+  onCreateDate?: (dueDate: string) => void;
+  showBottomBorder: boolean;
+  showRightBorder: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative min-h-0 bg-surface px-1.5 py-1",
+        !day.inMonth && "bg-surface-muted/50 text-muted",
+        showBottomBorder && "border-b border-border",
+        showRightBorder && "border-r border-border",
+      )}
+    >
+      {onCreateDate ? (
+        <button
+          aria-label={`Add scheduled item on ${formatCalendarPanelDate(day.date)}`}
+          className="absolute inset-0 z-0 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          data-calendar-add-date={day.date}
+          onClick={() => onCreateDate(day.date)}
+          type="button"
+        />
+      ) : null}
+      <div className="relative z-10 flex h-5 justify-end">
+        <span
+          className={cn(
+            "inline-flex size-5 items-center justify-center rounded-full text-xs",
+            day.isToday && "bg-accent text-white",
+          )}
+        >
+          {day.dayNumber}
+        </span>
+      </div>
+      <div className="relative z-10 mt-0.5 space-y-0.5 overflow-hidden">
+        {dayCases.slice(0, 3).map((maintenanceCase) => (
+          <CalendarCaseButton
+            key={maintenanceCase.id}
+            maintenanceCase={maintenanceCase}
+            onActivate={onActivateCase}
+          />
+        ))}
+        {dayCases.length > 3 ? (
+          <button
+            className="block h-4 w-full rounded-sm px-1.5 text-left text-xs font-medium leading-4 text-muted hover:bg-surface-muted hover:text-foreground"
+            onClick={() => onActivateCase(dayCases[3])}
+            type="button"
+          >
+            {dayCases.length - 3} more
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CalendarCaseButton({
+  maintenanceCase,
+  onActivate,
+}: {
+  maintenanceCase: MaintenanceCase;
+  onActivate: (maintenanceCase: MaintenanceCase) => void;
+}) {
+  return (
+    <button
+      className={cn(
+        "block h-4 w-full rounded px-1.5 text-left text-xs leading-4 transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        getCalendarCaseClassName(maintenanceCase),
+      )}
+      onClick={() => onActivate(maintenanceCase)}
+      type="button"
+    >
+      <span className="block truncate font-medium">{maintenanceCase.title}</span>
+    </button>
+  );
+}
+
+function CalendarEventPopover({
+  maintenanceCase,
+  onClose,
+}: {
+  maintenanceCase: MaintenanceCase;
+  onClose: () => void;
+}) {
+  return (
+    <div className="absolute left-1/2 top-24 z-30 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-surface shadow-xl">
+      <div className="flex justify-end px-2 pt-2">
+        <button
+          aria-label="Close event"
+          className="inline-flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          onClick={onClose}
+          type="button"
+        >
+          X
+        </button>
+      </div>
+      <div className="grid grid-cols-[14px_minmax(0,1fr)] gap-3 px-5 pb-5">
+        <span
+          className={cn(
+            "mt-1 size-3 rounded-sm",
+            getCalendarEventDotClassName(maintenanceCase),
+          )}
+        />
+        <div className="min-w-0">
+          <h3 className="break-words text-lg font-normal leading-6">
+            {maintenanceCase.title}
+          </h3>
+          <p className="mt-1 text-sm text-muted">{maintenanceCase.dueLabel}</p>
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            <Badge tone={maintenanceCase.statusTone}>
+              {maintenanceCase.statusLabel}
+            </Badge>
+            <Badge tone={maintenanceCase.priorityTone}>
+              {maintenanceCase.priorityLabel}
+            </Badge>
+          </div>
+          <div className="mt-4 space-y-2 text-sm">
+            <p className="truncate">
+              {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
+            </p>
+            <p className="text-muted">{maintenanceCase.reminderLabel}</p>
+            <p className="text-muted">{maintenanceCase.assigneeLabel}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getCalendarCaseClassName(maintenanceCase: MaintenanceCase) {
+  if (maintenanceCase.isOverdue) {
+    return "bg-danger/15 text-danger";
+  }
+
+  if (maintenanceCase.priority === "urgent" || maintenanceCase.priority === "high") {
+    return "bg-warning/20 text-warning";
+  }
+
+  if (maintenanceCase.status === "completed") {
+    return "bg-success/15 text-success";
+  }
+
+  return "bg-accent-soft text-foreground";
+}
+
+function getCalendarEventDotClassName(maintenanceCase: MaintenanceCase) {
+  if (maintenanceCase.isOverdue) {
+    return "bg-danger";
+  }
+
+  if (maintenanceCase.priority === "urgent" || maintenanceCase.priority === "high") {
+    return "bg-warning";
+  }
+
+  if (maintenanceCase.status === "completed") {
+    return "bg-success";
+  }
+
+  return "bg-accent";
+}
+
+function CalendarNavLink({
+  children,
+  href,
+  label,
+}: {
+  children: ReactNode;
+  href: string;
+  label: string;
+}) {
+  return (
+    <Link
+      aria-label={label}
+      className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-border bg-background px-2 text-xs font-medium transition-colors hover:bg-surface-muted"
+      href={href}
+      prefetch={false}
+      title={label}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function CardHeader({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 text-left">
+        <p className="truncate font-medium">{maintenanceCase.title}</p>
+        <p className="mt-1 truncate text-xs text-muted">
+          {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
+        </p>
+      </div>
+      <Wrench className="mt-0.5 shrink-0 text-muted" size={15} />
+    </div>
+  );
+}
+
+function CardFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="uppercase tracking-[0] text-muted">{label}</p>
+      <p className="mt-0.5 truncate font-medium text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function SectionTitle({
+  detail,
+  icon,
+  title,
+}: {
+  detail: string;
+  icon: ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-muted">{icon}</span>
+      <div>
+        <p className="font-semibold">{title}</p>
+        <p className="text-xs text-muted">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
+function EmptySurface({ label }: { label: string }) {
+  return (
+    <div className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted">
+      {label}
+    </div>
+  );
+}
+
+function cardClassName(selected: boolean) {
+  return cn(
+    "block w-full rounded-md border border-border bg-surface px-3 py-3 text-left shadow-sm transition-colors hover:border-accent/40 hover:bg-surface-muted",
+    selected && "border-accent bg-accent-soft",
+  );
+}
+
+function groupCases(
+  cases: MaintenanceCase[],
+  getGroup: (maintenanceCase: MaintenanceCase) => {
+    key: string;
+    label: string;
+    tone: "accent" | "danger" | "neutral" | "success" | "warning";
+  },
+) {
+  const groups = new Map<
+    string,
+    {
+      cases: MaintenanceCase[];
+      key: string;
+      label: string;
+      tone: "accent" | "danger" | "neutral" | "success" | "warning";
+    }
+  >();
+
+  for (const maintenanceCase of cases) {
+    const group = getGroup(maintenanceCase);
+    const existing = groups.get(group.key);
+
+    if (existing) {
+      existing.cases.push(maintenanceCase);
+    } else {
+      groups.set(group.key, { ...group, cases: [maintenanceCase] });
+    }
+  }
+
+  return [...groups.values()];
+}
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function getCalendarDays(month: string | undefined) {
+  const { monthIndex, year } = parseMonthKey(month);
+  const firstDay = new Date(year, monthIndex, 1);
+  const startDate = new Date(year, monthIndex, 1 - firstDay.getDay());
+  const todayKey = toCalendarDateKey(new Date());
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+    const dateKey = toCalendarDateKey(date);
+
+    return {
+      date: dateKey,
+      dayNumber: date.getDate(),
+      inMonth: date.getMonth() === monthIndex,
+      isToday: dateKey === todayKey,
+    };
+  });
+}
+
+function groupCasesByCalendarDate(cases: MaintenanceCase[]) {
+  const groups = new Map<string, MaintenanceCase[]>();
+
+  for (const maintenanceCase of cases) {
+    const date = getCalendarCaseDate(maintenanceCase);
+
+    if (!date) {
+      continue;
+    }
+
+    const group = groups.get(date);
+
+    if (group) {
+      group.push(maintenanceCase);
+    } else {
+      groups.set(date, [maintenanceCase]);
+    }
+  }
+
+  return groups;
+}
+
+function getCalendarCaseDate(maintenanceCase: MaintenanceCase) {
+  return maintenanceCase.dueDate ?? maintenanceCase.reminderDate;
+}
+
+function formatMonthLabel(month: string | undefined) {
+  const { monthIndex, year } = parseMonthKey(month);
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, monthIndex, 1));
+}
+
+function formatCalendarPanelDate(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    weekday: "short",
+  }).format(new Date(year, month - 1, day));
+}
+
+function getCalendarMonthLinks(
+  pathname: string,
+  searchParams: { toString(): string },
+  month: string | undefined,
+) {
+  const { monthIndex, year } = parseMonthKey(month);
+  const current = new Date(year, monthIndex, 1);
+
+  return {
+    next: buildCalendarMonthHref(pathname, searchParams, addMonths(current, 1)),
+    previous: buildCalendarMonthHref(
+      pathname,
+      searchParams,
+      addMonths(current, -1),
+    ),
+    today: buildCalendarMonthHref(pathname, searchParams, new Date()),
+  };
+}
+
+function buildCalendarMonthHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  date: Date,
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+
+  nextParams.set("month", toMonthKey(date));
+  nextParams.delete("page");
+  nextParams.delete("taskId");
+
+  const query = nextParams.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+function addMonths(date: Date, amount: number) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function toMonthKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+
+  return `${year}-${month}`;
+}
+
+function parseMonthKey(month: string | undefined) {
+  const match = month?.match(/^(\d{4})-(\d{2})$/);
+  const current = new Date();
+
+  if (!match) {
+    return { monthIndex: current.getMonth(), year: current.getFullYear() };
+  }
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+
+  if (!Number.isInteger(year) || monthIndex < 0 || monthIndex > 11) {
+    return { monthIndex: current.getMonth(), year: current.getFullYear() };
+  }
+
+  return { monthIndex, year };
+}
+
+function toCalendarDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function isMaintenanceStatus(value: string): value is MaintenanceStatus {
+  return BOARD_COLUMNS.some((column) => column.status === value);
+}

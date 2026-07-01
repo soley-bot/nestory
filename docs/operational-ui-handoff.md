@@ -36,6 +36,12 @@ For dated current implementation and environment notes, see
 - Keep filters around 32px high, with `Filters` wording, icon-only search/reset where practical, and advanced filters collapsed unless active.
 - Use URL-backed filters and pagination for large operational lists.
 
+## Control Primitives
+
+- Visible controls should use shared primitives instead of feature-local raw inputs: `SelectControl`, `DatePickerField`, `MonthPickerField`, `TimePickerField`, `NumberInput`, `SearchInput`, `Textarea`, `CheckboxControl`, and `FileDropzoneField`.
+- Current replacements are library-backed where useful: Radix for checkbox/select/popover, DayPicker for date grids, and React Dropzone for uploads. Keep hidden inputs, `FormData`, and `URLSearchParams` as boring platform plumbing.
+- Keep semantic email, password, phone, and hidden fields native behind shared inputs unless a concrete UX issue appears; password managers, mobile keyboards, and browser validation are useful here.
+
 ## Table Rules
 
 - Table body should be about 13px and table headers about 11px with zero letter spacing.

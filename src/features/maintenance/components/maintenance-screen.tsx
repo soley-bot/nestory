@@ -1,14 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
-  CalendarClock,
   CheckCircle2,
   ClipboardCheck,
-  ExternalLink,
   FileText,
   Landmark,
   ListChecks,
@@ -17,6 +22,7 @@ import {
   RotateCcw,
   SlidersHorizontal,
   Wrench,
+  X,
 } from "lucide-react";
 import {
   previewRowClassName,
@@ -30,25 +36,45 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CheckboxControl } from "@/components/ui/checkbox-control";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { MonthPickerField } from "@/components/ui/month-picker-field";
+import { NumberInput } from "@/components/ui/number-input";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
+import { SearchInput } from "@/components/ui/search-input";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import { Textarea } from "@/components/ui/textarea";
+import { TimePickerField } from "@/components/ui/time-picker-field";
 import {
   createMaintenanceCaseAction,
   type MaintenanceActionState,
   updateMaintenanceCaseAction,
+  updateMaintenanceStatusAction,
 } from "@/features/maintenance/actions";
+import {
+  formatMaintenanceChecklistText,
+  parseMaintenanceChecklistText,
+} from "@/features/maintenance/maintenance.checklist";
 import {
   ArchiveMaintenancePanel,
   RestoreMaintenancePanel,
 } from "@/features/maintenance/components/maintenance-drawer-panels";
+import {
+  MaintenanceWorkflowSurface,
+  type MaintenanceSurfaceVariant,
+} from "@/features/maintenance/components/maintenance-work-surfaces";
+import { getMaintenanceReportHref } from "@/features/maintenance/maintenance.hrefs";
 import type {
+  MaintenanceBadgeTone,
   MaintenanceCase,
   MaintenanceBranchOption,
   MaintenancePagination,
+  MaintenanceChecklistItem,
   MaintenancePersonOption,
   MaintenancePropertyOption,
+  MaintenanceStatus,
   MaintenanceSummary,
   MaintenanceUnitOption,
   MaintenanceViewQuery,
@@ -56,6 +82,12 @@ import type {
 import { cn } from "@/lib/utils";
 
 const initialState: MaintenanceActionState = {};
+
+type MaintenanceScopeFact = {
+  label: string;
+  tone: MaintenanceBadgeTone;
+  value: number;
+};
 
 type DrawerState =
   | {
@@ -68,38 +100,54 @@ type DrawerState =
     };
 
 type MaintenanceScreenProps = {
+  baseReview?: MaintenanceViewQuery["review"];
   branchOptions: MaintenanceBranchOption[];
   canManageTasks?: boolean;
   cases: MaintenanceCase[];
   createButtonLabel?: string;
   description?: string;
   emptyLabel?: string;
+  flowLabel?: string;
   initialTaskId?: string;
+  listLabel?: string;
   pagination: MaintenancePagination;
   peopleOptions: MaintenancePersonOption[];
   propertyOptions: MaintenancePropertyOption[];
+  recordLabel?: string;
   showReportAction?: boolean;
+  showFilters?: boolean;
+  showReviewTabs?: boolean;
+  showScopeSummary?: boolean;
   staffOptions: MaintenancePersonOption[];
   summary: MaintenanceSummary;
+  surfaceVariant?: MaintenanceSurfaceVariant;
   title?: string;
   unitOptions: MaintenanceUnitOption[];
   viewQuery: MaintenanceViewQuery;
 };
 
 export function MaintenanceScreen({
+  baseReview = "open",
   branchOptions,
   canManageTasks = true,
   cases,
   createButtonLabel = "New case",
   description = "Open work orders, scheduled repairs, and unit/property maintenance history.",
   emptyLabel = "No maintenance cases found.",
+  flowLabel = "Current scope",
   initialTaskId,
+  listLabel = "maintenance cases",
   pagination,
   peopleOptions,
   propertyOptions,
+  recordLabel = "maintenance case",
   showReportAction = true,
+  showFilters = true,
+  showReviewTabs = true,
+  showScopeSummary = true,
   staffOptions,
   summary,
+  surfaceVariant = "table",
   title = "Maintenance",
   unitOptions,
   viewQuery,
@@ -107,6 +155,7 @@ export function MaintenanceScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const calendarMode = surfaceVariant === "agenda";
   const createInitialValues = useMemo(
     () => getCreateInitialValues(viewQuery, propertyOptions, unitOptions),
     [propertyOptions, unitOptions, viewQuery],
@@ -121,6 +170,7 @@ export function MaintenanceScreen({
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusChangePending, startStatusChange] = useTransition();
   const focusedCase = initialTaskId
     ? cases.find((maintenanceCase) => maintenanceCase.id === initialTaskId) ??
       null
@@ -166,8 +216,41 @@ export function MaintenanceScreen({
     setPreviewOpen(true);
   }
 
+  function createCaseOnDate(dueDate: string) {
+    openDrawer({
+      initialValues: {
+        ...createInitialValues,
+        dueDate,
+        status: "scheduled",
+      },
+      mode: "create",
+    });
+  }
+
+  function moveMaintenanceStatus(
+    maintenanceCase: MaintenanceCase,
+    status: MaintenanceStatus,
+  ) {
+    if (maintenanceCase.status === status) {
+      return;
+    }
+
+    setStatusMessage(null);
+    startStatusChange(async () => {
+      const result = await updateMaintenanceStatusAction(maintenanceCase.id, status);
+
+      if (result.status === "error") {
+        setStatusMessage(result.message ?? "Could not update maintenance status.");
+        return;
+      }
+
+      setStatusMessage(result.message ?? "Maintenance status updated.");
+      router.refresh();
+    });
+  }
+
   return (
-    <div className="min-h-screen">
+    <div className={calendarMode ? "min-h-0 overflow-hidden" : "min-h-screen"}>
       <PageHeader
         actions={
           <>
@@ -205,54 +288,67 @@ export function MaintenanceScreen({
         </div>
       ) : null}
 
-      {summary.reminderDue > 0 ? (
-        <div className="px-4 pt-4 sm:px-6 lg:px-6">
-          <Link
-            className="flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-foreground"
-            href={buildFilterHref(pathname, searchParams, {
-              review: "reminders",
-            })}
-            prefetch={false}
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <CalendarClock className="shrink-0 text-danger" size={15} />
-              <span className="truncate">
-                {summary.reminderDue} reminder{summary.reminderDue === 1 ? "" : "s"} due now
-              </span>
-            </span>
-            <ExternalLink size={13} />
-          </Link>
-        </div>
-      ) : null}
-
-      <MaintenanceFilters
-        properties={propertyOptions}
-        units={unitOptions}
-        viewQuery={viewQuery}
-      />
-
-      <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <MaintenanceScopeSummary
+      {showFilters ? (
+        <MaintenanceFilters
+          baseReview={baseReview}
+          listLabel={listLabel}
           properties={propertyOptions}
-          summary={summary}
+          showReviewTabs={showReviewTabs}
           units={unitOptions}
           viewQuery={viewQuery}
         />
-        <div className="space-y-0">
-          <MaintenanceTable
+      ) : null}
+
+      <main
+        className={cn(
+          "px-4 sm:px-6 lg:px-6",
+          calendarMode
+            ? "h-[calc(100vh-122px)] min-h-0 py-3"
+            : "space-y-3 py-4 lg:py-4",
+        )}
+      >
+        {showScopeSummary ? (
+          <MaintenanceScopeSummary
+            flowLabel={flowLabel}
+            listLabel={listLabel}
+            properties={propertyOptions}
+            recordLabel={recordLabel}
+            summary={summary}
+            units={unitOptions}
+            viewQuery={viewQuery}
+          />
+        ) : null}
+        {surfaceVariant === "table" ? (
+          <div className="space-y-0">
+            <MaintenanceTable
+              cases={cases}
+              emptyLabel={emptyLabel}
+              onSelect={previewCase}
+              recordLabel={recordLabel}
+              selectedTaskId={selectedCase?.id ?? ""}
+            />
+            <PaginationControls attached pagination={pagination} />
+          </div>
+        ) : (
+          <MaintenanceWorkflowSurface
             cases={cases}
             emptyLabel={emptyLabel}
+            month={viewQuery.month}
+            onCreateDate={canManageTasks ? createCaseOnDate : undefined}
+            onStatusChange={canManageTasks ? moveMaintenanceStatus : undefined}
             onSelect={previewCase}
+            pagination={pagination}
             selectedTaskId={selectedCase?.id ?? ""}
+            statusChangePending={statusChangePending}
+            variant={surfaceVariant}
           />
-          <PaginationControls attached pagination={pagination} />
-        </div>
+        )}
       </main>
 
       <RecordPreviewDrawer
         onClose={() => setPreviewOpen(false)}
         open={previewOpen && Boolean(selectedCase)}
-        title="Maintenance case"
+        title={capitalizeLabel(recordLabel)}
       >
         <MaintenanceInspector
           maintenanceCase={selectedCase}
@@ -313,20 +409,26 @@ export function MaintenanceScreen({
 }
 
 function MaintenanceFilters({
+  baseReview,
+  listLabel,
   properties,
+  showReviewTabs,
   units,
   viewQuery,
 }: {
+  baseReview: MaintenanceViewQuery["review"];
+  listLabel: string;
   properties: MaintenancePropertyOption[];
+  showReviewTabs: boolean;
   units: MaintenanceUnitOption[];
   viewQuery: MaintenanceViewQuery;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const advancedFilterCount = getAdvancedFilterCount(viewQuery);
+  const advancedFilterCount = getAdvancedFilterCount(viewQuery, baseReview);
   const [advancedOpen, setAdvancedOpen] = useState(advancedFilterCount > 0);
-  const scopeOptions = getScopeOptions(properties, units);
+  const scopeOptions = getScopeOptions(properties, units, listLabel);
 
   const replaceParam = (name: string, value: string, defaultValue = "") => {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -382,30 +484,31 @@ function MaintenanceFilters({
 
   return (
     <div className="border-b border-border px-4 py-3 sm:px-6 lg:px-6">
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {getMaintenanceTabs(pathname, searchParams, viewQuery).map((tab) => (
-          <Link
-            className={cn(
-              "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors",
-              tab.active
-                ? "border-accent bg-accent-soft text-foreground"
-                : "border-border bg-surface text-muted hover:bg-surface-muted hover:text-foreground",
-            )}
-            href={tab.href}
-            key={tab.id}
-            prefetch={false}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </div>
+      {showReviewTabs ? (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {getMaintenanceTabs(pathname, searchParams, viewQuery).map((tab) => (
+            <Link
+              className={cn(
+                "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors",
+                tab.active
+                  ? "border-accent bg-accent-soft text-foreground"
+                  : "border-border bg-surface text-muted hover:bg-surface-muted hover:text-foreground",
+              )}
+              href={tab.href}
+              key={tab.id}
+              prefetch={false}
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </div>
+      ) : null}
 
       <div className="grid gap-2 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto]">
-        <Input
+        <SearchInput
           defaultValue={viewQuery.query}
           onBlur={(event) => replaceParam("query", event.currentTarget.value)}
-          placeholder="Search cases..."
-          type="search"
+          placeholder={`Search ${listLabel}...`}
         />
         <SelectControl
           ariaLabel="Maintenance scope"
@@ -456,6 +559,9 @@ function MaintenanceFilters({
             onValueChange={(value) => replaceParam("review", value, "open")}
             options={[
               { label: "Open queue", value: "open" },
+              { label: "Work orders", value: "work_orders" },
+              { label: "Scheduled", value: "scheduled" },
+              { label: "Inspections", value: "inspections" },
               { label: "Due reminders", value: "reminders" },
               { label: "High priority", value: "high_priority" },
               { label: "High cost", value: "high_cost" },
@@ -464,11 +570,11 @@ function MaintenanceFilters({
             ]}
             value={viewQuery.review}
           />
-          <Input
-            aria-label="Report month"
+          <MonthPickerField
+            ariaLabel="Report month"
             defaultValue={viewQuery.month}
-            onBlur={(event) => replaceParam("month", event.currentTarget.value)}
-            type="month"
+            name="month"
+            onValueChange={(value) => replaceParam("month", value)}
           />
           <LinkButton href={buildClearFiltersHref(pathname, searchParams)}>
             Clear
@@ -480,47 +586,37 @@ function MaintenanceFilters({
 }
 
 function MaintenanceScopeSummary({
+  flowLabel,
+  listLabel,
   properties,
+  recordLabel,
   summary,
   units,
   viewQuery,
 }: {
+  flowLabel: string;
+  listLabel: string;
   properties: MaintenancePropertyOption[];
+  recordLabel: string;
   summary: MaintenanceSummary;
   units: MaintenanceUnitOption[];
   viewQuery: MaintenanceViewQuery;
 }) {
-  const scopeLabel = getMaintenanceScopeLabel(viewQuery, properties, units);
-  const facts = [
-    { label: "Total", tone: "neutral", value: summary.total },
-    { label: "Open", tone: summary.open > 0 ? "accent" : "success", value: summary.open },
-    {
-      label: "Overdue",
-      tone: summary.overdue > 0 ? "danger" : "success",
-      value: summary.overdue,
-    },
-    {
-      label: "Upcoming",
-      tone: summary.upcoming > 0 ? "warning" : "neutral",
-      value: summary.upcoming,
-    },
-    {
-      label: "High cost",
-      tone: summary.highCost > 0 ? "warning" : "neutral",
-      value: summary.highCost,
-    },
-  ] satisfies Array<{
-    label: string;
-    tone: "accent" | "danger" | "neutral" | "success" | "warning";
-    value: number;
-  }>;
+  const scopeLabel = getMaintenanceScopeLabel(
+    viewQuery,
+    properties,
+    units,
+    listLabel,
+    recordLabel,
+  );
+  const facts = getMaintenanceScopeFacts(summary, viewQuery.review);
 
   return (
     <section className="rounded-md border border-border bg-surface px-3 py-2">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-[0] text-muted">
-            Current scope
+            {flowLabel}
           </p>
           <h2 className="mt-0.5 truncate text-sm font-semibold">{scopeLabel}</h2>
         </div>
@@ -540,11 +636,13 @@ function MaintenanceTable({
   cases,
   emptyLabel,
   onSelect,
+  recordLabel,
   selectedTaskId,
 }: {
   cases: MaintenanceCase[];
   emptyLabel: string;
   onSelect: (taskId: string) => void;
+  recordLabel: string;
   selectedTaskId: string;
 }) {
   return (
@@ -561,7 +659,9 @@ function MaintenanceTable({
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
-              <th className="px-2.5 py-2.5 font-semibold">Case</th>
+              <th className="px-2.5 py-2.5 font-semibold">
+                {capitalizeLabel(recordLabel)}
+              </th>
               <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
               <th className="px-1.5 py-2.5 font-semibold">Category</th>
               <th className="px-1.5 py-2.5 font-semibold">Status</th>
@@ -1103,45 +1203,51 @@ function MaintenanceForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Due date" error={state.fieldErrors?.dueDate?.[0]}>
-            <Input defaultValue={defaults.dueDate ?? ""} name="dueDate" type="date" />
+            <DatePickerField
+              ariaLabel="Due date"
+              defaultValue={defaults.dueDate ?? ""}
+              name="dueDate"
+            />
           </Field>
           <Field label="Due time" error={state.fieldErrors?.dueTime?.[0]}>
-            <Input defaultValue={defaults.dueTime ?? ""} name="dueTime" type="time" />
+            <TimePickerField
+              ariaLabel="Due time"
+              defaultValue={defaults.dueTime ?? ""}
+              name="dueTime"
+            />
           </Field>
           <Field label="Reminder date" error={state.fieldErrors?.reminderDate?.[0]}>
-            <Input
+            <DatePickerField
+              ariaLabel="Reminder date"
               defaultValue={defaults.reminderDate ?? ""}
               name="reminderDate"
-              type="date"
             />
           </Field>
           <Field label="Reminder time" error={state.fieldErrors?.reminderTime?.[0]}>
-            <Input
+            <TimePickerField
+              ariaLabel="Reminder time"
               defaultValue={defaults.reminderTime ?? ""}
               name="reminderTime"
-              type="time"
             />
           </Field>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Cost estimate" error={state.fieldErrors?.costEstimateAmount?.[0]}>
-            <Input
+            <NumberInput
               defaultValue={defaults.costEstimateAmount ?? ""}
               min="0"
               name="costEstimateAmount"
               step="0.01"
-              type="number"
             />
           </Field>
           {mode === "edit" ? (
             <Field label="Actual cost" error={state.fieldErrors?.actualCostAmount?.[0]}>
-              <Input
+              <NumberInput
                 defaultValue={defaults.actualCostAmount ?? ""}
                 min="0"
                 name="actualCostAmount"
                 step="0.01"
-                type="number"
               />
             </Field>
           ) : null}
@@ -1149,13 +1255,12 @@ function MaintenanceForm({
 
         {mode === "edit" ? (
           <label className="flex items-start gap-2 rounded-md border border-border bg-surface-muted/70 px-3 py-2 text-sm">
-            <input
+            <CheckboxControl
               className="mt-1"
               defaultChecked={Boolean(
                 maintenanceCase?.actualCostAmount && !maintenanceCase.ledgerEntryId,
               )}
               name="linkActualCostToLedger"
-              type="checkbox"
             />
             <span>
               <span className="block font-medium">Link actual cost to ledger</span>
@@ -1167,20 +1272,16 @@ function MaintenanceForm({
         ) : null}
 
         <Field label="Description" error={state.fieldErrors?.description?.[0]}>
-          <textarea
-            className="min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          <Textarea
             defaultValue={defaults.description ?? ""}
             name="description"
           />
         </Field>
 
-        <Field label="Checklist" error={state.fieldErrors?.checklistText?.[0]}>
-          <textarea
-            className="min-h-32 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            defaultValue={defaults.checklistText}
-            name="checklistText"
-          />
-        </Field>
+        <ChecklistEditor
+          error={state.fieldErrors?.checklistText?.[0]}
+          value={defaults.checklistText}
+        />
 
         {state.message ? (
           <p
@@ -1248,6 +1349,97 @@ function LinkButton({
   );
 }
 
+function ChecklistEditor({
+  error,
+  value,
+}: {
+  error?: string;
+  value: string;
+}) {
+  const [items, setItems] = useState<MaintenanceChecklistItem[]>(() => {
+    const parsed = parseMaintenanceChecklistText(value);
+
+    return parsed.length > 0 ? parsed : [newChecklistItem()];
+  });
+  const checklistText = formatMaintenanceChecklistText(items);
+
+  function updateItem(
+    id: string,
+    patch: Partial<Pick<MaintenanceChecklistItem, "completed" | "label">>,
+  ) {
+    setItems((current) =>
+      current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
+  }
+
+  function removeItem(id: string) {
+    setItems((current) => {
+      const next = current.filter((item) => item.id !== id);
+
+      return next.length > 0 ? next : [newChecklistItem()];
+    });
+  }
+
+  return (
+    <div className="block text-sm font-medium">
+      <input name="checklistText" readOnly type="hidden" value={checklistText} />
+      <div className="flex items-center justify-between gap-2">
+        <span>Checklist</span>
+        <button
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs font-medium transition-colors hover:bg-surface-muted"
+          onClick={() => setItems((current) => [...current, newChecklistItem()])}
+          type="button"
+        >
+          <Plus size={14} />
+          Add item
+        </button>
+      </div>
+      <div className="mt-2 divide-y divide-border overflow-hidden rounded-md border border-border bg-surface">
+        {items.map((item, index) => (
+          <div className="flex items-center gap-2 px-2.5 py-2" key={item.id}>
+            <CheckboxControl
+              aria-label={`Complete checklist item ${index + 1}`}
+              checked={item.completed}
+              onCheckedChange={(checked) =>
+                updateItem(item.id, { completed: checked === true })
+              }
+            />
+            <Input
+              className={cn(
+                "h-8 min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus:border-transparent focus:ring-0",
+                item.completed && "text-muted line-through",
+              )}
+              onChange={(event) =>
+                updateItem(item.id, { label: event.currentTarget.value })
+              }
+              placeholder="Checklist item"
+              value={item.label}
+            />
+            <button
+              aria-label="Remove checklist item"
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+              onClick={() => removeItem(item.id)}
+              title="Remove checklist item"
+              type="button"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
+    </div>
+  );
+}
+
+function newChecklistItem(): MaintenanceChecklistItem {
+  return {
+    completed: false,
+    id: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    label: "",
+  };
+}
+
 function Field({
   children,
   error,
@@ -1300,28 +1492,6 @@ function getHrefWithoutActionParam(
   nextParams.delete("action");
 
   const query = nextParams.toString();
-  return query ? `${pathname}?${query}` : pathname;
-}
-
-function buildFilterHref(
-  pathname: string,
-  searchParams: { toString(): string },
-  values: Record<string, string>,
-) {
-  const nextParams = new URLSearchParams(searchParams.toString());
-
-  for (const [key, value] of Object.entries(values)) {
-    if (value) {
-      nextParams.set(key, value);
-    } else {
-      nextParams.delete(key);
-    }
-  }
-
-  nextParams.delete("page");
-  nextParams.delete("taskId");
-  const query = nextParams.toString();
-
   return query ? `${pathname}?${query}` : pathname;
 }
 
@@ -1395,22 +1565,10 @@ function buildClearFiltersHref(
   return query ? `${pathname}?${query}` : pathname;
 }
 
-export function getMaintenanceReportHref(
-  viewQuery: Pick<MaintenanceViewQuery, "month" | "propertyId">,
+function getAdvancedFilterCount(
+  viewQuery: MaintenanceViewQuery,
+  baseReview: MaintenanceViewQuery["review"],
 ) {
-  const params = new URLSearchParams({
-    month: viewQuery.month,
-    report: "maintenance-cost",
-  });
-
-  if (viewQuery.propertyId !== "all") {
-    params.set("propertyId", viewQuery.propertyId);
-  }
-
-  return `/reports?${params.toString()}`;
-}
-
-function getAdvancedFilterCount(viewQuery: MaintenanceViewQuery) {
   let count = 0;
 
   if (viewQuery.priority !== "all") {
@@ -1422,10 +1580,16 @@ function getAdvancedFilterCount(viewQuery: MaintenanceViewQuery) {
   }
 
   if (
-    viewQuery.review === "reminders" ||
-    viewQuery.review === "high_priority" ||
-    viewQuery.review === "high_cost" ||
-    viewQuery.review === "recurring"
+    viewQuery.review !== baseReview &&
+    [
+      "reminders",
+      "scheduled",
+      "work_orders",
+      "inspections",
+      "high_priority",
+      "high_cost",
+      "recurring",
+    ].includes(viewQuery.review)
   ) {
     count += 1;
   }
@@ -1436,9 +1600,10 @@ function getAdvancedFilterCount(viewQuery: MaintenanceViewQuery) {
 function getScopeOptions(
   properties: MaintenancePropertyOption[],
   units: MaintenanceUnitOption[],
+  listLabel: string,
 ) {
   return [
-    { label: "All cases", value: "all" },
+    { label: `All ${listLabel}`, value: "all" },
     ...properties.map((property) => ({
       label: `Property - ${property.label}`,
       value: `property:${property.id}`,
@@ -1466,9 +1631,11 @@ function getMaintenanceScopeLabel(
   viewQuery: MaintenanceViewQuery,
   properties: MaintenancePropertyOption[],
   units: MaintenanceUnitOption[],
+  listLabel: string,
+  recordLabel: string,
 ) {
   if (viewQuery.taskId !== "all") {
-    return "Selected case";
+    return `Selected ${recordLabel}`;
   }
 
   if (viewQuery.unitId !== "all") {
@@ -1482,5 +1649,109 @@ function getMaintenanceScopeLabel(
     );
   }
 
-  return "All maintenance cases";
+  return `All ${listLabel}`;
+}
+
+function getMaintenanceScopeFacts(
+  summary: MaintenanceSummary,
+  review: MaintenanceViewQuery["review"],
+): MaintenanceScopeFact[] {
+  const common: Record<string, MaintenanceScopeFact> = {
+    blocked: {
+      label: "Blocked",
+      tone: summary.blocked > 0 ? "danger" : "neutral",
+      value: summary.blocked,
+    },
+    completed: { label: "Completed", tone: "success", value: summary.completed },
+    highCost: {
+      label: "High cost",
+      tone: summary.highCost > 0 ? "warning" : "neutral",
+      value: summary.highCost,
+    },
+    inProgress: {
+      label: "In progress",
+      tone: summary.inProgress > 0 ? "accent" : "neutral",
+      value: summary.inProgress,
+    },
+    overdue: {
+      label: "Overdue",
+      tone: summary.overdue > 0 ? "danger" : "success",
+      value: summary.overdue,
+    },
+    pending: {
+      label: "Pending",
+      tone: summary.pending > 0 ? "warning" : "neutral",
+      value: summary.pending,
+    },
+    reminders: {
+      label: "Reminders",
+      tone: summary.reminderDue > 0 ? "danger" : "neutral",
+      value: summary.reminderDue,
+    },
+    scheduled: {
+      label: "Scheduled",
+      tone: summary.scheduled > 0 ? "accent" : "neutral",
+      value: summary.scheduled,
+    },
+    total: { label: "Total", tone: "neutral", value: summary.total },
+    upcoming: {
+      label: "Upcoming",
+      tone: summary.upcoming > 0 ? "warning" : "neutral",
+      value: summary.upcoming,
+    },
+  };
+
+  if (review === "work_orders") {
+    return [
+      common.total,
+      common.scheduled,
+      common.inProgress,
+      common.blocked,
+      common.overdue,
+    ];
+  }
+
+  if (review === "scheduled") {
+    return [
+      common.total,
+      common.overdue,
+      common.upcoming,
+      common.reminders,
+      common.completed,
+    ];
+  }
+
+  if (review === "inspections") {
+    return [
+      common.total,
+      common.pending,
+      common.inProgress,
+      common.overdue,
+      common.completed,
+    ];
+  }
+
+  if (review === "recurring") {
+    return [
+      common.total,
+      common.upcoming,
+      common.inProgress,
+      common.overdue,
+      common.completed,
+    ];
+  }
+
+  return [
+    common.total,
+    common.pending,
+    common.inProgress,
+    common.overdue,
+    common.upcoming,
+    common.completed,
+    common.highCost,
+  ];
+}
+
+function capitalizeLabel(label: string) {
+  return label ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : label;
 }

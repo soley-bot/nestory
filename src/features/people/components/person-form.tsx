@@ -2,8 +2,10 @@
 
 import { useActionState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { CheckboxControl } from "@/components/ui/checkbox-control";
 import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
+import { Textarea } from "@/components/ui/textarea";
 import {
   createPersonAction,
   type PeopleActionState,
@@ -152,8 +154,8 @@ export function PersonForm({
         </Field>
 
         <Field label="Notes" error={state.fieldErrors?.notes?.[0]}>
-          <textarea
-            className="min-h-28 w-full resize-y rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          <Textarea
+            className="min-h-28 resize-y"
             defaultValue={defaults.notes}
             name="notes"
             placeholder="Internal relationship, billing, or access notes"
@@ -246,11 +248,9 @@ function RoleCheckbox({
         "hover:bg-surface-muted",
       )}
     >
-      <input
-        className="h-4 w-4 rounded border-border accent-black"
+      <CheckboxControl
         defaultChecked={defaultChecked}
         name="roles"
-        type="checkbox"
         value={role}
       />
       <span>{formatRole(role)}</span>

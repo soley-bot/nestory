@@ -1,13 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { DayPicker } from "@daypicker/react";
 import * as Popover from "@radix-ui/react-popover";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
-
-const weekdays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 type DatePickerFieldProps = {
   ariaLabel?: string;
@@ -30,7 +29,6 @@ export function DatePickerField({
     getVisibleMonth(defaultValue),
   );
   const selectedDate = useMemo(() => parseDateValue(value), [value]);
-  const days = useMemo(() => getCalendarDays(visibleMonth), [visibleMonth]);
 
   return (
     <>
@@ -83,35 +81,39 @@ export function DatePickerField({
               </button>
             </div>
 
-            <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted">
-              {weekdays.map((weekday) => (
-                <span key={weekday}>{weekday}</span>
-              ))}
-            </div>
-            <div className="mt-2 grid grid-cols-7 gap-1">
-              {days.map((day, index) =>
-                day ? (
-                  <button
-                    className={cn(
-                      "flex size-8 items-center justify-center rounded-md text-sm transition-colors hover:bg-surface-muted",
-                      selectedDate &&
-                        isSameDate(selectedDate, day) &&
-                        "bg-accent text-background hover:bg-accent",
-                    )}
-                    key={toDateValue(day)}
-                    onClick={() => {
-                      setValue(toDateValue(day));
-                      setOpen(false);
-                    }}
-                    type="button"
-                  >
-                    {day.getDate()}
-                  </button>
-                ) : (
-                  <span aria-hidden="true" key={`blank-${index}`} />
-                ),
-              )}
-            </div>
+            <DayPicker
+              classNames={{
+                caption_label: "sr-only",
+                day: "p-0 text-center align-middle",
+                day_button:
+                  "flex size-8 items-center justify-center rounded-md text-sm transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-accent-soft",
+                disabled: "text-muted opacity-40",
+                month_caption: "sr-only",
+                month_grid: "mt-3 w-full border-separate border-spacing-1",
+                months: "space-y-0",
+                outside: "text-muted opacity-40",
+                root: "mt-1",
+                selected:
+                  "[&>button]:bg-accent [&>button]:text-background [&>button]:hover:bg-accent",
+                today: "[&>button]:border [&>button]:border-accent",
+                weekday: "h-7 text-center text-xs font-medium text-muted",
+              }}
+              fixedWeeks
+              hideNavigation
+              mode="single"
+              month={visibleMonth}
+              onMonthChange={setVisibleMonth}
+              onSelect={(day) => {
+                if (!day) {
+                  return;
+                }
+
+                setValue(toDateValue(day));
+                setOpen(false);
+              }}
+              selected={selectedDate ?? undefined}
+              showOutsideDays
+            />
 
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
               <button
@@ -155,29 +157,11 @@ function formatVisibleMonth(date: Date) {
   }).format(date);
 }
 
-function getCalendarDays(visibleMonth: Date) {
-  const year = visibleMonth.getFullYear();
-  const month = visibleMonth.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstWeekday = new Date(year, month, 1).getDay();
-  const days: Array<Date | null> = Array.from({ length: firstWeekday }, () => null);
-
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    days.push(new Date(year, month, day));
-  }
-
-  return days;
-}
-
 function getVisibleMonth(value: string) {
   const parsed = parseDateValue(value);
   const date = parsed ?? parseDateValue(getBusinessDateValue()) ?? new Date();
 
   return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function isSameDate(left: Date, right: Date) {
-  return toDateValue(left) === toDateValue(right);
 }
 
 function parseDateValue(value: string) {

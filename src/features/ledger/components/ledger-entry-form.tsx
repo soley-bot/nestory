@@ -9,7 +9,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
+import { Textarea } from "@/components/ui/textarea";
 import type {
   LedgerEntry,
   LedgerPropertyOption,
@@ -156,14 +158,13 @@ export function LedgerEntryForm({
           </Field>
 
           <Field label="Amount" error={state.fieldErrors?.amount?.[0]}>
-            <Input
+            <NumberInput
               defaultValue={entry?.amount}
               min="0.01"
               name="amount"
               placeholder="0.00"
               required
               step="0.01"
-              type="number"
             />
           </Field>
         </div>
@@ -173,8 +174,7 @@ export function LedgerEntryForm({
           label="Description"
           error={state.fieldErrors?.description?.[0]}
         >
-          <textarea
-            className="min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          <Textarea
             defaultValue={entry?.description ?? ""}
             name="description"
             placeholder="Payment source, invoice reference, or operational notes"

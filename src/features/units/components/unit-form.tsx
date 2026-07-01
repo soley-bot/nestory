@@ -2,7 +2,12 @@
 
 import { useActionState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  DOCUMENT_FILE_ACCEPT,
+  FileDropzoneField,
+} from "@/components/ui/file-dropzone-field";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   createUnitAction,
@@ -62,7 +67,7 @@ export function UnitForm({
   }, [isEditMode, onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <form action={action} className="flex h-full flex-col" encType="multipart/form-data">
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {state.message ? (
           <p
@@ -137,13 +142,12 @@ export function UnitForm({
           </Field>
 
           <Field label="Size sqm" error={state.fieldErrors?.sizeSqm?.[0]}>
-            <Input
+            <NumberInput
               defaultValue={defaults.sizeSqm}
               min="0"
               name="sizeSqm"
               placeholder="55.25"
               step="0.01"
-              type="number"
             />
           </Field>
         </div>
@@ -153,13 +157,12 @@ export function UnitForm({
             label="Current rent"
             error={state.fieldErrors?.currentRentAmount?.[0]}
           >
-            <Input
+            <NumberInput
               defaultValue={defaults.currentRentAmount}
               min="0"
               name="currentRentAmount"
               placeholder="0.00"
               step="0.01"
-              type="number"
             />
           </Field>
         </div>
@@ -212,11 +215,11 @@ function InlineDocumentField({
         this unit.
       </p>
       <input name="documentCategory" type="hidden" value={defaultCategory} />
-      <input
-        accept="application/pdf,image/jpeg,image/png,image/webp"
-        className="mt-3 block w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
+      <FileDropzoneField
+        accept={DOCUMENT_FILE_ACCEPT}
+        className="mt-3"
+        description="PDF, JPG, PNG, or WebP up to 10 MB."
         name="document"
-        type="file"
       />
       {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
     </section>

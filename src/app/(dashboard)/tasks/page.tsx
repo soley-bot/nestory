@@ -10,7 +10,7 @@ type TasksPageProps = {
 export default async function TasksPage({ searchParams }: TasksPageProps) {
   const context = await requireWorkspaceContext();
   const params = await searchParams;
-  const viewQuery = parseMaintenanceSearchParams(params);
+  const viewQuery = parseMaintenanceSearchParams({ review: "all", ...params });
   const data = await getMaintenanceScreenData(context.organizationId, viewQuery, {
     branchId: context.branchId,
     personId: context.personId,
@@ -20,6 +20,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
 
   return (
     <MaintenanceScreen
+      baseReview="all"
       branchOptions={data.branchOptions}
       canManageTasks={context.role !== "member"}
       cases={data.cases}
@@ -34,13 +35,17 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
           ? "No assigned tasks found."
           : "No tasks found."
       }
+      flowLabel="Assignment queue"
       initialTaskId={initialTaskId}
+      listLabel="tasks"
       pagination={data.pagination}
       peopleOptions={data.peopleOptions}
       propertyOptions={data.propertyOptions}
+      recordLabel="task"
       showReportAction={false}
       staffOptions={data.staffOptions}
       summary={data.summary}
+      surfaceVariant="board"
       title="Tasks"
       unitOptions={data.unitOptions}
       viewQuery={viewQuery}

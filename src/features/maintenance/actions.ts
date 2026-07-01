@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { parseMaintenanceChecklistText } from "@/features/maintenance/maintenance.checklist";
+import type { MaintenanceStatus } from "@/features/maintenance/maintenance.types";
 import type { Json } from "@/types/database";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -74,6 +76,14 @@ const optionalMoneySchema = z
       .finite("Use a valid amount.")
       .nullable(),
   );
+const maintenanceStatusSchema = z.enum([
+  "pending",
+  "scheduled",
+  "in_progress",
+  "blocked",
+  "completed",
+  "cancelled",
+]);
 const maintenanceSchema = z
   .object({
     actualCostAmount: optionalMoneySchema,
@@ -101,14 +111,7 @@ const maintenanceSchema = z
     ]),
     reminderDate: optionalDateSchema,
     reminderTime: optionalTimeSchema,
-    status: z.enum([
-      "pending",
-      "scheduled",
-      "in_progress",
-      "blocked",
-      "completed",
-      "cancelled",
-    ]),
+    status: maintenanceStatusSchema,
     title: z
       .string()
       .trim()
@@ -160,7 +163,7 @@ export async function createMaintenanceCaseAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const checklist = parseChecklistText(parsed.data.checklistText);
+  const checklist = parseMaintenanceChecklistText(parsed.data.checklistText);
   const { data: taskId, error } = await supabase.rpc("create_maintenance_task", {
     p_category: parsed.data.category,
     p_checklist: checklist as Json,
@@ -234,7 +237,7 @@ export async function updateMaintenanceCaseAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const checklist = parseChecklistText(parsed.data.checklistText);
+  const checklist = parseMaintenanceChecklistText(parsed.data.checklistText);
   const { error } = await supabase.rpc("update_maintenance_task", {
     p_actual_cost_amount: parsed.data.actualCostAmount,
     p_actual_cost_currency:
@@ -287,6 +290,91 @@ export async function updateMaintenanceCaseAction(
 
   return {
     message: "Maintenance case updated.",
+    status: "success",
+  };
+}
+
+export async function updateMaintenanceStatusAction(
+  taskId: string,
+  status: MaintenanceStatus,
+): Promise<MaintenanceActionState> {
+  const context = await requireTaskManagerContext();
+  const parsedTaskId = uuidShapeSchema.safeParse(taskId);
+  const parsedStatus = maintenanceStatusSchema.safeParse(status);
+
+  if (!parsedTaskId.success || !parsedStatus.success) {
+    return {
+      fieldErrors: {
+        taskId: parsedTaskId.success ? undefined : ["Choose a maintenance case."],
+        status: parsedStatus.success ? undefined : ["Choose a supported status."],
+      },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: task, error: taskError } = await supabase
+    .from("tasks")
+    .select(
+      "id, property_id, unit_id, title, description, category, priority, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency",
+    )
+    .eq("organization_id", context.organizationId)
+    .eq("id", parsedTaskId.data)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (taskError) {
+    return {
+      message: maintenanceActionErrorMessage(taskError.message),
+      status: "error",
+    };
+  }
+
+  if (!task) {
+    return {
+      message: "We could not find that maintenance case.",
+      status: "error",
+    };
+  }
+
+  const { error } = await supabase.rpc("update_maintenance_task", {
+    p_actual_cost_amount: task.actual_cost_amount,
+    p_actual_cost_currency: task.actual_cost_currency,
+    p_category: task.category,
+    p_checklist: task.checklist,
+    p_cost_estimate_amount: task.cost_estimate_amount,
+    p_cost_estimate_currency: task.cost_estimate_currency,
+    p_description: task.description,
+    p_due_date: task.due_date,
+    p_due_time: task.due_time,
+    p_link_actual_cost_to_ledger: false,
+    p_organization_id: context.organizationId,
+    p_priority: task.priority,
+    p_property_id: task.property_id,
+    p_recurrence_frequency: task.recurrence_frequency,
+    p_reminder_date: task.reminder_date,
+    p_reminder_time: task.reminder_time,
+    p_status: parsedStatus.data,
+    p_task_id: parsedTaskId.data,
+    p_title: task.title,
+    p_unit_id: task.unit_id,
+    p_vendor_person_id: task.vendor_person_id,
+  });
+
+  if (error) {
+    return {
+      message: maintenanceActionErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidateMaintenancePaths({
+    propertyIds: [task.property_id],
+    unitIds: [task.unit_id],
+  });
+
+  return {
+    message: "Maintenance status updated.",
     status: "success",
   };
 }
@@ -430,24 +518,6 @@ async function assignMaintenanceTask({
   };
 }
 
-function parseChecklistText(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line, index) => {
-      const completed = /^\[[xX]\]\s*/.test(line);
-      const label = line.replace(/^\[[ xX]\]\s*/, "").trim();
-
-      return {
-        completed,
-        id: String(index + 1),
-        label,
-      };
-    })
-    .filter((item) => item.label.length > 0);
-}
-
 async function getMaintenancePathContext(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organizationId: string,
@@ -471,6 +541,11 @@ function revalidateMaintenancePaths({
   unitIds?: Array<string | null | undefined>;
 }) {
   revalidatePath("/maintenance");
+  revalidatePath("/maintenance-dashboard");
+  revalidatePath("/work-orders");
+  revalidatePath("/schedule");
+  revalidatePath("/inspections");
+  revalidatePath("/recurring-tasks");
   revalidatePath("/tasks");
   revalidatePath("/overview");
   revalidatePath("/documents");

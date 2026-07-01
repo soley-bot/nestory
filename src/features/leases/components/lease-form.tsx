@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
-import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   createLeaseAction,
@@ -222,14 +222,13 @@ export function LeaseForm({
             label="Monthly rent"
             error={state.fieldErrors?.monthlyRentAmount?.[0]}
           >
-            <Input
+            <NumberInput
               defaultValue={defaults.monthlyRentAmount}
               min="0"
               name="monthlyRentAmount"
               placeholder="0.00"
               required
               step="0.01"
-              type="number"
             />
           </Field>
         </div>
@@ -239,13 +238,12 @@ export function LeaseForm({
             label="Deposit"
             error={state.fieldErrors?.depositAmount?.[0]}
           >
-            <Input
+            <NumberInput
               defaultValue={defaults.depositAmount}
               min="0"
               name="depositAmount"
               placeholder="0.00"
               step="0.01"
-              type="number"
             />
           </Field>
         </div>

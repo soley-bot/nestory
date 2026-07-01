@@ -139,6 +139,8 @@ The full target product and copy-paste build prompts live in
   truncate deliberately.
 - Use shared Nestory/Radix controls for polished selects, dates, and accounting
   months.
+- Visible form controls should route through shared UI primitives; keep raw HTML
+  inputs behind those primitives or hidden form plumbing.
 
 ## Code Organization
 
