@@ -5,7 +5,11 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   BarChart3,
+  Bell,
   Building2,
+  CalendarDays,
+  ClipboardList,
+  Database,
   ChevronDown,
   FileText,
   FolderOpen,
@@ -17,8 +21,11 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
+  Plug,
+  Repeat,
   ScrollText,
   Settings,
+  Shield,
   Sun,
   Upload,
   Users,
@@ -38,20 +45,42 @@ type NavItem = {
 type NavGroup = {
   id: string;
   label: string;
+  roomLabel: string;
   icon: LucideIcon;
   items: NavItem[];
 };
 
 const navGroups: NavGroup[] = [
   {
-    id: "home",
-    label: "Home",
+    id: "dashboard",
+    label: "Dashboard",
+    roomLabel: "Dashboard",
     icon: BarChart3,
-    items: [{ href: "/overview", label: "Dashboard", icon: BarChart3 }],
+    items: [
+      { href: "/overview", label: "Overview", icon: BarChart3 },
+      {
+        href: "/property-dashboard",
+        label: "Property",
+        icon: Building2,
+      },
+      {
+        href: "/maintenance-dashboard",
+        label: "Maintenance",
+        icon: Wrench,
+      },
+      { href: "/people-dashboard", label: "People", icon: Users },
+      { href: "/finance-dashboard", label: "Finance", icon: Landmark },
+      {
+        href: "/timeline-dashboard",
+        label: "Timeline",
+        icon: ListTree,
+      },
+    ],
   },
   {
-    id: "record-room",
-    label: "Record room",
+    id: "property",
+    label: "Property",
+    roomLabel: "Record room",
     icon: Building2,
     items: [
       { href: "/properties", label: "Properties", icon: Building2 },
@@ -61,57 +90,110 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    id: "people-money",
-    label: "People & money",
+    id: "people",
+    label: "People",
+    roomLabel: "People room",
     icon: Users,
     items: [
-      { href: "/leases", label: "Leases", icon: ScrollText },
       {
-        href: "/people",
-        label: "People",
+        href: "/tenants",
+        label: "Tenants",
         icon: Users,
-        activeHrefs: ["/tenants"],
+        activeHrefs: ["/people"],
       },
+      { href: "/vendors", label: "Vendors", icon: Wrench },
+      { href: "/owners", label: "Owners", icon: Users },
+      {
+        href: "/team",
+        label: "Users / PM Team",
+        icon: Users,
+      },
+    ],
+  },
+  {
+    id: "maintenance",
+    label: "Maintenance",
+    roomLabel: "Operations room",
+    icon: Wrench,
+    items: [
+      { href: "/maintenance", label: "Requests", icon: Wrench },
+      { href: "/work-orders", label: "Work Orders", icon: ClipboardList },
+      { href: "/schedule", label: "Schedule", icon: CalendarDays },
+      { href: "/recurring-tasks", label: "Recurring Tasks", icon: Repeat },
+    ],
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    roomLabel: "Money room",
+    icon: Landmark,
+    items: [
+      { href: "/leases", label: "Leases", icon: ScrollText },
       { href: "/ledger", label: "Ledger", icon: Landmark },
+      { href: "/payments", label: "Payments", icon: Landmark },
+      { href: "/invoices", label: "Invoices", icon: FileText },
+      { href: "/reports", label: "Reports", icon: FileText },
+    ],
+  },
+  {
+    id: "timeline",
+    label: "Timeline",
+    roomLabel: "Memory room",
+    icon: ListTree,
+    items: [
+      { href: "/timeline", label: "Global Timeline", icon: ListTree },
+      {
+        href: "/property-timeline",
+        label: "Property Timeline",
+        icon: Building2,
+      },
+      {
+        href: "/maintenance-timeline",
+        label: "Maintenance Timeline",
+        icon: Wrench,
+      },
+      {
+        href: "/financial-timeline",
+        label: "Financial Timeline",
+        icon: Landmark,
+      },
     ],
   },
 ];
 
-const moreNavItems: NavItem[] = [
-  { href: "/documents", label: "Documents", icon: FolderOpen },
-  { href: "/reports", label: "Reports", icon: FileText },
-  { href: "/import", label: "Import data", icon: Upload },
-];
-
-const desktopNavGroups: NavGroup[] = [
-  ...navGroups,
-  {
-    id: "tools",
-    label: "Tools",
-    icon: MoreHorizontal,
-    items: moreNavItems,
-  },
-];
-
-const settingsItem: NavItem = {
-  href: "/settings",
+const settingsGroup: NavGroup = {
+  id: "settings",
   label: "Settings",
+  roomLabel: "Control room",
   icon: Settings,
+  items: [
+    { href: "/settings", label: "Organization", icon: Building2 },
+    { href: "/users-roles", label: "Users & Roles", icon: Users },
+    { href: "/property-settings", label: "Properties", icon: Building2 },
+    { href: "/lease-settings", label: "Lease", icon: ScrollText },
+    { href: "/maintenance-settings", label: "Maintenance", icon: Wrench },
+    { href: "/financial-settings", label: "Financial", icon: Landmark },
+    { href: "/notifications", label: "Notification", icon: Bell },
+    { href: "/documents", label: "Documents", icon: FolderOpen },
+    { href: "/security", label: "Security", icon: Shield },
+    { href: "/backup-data", label: "Backup and Data", icon: Database },
+    { href: "/integrations", label: "Integration", icon: Plug },
+  ],
 };
 
+const desktopNavGroups = [...navGroups, settingsGroup];
+
 const mobilePrimaryItems = [
-  { href: "/overview", label: "Dashboard", icon: BarChart3 },
+  { href: "/overview", label: "Overview", icon: BarChart3 },
   { href: "/properties", label: "Properties", icon: Building2 },
   { href: "/units", label: "Units", icon: Home },
-  { href: "/timeline", label: "Timeline", icon: ListTree },
+  { href: "/maintenance", label: "Requests", icon: Wrench },
   { href: "/ledger", label: "Ledger", icon: Landmark },
 ] satisfies NavItem[];
 
 const mobileMoreItems = [
-  { href: "/leases", label: "Leases", icon: ScrollText },
-  { href: "/people", label: "People", icon: Users, activeHrefs: ["/tenants"] },
-  { href: "/maintenance", label: "Maintenance", icon: Wrench },
-  ...moreNavItems,
+  ...desktopNavGroups.flatMap((group) => group.items),
+  { href: "/import", label: "Import data", icon: Upload },
 ] satisfies NavItem[];
 
 type AppShellProps = {
@@ -175,7 +257,6 @@ export function AppShell({
   const pathGroup = getPathGroup(pathname);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const selectedDesktopGroup = pathGroup ?? desktopNavGroups[0];
-  const isSettingsActive = isNavItemActive(pathname, settingsItem);
   const isMobileMoreActive = mobileMoreItems.some((item) =>
     isNavItemActive(pathname, item),
   );
@@ -197,14 +278,14 @@ export function AppShell({
       <aside
         className={cn(
           "fixed inset-y-0 left-0 hidden border-r border-border bg-surface transition-[width] duration-200 print:hidden lg:flex",
-          sidebarCollapsed ? "w-12" : "w-52",
+          sidebarCollapsed ? "w-14" : "w-[244px]",
         )}
       >
         {sidebarCollapsed ? (
-          <div className="flex w-12 shrink-0 flex-col items-center bg-surface-muted/60">
+          <div className="flex w-14 shrink-0 flex-col items-center bg-background">
             <Link
               aria-label="Nestory dashboard"
-              className="flex h-12 w-full items-center justify-center border-b border-border text-[13px] font-semibold text-foreground"
+              className="flex h-14 w-full items-center justify-center border-b border-border text-[13px] font-semibold text-foreground"
               href="/overview"
               onNavigate={() => setSidebarCollapsed(false)}
               prefetch={false}
@@ -214,9 +295,9 @@ export function AppShell({
             </Link>
             <nav
               aria-label="Quick module rail"
-              className="flex flex-1 flex-col items-center gap-1 px-1 py-2"
+              className="flex flex-1 flex-col items-center gap-1 px-2 py-3"
             >
-              {desktopNavGroups.map((group) => (
+              {navGroups.map((group) => (
                 <DesktopRailGroupLink
                   group={group}
                   isActive={selectedDesktopGroup.id === group.id}
@@ -227,18 +308,11 @@ export function AppShell({
             </nav>
             <div className="flex flex-col items-center gap-1 border-t border-border px-1 py-2">
               <ThemeToggle onToggle={toggleTheme} />
-              <Link
-                aria-label="Settings"
-                className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground",
-                  isSettingsActive && "bg-surface text-foreground",
-                )}
-                href={settingsItem.href}
-                prefetch={false}
-                title="Settings"
-              >
-                <Settings size={15} />
-              </Link>
+              <DesktopRailGroupLink
+                group={settingsGroup}
+                isActive={selectedDesktopGroup.id === settingsGroup.id}
+                onNavigate={() => setSidebarCollapsed(false)}
+              />
               <button
                 aria-label={sidebarToggleLabel}
                 className="flex h-8 w-8 items-center justify-center rounded-md bg-surface text-foreground transition-colors hover:bg-surface hover:text-foreground"
@@ -262,10 +336,10 @@ export function AppShell({
           </div>
         ) : (
           <>
-            <div className="flex w-12 shrink-0 flex-col items-center border-r border-border bg-surface-muted/60">
+            <div className="flex w-14 shrink-0 flex-col items-center border-r border-border bg-background">
               <Link
                 aria-label="Nestory dashboard"
-                className="flex h-12 w-full items-center justify-center border-b border-border text-[13px] font-semibold text-foreground"
+                className="flex h-14 w-full items-center justify-center border-b border-border text-[13px] font-semibold text-foreground"
                 href="/overview"
                 prefetch={false}
                 title="Nestory"
@@ -274,9 +348,9 @@ export function AppShell({
               </Link>
               <nav
                 aria-label="Quick module rail"
-                className="flex flex-1 flex-col items-center gap-1 px-1 py-2"
+                className="flex flex-1 flex-col items-center gap-1 px-2 py-3"
               >
-                {desktopNavGroups.map((group) => (
+                {navGroups.map((group) => (
                   <DesktopRailGroupLink
                     group={group}
                     isActive={selectedDesktopGroup.id === group.id}
@@ -286,18 +360,10 @@ export function AppShell({
               </nav>
               <div className="flex flex-col items-center gap-1 border-t border-border px-1 py-2">
                 <ThemeToggle onToggle={toggleTheme} />
-                <Link
-                  aria-label="Settings"
-                  className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground",
-                    isSettingsActive && "bg-surface text-foreground",
-                  )}
-                  href={settingsItem.href}
-                  prefetch={false}
-                  title="Settings"
-                >
-                  <Settings size={15} />
-                </Link>
+                <DesktopRailGroupLink
+                  group={settingsGroup}
+                  isActive={selectedDesktopGroup.id === settingsGroup.id}
+                />
                 <button
                   aria-label={sidebarToggleLabel}
                   className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground"
@@ -323,7 +389,7 @@ export function AppShell({
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col bg-surface">
-              <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
+              <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
                 <Link
                   className="min-w-0 leading-none text-foreground"
                   href="/overview"
@@ -332,16 +398,16 @@ export function AppShell({
                   <span className="block truncate text-[13px] font-semibold">
                     Nestory
                   </span>
-                  <span className="mt-0.5 block truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-                    {selectedDesktopGroup.label}
+                  <span className="mt-1 block truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
+                    {selectedDesktopGroup.roomLabel}
                   </span>
                 </Link>
               </div>
 
-              <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 py-3">
+              <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-3">
                 <div aria-label={selectedDesktopGroup.label}>
-                  <p className="px-2 pb-1.5 text-[10px] font-medium text-muted">
-                    {selectedDesktopGroup.label}
+                  <p className="px-2 pb-2 text-[12px] font-medium text-muted">
+                    {selectedDesktopGroup.roomLabel}
                   </p>
                   <div className="space-y-1">
                     {selectedDesktopGroup.items.map((item) => {
@@ -351,7 +417,7 @@ export function AppShell({
                       return (
                         <Link
                           className={cn(
-                            "flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted transition-colors",
+                            "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[14px] font-medium text-muted transition-colors",
                             isActive
                               ? "bg-surface-muted text-foreground"
                               : "hover:bg-surface-muted hover:text-foreground",
@@ -378,7 +444,7 @@ export function AppShell({
       <main
         className={cn(
           "min-h-screen transition-[margin-left] duration-200 print:ml-0",
-          sidebarCollapsed ? "lg:ml-12" : "lg:ml-52",
+          sidebarCollapsed ? "lg:ml-14" : "lg:ml-[244px]",
         )}
       >
         <div className="border-b border-border bg-surface print:hidden lg:hidden">
@@ -399,9 +465,11 @@ export function AppShell({
                 aria-label="Settings"
                 className={cn(
                   "flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-                  isSettingsActive ? "bg-surface-muted text-foreground" : null,
+                  selectedDesktopGroup.id === "settings"
+                    ? "bg-surface-muted text-foreground"
+                    : null,
                 )}
-                href={settingsItem.href}
+                href="/settings"
                 prefetch={false}
               >
                 <Settings size={16} />
