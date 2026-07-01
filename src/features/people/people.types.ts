@@ -7,7 +7,7 @@ export type PeopleDisplayMode = "table" | "cards";
 
 export type PersonPartyType = "individual" | "company";
 
-export type PersonRoleValue = "tenant" | "owner" | "vendor";
+export type PersonRoleValue = "tenant" | "owner" | "vendor" | "staff";
 
 export type PersonRoleStatus = "active" | "inactive";
 

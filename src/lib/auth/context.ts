@@ -9,15 +9,21 @@ type AuthUser = {
   id: string;
 };
 
-type AdminMembership = {
+export type WorkspaceRole = "admin" | "manager" | "member";
+
+type WorkspaceMembership = {
+  branchId?: string;
   organizationId: string;
   organizationName: string;
-  role: "admin";
+  personId?: string;
+  role: WorkspaceRole;
 };
 
 type MembershipRow = {
+  branch_id: string | null;
   organization_id: string;
   organizations: { name: string } | { name: string }[] | null;
+  person_id: string | null;
   role: string;
 };
 
@@ -54,15 +60,37 @@ export async function requireUser() {
 export async function getAdminMembershipForUser(
   userId: string,
   client?: SupabaseServerClient,
-): Promise<AdminMembership | null> {
+): Promise<WorkspaceMembership | null> {
+  const membership = await getWorkspaceMembershipForUser(userId, client);
+
+  return membership?.role === "admin" ? membership : null;
+}
+
+export async function getWorkspaceMembershipForUser(
+  userId: string,
+  client?: SupabaseServerClient,
+): Promise<WorkspaceMembership | null> {
   const supabase = client ?? (await createSupabaseServerClient());
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("organization_members")
-    .select("organization_id, role, organizations(name)")
+    .select("organization_id, role, person_id, branch_id, organizations(name)")
     .eq("user_id", userId)
-    .eq("role", "admin")
+    .in("role", ["admin", "manager", "member"])
     .limit(1)
     .maybeSingle();
+
+  if (error) {
+    const legacyResult = await supabase
+      .from("organization_members")
+      .select("organization_id, role, organizations(name)")
+      .eq("user_id", userId)
+      .in("role", ["admin", "manager", "member"])
+      .limit(1)
+      .maybeSingle();
+
+    data = legacyResult.data as typeof data;
+    error = legacyResult.error;
+  }
 
   if (error || !data) {
     return null;
@@ -73,16 +101,37 @@ export async function getAdminMembershipForUser(
     ? row.organizations[0]
     : row.organizations;
 
-  if (row.role !== "admin" || !organization?.name) {
+  if (!isWorkspaceRole(row.role) || !organization?.name) {
     return null;
   }
 
   return {
+    branchId: row.branch_id ?? undefined,
     organizationId: row.organization_id,
     organizationName: organization.name,
-    role: "admin",
+    personId: row.person_id ?? undefined,
+    role: row.role,
   };
 }
+
+function isWorkspaceRole(role: string): role is WorkspaceRole {
+  return role === "admin" || role === "manager" || role === "member";
+}
+
+export const requireWorkspaceContext = cache(async () => {
+  const user = await requireUser();
+  const membership = await getWorkspaceMembershipForUser(user.id);
+
+  if (!membership) {
+    redirect("/setup");
+  }
+
+  return {
+    ...membership,
+    userEmail: user.email,
+    userId: user.id,
+  };
+});
 
 export const requireAdminContext = cache(async () => {
   const user = await requireUser();

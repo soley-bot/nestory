@@ -81,6 +81,8 @@ export type MaintenanceLinkedDocument = LinkedDocument & {
 
 export type MaintenanceFormValues = {
   actualCostAmount?: number | null;
+  assigneePersonId?: string | null;
+  branchId?: string | null;
   category: string;
   checklistText: string;
   costEstimateAmount?: number | null;
@@ -99,6 +101,7 @@ export type MaintenanceFormValues = {
 };
 
 export type MaintenanceCaseHrefs = {
+  assignee?: string;
   documents: string;
   documentUpload: string;
   ledger?: string;
@@ -115,6 +118,10 @@ export type MaintenanceCase = {
   actualCostDisplay?: MoneyDisplayValue;
   actualCostLabel: string;
   archivedAt?: string;
+  assigneeLabel: string;
+  assigneePersonId?: string;
+  branchId?: string;
+  branchLabel: string;
   category: string;
   checklist: MaintenanceChecklistItem[];
   checklistDoneCount: number;
@@ -188,6 +195,11 @@ export type MaintenancePersonOption = {
   label: string;
 };
 
+export type MaintenanceBranchOption = {
+  id: string;
+  label: string;
+};
+
 export type MaintenanceMetric = {
   detail: string;
   label: string;
@@ -237,10 +249,18 @@ export type MaintenanceSummary = {
 };
 
 export type MaintenanceScreenData = {
+  branchOptions: MaintenanceBranchOption[];
   cases: MaintenanceCase[];
   pagination: MaintenancePagination;
   peopleOptions: MaintenancePersonOption[];
   propertyOptions: MaintenancePropertyOption[];
+  staffOptions: MaintenancePersonOption[];
   summary: MaintenanceSummary;
   unitOptions: MaintenanceUnitOption[];
+};
+
+export type MaintenanceActor = {
+  branchId?: string;
+  personId?: string;
+  role: "admin" | "manager" | "member";
 };

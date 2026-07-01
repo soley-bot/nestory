@@ -47,7 +47,7 @@ Current implemented or scaffolded product areas include:
 - Reports.
 - Settings.
 - Maintenance.
-- Tenants redirecting into People with the tenant role filter.
+- Tenants, Owners, Vendors, and Staff as role-focused People module pages.
 - Payments redirects to Ledger income until the receivables/payment backbone
   exists.
 

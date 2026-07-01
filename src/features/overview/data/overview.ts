@@ -339,7 +339,7 @@ function buildDashboardSummary({
     return {
       actionHref: "/people?status=no_role",
       actionLabel: "Review people",
-      detail: `${peopleWithoutRoles.length} people need a tenant, owner, or vendor role before workflow checks are reliable.`,
+      detail: `${peopleWithoutRoles.length} people need a tenant, owner, vendor, or staff role before workflow checks are reliable.`,
       headline: "People records need cleanup first.",
       tone: "danger" as const,
     };
@@ -598,7 +598,7 @@ function buildAttentionItems({
     peopleWithoutRoles.length > 0
       ? {
           count: peopleWithoutRoles.length,
-          helper: "Needs tenant, owner, or vendor role",
+          helper: "Needs tenant, owner, vendor, or staff role",
           href: "/people?status=no_role",
           label: "People without role",
           tone: "danger",

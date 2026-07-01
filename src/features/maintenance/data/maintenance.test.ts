@@ -19,6 +19,8 @@ function makeCase(
     actualCostAmount: 0,
     actualCostLabel: "No actual cost",
     archivedAt: undefined,
+    assigneeLabel: "Unassigned",
+    branchLabel: "No branch",
     category: "General",
     checklist: [],
     checklistDoneCount: 0,

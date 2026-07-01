@@ -19,27 +19,31 @@ import { cn } from "@/lib/utils";
 
 const initialState: PeopleActionState = {};
 
-const roleOptions: PersonRoleValue[] = ["tenant", "owner", "vendor"];
+const roleOptions: PersonRoleValue[] = ["tenant", "owner", "vendor", "staff"];
 
 type PersonFormProps = {
+  initialRoles?: PersonRoleValue[];
   mode?: "create" | "edit";
   onClose: () => void;
   onSuccess?: (message: string) => void;
   person?: PeopleSummary | null;
+  roleContext?: PersonRoleValue;
 };
 
 export function PersonForm({
+  initialRoles,
   mode = "create",
   onClose,
   onSuccess,
   person,
+  roleContext,
 }: PersonFormProps) {
   const isEditMode = mode === "edit";
   const [state, action, pending] = useActionState(
     isEditMode ? updatePersonAction : createPersonAction,
     initialState,
   );
-  const defaults = getPersonDefaults(person);
+  const defaults = getPersonDefaults(person, initialRoles);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -118,17 +122,25 @@ export function PersonForm({
           </Field>
         </div>
 
-        <Field label="Roles" error={state.fieldErrors?.roles?.[0]}>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {roleOptions.map((role) => (
-              <RoleCheckbox
-                defaultChecked={defaults.roles.includes(role)}
-                key={role}
-                role={role}
-              />
-            ))}
-          </div>
-        </Field>
+        {roleContext ? (
+          <LockedRoleField
+            error={state.fieldErrors?.roles?.[0]}
+            role={roleContext}
+            roles={defaults.roles}
+          />
+        ) : (
+          <Field label="Roles" error={state.fieldErrors?.roles?.[0]}>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {roleOptions.map((role) => (
+                <RoleCheckbox
+                  defaultChecked={defaults.roles.includes(role)}
+                  key={role}
+                  role={role}
+                />
+              ))}
+            </div>
+          </Field>
+        )}
 
         <Field label="Tax identifier" error={state.fieldErrors?.taxIdentifier?.[0]}>
           <Input
@@ -166,11 +178,39 @@ export function PersonForm({
                 : "Save changes"
               : pending
                 ? "Adding..."
-                : "Add person"}
+                : `Add ${roleContext ? formatRole(roleContext).toLowerCase() : "person"}`}
           </Button>
         </div>
       </div>
     </form>
+  );
+}
+
+function LockedRoleField({
+  error,
+  role,
+  roles,
+}: {
+  error?: string;
+  role: PersonRoleValue;
+  roles: PersonRoleValue[];
+}) {
+  const submittedRoles = roles.length > 0 ? roles : [role];
+
+  return (
+    <Field label="Record type" error={error}>
+      {submittedRoles.map((submittedRole) => (
+        <input
+          key={submittedRole}
+          name="roles"
+          type="hidden"
+          value={submittedRole}
+        />
+      ))}
+      <div className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm font-medium">
+        {formatRole(role)}
+      </div>
+    </Field>
   );
 }
 
@@ -218,7 +258,10 @@ function RoleCheckbox({
   );
 }
 
-function getPersonDefaults(person?: PeopleSummary | null): {
+function getPersonDefaults(
+  person?: PeopleSummary | null,
+  initialRoles: PersonRoleValue[] = [],
+): {
   displayName: string;
   legalName: string;
   notes: string;
@@ -237,7 +280,7 @@ function getPersonDefaults(person?: PeopleSummary | null): {
     partyType: formValues?.partyType ?? person?.partyType ?? "individual",
     primaryEmail: formValues?.primaryEmail ?? person?.contact.email ?? "",
     primaryPhone: formValues?.primaryPhone ?? person?.contact.phone ?? "",
-    roles: formValues?.roles ?? [],
+    roles: formValues?.roles ?? initialRoles,
     taxIdentifier: formValues?.taxIdentifier ?? "",
   };
 }

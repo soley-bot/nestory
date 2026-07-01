@@ -1,9 +1,4 @@
-import { Suspense } from "react";
-import { PeopleScreen } from "@/features/people/components/people-screen";
-import { PeopleScreenSkeleton } from "@/features/people/components/people-screen-skeleton";
-import { getPeopleScreenData } from "@/features/people/data/people";
-import { parsePeopleSearchParams } from "@/features/people/people.filters";
-import { requireAdminContext } from "@/lib/auth/context";
+import { PeopleModulePage } from "@/features/people/components/people-module-page";
 
 type PeoplePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -11,29 +6,15 @@ type PeoplePageProps = {
 
 export default function PeoplePage({ searchParams }: PeoplePageProps) {
   return (
-    <Suspense fallback={<PeopleScreenSkeleton />}>
-      <PeoplePageContent searchParams={searchParams} />
-    </Suspense>
-  );
-}
-
-async function PeoplePageContent({ searchParams }: PeoplePageProps) {
-  const context = await requireAdminContext();
-  const params = await searchParams;
-  const viewQuery = parsePeopleSearchParams(params);
-  const { pagination, people } = await getPeopleScreenData(
-    context.organizationId,
-    viewQuery,
-  );
-  const initialPersonId = viewQuery.personId ?? undefined;
-
-  return (
-    <PeopleScreen
-      key={initialPersonId ?? "people"}
-      initialPersonId={initialPersonId}
-      pagination={pagination}
-      people={people}
-      viewQuery={viewQuery}
+    <PeopleModulePage
+      config={{
+        addButtonLabel: "Add person",
+        description:
+          "Operational people, company, tenant, owner, vendor, and staff records linked back to the work they support.",
+        searchPlaceholder: "Search name, contact, role, lease, or property",
+        title: "People",
+      }}
+      searchParams={searchParams}
     />
   );
 }

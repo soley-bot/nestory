@@ -9,10 +9,12 @@ import {
 } from "@/features/maintenance/maintenance.filters";
 import type {
   MaintenanceBadgeTone,
+  MaintenanceBranchOption,
   MaintenanceCase,
   MaintenanceCategoryStat,
   MaintenanceChecklistItem,
   MaintenanceLinkedDocument,
+  MaintenanceActor,
   MaintenancePagination,
   MaintenancePriority,
   MaintenanceProgressState,
@@ -37,19 +39,27 @@ import {
 } from "@/lib/money/format";
 
 const taskSelect =
-  "id, tenant_request_id, property_id, unit_id, title, description, category, priority, status, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
+  "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
 const propertySelect = "id, code, name";
 const unitSelect = "id, property_id, unit_number";
 const personSelect = "id, display_name";
+const branchSelect = "id, name, code";
+const staffRoleSelect = "person_id";
 const documentSelect =
   "id, task_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type UntypedSupabaseClient = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  from: (table: string) => any;
+};
 
 type MaintenanceTaskRow = {
   actual_cost_amount: number | null;
   actual_cost_currency: CurrencyCode | null;
+  assignee_person_id: string | null;
   archived_at: string | null;
+  branch_id: string | null;
   category: string;
   checklist: Json;
   completed_at: string | null;
@@ -91,6 +101,16 @@ type PersonRow = {
   id: string;
 };
 
+type BranchRow = {
+  code: string;
+  id: string;
+  name: string;
+};
+
+type StaffRoleRow = {
+  person_id: string;
+};
+
 type DocumentRow = {
   category: string;
   file_name: string;
@@ -108,16 +128,27 @@ type ActivityRow = Parameters<typeof toRecentChange>[0];
 export async function getMaintenanceScreenData(
   organizationId: string,
   viewQuery: MaintenanceViewQuery = parseMaintenanceSearchParams({}),
+  actor?: MaintenanceActor,
 ): Promise<MaintenanceScreenData> {
   const supabase = await createSupabaseServerClient();
+  const untypedSupabase = supabase as unknown as UntypedSupabaseClient;
   const now = new Date();
   const today = toIsoDate(now);
   const currentTime = toIsoTime(now);
   const [
+    branchesResult,
     propertiesResult,
     unitsResult,
     peopleResult,
+    staffRolesResult,
   ] = await Promise.all([
+    untypedSupabase
+      .from("organization_branches")
+      .select(branchSelect)
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .eq("status", "active")
+      .order("name", { ascending: true }),
     supabase
       .from("properties")
       .select(propertySelect)
@@ -136,7 +167,20 @@ export async function getMaintenanceScreenData(
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .order("display_name", { ascending: true }),
+    supabase
+      .from("person_roles")
+      .select(staffRoleSelect)
+      .eq("organization_id", organizationId)
+      .eq("role", "staff")
+      .eq("status", "active")
+      .is("archived_at", null),
   ]);
+
+  if (branchesResult.error) {
+    throw new Error(
+      `Could not load maintenance branches: ${branchesResult.error.message}`,
+    );
+  }
 
   if (propertiesResult.error) {
     throw new Error(
@@ -152,11 +196,28 @@ export async function getMaintenanceScreenData(
     throw new Error(`Could not load maintenance people: ${peopleResult.error.message}`);
   }
 
+  if (staffRolesResult.error) {
+    throw new Error(
+      `Could not load maintenance staff roles: ${staffRolesResult.error.message}`,
+    );
+  }
+
+  const branchesById = indexById(
+    ((branchesResult.data ?? []) as unknown) as BranchRow[],
+  );
   const propertiesById = indexById(propertiesResult.data ?? []);
   const unitsById = indexById(unitsResult.data ?? []);
   const peopleById = indexById(peopleResult.data ?? []);
+  const staffPersonIds = new Set(
+    ((staffRolesResult.data ?? []) as StaffRoleRow[]).map((role) => role.person_id),
+  );
 
-  const tasksResult = await buildTasksQuery(supabase, organizationId, viewQuery);
+  const tasksResult = await buildTasksQuery(
+    untypedSupabase,
+    organizationId,
+    viewQuery,
+    actor,
+  );
 
   if (tasksResult.error) {
     throw new Error(`Could not load maintenance cases: ${tasksResult.error.message}`);
@@ -166,6 +227,7 @@ export async function getMaintenanceScreenData(
   const allCases = taskRows.map((task) =>
     toMaintenanceCase({
       activity: [],
+      branchesById,
       documents: [],
       peopleById,
       propertiesById,
@@ -200,12 +262,21 @@ export async function getMaintenanceScreenData(
       ),
     })),
     pagination,
+    branchOptions: toBranchOptions(
+      ((branchesResult.data ?? []) as unknown) as BranchRow[],
+    ),
     peopleOptions: (peopleResult.data ?? []).map((person) => ({
       id: person.id,
       label: person.display_name,
     })),
     propertyOptions: toPropertyOptions(propertiesResult.data ?? []),
     summary: buildMaintenanceSummary(allCases, today, viewQuery.month),
+    staffOptions: (peopleResult.data ?? [])
+      .filter((person) => staffPersonIds.has(person.id))
+      .map((person) => ({
+        id: person.id,
+        label: person.display_name,
+      })),
     unitOptions: toUnitOptions(unitsResult.data ?? [], propertiesById),
   };
 }
@@ -322,14 +393,23 @@ export function buildMaintenanceSummary(
 }
 
 function buildTasksQuery(
-  supabase: SupabaseServerClient,
+  supabase: UntypedSupabaseClient,
   organizationId: string,
   viewQuery: MaintenanceViewQuery,
+  actor?: MaintenanceActor,
 ) {
   let query = supabase
     .from("tasks")
     .select(taskSelect, { count: "exact" })
     .eq("organization_id", organizationId);
+
+  if (actor?.role === "member") {
+    query = actor.personId
+      ? query.eq("assignee_person_id", actor.personId)
+      : query.eq("assignee_person_id", "00000000-0000-0000-0000-000000000000");
+  } else if (actor?.role === "manager" && actor.branchId) {
+    query = query.eq("branch_id", actor.branchId);
+  }
 
   if (viewQuery.archiveState === "active") {
     query = query.is("archived_at", null);
@@ -444,6 +524,7 @@ async function addSignedDocumentUrls(
 
 function toMaintenanceCase({
   activity,
+  branchesById,
   currentTime,
   documents,
   peopleById,
@@ -453,6 +534,7 @@ function toMaintenanceCase({
   unitsById,
 }: {
   activity: ReturnType<typeof toRecentChange>[];
+  branchesById: Map<string, BranchRow>;
   currentTime: string;
   documents: DocumentRow[];
   peopleById: Map<string, PersonRow>;
@@ -463,6 +545,10 @@ function toMaintenanceCase({
 }): MaintenanceCase {
   const property = propertiesById.get(task.property_id);
   const unit = task.unit_id ? unitsById.get(task.unit_id) : undefined;
+  const branch = task.branch_id ? branchesById.get(task.branch_id) : undefined;
+  const assignee = task.assignee_person_id
+    ? peopleById.get(task.assignee_person_id)
+    : undefined;
   const vendor = task.vendor_person_id ? peopleById.get(task.vendor_person_id) : undefined;
   const status = normalizeMaintenanceStatus(task.status);
   const priority = normalizeMaintenancePriority(task.priority);
@@ -492,6 +578,10 @@ function toMaintenanceCase({
         ? formatMoney(task.actual_cost_amount, task.actual_cost_currency)
         : "No actual cost",
     archivedAt: task.archived_at ?? undefined,
+    assigneeLabel: assignee?.display_name ?? "Unassigned",
+    assigneePersonId: task.assignee_person_id ?? undefined,
+    branchId: task.branch_id ?? undefined,
+    branchLabel: branch ? `${branch.code} - ${branch.name}` : "No branch",
     category: task.category,
     checklist,
     checklistDoneCount: checklist.filter((item) => item.completed).length,
@@ -510,6 +600,8 @@ function toMaintenanceCase({
     dueTime: normalizeTime(task.due_time),
     formValues: {
       actualCostAmount: task.actual_cost_amount,
+      assigneePersonId: task.assignee_person_id,
+      branchId: task.branch_id,
       category: task.category,
       checklistText: formatChecklistText(checklist),
       costEstimateAmount: task.cost_estimate_amount,
@@ -571,6 +663,12 @@ function toMaintenanceCase({
 
 export function buildMaintenanceHrefs(task: MaintenanceTaskRow) {
   return {
+    assignee: task.assignee_person_id
+      ? buildHref("/people", {
+          archiveState: "all",
+          personId: task.assignee_person_id,
+        })
+      : undefined,
     documents: `/documents?archiveState=all&taskId=${task.id}`,
     documentUpload: buildHref("/documents", {
       action: "create",
@@ -1083,6 +1181,13 @@ function toPropertyOptions(properties: PropertyRow[]): MaintenancePropertyOption
   return properties.map((property) => ({
     id: property.id,
     label: `${property.code} - ${property.name}`,
+  }));
+}
+
+function toBranchOptions(branches: BranchRow[]): MaintenanceBranchOption[] {
+  return branches.map((branch) => ({
+    id: branch.id,
+    label: `${branch.code} - ${branch.name}`,
   }));
 }
 

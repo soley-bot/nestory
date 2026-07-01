@@ -20,11 +20,13 @@ import { PersonForm } from "@/features/people/components/person-form";
 import { PeopleFilters } from "@/features/people/components/people-filters";
 import { PeopleInspector } from "@/features/people/components/people-inspector";
 import { PeopleTable } from "@/features/people/components/people-table";
+import { formatRole } from "@/features/people/people.labels";
 import type {
   PeopleDisplayMode,
   PeoplePagination,
   PeopleSummary,
   PeopleViewQuery,
+  PersonRoleValue,
 } from "@/features/people/people.types";
 
 type DrawerState =
@@ -34,16 +36,28 @@ type DrawerState =
   | { mode: "restore"; person: PeopleSummary };
 
 type PeopleScreenProps = {
+  addButtonLabel?: string;
+  createRole?: PersonRoleValue;
+  description?: string;
   initialPersonId?: string;
+  lockedRole?: PersonRoleValue;
   pagination: PeoplePagination;
   people: PeopleSummary[];
+  searchPlaceholder?: string;
+  title?: string;
   viewQuery: PeopleViewQuery;
 };
 
 export function PeopleScreen({
+  addButtonLabel = "Add person",
+  createRole,
+  description = "Operational people, company, tenant, owner, vendor, and staff records linked back to the work they support.",
   initialPersonId,
+  lockedRole,
   pagination,
   people,
+  searchPlaceholder,
+  title = "People",
   viewQuery,
 }: PeopleScreenProps) {
   const pathname = usePathname();
@@ -72,6 +86,7 @@ export function PeopleScreen({
     hasFocusedPerson: Boolean(focusedPerson),
     hasFocusedPersonIntent: Boolean(initialPersonId),
   });
+  const moduleRole = lockedRole ?? createRole;
   const getPersonRecordHref = (personId: string) =>
     getFocusedRecordHref(pathname, searchParams, "personId", personId);
   const openPersonRecord = (personId: string) => {
@@ -132,16 +147,16 @@ export function PeopleScreen({
               variant="primary"
             >
               <Plus size={15} />
-              Add person
+              {addButtonLabel}
             </Button>
           </>
         }
         description={
           reviewContext
             ? reviewContext.description
-            : "Operational people, company, tenant, owner, and vendor records linked back to leases and properties."
+            : description
         }
-        title="People"
+        title={title}
       />
 
       {statusMessage ? (
@@ -157,7 +172,9 @@ export function PeopleScreen({
 
       <PeopleFilters
         displayMode={displayMode}
+        lockedRole={lockedRole}
         onDisplayModeChange={setDisplayMode}
+        searchPlaceholder={searchPlaceholder}
         viewQuery={viewQuery}
       />
 
@@ -202,10 +219,10 @@ export function PeopleScreen({
 
       {drawer ? (
         <SideDrawer
-          description={getPeopleDrawerDescription(drawer)}
+          description={getPeopleDrawerDescription(drawer, moduleRole)}
           onClose={() => setDrawer(null)}
           open
-          title={getPeopleDrawerTitle(drawer)}
+          title={getPeopleDrawerTitle(drawer, moduleRole)}
         >
           {drawer.mode === "archive" ? (
             <ArchivePersonPanel
@@ -222,10 +239,14 @@ export function PeopleScreen({
           ) : (
             <PersonForm
               key={`${drawer.mode}-${drawer.person?.id ?? "new"}`}
+              initialRoles={
+                drawer.mode === "create" && createRole ? [createRole] : undefined
+              }
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
               person={drawer.person}
+              roleContext={moduleRole}
             />
           )}
         </SideDrawer>
@@ -312,7 +333,7 @@ function getPeopleReviewContext(
     return {
       countLabel: "missing usable contact",
       description:
-        "Showing people records that need a usable email or phone before tenant, owner, or vendor follow-up.",
+        "Showing people records that need a usable email or phone before tenant, owner, vendor, or staff follow-up.",
       nextStep: "Select a person, then edit contact details from the header or inspector.",
     };
   }
@@ -321,7 +342,7 @@ function getPeopleReviewContext(
     return {
       countLabel: "without an assigned role",
       description:
-        "Showing people records that need a tenant, owner, or vendor role before they can drive linked workflows.",
+        "Showing people records that need a tenant, owner, vendor, or staff role before they can drive linked workflows.",
       nextStep: "Select a person, then assign the right role from the edit drawer.",
     };
   }
@@ -329,25 +350,37 @@ function getPeopleReviewContext(
   return null;
 }
 
-function getPeopleDrawerTitle(drawer: DrawerState) {
+function getPeopleDrawerTitle(
+  drawer: DrawerState,
+  roleContext?: PersonRoleValue,
+) {
+  const label = roleContext ? formatRole(roleContext).toLowerCase() : "person";
+
   if (drawer.mode === "create") {
-    return "Add person";
+    return `Add ${label}`;
   }
 
   if (drawer.mode === "edit") {
-    return "Edit person";
+    return `Edit ${label} record`;
   }
 
   if (drawer.mode === "restore") {
-    return "Restore person";
+    return `Restore ${label} record`;
   }
 
-  return "Archive person";
+  return `Archive ${label} record`;
 }
 
-function getPeopleDrawerDescription(drawer: DrawerState) {
+function getPeopleDrawerDescription(
+  drawer: DrawerState,
+  roleContext?: PersonRoleValue,
+) {
+  if (roleContext) {
+    return getRoleDrawerDescription(drawer.mode, roleContext);
+  }
+
   if (drawer.mode === "create") {
-    return "Create a durable person or company record for tenant, owner, or vendor work.";
+    return "Create a durable person or company record for tenant, owner, vendor, or staff work.";
   }
 
   if (drawer.mode === "edit") {
@@ -359,4 +392,37 @@ function getPeopleDrawerDescription(drawer: DrawerState) {
   }
 
   return "Hide this person from active operational views without deleting linked history.";
+}
+
+function getRoleDrawerDescription(
+  mode: DrawerState["mode"],
+  role: PersonRoleValue,
+) {
+  const record = `${formatRole(role).toLowerCase()} record`;
+
+  if (mode === "create") {
+    if (role === "staff") {
+      return "Create a staff record for task assignment and access binding.";
+    }
+
+    if (role === "tenant") {
+      return "Create a tenant record for leases, occupancy, and follow-up.";
+    }
+
+    if (role === "owner") {
+      return "Create an owner record for property ownership and reporting.";
+    }
+
+    return "Create a vendor record for service work and maintenance links.";
+  }
+
+  if (mode === "edit") {
+    return `Update contact and operating details for this ${record}.`;
+  }
+
+  if (mode === "restore") {
+    return `Return this ${record} to active People workflows.`;
+  }
+
+  return `Archive this ${record} without losing linked history.`;
 }

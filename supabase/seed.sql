@@ -111,6 +111,40 @@ VALUES (
 ON CONFLICT (organization_id, user_id) DO UPDATE
 SET role = EXCLUDED.role;
 
+INSERT INTO public.organization_branches (
+  id,
+  organization_id,
+  name,
+  code,
+  address,
+  created_by,
+  updated_by
+)
+VALUES
+(
+  '00000000-0000-0000-0000-000000000211',
+  '00000000-0000-0000-0000-000000000001',
+  'Main Branch',
+  'MAIN',
+  'Main operating office',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+),
+(
+  '00000000-0000-0000-0000-000000000212',
+  '00000000-0000-0000-0000-000000000001',
+  'Second Branch',
+  'BR-2',
+  'Second operating office',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+)
+ON CONFLICT (organization_id, code) DO UPDATE
+SET
+  name = EXCLUDED.name,
+  address = EXCLUDED.address,
+  updated_by = EXCLUDED.updated_by;
+
 INSERT INTO public.properties (
   id,
   organization_id,
@@ -350,6 +384,91 @@ SET
   status = EXCLUDED.status,
   updated_by = EXCLUDED.updated_by,
   updated_at = EXCLUDED.updated_at,
+  archived_at = NULL,
+  archived_by = NULL;
+
+INSERT INTO public.people (
+  id,
+  organization_id,
+  display_name,
+  legal_name,
+  party_type,
+  primary_email,
+  primary_phone,
+  notes,
+  created_by,
+  updated_by
+)
+VALUES
+(
+  '00000000-0000-0000-0000-000000000221',
+  '00000000-0000-0000-0000-000000000001',
+  'Sokha Maintenance',
+  'Sokha Maintenance',
+  'individual',
+  'sokha.staff@example.test',
+  '+855 12 000221',
+  'Seeded staff member for task assignment.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+),
+(
+  '00000000-0000-0000-0000-000000000222',
+  '00000000-0000-0000-0000-000000000001',
+  'Dara Operations',
+  'Dara Operations',
+  'individual',
+  'dara.staff@example.test',
+  '+855 12 000222',
+  'Seeded staff member for task assignment.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+)
+ON CONFLICT (id) DO UPDATE
+SET
+  display_name = EXCLUDED.display_name,
+  legal_name = EXCLUDED.legal_name,
+  primary_email = EXCLUDED.primary_email,
+  primary_phone = EXCLUDED.primary_phone,
+  notes = EXCLUDED.notes,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = now(),
+  archived_at = NULL,
+  archived_by = NULL;
+
+INSERT INTO public.person_roles (
+  id,
+  organization_id,
+  person_id,
+  role,
+  status,
+  created_by,
+  updated_by
+)
+VALUES
+(
+  '00000000-0000-0000-0000-000000000231',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000221',
+  'staff',
+  'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+),
+(
+  '00000000-0000-0000-0000-000000000232',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000222',
+  'staff',
+  'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+)
+ON CONFLICT (id) DO UPDATE
+SET
+  status = EXCLUDED.status,
+  updated_by = EXCLUDED.updated_by,
+  updated_at = now(),
   archived_at = NULL,
   archived_by = NULL;
 

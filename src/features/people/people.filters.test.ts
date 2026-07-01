@@ -34,7 +34,7 @@ describe("parsePeopleSearchParams", () => {
         pageSize: "100",
         personId: "33333333-3333-4333-8333-333333333333",
         query: "  tenant owner vendor  ",
-        role: "tenant",
+        role: "staff",
         status: "missing_contact",
         sort: "updated_desc",
       }),
@@ -44,7 +44,7 @@ describe("parsePeopleSearchParams", () => {
       pageSize: 100,
       personId: "33333333-3333-4333-8333-333333333333",
       query: "tenant owner vendor",
-      role: "tenant",
+      role: "staff",
       status: "missing_contact",
       sort: "updated_desc",
     });
@@ -314,6 +314,53 @@ describe("buildPeopleSummary", () => {
       label: "Review linked work",
     });
   });
+
+  it("treats staff as a directory role without requiring lease links", () => {
+    const summary = buildPeopleSummary({
+      contacts: [],
+      documents: [],
+      leaseParties: [],
+      leasesById: new Map(),
+      person: {
+        archivedAt: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        displayName: "Sok Staff",
+        id: "staff-1",
+        legalName: null,
+        notes: null,
+        partyType: "individual",
+        primaryEmail: "staff@example.com",
+        primaryPhone: null,
+        taxIdentifier: null,
+        updatedAt: "2026-06-01T00:00:00.000Z",
+      },
+      propertiesById: new Map(),
+      propertyOwners: [],
+      roles: [
+        {
+          archivedAt: null,
+          id: "role-staff",
+          personId: "staff-1",
+          role: "staff",
+          status: "active",
+        },
+      ],
+      unitsById: new Map(),
+      vendorProfiles: [],
+    });
+
+    expect(summary.riskIndicators).toContainEqual(
+      expect.objectContaining({
+        id: "links",
+        label: "Staff directory",
+        tone: "success",
+      }),
+    );
+    expect(summary.nextAction).toMatchObject({
+      href: "/people?archiveState=all&personId=staff-1&query=Sok+Staff",
+      label: "Review staff profile",
+    });
+  });
 });
 
 function buildPersonSummary(
@@ -348,7 +395,7 @@ function buildPersonSummary(
       ownerProperties: [],
     },
     nextAction: {
-      description: "Assign tenant, owner, or vendor before linking work.",
+      description: "Assign tenant, owner, vendor, or staff before linking work.",
       href: "/people?personId=person-1",
       label: "Assign role",
       tone: "warning",

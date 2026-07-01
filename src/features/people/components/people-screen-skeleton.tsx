@@ -2,7 +2,13 @@ import { PageHeader } from "@/components/layout/page-header";
 
 const rowWidths = ["w-40", "w-24", "w-48", "w-48", "w-16"];
 
-export function PeopleScreenSkeleton() {
+export function PeopleScreenSkeleton({
+  description = "Operational people, company, tenant, owner, vendor, and staff records linked back to the work they support.",
+  title = "People",
+}: {
+  description?: string;
+  title?: string;
+}) {
   return (
     <div aria-busy="true" className="min-h-screen">
       <span className="sr-only">Loading people records</span>
@@ -13,8 +19,8 @@ export function PeopleScreenSkeleton() {
             <div className="h-8 w-24 rounded-md bg-foreground/10" />
           </>
         }
-        description="Operational people, company, tenant, owner, and vendor records linked back to leases and properties."
-        title="People"
+        description={description}
+        title={title}
       />
       <div className="border-b border-border bg-surface px-4 py-2.5 sm:px-6 lg:px-6">
         <div className="flex flex-col gap-2 xl:flex-row xl:items-center">

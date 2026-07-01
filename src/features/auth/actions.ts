@@ -4,8 +4,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
-  getAdminMembershipForUser,
   getCurrentUser,
+  getWorkspaceMembershipForUser,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -107,7 +107,7 @@ export async function loginAction(
     };
   }
 
-  const membership = await getAdminMembershipForUser(data.user.id, supabase);
+  const membership = await getWorkspaceMembershipForUser(data.user.id, supabase);
   redirect(membership ? "/overview" : "/setup");
 }
 
@@ -169,7 +169,7 @@ export async function setupOrganizationAction(
     return invalidFormState(parsed.error);
   }
 
-  const existingMembership = await getAdminMembershipForUser(user.id);
+  const existingMembership = await getWorkspaceMembershipForUser(user.id);
 
   if (existingMembership) {
     redirect("/overview");

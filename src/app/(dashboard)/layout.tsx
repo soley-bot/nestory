@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireWorkspaceContext } from "@/lib/auth/context";
 
 export const dynamic = "force-dynamic";
 
@@ -8,11 +8,12 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const context = await requireAdminContext();
+  const context = await requireWorkspaceContext();
 
   return (
     <AppShell
       organizationName={context.organizationName}
+      role={context.role}
       userEmail={context.userEmail}
     >
       {children}

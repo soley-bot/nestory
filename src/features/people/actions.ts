@@ -25,7 +25,7 @@ export type PeopleActionState = {
 
 const personIdSchema = z.uuid("Choose a person.");
 const partyTypeSchema = z.enum(["individual", "company"]);
-const roleSchema = z.enum(["tenant", "owner", "vendor"]);
+const roleSchema = z.enum(["tenant", "owner", "vendor", "staff"]);
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const peopleMutationSchema = z.object({
@@ -250,6 +250,9 @@ function revalidatePeoplePaths() {
   revalidatePath("/ledger");
   revalidatePath("/people");
   revalidatePath("/tenants");
+  revalidatePath("/owners");
+  revalidatePath("/vendors");
+  revalidatePath("/team");
   revalidatePath("/leases");
   revalidatePath("/properties");
   revalidatePath("/timeline");

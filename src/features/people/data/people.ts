@@ -2110,10 +2110,14 @@ function buildPeopleRiskIndicators({
   roles: PersonRoleSummary[];
 }): PeopleRiskIndicator[] {
   const hasRole = roles.some((role) => role.status === "active");
+  const hasActiveStaffRole = roles.some(
+    (role) => role.role === "staff" && role.status === "active",
+  );
   const hasLinkedRecord =
     linked.activeLeaseCount > 0 ||
     linked.ownerPropertyCount > 0 ||
     Boolean(linked.vendorProfile);
+  const hasOperationalContext = hasLinkedRecord || hasActiveStaffRole;
 
   return [
     {
@@ -2126,7 +2130,7 @@ function buildPeopleRiskIndicators({
     },
     {
       description: hasRole
-        ? "At least one active tenant, owner, or vendor role is assigned."
+        ? "At least one active tenant, owner, vendor, or staff role is assigned."
         : "No active role is assigned, so workflows cannot classify this person yet.",
       id: "role",
       label: hasRole ? "Role assigned" : "Role missing",
@@ -2141,12 +2145,18 @@ function buildPeopleRiskIndicators({
       tone: hasUsefulContact ? "success" : "warning",
     },
     {
-      description: hasLinkedRecord
-        ? "This person is connected to lease, ownership, or vendor context."
+      description: hasOperationalContext
+        ? hasActiveStaffRole && !hasLinkedRecord
+          ? "This staff record is available for operating follow-up."
+          : "This person is connected to lease, ownership, or vendor context."
         : "No lease, ownership, or vendor record is connected yet.",
       id: "links",
-      label: hasLinkedRecord ? "Operational links" : "No linked records",
-      tone: hasLinkedRecord ? "success" : "warning",
+      label: hasOperationalContext
+        ? hasActiveStaffRole && !hasLinkedRecord
+          ? "Staff directory"
+          : "Operational links"
+        : "No linked records",
+      tone: hasOperationalContext ? "success" : "warning",
     },
     {
       description:
@@ -2177,6 +2187,9 @@ function buildPeopleNextAction({
   roles: PersonRoleSummary[];
 }): PeopleNextAction {
   const hasActiveRole = roles.some((role) => role.status === "active");
+  const hasActiveStaffRole = roles.some(
+    (role) => role.role === "staff" && role.status === "active",
+  );
 
   if (isArchived) {
     return {
@@ -2190,7 +2203,7 @@ function buildPeopleNextAction({
   if (!hasActiveRole) {
     return {
       description:
-        "Assign tenant, owner, or vendor before linking work to this person.",
+        "Assign tenant, owner, vendor, or staff before linking work to this person.",
       href: detailHrefs.people,
       label: "Assign role",
       tone: "warning",
@@ -2212,6 +2225,17 @@ function buildPeopleNextAction({
     linked.ownerPropertyCount === 0 &&
     !linked.vendorProfile
   ) {
+    if (hasActiveStaffRole) {
+      return {
+        // ponytail: staff is directory-only; add assignment checks when staff assignment tables exist.
+        description:
+          "Staff records are ready once contact and role are set.",
+        href: detailHrefs.people,
+        label: "Review staff profile",
+        tone: "neutral",
+      };
+    }
+
     return {
       description:
         "Connect this person to a lease, owner record, or vendor profile.",
@@ -2995,7 +3019,12 @@ function readPartyType(row: UnknownRecord, key: string): PersonPartyType {
 function readRole(row: UnknownRecord, key: string): PersonRoleValue | null {
   const value = readString(row, key);
 
-  if (value === "tenant" || value === "owner" || value === "vendor") {
+  if (
+    value === "tenant" ||
+    value === "owner" ||
+    value === "vendor" ||
+    value === "staff"
+  ) {
     return value;
   }
 

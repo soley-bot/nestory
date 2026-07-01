@@ -16,5 +16,9 @@ export function formatRole(value: PersonRoleValue) {
     return "Owner";
   }
 
-  return "Vendor";
+  if (value === "vendor") {
+    return "Vendor";
+  }
+
+  return "Staff";
 }

@@ -52,7 +52,8 @@ function parseRole(value: string | string[] | undefined): PeopleRoleFilter {
 
   return candidate === "tenant" ||
     candidate === "owner" ||
-    candidate === "vendor"
+    candidate === "vendor" ||
+    candidate === "staff"
     ? candidate
     : "all";
 }

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getAdminMembershipForUser } from "@/lib/auth/context";
+import { getWorkspaceMembershipForUser } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 function redirectTo(request: NextRequest, pathname: "/login" | "/setup" | "/overview") {
@@ -23,6 +23,6 @@ export async function GET(request: NextRequest) {
     return redirectTo(request, "/login");
   }
 
-  const membership = await getAdminMembershipForUser(data.user.id, supabase);
+  const membership = await getWorkspaceMembershipForUser(data.user.id, supabase);
   return redirectTo(request, membership ? "/overview" : "/setup");
 }

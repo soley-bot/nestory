@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOutAction } from "@/features/auth/actions";
+import type { WorkspaceRole } from "@/lib/auth/context";
 
 type NavItem = {
   href: string;
@@ -196,8 +197,6 @@ const settingsGroup: NavGroup = {
   ],
 };
 
-const desktopNavGroups = [...navGroups, settingsGroup];
-
 const mobilePrimaryItems = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/properties", label: "Properties", icon: Building2 },
@@ -206,16 +205,48 @@ const mobilePrimaryItems = [
   { href: "/ledger", label: "Ledger", icon: BookOpen },
 ] satisfies NavItem[];
 
-const mobileMoreItems = [
-  ...desktopNavGroups.flatMap((group) => group.items),
-  { href: "/import", label: "Import data", icon: Upload },
-] satisfies NavItem[];
-
 type AppShellProps = {
   children: React.ReactNode;
   organizationName?: string;
+  role?: WorkspaceRole;
   userEmail?: string;
 };
+
+function getDesktopNavGroups(role: WorkspaceRole) {
+  if (role === "admin") {
+    return [...navGroups, settingsGroup];
+  }
+
+  if (role === "manager") {
+    return [
+      {
+        ...navGroups.find((group) => group.id === "operations")!,
+        items: [
+          { href: "/maintenance", label: "Requests", icon: Wrench },
+          { href: "/tasks", label: "Tasks", icon: CheckSquare },
+        ],
+      },
+      {
+        ...settingsGroup,
+        items: [
+          {
+            href: "/settings",
+            label: "Organization",
+            icon: Building2,
+            section: "Organization",
+          },
+        ],
+      },
+    ];
+  }
+
+  return [
+    {
+      ...navGroups.find((group) => group.id === "operations")!,
+      items: [{ href: "/tasks", label: "Tasks", icon: CheckSquare }],
+    },
+  ];
+}
 
 function isNavItemActive(pathname: string, item: NavItem) {
   return (
@@ -227,8 +258,8 @@ function isNavItemActive(pathname: string, item: NavItem) {
   );
 }
 
-function getPathGroup(pathname: string) {
-  return desktopNavGroups.find((group) =>
+function getPathGroup(pathname: string, groups: NavGroup[]) {
+  return groups.find((group) =>
     group.items.some((item) => isNavItemActive(pathname, item)),
   );
 }
@@ -281,11 +312,23 @@ function groupRailActiveClass(groupId: string) {
 export function AppShell({
   children,
   organizationName = "Admin workspace",
+  role = "admin",
   userEmail,
 }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const pathGroup = getPathGroup(pathname);
+  const desktopNavGroups = getDesktopNavGroups(role);
+  const mobilePrimaryNavItems =
+    role === "member"
+      ? [{ href: "/tasks", label: "Tasks", icon: CheckSquare }]
+      : mobilePrimaryItems;
+  const mobileMoreItems = [
+    ...desktopNavGroups.flatMap((group) => group.items),
+    ...(role === "admin"
+      ? [{ href: "/import", label: "Import data", icon: Upload }]
+      : []),
+  ] satisfies NavItem[];
+  const pathGroup = getPathGroup(pathname, desktopNavGroups);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const selectedDesktopGroup = pathGroup ?? desktopNavGroups[0];
   const isMobileMoreActive = mobileMoreItems.some((item) =>
@@ -328,22 +371,26 @@ export function AppShell({
               aria-label="Quick module rail"
               className="flex flex-1 flex-col items-center gap-1 px-2 py-3"
             >
-              {navGroups.map((group) => (
-                <DesktopRailGroupLink
-                  group={group}
-                  isActive={selectedDesktopGroup.id === group.id}
-                  key={group.id}
-                  onNavigate={() => setSidebarCollapsed(false)}
-                />
-              ))}
+              {desktopNavGroups
+                .filter((group) => group.id !== "settings")
+                .map((group) => (
+                  <DesktopRailGroupLink
+                    group={group}
+                    isActive={selectedDesktopGroup.id === group.id}
+                    key={group.id}
+                    onNavigate={() => setSidebarCollapsed(false)}
+                  />
+                ))}
             </nav>
             <div className="flex flex-col items-center gap-1 border-t border-border px-1 py-2">
               <ThemeToggle onToggle={toggleTheme} />
-              <DesktopRailGroupLink
-                group={settingsGroup}
-                isActive={selectedDesktopGroup.id === settingsGroup.id}
-                onNavigate={() => setSidebarCollapsed(false)}
-              />
+              {desktopNavGroups.some((group) => group.id === "settings") ? (
+                <DesktopRailGroupLink
+                  group={settingsGroup}
+                  isActive={selectedDesktopGroup.id === settingsGroup.id}
+                  onNavigate={() => setSidebarCollapsed(false)}
+                />
+              ) : null}
               <button
                 aria-label={sidebarToggleLabel}
                 className="flex h-8 w-8 items-center justify-center rounded-md bg-surface text-foreground transition-colors hover:bg-surface hover:text-foreground"
@@ -381,20 +428,24 @@ export function AppShell({
                 aria-label="Quick module rail"
                 className="flex flex-1 flex-col items-center gap-1 px-2 py-3"
               >
-                {navGroups.map((group) => (
-                  <DesktopRailGroupLink
-                    group={group}
-                    isActive={selectedDesktopGroup.id === group.id}
-                    key={group.id}
-                  />
-                ))}
+                {desktopNavGroups
+                  .filter((group) => group.id !== "settings")
+                  .map((group) => (
+                    <DesktopRailGroupLink
+                      group={group}
+                      isActive={selectedDesktopGroup.id === group.id}
+                      key={group.id}
+                    />
+                  ))}
               </nav>
               <div className="flex flex-col items-center gap-1 border-t border-border px-1 py-2">
                 <ThemeToggle onToggle={toggleTheme} />
-                <DesktopRailGroupLink
-                  group={settingsGroup}
-                  isActive={selectedDesktopGroup.id === settingsGroup.id}
-                />
+                {desktopNavGroups.some((group) => group.id === "settings") ? (
+                  <DesktopRailGroupLink
+                    group={settingsGroup}
+                    isActive={selectedDesktopGroup.id === settingsGroup.id}
+                  />
+                ) : null}
                 <button
                   aria-label={sidebarToggleLabel}
                   className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground"
@@ -506,19 +557,21 @@ export function AppShell({
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <ThemeToggle onToggle={toggleTheme} />
-              <Link
-                aria-label="Settings"
-                className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-                  selectedDesktopGroup.id === "settings"
-                    ? "bg-surface-muted text-foreground"
-                    : null,
-                )}
-                href="/settings"
-                prefetch={false}
-              >
-                <Settings size={16} />
-              </Link>
+              {desktopNavGroups.some((group) => group.id === "settings") ? (
+                <Link
+                  aria-label="Settings"
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+                    selectedDesktopGroup.id === "settings"
+                      ? "bg-surface-muted text-foreground"
+                      : null,
+                  )}
+                  href="/settings"
+                  prefetch={false}
+                >
+                  <Settings size={16} />
+                </Link>
+              ) : null}
               <form action={signOutAction}>
                 <button
                   aria-label="Sign out"
@@ -535,7 +588,7 @@ export function AppShell({
               aria-label="Primary mobile navigation"
               className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
             >
-              {mobilePrimaryItems.map((item) => {
+              {mobilePrimaryNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = isNavItemActive(pathname, item);
 

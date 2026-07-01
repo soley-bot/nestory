@@ -45,6 +45,7 @@ import {
 } from "@/features/maintenance/components/maintenance-drawer-panels";
 import type {
   MaintenanceCase,
+  MaintenanceBranchOption,
   MaintenancePagination,
   MaintenancePersonOption,
   MaintenancePropertyOption,
@@ -67,23 +68,39 @@ type DrawerState =
     };
 
 type MaintenanceScreenProps = {
+  branchOptions: MaintenanceBranchOption[];
+  canManageTasks?: boolean;
   cases: MaintenanceCase[];
+  createButtonLabel?: string;
+  description?: string;
+  emptyLabel?: string;
   initialTaskId?: string;
   pagination: MaintenancePagination;
   peopleOptions: MaintenancePersonOption[];
   propertyOptions: MaintenancePropertyOption[];
+  showReportAction?: boolean;
+  staffOptions: MaintenancePersonOption[];
   summary: MaintenanceSummary;
+  title?: string;
   unitOptions: MaintenanceUnitOption[];
   viewQuery: MaintenanceViewQuery;
 };
 
 export function MaintenanceScreen({
+  branchOptions,
+  canManageTasks = true,
   cases,
+  createButtonLabel = "New case",
+  description = "Open work orders, scheduled repairs, and unit/property maintenance history.",
+  emptyLabel = "No maintenance cases found.",
   initialTaskId,
   pagination,
   peopleOptions,
   propertyOptions,
+  showReportAction = true,
+  staffOptions,
   summary,
+  title = "Maintenance",
   unitOptions,
   viewQuery,
 }: MaintenanceScreenProps) {
@@ -154,23 +171,27 @@ export function MaintenanceScreen({
       <PageHeader
         actions={
           <>
-            <LinkButton href={getMaintenanceReportHref(viewQuery)}>
-              <FileText size={15} />
-              Make report
-            </LinkButton>
-            <Button
-              onClick={() =>
-                openDrawer({ initialValues: createInitialValues, mode: "create" })
-              }
-              variant="primary"
-            >
-              <Plus size={15} />
-              New case
-            </Button>
+            {showReportAction ? (
+              <LinkButton href={getMaintenanceReportHref(viewQuery)}>
+                <FileText size={15} />
+                Make report
+              </LinkButton>
+            ) : null}
+            {canManageTasks ? (
+              <Button
+                onClick={() =>
+                  openDrawer({ initialValues: createInitialValues, mode: "create" })
+                }
+                variant="primary"
+              >
+                <Plus size={15} />
+                {createButtonLabel}
+              </Button>
+            ) : null}
           </>
         }
-        description="Open work orders, scheduled repairs, and unit/property maintenance history."
-        title="Maintenance"
+        description={description}
+        title={title}
       />
 
       {statusMessage ? (
@@ -220,6 +241,7 @@ export function MaintenanceScreen({
         <div className="space-y-0">
           <MaintenanceTable
             cases={cases}
+            emptyLabel={emptyLabel}
             onSelect={previewCase}
             selectedTaskId={selectedCase?.id ?? ""}
           />
@@ -234,6 +256,7 @@ export function MaintenanceScreen({
       >
         <MaintenanceInspector
           maintenanceCase={selectedCase}
+          canManageTasks={canManageTasks}
           onArchive={(maintenanceCase) =>
             openDrawer({ maintenanceCase, mode: "archive" })
           }
@@ -278,6 +301,8 @@ export function MaintenanceScreen({
               onSuccess={setStatusMessage}
               people={peopleOptions}
               properties={propertyOptions}
+              branches={branchOptions}
+              staff={staffOptions}
               units={unitOptions}
             />
           )}
@@ -513,10 +538,12 @@ function MaintenanceScopeSummary({
 
 function MaintenanceTable({
   cases,
+  emptyLabel,
   onSelect,
   selectedTaskId,
 }: {
   cases: MaintenanceCase[];
+  emptyLabel: string;
   onSelect: (taskId: string) => void;
   selectedTaskId: string;
 }) {
@@ -546,7 +573,7 @@ function MaintenanceTable({
             {cases.length === 0 ? (
               <tr>
                 <td className="px-4 py-8 text-center text-muted" colSpan={6}>
-                  No maintenance cases found.
+                  {emptyLabel}
                 </td>
               </tr>
             ) : null}
@@ -573,7 +600,7 @@ function MaintenanceTable({
                     {maintenanceCase.title}
                   </p>
                   <p className="mt-0.5 truncate text-xs text-muted">
-                    {maintenanceCase.vendorLabel}
+                    {maintenanceCase.assigneeLabel}
                   </p>
                 </td>
                 <td className="px-1.5 py-2">
@@ -628,11 +655,13 @@ function MaintenanceTable({
 }
 
 function MaintenanceInspector({
+  canManageTasks,
   maintenanceCase,
   onArchive,
   onEdit,
   onRestore,
 }: {
+  canManageTasks: boolean;
   maintenanceCase: MaintenanceCase | null;
   onArchive: (maintenanceCase: MaintenanceCase) => void;
   onEdit: (maintenanceCase: MaintenanceCase) => void;
@@ -685,6 +714,12 @@ function MaintenanceInspector({
           <CompactFact label="Reminder">
             {maintenanceCase.reminderLabel}
           </CompactFact>
+          <CompactFact label="Branch">
+            {maintenanceCase.branchLabel}
+          </CompactFact>
+          <CompactFact label="Assignee">
+            {maintenanceCase.assigneeLabel}
+          </CompactFact>
           <CompactFact label="Vendor">
             {maintenanceCase.vendorLabel}
           </CompactFact>
@@ -726,7 +761,7 @@ function MaintenanceInspector({
           </div>
         ) : null}
 
-        {maintenanceCase.isArchived ? (
+        {!canManageTasks ? null : maintenanceCase.isArchived ? (
           <Button onClick={() => onRestore(maintenanceCase)} type="button">
             <RotateCcw size={15} />
             Restore
@@ -825,6 +860,13 @@ function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
           label: "Vendor",
         }
       : null,
+    maintenanceCase.hrefs.assignee
+      ? {
+          href: maintenanceCase.hrefs.assignee,
+          icon: <ClipboardCheck size={14} />,
+          label: "Assignee",
+        }
+      : null,
   ].filter(Boolean) as Array<{ href: string; icon: ReactNode; label: string }>;
 
   return (
@@ -840,6 +882,7 @@ function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
 }
 
 function MaintenanceForm({
+  branches,
   initialValues,
   maintenanceCase,
   mode,
@@ -847,8 +890,10 @@ function MaintenanceForm({
   onSuccess,
   people,
   properties,
+  staff,
   units,
 }: {
+  branches: MaintenanceBranchOption[];
   initialValues?: Partial<MaintenanceCase["formValues"]>;
   maintenanceCase?: MaintenanceCase;
   mode: "create" | "edit";
@@ -856,6 +901,7 @@ function MaintenanceForm({
   onSuccess: (message: string) => void;
   people: MaintenancePersonOption[];
   properties: MaintenancePropertyOption[];
+  staff: MaintenancePersonOption[];
   units: MaintenanceUnitOption[];
 }) {
   const [state, action, pending] = useActionState(
@@ -865,6 +911,12 @@ function MaintenanceForm({
   const defaults = {
     actualCostAmount:
       maintenanceCase?.formValues.actualCostAmount ?? initialValues?.actualCostAmount ?? "",
+    assigneePersonId:
+      maintenanceCase?.formValues.assigneePersonId ??
+      initialValues?.assigneePersonId ??
+      "",
+    branchId:
+      maintenanceCase?.formValues.branchId ?? initialValues?.branchId ?? "",
     category: maintenanceCase?.formValues.category ?? initialValues?.category ?? "General",
     checklistText:
       maintenanceCase?.formValues.checklistText ?? initialValues?.checklistText ?? "",
@@ -953,6 +1005,37 @@ function MaintenanceForm({
                 })),
               ]}
               value={unitId}
+            />
+          </Field>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Branch" error={state.fieldErrors?.branchId?.[0]}>
+            <SelectControl
+              ariaLabel="Branch"
+              defaultValue={defaults.branchId ?? ""}
+              name="branchId"
+              options={[
+                { label: "No branch", value: "" },
+                ...branches.map((branch) => ({
+                  label: branch.label,
+                  value: branch.id,
+                })),
+              ]}
+            />
+          </Field>
+          <Field label="Assignee" error={state.fieldErrors?.assigneePersonId?.[0]}>
+            <SelectControl
+              ariaLabel="Assignee"
+              defaultValue={defaults.assigneePersonId ?? ""}
+              name="assigneePersonId"
+              options={[
+                { label: "Unassigned", value: "" },
+                ...staff.map((person) => ({
+                  label: person.label,
+                  value: person.id,
+                })),
+              ]}
             />
           </Field>
         </div>

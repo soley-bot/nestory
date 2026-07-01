@@ -23,18 +23,23 @@ import {
 import type {
   PeopleDisplayMode,
   PeopleViewQuery,
+  PersonRoleValue,
 } from "@/features/people/people.types";
 import { cn } from "@/lib/utils";
 
 type PeopleFiltersProps = {
   displayMode: PeopleDisplayMode;
+  lockedRole?: PersonRoleValue;
   onDisplayModeChange: (mode: PeopleDisplayMode) => void;
+  searchPlaceholder?: string;
   viewQuery: PeopleViewQuery;
 };
 
 export function PeopleFilters({
   displayMode,
+  lockedRole,
   onDisplayModeChange,
+  searchPlaceholder = "Search name, contact, role, lease, or property",
   viewQuery,
 }: PeopleFiltersProps) {
   const pathname = usePathname();
@@ -45,8 +50,9 @@ export function PeopleFilters({
     source: viewQuery.query,
     value: viewQuery.query,
   });
+  const hasLockedRole = Boolean(lockedRole);
   const activeFilters = [
-    viewQuery.role !== "all",
+    viewQuery.role !== "all" && !hasLockedRole,
     viewQuery.status !== "all",
     viewQuery.archiveState !== DEFAULT_PEOPLE_ARCHIVE_STATE,
     viewQuery.sort !== DEFAULT_PEOPLE_SORT,
@@ -106,7 +112,7 @@ export function PeopleFilters({
                     value: event.target.value,
                   })
                 }
-                placeholder="Search name, contact, role, lease, or property"
+                placeholder={searchPlaceholder}
                 type="search"
                 value={query}
               />
@@ -170,7 +176,7 @@ export function PeopleFilters({
             {hasSearchQuery ? (
               <FilterChip label="Search" value={viewQuery.query} />
             ) : null}
-            {viewQuery.role !== "all" ? (
+            {viewQuery.role !== "all" && !hasLockedRole ? (
               <FilterChip label="Role" value={formatFilterValue(viewQuery.role)} />
             ) : null}
             {viewQuery.status !== "all" ? (
@@ -199,21 +205,29 @@ export function PeopleFilters({
 
         {advancedOpen ? (
           <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(132px,150px)_minmax(132px,150px)_minmax(132px,160px)_minmax(132px,170px)_minmax(84px,104px)]"
+            className={cn(
+              "grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px]",
+              hasLockedRole
+                ? "lg:grid-cols-[minmax(132px,150px)_minmax(132px,160px)_minmax(132px,170px)_minmax(84px,104px)]"
+                : "lg:grid-cols-[minmax(132px,150px)_minmax(132px,150px)_minmax(132px,160px)_minmax(132px,170px)_minmax(84px,104px)]",
+            )}
             id="people-advanced-search"
           >
-            <SelectControl
-              ariaLabel="Filter by role"
-              className={compactSelectClassName}
-              onValueChange={(value) => replaceParam("role", value, "all")}
-              options={[
-                { label: "All roles", value: "all" },
-                { label: "Tenants", value: "tenant" },
-                { label: "Owners", value: "owner" },
-                { label: "Vendors", value: "vendor" },
-              ]}
-              value={viewQuery.role}
-            />
+            {hasLockedRole ? null : (
+              <SelectControl
+                ariaLabel="Filter by role"
+                className={compactSelectClassName}
+                onValueChange={(value) => replaceParam("role", value, "all")}
+                options={[
+                  { label: "All roles", value: "all" },
+                  { label: "Tenants", value: "tenant" },
+                  { label: "Owners", value: "owner" },
+                  { label: "Vendors", value: "vendor" },
+                  { label: "Staff", value: "staff" },
+                ]}
+                value={viewQuery.role}
+              />
+            )}
 
             <SelectControl
               ariaLabel="Filter by status"

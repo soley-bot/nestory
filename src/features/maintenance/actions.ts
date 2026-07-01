@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Json } from "@/types/database";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireWorkspaceContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type MaintenanceFieldErrors = {
   actualCostAmount?: string[];
+  assigneePersonId?: string[];
+  branchId?: string[];
   category?: string[];
   checklistText?: string[];
   costEstimateAmount?: string[];
@@ -30,6 +32,13 @@ export type MaintenanceActionState = {
   fieldErrors?: MaintenanceFieldErrors;
   message?: string;
   status?: "error" | "success";
+};
+
+type UntypedSupabaseClient = {
+  rpc: (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ error: { message: string } | null }>;
 };
 
 const uuidShapeSchema = z
@@ -68,6 +77,8 @@ const optionalMoneySchema = z
 const maintenanceSchema = z
   .object({
     actualCostAmount: optionalMoneySchema,
+    assigneePersonId: optionalUuidSchema,
+    branchId: optionalUuidSchema,
     category: z
       .string()
       .trim()
@@ -141,7 +152,7 @@ export async function createMaintenanceCaseAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireAdminContext();
+  const context = await requireTaskManagerContext();
   const parsed = maintenanceSchema.safeParse(readMaintenanceForm(formData));
 
   if (!parsed.success) {
@@ -150,7 +161,7 @@ export async function createMaintenanceCaseAction(
 
   const supabase = await createSupabaseServerClient();
   const checklist = parseChecklistText(parsed.data.checklistText);
-  const { error } = await supabase.rpc("create_maintenance_task", {
+  const { data: taskId, error } = await supabase.rpc("create_maintenance_task", {
     p_category: parsed.data.category,
     p_checklist: checklist as Json,
     p_cost_estimate_amount: parsed.data.costEstimateAmount,
@@ -178,6 +189,20 @@ export async function createMaintenanceCaseAction(
     };
   }
 
+  if ((parsed.data.branchId || parsed.data.assigneePersonId) && taskId) {
+    const assignmentError = await assignMaintenanceTask({
+      assigneePersonId: parsed.data.assigneePersonId,
+      branchId: parsed.data.branchId,
+      organizationId: context.organizationId,
+      supabase,
+      taskId,
+    });
+
+    if (assignmentError) {
+      return assignmentError;
+    }
+  }
+
   revalidateMaintenancePaths({
     propertyIds: [parsed.data.propertyId],
     unitIds: [parsed.data.unitId],
@@ -193,7 +218,7 @@ export async function updateMaintenanceCaseAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireAdminContext();
+  const context = await requireTaskManagerContext();
   const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
   const parsed = maintenanceSchema.safeParse(readMaintenanceForm(formData));
 
@@ -243,6 +268,18 @@ export async function updateMaintenanceCaseAction(
     };
   }
 
+  const assignmentError = await assignMaintenanceTask({
+    assigneePersonId: parsed.data.assigneePersonId,
+    branchId: parsed.data.branchId,
+    organizationId: context.organizationId,
+    supabase,
+    taskId: parsedTaskId.data,
+  });
+
+  if (assignmentError) {
+    return assignmentError;
+  }
+
   revalidateMaintenancePaths({
     propertyIds: [parsed.data.propertyId],
     unitIds: [parsed.data.unitId],
@@ -285,7 +322,7 @@ async function updateMaintenanceArchiveState({
   fallbackMessage: string;
   formData: FormData;
 }): Promise<MaintenanceActionState> {
-  const context = await requireAdminContext();
+  const context = await requireTaskManagerContext();
   const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
 
   if (!parsedTaskId.success) {
@@ -330,6 +367,8 @@ async function updateMaintenanceArchiveState({
 function readMaintenanceForm(formData: FormData) {
   return {
     actualCostAmount: readString(formData, "actualCostAmount"),
+    assigneePersonId: readString(formData, "assigneePersonId"),
+    branchId: readString(formData, "branchId"),
     category: readString(formData, "category"),
     checklistText: readString(formData, "checklistText"),
     costEstimateAmount: readString(formData, "costEstimateAmount"),
@@ -345,6 +384,49 @@ function readMaintenanceForm(formData: FormData) {
     title: readString(formData, "title"),
     unitId: readString(formData, "unitId"),
     vendorPersonId: readString(formData, "vendorPersonId"),
+  };
+}
+
+async function requireTaskManagerContext() {
+  const context = await requireWorkspaceContext();
+
+  if (context.role === "member") {
+    throw new Error("Not authorized");
+  }
+
+  return context;
+}
+
+async function assignMaintenanceTask({
+  assigneePersonId,
+  branchId,
+  organizationId,
+  supabase,
+  taskId,
+}: {
+  assigneePersonId: string | null;
+  branchId: string | null;
+  organizationId: string;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  taskId: string;
+}): Promise<MaintenanceActionState | null> {
+  const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
+    "assign_maintenance_task",
+    {
+    p_assignee_person_id: assigneePersonId,
+    p_branch_id: branchId,
+    p_organization_id: organizationId,
+    p_task_id: taskId,
+    },
+  );
+
+  if (!error) {
+    return null;
+  }
+
+  return {
+    message: maintenanceActionErrorMessage(error.message),
+    status: "error",
   };
 }
 
@@ -389,6 +471,7 @@ function revalidateMaintenancePaths({
   unitIds?: Array<string | null | undefined>;
 }) {
   revalidatePath("/maintenance");
+  revalidatePath("/tasks");
   revalidatePath("/overview");
   revalidatePath("/documents");
   revalidatePath("/ledger");
@@ -429,6 +512,18 @@ function maintenanceActionErrorMessage(message: string) {
 
   if (message.includes("Vendor/person not found")) {
     return "Choose an active vendor or person.";
+  }
+
+  if (message.includes("Assignee not found")) {
+    return "Choose an active staff assignee.";
+  }
+
+  if (message.includes("Branch not found")) {
+    return "Choose an active branch.";
+  }
+
+  if (message.includes("Manager can only assign tasks in their branch")) {
+    return "Managers can only assign tasks inside their branch.";
   }
 
   return "We could not save the maintenance case. Please check the fields and try again.";
