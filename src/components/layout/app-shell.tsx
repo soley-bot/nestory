@@ -4,31 +4,41 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  BarChart3,
   Bell,
+  BookOpen,
   Building2,
   CalendarDays,
+  CheckSquare,
+  ClipboardCheck,
   ClipboardList,
+  Coins,
+  CreditCard,
   Database,
   ChevronDown,
-  FileText,
-  FolderOpen,
-  Home,
-  Landmark,
-  ListTree,
+  DoorOpen,
+  FileChartColumn,
+  History,
+  IdCard,
+  KeyRound,
+  LayoutDashboard,
   LogOut,
   MoreHorizontal,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
+  ReceiptText,
   Repeat,
   ScrollText,
   Settings,
   Shield,
+  Sparkles,
   Sun,
+  Truck,
   Upload,
-  Users,
+  UserRound,
+  UsersRound,
+  Wallet,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -40,6 +50,7 @@ type NavItem = {
   label: string;
   icon: LucideIcon;
   activeHrefs?: string[];
+  section?: string;
 };
 
 type NavGroup = {
@@ -55,9 +66,9 @@ const navGroups: NavGroup[] = [
     id: "dashboard",
     label: "Dashboard",
     roomLabel: "Dashboard",
-    icon: BarChart3,
+    icon: LayoutDashboard,
     items: [
-      { href: "/overview", label: "Overview", icon: BarChart3 },
+      { href: "/overview", label: "Overview", icon: LayoutDashboard },
       {
         href: "/property-dashboard",
         label: "Property",
@@ -68,80 +79,84 @@ const navGroups: NavGroup[] = [
         label: "Maintenance",
         icon: Wrench,
       },
-      { href: "/people-dashboard", label: "People", icon: Users },
-      { href: "/finance-dashboard", label: "Finance", icon: Landmark },
       {
         href: "/timeline-dashboard",
         label: "Timeline",
-        icon: ListTree,
+        icon: History,
       },
+      { href: "/people-dashboard", label: "People", icon: UsersRound },
+      { href: "/finance-dashboard", label: "Finance", icon: Wallet },
     ],
   },
   {
     id: "property",
     label: "Property",
-    roomLabel: "Record room",
+    roomLabel: "Property",
     icon: Building2,
     items: [
       { href: "/properties", label: "Properties", icon: Building2 },
-      { href: "/units", label: "Units", icon: Home },
-      { href: "/maintenance", label: "Maintenance", icon: Wrench },
-      { href: "/timeline", label: "Timeline", icon: ListTree },
+      { href: "/units", label: "Units", icon: DoorOpen },
+      { href: "/amenities", label: "Amenities", icon: Sparkles },
+      { href: "/property-inspections", label: "Inspections", icon: ClipboardCheck },
     ],
   },
   {
     id: "people",
     label: "People",
-    roomLabel: "People room",
-    icon: Users,
+    roomLabel: "People",
+    icon: UsersRound,
     items: [
       {
         href: "/tenants",
         label: "Tenants",
-        icon: Users,
+        icon: UserRound,
         activeHrefs: ["/people"],
       },
-      { href: "/vendors", label: "Vendors", icon: Wrench },
-      { href: "/owners", label: "Owners", icon: Users },
+      { href: "/vendors", label: "Vendors", icon: Truck },
+      { href: "/owners", label: "Owners", icon: KeyRound },
       {
         href: "/team",
-        label: "Users / PM Team",
-        icon: Users,
+        label: "Staff",
+        icon: IdCard,
       },
     ],
   },
   {
-    id: "maintenance",
-    label: "Maintenance",
-    roomLabel: "Operations room",
-    icon: Wrench,
+    id: "operations",
+    label: "Operations",
+    roomLabel: "Operations",
+    icon: ClipboardList,
     items: [
       { href: "/maintenance", label: "Requests", icon: Wrench },
       { href: "/work-orders", label: "Work Orders", icon: ClipboardList },
       { href: "/schedule", label: "Schedule", icon: CalendarDays },
+      { href: "/tasks", label: "Tasks", icon: CheckSquare },
+      { href: "/inspections", label: "Inspections", icon: ClipboardCheck },
       { href: "/recurring-tasks", label: "Recurring Tasks", icon: Repeat },
+      { href: "/inventory", label: "Inventory", icon: Database },
     ],
   },
   {
     id: "finance",
     label: "Finance",
-    roomLabel: "Money room",
-    icon: Landmark,
+    roomLabel: "Finance",
+    icon: Wallet,
     items: [
       { href: "/leases", label: "Leases", icon: ScrollText },
-      { href: "/ledger", label: "Ledger", icon: Landmark },
-      { href: "/payments", label: "Payments", icon: Landmark },
-      { href: "/invoices", label: "Invoices", icon: FileText },
-      { href: "/reports", label: "Reports", icon: FileText },
+      { href: "/ledger", label: "Ledger", icon: BookOpen },
+      { href: "/payments", label: "Payments", icon: CreditCard },
+      { href: "/invoices", label: "Invoices", icon: ReceiptText },
+      { href: "/petty-cash", label: "Petty Cash", icon: Coins },
+      { href: "/reports", label: "Reports", icon: FileChartColumn },
     ],
   },
   {
     id: "timeline",
     label: "Timeline",
-    roomLabel: "Memory room",
-    icon: ListTree,
+    roomLabel: "Timeline",
+    icon: History,
     items: [
-      { href: "/timeline", label: "Global Timeline", icon: ListTree },
+      { href: "/timeline", label: "Global Timeline", icon: History },
       {
         href: "/property-timeline",
         label: "Property Timeline",
@@ -155,7 +170,7 @@ const navGroups: NavGroup[] = [
       {
         href: "/financial-timeline",
         label: "Financial Timeline",
-        icon: Landmark,
+        icon: Wallet,
       },
     ],
   },
@@ -164,31 +179,31 @@ const navGroups: NavGroup[] = [
 const settingsGroup: NavGroup = {
   id: "settings",
   label: "Settings",
-  roomLabel: "Control room",
+  roomLabel: "Settings",
   icon: Settings,
   items: [
-    { href: "/settings", label: "Organization", icon: Building2 },
-    { href: "/users-roles", label: "Users & Roles", icon: Users },
-    { href: "/property-settings", label: "Properties", icon: Building2 },
-    { href: "/lease-settings", label: "Lease", icon: ScrollText },
-    { href: "/maintenance-settings", label: "Maintenance", icon: Wrench },
-    { href: "/financial-settings", label: "Financial", icon: Landmark },
-    { href: "/notifications", label: "Notification", icon: Bell },
-    { href: "/documents", label: "Documents", icon: FolderOpen },
-    { href: "/security", label: "Security", icon: Shield },
-    { href: "/backup-data", label: "Backup and Data", icon: Database },
-    { href: "/integrations", label: "Integration", icon: Plug },
+    { href: "/settings", label: "Organization", icon: Building2, section: "Organization" },
+    { href: "/branding", label: "Branding", icon: Sparkles, section: "Organization" },
+    { href: "/users-roles", label: "Users & Roles", icon: UsersRound, section: "Access" },
+    { href: "/property-settings", label: "Property", icon: Building2, section: "Modules" },
+    { href: "/lease-settings", label: "Lease", icon: ScrollText, section: "Modules" },
+    { href: "/maintenance-settings", label: "Maintenance", icon: Wrench, section: "Modules" },
+    { href: "/financial-settings", label: "Financial", icon: Wallet, section: "Modules" },
+    { href: "/notifications", label: "Notifications", icon: Bell, section: "Communication" },
+    { href: "/security", label: "Security", icon: Shield, section: "System" },
+    { href: "/backup-data", label: "Backup", icon: Database, section: "System" },
+    { href: "/integrations", label: "Integrations", icon: Plug, section: "System" },
   ],
 };
 
 const desktopNavGroups = [...navGroups, settingsGroup];
 
 const mobilePrimaryItems = [
-  { href: "/overview", label: "Overview", icon: BarChart3 },
+  { href: "/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/properties", label: "Properties", icon: Building2 },
-  { href: "/units", label: "Units", icon: Home },
+  { href: "/units", label: "Units", icon: DoorOpen },
   { href: "/maintenance", label: "Requests", icon: Wrench },
-  { href: "/ledger", label: "Ledger", icon: Landmark },
+  { href: "/ledger", label: "Ledger", icon: BookOpen },
 ] satisfies NavItem[];
 
 const mobileMoreItems = [
@@ -235,7 +250,7 @@ function DesktopRailGroupLink({
       aria-label={group.label}
       className={cn(
         "flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:bg-surface hover:text-foreground",
-        isActive && "border-border bg-surface text-foreground shadow-sm",
+        isActive && groupRailActiveClass(group.id),
       )}
       href={href}
       onNavigate={onNavigate}
@@ -245,6 +260,22 @@ function DesktopRailGroupLink({
       <Icon size={15} />
     </Link>
   );
+}
+
+function groupRailActiveClass(groupId: string) {
+  if (groupId === "property" || groupId === "finance") {
+    return "border-success/30 bg-success-soft text-success shadow-sm";
+  }
+
+  if (groupId === "operations" || groupId === "settings") {
+    return "border-warning/30 bg-warning-soft text-warning shadow-sm";
+  }
+
+  if (groupId === "people") {
+    return "border-accent/30 bg-accent-soft text-accent shadow-sm";
+  }
+
+  return "border-border bg-surface text-foreground shadow-sm";
 }
 
 export function AppShell({
@@ -410,27 +441,41 @@ export function AppShell({
                     {selectedDesktopGroup.roomLabel}
                   </p>
                   <div className="space-y-1">
-                    {selectedDesktopGroup.items.map((item) => {
+                    {selectedDesktopGroup.items.map((item, index) => {
                       const Icon = item.icon;
                       const isActive = isNavItemActive(pathname, item);
+                      const showSection =
+                        item.section &&
+                        item.section !== selectedDesktopGroup.items[index - 1]?.section;
 
                       return (
-                        <Link
-                          className={cn(
-                            "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[14px] font-medium text-muted transition-colors",
-                            isActive
-                              ? "bg-surface-muted text-foreground"
-                              : "hover:bg-surface-muted hover:text-foreground",
-                          )}
-                          href={item.href}
-                          key={item.href}
-                          prefetch={false}
-                        >
-                          <Icon className="shrink-0" size={14} />
-                          <span className="min-w-0 flex-1 truncate">
-                            {item.label}
-                          </span>
-                        </Link>
+                        <div key={item.href}>
+                          {showSection ? (
+                            <p
+                              className={cn(
+                                "px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground-subtle",
+                                index === 0 ? "pt-0" : "pt-3",
+                              )}
+                            >
+                              {item.section}
+                            </p>
+                          ) : null}
+                          <Link
+                            className={cn(
+                              "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[14px] font-medium text-muted transition-colors",
+                              isActive
+                                ? "bg-surface-muted text-foreground"
+                                : "hover:bg-surface-muted hover:text-foreground",
+                            )}
+                            href={item.href}
+                            prefetch={false}
+                          >
+                            <Icon className="shrink-0" size={14} />
+                            <span className="min-w-0 flex-1 truncate">
+                              {item.label}
+                            </span>
+                          </Link>
+                        </div>
                       );
                     })}
                   </div>
