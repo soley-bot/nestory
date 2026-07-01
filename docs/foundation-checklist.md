@@ -57,6 +57,20 @@ Run this flow on production after auth changes:
 9. Sign back in.
 10. Confirm the existing admin lands directly on `/overview`.
 
+## Subdomain Workspace Routing
+
+- During local development, leaving `APP_ROOT_DOMAIN` unset keeps the app in
+  single-workspace fallback mode for `localhost`.
+- For Nestory-owned subdomains, set `APP_ROOT_DOMAIN` to the root domain, such
+  as `nestory-kh.com`.
+- Reserved subdomains default to `app`, `www`, and `api`; override with
+  `APP_RESERVED_SUBDOMAINS` only if the production DNS model changes.
+- Add Supabase Auth redirect URLs for each hosted auth callback you intend to
+  use, for example `https://app.nestory-kh.com/auth/callback` and
+  `https://demo.nestory-kh.com/auth/callback`.
+- Organization subdomains resolve through `organizations.slug`; keep demo
+  workspace slugs aligned with the DNS name, such as `demo`.
+
 ## Production Deployment Checks
 
 The Vercel CLI may not be globally installed in every session. Install it with

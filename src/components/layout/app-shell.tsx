@@ -317,6 +317,7 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const desktopNavGroups = getDesktopNavGroups(role);
   const mobilePrimaryNavItems =
     role === "member"
@@ -543,6 +544,15 @@ export function AppShell({
           sidebarCollapsed ? "lg:ml-14" : "lg:ml-[244px]",
         )}
       >
+        <div className="hidden h-12 items-center justify-end border-b border-border bg-surface px-4 print:hidden lg:flex">
+          <ProfileMenu
+            email={userEmail}
+            onOpenChange={setProfileMenuOpen}
+            open={profileMenuOpen}
+            organizationName={organizationName}
+            role={role}
+          />
+        </div>
         <div className="border-b border-border bg-surface print:hidden lg:hidden">
           <div className="flex items-center justify-between gap-3 px-4 py-2">
             <div className="flex min-w-0 items-center gap-3">
@@ -572,15 +582,13 @@ export function AppShell({
                   <Settings size={16} />
                 </Link>
               ) : null}
-              <form action={signOutAction}>
-                <button
-                  aria-label="Sign out"
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-                  type="submit"
-                >
-                  <LogOut size={16} />
-                </button>
-              </form>
+              <ProfileMenu
+                email={userEmail}
+                onOpenChange={setProfileMenuOpen}
+                open={profileMenuOpen}
+                organizationName={organizationName}
+                role={role}
+              />
             </div>
           </div>
           <div className="relative flex items-center gap-2 px-4 pb-3">
@@ -675,6 +683,70 @@ export function AppShell({
   );
 }
 
+function ProfileMenu({
+  email,
+  onOpenChange,
+  open,
+  organizationName,
+  role,
+}: {
+  email?: string;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  organizationName: string;
+  role: WorkspaceRole;
+}) {
+  const label = email ?? organizationName;
+
+  return (
+    <div className="relative">
+      <button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="Open profile menu"
+        className="flex h-8 min-w-8 items-center justify-center rounded-full border border-border bg-surface-muted px-2 text-[12px] font-semibold text-foreground transition-colors hover:bg-surface"
+        onClick={() => onOpenChange(!open)}
+        title={label}
+        type="button"
+      >
+        {getInitials(label)}
+      </button>
+      {open ? (
+        <div
+          className="absolute right-0 top-10 z-40 w-64 rounded-md border border-border bg-surface p-2 shadow-lg"
+          role="menu"
+        >
+          <div className="border-b border-border px-2 py-2">
+            <p className="truncate text-sm font-semibold">{label}</p>
+            <p className="mt-0.5 truncate text-xs text-muted">
+              {formatRole(role)} / {organizationName}
+            </p>
+          </div>
+          <Link
+            className="mt-1 flex min-h-9 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            href="/account"
+            onNavigate={() => onOpenChange(false)}
+            role="menuitem"
+          >
+            <UserRound size={15} />
+            Profile
+          </Link>
+          <form action={signOutAction}>
+            <button
+              className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium text-danger transition-colors hover:bg-surface-muted"
+              role="menuitem"
+              type="submit"
+            >
+              <LogOut size={15} />
+              Sign out
+            </button>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ThemeToggle({ onToggle }: { onToggle: () => void }) {
   return (
     <button
@@ -688,4 +760,25 @@ function ThemeToggle({ onToggle }: { onToggle: () => void }) {
       <Sun className="theme-toggle-sun" size={16} />
     </button>
   );
+}
+
+function getInitials(label: string) {
+  const [first = "", second = ""] = label
+    .replace(/@.*/, "")
+    .split(/[.\s_-]+/)
+    .filter(Boolean);
+
+  return `${first[0] ?? "U"}${second[0] ?? ""}`.toUpperCase();
+}
+
+function formatRole(role: WorkspaceRole) {
+  if (role === "admin") {
+    return "Admin";
+  }
+
+  if (role === "manager") {
+    return "Manager";
+  }
+
+  return "Member";
 }

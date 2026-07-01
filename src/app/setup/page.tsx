@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import {
   getAdminMembershipForUser,
+  getCurrentOrganizationSlug,
   requireUser,
 } from "@/lib/auth/context";
 import { signOutAction } from "@/features/auth/actions";
@@ -11,10 +12,17 @@ export const dynamic = "force-dynamic";
 
 export default async function SetupPage() {
   const user = await requireUser();
-  const membership = await getAdminMembershipForUser(user.id);
+  const organizationSlug = await getCurrentOrganizationSlug();
+  const membership = await getAdminMembershipForUser(user.id, undefined, {
+    organizationSlug,
+  });
 
   if (membership) {
     redirect("/overview");
+  }
+
+  if (organizationSlug) {
+    redirect("/no-access");
   }
 
   return (

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
   getCurrentUser,
+  getCurrentOrganizationSlug,
   getWorkspaceMembershipForUser,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -107,8 +108,12 @@ export async function loginAction(
     };
   }
 
-  const membership = await getWorkspaceMembershipForUser(data.user.id, supabase);
-  redirect(membership ? "/overview" : "/setup");
+  const organizationSlug = await getCurrentOrganizationSlug();
+  const membership = await getWorkspaceMembershipForUser(data.user.id, supabase, {
+    organizationSlug,
+  });
+
+  redirect(membership ? "/overview" : organizationSlug ? "/no-access" : "/setup");
 }
 
 export async function signupAction(
@@ -159,6 +164,12 @@ export async function setupOrganizationAction(
 
   if (!user) {
     redirect("/login");
+  }
+
+  const organizationSlug = await getCurrentOrganizationSlug();
+
+  if (organizationSlug) {
+    redirect("/no-access");
   }
 
   const parsed = setupSchema.safeParse({

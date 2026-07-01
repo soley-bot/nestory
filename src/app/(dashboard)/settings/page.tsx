@@ -16,6 +16,7 @@ export default async function SettingsPage() {
       <OrganizationSettingsScreen
         branches={data.branches}
         organizationName={context.organizationName}
+        organizationSlug={context.organizationSlug}
         staff={data.staff}
         teams={data.teams}
       />

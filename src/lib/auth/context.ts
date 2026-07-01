@@ -1,5 +1,7 @@
 import { cache } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { getOrganizationSlugFromHost } from "@/lib/auth/tenant";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -15,6 +17,7 @@ type WorkspaceMembership = {
   branchId?: string;
   organizationId: string;
   organizationName: string;
+  organizationSlug?: string;
   personId?: string;
   role: WorkspaceRole;
 };
@@ -22,9 +25,16 @@ type WorkspaceMembership = {
 type MembershipRow = {
   branch_id: string | null;
   organization_id: string;
-  organizations: { name: string } | { name: string }[] | null;
+  organizations:
+    | { name: string; slug?: string | null }
+    | { name: string; slug?: string | null }[]
+    | null;
   person_id: string | null;
   role: string;
+};
+
+type WorkspaceMembershipOptions = {
+  organizationSlug?: string | null;
 };
 
 export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
@@ -60,8 +70,9 @@ export async function requireUser() {
 export async function getAdminMembershipForUser(
   userId: string,
   client?: SupabaseServerClient,
+  options?: WorkspaceMembershipOptions,
 ): Promise<WorkspaceMembership | null> {
-  const membership = await getWorkspaceMembershipForUser(userId, client);
+  const membership = await getWorkspaceMembershipForUser(userId, client, options);
 
   return membership?.role === "admin" ? membership : null;
 }
@@ -69,17 +80,29 @@ export async function getAdminMembershipForUser(
 export async function getWorkspaceMembershipForUser(
   userId: string,
   client?: SupabaseServerClient,
+  options?: WorkspaceMembershipOptions,
 ): Promise<WorkspaceMembership | null> {
+  const membershipOptions = options ?? {
+    organizationSlug: await getCurrentOrganizationSlug(),
+  };
   const supabase = client ?? (await createSupabaseServerClient());
-  let { data, error } = await supabase
+
+  let query = supabase
     .from("organization_members")
-    .select("organization_id, role, person_id, branch_id, organizations(name)")
+    .select("organization_id, role, person_id, branch_id, created_at, organizations!inner(name, slug)")
     .eq("user_id", userId)
-    .in("role", ["admin", "manager", "member"])
+    .in("role", ["admin", "manager", "member"]);
+
+  if (membershipOptions.organizationSlug) {
+    query = query.eq("organizations.slug", membershipOptions.organizationSlug);
+  }
+
+  let { data, error } = await query
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
-  if (error) {
+  if (error && !membershipOptions.organizationSlug) {
     const legacyResult = await supabase
       .from("organization_members")
       .select("organization_id, role, organizations(name)")
@@ -109,9 +132,15 @@ export async function getWorkspaceMembershipForUser(
     branchId: row.branch_id ?? undefined,
     organizationId: row.organization_id,
     organizationName: organization.name,
+    organizationSlug: organization.slug ?? undefined,
     personId: row.person_id ?? undefined,
     role: row.role,
   };
+}
+
+export async function getCurrentOrganizationSlug() {
+  const requestHeaders = await headers();
+  return getOrganizationSlugFromHost(requestHeaders.get("host"));
 }
 
 function isWorkspaceRole(role: string): role is WorkspaceRole {
@@ -120,10 +149,13 @@ function isWorkspaceRole(role: string): role is WorkspaceRole {
 
 export const requireWorkspaceContext = cache(async () => {
   const user = await requireUser();
-  const membership = await getWorkspaceMembershipForUser(user.id);
+  const organizationSlug = await getCurrentOrganizationSlug();
+  const membership = await getWorkspaceMembershipForUser(user.id, undefined, {
+    organizationSlug,
+  });
 
   if (!membership) {
-    redirect("/setup");
+    redirect(organizationSlug ? "/no-access" : "/setup");
   }
 
   return {
@@ -135,10 +167,17 @@ export const requireWorkspaceContext = cache(async () => {
 
 export const requireAdminContext = cache(async () => {
   const user = await requireUser();
-  const membership = await getAdminMembershipForUser(user.id);
+  const organizationSlug = await getCurrentOrganizationSlug();
+  const membership = await getWorkspaceMembershipForUser(user.id, undefined, {
+    organizationSlug,
+  });
 
   if (!membership) {
-    redirect("/setup");
+    redirect(organizationSlug ? "/no-access" : "/setup");
+  }
+
+  if (membership.role !== "admin") {
+    redirect("/no-access");
   }
 
   return {

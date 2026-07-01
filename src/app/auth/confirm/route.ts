@@ -1,9 +1,13 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { getWorkspaceMembershipForUser } from "@/lib/auth/context";
+import { getOrganizationSlugFromHost } from "@/lib/auth/tenant";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
-function redirectTo(request: NextRequest, pathname: "/login" | "/setup" | "/overview") {
+function redirectTo(
+  request: NextRequest,
+  pathname: "/login" | "/setup" | "/overview" | "/no-access",
+) {
   const url = request.nextUrl.clone();
   url.pathname = pathname;
   url.search = "";
@@ -28,6 +32,13 @@ export async function GET(request: NextRequest) {
     return redirectTo(request, "/login");
   }
 
-  const membership = await getWorkspaceMembershipForUser(data.user.id, supabase);
-  return redirectTo(request, membership ? "/overview" : "/setup");
+  const organizationSlug = getOrganizationSlugFromHost(request.nextUrl.host);
+  const membership = await getWorkspaceMembershipForUser(data.user.id, supabase, {
+    organizationSlug,
+  });
+
+  return redirectTo(
+    request,
+    membership ? "/overview" : organizationSlug ? "/no-access" : "/setup",
+  );
 }

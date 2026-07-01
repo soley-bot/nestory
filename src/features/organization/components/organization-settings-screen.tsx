@@ -21,11 +21,13 @@ const initialState: OrganizationActionState = {};
 export function OrganizationSettingsScreen({
   branches,
   organizationName,
+  organizationSlug,
   staff,
   teams,
 }: {
   branches: OrganizationBranch[];
   organizationName: string;
+  organizationSlug?: string;
   staff: OrganizationPersonOption[];
   teams: OrganizationTeam[];
 }) {
@@ -33,9 +35,9 @@ export function OrganizationSettingsScreen({
     <div className="space-y-4 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SettingsFact label="Workspace" value={organizationName} />
+        <SettingsFact label="Subdomain" value={organizationSlug ?? "Not set"} />
         <SettingsFact label="Branches" value={String(branches.length)} />
         <SettingsFact label="Teams" value={String(teams.length)} />
-        <SettingsFact label="Org model" value="Branches + teams" />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
