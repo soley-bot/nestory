@@ -1,9 +1,4 @@
-import {
-  BriefcaseBusiness,
-  Building2,
-  Mail,
-  UserRound,
-} from "lucide-react";
+import { Building2, UserRound } from "lucide-react";
 import {
   previewRowClassName,
   RecordLink,
@@ -69,13 +64,13 @@ export function PeopleTable({
       {displayMode === "table" ? (
         <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
           <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-            <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[24%]" />
-                <col className="w-[16%]" />
+                <col className="w-[28%]" />
+                <col className="w-[11%]" />
                 <col className="w-[25%]" />
                 <col className="w-[26%]" />
-                <col className="w-[9%]" />
+                <col className="w-[10%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -83,7 +78,7 @@ export function PeopleTable({
                   <th className="px-1.5 py-2.5 font-semibold">Roles</th>
                   <th className="px-1.5 py-2.5 font-semibold">Contact</th>
                   <th className="px-1.5 py-2.5 font-semibold">
-                    Linked records
+                    Linked
                   </th>
                   <th className="px-1.5 py-2.5 text-center font-semibold">
                     Status
@@ -118,26 +113,28 @@ export function PeopleTable({
                     tabIndex={0}
                   >
                     <td className="px-2.5 py-2">
-                      <RecordLink
-                        href={getPersonHref(person.id)}
-                        title={`Open full person record: ${person.displayName}`}
-                      >
-                        {person.displayName}
-                      </RecordLink>
-                      <p
-                        className="mt-0.5 truncate text-xs text-muted"
-                        title={person.legalName ?? person.partyTypeLabel}
-                      >
-                        {person.legalName ?? person.partyTypeLabel}
-                      </p>
+                      <div className="min-w-0">
+                        <RecordLink
+                          href={getPersonHref(person.id)}
+                          title={`Open full person record: ${person.displayName}`}
+                        >
+                          {person.displayName}
+                        </RecordLink>
+                        <p
+                          className="mt-0.5 truncate text-xs text-muted"
+                          title={person.legalName ?? person.partyTypeLabel}
+                        >
+                          {person.legalName ?? person.partyTypeLabel}
+                        </p>
+                      </div>
                     </td>
                     <td className="px-1.5 py-2">
                       <RoleBadges roles={person.roles} />
                     </td>
-                    <td className="px-1.5 py-2">
+                    <td className="px-2 py-2">
                       <ContactCell person={person} />
                     </td>
-                    <td className="px-1.5 py-2">
+                    <td className="px-2 py-2">
                       <LinkedCell person={person} />
                     </td>
                     <td className="px-1.5 py-2">
@@ -213,35 +210,10 @@ function PersonCard({
           </div>
         </div>
       </div>
-
-      <div className="space-y-3 px-3.5 py-3.5">
-        <CardDetail icon={<Mail size={14} />} value={person.contact.label} />
-        <CardDetail
-          icon={<BriefcaseBusiness size={14} />}
-          value={getLinkedLabel(person)}
-        />
+      <div className="border-t border-border px-3.5 py-2.5 text-sm">
+        <CardMetric label="Linked" value={getLinkedLabel(person)} />
       </div>
     </article>
-  );
-}
-
-function ContactCell({ person }: { person: PeopleSummary }) {
-  const detail =
-    person.contact.email && person.contact.phone
-      ? `${person.contact.email} / ${person.contact.phone}`
-      : null;
-
-  return (
-    <div className="space-y-0.5">
-      <p className="line-clamp-1 break-words font-medium" title={person.contact.label}>
-        {person.contact.label}
-      </p>
-      {detail ? (
-        <p className="truncate text-xs text-muted" title={detail}>
-          {detail}
-        </p>
-      ) : null}
-    </div>
   );
 }
 
@@ -250,7 +222,7 @@ function LinkedCell({ person }: { person: PeopleSummary }) {
   const detail = getLinkedDetail(person);
 
   return (
-    <div className="space-y-0.5">
+    <div className="min-w-0 space-y-0.5">
       <p className="line-clamp-1 break-words font-medium" title={label}>
         {label}
       </p>
@@ -261,10 +233,37 @@ function LinkedCell({ person }: { person: PeopleSummary }) {
   );
 }
 
-function RoleBadges({ roles }: { roles: PersonRoleSummary[] }) {
+function ContactCell({ person }: { person: PeopleSummary }) {
+  const detail = getContactDetail(person);
+
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <p
+        className={cn(
+          "line-clamp-1 break-words font-medium",
+          !person.hasUsefulContact && "text-warning",
+        )}
+        title={person.contact.label}
+      >
+        {person.contact.label}
+      </p>
+      <p className="truncate text-xs text-muted" title={detail}>
+        {detail}
+      </p>
+    </div>
+  );
+}
+
+function RoleBadges({
+  className,
+  roles,
+}: {
+  className?: string;
+  roles: PersonRoleSummary[];
+}) {
   if (roles.length === 0) {
     return (
-      <div className="flex flex-wrap gap-1.5">
+      <div className={cn("flex flex-wrap gap-1.5", className)}>
         <Badge className="px-2 text-xs" tone="warning">
           No role
         </Badge>
@@ -273,7 +272,7 @@ function RoleBadges({ roles }: { roles: PersonRoleSummary[] }) {
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className={cn("flex flex-wrap gap-1.5", className)}>
       {roles.map((role) => (
         <Badge
           className="px-2 text-xs"
@@ -308,11 +307,11 @@ function StatusBadges({
   );
 }
 
-function CardDetail({ icon, value }: { icon: React.ReactNode; value: string }) {
+function CardMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-2 text-sm">
-      <span className="shrink-0 text-muted">{icon}</span>
-      <span className="truncate font-medium">{value}</span>
+    <div className="min-w-0">
+      <p className="text-xs text-muted">{label}</p>
+      <p className="mt-0.5 truncate font-medium">{value}</p>
     </div>
   );
 }
@@ -335,6 +334,22 @@ function getLinkedLabel(person: PeopleSummary) {
   }
 
   return "No linked records";
+}
+
+function getContactDetail(person: PeopleSummary) {
+  if (person.contact.email && person.contact.phone) {
+    return "Email and phone on file";
+  }
+
+  if (person.contact.email) {
+    return "Email on file";
+  }
+
+  if (person.contact.phone) {
+    return "Phone on file";
+  }
+
+  return "Needs email or phone";
 }
 
 function getLinkedDetail(person: PeopleSummary) {

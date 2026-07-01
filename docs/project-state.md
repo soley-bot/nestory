@@ -67,6 +67,9 @@ The following facts are session-sensitive and should be verified before use:
 - npm was previously recorded as `11.6.0`.
 - Supabase CLI is available through the project dependency via
   `npx supabase`.
+- 2026-07-01: global Supabase CLI `2.109.0` was also installed at user request
+  for interactive CLI auth. Project scripts should still work through the local
+  dependency.
 - Docker Desktop must be running before local Supabase commands such as
   `npm run supabase:start`, `npm run db:lint`, or `npm run db:reset`.
 - Vercel CLI availability differs by session. In the current Codex session, the
@@ -144,6 +147,25 @@ Later local seed work recorded a coherent demo portfolio with properties,
 units, leases, ledger entries, timeline events, and period locks. If local
 Supabase reset reports a storage container healthcheck issue, verify seeded
 counts and relationship queries before treating it as a SQL seed failure.
+
+2026-07-01 local maintenance seed refresh:
+
+- `supabase db reset --local --yes` completed after replaying migrations and
+  `supabase/seed.sql`.
+- The local seed now favors a compact realistic operating book over stress
+  volume: 6 properties, 36 units, 24 leases/tenants, 43 people, 12 tenant
+  requests, 12 tasks, 12 ledger entries, and 8 timeline events.
+- Task status mix after reset: 3 pending, 3 scheduled, 2 in progress, 2
+  blocked, and 2 completed.
+- Local `.env.local` was pointed at local Supabase so `localhost:3000` reads the
+  clean seed. Hosted Supabase still had existing rows and 2 auth users during
+  this pass and was not wiped.
+- The local `/overview` 404 was traced to stale/corrupt `.next/dev` generated
+  route files. Clearing `.next`, restarting `next dev`, and rebuilding restored
+  `/overview`.
+- Verification passed: `npm run db:lint`, `npm run lint`,
+  `npx tsc --noEmit`, `npm test` (145 tests), `npm run build`, and an
+  authenticated Playwright smoke for `/tenants`.
 
 ## Deployment Notes
 
