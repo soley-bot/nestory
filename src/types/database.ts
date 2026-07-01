@@ -1589,6 +1589,10 @@ export type Database = {
         Args: { p_organization_id: string; p_task_id: string }
         Returns: string
       }
+      archive_document: {
+        Args: { p_document_id: string; p_organization_id: string }
+        Returns: string
+      }
       archive_person: {
         Args: { p_organization_id: string; p_person_id: string }
         Returns: string
@@ -1611,6 +1615,28 @@ export type Database = {
           membership_id: string
           organization_id: string
         }[]
+      }
+      create_document: {
+        Args: {
+          p_activity_action?: string
+          p_activity_entity_id?: string | null
+          p_activity_entity_type?: string
+          p_activity_new_values?: Json
+          p_category: string
+          p_file_name: string
+          p_lease_id?: string | null
+          p_ledger_entry_id?: string | null
+          p_mime_type: string
+          p_organization_id: string
+          p_property_id: string
+          p_size_bytes: number
+          p_storage_path: string
+          p_task_id?: string | null
+          p_tenant_request_id?: string | null
+          p_timeline_event_id?: string | null
+          p_unit_id?: string | null
+        }
+        Returns: string
       }
       create_ledger_entry: {
         Args: {
@@ -1691,6 +1717,7 @@ export type Database = {
           p_notes: string | null
           p_organization_id: string
           p_owner: string | null
+          p_owner_person_id?: string | null
           p_property_type: string
           p_status: string
         }
@@ -1737,6 +1764,10 @@ export type Database = {
         Args: { p_organization_id: string; p_task_id: string }
         Returns: string
       }
+      restore_document: {
+        Args: { p_document_id: string; p_organization_id: string }
+        Returns: string
+      }
       restore_person: {
         Args: { p_organization_id: string; p_person_id: string }
         Returns: string
@@ -1759,6 +1790,22 @@ export type Database = {
           p_organization_id: string
           p_period_start: string
           p_reason: string
+        }
+        Returns: string
+      }
+      update_document: {
+        Args: {
+          p_category: string
+          p_document_id: string
+          p_file_name?: string | null
+          p_lease_id?: string | null
+          p_mime_type?: string | null
+          p_organization_id: string
+          p_property_id: string
+          p_size_bytes?: number | null
+          p_storage_path?: string | null
+          p_task_id?: string | null
+          p_unit_id?: string | null
         }
         Returns: string
       }
@@ -1850,6 +1897,7 @@ export type Database = {
           p_notes: string | null
           p_organization_id: string
           p_owner: string | null
+          p_owner_person_id?: string | null
           p_property_id: string
           p_property_type: string
           p_status: string

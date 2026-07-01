@@ -377,49 +377,34 @@ export async function attachTimelineDocumentAction(
     };
   }
 
-  const { data: document, error: documentError } = await supabase
-    .from("documents")
-    .insert({
-      category: "Timeline Document",
-      file_name: file.name,
-      ledger_entry_id: event.ledger_entry_id,
-      mime_type: file.type,
-      organization_id: context.organizationId,
-      property_id: event.property_id,
-      size_bytes: file.size,
-      storage_path: storagePath,
-      timeline_event_id: parsedEventId.data,
-      unit_id: event.unit_id,
-      uploaded_by: context.userId,
-    })
-    .select("id")
-    .single();
+  const { data: documentId, error: documentError } = await supabase.rpc(
+    "create_document",
+    {
+      p_activity_action: "document_attached",
+      p_activity_entity_id: parsedEventId.data,
+      p_activity_entity_type: "timeline_event",
+      p_activity_new_values: {
+        file_name: file.name,
+        ledger_entry_id: event.ledger_entry_id,
+      },
+      p_category: "Timeline Document",
+      p_file_name: file.name,
+      p_ledger_entry_id: event.ledger_entry_id,
+      p_mime_type: file.type,
+      p_organization_id: context.organizationId,
+      p_property_id: event.property_id,
+      p_size_bytes: file.size,
+      p_storage_path: storagePath,
+      p_timeline_event_id: parsedEventId.data,
+      p_unit_id: event.unit_id,
+    },
+  );
 
-  if (documentError || !document) {
+  if (documentError || !documentId) {
     await supabase.storage.from("nestory-documents").remove([storagePath]);
 
     return {
       message: "We could not save the document record. Please try again.",
-      status: "error",
-    };
-  }
-
-  const { error: logError } = await supabase.from("activity_logs").insert({
-    action: "document_attached",
-    actor_id: context.userId,
-    entity_id: parsedEventId.data,
-    entity_type: "timeline_event",
-    new_values: {
-      document_id: document.id,
-      file_name: file.name,
-      ledger_entry_id: event.ledger_entry_id,
-    },
-    organization_id: context.organizationId,
-  });
-
-  if (logError) {
-    return {
-      message: "Document attached, but the activity log could not be saved.",
       status: "error",
     };
   }

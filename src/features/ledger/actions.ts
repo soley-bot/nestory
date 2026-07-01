@@ -407,6 +407,7 @@ export async function attachLedgerReceiptAction(
     .select("id")
     .eq("ledger_entry_id", parsedEntryId.data)
     .eq("organization_id", context.organizationId)
+    .is("archived_at", null)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -428,49 +429,34 @@ export async function attachLedgerReceiptAction(
     };
   }
 
-  const { data: document, error: documentError } = await supabase
-    .from("documents")
-    .insert({
-      category: "Receipt",
-      file_name: file.name,
-      ledger_entry_id: parsedEntryId.data,
-      mime_type: file.type,
-      organization_id: context.organizationId,
-      property_id: entry.property_id,
-      size_bytes: file.size,
-      storage_path: storagePath,
-      timeline_event_id: timelineEvent?.id ?? null,
-      unit_id: entry.unit_id,
-      uploaded_by: context.userId,
-    })
-    .select("id")
-    .single();
+  const { data: documentId, error: documentError } = await supabase.rpc(
+    "create_document",
+    {
+      p_activity_action: "receipt_attached",
+      p_activity_entity_id: parsedEntryId.data,
+      p_activity_entity_type: "ledger_entry",
+      p_activity_new_values: {
+        file_name: file.name,
+        timeline_event_id: timelineEvent?.id ?? null,
+      },
+      p_category: "Receipt",
+      p_file_name: file.name,
+      p_ledger_entry_id: parsedEntryId.data,
+      p_mime_type: file.type,
+      p_organization_id: context.organizationId,
+      p_property_id: entry.property_id,
+      p_size_bytes: file.size,
+      p_storage_path: storagePath,
+      p_timeline_event_id: timelineEvent?.id ?? null,
+      p_unit_id: entry.unit_id,
+    },
+  );
 
-  if (documentError || !document) {
+  if (documentError || !documentId) {
     await supabase.storage.from("nestory-documents").remove([storagePath]);
 
     return {
       message: "We could not save the receipt record. Please try again.",
-      status: "error",
-    };
-  }
-
-  const { error: logError } = await supabase.from("activity_logs").insert({
-    action: "receipt_attached",
-    actor_id: context.userId,
-    entity_id: parsedEntryId.data,
-    entity_type: "ledger_entry",
-    new_values: {
-      document_id: document.id,
-      file_name: file.name,
-      timeline_event_id: timelineEvent?.id ?? null,
-    },
-    organization_id: context.organizationId,
-  });
-
-  if (logError) {
-    return {
-      message: "Receipt attached, but the activity log could not be saved.",
       status: "error",
     };
   }

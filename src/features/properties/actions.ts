@@ -153,6 +153,7 @@ export async function createPropertyAction(
     p_notes: nullableString(parsed.data.notes),
     p_organization_id: context.organizationId,
     p_owner: nullableString(parsed.data.owner),
+    p_owner_person_id: nullableString(parsed.data.ownerPersonId),
     p_property_type: parsed.data.propertyType,
     p_status: parsed.data.status,
   });
@@ -162,18 +163,6 @@ export async function createPropertyAction(
       message: propertyActionErrorMessage(error.message),
       status: "error",
     };
-  }
-
-  const ownerSyncResult = await syncPrimaryOwnerLink({
-    organizationId: context.organizationId,
-    ownerPersonId: nullableString(parsed.data.ownerPersonId),
-    propertyId,
-    supabase,
-    userId: context.userId,
-  });
-
-  if (ownerSyncResult.status === "error") {
-    return ownerSyncResult;
   }
 
   const documentState = await uploadInlinePropertyDocument({
@@ -239,6 +228,7 @@ export async function updatePropertyAction(
     p_notes: nullableString(parsed.data.notes),
     p_organization_id: context.organizationId,
     p_owner: nullableString(parsed.data.owner),
+    p_owner_person_id: nullableString(parsed.data.ownerPersonId),
     p_property_id: parsedPropertyId.data,
     p_property_type: parsed.data.propertyType,
     p_status: parsed.data.status,
@@ -249,18 +239,6 @@ export async function updatePropertyAction(
       message: propertyActionErrorMessage(error.message),
       status: "error",
     };
-  }
-
-  const ownerSyncResult = await syncPrimaryOwnerLink({
-    organizationId: context.organizationId,
-    ownerPersonId: nullableString(parsed.data.ownerPersonId),
-    propertyId: parsedPropertyId.data,
-    supabase,
-    userId: context.userId,
-  });
-
-  if (ownerSyncResult.status === "error") {
-    return ownerSyncResult;
   }
 
   const documentState = await uploadInlinePropertyDocument({
@@ -413,232 +391,6 @@ async function uploadInlinePropertyDocument({
   };
 }
 
-async function syncPrimaryOwnerLink({
-  organizationId,
-  ownerPersonId,
-  propertyId,
-  supabase,
-  userId,
-}: {
-  organizationId: string;
-  ownerPersonId: string | null;
-  propertyId: string;
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-  userId: string;
-}): Promise<PropertyActionState> {
-  const now = new Date().toISOString();
-  const today = now.slice(0, 10);
-
-  const currentOwnerResult = await supabase
-    .from("property_owners")
-    .select("id, person_id")
-    .eq("organization_id", organizationId)
-    .eq("property_id", propertyId)
-    .eq("is_primary", true)
-    .is("archived_at", null)
-    .is("ended_on", null);
-
-  if (currentOwnerResult.error) {
-    return {
-      message: propertyActionErrorMessage(currentOwnerResult.error.message),
-      status: "error",
-    };
-  }
-
-  if (ownerPersonId) {
-    const ownerResult = await ensureOwnerPersonRole({
-      organizationId,
-      ownerPersonId,
-      supabase,
-      userId,
-    });
-
-    if (ownerResult.status === "error") {
-      return ownerResult;
-    }
-  }
-
-  const currentOwners = currentOwnerResult.data ?? [];
-  const ownersToEnd = currentOwners.filter(
-    (owner) => owner.person_id !== ownerPersonId,
-  );
-  const ownerWasChanged =
-    ownersToEnd.length > 0 ||
-    Boolean(
-      ownerPersonId &&
-        !currentOwners.some((owner) => owner.person_id === ownerPersonId),
-    );
-
-  if (ownersToEnd.length > 0) {
-    const endResult = await supabase
-      .from("property_owners")
-      .update({
-        ended_on: today,
-        updated_at: now,
-        updated_by: userId,
-      })
-      .eq("organization_id", organizationId)
-      .in(
-        "id",
-        ownersToEnd.map((owner) => owner.id),
-      );
-
-    if (endResult.error) {
-      return {
-        message: propertyActionErrorMessage(endResult.error.message),
-        status: "error",
-      };
-    }
-  }
-
-  const ownerAlreadyCurrent =
-    ownerPersonId &&
-    currentOwners.some((owner) => owner.person_id === ownerPersonId);
-
-  if (ownerPersonId && !ownerAlreadyCurrent) {
-    const insertResult = await supabase.from("property_owners").insert({
-      created_by: userId,
-      is_primary: true,
-      organization_id: organizationId,
-      ownership_label: "Primary",
-      person_id: ownerPersonId,
-      property_id: propertyId,
-      started_on: today,
-      updated_at: now,
-      updated_by: userId,
-    });
-
-    if (insertResult.error) {
-      return {
-        message: propertyActionErrorMessage(insertResult.error.message),
-        status: "error",
-      };
-    }
-  }
-
-  if (ownerWasChanged) {
-    const activityResult = await supabase.from("activity_logs").insert({
-      action: "property_owner_updated",
-      actor_id: userId,
-      entity_id: propertyId,
-      entity_type: "property",
-      new_values: {
-        owner_person_id: ownerPersonId,
-      },
-      organization_id: organizationId,
-      previous_values: {
-        owner_person_ids: currentOwners.map((owner) => owner.person_id),
-      },
-    });
-
-    if (activityResult.error) {
-      return {
-        message: propertyActionErrorMessage(activityResult.error.message),
-        status: "error",
-      };
-    }
-  }
-
-  return { status: "success" };
-}
-
-async function ensureOwnerPersonRole({
-  organizationId,
-  ownerPersonId,
-  supabase,
-  userId,
-}: {
-  organizationId: string;
-  ownerPersonId: string;
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-  userId: string;
-}): Promise<PropertyActionState> {
-  const now = new Date().toISOString();
-  const personResult = await supabase
-    .from("people")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .eq("id", ownerPersonId)
-    .is("archived_at", null)
-    .maybeSingle();
-
-  if (personResult.error) {
-    return {
-      message: propertyActionErrorMessage(personResult.error.message),
-      status: "error",
-    };
-  }
-
-  if (!personResult.data) {
-    return {
-      fieldErrors: {
-        ownerPersonId: ["Choose an active person for the current owner."],
-      },
-      status: "error",
-    };
-  }
-
-  const roleResult = await supabase
-    .from("person_roles")
-    .select("id, archived_at")
-    .eq("organization_id", organizationId)
-    .eq("person_id", ownerPersonId)
-    .eq("role", "owner");
-
-  if (roleResult.error) {
-    return {
-      message: propertyActionErrorMessage(roleResult.error.message),
-      status: "error",
-    };
-  }
-
-  const existingRole =
-    (roleResult.data ?? []).find((role) => role.archived_at === null) ??
-    (roleResult.data ?? [])[0];
-
-  if (existingRole) {
-    const roleUpdateResult = await supabase
-      .from("person_roles")
-      .update({
-        archived_at: null,
-        archived_by: null,
-        status: "active",
-        updated_at: now,
-        updated_by: userId,
-      })
-      .eq("organization_id", organizationId)
-      .eq("id", existingRole.id);
-
-    if (roleUpdateResult.error) {
-      return {
-        message: propertyActionErrorMessage(roleUpdateResult.error.message),
-        status: "error",
-      };
-    }
-
-    return { status: "success" };
-  }
-
-  const roleInsertResult = await supabase.from("person_roles").insert({
-    created_by: userId,
-    organization_id: organizationId,
-    person_id: ownerPersonId,
-    role: "owner",
-    status: "active",
-    updated_at: now,
-    updated_by: userId,
-  });
-
-  if (roleInsertResult.error) {
-    return {
-      message: propertyActionErrorMessage(roleInsertResult.error.message),
-      status: "error",
-    };
-  }
-
-  return { status: "success" };
-}
-
 function propertyActionErrorMessage(message: string) {
   if (message.includes("duplicate key")) {
     return "A property with this code already exists.";
@@ -650,6 +402,10 @@ function propertyActionErrorMessage(message: string) {
 
   if (message.includes("Property not found")) {
     return "We could not find that property.";
+  }
+
+  if (message.includes("Owner person not found")) {
+    return "Choose an active person for the current owner.";
   }
 
   return "We could not save the property. Please check the fields and try again.";

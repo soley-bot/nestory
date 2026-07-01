@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { Json } from "@/types/database";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -160,25 +159,20 @@ export async function createDocumentAction(
     };
   }
 
-  const { data: document, error } = await supabase
-    .from("documents")
-    .insert({
-      category: parsed.data.category,
-      file_name: file.name,
-      lease_id: leaseId,
-      mime_type: file.type,
-      organization_id: context.organizationId,
-      property_id: parsed.data.propertyId,
-      size_bytes: file.size,
-      storage_path: storagePath,
-      task_id: taskId,
-      unit_id: unitId,
-      uploaded_by: context.userId,
-    })
-    .select("id")
-    .single();
+  const { data: documentId, error } = await supabase.rpc("create_document", {
+    p_category: parsed.data.category,
+    p_file_name: file.name,
+    p_lease_id: leaseId,
+    p_mime_type: file.type,
+    p_organization_id: context.organizationId,
+    p_property_id: parsed.data.propertyId,
+    p_size_bytes: file.size,
+    p_storage_path: storagePath,
+    p_task_id: taskId,
+    p_unit_id: unitId,
+  });
 
-  if (error || !document) {
+  if (error || !documentId) {
     await supabase.storage.from("nestory-documents").remove([storagePath]);
 
     return {
@@ -187,21 +181,6 @@ export async function createDocumentAction(
     };
   }
 
-  await logDocumentActivity({
-    action: "created",
-    actorId: context.userId,
-    documentId: document.id,
-    newValues: {
-      category: parsed.data.category,
-      file_name: file.name,
-      lease_id: leaseId,
-      property_id: parsed.data.propertyId,
-      task_id: taskId,
-      unit_id: unitId,
-    },
-    organizationId: context.organizationId,
-    supabase,
-  });
   revalidateDocumentPaths({
     propertyIds: [parsed.data.propertyId],
     unitIds: [unitId],
@@ -303,28 +282,19 @@ export async function updateDocumentAction(
     }
   }
 
-  const updateValues = {
-    category: parsed.data.category,
-    lease_id: leaseId,
-    property_id: parsed.data.propertyId,
-    task_id: taskId,
-    unit_id: unitId,
-  };
-
-  if (replacementFile && replacementPath) {
-    Object.assign(updateValues, {
-      file_name: replacementFile.name,
-      mime_type: replacementFile.type,
-      size_bytes: replacementFile.size,
-      storage_path: replacementPath,
-    });
-  }
-
-  const { error } = await supabase
-    .from("documents")
-    .update(updateValues)
-    .eq("organization_id", context.organizationId)
-    .eq("id", parsedDocumentId.data);
+  const { error } = await supabase.rpc("update_document", {
+    p_category: parsed.data.category,
+    p_document_id: parsedDocumentId.data,
+    p_file_name: replacementFile?.name ?? null,
+    p_lease_id: leaseId,
+    p_mime_type: replacementFile?.type ?? null,
+    p_organization_id: context.organizationId,
+    p_property_id: parsed.data.propertyId,
+    p_size_bytes: replacementFile?.size ?? null,
+    p_storage_path: replacementPath,
+    p_task_id: taskId,
+    p_unit_id: unitId,
+  });
 
   if (error) {
     if (replacementPath) {
@@ -347,28 +317,6 @@ export async function updateDocumentAction(
     }
   }
 
-  await logDocumentActivity({
-    action: replacementFile ? "document_replaced" : "updated",
-    actorId: context.userId,
-    documentId: parsedDocumentId.data,
-    newValues: {
-      category: parsed.data.category,
-      ...(replacementFile
-        ? {
-            file_name: replacementFile.name,
-            mime_type: replacementFile.type,
-            size_bytes: replacementFile.size,
-          }
-        : {}),
-      lease_id: leaseId,
-      property_id: parsed.data.propertyId,
-      task_id: taskId,
-      unit_id: unitId,
-    },
-    organizationId: context.organizationId,
-    previousValues: previous ? toDocumentActivityValues(previous) : undefined,
-    supabase,
-  });
   revalidateDocumentPaths({
     propertyIds: [previous?.property_id, parsed.data.propertyId],
     unitIds: [previous?.unit_id, unitId],
@@ -437,15 +385,13 @@ async function updateDocumentArchiveState({
     };
   }
 
-  const now = new Date().toISOString();
-  const { error } = await supabase
-    .from("documents")
-    .update({
-      archived_at: archived ? now : null,
-      archived_by: archived ? context.userId : null,
-    })
-    .eq("organization_id", context.organizationId)
-    .eq("id", parsedDocumentId.data);
+  const { error } = await supabase.rpc(
+    archived ? "archive_document" : "restore_document",
+    {
+      p_document_id: parsedDocumentId.data,
+      p_organization_id: context.organizationId,
+    },
+  );
 
   if (error) {
     return {
@@ -454,15 +400,6 @@ async function updateDocumentArchiveState({
     };
   }
 
-  await logDocumentActivity({
-    action: archived ? "archived" : "restored",
-    actorId: context.userId,
-    documentId: parsedDocumentId.data,
-    newValues: { archived_at: archived ? now : null },
-    organizationId: context.organizationId,
-    previousValues: previous ? toDocumentActivityValues(previous) : undefined,
-    supabase,
-  });
   revalidateDocumentPaths({
     propertyIds: [previous?.property_id],
     unitIds: [previous?.unit_id],
@@ -624,52 +561,6 @@ function getDocumentStoragePath(organizationId: string, fileName: string) {
   const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]+/g, "-");
 
   return `${organizationId}/documents/${crypto.randomUUID()}-${safeFileName}`;
-}
-
-function toDocumentActivityValues(document: DocumentPathContext) {
-  return {
-    archived_at: document.archived_at,
-    category: document.category,
-    file_name: document.file_name,
-    lease_id: document.lease_id,
-    mime_type: document.mime_type,
-    property_id: document.property_id,
-    size_bytes: document.size_bytes,
-    task_id: document.task_id,
-    unit_id: document.unit_id,
-  };
-}
-
-async function logDocumentActivity({
-  action,
-  actorId,
-  documentId,
-  newValues,
-  organizationId,
-  previousValues,
-  supabase,
-}: {
-  action: string;
-  actorId: string;
-  documentId: string;
-  newValues: Record<string, unknown>;
-  organizationId: string;
-  previousValues?: Record<string, unknown>;
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-}) {
-  const { error } = await supabase.from("activity_logs").insert({
-    action,
-    actor_id: actorId,
-    entity_id: documentId,
-    entity_type: "document",
-    new_values: newValues as Json,
-    organization_id: organizationId,
-    previous_values: previousValues ? (previousValues as Json) : null,
-  });
-
-  if (error) {
-    console.warn(`Could not log document activity: ${error.message}`);
-  }
 }
 
 function validateDocumentFile(file: File) {
