@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdminContext } from "@/lib/auth/context";
+import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 export type OrganizationActionState = {
@@ -46,11 +47,17 @@ const memberSchema = z.object({
   role: z.enum(["admin", "manager", "member"]),
 });
 
-const existingUserSchema = z.object({
+const temporaryPasswordSchema = z
+  .string()
+  .transform((value) => (value.length > 0 ? value : null))
+  .pipe(z.string().min(8).nullable());
+
+const userAccessSchema = z.object({
   branchId: optionalUuidSchema,
   email: z.email().trim(),
   personId: optionalUuidSchema,
   role: z.enum(["admin", "manager", "member"]),
+  temporaryPassword: temporaryPasswordSchema,
 });
 
 function readString(formData: FormData, key: string) {
@@ -168,15 +175,25 @@ export async function addExistingUserAccessAction(
   formData: FormData,
 ): Promise<OrganizationActionState> {
   const context = await requireAdminContext();
-  const parsed = existingUserSchema.safeParse({
+  const parsed = userAccessSchema.safeParse({
     branchId: readString(formData, "branchId"),
     email: readString(formData, "email"),
     personId: readString(formData, "personId"),
     role: readString(formData, "role"),
+    temporaryPassword: readString(formData, "temporaryPassword"),
   });
 
   if (!parsed.success) {
-    return { message: "Enter a valid email and role.", status: "error" };
+    return { message: "Enter a valid email, role, and 8+ character password.", status: "error" };
+  }
+
+  const authResult = await createAuthUserIfNeeded({
+    email: parsed.data.email,
+    password: parsed.data.temporaryPassword,
+  });
+
+  if (authResult.status === "error") {
+    return { message: authResult.message, status: "error" };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -192,11 +209,24 @@ export async function addExistingUserAccessAction(
   );
 
   if (error) {
+    if (error.message.includes("User account not found") && !parsed.data.temporaryPassword) {
+      return {
+        message: "Enter a temporary password to create this user.",
+        status: "error",
+      };
+    }
+
     return { message: organizationErrorMessage(error.message), status: "error" };
   }
 
   revalidateSettings();
-  return { message: "User access added.", status: "success" };
+  return {
+    message:
+      authResult.status === "created"
+        ? "User created and access added."
+        : "User access added.",
+    status: "success",
+  };
 }
 
 function revalidateSettings() {
@@ -231,4 +261,60 @@ function organizationErrorMessage(message: string) {
   }
 
   return "We could not save the organization setting.";
+}
+
+async function createAuthUserIfNeeded({
+  email,
+  password,
+}: {
+  email: string;
+  password: string | null;
+}): Promise<{ status: "created" | "error" | "skipped"; message?: string }> {
+  if (!password) {
+    return { status: "skipped" };
+  }
+
+  try {
+    const { error } = await createSupabaseAdminClient().auth.admin.createUser({
+      email,
+      email_confirm: true,
+      password,
+    });
+
+    if (!error) {
+      return { status: "created" };
+    }
+
+    if (isExistingAuthUserError(error.message)) {
+      return { status: "skipped" };
+    }
+
+    return { message: authAdminErrorMessage(error.message), status: "error" };
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY")
+          ? "Add SUPABASE_SERVICE_ROLE_KEY before creating users with passwords."
+          : "We could not create the auth user.",
+      status: "error",
+    };
+  }
+}
+
+function isExistingAuthUserError(message: string) {
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("already") ||
+    normalized.includes("registered") ||
+    normalized.includes("exists")
+  );
+}
+
+function authAdminErrorMessage(message: string) {
+  if (message.toLowerCase().includes("password")) {
+    return "Use a stronger temporary password.";
+  }
+
+  return "We could not create the auth user.";
 }

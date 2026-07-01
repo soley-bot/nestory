@@ -90,6 +90,8 @@ re-verified before production changes:
 - Public schema tables were designed with explicit Data API grants for
   `authenticated` plus server-only `service_role`; no broad anonymous table
   grants are intended.
+- Admin-created user access uses server-only Supabase Auth Admin calls and
+  requires `SUPABASE_SERVICE_ROLE_KEY` in the runtime environment.
 - Hosted auth state was previously verified with confirmed users,
   organizations, and admin memberships; do not delete confirmed Auth users or
   workspaces unless the user explicitly identifies them as test data.

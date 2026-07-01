@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { Plus, Save, Shield, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   addExistingUserAccessAction,
@@ -105,15 +106,21 @@ function InviteUserForm({
   return (
     <form
       action={action}
-      className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(180px,1fr)_150px_180px_220px_auto_auto] lg:items-center"
+      className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(170px,1fr)_170px_130px_170px_200px_auto_auto] lg:items-center"
     >
-      <input
-        className="h-8 min-w-0 rounded-md border border-border bg-surface px-2.5 text-[13px] shadow-sm outline-none transition-colors placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft"
+      <Input
         defaultValue={defaults?.email ?? ""}
         name="email"
         placeholder="user@example.com"
         required
         type="email"
+      />
+      <Input
+        autoComplete="new-password"
+        minLength={8}
+        name="temporaryPassword"
+        placeholder="Temporary password"
+        type="password"
       />
       <SelectControl
         ariaLabel="Role"
@@ -161,7 +168,7 @@ function InviteUserForm({
         <span className="truncate">Add person</span>
       </Link>
       {state.message ? (
-        <p className="text-xs text-muted lg:col-span-6" role="status">
+        <p className="text-xs text-muted lg:col-span-7" role="status">
           {state.message}
         </p>
       ) : null}
