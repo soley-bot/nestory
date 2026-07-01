@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { PeopleScreen } from "@/features/people/components/people-screen";
 import { PeopleScreenSkeleton } from "@/features/people/components/people-screen-skeleton";
+import { getAccessByPersonId } from "@/features/organization/data";
 import { getPeopleScreenData } from "@/features/people/data/people";
 import { parsePeopleSearchParams } from "@/features/people/people.filters";
 import type { PersonRoleValue } from "@/features/people/people.types";
@@ -17,6 +18,7 @@ export type PeopleModuleConfig = {
   description: string;
   role?: PersonRoleValue;
   searchPlaceholder: string;
+  showAccessStatus?: boolean;
   title: string;
 };
 
@@ -52,9 +54,16 @@ async function PeopleModulePageContent({
     viewQuery,
   );
   const initialPersonId = viewQuery.personId ?? undefined;
+  const accessByPersonId = config.showAccessStatus
+    ? await getAccessByPersonId(
+        context.organizationId,
+        people.map((person) => person.id),
+      )
+    : undefined;
 
   return (
     <PeopleScreen
+      accessByPersonId={accessByPersonId}
       addButtonLabel={config.addButtonLabel}
       createRole={config.createRole}
       description={config.description}

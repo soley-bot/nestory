@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import {
   ArchivePersonPanel,
   RestorePersonPanel,
@@ -36,6 +37,7 @@ type DrawerState =
   | { mode: "restore"; person: PeopleSummary };
 
 type PeopleScreenProps = {
+  accessByPersonId?: Record<string, OrganizationPersonAccessStatus>;
   addButtonLabel?: string;
   createRole?: PersonRoleValue;
   description?: string;
@@ -49,6 +51,7 @@ type PeopleScreenProps = {
 };
 
 export function PeopleScreen({
+  accessByPersonId,
   addButtonLabel = "Add person",
   createRole,
   description = "Operational people, company, tenant, owner, vendor, and staff records linked back to the work they support.",
@@ -213,7 +216,11 @@ export function PeopleScreen({
             openPeopleAction({ mode: "restore", person })
           }
           getPersonHref={getPersonRecordHref}
+          accessStatus={
+            selectedPerson ? accessByPersonId?.[selectedPerson.id] : undefined
+          }
           person={selectedPerson}
+          showAccessStatus={moduleRole === "staff"}
         />
       </RecordPreviewDrawer>
 

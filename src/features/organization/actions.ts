@@ -46,6 +46,13 @@ const memberSchema = z.object({
   role: z.enum(["admin", "manager", "member"]),
 });
 
+const existingUserSchema = z.object({
+  branchId: optionalUuidSchema,
+  email: z.email().trim(),
+  personId: optionalUuidSchema,
+  role: z.enum(["admin", "manager", "member"]),
+});
+
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
 
@@ -71,10 +78,10 @@ export async function createBranchAction(
   const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
     "create_organization_branch",
     {
-    p_address: parsed.data.address || null,
-    p_code: parsed.data.code,
-    p_name: parsed.data.name,
-    p_organization_id: context.organizationId,
+      p_address: parsed.data.address || null,
+      p_code: parsed.data.code,
+      p_name: parsed.data.name,
+      p_organization_id: context.organizationId,
     },
   );
 
@@ -105,10 +112,10 @@ export async function createTeamAction(
   const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
     "create_organization_team",
     {
-    p_branch_id: parsed.data.branchId,
-    p_manager_person_id: parsed.data.managerPersonId,
-    p_name: parsed.data.name,
-    p_organization_id: context.organizationId,
+      p_branch_id: parsed.data.branchId,
+      p_manager_person_id: parsed.data.managerPersonId,
+      p_name: parsed.data.name,
+      p_organization_id: context.organizationId,
     },
   );
 
@@ -140,11 +147,11 @@ export async function updateMemberAccessAction(
   const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
     "update_organization_member_access",
     {
-    p_branch_id: parsed.data.branchId,
-    p_member_id: parsed.data.memberId,
-    p_organization_id: context.organizationId,
-    p_person_id: parsed.data.personId,
-    p_role: parsed.data.role,
+      p_branch_id: parsed.data.branchId,
+      p_member_id: parsed.data.memberId,
+      p_organization_id: context.organizationId,
+      p_person_id: parsed.data.personId,
+      p_role: parsed.data.role,
     },
   );
 
@@ -156,6 +163,42 @@ export async function updateMemberAccessAction(
   return { message: "Access updated.", status: "success" };
 }
 
+export async function addExistingUserAccessAction(
+  _state: OrganizationActionState,
+  formData: FormData,
+): Promise<OrganizationActionState> {
+  const context = await requireAdminContext();
+  const parsed = existingUserSchema.safeParse({
+    branchId: readString(formData, "branchId"),
+    email: readString(formData, "email"),
+    personId: readString(formData, "personId"),
+    role: readString(formData, "role"),
+  });
+
+  if (!parsed.success) {
+    return { message: "Enter a valid email and role.", status: "error" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
+    "add_existing_organization_member",
+    {
+      p_branch_id: parsed.data.branchId,
+      p_email: parsed.data.email,
+      p_organization_id: context.organizationId,
+      p_person_id: parsed.data.personId,
+      p_role: parsed.data.role,
+    },
+  );
+
+  if (error) {
+    return { message: organizationErrorMessage(error.message), status: "error" };
+  }
+
+  revalidateSettings();
+  return { message: "User access added.", status: "success" };
+}
+
 function revalidateSettings() {
   revalidatePath("/settings");
   revalidatePath("/users-roles");
@@ -164,6 +207,17 @@ function revalidateSettings() {
 }
 
 function organizationErrorMessage(message: string) {
+  if (
+    message.includes("add_existing_organization_member") ||
+    message.includes("Could not find the function")
+  ) {
+    return "The add-user database function is not deployed yet.";
+  }
+
+  if (message.includes("User account not found")) {
+    return "That email has not signed up yet.";
+  }
+
   if (message.includes("duplicate key")) {
     return "That code or team name is already in use.";
   }

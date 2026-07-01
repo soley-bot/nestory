@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
-import { Save, Shield } from "lucide-react";
+import { Plus, Save, Shield, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SelectControl } from "@/components/ui/select-control";
 import {
+  addExistingUserAccessAction,
   updateMemberAccessAction,
   type OrganizationActionState,
 } from "@/features/organization/actions";
@@ -18,10 +20,15 @@ const initialState: OrganizationActionState = {};
 
 export function AccessSettingsScreen({
   branches,
+  inviteDefaults,
   members,
   people,
 }: {
   branches: OrganizationBranch[];
+  inviteDefaults?: {
+    email?: string;
+    personId?: string;
+  };
   members: OrganizationMembership[];
   people: OrganizationPersonOption[];
 }) {
@@ -45,6 +52,20 @@ export function AccessSettingsScreen({
       <section className="rounded-md border border-border bg-surface">
         <div className="border-b border-border px-3 py-2.5">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <UserPlus size={15} />
+            Add user
+          </h2>
+        </div>
+        <InviteUserForm
+          branches={branches}
+          defaults={inviteDefaults}
+          people={people}
+        />
+      </section>
+
+      <section className="rounded-md border border-border bg-surface">
+        <div className="border-b border-border px-3 py-2.5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
             <Shield size={15} />
             User access
           </h2>
@@ -61,6 +82,90 @@ export function AccessSettingsScreen({
         </div>
       </section>
     </div>
+  );
+}
+
+function InviteUserForm({
+  branches,
+  defaults,
+  people,
+}: {
+  branches: OrganizationBranch[];
+  defaults?: {
+    email?: string;
+    personId?: string;
+  };
+  people: OrganizationPersonOption[];
+}) {
+  const [state, action, pending] = useActionState(
+    addExistingUserAccessAction,
+    initialState,
+  );
+
+  return (
+    <form
+      action={action}
+      className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(180px,1fr)_150px_180px_220px_auto_auto] lg:items-center"
+    >
+      <input
+        className="h-8 min-w-0 rounded-md border border-border bg-surface px-2.5 text-[13px] shadow-sm outline-none transition-colors placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft"
+        defaultValue={defaults?.email ?? ""}
+        name="email"
+        placeholder="user@example.com"
+        required
+        type="email"
+      />
+      <SelectControl
+        ariaLabel="Role"
+        defaultValue="member"
+        name="role"
+        options={[
+          { label: "Admin", value: "admin" },
+          { label: "Manager", value: "manager" },
+          { label: "Member", value: "member" },
+        ]}
+      />
+      <SelectControl
+        ariaLabel="Branch"
+        defaultValue=""
+        name="branchId"
+        options={[
+          { label: "All branches", value: "" },
+          ...branches.map((branch) => ({
+            label: `${branch.code} - ${branch.name}`,
+            value: branch.id,
+          })),
+        ]}
+      />
+      <SelectControl
+        ariaLabel="Staff person"
+        defaultValue={defaults?.personId ?? ""}
+        name="personId"
+        options={[
+          { label: "No staff link", value: "" },
+          ...people.map((person) => ({
+            label: person.label,
+            value: person.id,
+          })),
+        ]}
+      />
+      <Button disabled={pending} type="submit" variant="primary">
+        <Plus size={15} />
+        {pending ? "Adding..." : "Add"}
+      </Button>
+      <Link
+        className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+        href="/people?action=create"
+      >
+        <UserPlus size={15} />
+        <span className="truncate">Add person</span>
+      </Link>
+      {state.message ? (
+        <p className="text-xs text-muted lg:col-span-6" role="status">
+          {state.message}
+        </p>
+      ) : null}
+    </form>
   );
 }
 

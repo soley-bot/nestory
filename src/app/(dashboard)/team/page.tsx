@@ -14,6 +14,7 @@ export default function TeamPage({ searchParams }: TeamPageProps) {
           "Staff directory records for property management contacts and operating follow-up.",
         role: "staff",
         searchPlaceholder: "Search staff, contact, role, or operating note",
+        showAccessStatus: true,
         title: "Staff",
       }}
       searchParams={searchParams}

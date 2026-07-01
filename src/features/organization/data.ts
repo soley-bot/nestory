@@ -38,6 +38,11 @@ export type OrganizationMembership = {
   userId: string;
 };
 
+export type OrganizationPersonAccessStatus = {
+  email: string | null;
+  role: OrganizationMembership["role"];
+};
+
 type BranchRow = {
   address: string | null;
   code: string;
@@ -97,6 +102,30 @@ export async function getAccessSettingsData(organizationId: string) {
   ]);
 
   return { branches, members, staff };
+}
+
+export async function getAccessByPersonId(
+  organizationId: string,
+  personIds: string[],
+): Promise<Record<string, OrganizationPersonAccessStatus>> {
+  if (personIds.length === 0) {
+    return {};
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const personIdSet = new Set(personIds);
+  const memberships = await loadMemberships(
+    supabase as unknown as UntypedSupabaseClient,
+    organizationId,
+  );
+
+  return Object.fromEntries(
+    memberships.flatMap((member) =>
+      member.personId && personIdSet.has(member.personId)
+        ? [[member.personId, { email: member.email, role: member.role }]]
+        : [],
+    ),
+  );
 }
 
 async function loadBranches(
