@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/page-header";
+import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { OrganizationSettingsScreen } from "@/features/organization/components/organization-settings-screen";
 import { getOrganizationSettingsData } from "@/features/organization/data";
 import { requireWorkspaceContext } from "@/lib/auth/context";
@@ -10,9 +11,10 @@ export default async function SettingsPage() {
   return (
     <div>
       <PageHeader
-        description="Branches, teams, and the real-world company structure."
-        title="Organization"
+        description="Configure workspace structure, access, module defaults, and system controls."
+        title="Settings"
       />
+      <SettingsTabs activeHref="/settings" />
       <OrganizationSettingsScreen
         branches={data.branches}
         organizationName={context.organizationName}

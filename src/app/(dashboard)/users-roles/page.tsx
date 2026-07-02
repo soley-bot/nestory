@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/page-header";
+import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { AccessSettingsScreen } from "@/features/organization/components/access-settings-screen";
 import { getAccessSettingsData } from "@/features/organization/data";
 import { requireAdminContext } from "@/lib/auth/context";
@@ -17,9 +18,10 @@ export default async function UsersRolesPage({
   return (
     <div>
       <PageHeader
-        description="Software access: admin, manager, and member permissions."
-        title="Users & Roles"
+        description="Configure workspace structure, access, module defaults, and system controls."
+        title="Settings"
       />
+      <SettingsTabs activeHref="/users-roles" />
       <AccessSettingsScreen
         branches={data.branches}
         inviteDefaults={{

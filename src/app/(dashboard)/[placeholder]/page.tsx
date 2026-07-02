@@ -21,6 +21,7 @@ import {
   type DashboardPeriodKey,
 } from "@/components/dashboard/dashboard-period-picker";
 import { PageHeader } from "@/components/layout/page-header";
+import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { OverviewMetricAreaChart } from "@/features/overview/components/overview-charts";
 import { getPropertySummaries } from "@/features/properties/data/properties";
 import { requireWorkspaceContext } from "@/lib/auth/context";
@@ -962,7 +963,7 @@ export default async function PlaceholderPage({
   return resolvedPage.dashboard ? (
     <DomainDashboard page={resolvedPage} />
   ) : (
-    <PlaceholderView page={resolvedPage} />
+    <PlaceholderView activeHref={`/${placeholder}`} page={resolvedPage} />
   );
 }
 
@@ -1412,10 +1413,17 @@ function FinanceRecentLedger({
   );
 }
 
-function PlaceholderView({ page }: { page: PlaceholderPage }) {
+function PlaceholderView({
+  activeHref,
+  page,
+}: {
+  activeHref: string;
+  page: PlaceholderPage;
+}) {
   return (
     <div>
       <PageHeader description={page.description} title={page.title} />
+      {page.room === "Settings" ? <SettingsTabs activeHref={activeHref} /> : null}
       <main className="px-4 py-4 sm:px-6 lg:px-6">
         <section className="rounded-md border border-border bg-surface px-4 py-5">
           <p className="text-xs font-medium text-muted">{page.room}</p>
