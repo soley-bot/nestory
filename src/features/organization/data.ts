@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { createSupabaseAdminClient } from "@/lib/db/admin";
 
 type UntypedSupabaseClient = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,13 +92,17 @@ export async function getOrganizationSettingsData(organizationId: string) {
   return { branches, staff, teams };
 }
 
-export async function getAccessSettingsData(organizationId: string) {
+export async function getAccessSettingsData(
+  organizationId: string,
+  actorUserId: string,
+) {
   const supabase = await createSupabaseServerClient();
   const untypedSupabase = supabase as unknown as UntypedSupabaseClient;
+  const adminSupabase = createSupabaseAdminClient() as unknown as UntypedSupabaseClient;
 
   const [branches, members, staff] = await Promise.all([
     loadBranches(untypedSupabase, organizationId),
-    loadMemberships(untypedSupabase, organizationId),
+    loadMemberships(adminSupabase, organizationId, actorUserId),
     loadStaffForOrganization(supabase, organizationId),
   ]);
 
@@ -106,17 +111,19 @@ export async function getAccessSettingsData(organizationId: string) {
 
 export async function getAccessByPersonId(
   organizationId: string,
+  actorUserId: string,
   personIds: string[],
 ): Promise<Record<string, OrganizationPersonAccessStatus>> {
   if (personIds.length === 0) {
     return {};
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const personIdSet = new Set(personIds);
   const memberships = await loadMemberships(
     supabase as unknown as UntypedSupabaseClient,
     organizationId,
+    actorUserId,
   );
 
   return Object.fromEntries(
@@ -178,8 +185,10 @@ async function loadTeams(
 async function loadMemberships(
   supabase: UntypedSupabaseClient,
   organizationId: string,
+  actorUserId: string,
 ): Promise<OrganizationMembership[]> {
   const membersResult = await supabase.rpc("get_organization_access_members", {
+    p_actor_user_id: actorUserId,
     p_organization_id: organizationId,
   });
   let memberRows = ((membersResult.data ?? []) as unknown) as MembershipRow[];

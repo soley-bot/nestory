@@ -196,10 +196,11 @@ export async function addExistingUserAccessAction(
     return { message: authResult.message, status: "error" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
     "add_existing_organization_member",
     {
+      p_actor_user_id: context.userId,
       p_branch_id: parsed.data.branchId,
       p_email: parsed.data.email,
       p_organization_id: context.organizationId,
