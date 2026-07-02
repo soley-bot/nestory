@@ -113,6 +113,7 @@ const redirectPlaceholderPages: Record<string, string> = {
   "property-dashboard": "/properties",
   "property-inspections": "/inspections",
   "property-timeline": "/timeline",
+  security: "/users-roles",
 };
 
 const placeholderPages: Record<string, PlaceholderPage> = {
