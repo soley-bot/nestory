@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
-  IconActivity,
   IconAlertTriangle,
   IconArrowRight,
   IconBuilding,
@@ -13,7 +12,6 @@ import {
 } from "@tabler/icons-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
-import type { RecentChangeTone } from "@/features/activity/activity.types";
 import {
   OverviewLedgerAreaChart,
   OverviewLeaseEndingDonut,
@@ -27,7 +25,6 @@ import type {
   OverviewQuickAction,
   OverviewScreenData,
 } from "@/features/overview/overview.types";
-import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +36,10 @@ type PrimaryMetric = {
   href: string;
   icon: TablerIcon;
   metric: OverviewMetric;
+  visualTone?: OverviewVisualTone;
 };
+
+type OverviewVisualTone = OverviewMetricTone | "accent";
 
 const supportingMetricLabels = ["Lease gaps", "Active leases", "Attention"];
 
@@ -57,6 +57,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
       href: "/ledger?period=current_month",
       icon: IconCurrencyDollar,
       metric: { ...ledgerMetric, label: "Current month net" },
+      visualTone: "accent",
     },
     {
       href: "/leases?status=current&endsWithin=60d&sort=end_asc",
@@ -80,7 +81,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
 
   return (
     <main className="min-h-screen bg-background px-4 py-3 sm:px-5 lg:px-5">
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-stretch 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-3">
           <DashboardSummaryPanel
             summary={data.dashboardSummary}
@@ -89,7 +90,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
 
           <section
             aria-label="Portfolio signals"
-            className="grid grid-cols-1 overflow-hidden rounded-md border border-border bg-surface shadow-sm sm:grid-cols-2 xl:grid-cols-4"
+            className="grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-surface shadow-sm sm:grid-cols-2 xl:grid-cols-4"
           >
             {primaryMetrics.map((item) => (
               <PrimaryMetricTile
@@ -97,27 +98,30 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
                 icon={item.icon}
                 key={item.metric.label}
                 metric={item.metric}
+                visualTone={item.visualTone}
               />
             ))}
           </section>
 
-          <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+          <section className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
             <ChartPanel
               actionHref="/units?occupancy=unoccupied"
               actionLabel="Review open units"
+              className="xl:h-full"
               priority="primary"
               title="Lowest occupancy by property"
             >
               <OccupancyChart points={data.occupancyByProperty} />
             </ChartPanel>
 
-            <div className="grid min-w-0 grid-cols-1 gap-3">
+            <div className="grid min-w-0 grid-cols-1 gap-3 xl:h-full xl:grid-rows-[minmax(0,1fr)_auto]">
               <ChartPanel
                 actionHref="/ledger?period=current_month"
                 actionLabel="Open ledger"
                 title="Cash movement, 6 months"
               >
                 <LedgerFlowChart
+                  className="h-52 xl:h-56"
                   currency={data.ledgerCurrency}
                   points={data.ledgerFlow}
                 />
@@ -134,13 +138,13 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
           </section>
         </div>
 
-        <aside className="min-w-0 space-y-3 xl:sticky xl:top-3 xl:self-start">
+        <aside className="min-w-0 space-y-3 xl:sticky xl:top-3 xl:flex xl:h-full xl:flex-col xl:self-stretch xl:space-y-0 xl:gap-3">
           <FocusPanel
+            className="xl:flex-1"
             items={data.attentionItems}
             summary={data.dashboardSummary}
             total={data.attentionTotal}
           />
-          <RecentActivityList changes={data.recentChanges} />
           <QuickActions actions={data.quickActions} />
         </aside>
       </div>
@@ -156,7 +160,7 @@ function DashboardSummaryPanel({
   supportingMetrics: OverviewMetric[];
 }) {
   return (
-    <section className="min-w-0 rounded-md border border-border bg-surface p-3 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-border bg-surface p-3 shadow-sm">
       <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_170px] lg:items-start">
         <div className="min-w-0">
           <Badge tone={summary.tone}>{summaryStateLabel(summary.tone)}</Badge>
@@ -192,16 +196,20 @@ function PrimaryMetricTile({
   href,
   icon: Icon,
   metric,
+  visualTone,
 }: {
   href: string;
   icon: TablerIcon;
   metric: OverviewMetric;
+  visualTone?: OverviewVisualTone;
 }) {
+  const tone = visualTone ?? metric.tone;
+
   return (
     <Link
       className={cn(
         "group flex min-h-[64px] min-w-0 flex-col justify-between border-b border-border px-3 py-2 transition-colors last:border-b-0 hover:bg-surface-muted sm:border-r sm:last:border-r-0 xl:border-b-0",
-        metricAccentClass(metric.tone),
+        metricAccentClass(tone),
       )}
       href={href}
       title={metric.helper}
@@ -210,7 +218,7 @@ function PrimaryMetricTile({
         <p className="min-w-0 text-[11px] font-medium uppercase tracking-[0] text-foreground-subtle">
           {metric.label}
         </p>
-        <Icon className={cn("shrink-0", toneIconClass(metric.tone))} size={15} />
+        <Icon className={cn("shrink-0", toneIconClass(tone))} size={15} />
       </div>
       <div className="mt-1 min-w-0 text-[15px] font-semibold leading-5">
         {isMoneyDisplayValue(metric.value) ? (
@@ -250,22 +258,27 @@ function SupportingMetric({ metric }: { metric: OverviewMetric }) {
 }
 
 function FocusPanel({
+  className,
   items,
   summary,
   total,
 }: {
+  className?: string;
   items: OverviewAttentionItem[];
   summary: OverviewDashboardSummary;
   total: number;
 }) {
   return (
     <aside
-      className="min-w-0 scroll-mt-4 rounded-md border border-border bg-surface shadow-sm"
+      className={cn(
+        "min-w-0 scroll-mt-4 rounded-lg border border-border bg-surface shadow-sm",
+        className,
+      )}
       id="focus-now"
     >
       <div className="flex items-start justify-between gap-3 border-b border-border px-3 py-2.5">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold leading-5">Focus now</h2>
+          <h2 className="text-sm font-semibold leading-5">Focus now</h2>
         </div>
         <Badge tone={total > 0 ? summary.tone : "success"}>{total}</Badge>
       </div>
@@ -277,7 +290,7 @@ function FocusPanel({
         </div>
       ) : (
         <ul className="divide-y divide-border">
-          {items.slice(0, 5).map((item, index) => (
+          {items.slice(0, 7).map((item, index) => (
             <li key={item.label}>
               <Link
                 className="grid min-w-0 grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-surface-muted"
@@ -311,6 +324,7 @@ function ChartPanel({
   actionHref,
   actionLabel,
   children,
+  className,
   description,
   priority = "secondary",
   title,
@@ -318,6 +332,7 @@ function ChartPanel({
   actionHref: string;
   actionLabel: string;
   children: ReactNode;
+  className?: string;
   description?: string;
   priority?: "primary" | "secondary";
   title: string;
@@ -325,16 +340,16 @@ function ChartPanel({
   return (
     <section
       className={cn(
-        "min-w-0 rounded-md border border-border bg-surface p-3 shadow-sm",
+        "min-w-0 rounded-lg border border-border bg-surface p-3 shadow-sm",
         priority === "primary" ? "xl:min-h-[260px]" : null,
+        className,
       )}
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <h2
             className={cn(
-              "font-semibold tracking-tight",
-              "text-[15px] leading-5",
+              "text-sm font-semibold leading-5 tracking-normal",
             )}
           >
             {title}
@@ -371,13 +386,21 @@ function OccupancyChart({
 }
 
 function LedgerFlowChart({
+  className,
   currency,
   points,
 }: {
+  className?: string;
   currency: OverviewScreenData["ledgerCurrency"];
   points: OverviewScreenData["ledgerFlow"];
 }) {
-  return <OverviewLedgerAreaChart currency={currency} points={points} />;
+  return (
+    <OverviewLedgerAreaChart
+      className={className}
+      currency={currency}
+      points={points}
+    />
+  );
 }
 
 function LeaseEndingChart({
@@ -388,62 +411,12 @@ function LeaseEndingChart({
   return <OverviewLeaseEndingDonut points={points} />;
 }
 
-function RecentActivityList({
-  changes,
-}: {
-  changes: OverviewScreenData["recentChanges"];
-}) {
-  return (
-    <section className="rounded-md border border-border bg-surface shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <IconActivity size={15} className="text-foreground-subtle" />
-          <h2 className="text-[15px] font-semibold leading-5">Recent activity</h2>
-        </div>
-        <Badge>{changes.length}</Badge>
-      </div>
-      {changes.length === 0 ? (
-        <EmptyPanelText className="px-4 py-4">No activity logged yet.</EmptyPanelText>
-      ) : (
-        <ul className="divide-y divide-border">
-          {changes.slice(0, 4).map((change) => (
-            <li className="min-w-0" key={change.id}>
-              <Link
-                className="block min-w-0 px-3 py-2.5 transition-colors hover:bg-surface-muted"
-                href={change.href}
-                title={`Open ${change.entityLabel.toLowerCase()} record`}
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-medium leading-5">
-                    {change.recordLabel}
-                  </span>
-                  <span className="block truncate text-xs leading-4 text-foreground-subtle">
-                    {change.entityLabel} / {formatDate(change.createdAt)}
-                  </span>
-                  <span
-                    className={cn(
-                      "mt-1 block truncate text-[11px] font-medium leading-4",
-                      activityToneClass(change.tone),
-                    )}
-                  >
-                    {change.actionLabel}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 function QuickActions({ actions }: { actions: OverviewQuickAction[] }) {
   return (
-    <section className="rounded-md border border-border bg-surface shadow-sm">
+    <section className="rounded-lg border border-border bg-surface shadow-sm">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
         <IconPlus size={15} className="text-foreground-subtle" />
-        <h2 className="text-[15px] font-semibold leading-5">Quick actions</h2>
+        <h2 className="text-sm font-semibold leading-5">Quick actions</h2>
       </div>
       <div className="grid grid-cols-2 gap-2 p-3">
         {actions.map((action) => (
@@ -485,7 +458,15 @@ function isMoneyDisplayValue(value: OverviewMetric["value"]): value is MoneyDisp
   return typeof value === "object" && value !== null && "primary" in value;
 }
 
-function metricAccentClass(tone: OverviewMetricTone) {
+function metricAccentClass(tone: OverviewVisualTone) {
+  if (tone === "accent") {
+    return "bg-accent-soft/45 hover:bg-accent-soft/60";
+  }
+
+  if (tone === "success") {
+    return "bg-success-soft/35 hover:bg-success-soft/50";
+  }
+
   if (tone === "warning") {
     return "bg-warning-soft/30 hover:bg-warning-soft/45";
   }
@@ -521,23 +502,11 @@ function summaryMetricLabel(label: string) {
   return label;
 }
 
-function toneIconClass(tone: OverviewMetricTone) {
-  if (tone === "success") {
+function toneIconClass(tone: OverviewVisualTone) {
+  if (tone === "accent") {
     return "text-accent";
   }
 
-  if (tone === "warning") {
-    return "text-warning";
-  }
-
-  if (tone === "danger") {
-    return "text-danger";
-  }
-
-  return "text-foreground-subtle";
-}
-
-function activityToneClass(tone: RecentChangeTone) {
   if (tone === "success") {
     return "text-success";
   }
@@ -546,8 +515,8 @@ function activityToneClass(tone: RecentChangeTone) {
     return "text-warning";
   }
 
-  if (tone === "accent") {
-    return "text-accent";
+  if (tone === "danger") {
+    return "text-danger";
   }
 
   return "text-foreground-subtle";

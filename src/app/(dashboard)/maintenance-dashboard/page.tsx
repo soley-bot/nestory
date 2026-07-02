@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { FileText, Wrench } from "lucide-react";
+import { ArrowUpRight, FileText } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { MaintenanceBreakdown } from "@/features/maintenance/components/maintenance-breakdown";
 import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
-import { getMaintenanceReportHref } from "@/features/maintenance/maintenance.hrefs";
+import {
+  getMaintenanceListHref,
+  getMaintenanceReportHref,
+} from "@/features/maintenance/maintenance.hrefs";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 
 type MaintenanceDashboardPageProps = {
@@ -33,23 +36,20 @@ export default async function MaintenanceDashboardPage({
               href={getMaintenanceReportHref(viewQuery)}
             >
               <FileText size={15} />
-              Make report
+              Report
             </Link>
-            {context.role !== "member" ? (
-              <Link
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
-                href="/maintenance?action=create"
-              >
-                <Wrench size={15} />
-                New case
-              </Link>
-            ) : null}
+            <Link
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-primary bg-primary px-3 text-[13px] font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+              href={getMaintenanceListHref(viewQuery, { review: "open" })}
+            >
+              <ArrowUpRight size={15} />
+              Open cases
+            </Link>
           </>
         }
-        description="Maintenance health, reminders, repeated issues, and property/unit workload."
         title="Maintenance Dashboard"
       />
-      <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6">
+      <main className="space-y-3 px-4 py-3 sm:px-5 lg:px-5">
         <MaintenanceBreakdown summary={data.summary} viewQuery={viewQuery} />
       </main>
     </div>

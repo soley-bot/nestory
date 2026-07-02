@@ -94,14 +94,16 @@ export function OverviewOccupancyBars({
 }
 
 export function OverviewLedgerAreaChart({
+  className,
   currency,
   points,
 }: {
+  className?: string;
   currency: CurrencyCode;
   points: OverviewLedgerPoint[];
 }) {
   return (
-    <div className="h-40 min-w-0">
+    <div className={cn("h-40 min-w-0", className)}>
       <ResponsiveContainer>
         <AreaChart data={points} margin={{ bottom: 0, left: 0, right: 4, top: 6 }}>
           <defs>
@@ -348,6 +350,10 @@ function OverviewTooltip({
 
 function formatCompactMoney(amount: number, currency: CurrencyCode) {
   const absolute = Math.abs(amount);
+
+  if (currency === "USD" && amount === 0) {
+    return "$";
+  }
 
   if (currency === "USD" && absolute >= 1_000) {
     return `${amount < 0 ? "-" : ""}${Math.round(absolute / 1_000)}k`;

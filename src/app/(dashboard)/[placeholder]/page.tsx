@@ -437,14 +437,14 @@ async function DomainDashboard({ page }: { page: PlaceholderPage }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="mx-auto grid w-full max-w-[1500px] gap-2 px-4 pb-0.5 pt-2.5 sm:px-5 lg:px-5">
+      <main className="mx-auto grid w-full max-w-[1500px] gap-3 px-4 py-3 sm:px-5 lg:px-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-[24px] font-semibold leading-7 tracking-normal text-foreground sm:text-[26px]">
+          <h1 className="text-base font-semibold leading-6 tracking-normal text-foreground">
             {page.title}
           </h1>
           <div className="flex flex-wrap items-center gap-2">
             <button
-              className="inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-[13px] font-medium text-foreground shadow-sm"
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-foreground shadow-sm"
               type="button"
             >
               <CalendarDays size={15} />
@@ -452,14 +452,14 @@ async function DomainDashboard({ page }: { page: PlaceholderPage }) {
             </button>
             <button
               aria-label="Filters"
-              className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-surface text-foreground shadow-sm"
+              className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-surface text-foreground shadow-sm"
               title="Filters"
               type="button"
             >
               <SlidersHorizontal size={16} />
             </button>
             <Link
-              className="inline-flex h-8 items-center justify-center gap-2 rounded-lg bg-accent px-5 text-[14px] font-semibold text-background shadow-sm transition-colors hover:bg-accent-strong"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-accent px-4 text-[13px] font-medium text-background shadow-sm transition-colors hover:bg-accent-strong"
               href={dashboard.actionHref}
             >
               Open
@@ -468,7 +468,7 @@ async function DomainDashboard({ page }: { page: PlaceholderPage }) {
           </div>
         </div>
 
-        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {dashboard.kpis.map((kpi, index) => (
             <MetricTile
               helper={kpi.helper}
@@ -501,8 +501,8 @@ async function DomainDashboard({ page }: { page: PlaceholderPage }) {
           </section>
         ) : null}
 
-        <section className="grid grid-cols-1 items-start gap-2 xl:grid-cols-[minmax(0,1.06fr)_minmax(420px,0.86fr)]">
-          <div className="grid min-w-0 grid-cols-1 gap-2">
+        <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.06fr)_minmax(420px,0.86fr)]">
+          <div className="grid min-w-0 grid-cols-1 gap-3">
             <ChartPanel
               actionHref={dashboard.actionHref}
               actionLabel="View all"
@@ -670,7 +670,7 @@ function MetricTile({
   return (
     <div
       className={cn(
-        "relative min-h-[76px] overflow-hidden rounded-lg border border-border bg-surface p-2.5 shadow-sm",
+        "relative min-h-[76px] overflow-hidden rounded-lg border border-border bg-surface p-3 shadow-sm",
         "before:absolute before:inset-x-0 before:top-0 before:h-[3px]",
         toneRuleClass(visualTone),
       )}
@@ -717,7 +717,7 @@ function SignalStrip({
 }) {
   return (
     <Link
-      className="flex min-w-0 items-center gap-2.5 border-b border-border px-3 py-1.5 text-[13px] transition-colors last:border-b-0 hover:bg-surface-muted sm:border-b-0 sm:border-r sm:last:border-r-0"
+      className="flex min-w-0 items-center gap-2.5 border-b border-border px-3 py-2 text-[13px] transition-colors last:border-b-0 hover:bg-surface-muted sm:border-b-0 sm:border-r sm:last:border-r-0"
       href={href}
       prefetch={false}
     >
@@ -760,23 +760,23 @@ function ChartPanel({
   return (
     <section
       className={cn(
-        "min-w-0 rounded-lg border border-border bg-surface p-2.5 shadow-sm",
+        "min-w-0 rounded-lg border border-border bg-surface p-3 shadow-sm",
         priority === "primary" ? "xl:min-h-0" : null,
       )}
     >
       <div className="flex min-w-0 shrink-0 items-start justify-between gap-3">
-        <h2 className="text-[16px] font-semibold leading-5 tracking-normal text-foreground">
+        <h2 className="text-sm font-semibold leading-5 tracking-normal text-foreground">
           {title}
         </h2>
         <Link
-          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-accent transition-colors hover:bg-surface-muted hover:text-accent-strong"
           href={actionHref}
         >
           {actionLabel}
           <ArrowUpRight size={12} />
         </Link>
       </div>
-      <div className="pt-2.5">
+      <div className="pt-3">
         {children}
       </div>
     </section>
@@ -795,7 +795,7 @@ function HealthPanel({
 
         return (
           <Link
-            className="group grid min-w-0 gap-1 rounded-lg px-2 py-0.5 transition-colors hover:bg-surface-muted"
+            className="group grid min-w-0 gap-1 rounded-md px-2 py-1 transition-colors hover:bg-surface-muted"
             href={point.href}
             key={point.label}
             title={point.helper}
@@ -856,7 +856,7 @@ function TrendGraph({ points }: { points: DashboardPage["trend"] }) {
         <span className="text-xs font-medium text-foreground-muted">
           {points.label}
         </span>
-        <span className="text-[22px] font-semibold leading-6 tabular-nums text-foreground">
+        <span className="text-2xl font-semibold leading-7 tabular-nums text-foreground">
           {last ? formatTrendValue(last.value, points.suffix) : "0"}
         </span>
         <span className="inline-flex rounded-md bg-success-soft px-2 py-0.5 text-[11px] font-medium text-success">
@@ -905,7 +905,7 @@ function DriverList({
       </div>
       {points.map((point, index) => (
         <Link
-          className="grid min-w-0 gap-2.5 border-b border-border px-2 py-2.5 transition-colors last:border-b-0 hover:bg-surface-muted sm:grid-cols-[minmax(0,1fr)_104px_116px] sm:items-center"
+          className="grid min-w-0 gap-2.5 rounded-md border-b border-border px-2 py-2.5 transition-colors last:border-b-0 hover:bg-surface-muted sm:grid-cols-[minmax(0,1fr)_104px_116px] sm:items-center"
           href={point.href}
           key={point.label}
           title={point.helper}
