@@ -5,11 +5,14 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import {
+  Activity,
   Bell,
   BookOpen,
+  Brush,
   Building2,
-  CalendarDays,
+  CalendarClock,
   CheckSquare,
+  CircleAlert,
   ClipboardCheck,
   ClipboardList,
   Coins,
@@ -19,9 +22,13 @@ import {
   ChevronRight,
   DoorOpen,
   FileChartColumn,
+  FileCog,
+  Gauge,
   History,
+  House,
   IdCard,
   KeyRound,
+  Landmark,
   LayoutDashboard,
   LogOut,
   MoreHorizontal,
@@ -29,6 +36,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
+  Package,
   ReceiptText,
   Repeat,
   ScrollText,
@@ -71,7 +79,7 @@ const navGroups: NavGroup[] = [
     roomLabel: "Dashboard",
     icon: LayoutDashboard,
     items: [
-      { href: "/overview", label: "Overview", icon: LayoutDashboard },
+      { href: "/overview", label: "Overview", icon: Gauge },
       {
         href: "/property-dashboard",
         label: "Property",
@@ -80,7 +88,7 @@ const navGroups: NavGroup[] = [
       {
         href: "/maintenance-dashboard",
         label: "Maintenance",
-        icon: Wrench,
+        icon: ClipboardList,
       },
       { href: "/finance-dashboard", label: "Finance", icon: Wallet },
     ],
@@ -91,7 +99,7 @@ const navGroups: NavGroup[] = [
     roomLabel: "Property",
     icon: Building2,
     items: [
-      { href: "/properties", label: "Properties", icon: Building2 },
+      { href: "/properties", label: "Properties", icon: House },
       { href: "/units", label: "Units", icon: DoorOpen },
       { href: "/amenities", label: "Amenities", icon: Sparkles },
       { href: "/property-inspections", label: "Inspections", icon: ClipboardCheck },
@@ -124,20 +132,20 @@ const navGroups: NavGroup[] = [
     roomLabel: "Maintenance",
     icon: Wrench,
     items: [
-      { href: "/maintenance", label: "Requests", icon: Wrench },
+      { href: "/maintenance", label: "Requests", icon: CircleAlert },
       { href: "/work-orders", label: "Work Orders", icon: ClipboardList },
-      { href: "/schedule", label: "Schedule", icon: CalendarDays },
+      { href: "/schedule", label: "Schedule", icon: CalendarClock },
       { href: "/tasks", label: "Tasks", icon: CheckSquare },
       { href: "/inspections", label: "Inspections", icon: ClipboardCheck },
       { href: "/recurring-tasks", label: "Recurring Tasks", icon: Repeat },
-      { href: "/inventory", label: "Inventory", icon: Database },
+      { href: "/inventory", label: "Inventory", icon: Package },
     ],
   },
   {
     id: "finance",
     label: "Finance",
     roomLabel: "Finance",
-    icon: Wallet,
+    icon: Landmark,
     items: [
       { href: "/leases", label: "Leases", icon: ScrollText },
       { href: "/ledger", label: "Ledger", icon: BookOpen },
@@ -153,7 +161,7 @@ const navGroups: NavGroup[] = [
     roomLabel: "Timeline",
     icon: History,
     items: [
-      { href: "/timeline", label: "Global Timeline", icon: History },
+      { href: "/timeline", label: "Global Timeline", icon: Activity },
       {
         href: "/property-timeline",
         label: "Property Timeline",
@@ -180,9 +188,9 @@ const settingsGroup: NavGroup = {
   icon: Settings,
   items: [
     { href: "/settings", label: "Organization", icon: Building2, section: "Organization" },
-    { href: "/branding", label: "Branding", icon: Sparkles, section: "Organization" },
+    { href: "/branding", label: "Branding", icon: Brush, section: "Organization" },
     { href: "/users-roles", label: "Users & Roles", icon: UsersRound, section: "Access" },
-    { href: "/property-settings", label: "Property", icon: Building2, section: "Modules" },
+    { href: "/property-settings", label: "Property", icon: FileCog, section: "Modules" },
     { href: "/lease-settings", label: "Lease", icon: ScrollText, section: "Modules" },
     { href: "/maintenance-settings", label: "Maintenance", icon: Wrench, section: "Modules" },
     { href: "/financial-settings", label: "Financial", icon: Wallet, section: "Modules" },
@@ -194,11 +202,11 @@ const settingsGroup: NavGroup = {
 };
 
 const mobilePrimaryItems = [
-  { href: "/overview", label: "Overview", icon: LayoutDashboard },
-  { href: "/properties", label: "Properties", icon: Building2 },
+  { href: "/overview", label: "Overview", icon: Gauge },
+  { href: "/properties", label: "Properties", icon: House },
   { href: "/units", label: "Units", icon: DoorOpen },
-  { href: "/maintenance", label: "Requests", icon: Wrench },
-  { href: "/ledger", label: "Ledger", icon: BookOpen },
+  { href: "/maintenance", label: "Requests", icon: CircleAlert },
+  { href: "/ledger", label: "Ledger", icon: Landmark },
 ] satisfies NavItem[];
 
 type AppShellProps = {
@@ -218,7 +226,7 @@ function getDesktopNavGroups(role: WorkspaceRole) {
       {
         ...navGroups.find((group) => group.id === "operations")!,
         items: [
-          { href: "/maintenance", label: "Requests", icon: Wrench },
+          { href: "/maintenance", label: "Requests", icon: CircleAlert },
           { href: "/tasks", label: "Tasks", icon: CheckSquare },
         ],
       },

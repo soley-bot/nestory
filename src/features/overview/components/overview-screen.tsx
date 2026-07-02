@@ -1,15 +1,15 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
-  IconAlertTriangle,
-  IconArrowRight,
-  IconBuilding,
-  IconCalendarClock,
-  IconCircleCheck,
-  IconCurrencyDollar,
-  IconPlus,
-  type TablerIcon,
-} from "@tabler/icons-react";
+  AlertTriangle,
+  ArrowRight,
+  Building2,
+  CalendarClock,
+  CircleCheck,
+  DollarSign,
+  Plus,
+  type LucideIcon,
+} from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -34,7 +34,7 @@ type OverviewScreenProps = {
 
 type PrimaryMetric = {
   href: string;
-  icon: TablerIcon;
+  icon: LucideIcon;
   metric: OverviewMetric;
   visualTone?: OverviewVisualTone;
 };
@@ -50,18 +50,18 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
   const primaryMetrics: PrimaryMetric[] = [
     {
       href: "/units?occupancy=unoccupied",
-      icon: IconBuilding,
+      icon: Building2,
       metric: occupancyMetric,
     },
     {
       href: "/ledger?period=current_month",
-      icon: IconCurrencyDollar,
+      icon: DollarSign,
       metric: { ...ledgerMetric, label: "Current month net" },
       visualTone: "accent",
     },
     {
       href: "/leases?status=current&endsWithin=60d&sort=end_asc",
-      icon: IconCalendarClock,
+      icon: CalendarClock,
       metric: {
         helper: "Leases ending in 60 days",
         label: "Lease risk, 60d",
@@ -71,7 +71,7 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
     },
     {
       href: data.dashboardSummary.actionHref,
-      icon: IconAlertTriangle,
+      icon: AlertTriangle,
       metric: { ...attentionMetric, label: "Open checks" },
     },
   ];
@@ -178,7 +178,7 @@ function DashboardSummaryPanel({
             href={summary.actionHref}
           >
             <span className="truncate">{summary.actionLabel}</span>
-            <IconArrowRight size={15} />
+            <ArrowRight size={15} />
           </Link>
         </div>
       </div>
@@ -199,7 +199,7 @@ function PrimaryMetricTile({
   visualTone,
 }: {
   href: string;
-  icon: TablerIcon;
+  icon: LucideIcon;
   metric: OverviewMetric;
   visualTone?: OverviewVisualTone;
 }) {
@@ -229,7 +229,7 @@ function PrimaryMetricTile({
       </div>
       <div className="flex min-w-0 justify-end">
         <span className="sr-only">{metric.helper}</span>
-        <IconArrowRight
+        <ArrowRight
           className="shrink-0 text-foreground-subtle opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
           size={13}
         />
@@ -285,7 +285,7 @@ function FocusPanel({
 
       {items.length === 0 ? (
         <div className="m-4 flex items-start gap-3 rounded-md bg-success-soft px-3 py-3 text-sm text-success">
-          <IconCircleCheck className="mt-0.5 shrink-0" size={16} />
+          <CircleCheck className="mt-0.5 shrink-0" size={16} />
           <span>No open operating checks from the current data.</span>
         </div>
       ) : (
@@ -363,7 +363,7 @@ function ChartPanel({
           href={actionHref}
         >
           <span>{actionLabel}</span>
-          <IconArrowRight size={12} />
+          <ArrowRight size={12} />
         </Link>
       </div>
       <div className="pt-3">
@@ -415,7 +415,7 @@ function QuickActions({ actions }: { actions: OverviewQuickAction[] }) {
   return (
     <section className="rounded-lg border border-border bg-surface shadow-sm">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <IconPlus size={15} className="text-foreground-subtle" />
+        <Plus size={15} className="text-foreground-subtle" />
         <h2 className="text-sm font-semibold leading-5">Quick actions</h2>
       </div>
       <div className="grid grid-cols-2 gap-2 p-3">

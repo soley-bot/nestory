@@ -2,17 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowUpRight,
-  Banknote,
-  Building2,
   CalendarDays,
-  Home,
-  MapPin,
-  Percent,
-  ReceiptText,
-  ShieldCheck,
-  TriangleAlert,
-  Wallet,
-  Wrench,
 } from "lucide-react";
 import {
   DashboardPeriodPicker,
@@ -1558,15 +1548,7 @@ function MetricTile({
       )}
       title={helper}
     >
-      <div className="grid grid-cols-[38px_minmax(0,1fr)_58px] items-center gap-2">
-        <span
-          className={cn(
-            "flex size-10 items-center justify-center rounded-full",
-            iconShellClass(visualTone),
-          )}
-        >
-          {metricIcon(label, toneTextClass(visualTone), 18)}
-        </span>
+      <div className="grid grid-cols-[minmax(0,1fr)_58px] items-center gap-3">
         <span className="min-w-0">
           <span className="block whitespace-nowrap text-[9px] font-semibold uppercase tracking-normal text-foreground-subtle sm:text-[10px]">
             {label}
@@ -1605,16 +1587,10 @@ function SignalStrip({
     >
       <span
         className={cn(
-          "flex size-6 shrink-0 items-center justify-center rounded-full",
-          iconShellClass(tone),
+          "size-2.5 shrink-0 rounded-full",
+          toneBgClass(tone),
         )}
-      >
-        {tone === "success" ? (
-          <ShieldCheck className={toneTextClass(tone)} size={14} />
-        ) : (
-          <MapPin className={toneTextClass(tone)} size={14} />
-        )}
-      </span>
+      />
       <span className="flex min-w-0 flex-1 items-center gap-3">
         <span className="shrink-0 font-semibold text-foreground">{label}</span>
         <span className="min-w-0 truncate text-foreground-muted">{detail}</span>
@@ -1682,19 +1658,13 @@ function HealthPanel({
             key={point.label}
             title={point.helper}
           >
-            <div className="grid min-w-0 grid-cols-[24px_minmax(0,1fr)_auto] items-start gap-2">
+            <div className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-start gap-2">
               <span
                 className={cn(
-                  "flex size-5 items-center justify-center rounded-full",
-                  iconShellClass(tone),
+                  "mt-1.5 size-2 shrink-0 rounded-full",
+                  toneBgClass(tone),
                 )}
-              >
-                {tone === "success" ? (
-                  <ShieldCheck className={toneTextClass(tone)} size={12} />
-                ) : (
-                  <TriangleAlert className={toneTextClass(tone)} size={12} />
-                )}
-              </span>
+              />
               <span className="min-w-0">
                 <span className="block truncate text-[12px] font-semibold text-foreground">
                   {point.label}
@@ -1707,7 +1677,7 @@ function HealthPanel({
                 {point.value}%
               </span>
             </div>
-            <span className="ml-7 block h-1 overflow-hidden rounded-full bg-chart-track">
+            <span className="ml-5 block h-1 overflow-hidden rounded-full bg-chart-track">
               <span
                 className={cn("block h-full rounded-full", toneBgClass(tone))}
                 style={{ width: `${point.value}%` }}
@@ -1963,43 +1933,6 @@ function healthTone(value: number): Tone {
   return "success";
 }
 
-function metricIcon(label: string, className: string, size = 25) {
-  const normalized = label.toLowerCase();
-
-  if (
-    normalized.includes("net") ||
-    normalized.includes("income")
-  ) {
-    return <Wallet className={className} size={size} strokeWidth={1.8} />;
-  }
-
-  if (normalized.includes("collection")) {
-    return <Percent className={className} size={size} strokeWidth={1.8} />;
-  }
-
-  if (normalized.includes("rent")) {
-    return <Banknote className={className} size={size} strokeWidth={1.8} />;
-  }
-
-  if (normalized.includes("expense") || normalized.includes("report")) {
-    return <ReceiptText className={className} size={size} strokeWidth={1.8} />;
-  }
-
-  if (normalized.includes("vacant")) {
-    return <Home className={className} size={size} strokeWidth={1.8} />;
-  }
-
-  if (normalized.includes("maintenance") || normalized.includes("open")) {
-    return <Wrench className={className} size={size} strokeWidth={1.8} />;
-  }
-
-  if (normalized.includes("lease") || normalized.includes("due")) {
-    return <CalendarDays className={className} size={size} strokeWidth={1.8} />;
-  }
-
-  return <Building2 className={className} size={size} strokeWidth={1.8} />;
-}
-
 function toneBgClass(tone: VisualTone | undefined) {
   if (tone === "danger") {
     return "bg-danger";
@@ -2046,22 +1979,6 @@ function toneRuleClass(tone: VisualTone | undefined) {
   }
 
   return "before:bg-accent";
-}
-
-function iconShellClass(tone: VisualTone | undefined) {
-  if (tone === "danger") {
-    return "bg-danger-soft";
-  }
-
-  if (tone === "warning") {
-    return "bg-warning-soft";
-  }
-
-  if (tone === "success") {
-    return "bg-success-soft";
-  }
-
-  return "bg-accent-soft";
 }
 
 function helperBadgeClass(tone: Tone | undefined) {
