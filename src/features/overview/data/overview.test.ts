@@ -79,6 +79,57 @@ describe("getOverviewScreenData", () => {
       "/leases?status=current&tenantStatus=missing",
     );
   });
+
+  it("counts no-role people the same way as the People no-role filter", async () => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub([
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        {
+          data: [
+            {
+              id: "person-with-inactive-role",
+              primary_email: null,
+              primary_phone: null,
+            },
+            {
+              id: "person-without-role",
+              primary_email: null,
+              primary_phone: null,
+            },
+          ],
+        },
+        {
+          data: [
+            {
+              person_id: "person-with-inactive-role",
+              role: "tenant",
+              status: "inactive",
+            },
+          ],
+        },
+        { data: [] },
+        { data: [] },
+        { count: 0, data: [] },
+        { data: [] },
+      ]),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+    );
+
+    expect(data.attentionItems).toContainEqual({
+      count: 1,
+      helper: "Needs tenant, owner, vendor, or staff role",
+      href: "/people?status=no_role",
+      label: "People without role",
+      tone: "danger",
+    });
+  });
 });
 
 type SupabaseResult = {

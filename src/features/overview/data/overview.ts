@@ -64,6 +64,7 @@ type PersonRow = {
 type PersonRoleRow = {
   person_id: string;
   role: "owner" | "tenant" | "vendor";
+  status: string;
 };
 
 type PersonContactRow = {
@@ -140,9 +141,8 @@ export async function getOverviewScreenData(
       .is("archived_at", null),
     supabase
       .from("person_roles")
-      .select("person_id, role")
+      .select("person_id, role, status")
       .eq("organization_id", organizationId)
-      .eq("status", "active")
       .is("archived_at", null),
     supabase
       .from("person_contacts")
@@ -196,6 +196,7 @@ export async function getOverviewScreenData(
   const propertyOwners = (propertyOwnersResult.data ?? []) as PropertyOwnerRow[];
   const openMaintenanceCount = openMaintenanceResult.count ?? 0;
   const activeProperties = properties;
+  const activeRoles = roles.filter((role) => role.status === "active");
   const currentLeasedUnitIds = new Set(
     currentLeases.flatMap((lease) => (lease.unit_id ? [lease.unit_id] : [])),
   );
@@ -212,20 +213,20 @@ export async function getOverviewScreenData(
   const nonVacantLeaseGapUnits = leaseGapUnits.filter(
     (unit) => unit.status.toLowerCase() !== "vacant",
   );
-  const roleCounts = getRoleCounts(roles);
+  const roleCounts = getRoleCounts(activeRoles);
   const currentPropertyOwnerIds = new Set(
     propertyOwners.map((owner) => owner.property_id),
   );
   const missingOwnerLinks = activeProperties.filter(
     (property) => !currentPropertyOwnerIds.has(property.id),
   );
-  const activeRolePersonIds = new Set(roles.map((role) => role.person_id));
+  const visibleRolePersonIds = new Set(roles.map((role) => role.person_id));
   const usableContactPersonIds = getUsableContactPersonIds(contacts);
   const peopleMissingContacts = activePeople.filter((person) =>
     isMissingContact(person, usableContactPersonIds),
   );
   const peopleWithoutRoles = activePeople.filter(
-    (person) => !activeRolePersonIds.has(person.id),
+    (person) => !visibleRolePersonIds.has(person.id),
   );
   const leasesEndingSoon = getLeasesEndingSoon(currentLeases, businessToday);
   const missingTenantLeases = currentLeases.filter(

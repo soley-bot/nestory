@@ -24,12 +24,6 @@ export async function GET(request: Request) {
   const searchParams = Object.fromEntries(new URL(request.url).searchParams);
   const viewQuery = parseReportSearchParams(searchParams);
 
-  if (viewQuery.report !== "vacancy-risk") {
-    return new Response("PDF export is available for vacancy/risk reports.", {
-      status: 400,
-    });
-  }
-
   const pdf = await getReportPdf(
     membership.organizationId,
     membership.organizationName,
