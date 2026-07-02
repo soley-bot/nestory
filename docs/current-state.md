@@ -17,6 +17,8 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - Ledger operations, timeline history, period locks, and document attachment.
 - Maintenance requests, work orders, schedule, tasks, inspections, recurring
   work, reminders, assignment, and status changes.
+- Dedicated property/unit photo records with private photo storage and cover
+  thumbnail selection.
 - Private document storage and document metadata.
 - CSV unit import with mapping, validation, create/update commit, and cleanup
   queue.
@@ -42,11 +44,12 @@ Property and units:
 
 - `/properties` is a server-loaded operational list with filters, table/card
   selection, create/edit/archive/restore drawers, and inspector context.
-- `/properties/[propertyId]` is a detail record with units, leases, ledger,
-  timeline, documents, maintenance, owner history, health, and next actions.
+- `/properties/[propertyId]` is a detail record with photos, units, leases,
+  ledger, timeline, documents, maintenance, owner history, health, and next
+  actions.
 - `/units` is a server-loaded list with filters, table/card selection,
   create/edit/archive/restore drawers, and inspector context.
-- `/units/[unitId]` is a detail record with lease, ledger, timeline,
+- `/units/[unitId]` is a detail record with photos, lease, ledger, timeline,
   documents, maintenance, health, financial summary, and next actions.
 
 People and leases:
@@ -118,8 +121,8 @@ RPC write boundaries. Current table families include:
   `lease_terms`, `lease_occupancies`, `lease_deposits`.
 - Finance and history: `ledger_entries`, `ledger_period_locks`,
   `timeline_events`, `activity_logs`.
-- Documents: `documents` plus private Supabase Storage bucket
-  `nestory-documents`.
+- Media and documents: `asset_photos` plus private `nestory-photos`, and
+  `documents` plus private `nestory-documents`.
 - Maintenance: `tenant_requests`, `tasks`.
 
 Implemented RPC families include:
@@ -138,6 +141,7 @@ Implemented RPC families include:
 - App shell and layout: `src/components/layout`.
 - Properties: `src/features/properties`.
 - Units: `src/features/units`.
+- Photos: `src/features/photos`.
 - People: `src/features/people`.
 - Leases: `src/features/leases`.
 - Ledger: `src/features/ledger`.

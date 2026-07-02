@@ -61,6 +61,10 @@ verification.
 - Prefer tables, filters, list/card selectors, side drawers, record inspectors,
   badges, and compact actions over marketing layout.
 - Keep primary records and useful actions early in the viewport.
+- Desktop workspace pages should be viewport-bounded: keep headers and filters
+  natural height, give the main work area the remaining height, and use internal
+  scrolling for tables or record panes instead of creating small document-level
+  scrollbars.
 - Use shared primitives from `src/components/ui` for visible form controls.
 - Use URL-backed filters and pagination for list surfaces.
 - Hide raw UUIDs from normal operator views.

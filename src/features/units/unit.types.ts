@@ -1,5 +1,6 @@
 import type { TimelineEventType } from "@/features/timeline/timeline.types";
 import type { LinkedDocument } from "@/features/documents/document.types";
+import type { AssetPhoto } from "@/features/photos/photo.types";
 import type { RecentChange } from "@/features/activity/activity.types";
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
@@ -98,6 +99,7 @@ export type UnitRecordCounts = {
   maintenanceCases?: number;
   openMaintenanceCases?: number;
   overdueMaintenanceCases?: number;
+  photos?: number;
   timelineEvents: number;
 };
 
@@ -214,6 +216,7 @@ export type UnitDetail = UnitSummary & {
   financialSummary: UnitFinancialSummary;
   healthIndicators: UnitHealthIndicator[];
   hrefs: UnitDetailHrefs;
+  photos: AssetPhoto[];
   repairAction: UnitRepairAction;
   recentLedgerEntries: UnitLedgerContext[];
   recentMaintenanceCases: UnitMaintenanceContext[];

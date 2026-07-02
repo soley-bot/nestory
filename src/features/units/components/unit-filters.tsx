@@ -8,12 +8,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutGrid,
   RotateCcw,
-  Search,
   SlidersHorizontal,
   Table2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { SearchInput } from "@/components/ui/search-input";
+import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   DEFAULT_UNIT_ARCHIVE_STATE,
@@ -93,38 +91,21 @@ export function UnitFilters({
     <div className="border-b border-border bg-background px-4 py-2 sm:px-6 lg:px-6">
       <div className="space-y-1.5">
         <div className="flex flex-col gap-2 text-[13px] lg:flex-row lg:items-center lg:justify-between">
-          <form
-            className="flex min-w-0 flex-1 gap-1.5 lg:max-w-[520px]"
+          <SearchCombo
+            ariaLabel="Search units"
+            className="lg:max-w-[560px]"
+            disabled={isPending}
+            onQueryChange={(value) =>
+              setQueryState({
+                source: viewQuery.query,
+                value,
+              })
+            }
             onSubmit={handleSearchSubmit}
-          >
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">Search units</span>
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-                size={16}
-              />
-              <SearchInput
-                className="h-8 border-border bg-surface pl-9 text-[13px]"
-                onChange={(event) =>
-                  setQueryState({
-                    source: viewQuery.query,
-                    value: event.target.value,
-                  })
-                }
-                placeholder="Search unit, property, tenant, or record"
-                value={query}
-              />
-            </label>
-            <Button
-              aria-label="Search units"
-              className="h-8 w-8 shrink-0 px-0"
-              disabled={isPending}
-              title="Search units"
-              type="submit"
-            >
-              <Search size={14} />
-            </Button>
-          </form>
+            placeholder="Search unit, property, tenant, or record"
+            query={query}
+            submitLabel="Search units"
+          />
 
           <div className="flex min-w-0 items-center gap-1.5">
             <ViewModeToggle

@@ -179,7 +179,7 @@ export function PropertyForm({
         </Field>
 
         <InlineDocumentField
-          defaultCategory="Property photo"
+          defaultCategory="Property evidence"
           error={state.fieldErrors?.document?.[0]}
         />
 
@@ -228,10 +228,9 @@ function InlineDocumentField({
 }) {
   return (
     <section className="rounded-md border border-border bg-surface-muted p-3">
-      <p className="text-sm font-semibold">Photos and files</p>
+      <p className="text-sm font-semibold">Documents and evidence</p>
       <p className="mt-1 text-xs leading-5 text-muted">
-        Optional. Upload a photo, PDF, PNG, JPG, or WebP and it will be linked to
-        this property.
+        Optional. Upload a supporting file and it will be linked to this property.
       </p>
       <input name="documentCategory" type="hidden" value={defaultCategory} />
       <FileDropzoneField

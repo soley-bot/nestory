@@ -8,18 +8,17 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutGrid,
   RotateCcw,
-  Search,
   SlidersHorizontal,
   Table2,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { SearchInput } from "@/components/ui/search-input";
+import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   DEFAULT_PROPERTY_PAGE_SIZE,
   DEFAULT_PROPERTY_SORT,
   PROPERTY_PAGE_SIZE_OPTIONS,
 } from "@/features/properties/property.filters";
+import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
   PropertyDisplayMode,
   PropertyViewQuery,
@@ -29,12 +28,16 @@ import { cn } from "@/lib/utils";
 type PropertyFiltersProps = {
   displayMode: PropertyDisplayMode;
   onDisplayModeChange: (mode: PropertyDisplayMode) => void;
+  onSelectProperty: (propertyId: string) => void;
+  properties: PropertySummary[];
   viewQuery: PropertyViewQuery;
 };
 
 export function PropertyFilters({
   displayMode,
   onDisplayModeChange,
+  onSelectProperty,
+  properties,
   viewQuery,
 }: PropertyFiltersProps) {
   const pathname = usePathname();
@@ -59,6 +62,7 @@ export function PropertyFilters({
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
   const compactSelectClassName = "h-8 w-full px-2 text-[13px]";
+  const propertySuggestions = getPropertySuggestions(properties, query);
 
   function replaceParam(name: string, value: string, defaultValue: string) {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -88,38 +92,30 @@ export function PropertyFilters({
     <div className="border-b border-border bg-background px-4 py-2 sm:px-6 lg:px-6">
       <div className="space-y-1.5">
         <div className="flex flex-col gap-2 text-[13px] lg:flex-row lg:items-center lg:justify-between">
-          <form
-            className="flex min-w-0 flex-1 gap-1.5 lg:max-w-[460px]"
+          <SearchCombo
+            ariaLabel="Search properties"
+            className="lg:max-w-[520px]"
+            disabled={isPending}
+            onQueryChange={(value) =>
+              setQueryState({
+                source: viewQuery.query,
+                value,
+              })
+            }
             onSubmit={handleSearchSubmit}
-          >
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">Search properties</span>
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-                size={16}
-              />
-              <SearchInput
-                className="h-8 border-border bg-surface pl-9 text-[13px]"
-                onChange={(event) =>
-                  setQueryState({
-                    source: viewQuery.query,
-                    value: event.target.value,
-                  })
-                }
-                placeholder="Search properties..."
-                value={query}
-              />
-            </label>
-            <Button
-              aria-label="Search properties"
-              className="h-8 w-8 shrink-0 px-0"
-              disabled={isPending}
-              title="Search properties"
-              type="submit"
-            >
-              <Search size={14} />
-            </Button>
-          </form>
+            placeholder="Search properties..."
+            query={query}
+            suggestions={propertySuggestions}
+            onSuggestionSelect={(suggestion) => {
+              const property = properties.find((item) => item.id === suggestion.id);
+              setQueryState({
+                source: viewQuery.query,
+                value: property?.name ?? suggestion.label,
+              });
+              onSelectProperty(suggestion.id);
+            }}
+            submitLabel="Search properties"
+          />
 
           <div className="flex min-w-0 items-center gap-1.5">
             <ViewModeToggle
@@ -260,6 +256,31 @@ export function PropertyFilters({
       </div>
     </div>
   );
+}
+
+function getPropertySuggestions(properties: PropertySummary[], query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const matches = normalizedQuery
+    ? properties.filter((property) =>
+        [
+          property.name,
+          property.code,
+          property.type,
+          property.owner,
+          property.address,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery),
+      )
+    : properties;
+
+  return matches.slice(0, 6).map((property) => ({
+    description: `${property.code} / ${property.type}`,
+    id: property.id,
+    label: property.name,
+    meta: property.status,
+  }));
 }
 
 function ViewModeToggle({

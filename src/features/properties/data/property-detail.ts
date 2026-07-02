@@ -1,5 +1,6 @@
 import type { RecentChange } from "@/features/activity/activity.types";
 import type { LinkedDocument } from "@/features/documents/document.types";
+import type { AssetPhoto } from "@/features/photos/photo.types";
 import {
   buildPropertySummary,
   type PropertyLedgerRecord,
@@ -182,6 +183,7 @@ export type PropertyDetailCounts = {
   maintenanceCases?: number;
   openMaintenanceCases?: number;
   overdueMaintenanceCases?: number;
+  photos: number;
   timelineEvents: number;
 };
 
@@ -243,6 +245,7 @@ export type PropertyDetail = ReturnType<typeof buildPropertySummary> & {
   nextAction: PropertyNextAction;
   notesLabel: string;
   ownerHistory: PropertyOwnerHistory[];
+  photos: AssetPhoto[];
   recentLedgerEntries: PropertyLedgerContext[];
   recentMaintenanceCases: PropertyMaintenanceContext[];
   recentTimelineEvents: PropertyTimelineContext[];
@@ -259,6 +262,7 @@ export function buildPropertyDetail({
   ledgerEntries,
   maintenanceCases = [],
   ownerHistory = [],
+  photos = [],
   property,
   recentLedgerEntries = [],
   recentTimelineEvents = [],
@@ -272,6 +276,7 @@ export function buildPropertyDetail({
   ledgerEntries: PropertyDetailLedgerRecord[];
   maintenanceCases?: PropertyDetailMaintenanceRecord[];
   ownerHistory?: PropertyOwnerHistoryRecord[];
+  photos?: AssetPhoto[];
   property: PropertyRecord;
   recentLedgerEntries?: PropertyDetailLedgerRecord[];
   recentTimelineEvents?: PropertyDetailTimelineRecord[];
@@ -304,6 +309,7 @@ export function buildPropertyDetail({
     overdueMaintenanceCases:
       recordCounts.overdueMaintenanceCases ??
       maintenanceCases.filter(isOverdueMaintenanceTask).length,
+    photos: recordCounts.photos ?? photos.length,
     timelineEvents: recordCounts.timelineEvents ?? recentTimelineEvents.length,
   };
 
@@ -339,6 +345,7 @@ export function buildPropertyDetail({
     }),
     notesLabel: property.notes?.trim() || "No operating notes recorded",
     ownerHistory: ownerHistory.map(toOwnerHistory),
+    photos,
     recentLedgerEntries: recentLedgerEntries.map((entry) =>
       toLedgerContext(entry, unitsById),
     ),

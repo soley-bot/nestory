@@ -7,12 +7,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutGrid,
   RotateCcw,
-  Search,
   SlidersHorizontal,
   Table2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SearchInput } from "@/components/ui/search-input";
+import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   DEFAULT_PEOPLE_ARCHIVE_STATE,
@@ -94,38 +93,20 @@ export function PeopleFilters({
     <div className="border-b border-border bg-surface px-4 py-2.5 sm:px-6 lg:px-6">
       <div className="space-y-2">
         <div className="flex flex-col gap-2 text-[13px] xl:flex-row xl:items-center">
-          <form
-            className="flex min-w-0 flex-1 gap-2"
+          <SearchCombo
+            ariaLabel="Search people"
+            disabled={isPending}
+            onQueryChange={(value) =>
+              setQueryState({
+                source: viewQuery.query,
+                value,
+              })
+            }
             onSubmit={handleSearchSubmit}
-          >
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">Search people</span>
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-                size={16}
-              />
-              <SearchInput
-                className="h-8 pl-9"
-                onChange={(event) =>
-                  setQueryState({
-                    source: viewQuery.query,
-                    value: event.target.value,
-                  })
-                }
-                placeholder={searchPlaceholder}
-                value={query}
-              />
-            </label>
-            <Button
-              aria-label="Search people"
-              className="h-8 w-8 shrink-0 px-0"
-              disabled={isPending}
-              title="Search people"
-              type="submit"
-            >
-              <Search size={14} />
-            </Button>
-          </form>
+            placeholder={searchPlaceholder}
+            query={query}
+            submitLabel="Search people"
+          />
 
           <div className="flex items-center gap-2">
             <ViewModeToggle

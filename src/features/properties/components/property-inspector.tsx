@@ -8,6 +8,7 @@ import {
   ListTree,
   Pencil,
   RotateCcw,
+  Wrench,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,8 @@ export function PropertyInspector({
     );
   }
 
+  const action = getPropertySummaryAction(property);
+
   return (
     <aside className="bg-surface">
       <div className="border-b border-border p-4">
@@ -63,8 +66,27 @@ export function PropertyInspector({
       </div>
 
       <div className="space-y-4 p-4">
+        <div className="rounded-md border border-border bg-surface-muted/60 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+                Next action
+              </p>
+              <p className="mt-1 break-words text-sm font-semibold">
+                {action.label}
+              </p>
+            </div>
+            <Badge tone={action.tone}>{action.badge}</Badge>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-muted">
+            {action.description}
+          </p>
+        </div>
+
         <dl className="grid grid-cols-2 gap-3 text-sm">
+          <Detail label="Owner" value={property.owner} wide />
           <Detail icon={<Home size={14} />} label="Units" value={property.unitSummary} />
+          <Detail label="Open units" value={String(getOpenUnitCount(property))} />
           <Detail label="Net income">
             <MoneyDisplay value={property.netIncome} />
           </Detail>
@@ -148,9 +170,84 @@ export function PropertyInspector({
             <span className="truncate">Timeline</span>
           </Link>
         </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            aria-label={`Open leases for ${property.name}`}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            href={`/leases?propertyId=${property.id}`}
+            title="Open property leases"
+          >
+            <ExternalLink size={15} />
+            <span className="truncate">Leases</span>
+          </Link>
+          <Link
+            aria-label={`Open maintenance for ${property.name}`}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            href={`/maintenance?propertyId=${property.id}`}
+            title="Open property maintenance"
+          >
+            <Wrench size={15} />
+            <span className="truncate">Maintenance</span>
+          </Link>
+        </div>
       </div>
     </aside>
   );
+}
+
+function getOpenUnitCount(property: PropertySummary) {
+  return Math.max(0, property.units - property.occupiedUnits);
+}
+
+function getPropertySummaryAction(property: PropertySummary) {
+  const openUnitCount = getOpenUnitCount(property);
+
+  if (!property.hasActiveOwnerLink) {
+    return {
+      badge: "Owner",
+      description:
+        "Link a current owner before owner reporting and follow-up are reliable.",
+      label: "Assign current owner",
+      tone: "danger" as const,
+    };
+  }
+
+  if (property.units === 0) {
+    return {
+      badge: "Units",
+      description: "Create units so leases, ledger rows, and evidence can drill down.",
+      label: "Add the first unit",
+      tone: "warning" as const,
+    };
+  }
+
+  if (openUnitCount > 0) {
+    return {
+      badge: "Vacancy",
+      description: `${openUnitCount} ${
+        openUnitCount === 1 ? "unit is" : "units are"
+      } open and should be reviewed against leases.`,
+      label: "Review open units",
+      tone: "warning" as const,
+    };
+  }
+
+  if (property.netIncomeUsd < 0) {
+    return {
+      badge: "Net",
+      description: "Active ledger totals are below zero for this property.",
+      label: "Review ledger net",
+      tone: "danger" as const,
+    };
+  }
+
+  return {
+    badge: "Clear",
+    description: "Core owner, unit, occupancy, and net checks look aligned.",
+    label: "Record looks connected",
+    tone: "success" as const,
+  };
 }
 
 function Detail({

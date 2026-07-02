@@ -4,9 +4,9 @@ import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
+import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SearchInput } from "@/components/ui/search-input";
+import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   DEFAULT_LEASE_ARCHIVE_STATE,
@@ -94,38 +94,20 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
     <div className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-6">
       <div className="space-y-2.5">
         <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
-          <form
-            className="flex min-w-0 flex-1 gap-2"
+          <SearchCombo
+            ariaLabel="Search leases"
+            disabled={isPending}
+            onQueryChange={(value) =>
+              setQueryState({
+                source: viewQuery.query,
+                value,
+              })
+            }
             onSubmit={handleSearchSubmit}
-          >
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">Search leases</span>
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-                size={16}
-              />
-              <SearchInput
-                className="h-8 pl-9"
-                onChange={(event) =>
-                  setQueryState({
-                    source: viewQuery.query,
-                    value: event.target.value,
-                  })
-                }
-                placeholder="Search tenant, unit, property, or term"
-                value={query}
-              />
-            </label>
-            <Button
-              aria-label="Search leases"
-              className="h-8 w-8 shrink-0 px-0"
-              disabled={isPending}
-              title="Search leases"
-              type="submit"
-            >
-              <Search size={14} />
-            </Button>
-          </form>
+            placeholder="Search tenant, unit, property, or term"
+            query={query}
+            submitLabel="Search leases"
+          />
 
           <div className="flex flex-wrap items-center gap-2">
             <Button

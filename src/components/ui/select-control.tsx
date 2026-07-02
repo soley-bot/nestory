@@ -71,6 +71,7 @@ export function SelectControl({
             "flex h-8 w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-md border border-border bg-surface px-2.5 text-left text-[13px] shadow-sm outline-none transition-colors data-[placeholder]:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60",
             className,
           )}
+          type="button"
         >
           <span className="min-w-0 flex-1 truncate whitespace-nowrap">
             <Select.Value placeholder={placeholder} />

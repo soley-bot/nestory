@@ -8,6 +8,10 @@ import {
   type PropertyUnitRecord,
 } from "@/features/properties/data/property-summary";
 import {
+  getAssetPhotosForScope,
+  getPropertyPhotoThumbnailUrls,
+} from "@/features/photos/data/photos";
+import {
   buildPropertyDetail,
   type PropertyDetailDocumentRecord,
   type PropertyDetailLedgerRecord,
@@ -157,7 +161,7 @@ async function loadPropertySummariesForRows({
     activeOwnerLinks ?? (await getActiveOwnerLinks(organizationId, propertyIds));
 
   const propertyIdList = [...propertyIds];
-  const [unitRows, ledgerRows, imageRows] = await Promise.all([
+  const [unitRows, ledgerRows, imageRows, photoThumbnailUrls] = await Promise.all([
     queryValueBatches(propertyIdList, async (batch) => {
       const result = await supabase
         .from("units")
@@ -202,6 +206,11 @@ async function loadPropertySummariesForRows({
 
       return (result.data ?? []) as PropertyImageRow[];
     }),
+    getPropertyPhotoThumbnailUrls({
+      organizationId,
+      propertyIds: propertyIdList,
+      supabase,
+    }),
   ]);
 
   const unitsByProperty = groupByProperty(unitRows);
@@ -220,7 +229,8 @@ async function loadPropertySummariesForRows({
       hasActiveOwnerLink: ownerLinks.has(property.id),
       ledgerEntries,
       property,
-      thumbnailUrl: thumbnailUrls.get(property.id),
+      thumbnailUrl:
+        photoThumbnailUrls.get(property.id) ?? thumbnailUrls.get(property.id),
       units,
     });
   });
@@ -530,6 +540,7 @@ export async function getPropertyDetail(
     timelineResult,
     ledgerResult,
     documentsResult,
+    photos,
     maintenanceResult,
     activityResult,
   ] = await Promise.all([
@@ -603,6 +614,11 @@ export async function getPropertyDetail(
       .is("archived_at", null)
       .order("uploaded_at", { ascending: false })
       .limit(detailRecordLimit),
+    getAssetPhotosForScope({
+      organizationId,
+      propertyId,
+      supabase,
+    }),
     supabase
       .from("tasks")
       .select(
@@ -714,6 +730,7 @@ export async function getPropertyDetail(
     ledgerEntries,
     maintenanceCases,
     ownerHistory,
+    photos,
     property: propertyResult.data,
     recentLedgerEntries: ledgerEntries.slice(0, detailRecordLimit),
     recentTimelineEvents: timelineResult.data ?? [],
@@ -725,6 +742,7 @@ export async function getPropertyDetail(
       openMaintenanceCases: maintenanceCases.filter(isOpenMaintenanceTask).length,
       overdueMaintenanceCases:
         maintenanceCases.filter(isOverdueMaintenanceTask).length,
+      photos: photos.length,
       timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
     },
     units: unitsResult.data ?? [],

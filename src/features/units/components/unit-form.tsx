@@ -168,7 +168,7 @@ export function UnitForm({
         </div>
 
         <InlineDocumentField
-          defaultCategory="Unit photo"
+          defaultCategory="Unit evidence"
           error={state.fieldErrors?.document?.[0]}
         />
       </div>
@@ -209,10 +209,9 @@ function InlineDocumentField({
 }) {
   return (
     <section className="rounded-md border border-border bg-surface-muted p-3">
-      <p className="text-sm font-semibold">Photos and files</p>
+      <p className="text-sm font-semibold">Documents and evidence</p>
       <p className="mt-1 text-xs leading-5 text-muted">
-        Optional. Upload a photo, PDF, PNG, JPG, or WebP and it will be linked to
-        this unit.
+        Optional. Upload a supporting file and it will be linked to this unit.
       </p>
       <input name="documentCategory" type="hidden" value={defaultCategory} />
       <FileDropzoneField

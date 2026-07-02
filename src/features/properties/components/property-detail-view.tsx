@@ -1,11 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import {
-  AlertTriangle,
   ArrowLeft,
   Building2,
   CalendarDays,
-  CheckCircle2,
   FileText,
   Landmark,
   ListTree,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
+import { PhotoGallery } from "@/features/photos/components/photo-gallery";
 import { PropertyUnitsTable } from "@/features/properties/components/property-units-table";
 import type {
   PropertyDetail,
@@ -28,8 +30,34 @@ import type {
 import type { RecentChange } from "@/features/activity/activity.types";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
+import { cn } from "@/lib/utils";
+
+type PropertyRecordSection =
+  | "overview"
+  | "photos"
+  | "units"
+  | "finance"
+  | "maintenance"
+  | "documents"
+  | "timeline";
+
+const propertyRecordSections: Array<{
+  id: PropertyRecordSection;
+  label: string;
+}> = [
+  { id: "overview", label: "Overview" },
+  { id: "photos", label: "Photos" },
+  { id: "units", label: "Units" },
+  { id: "finance", label: "Finance" },
+  { id: "maintenance", label: "Maintenance" },
+  { id: "documents", label: "Documents" },
+  { id: "timeline", label: "Timeline" },
+];
 
 export function PropertyDetailView({ property }: { property: PropertyDetail }) {
+  const [activeSection, setActiveSection] =
+    useState<PropertyRecordSection>("overview");
+
   return (
     <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
       <Link
@@ -39,10 +67,20 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
         <ArrowLeft size={15} />
         Properties
       </Link>
+      <PropertyRecordNav
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_340px] xl:overflow-hidden">
-        <div className="space-y-3 xl:overflow-auto xl:pr-1">
-          <section className="rounded-md border border-border bg-surface p-4">
+      <div className="min-h-0 flex-1 overflow-auto pr-1">
+        <div className="space-y-3">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface p-4",
+              activeSection !== "overview" && "hidden",
+            )}
+            id="property-overview"
+          >
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -90,12 +128,31 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
                 label="Records"
                 value={`${property.counts.ledgerEntries} ledger / ${property.counts.timelineEvents} timeline / ${property.counts.maintenanceCases ?? 0} maintenance / ${property.counts.documents} docs`}
               />
+              <Detail label="Photos" value={String(property.counts.photos)} />
               <Detail label="Active leases" value={String(property.counts.activeLeases)} />
               <Detail label="Notes" value={property.notesLabel} />
             </dl>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <div
+            className={cn(activeSection !== "photos" && "hidden")}
+            id="property-photos"
+          >
+            <PhotoGallery
+              emptyLabel="No property photos yet."
+              photos={property.photos}
+              propertyId={property.id}
+              title="Property photos"
+            />
+          </div>
+
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "finance" && "hidden",
+            )}
+            id="property-finance"
+          >
             <SectionTitle
               description={property.financialSummary.periodLabel}
               icon={<Landmark size={16} />}
@@ -142,7 +199,13 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
             </div>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "overview" && "hidden",
+            )}
+            id="property-ownership"
+          >
             <SectionTitle
               description={`${property.activeLeases.length} current lease links`}
               icon={<ScrollText size={16} />}
@@ -191,7 +254,7 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
                       label="No active leases are linked to this property."
                     />
                   ) : (
-                    property.activeLeases.map((lease) => (
+                    property.activeLeases.slice(0, 3).map((lease) => (
                       <LeaseRow key={lease.id} lease={lease} />
                     ))
                   )}
@@ -200,7 +263,13 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
             </div>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "units" && "hidden",
+            )}
+            id="property-units"
+          >
             <SectionTitle
               description={`${property.totalUnitCount} unit records`}
               icon={<Building2 size={16} />}
@@ -219,7 +288,13 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
             </div>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "finance" && "hidden",
+            )}
+            id="property-ledger"
+          >
             <SectionTitle
               description={`${property.counts.ledgerEntries} active ledger rows`}
               icon={<Landmark size={16} />}
@@ -239,7 +314,13 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
             </div>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "maintenance" && "hidden",
+            )}
+            id="property-maintenance"
+          >
             <SectionTitle
               description={`${property.counts.openMaintenanceCases ?? 0} open / ${
                 property.counts.overdueMaintenanceCases ?? 0
@@ -264,7 +345,13 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
             </div>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "timeline" && "hidden",
+            )}
+            id="property-timeline"
+          >
             <SectionTitle
               description={`${property.counts.timelineEvents} active timeline records`}
               icon={<ListTree size={16} />}
@@ -284,7 +371,13 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
             </div>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "documents" && "hidden",
+            )}
+            id="property-documents"
+          >
             <SectionTitle
               description={`${property.counts.documents} active evidence records`}
               icon={<FileText size={16} />}
@@ -303,88 +396,63 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
               ))}
             </div>
           </section>
-        </div>
 
-        <aside className="space-y-3 xl:overflow-auto xl:pr-1">
-          <section className="rounded-md border border-border bg-surface p-4">
-            <div className="flex items-center gap-2">
-              <Wrench className="text-muted" size={16} />
-              <h2 className="text-base font-semibold">Next action</h2>
-            </div>
-            <div className="mt-3 rounded-md border border-border bg-surface-muted/60 p-3">
-              <Badge tone={property.nextAction.tone}>{property.nextAction.label}</Badge>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                {property.nextAction.description}
-              </p>
-              <ActionLink
-                className="mt-3"
-                href={property.nextAction.href}
-                icon={<Wrench size={14} />}
-                strong
-              >
-                Open action
-              </ActionLink>
-            </div>
-          </section>
-
-          <section className="rounded-md border border-border bg-surface p-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="text-muted" size={16} />
-              <h2 className="text-base font-semibold">Health and risk</h2>
-            </div>
-            <div className="mt-3 space-y-2">
-              {property.healthIndicators.map((indicator) => (
-                <div
-                  className="rounded-md border border-border bg-surface-muted/60 p-3"
-                  key={indicator.id}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="min-w-0 break-words text-sm font-medium">
-                      {indicator.label}
-                    </p>
-                    <Badge tone={indicator.tone}>{indicator.tone}</Badge>
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    {indicator.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-md border border-border bg-surface p-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="text-muted" size={16} />
-              <h2 className="text-base font-semibold">Record completeness</h2>
-            </div>
-            <dl className="mt-4 grid grid-cols-4 gap-2 text-sm">
-              <CountDetail label="Ledger" value={property.counts.ledgerEntries} />
-              <CountDetail label="Timeline" value={property.counts.timelineEvents} />
-              <CountDetail label="Cases" value={property.counts.maintenanceCases ?? 0} />
-              <CountDetail label="Docs" value={property.counts.documents} />
-            </dl>
-          </section>
-
-          <section className="rounded-md border border-border bg-surface p-4">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="text-muted" size={16} />
-              <h2 className="text-base font-semibold">Recent activity</h2>
-            </div>
-            <div className="mt-3 space-y-2">
-              {property.activity.length === 0 ? (
-                <p className="text-sm leading-6 text-muted">
-                  No property profile activity has been recorded yet.
-                </p>
-              ) : (
-                property.activity.map((change) => (
-                  <ActivityRow change={change} key={change.id} />
-                ))
+          {property.activity.length > 0 ? (
+            <section
+              className={cn(
+                "rounded-md border border-border bg-surface",
+                activeSection !== "overview" && "hidden",
               )}
-            </div>
-          </section>
-        </aside>
+              id="property-activity"
+            >
+              <SectionTitle
+                description={`${property.activity.length} recent profile changes`}
+                icon={<CalendarDays size={16} />}
+                title="Recent activity"
+              />
+              <div className="grid gap-2 p-4 lg:grid-cols-2 2xl:grid-cols-3">
+                {property.activity.slice(0, 3).map((change) => (
+                  <ActivityRow change={change} key={change.id} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
       </div>
     </div>
+  );
+}
+
+function PropertyRecordNav({
+  activeSection,
+  onSectionChange,
+}: {
+  activeSection: PropertyRecordSection;
+  onSectionChange: (section: PropertyRecordSection) => void;
+}) {
+  return (
+    <nav
+      aria-label="Property record sections"
+      className="overflow-x-auto rounded-md border border-border bg-surface px-3 py-2"
+    >
+      <div className="flex min-w-max items-center gap-1.5" role="tablist">
+        {propertyRecordSections.map((item) => (
+          <button
+            aria-selected={activeSection === item.id}
+            className={cn(
+              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+              activeSection === item.id && "bg-accent-soft text-foreground",
+            )}
+            key={item.id}
+            onClick={() => onSectionChange(item.id)}
+            role="tab"
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </nav>
   );
 }
 
@@ -455,17 +523,6 @@ function Metric({
       </p>
       <div className="mt-2">{value}</div>
       {note ? <p className="mt-2 text-xs text-muted">{note}</p> : null}
-    </div>
-  );
-}
-
-function CountDetail({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border border-border bg-surface-muted px-3 py-2 text-center">
-      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
-        {label}
-      </dt>
-      <dd className="mt-1 text-base font-semibold">{value}</dd>
     </div>
   );
 }
@@ -557,14 +614,14 @@ function LeaseRow({ lease }: { lease: PropertyDetailLease }) {
       href={lease.href}
       prefetch={false}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <div className="min-w-0">
           <p className="break-words font-medium">{lease.tenantName}</p>
           <p className="mt-1 text-xs text-muted">
             {lease.unitLabel} / {lease.termLabel}
           </p>
         </div>
-        <div className="shrink-0 text-right">
+        <div className="flex shrink-0 items-center justify-start gap-3 sm:justify-end">
           <Badge tone="success">{lease.statusLabel}</Badge>
           <MoneyDisplay align="right" value={lease.rentDisplay} />
         </div>

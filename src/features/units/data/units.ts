@@ -2,6 +2,10 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
+  getAssetPhotosForScope,
+  getUnitPhotoThumbnailUrls,
+} from "@/features/photos/data/photos";
+import {
   ACTIVE_UNIT_LEASE_STATUSES,
   buildUnitDetail,
   buildUnitSummary,
@@ -443,12 +447,17 @@ async function loadUnitSummariesForRows({
     unitPropertiesById = indexById(propertiesResult.data ?? []);
   }
 
-  const [leaseRows, timelineContextRows, ledgerTotalRows, imageRows] =
+  const [leaseRows, timelineContextRows, ledgerTotalRows, imageRows, photoThumbnailUrls] =
     await Promise.all([
       getLeaseRowsForUnits(supabase, organizationId, [...unitIds]),
       getTimelineContextRowsForUnits(supabase, organizationId, [...unitIds]),
       getLedgerTotalRowsForUnits(supabase, organizationId, [...unitIds]),
       getImageRowsForUnits(supabase, organizationId, [...unitIds]),
+      getUnitPhotoThumbnailUrls({
+        organizationId,
+        supabase,
+        unitIds: [...unitIds],
+      }),
     ]);
   const leasesByUnitId = groupByUnitId(leaseRows);
   const ledgerByUnitId = groupByUnitId(ledgerTotalRows);
@@ -464,7 +473,7 @@ async function loadUnitSummariesForRows({
       latestTimelineEvent: latestTimelineByUnitId.get(unit.id),
       ledgerEntries: ledgerByUnitId.get(unit.id) ?? [],
       property: unitPropertiesById.get(unit.property_id),
-      thumbnailUrl: thumbnailUrls.get(unit.id),
+      thumbnailUrl: photoThumbnailUrls.get(unit.id) ?? thumbnailUrls.get(unit.id),
       unit,
     }),
   );
@@ -496,6 +505,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
     ledgerResult,
     ledgerTotalsResult,
     documentsResult,
+    photos,
     maintenanceResult,
     activityResult,
   ] = await Promise.all([
@@ -544,6 +554,12 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       .is("archived_at", null)
       .order("uploaded_at", { ascending: false })
       .limit(detailRecordLimit),
+    getAssetPhotosForScope({
+      organizationId,
+      propertyId: unit.property_id,
+      supabase,
+      unitId: unit.id,
+    }),
     supabase
       .from("tasks")
       .select(maintenanceSelect, { count: "exact" })
@@ -618,12 +634,14 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
         maintenanceResult.count ?? maintenanceRows.length,
       openMaintenanceCases: maintenanceRows.filter(isOpenMaintenanceTask).length,
       overdueMaintenanceCases: maintenanceRows.filter(isOverdueMaintenanceTask).length,
+      photos: photos.length,
       timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
     },
     documents,
     ledgerEntries: ledgerTotalsResult.data ?? [],
     maintenanceCases: maintenanceRows,
     people,
+    photos,
     property: propertyResult.data ?? undefined,
     recentLedgerEntries: ledgerResult.data ?? [],
     recentTimelineEvents: timelineResult.data ?? [],

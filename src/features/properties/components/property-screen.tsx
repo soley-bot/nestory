@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
@@ -32,7 +31,6 @@ import type {
   PropertyPagination,
   PropertyViewQuery,
 } from "@/features/properties/property.types";
-import { cn } from "@/lib/utils";
 
 type DrawerState =
   | { mode: "create"; property?: never }
@@ -89,14 +87,18 @@ export function PropertyScreen({
   };
   const previewProperty = (propertyId: string) => {
     setSelectedPropertyId(propertyId);
-    setPreviewOpen(true);
+    if (window.matchMedia("(max-width: 1279px)").matches) {
+      setPreviewOpen(true);
+    }
   };
 
   useEffect(() => {
     if (focusedPropertyId) {
       queueMicrotask(() => {
         setSelectedPropertyId(focusedPropertyId);
-        setPreviewOpen(true);
+        if (window.matchMedia("(max-width: 1279px)").matches) {
+          setPreviewOpen(true);
+        }
       });
     }
   }, [focusedPropertyId]);
@@ -116,7 +118,7 @@ export function PropertyScreen({
   }, [pathname, router, searchParams]);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen lg:flex lg:h-screen lg:min-h-0 lg:flex-col lg:overflow-hidden">
       <PageHeader
         actions={
           <>
@@ -166,6 +168,8 @@ export function PropertyScreen({
       <PropertyFilters
         onDisplayModeChange={setDisplayMode}
         displayMode={displayMode}
+        onSelectProperty={previewProperty}
+        properties={properties}
         viewQuery={viewQuery}
       />
 
@@ -176,29 +180,61 @@ export function PropertyScreen({
         />
       ) : null}
 
-      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div
-          className={isTableMode ? "min-w-0 space-y-0" : "min-w-0 space-y-3"}
-        >
-          <PropertiesTable
-            displayMode={displayMode}
-            onArchiveProperty={(property) =>
-              openPropertyAction({ mode: "archive", property })
+      <div className="px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:px-6 lg:py-4">
+        <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+          <section
+            className={
+              isTableMode
+                ? "flex min-h-0 min-w-0 flex-col"
+                : "min-w-0 space-y-3"
             }
-            onEditProperty={(property) =>
-              openPropertyAction({ mode: "edit", property })
-            }
-            onRestoreProperty={(property) =>
-              openPropertyAction({ mode: "restore", property })
-            }
-            onOpenProperty={openPropertyRecord}
-            onSelectProperty={previewProperty}
-            properties={properties}
-            selectedPropertyId={selectedProperty?.id ?? ""}
-          />
-          <PaginationControls attached={isTableMode} pagination={pagination} />
+          >
+            <div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-[13px]">
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground">Portfolio records</p>
+                <p className="text-foreground-muted">
+                  Select a row to inspect, open a row for the full property file.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-muted">
+                {pagination.totalCount} total
+              </span>
+            </div>
+            <div className={isTableMode ? "min-h-0 flex-1" : undefined}>
+              <PropertiesTable
+                displayMode={displayMode}
+                onArchiveProperty={(property) =>
+                  openPropertyAction({ mode: "archive", property })
+                }
+                onEditProperty={(property) =>
+                  openPropertyAction({ mode: "edit", property })
+                }
+                onRestoreProperty={(property) =>
+                  openPropertyAction({ mode: "restore", property })
+                }
+                onOpenProperty={openPropertyRecord}
+                onSelectProperty={previewProperty}
+                properties={properties}
+                selectedPropertyId={selectedProperty?.id ?? ""}
+              />
+            </div>
+            <PaginationControls attached={isTableMode} pagination={pagination} />
+          </section>
+          <aside className="hidden min-h-0 overflow-hidden rounded-md border border-border bg-surface xl:block">
+            <PropertyInspector
+              onArchiveProperty={(property) =>
+                openPropertyAction({ mode: "archive", property })
+              }
+              onEditProperty={(property) =>
+                openPropertyAction({ mode: "edit", property })
+              }
+              onRestoreProperty={(property) =>
+                openPropertyAction({ mode: "restore", property })
+              }
+              property={selectedProperty}
+            />
+          </aside>
         </div>
-        <PropertyInsightStrip properties={properties} />
       </div>
 
       <RecordPreviewDrawer
@@ -255,126 +291,6 @@ export function PropertyScreen({
   );
 }
 
-function PropertyInsightStrip({ properties }: { properties: PropertySummary[] }) {
-  if (properties.length === 0) {
-    return null;
-  }
-
-  const byOccupancy = [...properties].sort(
-    (first, second) =>
-      getOccupancyRate(first) - getOccupancyRate(second) ||
-      second.units - first.units ||
-      first.name.localeCompare(second.name),
-  );
-  const lowestOccupancy = byOccupancy[0];
-  const highestOccupancy = byOccupancy.at(-1) ?? lowestOccupancy;
-  const negativeNetCount = properties.filter(
-    (property) => property.netIncomeUsd < 0,
-  ).length;
-  const attentionCount = properties.filter(
-    (property) =>
-      property.netIncomeUsd < 0 ||
-      !property.hasActiveOwnerLink ||
-      property.occupiedUnits < property.units,
-  ).length;
-
-  return (
-    <section className="grid overflow-hidden rounded-md border border-border bg-surface shadow-sm md:grid-cols-2 xl:grid-cols-4">
-      <PropertyInsightCard
-        label="Lowest occupancy"
-        property={lowestOccupancy}
-        tone="danger"
-      />
-      <PropertyInsightCard
-        label="Highest occupancy"
-        property={highestOccupancy}
-        tone="success"
-      />
-      <PropertyCountInsight
-        helper="Properties below zero active ledger net"
-        href="/properties?netStatus=negative&sort=net_asc"
-        label="Negative net income"
-        tone={negativeNetCount > 0 ? "danger" : "success"}
-        value={negativeNetCount}
-      />
-      <PropertyCountInsight
-        helper="Open units, owner, net checks"
-        href="/properties?sort=net_asc"
-        label="Properties needing attention"
-        tone={attentionCount > 0 ? "warning" : "success"}
-        value={attentionCount}
-      />
-    </section>
-  );
-}
-
-function PropertyInsightCard({
-  label,
-  property,
-  tone,
-}: {
-  label: string;
-  property: PropertySummary;
-  tone: "danger" | "success";
-}) {
-  const occupancyRate = getOccupancyRate(property);
-
-  return (
-    <div className="min-w-0 border-b border-border p-3 md:border-r xl:border-b-0">
-      <p className="text-xs font-medium text-foreground-subtle">{label}</p>
-      <p className="mt-1 truncate text-[13px] font-semibold leading-5">
-        {property.name}
-      </p>
-      <div className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] items-center gap-3">
-        <span className="text-[17px] font-semibold leading-6 tabular-nums">
-          {occupancyRate}%
-        </span>
-        <span className="h-2 overflow-hidden rounded-full bg-chart-track">
-          <span
-            className={cn(
-              "block h-full rounded-full",
-              tone === "danger" ? "bg-danger/80" : "bg-success/80",
-            )}
-            style={{ width: `${Math.max(occupancyRate, property.units > 0 ? 4 : 0)}%` }}
-          />
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function PropertyCountInsight({
-  helper,
-  href,
-  label,
-  tone,
-  value,
-}: {
-  helper: string;
-  href: string;
-  label: string;
-  tone: "danger" | "success" | "warning";
-  value: number;
-}) {
-  return (
-    <div className="min-w-0 border-b border-border p-3 md:border-r xl:border-b-0">
-      <p className="text-xs font-medium text-foreground-subtle">{label}</p>
-      <p className="mt-1 text-[17px] font-semibold leading-6 tabular-nums">
-        {value} {value === 1 ? "property" : "properties"}
-      </p>
-      <Link
-        className={cn(
-          "mt-2 inline-flex text-xs font-medium hover:underline",
-          statToneClass(tone),
-        )}
-        href={href}
-      >
-        {helper}
-      </Link>
-    </div>
-  );
-}
-
 function getHrefWithoutActionParam(
   pathname: string,
   searchParams: { toString(): string },
@@ -384,28 +300,6 @@ function getHrefWithoutActionParam(
 
   const queryString = nextParams.toString();
   return queryString ? `${pathname}?${queryString}` : pathname;
-}
-
-function getOccupancyRate(property: PropertySummary) {
-  return property.units > 0
-    ? Math.round((property.occupiedUnits / property.units) * 100)
-    : 0;
-}
-
-function statToneClass(tone: "danger" | "success" | "warning") {
-  if (tone === "danger") {
-    return "text-danger";
-  }
-
-  if (tone === "warning") {
-    return "text-warning";
-  }
-
-  if (tone === "success") {
-    return "text-success";
-  }
-
-  return "text-success";
 }
 
 type PropertyReviewContext = {

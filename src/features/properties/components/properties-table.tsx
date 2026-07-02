@@ -1,7 +1,6 @@
 import * as Popover from "@radix-ui/react-popover";
 import {
   Archive,
-  Building2,
   Ellipsis,
   ImagePlus,
   Pencil,
@@ -40,7 +39,7 @@ export function PropertiesTable({
   selectedPropertyId,
 }: PropertiesTableProps) {
   return (
-    <div>
+    <div className={displayMode === "table" ? "h-full" : undefined}>
       <div
         className={cn(
           displayMode === "cards"
@@ -68,35 +67,42 @@ export function PropertiesTable({
       </div>
 
       {displayMode === "table" ? (
-        <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-          <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
+        <div className="hidden h-full overflow-hidden rounded-md border border-border bg-surface md:block">
+          <div className="h-full min-h-[540px] overflow-auto">
             <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[34%]" />
-                <col className="w-[27%]" />
+                <col className="w-[28%]" />
+                <col className="w-[17%]" />
                 <col className="w-[18%]" />
-                <col className="w-[14%]" />
-                <col className="w-[7%]" />
+                <col className="w-[13%]" />
+                <col className="w-[12%]" />
+                <col className="w-[8%]" />
+                <col className="w-[4%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <th className="px-2.5 py-2.5 font-semibold">Property</th>
+                  <th className="px-1.5 py-2.5 font-semibold">Owner</th>
                   <th className="px-1.5 py-2.5 font-semibold">Occupancy</th>
                   <th className="px-1.5 py-2.5 text-right font-semibold">
                     Net
                   </th>
+                  <th className="px-1.5 py-2.5 font-semibold">Open</th>
                   <th className="px-1.5 py-2.5 text-center font-semibold">
                     Status
                   </th>
-                  <th className="px-2 py-2.5 text-center font-semibold">
-                    Actions
+                  <th
+                    aria-label="Actions"
+                    className="px-2 py-2.5 text-center font-semibold"
+                  >
+                    <span className="sr-only">Actions</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {properties.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={5}>
+                    <td className="px-4 py-8 text-center text-muted" colSpan={7}>
                       No properties match the current filters.
                     </td>
                   </tr>
@@ -140,10 +146,24 @@ export function PropertiesTable({
                       </div>
                     </td>
                     <td className="px-1.5 py-2">
+                      <p
+                        className="truncate text-[13px] font-medium"
+                        title={property.owner}
+                      >
+                        {property.owner}
+                      </p>
+                      {!property.hasActiveOwnerLink ? (
+                        <p className="mt-0.5 text-xs text-warning">Owner link needed</p>
+                      ) : null}
+                    </td>
+                    <td className="px-1.5 py-2">
                       <TableOccupancy property={property} />
                     </td>
                     <td className="px-1.5 py-2">
                       <TableMoneyDisplay value={property.netIncome} />
+                    </td>
+                    <td className="px-1.5 py-2">
+                      <TableOpenItems property={property} />
                     </td>
                     <td className="px-1.5 py-2">
                       <PropertyStatusBadges compact property={property} />
@@ -217,6 +237,9 @@ function PropertyCard({
               title={`${property.code} / ${property.type}`}
             >
               {property.code} / {property.type}
+            </p>
+            <p className="mt-1 truncate text-xs text-muted" title={property.owner}>
+              {property.owner}
             </p>
           </div>
         </div>
@@ -442,9 +465,7 @@ function PropertyThumbnail({
   }
 
   return (
-    <span className={className} aria-hidden="true">
-      <Building2 size={size === "large" ? 19 : 16} />
-    </span>
+    <span className={className} aria-hidden="true" />
   );
 }
 
@@ -474,6 +495,29 @@ function TableOccupancy({ property }: { property: PropertySummary }) {
           style={{ width: `${Math.max(occupancyRate, property.units > 0 ? 4 : 0)}%` }}
         />
       </div>
+    </div>
+  );
+}
+
+function TableOpenItems({ property }: { property: PropertySummary }) {
+  const openUnits = Math.max(0, property.units - property.occupiedUnits);
+  const checks = [
+    openUnits > 0 ? `${openUnits} open` : null,
+    property.hasActiveOwnerLink ? null : "owner",
+    property.netIncomeUsd < 0 ? "net" : null,
+  ].filter(Boolean);
+
+  if (checks.length === 0) {
+    return <span className="text-xs text-success">Clear</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {checks.map((check) => (
+        <Badge className="px-1.5 py-0.5 text-[11px]" key={check} tone="warning">
+          {check}
+        </Badge>
+      ))}
     </div>
   );
 }

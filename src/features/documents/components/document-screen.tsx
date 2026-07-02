@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/file-dropzone-field";
 import { Input } from "@/components/ui/input";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
-import { SearchInput } from "@/components/ui/search-input";
+import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
@@ -273,6 +273,12 @@ function DocumentFilters({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [queryState, setQueryState] = useState({
+    source: viewQuery.query,
+    value: viewQuery.query,
+  });
+  const query =
+    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
   const visibleUnits =
     viewQuery.propertyId === "all"
       ? units
@@ -304,10 +310,21 @@ function DocumentFilters({
   return (
     <div className="border-b border-border px-4 py-3 sm:px-6 lg:px-6">
       <div className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_160px_220px_220px]">
-        <SearchInput
-          defaultValue={viewQuery.query}
-          onBlur={(event) => replaceParam("query", event.currentTarget.value)}
+        <SearchCombo
+          ariaLabel="Search documents"
+          onQueryChange={(value) =>
+            setQueryState({
+              source: viewQuery.query,
+              value,
+            })
+          }
+          onSubmit={(event) => {
+            event.preventDefault();
+            replaceParam("query", query);
+          }}
           placeholder="Search file name or category"
+          query={query}
+          submitLabel="Search documents"
         />
         <SelectControl
           ariaLabel="Archive state"

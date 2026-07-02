@@ -53,6 +53,85 @@ export type Database = {
           },
         ]
       }
+      asset_photos: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          caption: string | null
+          file_name: string
+          id: string
+          is_cover: boolean
+          mime_type: string
+          organization_id: string
+          property_id: string
+          size_bytes: number
+          sort_order: number
+          storage_path: string
+          taken_at: string | null
+          unit_id: string | null
+          uploaded_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          caption?: string | null
+          file_name: string
+          id?: string
+          is_cover?: boolean
+          mime_type: string
+          organization_id: string
+          property_id: string
+          size_bytes: number
+          sort_order?: number
+          storage_path: string
+          taken_at?: string | null
+          unit_id?: string | null
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          caption?: string | null
+          file_name?: string
+          id?: string
+          is_cover?: boolean
+          mime_type?: string
+          organization_id?: string
+          property_id?: string
+          size_bytes?: number
+          sort_order?: number
+          storage_path?: string
+          taken_at?: string | null
+          unit_id?: string | null
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_photos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_photos_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_photos_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           archived_at: string | null
@@ -1596,6 +1675,10 @@ export type Database = {
         Args: { p_document_id: string; p_organization_id: string }
         Returns: string
       }
+      archive_asset_photo: {
+        Args: { p_organization_id: string; p_photo_id: string }
+        Returns: string
+      }
       archive_person: {
         Args: { p_organization_id: string; p_person_id: string }
         Returns: string
@@ -1618,6 +1701,21 @@ export type Database = {
           membership_id: string
           organization_id: string
         }[]
+      }
+      create_asset_photo: {
+        Args: {
+          p_caption?: string | null
+          p_file_name: string
+          p_is_cover?: boolean
+          p_mime_type: string
+          p_organization_id: string
+          p_property_id: string
+          p_size_bytes: number
+          p_storage_path: string
+          p_taken_at?: string | null
+          p_unit_id?: string | null
+        }
+        Returns: string
       }
       create_document: {
         Args: {
@@ -1785,6 +1883,10 @@ export type Database = {
       }
       restore_unit: {
         Args: { p_organization_id: string; p_unit_id: string }
+        Returns: string
+      }
+      set_asset_photo_cover: {
+        Args: { p_organization_id: string; p_photo_id: string }
         Returns: string
       }
       set_ledger_period_lock: {

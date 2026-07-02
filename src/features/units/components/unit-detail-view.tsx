@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
+import { PhotoGallery } from "@/features/photos/components/photo-gallery";
 import { formatUnitTimelineContext } from "@/features/units/data/unit-summary";
 import type {
   UnitDetail,
@@ -99,6 +100,14 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
               />
             </dl>
           </section>
+
+          <PhotoGallery
+            emptyLabel="No unit photos yet."
+            photos={unit.photos}
+            propertyId={unit.propertyId}
+            title="Unit photos"
+            unitId={unit.id}
+          />
 
           <section className="rounded-md border border-border bg-surface">
             <SectionTitle
@@ -412,11 +421,7 @@ function UnitHeroPhoto({ unit }: { unit: UnitDetail }) {
     );
   }
 
-  return (
-    <div className={className} aria-hidden="true">
-      <Building2 size={22} />
-    </div>
-  );
+  return <div className={className} aria-hidden="true" />;
 }
 
 function Detail({

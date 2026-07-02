@@ -1,4 +1,5 @@
 import type { TimelineEventType } from "@/features/timeline/timeline.types";
+import type { AssetPhoto } from "@/features/photos/photo.types";
 import { formatDate } from "@/lib/dates/format";
 import {
   formatMoney,
@@ -185,6 +186,7 @@ export function buildUnitDetail({
   ledgerEntries,
   maintenanceCases = [],
   people,
+  photos = [],
   property,
   recentLedgerEntries,
   recentTimelineEvents,
@@ -198,6 +200,7 @@ export function buildUnitDetail({
   ledgerEntries: UnitLedgerRecord[];
   maintenanceCases?: UnitMaintenanceRecord[];
   people: UnitPersonRecord[];
+  photos?: AssetPhoto[];
   property?: UnitPropertyRecord;
   recentLedgerEntries: RecentUnitLedgerRecord[];
   recentTimelineEvents: UnitTimelineRecord[];
@@ -208,7 +211,7 @@ export function buildUnitDetail({
     latestTimelineEvent: recentTimelineEvents[0],
     ledgerEntries,
     property,
-    thumbnailUrl: documents.find(isImageDocument)?.url,
+    thumbnailUrl: photos[0]?.url ?? documents.find(isImageDocument)?.url,
     unit,
   });
   const tenantLinks = people.map(toPersonLink);
@@ -248,6 +251,7 @@ export function buildUnitDetail({
       tenantLinks,
     }),
     hrefs,
+    photos,
     repairAction,
     recentLedgerEntries: recentLedgerEntries.map((entry) =>
       toLedgerContext(entry),

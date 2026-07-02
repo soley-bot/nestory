@@ -42,7 +42,7 @@ import { Input } from "@/components/ui/input";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
-import { SearchInput } from "@/components/ui/search-input";
+import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
@@ -440,6 +440,12 @@ function MaintenanceFilters({
   const searchParams = useSearchParams();
   const advancedFilterCount = getAdvancedFilterCount(viewQuery, baseReview);
   const [advancedOpen, setAdvancedOpen] = useState(advancedFilterCount > 0);
+  const [queryState, setQueryState] = useState({
+    source: viewQuery.query,
+    value: viewQuery.query,
+  });
+  const query =
+    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
   const scopeOptions = getScopeOptions(properties, units, listLabel);
 
   const replaceParam = (name: string, value: string, defaultValue = "") => {
@@ -516,11 +522,22 @@ function MaintenanceFilters({
         </div>
       ) : null}
 
-      <div className="grid gap-2 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto]">
-        <SearchInput
-          defaultValue={viewQuery.query}
-          onBlur={(event) => replaceParam("query", event.currentTarget.value)}
+      <div className="grid gap-2 lg:grid-cols-[minmax(280px,1.25fr)_minmax(220px,1fr)_auto]">
+        <SearchCombo
+          ariaLabel={`Search ${listLabel}`}
+          onQueryChange={(value) =>
+            setQueryState({
+              source: viewQuery.query,
+              value,
+            })
+          }
+          onSubmit={(event) => {
+            event.preventDefault();
+            replaceParam("query", query);
+          }}
           placeholder={`Search ${listLabel}...`}
+          query={query}
+          submitLabel={`Search ${listLabel}`}
         />
         <SelectControl
           ariaLabel="Maintenance scope"
