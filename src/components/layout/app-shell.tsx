@@ -80,12 +80,6 @@ const navGroups: NavGroup[] = [
         label: "Maintenance",
         icon: Wrench,
       },
-      {
-        href: "/timeline-dashboard",
-        label: "Timeline",
-        icon: History,
-      },
-      { href: "/people-dashboard", label: "People", icon: UsersRound },
       { href: "/finance-dashboard", label: "Finance", icon: Wallet },
     ],
   },

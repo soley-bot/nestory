@@ -15,6 +15,8 @@
     "db:types": "supabase gen types --local --schema public > src/types/database.ts"
   },
   "dependencies": {
+    "@carbon/icons-react": "^11.83.0",
+    "@carbon/react": "^1.111.0",
     "@daypicker/react": "^10.0.1",
     "@dnd-kit/core": "^6.3.1",
     "@radix-ui/react-alert-dialog": "^1.1.18",
