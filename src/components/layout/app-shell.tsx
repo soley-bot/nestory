@@ -179,6 +179,7 @@ const navGroups: NavGroup[] = [
         icon: Wallet,
         activeHrefs: ["/timeline"],
       },
+      { href: "/activity", label: "Activity Log", icon: History },
     ],
   },
 ];
