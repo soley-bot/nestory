@@ -6,6 +6,7 @@ import {
   AreaChart,
   CartesianGrid,
   Cell,
+  Line,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -151,6 +152,99 @@ export function OverviewLedgerAreaChart({
             strokeWidth={2}
             type="monotone"
           />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export function OverviewMetricAreaChart({
+  className,
+  name = "Value",
+  points,
+  suffix = "",
+  target,
+}: {
+  className?: string;
+  name?: string;
+  points: Array<{ label: string; value: number }>;
+  suffix?: string;
+  target?: number;
+}) {
+  if (points.length === 0) {
+    return null;
+  }
+
+  const values = points.map((point) => point.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(1, max - min);
+  const scaleMin =
+    suffix === "%"
+      ? Math.max(0, Math.floor((min - 8) / 10) * 10)
+      : Math.max(0, min - range * 0.75);
+  const scaleMax =
+    suffix === "%"
+      ? Math.min(100, Math.ceil(Math.max(max, target ?? max) / 10) * 10)
+      : max + range * 0.75;
+  const formatValue = (value: number) => `${value}${suffix}`;
+  const data =
+    target === undefined
+      ? points
+      : points.map((point) => ({ ...point, target }));
+
+  return (
+    <div className={cn("h-40 min-w-0", className)}>
+      <ResponsiveContainer>
+        <AreaChart data={data} margin={{ bottom: 0, left: 0, right: 4, top: 6 }}>
+          <defs>
+            <linearGradient id="percent-fill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--accent)" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            axisLine={false}
+            dataKey="label"
+            tickLine={false}
+            tick={{ fill: "var(--foreground-subtle)", fontSize: 11 }}
+          />
+          <YAxis
+            axisLine={false}
+            domain={[scaleMin, scaleMax]}
+            tickFormatter={(value) => formatValue(Number(value))}
+            tickLine={false}
+            tick={{ fill: "var(--foreground-subtle)", fontSize: 11 }}
+            width={38}
+          />
+          <Tooltip
+            content={(props) => (
+              <OverviewTooltip
+                {...props}
+                valueFormatter={(value, name) => `${name}: ${formatValue(value)}`}
+              />
+            )}
+          />
+          <Area
+            dataKey="value"
+            fill="url(#percent-fill)"
+            name={name}
+            stroke="var(--accent)"
+            strokeWidth={2}
+            type="monotone"
+          />
+          {target !== undefined ? (
+            <Line
+              dataKey="target"
+              dot={false}
+              name="Target"
+              stroke="var(--chart-neutral)"
+              strokeDasharray="4 4"
+              strokeWidth={2}
+              type="monotone"
+            />
+          ) : null}
         </AreaChart>
       </ResponsiveContainer>
     </div>

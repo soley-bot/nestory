@@ -1,6 +1,20 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import {
+  ArrowUpRight,
+  Building2,
+  CalendarDays,
+  Home,
+  MapPin,
+  ShieldCheck,
+  SlidersHorizontal,
+  TriangleAlert,
+  Wrench,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { OverviewMetricAreaChart } from "@/features/overview/components/overview-charts";
+import { getPropertySummaries } from "@/features/properties/data/properties";
+import { requireWorkspaceContext } from "@/lib/auth/context";
 import { cn } from "@/lib/utils";
 
 type PlaceholderPageProps = {
@@ -10,9 +24,9 @@ type PlaceholderPageProps = {
 type DashboardPage = {
   actionHref: string;
   actionLabel: string;
-  bars: Array<{ href: string; label: string; helper: string; value: number }>;
+  bars: DashboardBarPoint[];
   driverTitle: string;
-  drivers: Array<{ href: string; label: string; helper: string; value: string; width: number; tone?: Tone }>;
+  drivers: DashboardDriverPoint[];
   kpis: Array<{ label: string; value: string; helper: string; tone?: Tone }>;
   trend: {
     label: string;
@@ -22,7 +36,28 @@ type DashboardPage = {
   };
 };
 
+type DashboardBarPoint = {
+  helper: string;
+  href: string;
+  imageUrl?: string;
+  label: string;
+  value: number;
+};
+
+type DashboardDriverPoint = {
+  helper: string;
+  href: string;
+  imageUrl?: string;
+  label: string;
+  tone?: Tone;
+  value: string;
+  width: number;
+};
+
 type Tone = "danger" | "success" | "warning";
+type VisualTone = Tone | "accent";
+
+type SparklinePoint = { label: string; value: number };
 
 type PlaceholderPage = {
   dashboard?: DashboardPage;
@@ -43,17 +78,17 @@ const placeholderPages: Record<string, PlaceholderPage> = {
         { href: "/properties", label: "Central Residence", helper: "Owner linked", value: 100 },
         { href: "/units?occupancy=unoccupied", label: "Northline Mixed Use", helper: "Vacancy review", value: 42 },
         { href: "/properties?ownerStatus=missing", label: "Stress Residence 04", helper: "Missing owner", value: 64 },
-        { href: "/properties?netStatus=negative&sort=net_asc", label: "J Tower cluster", helper: "Negative net", value: 58 },
+        { href: "/units?property=j-tower&occupancy=unoccupied", label: "J Tower cluster", helper: "Leasing follow-up", value: 65 },
       ],
       driverTitle: "Vacancy by property",
       drivers: [
-        { href: "/units?property=central&occupancy=unoccupied", label: "Central Residence", helper: "Nearly full; keep renewals current", value: "2 units", width: 12, tone: "success" },
-        { href: "/units?property=j-tower&occupancy=unoccupied", label: "J Tower cluster", helper: "Leasing follow-up needed", value: "18 units", width: 48, tone: "warning" },
-        { href: "/units?property=stress&occupancy=unoccupied", label: "Stress Residence 04", helper: "Owner and lease gaps overlap", value: "27 units", width: 64, tone: "warning" },
-        { href: "/units?property=northline&occupancy=unoccupied", label: "Northline Mixed Use", helper: "Critical occupancy drop", value: "46 units", width: 92, tone: "danger" },
+        { href: "/units?property=central&occupancy=unoccupied", label: "Central Residence", helper: "Nearly full", value: "2 units", width: 12, tone: "success" },
+        { href: "/units?property=j-tower&occupancy=unoccupied", label: "J Tower cluster", helper: "Leasing follow-up", value: "18 units", width: 48, tone: "warning" },
+        { href: "/units?property=stress&occupancy=unoccupied", label: "Stress Residence 04", helper: "Owner & lease gaps", value: "27 units", width: 64, tone: "warning" },
+        { href: "/units?property=northline&occupancy=unoccupied", label: "Northline Mixed Use", helper: "Critical drop", value: "46 units", width: 92, tone: "danger" },
       ],
       kpis: [
-        { label: "Occupancy", value: "78.6%", helper: "Down 3.1%", tone: "warning" },
+        { label: "Occupancy", value: "78.6%", helper: "-3.1% vs Jun", tone: "warning" },
         { label: "Vacant units", value: "93", helper: "+12 this week", tone: "warning" },
         { label: "Maintenance", value: "17", helper: "Overdue", tone: "danger" },
         { label: "Lease expiring", value: "26", helper: "Next 30 days", tone: "warning" },
@@ -381,75 +416,123 @@ export default async function PlaceholderPage({ params }: PlaceholderPageProps) 
   );
 }
 
-function DomainDashboard({ page }: { page: PlaceholderPage }) {
+async function DomainDashboard({ page }: { page: PlaceholderPage }) {
   const dashboard = page.dashboard;
 
   if (!dashboard) {
     return null;
   }
 
+  const imageUrls = await getDashboardPropertyImageUrls(page, dashboard);
+  const drivers = dashboard.drivers.map((point) =>
+    withDashboardPointImage(point, imageUrls),
+  );
+  const bars = dashboard.bars.map((point) =>
+    withDashboardPointImage(point, imageUrls),
+  );
+  const leadHealth = bars.toSorted(
+    (first, second) => first.value - second.value,
+  )[0];
+  const leadDriver = drivers[0];
+
   return (
-    <div>
-      <PageHeader description={page.description} title={page.title} />
-      <main className="min-h-screen bg-background px-4 py-3 sm:px-5 lg:px-5">
-        <div className="mx-auto grid w-full max-w-[1500px] gap-3">
-          <section className="min-w-0 rounded-md border border-border bg-surface p-3 shadow-sm">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <div className="min-w-0">
-                <span className="inline-flex rounded-md bg-accent-soft px-2 py-1 text-[11px] font-medium text-accent">
-                  {page.room}
-                </span>
-              </div>
-              <Link
-                className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
-                href={dashboard.actionHref}
-              >
-                {dashboard.actionLabel}
-              </Link>
-            </div>
+    <div className="min-h-screen bg-background">
+      <main className="mx-auto grid w-full max-w-[1500px] gap-2 px-4 pb-0.5 pt-2.5 sm:px-5 lg:px-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-[24px] font-semibold leading-7 tracking-normal text-foreground sm:text-[26px]">
+            {page.title}
+          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-[13px] font-medium text-foreground shadow-sm"
+              type="button"
+            >
+              <CalendarDays size={15} />
+              Jul 2024
+            </button>
+            <button
+              aria-label="Filters"
+              className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-surface text-foreground shadow-sm"
+              title="Filters"
+              type="button"
+            >
+              <SlidersHorizontal size={16} />
+            </button>
+            <Link
+              className="inline-flex h-8 items-center justify-center gap-2 rounded-lg bg-accent px-5 text-[14px] font-semibold text-background shadow-sm transition-colors hover:bg-accent-strong"
+              href={dashboard.actionHref}
+            >
+              Open
+              <ArrowUpRight size={15} />
+            </Link>
+          </div>
+        </div>
 
-            <div className="mt-3 grid overflow-hidden rounded-md border border-border bg-background/35 sm:grid-cols-2 xl:grid-cols-4">
-              {dashboard.kpis.map((kpi) => (
-                <MetricTile
-                  key={kpi.label}
-                  label={kpi.label}
-                  value={kpi.value}
-                  helper={kpi.helper}
-                  tone={kpi.tone}
-                />
-              ))}
-            </div>
+        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {dashboard.kpis.map((kpi, index) => (
+            <MetricTile
+              helper={kpi.helper}
+              index={index}
+              key={kpi.label}
+              label={kpi.label}
+              points={dashboard.trend.values}
+              tone={kpi.tone}
+              value={kpi.value}
+            />
+          ))}
+        </section>
+
+        {leadHealth && leadDriver ? (
+          <section className="grid overflow-hidden rounded-lg border border-border bg-surface shadow-sm sm:grid-cols-2">
+            <SignalStrip
+              detail={leadHealth.label}
+              href={leadHealth.href}
+              label="Lowest health"
+              tone={healthTone(leadHealth.value)}
+              value={`${leadHealth.value}%`}
+            />
+            <SignalStrip
+              detail={leadDriver.label}
+              href={leadDriver.href}
+              label="Top availability"
+              tone="success"
+              value={leadDriver.value}
+            />
           </section>
+        ) : null}
 
-          <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+        <section className="grid grid-cols-1 items-start gap-2 xl:grid-cols-[minmax(0,1.06fr)_minmax(420px,0.86fr)]">
+          <div className="grid min-w-0 grid-cols-1 gap-2">
             <ChartPanel
               actionHref={dashboard.actionHref}
-              actionLabel="Open"
+              actionLabel="View all"
               priority="primary"
               title={dashboard.driverTitle}
             >
-              <DriverList points={dashboard.drivers} priority="primary" />
+              <DriverList
+                actionHref={dashboard.actionHref}
+                footerLabel={viewAllLabel(page.title)}
+                points={drivers}
+              />
             </ChartPanel>
 
-            <div className="grid min-w-0 grid-cols-1 gap-3">
-              <ChartPanel
-                actionHref={dashboard.actionHref}
-                actionLabel="Open"
-                title="Trend"
-              >
-                <TrendGraph points={dashboard.trend} />
-              </ChartPanel>
+            <ChartPanel
+              actionHref={dashboard.actionHref}
+              actionLabel="View all"
+              title="Health"
+            >
+              <HealthPanel points={bars} />
+            </ChartPanel>
+          </div>
 
-              <ChartPanel
-                actionHref={dashboard.actionHref}
-                actionLabel={dashboard.actionLabel}
-                title="Health"
-              >
-                <BarChartList points={dashboard.bars} />
-              </ChartPanel>
-            </div>
-          </section>
-        </div>
+          <ChartPanel
+            actionHref={dashboard.actionHref}
+            actionLabel="View all"
+            title="Trend"
+          >
+            <TrendGraph points={dashboard.trend} />
+          </ChartPanel>
+        </section>
       </main>
     </div>
   );
@@ -475,35 +558,189 @@ function PlaceholderView({ page }: { page: PlaceholderPage }) {
   );
 }
 
+async function getDashboardPropertyImageUrls(
+  page: PlaceholderPage,
+  dashboard: DashboardPage,
+) {
+  if (page.title !== "Property Dashboard") {
+    return new Map<string, string>();
+  }
+
+  try {
+    const context = await requireWorkspaceContext();
+    const properties = await getPropertySummaries(context.organizationId);
+    const labels = [...dashboard.drivers, ...dashboard.bars].map(
+      (point) => point.label,
+    );
+
+    return new Map(
+      labels.flatMap((label) => {
+        const thumbnailUrl = findPropertyThumbnailUrl(label, properties);
+        return thumbnailUrl ? [[label, thumbnailUrl] as const] : [];
+      }),
+    );
+  } catch {
+    return new Map<string, string>();
+  }
+}
+
+function withDashboardPointImage<TPoint extends { imageUrl?: string; label: string }>(
+  point: TPoint,
+  imageUrls: ReadonlyMap<string, string>,
+) {
+  return {
+    ...point,
+    imageUrl: imageUrls.get(point.label),
+  };
+}
+
+function findPropertyThumbnailUrl(
+  label: string,
+  properties: Awaited<ReturnType<typeof getPropertySummaries>>,
+) {
+  const normalizedLabel = normalizePropertyMatchText(label);
+  const exact = properties.find(
+    (property) => normalizePropertyMatchText(property.name) === normalizedLabel,
+  );
+
+  if (exact?.thumbnailUrl) {
+    return exact.thumbnailUrl;
+  }
+
+  const contained = properties.find((property) => {
+    const propertyName = normalizePropertyMatchText(property.name);
+    return (
+      property.thumbnailUrl &&
+      (normalizedLabel.includes(propertyName) ||
+        propertyName.includes(normalizedLabel))
+    );
+  });
+
+  if (contained?.thumbnailUrl) {
+    return contained.thumbnailUrl;
+  }
+
+  const labelTokens = normalizePropertyTokens(normalizedLabel);
+  const tokenMatch = properties.find((property) => {
+    if (!property.thumbnailUrl) {
+      return false;
+    }
+
+    const propertyName = normalizePropertyMatchText(property.name);
+    return labelTokens.length > 0 && labelTokens.every((token) => propertyName.includes(token));
+  });
+
+  return tokenMatch?.thumbnailUrl;
+}
+
+function normalizePropertyMatchText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizePropertyTokens(value: string) {
+  const ignored = new Set(["and", "cluster", "property", "residence"]);
+
+  return value
+    .split(" ")
+    .filter((token) => token.length > 2 && !ignored.has(token));
+}
+
 function MetricTile({
   helper,
+  index,
   label,
+  points,
   tone,
   value,
 }: {
   helper: string;
+  index: number;
+  label: string;
+  points: SparklinePoint[];
+  tone?: Tone;
+  value: string;
+}) {
+  const visualTone = index === 0 ? "accent" : tone;
+  const helperTone = helper.trim().startsWith("+") ? "success" : tone;
+
+  return (
+    <div
+      className={cn(
+        "relative min-h-[76px] overflow-hidden rounded-lg border border-border bg-surface p-2.5 shadow-sm",
+        "before:absolute before:inset-x-0 before:top-0 before:h-[3px]",
+        toneRuleClass(visualTone),
+      )}
+      title={helper}
+    >
+      <div className="grid grid-cols-[38px_minmax(0,1fr)_58px] items-center gap-2">
+        <span
+          className={cn(
+            "flex size-10 items-center justify-center rounded-full",
+            iconShellClass(visualTone),
+          )}
+        >
+          {metricIcon(label, toneTextClass(visualTone), 18)}
+        </span>
+        <span className="min-w-0">
+          <span className="block whitespace-nowrap text-[9px] font-semibold uppercase tracking-normal text-foreground-subtle sm:text-[10px]">
+            {label}
+          </span>
+          <span className="block text-[22px] font-semibold leading-6 tracking-normal text-foreground">
+            {value}
+          </span>
+          <span className={cn("mt-0.5 block truncate text-[10px] font-medium", toneTextClass(helperTone))}>
+            {helper}
+          </span>
+        </span>
+        <MiniSparkline index={index} points={points} tone={visualTone} />
+      </div>
+    </div>
+  );
+}
+
+function SignalStrip({
+  detail,
+  href,
+  label,
+  tone,
+  value,
+}: {
+  detail: string;
+  href: string;
   label: string;
   tone?: Tone;
   value: string;
 }) {
   return (
-    <div
-      className={cn(
-        "min-h-[64px] border-b border-border px-3 py-2 transition-colors last:border-b-0 sm:border-r sm:last:border-r-0 xl:border-b-0",
-        tileToneClass(tone),
-      )}
-      title={helper}
+    <Link
+      className="flex min-w-0 items-center gap-2.5 border-b border-border px-3 py-1.5 text-[13px] transition-colors last:border-b-0 hover:bg-surface-muted sm:border-b-0 sm:border-r sm:last:border-r-0"
+      href={href}
+      prefetch={false}
     >
-      <p className="text-[11px] font-medium uppercase tracking-[0] text-foreground-subtle">
-        {label}
-      </p>
-      <p className="mt-1 text-[18px] font-semibold leading-5 tabular-nums text-foreground">
+      <span
+        className={cn(
+          "flex size-6 shrink-0 items-center justify-center rounded-full",
+          iconShellClass(tone),
+        )}
+      >
+        {tone === "success" ? (
+          <ShieldCheck className={toneTextClass(tone)} size={14} />
+        ) : (
+          <MapPin className={toneTextClass(tone)} size={14} />
+        )}
+      </span>
+      <span className="flex min-w-0 flex-1 items-center gap-3">
+        <span className="shrink-0 font-semibold text-foreground">{label}</span>
+        <span className="min-w-0 truncate text-foreground-muted">{detail}</span>
+      </span>
+      <span className={cn("shrink-0 font-semibold tabular-nums", toneTextClass(tone))}>
         {value}
-      </p>
-      <p className={cn("mt-0.5 truncate text-[11px] font-medium", rowToneClass(tone))}>
-        {helper}
-      </p>
-    </div>
+      </span>
+    </Link>
   );
 }
 
@@ -523,126 +760,120 @@ function ChartPanel({
   return (
     <section
       className={cn(
-        "min-w-0 rounded-md border border-border bg-surface p-3 shadow-sm",
-        priority === "primary" ? "xl:min-h-[260px]" : null,
+        "min-w-0 rounded-lg border border-border bg-surface p-2.5 shadow-sm",
+        priority === "primary" ? "xl:min-h-0" : null,
       )}
     >
       <div className="flex min-w-0 shrink-0 items-start justify-between gap-3">
-        <h2 className="text-[15px] font-semibold leading-5 tracking-tight">
+        <h2 className="text-[16px] font-semibold leading-5 tracking-normal text-foreground">
           {title}
         </h2>
         <Link
-          className="inline-flex shrink-0 rounded-md px-2 py-1 text-xs font-medium text-foreground-subtle transition-colors hover:bg-surface-muted hover:text-foreground"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
           href={actionHref}
         >
           {actionLabel}
+          <ArrowUpRight size={12} />
         </Link>
       </div>
-      <div className="pt-3">
+      <div className="pt-2.5">
         {children}
       </div>
     </section>
   );
 }
 
-function BarChartList({
+function HealthPanel({
   points,
 }: {
   points: DashboardPage["bars"];
 }) {
   return (
-    <div className="grid gap-1.5">
-      {points.map((point) => (
-        <Link
-          className="group block rounded-md border border-border bg-background/35 px-2 py-1.5 transition-colors hover:bg-surface-muted"
-          href={point.href}
-          key={point.label}
-          title={point.helper}
-        >
-          <div className="flex items-center justify-between gap-3 text-xs">
-            <span className="min-w-0 truncate font-medium">{point.label}</span>
-            <span className={cn("shrink-0 font-semibold tabular-nums", valueToneClass(point.value))}>
-              {point.value}%
+    <div className="grid min-w-0 gap-1 sm:grid-cols-2">
+      {points.map((point) => {
+        const tone = healthTone(point.value);
+
+        return (
+          <Link
+            className="group grid min-w-0 gap-1 rounded-lg px-2 py-0.5 transition-colors hover:bg-surface-muted"
+            href={point.href}
+            key={point.label}
+            title={point.helper}
+          >
+            <div className="grid min-w-0 grid-cols-[24px_minmax(0,1fr)_auto] items-start gap-2">
+              <span
+                className={cn(
+                  "flex size-5 items-center justify-center rounded-full",
+                  iconShellClass(tone),
+                )}
+              >
+                {tone === "success" ? (
+                  <ShieldCheck className={toneTextClass(tone)} size={12} />
+                ) : (
+                  <TriangleAlert className={toneTextClass(tone)} size={12} />
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-[12px] font-semibold text-foreground">
+                  {point.label}
+                </span>
+                <span className="block truncate text-[10px] text-foreground-subtle">
+                  {point.helper}
+                </span>
+              </span>
+              <span className={cn("font-semibold tabular-nums", toneTextClass(tone))}>
+                {point.value}%
+              </span>
+            </div>
+            <span className="ml-7 block h-1 overflow-hidden rounded-full bg-chart-track">
+              <span
+                className={cn("block h-full rounded-full", toneBgClass(tone))}
+                style={{ width: `${point.value}%` }}
+              />
             </span>
-          </div>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-chart-track">
-            <div
-              className={cn("h-full rounded-full transition-opacity group-hover:opacity-90", barToneClass(point.value))}
-              style={{ width: `${point.value}%` }}
-            />
-          </div>
-        </Link>
-      ))}
+          </Link>
+        );
+      })}
     </div>
   );
 }
 
 function TrendGraph({ points }: { points: DashboardPage["trend"] }) {
-  const values = points.values.map((point) => point.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
   const first = points.values[0];
   const last = points.values.at(-1);
   const delta = first && last ? last.value - first.value : 0;
-  const range = Math.max(1, max - min);
-  const scaleMin = points.suffix === "%" ? 0 : Math.max(0, min - range * 0.75);
-  const scaleMax = points.suffix === "%" ? 100 : max + range * 0.75;
-  const scaleRange = Math.max(1, scaleMax - scaleMin);
   const lowPoint = points.values.reduce((lowest, point) =>
     point.value < lowest.value ? point : lowest,
   );
   const highPoint = points.values.reduce((highest, point) =>
     point.value > highest.value ? point : highest,
   );
-  const coordinates = points.values
-    .map((point, index) => {
-      const x = 16 + index * (208 / Math.max(1, points.values.length - 1));
-      const y = 116 - ((point.value - scaleMin) / scaleRange) * 88;
-
-      return `${x},${y}`;
-    })
-    .join(" ");
+  const target = points.suffix === "%" ? 90 : undefined;
 
   return (
     <div className="min-w-0">
-      <div className="mb-2 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium text-foreground-subtle">
-            {points.label}
-          </p>
-          <p className="text-xl font-semibold leading-6 tabular-nums text-foreground">
-            {last ? formatTrendValue(last.value, points.suffix) : "0"}
-          </p>
-        </div>
-        <p className={cn("text-xs font-medium tabular-nums", rowToneClass(delta < 0 ? "warning" : "success"))}>
+      <div className="mb-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+        <span className="text-xs font-medium text-foreground-muted">
+          {points.label}
+        </span>
+        <span className="text-[22px] font-semibold leading-6 tabular-nums text-foreground">
+          {last ? formatTrendValue(last.value, points.suffix) : "0"}
+        </span>
+        <span className="inline-flex rounded-md bg-success-soft px-2 py-0.5 text-[11px] font-medium text-success">
           {delta >= 0 ? "+" : ""}
-          {formatTrendValue(delta, points.suffix)} since {first?.label}
-        </p>
+          {formatTrendValue(delta, points.suffix)} vs {first?.label}
+        </span>
+        <span className="inline-flex rounded-md border border-border bg-surface px-2 py-0.5 text-[11px] font-medium text-foreground-muted">
+          {points.note}
+        </span>
       </div>
-      <svg
-        aria-label={`${points.label} trend`}
-        className="h-32 w-full"
-        preserveAspectRatio="none"
-        viewBox="0 0 240 140"
-      >
-        <line stroke="var(--border)" vectorEffect="non-scaling-stroke" x1="12" x2="232" y1="112" y2="112" />
-        <line stroke="var(--border)" vectorEffect="non-scaling-stroke" x1="12" x2="232" y1="72" y2="72" />
-        <line stroke="var(--border)" vectorEffect="non-scaling-stroke" x1="12" x2="232" y1="32" y2="32" />
-        <polyline
-          fill="none"
-          points={coordinates}
-          stroke="var(--accent)"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2.5"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <div className="mt-1 flex justify-between gap-2 text-[11px] text-foreground-subtle">
-        {points.values.map((point) => (
-          <span key={point.label}>{point.label}</span>
-        ))}
-      </div>
+      <OverviewMetricAreaChart
+        className="h-72 xl:h-[430px]"
+        name={points.label}
+        points={points.values}
+        suffix={points.suffix}
+        target={target}
+      />
       <div className="sr-only">
         Low {formatTrendValue(lowPoint.value, points.suffix)} in {lowPoint.label};
         high {formatTrendValue(highPoint.value, points.suffix)} in {highPoint.label}.
@@ -657,101 +888,227 @@ function formatTrendValue(value: number, suffix: string | undefined) {
 }
 
 function DriverList({
+  actionHref,
+  footerLabel,
   points,
-  priority = "secondary",
 }: {
+  actionHref: string;
+  footerLabel: string;
   points: DashboardPage["drivers"];
-  priority?: "primary" | "secondary";
 }) {
   return (
-    <div className={cn("grid", priority === "primary" ? "gap-4" : "gap-3")}>
-      {points.map((point) => (
+    <div className="min-w-0 overflow-hidden">
+      <div className="hidden grid-cols-[minmax(0,1fr)_104px_116px] border-b border-border px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-normal text-foreground-subtle sm:grid">
+        <span>Property</span>
+        <span className="text-right">Vacant units</span>
+        <span className="text-right">Availability</span>
+      </div>
+      {points.map((point, index) => (
         <Link
-          className={cn(
-            "grid rounded-md border border-transparent transition-colors hover:border-border hover:bg-surface-muted",
-            priority === "primary" ? "gap-2 px-2.5 py-2" : "gap-2 px-2.5 py-1.5",
-          )}
+          className="grid min-w-0 gap-2.5 border-b border-border px-2 py-2.5 transition-colors last:border-b-0 hover:bg-surface-muted sm:grid-cols-[minmax(0,1fr)_104px_116px] sm:items-center"
           href={point.href}
           key={point.label}
           title={point.helper}
         >
-          <div className="flex justify-between gap-3 text-[13px]">
-            <span className="truncate font-medium text-foreground-muted">
-              {point.label}
+          <div className="grid min-w-0 grid-cols-[24px_38px_minmax(0,1fr)] items-center gap-2.5">
+            <span className="flex size-6 items-center justify-center rounded-md bg-surface-muted text-[12px] font-semibold text-muted ring-1 ring-border">
+              {index + 1}
             </span>
-            <span className={cn("font-semibold tabular-nums", rowToneClass(point.tone))}>
-              {point.value}
+            <BuildingThumb
+              className="size-9"
+              imageUrl={point.imageUrl}
+              label={point.label}
+              tone={point.tone}
+            />
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] font-semibold text-foreground">
+                {point.label}
+              </span>
+              <span
+                className={cn(
+                  "mt-1 inline-flex max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                  helperBadgeClass(point.tone),
+                )}
+              >
+                {point.helper}
+              </span>
             </span>
           </div>
-          <div className={cn("overflow-hidden rounded-full bg-chart-track", priority === "primary" ? "h-3" : "h-2")}>
-            <div
-              className={cn("h-full rounded-full", toneBgClass(point.tone))}
-              style={{ width: `${point.width}%` }}
-            />
+          <div className="flex items-end justify-between gap-3 sm:block sm:text-right">
+              <span className="text-[11px] font-semibold uppercase text-foreground-subtle sm:hidden">
+              Vacant units
+            </span>
+            <span className={cn("block text-[14px] font-semibold tabular-nums", toneTextClass(point.tone))}>
+              {point.value}
+            </span>
+            <span className="mt-0.5 hidden text-[12px] text-foreground-subtle sm:block">
+              {point.width.toFixed(1)}%
+            </span>
+          </div>
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="h-2 flex-1 overflow-hidden rounded-full bg-chart-track">
+                <span
+                  className={cn("block h-full rounded-full", toneBgClass(point.tone))}
+                  style={{ width: `${point.width}%` }}
+                />
+              </span>
+            </div>
           </div>
         </Link>
       ))}
+      <div className="flex justify-center border-t border-border pt-1.5">
+        <Link
+          className="inline-flex items-center gap-1 text-[12px] font-semibold text-accent hover:text-accent-strong"
+          href={actionHref}
+          prefetch={false}
+        >
+          {footerLabel}
+          <ArrowUpRight size={12} />
+        </Link>
+      </div>
     </div>
   );
 }
 
-function tileToneClass(tone: Tone | undefined) {
-  if (tone === "danger") {
-    return "bg-danger-soft/30";
+function viewAllLabel(title: string) {
+  const noun = title.replace(/\s+Dashboard$/, "").toLowerCase();
+
+  if (noun === "property") {
+    return "View all properties";
   }
 
-  if (tone === "warning") {
-    return "bg-warning-soft/30";
-  }
-
-  if (tone === "success") {
-    return "bg-success-soft/30";
-  }
-
-  return null;
+  return `View all ${noun}`;
 }
 
-function valueToneClass(value: number) {
+function BuildingThumb({
+  className,
+  imageUrl,
+  label,
+  tone,
+}: {
+  className?: string;
+  imageUrl?: string;
+  label?: string;
+  tone?: Tone;
+}) {
+  const thumbClassName = cn(
+    "relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border shadow-sm",
+    imageUrl ? "border-border bg-cover bg-center" : buildingShellClass(tone),
+    className,
+  );
+
+  if (imageUrl) {
+    return (
+      <span
+        aria-label={label ? `${label} photo` : "Property photo"}
+        className={thumbClassName}
+        role="img"
+        style={{ backgroundImage: `url(${imageUrl})` }}
+      />
+    );
+  }
+
+  return (
+    <span className={thumbClassName} aria-hidden="true">
+      <span className="absolute bottom-1 left-1 h-6 w-3 rounded-[2px] bg-white/65" />
+      <span className="absolute bottom-1 right-1 h-8 w-4 rounded-[2px] bg-white/78" />
+      <Building2 className="relative text-slate-800/70" size={25} strokeWidth={1.7} />
+    </span>
+  );
+}
+
+function MiniSparkline({
+  index,
+  points,
+  tone,
+}: {
+  index: number;
+  points: SparklinePoint[];
+  tone?: VisualTone;
+}) {
+  const values = points.map((point, pointIndex) =>
+    point.value + (index - 1) * 1.8 + (pointIndex % 2 === 0 ? 0 : index),
+  );
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(1, max - min);
+  const coordinates = values
+    .map((value, pointIndex) => {
+      const x = 4 + pointIndex * (68 / Math.max(1, values.length - 1));
+      const y = 34 - ((value - min) / range) * 24;
+
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-7 w-[58px]"
+      preserveAspectRatio="none"
+      viewBox="0 0 76 40"
+    >
+      <polyline
+        fill="none"
+        points={coordinates}
+        stroke={toneStroke(tone)}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+function healthTone(value: number): Tone {
   if (value < 50) {
-    return "text-danger";
+    return "danger";
   }
 
   if (value < 80) {
-    return "text-warning";
+    return "warning";
   }
 
-  return "text-success";
+  return "success";
 }
 
-function barToneClass(value: number) {
-  if (value < 50) {
-    return "bg-danger/80";
+function metricIcon(label: string, className: string, size = 25) {
+  const normalized = label.toLowerCase();
+
+  if (normalized.includes("vacant")) {
+    return <Home className={className} size={size} strokeWidth={1.8} />;
   }
 
-  if (value < 80) {
-    return "bg-warning/80";
+  if (normalized.includes("maintenance") || normalized.includes("open")) {
+    return <Wrench className={className} size={size} strokeWidth={1.8} />;
   }
 
-  return "bg-success/80";
+  if (normalized.includes("lease") || normalized.includes("due")) {
+    return <CalendarDays className={className} size={size} strokeWidth={1.8} />;
+  }
+
+  return <Building2 className={className} size={size} strokeWidth={1.8} />;
 }
 
-function toneBgClass(tone: Tone | undefined) {
+function toneBgClass(tone: VisualTone | undefined) {
   if (tone === "danger") {
-    return "bg-danger/80";
+    return "bg-danger";
   }
 
   if (tone === "warning") {
-    return "bg-warning/80";
+    return "bg-warning";
   }
 
   if (tone === "success") {
-    return "bg-success/80";
+    return "bg-success";
   }
 
   return "bg-accent";
 }
 
-function rowToneClass(tone: Tone | undefined) {
+function toneTextClass(tone: VisualTone | undefined) {
   if (tone === "danger") {
     return "text-danger";
   }
@@ -764,5 +1121,85 @@ function rowToneClass(tone: Tone | undefined) {
     return "text-success";
   }
 
-  return "text-muted";
+  return "text-accent";
+}
+
+function toneRuleClass(tone: VisualTone | undefined) {
+  if (tone === "danger") {
+    return "before:bg-danger";
+  }
+
+  if (tone === "warning") {
+    return "before:bg-warning";
+  }
+
+  if (tone === "success") {
+    return "before:bg-success";
+  }
+
+  return "before:bg-accent";
+}
+
+function iconShellClass(tone: VisualTone | undefined) {
+  if (tone === "danger") {
+    return "bg-danger-soft";
+  }
+
+  if (tone === "warning") {
+    return "bg-warning-soft";
+  }
+
+  if (tone === "success") {
+    return "bg-success-soft";
+  }
+
+  return "bg-accent-soft";
+}
+
+function buildingShellClass(tone: Tone | undefined) {
+  if (tone === "danger") {
+    return "border-danger/20 bg-danger-soft";
+  }
+
+  if (tone === "warning") {
+    return "border-warning/25 bg-warning-soft";
+  }
+
+  if (tone === "success") {
+    return "border-success/20 bg-success-soft";
+  }
+
+  return "border-accent/20 bg-accent-soft";
+}
+
+function helperBadgeClass(tone: Tone | undefined) {
+  if (tone === "danger") {
+    return "bg-danger-soft text-danger";
+  }
+
+  if (tone === "warning") {
+    return "bg-warning-soft text-warning";
+  }
+
+  if (tone === "success") {
+    return "bg-success-soft text-success";
+  }
+
+  return "bg-accent-soft text-accent";
+}
+
+function toneStroke(tone: VisualTone | undefined) {
+  if (tone === "danger") {
+    return "var(--danger)";
+  }
+
+  if (tone === "warning") {
+    return "var(--warning)";
+  }
+
+  if (tone === "success") {
+    return "var(--success)";
+  }
+
+  return "var(--accent)";
 }
