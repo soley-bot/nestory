@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -64,56 +64,6 @@ type PlaceholderPage = {
   description: string;
   room: string;
   title: string;
-};
-
-const roomLinks: Record<string, Array<{ href: string; label: string }>> = {
-  Dashboard: [
-    { href: "/overview", label: "Open overview" },
-    { href: "/reports", label: "Open reports" },
-    { href: "/import", label: "Import data" },
-  ],
-  Finance: [
-    { href: "/ledger", label: "Open ledger" },
-    { href: "/leases", label: "Open leases" },
-    { href: "/reports", label: "Open reports" },
-  ],
-  Maintenance: [
-    { href: "/maintenance", label: "Open requests" },
-    { href: "/tasks", label: "Open tasks" },
-    { href: "/schedule", label: "Open schedule" },
-  ],
-  Operations: [
-    { href: "/maintenance", label: "Open maintenance" },
-    { href: "/tasks", label: "Open tasks" },
-    { href: "/schedule", label: "Open schedule" },
-  ],
-  Property: [
-    { href: "/properties", label: "Open properties" },
-    { href: "/units", label: "Open units" },
-    { href: "/reports?report=missing-data", label: "Review missing data" },
-  ],
-  Settings: [
-    { href: "/settings", label: "Open organization" },
-    { href: "/users-roles", label: "Open users & roles" },
-    { href: "/backup-data", label: "Open backup" },
-  ],
-  Timeline: [
-    { href: "/timeline", label: "Open timeline" },
-    { href: "/documents", label: "Open documents" },
-    { href: "/reports", label: "Open reports" },
-  ],
-};
-
-const redirectPlaceholderPages: Record<string, string> = {
-  "finance-dashboard": "/ledger?period=current_month",
-  "financial-timeline": "/timeline",
-  invoices: "/ledger?direction=income",
-  "maintenance-timeline": "/timeline?eventType=Maintenance",
-  "petty-cash": "/ledger?direction=expense",
-  "property-dashboard": "/properties",
-  "property-inspections": "/inspections",
-  "property-timeline": "/timeline",
-  security: "/users-roles",
 };
 
 const placeholderPages: Record<string, PlaceholderPage> = {
@@ -373,12 +323,6 @@ const placeholderPages: Record<string, PlaceholderPage> = {
 
 export default async function PlaceholderPage({ params }: PlaceholderPageProps) {
   const { placeholder } = await params;
-  const redirectHref = redirectPlaceholderPages[placeholder];
-
-  if (redirectHref) {
-    redirect(redirectHref);
-  }
-
   const page = placeholderPages[placeholder];
 
   if (!page) {
@@ -515,8 +459,6 @@ async function DomainDashboard({ page }: { page: PlaceholderPage }) {
 }
 
 function PlaceholderView({ page }: { page: PlaceholderPage }) {
-  const links = roomLinks[page.room] ?? roomLinks.Dashboard;
-
   return (
     <div>
       <PageHeader description={page.description} title={page.title} />
@@ -530,18 +472,6 @@ function PlaceholderView({ page }: { page: PlaceholderPage }) {
             This sidebar destination is wired. The full workflow can replace
             this placeholder when this room becomes the next active build slice.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {links.map((link) => (
-              <Link
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface-muted px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface"
-                href={link.href}
-                key={link.href}
-              >
-                {link.label}
-                <ArrowUpRight size={13} />
-              </Link>
-            ))}
-          </div>
         </section>
       </main>
     </div>

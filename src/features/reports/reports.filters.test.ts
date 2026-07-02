@@ -46,12 +46,6 @@ describe("report search params", () => {
     expect(parseReportSearchParams({ status: "all" }).status).toBe("all");
   });
 
-  it("keeps the import cleanup report addressable by URL", () => {
-    expect(parseReportSearchParams({ report: "missing-data" }).report).toBe(
-      "missing-data",
-    );
-  });
-
   it("builds an inclusive calendar-month range", () => {
     expect(getReportMonthRange("2026-02")).toEqual({
       end: "2026-02-28",

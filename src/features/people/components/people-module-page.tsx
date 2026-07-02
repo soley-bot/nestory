@@ -57,7 +57,6 @@ async function PeopleModulePageContent({
   const accessByPersonId = config.showAccessStatus
     ? await getAccessByPersonId(
         context.organizationId,
-        context.userId,
         people.map((person) => person.id),
       )
     : undefined;

@@ -222,14 +222,6 @@ export function ImportPreviewScreen({
                     {actionState.summary.updated}.
                   </span>
                 ) : null}
-                {actionState.status === "success" ? (
-                  <Link
-                    className="ml-2 font-medium text-accent hover:text-accent-strong"
-                    href="/reports?report=missing-data"
-                  >
-                    Review missing data
-                  </Link>
-                ) : null}
               </p>
             ) : null}
           </div>

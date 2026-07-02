@@ -12,7 +12,7 @@ export default async function UsersRolesPage({
 }: UsersRolesPageProps) {
   const context = await requireAdminContext();
   const params = await searchParams;
-  const data = await getAccessSettingsData(context.organizationId, context.userId);
+  const data = await getAccessSettingsData(context.organizationId);
 
   return (
     <div>

@@ -14,8 +14,6 @@ them.
 ## Local Verification
 
 ```bash
-npm test
-npm run typecheck
 npm run lint
 npm run build
 ```
@@ -50,8 +48,8 @@ Run this flow on production after auth changes:
 
 1. Open `https://nestory-bay.vercel.app/signup`.
 2. Create an account with an inbox you can access.
-3. Confirm the Supabase email link opens `/auth/confirm`.
-4. Confirm `/auth/confirm` verifies the token and redirects.
+3. Confirm the Supabase email link.
+4. Confirm `/auth/callback` exchanges the code and redirects.
 5. Confirm a first-time admin lands on `/setup`.
 6. Create a workspace.
 7. Confirm the app lands on `/overview`.
@@ -67,8 +65,6 @@ Run this flow on production after auth changes:
   as `nestory-kh.com`.
 - Reserved subdomains default to `app`, `www`, and `api`; override with
   `APP_RESERVED_SUBDOMAINS` only if the production DNS model changes.
-- Mirror `APP_ROOT_DOMAIN` and any `APP_RESERVED_SUBDOMAINS` override in Vercel
-  environment variables before testing hosted subdomains.
 - Add Supabase Auth redirect URLs for each hosted auth callback you intend to
   use, for example `https://app.nestory-kh.com/auth/callback` and
   `https://demo.nestory-kh.com/auth/callback`.

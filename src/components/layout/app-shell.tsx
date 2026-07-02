@@ -71,7 +71,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/overview", label: "Overview", icon: LayoutDashboard },
       {
-        href: "/properties",
+        href: "/property-dashboard",
         label: "Property",
         icon: Building2,
       },
@@ -80,7 +80,7 @@ const navGroups: NavGroup[] = [
         label: "Maintenance",
         icon: Wrench,
       },
-      { href: "/ledger?period=current_month", label: "Finance", icon: Wallet },
+      { href: "/finance-dashboard", label: "Finance", icon: Wallet },
     ],
   },
   {
@@ -92,7 +92,7 @@ const navGroups: NavGroup[] = [
       { href: "/properties", label: "Properties", icon: Building2 },
       { href: "/units", label: "Units", icon: DoorOpen },
       { href: "/amenities", label: "Amenities", icon: Sparkles },
-      { href: "/inspections", label: "Inspections", icon: ClipboardCheck },
+      { href: "/property-inspections", label: "Inspections", icon: ClipboardCheck },
     ],
   },
   {
@@ -140,18 +140,8 @@ const navGroups: NavGroup[] = [
       { href: "/leases", label: "Leases", icon: ScrollText },
       { href: "/ledger", label: "Ledger", icon: BookOpen },
       { href: "/payments", label: "Payments", icon: CreditCard },
-      {
-        href: "/ledger?direction=income",
-        label: "Invoices",
-        icon: ReceiptText,
-        activeHrefs: ["/ledger"],
-      },
-      {
-        href: "/ledger?direction=expense",
-        label: "Petty Cash",
-        icon: Coins,
-        activeHrefs: ["/ledger"],
-      },
+      { href: "/invoices", label: "Invoices", icon: ReceiptText },
+      { href: "/petty-cash", label: "Petty Cash", icon: Coins },
       { href: "/reports", label: "Reports", icon: FileChartColumn },
     ],
   },
@@ -163,23 +153,20 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/timeline", label: "Global Timeline", icon: History },
       {
-        href: "/timeline",
+        href: "/property-timeline",
         label: "Property Timeline",
         icon: Building2,
       },
       {
-        href: "/timeline?eventType=Maintenance",
+        href: "/maintenance-timeline",
         label: "Maintenance Timeline",
         icon: Wrench,
-        activeHrefs: ["/timeline"],
       },
       {
-        href: "/timeline",
+        href: "/financial-timeline",
         label: "Financial Timeline",
         icon: Wallet,
-        activeHrefs: ["/timeline"],
       },
-      { href: "/activity", label: "Activity Log", icon: History },
     ],
   },
 ];

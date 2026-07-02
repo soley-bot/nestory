@@ -1,5 +1,4 @@
 import { getOccupancyReportData } from "@/features/reports/data/reports";
-import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import {
   formatLongReportDate,
   getReportScopeLabel,
@@ -9,7 +8,6 @@ import type {
   OccupancyReport,
   OccupancyReportRow,
   ReportsViewQuery,
-  TrustedReport,
 } from "@/features/reports/reports.types";
 
 type PdfExport = {
@@ -66,7 +64,7 @@ const colors = {
   warning: "#ad5700",
 };
 
-const occupancyColumns: PdfColumn[] = [
+const columns: PdfColumn[] = [
   { align: "center", label: "No.", maxLines: 1, width: 30 },
   { label: "Property Name", maxLines: 2, width: 168 },
   { label: "Unit no. / Floor", maxLines: 2, width: 92 },
@@ -82,35 +80,28 @@ export async function getReportPdf(
   organizationName: string,
   viewQuery: ReportsViewQuery,
 ): Promise<PdfExport> {
-  if (viewQuery.report === "vacancy-risk") {
-    const data = await getOccupancyReportData(organizationId, viewQuery);
-    const report = data.occupancyReport;
-    const scopeLabel = getReportScopeLabel(viewQuery.propertyId, data.propertyOptions);
-    const filenameScope =
-      viewQuery.propertyId === "all"
-        ? "all-properties"
-        : slugifyReportPart(scopeLabel);
-
-    return {
-      body: buildOccupancyReportPdf({
-        organizationName,
-        report,
-        scopeLabel,
-      }),
-      filename:
-        viewQuery.status === "vacant"
-          ? `available-units-${filenameScope}.pdf`
-          : `vacancy-risk-report-${filenameScope}.pdf`,
-    };
+  if (viewQuery.report !== "vacancy-risk") {
+    throw new Error("PDF export is only available for vacancy/risk reports.");
   }
 
-  const report = await getTrustedReport({ organizationId, viewQuery });
+  const data = await getOccupancyReportData(organizationId, viewQuery);
+  const report = data.occupancyReport;
+  const scopeLabel = getReportScopeLabel(viewQuery.propertyId, data.propertyOptions);
+  const filenameScope =
+    viewQuery.propertyId === "all"
+      ? "all-properties"
+      : slugifyReportPart(scopeLabel);
 
   return {
-    body: buildTrustedReportPdf({ organizationName, report }),
-    filename: `${report.exportFilenameBase}-${viewQuery.month}-${slugifyReportPart(
-      report.scopeLabel,
-    )}.pdf`,
+    body: buildOccupancyReportPdf({
+      organizationName,
+      report,
+      scopeLabel,
+    }),
+    filename:
+      viewQuery.status === "vacant"
+        ? `available-units-${filenameScope}.pdf`
+        : `vacancy-risk-report-${filenameScope}.pdf`,
   };
 }
 
@@ -123,11 +114,10 @@ export function buildOccupancyReportPdf({
   report?: OccupancyReport;
   scopeLabel: string;
 }) {
-  const rows = buildPdfRows(report?.rows ?? [], occupancyColumns);
+  const rows = buildPdfRows(report?.rows ?? []);
   const pages = paginateRows(rows);
   const pageCommands = pages.map((page, pageIndex) =>
     renderPage({
-      columns: occupancyColumns,
       organizationName,
       page,
       pageIndex,
@@ -140,31 +130,7 @@ export function buildOccupancyReportPdf({
   return createPdfDocument(pageCommands);
 }
 
-export function buildTrustedReportPdf({
-  organizationName,
-  report,
-}: {
-  organizationName: string;
-  report: TrustedReport;
-}) {
-  const columns = buildTrustedPdfColumns(report);
-  const rows = buildTrustedPdfRows(report, columns);
-  const pages = paginateRows(rows);
-  const pageCommands = pages.map((page, pageIndex) =>
-    renderTrustedReportPage({
-      columns,
-      organizationName,
-      page,
-      pageIndex,
-      report,
-      totalPages: pages.length,
-    }),
-  );
-
-  return createPdfDocument(pageCommands);
-}
-
-function buildPdfRows(rows: OccupancyReportRow[], columns: PdfColumn[]) {
+function buildPdfRows(rows: OccupancyReportRow[]) {
   if (rows.length === 0) {
     return [
       buildPdfRow(
@@ -179,7 +145,6 @@ function buildPdfRows(rows: OccupancyReportRow[], columns: PdfColumn[]) {
           "",
         ],
         0,
-        columns,
       ),
     ];
   }
@@ -197,68 +162,11 @@ function buildPdfRows(rows: OccupancyReportRow[], columns: PdfColumn[]) {
         row.remark,
       ],
       index,
-      columns,
     ),
   );
 }
 
-function buildTrustedPdfColumns(report: TrustedReport): PdfColumn[] {
-  const fixedWidth = 30 + 142 + 82;
-  const reportColumnWidth =
-    report.columns.length > 0
-      ? (tableWidth - fixedWidth) / report.columns.length
-      : 0;
-
-  return [
-    { align: "center", label: "No.", maxLines: 1, width: 30 },
-    { label: "Title", maxLines: 2, width: 142 },
-    ...report.columns.map((column): PdfColumn => ({
-      align: column.align,
-      label: column.label,
-      maxLines: column.align === "right" ? 1 : 2,
-      width: reportColumnWidth,
-    })),
-    { label: "Source", maxLines: 2, width: 82 },
-  ];
-}
-
-function buildTrustedPdfRows(report: TrustedReport, columns: PdfColumn[]) {
-  if (report.rows.length === 0) {
-    return [
-      buildPdfRow(
-        [
-          "",
-          report.emptyTitle,
-          ...report.columns.map((column, index) =>
-            index === 0 ? report.emptyDescription : "",
-          ),
-          "",
-        ],
-        0,
-        columns,
-      ),
-    ];
-  }
-
-  return report.rows.map((row, index) =>
-    buildPdfRow(
-      [
-        String(index + 1),
-        row.title,
-        ...report.columns.map((column) => row.cells[column.key] ?? ""),
-        row.sourceSummary,
-      ],
-      index,
-      columns,
-    ),
-  );
-}
-
-function buildPdfRow(
-  cells: string[],
-  index: number,
-  columns: PdfColumn[],
-): PdfTableRow {
+function buildPdfRow(cells: string[], index: number): PdfTableRow {
   const lines = cells.map((cell, cellIndex) =>
     wrapText(
       cell,
@@ -299,7 +207,6 @@ function paginateRows(rows: PdfTableRow[]) {
 }
 
 function renderPage({
-  columns,
   organizationName,
   page,
   pageIndex,
@@ -307,7 +214,6 @@ function renderPage({
   scopeLabel,
   totalPages,
 }: {
-  columns: PdfColumn[];
   organizationName: string;
   page: PdfPage;
   pageIndex: number;
@@ -319,46 +225,13 @@ function renderPage({
   const pageNumber = pageIndex + 1;
 
   drawHeader(commands, organizationName, report, scopeLabel);
-  drawTableHeader(commands, tableTopY, columns);
+  drawTableHeader(commands, tableTopY);
 
   let y = tableTopY - headerRowHeight;
 
   for (const row of page.rows) {
     y -= row.height;
-    drawTableRow(commands, row, y, columns);
-  }
-
-  drawFooter(commands, pageNumber, totalPages);
-
-  return commands.join("\n");
-}
-
-function renderTrustedReportPage({
-  columns,
-  organizationName,
-  page,
-  pageIndex,
-  report,
-  totalPages,
-}: {
-  columns: PdfColumn[];
-  organizationName: string;
-  page: PdfPage;
-  pageIndex: number;
-  report: TrustedReport;
-  totalPages: number;
-}) {
-  const commands: string[] = [];
-  const pageNumber = pageIndex + 1;
-
-  drawTrustedHeader(commands, organizationName, report);
-  drawTableHeader(commands, tableTopY, columns);
-
-  let y = tableTopY - headerRowHeight;
-
-  for (const row of page.rows) {
-    y -= row.height;
-    drawTableRow(commands, row, y, columns);
+    drawTableRow(commands, row, y);
   }
 
   drawFooter(commands, pageNumber, totalPages);
@@ -459,84 +332,6 @@ function drawHeader(
   );
 }
 
-function drawTrustedHeader(
-  commands: string[],
-  organizationName: string,
-  report: TrustedReport,
-) {
-  drawRect(commands, marginX, 542, 28, 28, {
-    fill: colors.ink,
-    stroke: colors.ink,
-  });
-  drawText(commands, "N", marginX, 551, {
-    align: "center",
-    bold: true,
-    color: "#ffffff",
-    fontSize: 13,
-    width: 28,
-  });
-  drawText(commands, "Nestory", marginX + 38, 557, {
-    bold: true,
-    color: colors.ink,
-    fontSize: 11,
-  });
-  drawText(commands, report.title, marginX + 38, 544, {
-    color: colors.muted,
-    fontSize: 8.5,
-  });
-
-  drawText(commands, `${report.title} - ${organizationName}`, 0, 550, {
-    align: "center",
-    bold: true,
-    color: colors.ink,
-    fontSize: 16,
-    width: pageWidth,
-  });
-  drawText(commands, report.periodLabel, 0, 532, {
-    align: "center",
-    color: colors.muted,
-    fontSize: 9.5,
-    width: pageWidth,
-  });
-
-  drawText(commands, "TRUSTED REPORT", pageWidth - marginX - 160, 557, {
-    align: "right",
-    bold: true,
-    color: colors.warning,
-    fontSize: 8,
-    width: 160,
-  });
-  drawText(commands, `Generated ${formatLongReportDate(report.generatedAt)}`, pageWidth - marginX - 190, 544, {
-    align: "right",
-    color: colors.muted,
-    fontSize: 8,
-    width: 190,
-  });
-
-  drawRect(commands, marginX, 492, tableWidth, 30, {
-    fill: colors.soft,
-    stroke: colors.border,
-  });
-  drawRect(commands, marginX, 492, 4, 30, { fill: colors.accent });
-  drawMeta(commands, "Scope", report.scopeLabel, marginX + 16, 501, 250);
-  drawMeta(
-    commands,
-    "Report rows",
-    String(report.totalRowCount ?? report.rows.length),
-    marginX + 300,
-    501,
-    115,
-  );
-  drawMeta(
-    commands,
-    "Trace",
-    report.totalsTraceLabel,
-    marginX + 448,
-    501,
-    296,
-  );
-}
-
 function drawMeta(
   commands: string[],
   label: string,
@@ -559,11 +354,7 @@ function drawMeta(
   });
 }
 
-function drawTableHeader(
-  commands: string[],
-  yTop: number,
-  columns: PdfColumn[],
-) {
+function drawTableHeader(commands: string[], yTop: number) {
   drawRect(commands, marginX, yTop - headerRowHeight, tableWidth, headerRowHeight, {
     fill: colors.headerFill,
     stroke: colors.border,
@@ -586,12 +377,7 @@ function drawTableHeader(
   drawLine(commands, marginX + tableWidth, yTop - headerRowHeight, marginX + tableWidth, yTop, colors.border, 0.6);
 }
 
-function drawTableRow(
-  commands: string[],
-  row: PdfTableRow,
-  y: number,
-  columns: PdfColumn[],
-) {
+function drawTableRow(commands: string[], row: PdfTableRow, y: number) {
   const fill = row.index % 2 === 0 ? colors.rowFill : colors.rowAlt;
   drawRect(commands, marginX, y, tableWidth, row.height, {
     fill,

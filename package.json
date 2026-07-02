@@ -8,7 +8,6 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "db:lint": "supabase db lint",
