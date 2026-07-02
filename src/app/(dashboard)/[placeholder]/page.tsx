@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -102,6 +102,17 @@ const roomLinks: Record<string, Array<{ href: string; label: string }>> = {
     { href: "/documents", label: "Open documents" },
     { href: "/reports", label: "Open reports" },
   ],
+};
+
+const redirectPlaceholderPages: Record<string, string> = {
+  "finance-dashboard": "/ledger?period=current_month",
+  "financial-timeline": "/timeline",
+  invoices: "/ledger?direction=income",
+  "maintenance-timeline": "/timeline?eventType=Maintenance",
+  "petty-cash": "/ledger?direction=expense",
+  "property-dashboard": "/properties",
+  "property-inspections": "/inspections",
+  "property-timeline": "/timeline",
 };
 
 const placeholderPages: Record<string, PlaceholderPage> = {
@@ -361,6 +372,12 @@ const placeholderPages: Record<string, PlaceholderPage> = {
 
 export default async function PlaceholderPage({ params }: PlaceholderPageProps) {
   const { placeholder } = await params;
+  const redirectHref = redirectPlaceholderPages[placeholder];
+
+  if (redirectHref) {
+    redirect(redirectHref);
+  }
+
   const page = placeholderPages[placeholder];
 
   if (!page) {
