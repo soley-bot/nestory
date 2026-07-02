@@ -82,6 +82,11 @@ const roomLinks: Record<string, Array<{ href: string; label: string }>> = {
     { href: "/tasks", label: "Open tasks" },
     { href: "/schedule", label: "Open schedule" },
   ],
+  Operations: [
+    { href: "/maintenance", label: "Open maintenance" },
+    { href: "/tasks", label: "Open tasks" },
+    { href: "/schedule", label: "Open schedule" },
+  ],
   Property: [
     { href: "/properties", label: "Open properties" },
     { href: "/units", label: "Open units" },
