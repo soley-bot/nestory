@@ -1,120 +1,64 @@
 # Nestory
 
-Nestory is a web-first Property History and Performance Hub for property
-management companies. It starts with Cambodia property operations and is being
-shaped as a reusable PMS core that can support company-specific branding,
-settings, reports, workflows, and integrations over time.
+Nestory is a Next.js + Supabase property operations app. The current product
+already includes authenticated workspaces, role-aware navigation, property and
+unit records, people and leases, ledger and timeline history, maintenance
+workflows, documents, imports, reports, organization settings, and access
+management.
 
-The product north star is the Timeline-First Record Room:
+## Stack
 
-> Show the complete history and performance of a property or unit in one place.
+- Next.js `16.2.9` App Router
+- React `19.2.7`
+- Supabase Auth, Postgres, RLS, RPCs, and Storage
+- Tailwind CSS v4
+- Vitest, Playwright packages, ESLint, TypeScript
 
-## Documentation Map
-
-Read only the docs needed for the task:
-
-- `PROJECT_RULES.md` - durable product, architecture, UI, data, and engineering
-  guardrails. Start here.
-- `docs/project-state.md` - dated current implementation, environment, hosted
-  service, and verification notes. Read for deployment/env/current-state work.
-- `docs/foundation-checklist.md` - local, Supabase, auth, and deployment
-  verification runbook. Read before verification or infra changes.
-- `docs/enterprise-lite-database-roadmap.md` - future PMS schema contract and
-  database review checklist. Read for schema/RLS/storage/module design.
-- `docs/operational-ui-handoff.md` - authenticated app UI contract for dense,
-  quiet, operational record screens. Read for UI work.
-- `docs/complete-app-goals.md` - final product target, module goals, and build
-  order. Read for roadmap or scope decisions.
-- `docs/build-goal-prompts.md` - copy-paste prompts for each major build goal.
-  Read when starting a new implementation session.
-
-`PROJECT_RULES.md` should stay timeless. Move volatile facts such as CLI
-versions, hosted project state, deployment URLs, and dated verification results
-to `docs/project-state.md`.
-
-Keep the always-read docs compact. Link to deeper docs instead of repeating long
-rules or status blocks.
-
-## Product Direction
-
-Nestory should grow from the record-room foundation before expanding into
-broader PMS workflows.
-
-Roadmap order:
-
-1. Closed Dashboard operating loop.
-2. Unit Operating Record.
-3. Reports and owner/operator outputs.
-4. Deep detail pages and CRUD completeness.
-5. Documents/evidence system.
-6. Maintenance/issues workflow.
-7. Import/data cleanup.
-8. Audit/history hardening.
-9. Role-based access and portals.
-10. Production readiness and onboarding.
-
-Future module database design should follow
-`docs/enterprise-lite-database-roadmap.md`. The full product target and build
-sequence live in `docs/complete-app-goals.md`.
-
-## Local Development
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Start the Next.js app:
+## Local Commands
 
 ```bash
 npm run dev
-```
-
-Run standard verification:
-
-```bash
 npm run lint
+npm run test
 npm run build
-```
-
-## Supabase
-
-Supabase CLI is installed as a local dev dependency. Docker Desktop must be
-running before local Supabase commands work.
-
-Start Supabase:
-
-```bash
 npm run supabase:start
-```
-
-Validate and reset the local database:
-
-```bash
+npm run supabase:stop
 npm run db:lint
 npm run db:reset
 npm run db:types
 ```
 
-Copy `.env.example` to `.env.local` and fill in
-`NEXT_PUBLIC_SUPABASE_URL` plus a Supabase publishable key. Use server-only keys
-only in server-only code.
+## Main Routes
 
-For hosted project details, auth notes, and known manual hardening, see
-`docs/project-state.md`.
+- Public/auth: `/`, `/login`, `/signup`, `/setup`, `/no-access`
+- Dashboards: `/overview`, `/property-dashboard`, `/maintenance-dashboard`,
+  `/finance-dashboard`
+- Property: `/properties`, `/properties/[propertyId]`, `/units`,
+  `/units/[unitId]`, `/amenities`, `/property-inspections`
+- People: `/people`, `/tenants`, `/owners`, `/vendors`, `/team`
+- Maintenance: `/maintenance`, `/work-orders`, `/schedule`, `/tasks`,
+  `/inspections`, `/recurring-tasks`, `/inventory`
+- Finance: `/leases`, `/ledger`, `/payments`, `/invoices`, `/petty-cash`,
+  `/reports`
+- Timeline: `/timeline`, `/property-timeline`, `/maintenance-timeline`,
+  `/financial-timeline`
+- Admin/settings: `/settings`, `/users-roles`, `/branding`,
+  `/property-settings`, `/lease-settings`, `/maintenance-settings`,
+  `/financial-settings`, `/notifications`, `/security`, `/backup-data`,
+  `/integrations`
+- Data: `/documents`, `/import`
+- APIs: `/api/reports/export`, `/api/reports/pdf`
 
-## Deployment And Checks
+Some routes are deliberate placeholder surfaces while the real modules live in
+adjacent pages. See `docs/current-state.md`.
 
-Use `docs/foundation-checklist.md` before adding product modules or after
-changing auth, routing, Supabase policies, Vercel config, or environment
-variables.
+## Documentation
 
-The Vercel CLI may not be globally installed in every session. Install it with:
+- `PROJECT_RULES.md` is the always-read rule file.
+- `docs/current-state.md` maps what exists in code now.
+- `docs/engineering-rules.md` explains current architecture and implementation
+  rules.
+- `docs/verification.md` lists checks and handoff expectations.
 
-```bash
-npm i -g vercel
-```
-
-This unlocks agentic deployment, environment, and log commands such as
-`vercel env pull`, `vercel deploy`, and `vercel logs`.
+Old roadmap and starter-build docs were removed. Keep new docs tied to
+implemented code.

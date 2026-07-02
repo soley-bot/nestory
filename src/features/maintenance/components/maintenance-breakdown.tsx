@@ -263,17 +263,17 @@ export function MaintenanceBreakdown({ summary, viewQuery }: MaintenanceBreakdow
         href={getMaintenanceListHref(viewQuery, { review: "open" })}
         title="Cost and mix"
       >
-        <div className="grid gap-4 lg:grid-cols-[0.75fr_1.25fr]">
-          <div className="space-y-3 rounded-md border border-border bg-background/35 p-3">
+        <div className="grid gap-3 lg:grid-cols-[0.75fr_1.25fr]">
+          <div className="space-y-2 rounded-md border border-border bg-background/35 p-2.5">
             <div>
               <div className="text-xs font-medium uppercase tracking-[0.04em] text-foreground-subtle">
                 Actual cost
               </div>
-              <div className="mt-1 text-2xl font-semibold text-foreground">
+              <div className="mt-1 text-xl font-semibold text-foreground">
                 {summary.actualCostDisplay.primary}
               </div>
             </div>
-            <div className="border-t border-border pt-3">
+            <div className="border-t border-border pt-2">
               <div className="text-xs font-medium uppercase tracking-[0.04em] text-foreground-subtle">
                 Estimated
               </div>
@@ -281,16 +281,16 @@ export function MaintenanceBreakdown({ summary, viewQuery }: MaintenanceBreakdow
                 {summary.estimateCostDisplay.primary}
               </div>
             </div>
-            <div className="border-t border-border pt-3 text-sm text-foreground-subtle">
+            <div className="border-t border-border pt-2 text-sm text-foreground-subtle">
               {summary.highCost} high-cost / {summary.highPriority} high-priority
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {visibleCategoryStats.length > 0 ? (
-              visibleCategoryStats.map((category) => (
+              visibleCategoryStats.slice(0, 3).map((category) => (
                 <Link
-                  className="block rounded-md border border-border bg-background/35 p-3 hover:bg-surface-muted"
+                  className="block rounded-md border border-border bg-background/35 p-2.5 hover:bg-surface-muted"
                   href={getMaintenanceListHref(viewQuery, {
                     query: category.category,
                     review: "open",

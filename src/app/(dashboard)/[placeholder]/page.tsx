@@ -2,15 +2,24 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowUpRight,
+  Banknote,
   Building2,
   CalendarDays,
   Home,
   MapPin,
+  Percent,
+  ReceiptText,
   ShieldCheck,
-  SlidersHorizontal,
   TriangleAlert,
+  Wallet,
   Wrench,
 } from "lucide-react";
+import {
+  DashboardPeriodPicker,
+  dashboardPeriodOptions,
+  normalizeDashboardPeriod,
+  type DashboardPeriodKey,
+} from "@/components/dashboard/dashboard-period-picker";
 import { PageHeader } from "@/components/layout/page-header";
 import { OverviewMetricAreaChart } from "@/features/overview/components/overview-charts";
 import { getPropertySummaries } from "@/features/properties/data/properties";
@@ -19,15 +28,25 @@ import { cn } from "@/lib/utils";
 
 type PlaceholderPageProps = {
   params: Promise<{ placeholder: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
 type DashboardPage = {
   actionHref: string;
   actionLabel: string;
   bars: DashboardBarPoint[];
+  driverMetricLabel?: string;
+  driverProgressLabel?: string;
   driverTitle: string;
   drivers: DashboardDriverPoint[];
+  finance?: FinanceDashboardData;
+  healthTitle?: string;
   kpis: Array<{ label: string; value: string; helper: string; tone?: Tone }>;
+  leadDriverLabel?: string;
+  leadHealthLabel?: string;
+  periodHref?: string;
+  periodKey?: DashboardPeriodKey;
+  periodLabel?: string;
   trend: {
     label: string;
     note: string;
@@ -52,6 +71,47 @@ type DashboardDriverPoint = {
   tone?: Tone;
   value: string;
   width: number;
+};
+
+type FinanceDashboardData = {
+  actions: FinanceActionItem[];
+  cashSteps: FinanceCashStep[];
+  note: string;
+  transactions: FinanceTransaction[];
+};
+
+type DashboardPeriodSnapshot = {
+  actionHref?: string;
+  bars: DashboardBarPoint[];
+  drivers: DashboardDriverPoint[];
+  finance?: FinanceDashboardData;
+  kpis: DashboardPage["kpis"];
+  label: string;
+  trend: DashboardPage["trend"];
+};
+
+type FinanceActionItem = {
+  helper: string;
+  href: string;
+  label: string;
+  tone?: Tone;
+  value: string;
+};
+
+type FinanceCashStep = {
+  helper: string;
+  label: string;
+  tone?: Tone;
+  value: string;
+  width: number;
+};
+
+type FinanceTransaction = {
+  date: string;
+  href: string;
+  label: string;
+  tone?: Tone;
+  value: string;
 };
 
 type Tone = "danger" | "success" | "warning";
@@ -157,23 +217,50 @@ const placeholderPages: Record<string, PlaceholderPage> = {
       actionLabel: "Action center",
       bars: [
         { href: "/ledger?direction=income&period=current_month", label: "Rent income", helper: "Received / expected", value: 88 },
-        { href: "/ledger?direction=expense&sort=amount_desc&period=last_30_days", label: "Maintenance expense", helper: "Largest outflow", value: 64 },
-        { href: "/leases?status=current&endsWithin=60d&sort=end_asc", label: "Expiring leases", helper: "Renewal risk", value: 46 },
-        { href: "/reports", label: "Owner reports", helper: "Ready periods", value: 58 },
+        { href: "/ledger?direction=expense&sort=amount_desc&period=last_30_days", label: "Expense control", helper: "Largest outflow", value: 64 },
+        { href: "/leases?status=current&endsWithin=60d&sort=end_asc", label: "Lease expiry risk", helper: "Renewal queue", value: 46 },
+        { href: "/reports", label: "Owner reports", helper: "Ready to send", value: 58 },
       ],
-      driverTitle: "Revenue by property",
+      driverMetricLabel: "Net cash",
+      driverProgressLabel: "Collection",
+      driverTitle: "Property cash position",
       drivers: [
-        { href: "/ledger?property=central&period=current_month", label: "Central Residence", helper: "Strong collection", value: "$52k", width: 88, tone: "success" },
-        { href: "/ledger?property=j-tower&period=current_month", label: "J Tower cluster", helper: "Stable but watch expenses", value: "$31k", width: 64 },
-        { href: "/ledger?property=stress&period=current_month", label: "Stress Residence 04", helper: "Owner report not ready", value: "$24k", width: 48, tone: "warning" },
-        { href: "/ledger?property=northline&period=current_month", label: "Northline Mixed Use", helper: "Vacancy dragging net", value: "$14k", width: 28, tone: "danger" },
+        { href: "/ledger?property=central&period=current_month", label: "Central Residence", helper: "Collected 96% / ready to close", value: "$52k", width: 96, tone: "success" },
+        { href: "/ledger?property=j-tower&period=current_month", label: "J Tower cluster", helper: "Stable cash / watch expenses", value: "$31k", width: 88 },
+        { href: "/ledger?property=stress&period=current_month", label: "Stress Residence 04", helper: "Owner report not ready", value: "$24k", width: 72, tone: "warning" },
+        { href: "/ledger?property=northline&period=current_month", label: "Northline Mixed Use", helper: "Collection gap / vacancy drag", value: "$14k", width: 61, tone: "danger" },
       ],
+      finance: {
+        actions: [
+          { href: "/leases?status=current&endsWithin=30d&sort=end_asc", label: "Lease risk", helper: "5 leases end within 30 days", value: "High", tone: "danger" },
+          { href: "/reports?status=draft&period=current_month", label: "Owner reports", helper: "3 reports not ready to send", value: "Due", tone: "warning" },
+          { href: "/ledger?direction=expense&sort=amount_desc&period=last_30_days", label: "Expense review", helper: "$4.8k maintenance spike needs review", value: "$4.8k", tone: "warning" },
+          { href: "/ledger?direction=income&status=unpaid&period=current_month", label: "Collection follow-up", helper: "8 units have open rent balance", value: "8", tone: "danger" },
+        ],
+        cashSteps: [
+          { label: "Opening cash", helper: "Start of month", value: "$112k", width: 62 },
+          { label: "Rent income", helper: "Collected rent", value: "+$88k", width: 88, tone: "success" },
+          { label: "Other income", helper: "Fees and deposits", value: "+$6k", width: 38, tone: "success" },
+          { label: "Expenses", helper: "Maintenance + vendor", value: "-$48k", width: 72, tone: "danger" },
+          { label: "Closing cash", helper: "Current position", value: "$128k", width: 82, tone: "success" },
+        ],
+        note: "Closing cash is above April low, but the month is still $12k under target.",
+        transactions: [
+          { href: "/ledger?type=rent&property=central", label: "Rent received - Central 12A", date: "Jul 1", value: "+$2,450", tone: "success" },
+          { href: "/ledger?type=expense&property=j-tower", label: "Maintenance - J Tower", date: "Jun 30", value: "-$1,240", tone: "warning" },
+          { href: "/ledger?type=rent&property=northline", label: "Rent received - Northline 3B", date: "Jun 30", value: "+$1,950", tone: "success" },
+          { href: "/ledger?type=expense&vendor=acme", label: "Vendor payment - ACME", date: "Jun 30", value: "-$3,600", tone: "danger" },
+        ],
+      },
+      healthTitle: "Cash movement",
       kpis: [
-        { label: "Net", value: "$128k", helper: "Current month", tone: "success" },
+        { label: "Net cash", value: "$128k", helper: "+$44k vs Feb", tone: "success" },
         { label: "Lease risk", value: "18", helper: "Expiring soon", tone: "warning" },
         { label: "Collection", value: "92%", helper: "Rent collected" },
         { label: "Expenses", value: "$24k", helper: "Recent outflow", tone: "warning" },
       ],
+      leadDriverLabel: "Top cash",
+      leadHealthLabel: "Needs attention",
       trend: {
         label: "Net cash",
         note: "Target $140k / Gap $12k",
@@ -321,18 +408,561 @@ const placeholderPages: Record<string, PlaceholderPage> = {
   },
 };
 
-export default async function PlaceholderPage({ params }: PlaceholderPageProps) {
+const financePeriodSnapshots: Record<DashboardPeriodKey, DashboardPeriodSnapshot> = {
+  current_month: {
+    label: "Jul 2024",
+    bars: financeBars("current_month", 88, 64, 46, 58),
+    drivers: financeDrivers("current_month", [
+      ["Central Residence", "Collected 96% / ready to close", "$52k", 96, "success"],
+      ["J Tower cluster", "Stable cash / watch expenses", "$31k", 88, undefined],
+      ["Stress Residence 04", "Owner report not ready", "$24k", 72, "warning"],
+      ["Northline Mixed Use", "Collection gap / vacancy drag", "$14k", 61, "danger"],
+    ]),
+    finance: financeData("current_month", {
+      actions: [
+        ["Lease risk", "5 leases end within 30 days", "High", "danger", "/leases?status=current&endsWithin=30d&sort=end_asc"],
+        ["Owner reports", "3 reports not ready to send", "Due", "warning", "/reports?status=draft"],
+        ["Expense review", "$4.8k maintenance spike needs review", "$4.8k", "warning", "/ledger?direction=expense&sort=amount_desc"],
+        ["Collection follow-up", "8 units have open rent balance", "8", "danger", "/ledger?direction=income&status=unpaid"],
+      ],
+      cashSteps: [
+        ["Opening cash", "Start of month", "$112k", 62, undefined],
+        ["Rent income", "Collected rent", "+$88k", 88, "success"],
+        ["Other income", "Fees and deposits", "+$6k", 38, "success"],
+        ["Expenses", "Maintenance + vendor", "-$48k", 72, "danger"],
+        ["Closing cash", "Current position", "$128k", 82, "success"],
+      ],
+      note: "Closing cash is above April low, but the month is still $12k under target.",
+      transactions: [
+        ["Rent received - Central 12A", "Jul 1", "+$2,450", "success", "/ledger?type=rent&property=central"],
+        ["Maintenance - J Tower", "Jun 30", "-$1,240", "warning", "/ledger?type=expense&property=j-tower"],
+        ["Rent received - Northline 3B", "Jun 30", "+$1,950", "success", "/ledger?type=rent&property=northline"],
+        ["Vendor payment - ACME", "Jun 30", "-$3,600", "danger", "/ledger?type=expense&vendor=acme"],
+      ],
+    }),
+    kpis: [
+      { label: "Net cash", value: "$128k", helper: "+$44k vs Feb", tone: "success" },
+      { label: "Lease risk", value: "18", helper: "Expiring soon", tone: "warning" },
+      { label: "Collection", value: "92%", helper: "Rent collected" },
+      { label: "Expenses", value: "$24k", helper: "Recent outflow", tone: "warning" },
+    ],
+    trend: financeTrend("Net cash", "Target $140k / Gap $12k", [84, 92, 76, 118, 126, 128]),
+  },
+  last_month: {
+    label: "Jun 2024",
+    bars: financeBars("last_month", 84, 71, 52, 67),
+    drivers: financeDrivers("last_month", [
+      ["Central Residence", "Closed clean / owner sent", "$48k", 93, "success"],
+      ["J Tower cluster", "Expense heavy close", "$28k", 81, "warning"],
+      ["Stress Residence 04", "Late report resolved", "$21k", 69, "warning"],
+      ["Northline Mixed Use", "Collection gap carried", "$11k", 54, "danger"],
+    ]),
+    finance: financeData("last_month", {
+      actions: [
+        ["Expense review", "2 June vendor lines need coding", "2", "warning", "/ledger?direction=expense&needsReview=1"],
+        ["Owner reports", "12 June reports were sent", "Sent", "success", "/reports?status=sent"],
+        ["Collection follow-up", "6 balances rolled into July", "6", "warning", "/ledger?direction=income&status=unpaid"],
+        ["Lease risk", "9 renewals moved to July queue", "9", "warning", "/leases?status=current&endsWithin=60d"],
+      ],
+      cashSteps: [
+        ["Opening cash", "Start of June", "$96k", 58, undefined],
+        ["Rent income", "Collected rent", "+$81k", 84, "success"],
+        ["Other income", "Fees and deposits", "+$5k", 32, "success"],
+        ["Expenses", "Maintenance + vendor", "-$42k", 76, "danger"],
+        ["Closing cash", "Month close", "$126k", 80, "success"],
+      ],
+      note: "June closed positive, but expense coding and rolled balances still need cleanup.",
+      transactions: [
+        ["Owner payout batch", "Jun 30", "-$18,400", "warning", "/ledger?type=owner_payout"],
+        ["Rent received - Central 09A", "Jun 28", "+$2,300", "success", "/ledger?type=rent&property=central"],
+        ["Vendor payment - LiftCare", "Jun 26", "-$2,900", "danger", "/ledger?type=expense&vendor=liftcare"],
+      ],
+    }),
+    kpis: [
+      { label: "Net cash", value: "$126k", helper: "+$30k in Jun", tone: "success" },
+      { label: "Lease risk", value: "22", helper: "Rolled into July", tone: "warning" },
+      { label: "Collection", value: "89%", helper: "Rent collected", tone: "warning" },
+      { label: "Expenses", value: "$29k", helper: "Month close", tone: "warning" },
+    ],
+    trend: financeTrend("Net cash", "Target $130k / Gap $4k", [74, 81, 96, 101, 118, 126]),
+  },
+  last_30_days: {
+    label: "Last 30 days",
+    bars: financeBars("last_30_days", 82, 68, 49, 55),
+    drivers: financeDrivers("last_30_days", [
+      ["Central Residence", "Strong rolling receipts", "$49k", 94, "success"],
+      ["J Tower cluster", "Large maintenance spend", "$27k", 79, "warning"],
+      ["Stress Residence 04", "Report pack incomplete", "$19k", 65, "warning"],
+      ["Northline Mixed Use", "Aging balances open", "$9k", 46, "danger"],
+    ]),
+    finance: financeData("last_30_days", {
+      actions: [
+        ["Collection follow-up", "11 balances active in rolling window", "11", "danger", "/ledger?direction=income&status=unpaid"],
+        ["Expense review", "$6.2k uncategorized outflow", "$6.2k", "warning", "/ledger?direction=expense&needsReview=1"],
+        ["Owner reports", "5 rolling packs need refresh", "5", "warning", "/reports?status=draft"],
+        ["Lease risk", "7 leases cross the 30-day window", "7", "warning", "/leases?status=current&endsWithin=30d"],
+      ],
+      cashSteps: [
+        ["Opening cash", "30 days ago", "$104k", 60, undefined],
+        ["Rent income", "Rolling receipts", "+$79k", 82, "success"],
+        ["Other income", "Fees and deposits", "+$4k", 28, "success"],
+        ["Expenses", "Rolling outflow", "-$53k", 80, "danger"],
+        ["Closing cash", "Today", "$121k", 77, "success"],
+      ],
+      note: "Rolling cash is positive, but uncategorized expenses and unpaid balances are higher than month view.",
+      transactions: [
+        ["Maintenance reserve transfer", "Jul 2", "-$4,000", "warning", "/ledger?type=transfer"],
+        ["Rent received - Northline 3B", "Jun 30", "+$1,950", "success", "/ledger?type=rent&property=northline"],
+        ["Vendor payment - ACME", "Jun 30", "-$3,600", "danger", "/ledger?type=expense&vendor=acme"],
+      ],
+    }),
+    kpis: [
+      { label: "Net cash", value: "$121k", helper: "+$17k rolling", tone: "success" },
+      { label: "Lease risk", value: "21", helper: "Rolling risk", tone: "warning" },
+      { label: "Collection", value: "88%", helper: "Rent collected", tone: "warning" },
+      { label: "Expenses", value: "$31k", helper: "Rolling outflow", tone: "warning" },
+    ],
+    trend: financeTrend("Net cash", "Target $132k / Gap $11k", [79, 86, 91, 83, 112, 121]),
+  },
+  qtd: {
+    label: "QTD",
+    bars: financeBars("qtd", 91, 74, 58, 72),
+    drivers: financeDrivers("qtd", [
+      ["Central Residence", "Best quarter performer", "$151k", 95, "success"],
+      ["J Tower cluster", "Expense variance watch", "$89k", 84, "warning"],
+      ["Stress Residence 04", "Reports lagged twice", "$64k", 73, "warning"],
+      ["Northline Mixed Use", "Vacancy drag continuing", "$44k", 62, "danger"],
+    ]),
+    finance: financeData("qtd", {
+      actions: [
+        ["Owner reports", "QTD pack missing 4 source links", "4", "warning", "/reports?kind=owner_statement&status=draft"],
+        ["Expense review", "$14.6k above QTD maintenance plan", "$14.6k", "warning", "/ledger?direction=expense&sort=amount_desc"],
+        ["Collection follow-up", "18 unit balances touched QTD", "18", "danger", "/ledger?direction=income&status=unpaid"],
+        ["Lease risk", "41 leases within quarter watch", "41", "warning", "/leases?status=current&endsWithin=90d"],
+      ],
+      cashSteps: [
+        ["Opening cash", "Quarter start", "$301k", 64, undefined],
+        ["Rent income", "QTD receipts", "+$244k", 91, "success"],
+        ["Other income", "QTD fees", "+$18k", 44, "success"],
+        ["Expenses", "QTD outflow", "-$215k", 78, "danger"],
+        ["Closing cash", "Quarter position", "$348k", 85, "success"],
+      ],
+      note: "Quarter cash is ahead, but maintenance variance and report source links need review.",
+      transactions: [
+        ["Owner statement batch", "QTD", "43 ready", "success", "/reports?period=qtd"],
+        ["Maintenance spend", "QTD", "-$76k", "warning", "/ledger?direction=expense&period=qtd"],
+        ["Rent receipts", "QTD", "+$244k", "success", "/ledger?direction=income&period=qtd"],
+      ],
+    }),
+    kpis: [
+      { label: "Net cash", value: "$348k", helper: "+$47k QTD", tone: "success" },
+      { label: "Lease risk", value: "41", helper: "Quarter watch", tone: "warning" },
+      { label: "Collection", value: "91%", helper: "QTD collected" },
+      { label: "Expenses", value: "$76k", helper: "QTD outflow", tone: "warning" },
+    ],
+    trend: financeTrend("Net cash", "QTD target $360k / Gap $12k", [281, 302, 318, 311, 337, 348]),
+  },
+  ytd: {
+    label: "YTD",
+    bars: financeBars("ytd", 94, 69, 63, 81),
+    drivers: financeDrivers("ytd", [
+      ["Central Residence", "Cleanest annual cash history", "$362k", 97, "success"],
+      ["J Tower cluster", "High income, high spend", "$218k", 86, "warning"],
+      ["Stress Residence 04", "Report discipline improving", "$141k", 76, "warning"],
+      ["Northline Mixed Use", "Vacancy drag still material", "$91k", 58, "danger"],
+    ]),
+    finance: financeData("ytd", {
+      actions: [
+        ["Collection follow-up", "27 balances appeared YTD", "27", "danger", "/ledger?direction=income&status=unpaid"],
+        ["Expense review", "$38k maintenance variance YTD", "$38k", "warning", "/ledger?direction=expense&sort=amount_desc"],
+        ["Owner reports", "81% statement periods ready", "81%", "success", "/reports?period=ytd"],
+        ["Lease risk", "63 lease endings touched YTD", "63", "warning", "/leases?status=current&endsWithin=180d"],
+      ],
+      cashSteps: [
+        ["Opening cash", "Year start", "$628k", 68, undefined],
+        ["Rent income", "YTD receipts", "+$642k", 94, "success"],
+        ["Other income", "YTD fees", "+$51k", 50, "success"],
+        ["Expenses", "YTD outflow", "-$509k", 72, "danger"],
+        ["Closing cash", "Year position", "$812k", 89, "success"],
+      ],
+      note: "YTD cash is healthy; the main story is maintenance variance and Northline vacancy drag.",
+      transactions: [
+        ["Rent receipts", "YTD", "+$642k", "success", "/ledger?direction=income&period=ytd"],
+        ["Maintenance spend", "YTD", "-$181k", "warning", "/ledger?direction=expense&period=ytd"],
+        ["Owner distributions", "YTD", "-$248k", "warning", "/ledger?type=owner_payout&period=ytd"],
+      ],
+    }),
+    kpis: [
+      { label: "Net cash", value: "$812k", helper: "+$184k YTD", tone: "success" },
+      { label: "Lease risk", value: "63", helper: "YTD touched", tone: "warning" },
+      { label: "Collection", value: "94%", helper: "YTD collected", tone: "success" },
+      { label: "Expenses", value: "$181k", helper: "YTD maintenance", tone: "warning" },
+    ],
+    trend: financeTrend("Net cash", "YTD target $860k / Gap $48k", [628, 671, 703, 729, 781, 812]),
+  },
+};
+
+const propertyPeriodSnapshots: Record<DashboardPeriodKey, DashboardPeriodSnapshot> = {
+  current_month: propertySnapshot("current_month", {
+    label: "Jul 2024",
+    bars: [
+      ["Central Residence", "Owner linked", 100, "/properties"],
+      ["Northline Mixed Use", "Vacancy review", 42, "/units?occupancy=unoccupied"],
+      ["Stress Residence 04", "Missing owner", 64, "/properties?ownerStatus=missing"],
+      ["J Tower cluster", "Leasing follow-up", 65, "/units?property=j-tower&occupancy=unoccupied"],
+    ],
+    drivers: [
+      ["Central Residence", "Nearly full", "2 units", 12, "success"],
+      ["J Tower cluster", "Leasing follow-up", "18 units", 48, "warning"],
+      ["Stress Residence 04", "Owner & lease gaps", "27 units", 64, "warning"],
+      ["Northline Mixed Use", "Critical drop", "46 units", 92, "danger"],
+    ],
+    kpis: [
+      { label: "Occupancy", value: "78.6%", helper: "-3.1% vs Jun", tone: "warning" },
+      { label: "Vacant units", value: "93", helper: "+12 this week", tone: "warning" },
+      { label: "Maintenance", value: "17", helper: "Overdue", tone: "danger" },
+      { label: "Lease expiring", value: "26", helper: "Next 30 days", tone: "warning" },
+    ],
+    trend: percentTrend("Occupancy rate", "Target 90% / Gap 11%", [68, 72, 69, 76, 78, 79]),
+  }),
+  last_month: propertySnapshot("last_month", {
+    label: "Jun 2024",
+    bars: [
+      ["Central Residence", "Owner linked", 100, "/properties"],
+      ["Northline Mixed Use", "Vacancy review", 51, "/units?occupancy=unoccupied"],
+      ["Stress Residence 04", "Missing owner", 70, "/properties?ownerStatus=missing"],
+      ["J Tower cluster", "Leasing follow-up", 72, "/units?property=j-tower&occupancy=unoccupied"],
+    ],
+    drivers: [
+      ["Central Residence", "Nearly full", "3 units", 15, "success"],
+      ["J Tower cluster", "June lease gap", "20 units", 52, "warning"],
+      ["Stress Residence 04", "Owner docs lagged", "29 units", 68, "warning"],
+      ["Northline Mixed Use", "June low point", "51 units", 96, "danger"],
+    ],
+    kpis: [
+      { label: "Occupancy", value: "76.9%", helper: "+1.8% vs May", tone: "warning" },
+      { label: "Vacant units", value: "102", helper: "-7 vs May", tone: "warning" },
+      { label: "Maintenance", value: "19", helper: "Overdue", tone: "danger" },
+      { label: "Lease expiring", value: "31", helper: "June watch", tone: "warning" },
+    ],
+    trend: percentTrend("Occupancy rate", "Target 90% / Gap 13%", [66, 69, 71, 75, 77, 77]),
+  }),
+  last_30_days: propertySnapshot("last_30_days", {
+    label: "Last 30 days",
+    bars: [
+      ["Central Residence", "Stable occupancy", 96, "/properties"],
+      ["Northline Mixed Use", "Rolling vacancy", 45, "/units?occupancy=unoccupied"],
+      ["Stress Residence 04", "Owner review", 61, "/properties?ownerStatus=missing"],
+      ["J Tower cluster", "Leasing follow-up", 68, "/units?property=j-tower&occupancy=unoccupied"],
+    ],
+    drivers: [
+      ["Central Residence", "Stable", "4 units", 18, "success"],
+      ["J Tower cluster", "Rolling follow-up", "19 units", 50, "warning"],
+      ["Stress Residence 04", "Owner & lease gaps", "26 units", 61, "warning"],
+      ["Northline Mixed Use", "Vacancy drag", "44 units", 88, "danger"],
+    ],
+    kpis: [
+      { label: "Occupancy", value: "79.4%", helper: "+0.8 rolling", tone: "warning" },
+      { label: "Vacant units", value: "89", helper: "Rolling open", tone: "warning" },
+      { label: "Maintenance", value: "15", helper: "Overdue", tone: "danger" },
+      { label: "Lease expiring", value: "24", helper: "Rolling risk", tone: "warning" },
+    ],
+    trend: percentTrend("Occupancy rate", "Target 90% / Gap 10%", [70, 72, 74, 77, 78, 79]),
+  }),
+  qtd: propertySnapshot("qtd", {
+    label: "QTD",
+    bars: [
+      ["Central Residence", "Quarter stable", 98, "/properties"],
+      ["Northline Mixed Use", "Quarter vacancy", 48, "/units?occupancy=unoccupied"],
+      ["Stress Residence 04", "Owner cleanup", 67, "/properties?ownerStatus=missing"],
+      ["J Tower cluster", "Leasing pressure", 71, "/units?property=j-tower&occupancy=unoccupied"],
+    ],
+    drivers: [
+      ["Central Residence", "Quarter leader", "8 avg", 18, "success"],
+      ["J Tower cluster", "Quarter follow-up", "22 avg", 54, "warning"],
+      ["Stress Residence 04", "Owner cleanup", "31 avg", 67, "warning"],
+      ["Northline Mixed Use", "Quarter drag", "49 avg", 94, "danger"],
+    ],
+    kpis: [
+      { label: "Occupancy", value: "77.8%", helper: "Quarter avg", tone: "warning" },
+      { label: "Vacant units", value: "96", helper: "Avg open", tone: "warning" },
+      { label: "Maintenance", value: "43", helper: "QTD overdue", tone: "danger" },
+      { label: "Lease expiring", value: "61", helper: "Quarter watch", tone: "warning" },
+    ],
+    trend: percentTrend("Occupancy rate", "Target 90% / Gap 12%", [69, 70, 74, 76, 78, 78]),
+  }),
+  ytd: propertySnapshot("ytd", {
+    label: "YTD",
+    bars: [
+      ["Central Residence", "Annual leader", 99, "/properties"],
+      ["Northline Mixed Use", "Annual vacancy drag", 53, "/units?occupancy=unoccupied"],
+      ["Stress Residence 04", "Owner cleanup", 72, "/properties?ownerStatus=missing"],
+      ["J Tower cluster", "Leasing load", 74, "/units?property=j-tower&occupancy=unoccupied"],
+    ],
+    drivers: [
+      ["Central Residence", "Best annual health", "9 avg", 20, "success"],
+      ["J Tower cluster", "Annual leasing load", "24 avg", 58, "warning"],
+      ["Stress Residence 04", "Owner cleanup", "34 avg", 72, "warning"],
+      ["Northline Mixed Use", "Persistent vacancy", "52 avg", 98, "danger"],
+    ],
+    kpis: [
+      { label: "Occupancy", value: "76.4%", helper: "YTD avg", tone: "warning" },
+      { label: "Vacant units", value: "101", helper: "Avg open", tone: "warning" },
+      { label: "Maintenance", value: "118", helper: "YTD overdue", tone: "danger" },
+      { label: "Lease expiring", value: "144", helper: "YTD touched", tone: "warning" },
+    ],
+    trend: percentTrend("Occupancy rate", "Target 90% / Gap 14%", [65, 68, 71, 73, 75, 76]),
+  }),
+};
+
+const dashboardPeriodSnapshots: Record<string, Record<DashboardPeriodKey, DashboardPeriodSnapshot>> = {
+  "finance-dashboard": financePeriodSnapshots,
+  "property-dashboard": propertyPeriodSnapshots,
+};
+
+function withDashboardPeriod(
+  page: PlaceholderPage,
+  placeholder: string,
+  period: DashboardPeriodKey,
+): PlaceholderPage {
+  const dashboard = page.dashboard;
+  const snapshots = dashboardPeriodSnapshots[placeholder];
+
+  if (!dashboard || !snapshots) {
+    return page;
+  }
+
+  const snapshot = snapshots[period] ?? snapshots.current_month;
+
+  return {
+    ...page,
+    dashboard: {
+      ...dashboard,
+      actionHref: snapshot.actionHref ?? dashboard.actionHref,
+      bars: snapshot.bars,
+      drivers: snapshot.drivers,
+      finance: snapshot.finance,
+      kpis: snapshot.kpis,
+      periodHref: `/${placeholder}`,
+      periodKey: period,
+      periodLabel: snapshot.label,
+      trend: snapshot.trend,
+    },
+  };
+}
+
+function financeBars(
+  period: DashboardPeriodKey,
+  rentIncome: number,
+  expenseControl: number,
+  leaseRisk: number,
+  ownerReports: number,
+): DashboardBarPoint[] {
+  return [
+    {
+      href: financeLedgerHref(period, "direction=income"),
+      label: "Rent income",
+      helper: "Received / expected",
+      value: rentIncome,
+    },
+    {
+      href: financeLedgerHref(period, "direction=expense&sort=amount_desc"),
+      label: "Expense control",
+      helper: "Largest outflow",
+      value: expenseControl,
+    },
+    {
+      href: `/leases?status=current&endsWithin=${period === "ytd" ? "180d" : period === "qtd" ? "90d" : "60d"}&sort=end_asc`,
+      label: "Lease expiry risk",
+      helper: "Renewal queue",
+      value: leaseRisk,
+    },
+    {
+      href: `/reports?period=${period}`,
+      label: "Owner reports",
+      helper: "Ready to send",
+      value: ownerReports,
+    },
+  ];
+}
+
+function financeDrivers(
+  period: DashboardPeriodKey,
+  rows: Array<[string, string, string, number, Tone | undefined]>,
+): DashboardDriverPoint[] {
+  return rows.map(([label, helper, value, width, tone]) => ({
+    href: financeLedgerHref(period, `property=${propertyQuerySlug(label)}`),
+    label,
+    helper,
+    value,
+    width,
+    tone,
+  }));
+}
+
+function financeData(
+  period: DashboardPeriodKey,
+  data: {
+    actions: Array<[string, string, string, Tone | undefined, string]>;
+    cashSteps: Array<[string, string, string, number, Tone | undefined]>;
+    note: string;
+    transactions: Array<[string, string, string, Tone | undefined, string]>;
+  },
+): FinanceDashboardData {
+  return {
+    actions: data.actions.map(([label, helper, value, tone, href]) => ({
+      href: appendPeriodParam(href, period),
+      label,
+      helper,
+      value,
+      tone,
+    })),
+    cashSteps: data.cashSteps.map(([label, helper, value, width, tone]) => ({
+      label,
+      helper,
+      value,
+      width,
+      tone,
+    })),
+    note: data.note,
+    transactions: data.transactions.map(([label, date, value, tone, href]) => ({
+      href: appendPeriodParam(href, period),
+      label,
+      date,
+      value,
+      tone,
+    })),
+  };
+}
+
+function financeTrend(
+  label: string,
+  note: string,
+  values: number[],
+): DashboardPage["trend"] {
+  const trendLabels = ["Feb", "Mar", "Apr", "May", "Jun", "Jul"];
+
+  return {
+    label,
+    note,
+    suffix: "k",
+    values: trendLabels.map((periodLabel, index) => ({
+      label: periodLabel,
+      value: values[index] ?? values.at(-1) ?? 0,
+    })),
+  };
+}
+
+function financeLedgerHref(period: DashboardPeriodKey, query = "") {
+  return appendPeriodParam(`/ledger${query ? `?${query}` : ""}`, period);
+}
+
+function propertySnapshot(
+  period: DashboardPeriodKey,
+  data: {
+    bars: Array<[string, string, number, string]>;
+    drivers: Array<[string, string, string, number, Tone | undefined]>;
+    kpis: DashboardPage["kpis"];
+    label: string;
+    trend: DashboardPage["trend"];
+  },
+): DashboardPeriodSnapshot {
+  return {
+    actionHref: appendPeriodParam("/properties", period),
+    bars: data.bars.map(([label, helper, value, href]) => ({
+      href: appendPeriodParam(href, period),
+      label,
+      helper,
+      value,
+    })),
+    drivers: data.drivers.map(([label, helper, value, width, tone]) => ({
+      href: appendPeriodParam(
+        `/units?property=${propertyQuerySlug(label)}&occupancy=unoccupied`,
+        period,
+      ),
+      label,
+      helper,
+      value,
+      width,
+      tone,
+    })),
+    kpis: data.kpis,
+    label: data.label,
+    trend: data.trend,
+  };
+}
+
+function percentTrend(
+  label: string,
+  note: string,
+  values: number[],
+): DashboardPage["trend"] {
+  return genericTrend(label, note, values, "%");
+}
+
+function genericTrend(
+  label: string,
+  note: string,
+  values: number[],
+  suffix?: string,
+): DashboardPage["trend"] {
+  const trendLabels = ["Feb", "Mar", "Apr", "May", "Jun", "Jul"];
+
+  return {
+    label,
+    note,
+    suffix,
+    values: trendLabels.map((periodLabel, index) => ({
+      label: periodLabel,
+      value: values[index] ?? values.at(-1) ?? 0,
+    })),
+  };
+}
+
+function appendPeriodParam(href: string, period: DashboardPeriodKey) {
+  if (/[?&]period=/.test(href)) {
+    return href;
+  }
+
+  const separator = href.includes("?") ? "&" : "?";
+
+  return `${href}${separator}period=${period}`;
+}
+
+function propertyQuerySlug(label: string) {
+  return label
+    .toLowerCase()
+    .replace(/\s+cluster$/, "")
+    .replace(/\s+mixed use$/, "")
+    .replace(/\s+residence.*$/, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+export default async function PlaceholderPage({
+  params,
+  searchParams,
+}: PlaceholderPageProps) {
   const { placeholder } = await params;
+  const rawSearchParams = await searchParams;
   const page = placeholderPages[placeholder];
 
   if (!page) {
     notFound();
   }
 
-  return page.dashboard ? (
-    <DomainDashboard page={page} />
+  const resolvedPage = dashboardPeriodSnapshots[placeholder]
+    ? withDashboardPeriod(
+        page,
+        placeholder,
+        normalizeDashboardPeriod(rawSearchParams.period),
+      )
+    : page;
+
+  return resolvedPage.dashboard ? (
+    <DomainDashboard page={resolvedPage} />
   ) : (
-    <PlaceholderView page={page} />
+    <PlaceholderView page={resolvedPage} />
   );
 }
 
@@ -357,32 +987,29 @@ async function DomainDashboard({ page }: { page: PlaceholderPage }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="mx-auto grid w-full max-w-[1500px] gap-3 px-4 py-3 sm:px-5 lg:px-5">
+      <main className="mx-auto grid w-full max-w-[1500px] gap-3 px-4 py-2 sm:px-5 lg:px-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-base font-semibold leading-6 tracking-normal text-foreground">
             {page.title}
           </h1>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-foreground shadow-sm"
-              type="button"
-            >
-              <CalendarDays size={15} />
-              Jul 2024
-            </button>
-            <button
-              aria-label="Filters"
-              className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-surface text-foreground shadow-sm"
-              title="Filters"
-              type="button"
-            >
-              <SlidersHorizontal size={16} />
-            </button>
+            {dashboard.periodKey ? (
+              <DashboardPeriodPicker
+                href={dashboard.periodHref ?? "#"}
+                options={dashboardPeriodOptions}
+                selectedPeriod={dashboard.periodKey}
+              />
+            ) : (
+              <span className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-foreground shadow-sm">
+                <CalendarDays size={15} />
+                Jul 2024
+              </span>
+            )}
             <Link
               className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-accent px-4 text-[13px] font-medium text-background shadow-sm transition-colors hover:bg-accent-strong"
               href={dashboard.actionHref}
             >
-              Open
+              {dashboard.actionLabel}
               <ArrowUpRight size={15} />
             </Link>
           </div>
@@ -402,58 +1029,385 @@ async function DomainDashboard({ page }: { page: PlaceholderPage }) {
           ))}
         </section>
 
-        {leadHealth && leadDriver ? (
-          <section className="grid overflow-hidden rounded-lg border border-border bg-surface shadow-sm sm:grid-cols-2">
-            <SignalStrip
-              detail={leadHealth.label}
-              href={leadHealth.href}
-              label="Lowest health"
-              tone={healthTone(leadHealth.value)}
-              value={`${leadHealth.value}%`}
-            />
-            <SignalStrip
-              detail={leadDriver.label}
-              href={leadDriver.href}
-              label="Top availability"
-              tone="success"
-              value={leadDriver.value}
-            />
-          </section>
-        ) : null}
+        {dashboard.finance ? (
+          <FinanceDashboardBody
+            bars={bars}
+            dashboard={dashboard}
+            drivers={drivers}
+            pageTitle={page.title}
+          />
+        ) : (
+          <>
+            {leadHealth && leadDriver ? (
+              <section className="grid overflow-hidden rounded-lg border border-border bg-surface shadow-sm sm:grid-cols-2">
+                <SignalStrip
+                  detail={leadHealth.label}
+                  href={leadHealth.href}
+                  label={dashboard.leadHealthLabel ?? "Lowest health"}
+                  tone={healthTone(leadHealth.value)}
+                  value={`${leadHealth.value}%`}
+                />
+                <SignalStrip
+                  detail={leadDriver.label}
+                  href={leadDriver.href}
+                  label={dashboard.leadDriverLabel ?? "Top availability"}
+                  tone="success"
+                  value={leadDriver.value}
+                />
+              </section>
+            ) : null}
 
-        <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.06fr)_minmax(420px,0.86fr)]">
-          <div className="grid min-w-0 grid-cols-1 gap-3">
-            <ChartPanel
-              actionHref={dashboard.actionHref}
-              actionLabel="View all"
-              priority="primary"
-              title={dashboard.driverTitle}
-            >
-              <DriverList
+            <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.06fr)_minmax(420px,0.86fr)]">
+              <div className="grid min-w-0 grid-cols-1 gap-3">
+                <ChartPanel
+                  actionHref={dashboard.actionHref}
+                  actionLabel="View all"
+                  priority="primary"
+                  title={dashboard.driverTitle}
+                >
+                  <DriverList
+                    actionHref={dashboard.actionHref}
+                    footerLabel={viewAllLabel(page.title)}
+                    metricLabel={dashboard.driverMetricLabel ?? "Vacant units"}
+                    points={drivers}
+                    progressLabel={dashboard.driverProgressLabel ?? "Availability"}
+                  />
+                </ChartPanel>
+
+                <ChartPanel
+                  actionHref={dashboard.actionHref}
+                  actionLabel="View all"
+                  title={dashboard.healthTitle ?? "Health"}
+                >
+                  <HealthPanel points={bars} />
+                </ChartPanel>
+              </div>
+
+              <ChartPanel
                 actionHref={dashboard.actionHref}
-                footerLabel={viewAllLabel(page.title)}
-                points={drivers}
-              />
-            </ChartPanel>
-
-            <ChartPanel
-              actionHref={dashboard.actionHref}
-              actionLabel="View all"
-              title="Health"
-            >
-              <HealthPanel points={bars} />
-            </ChartPanel>
-          </div>
-
-          <ChartPanel
-            actionHref={dashboard.actionHref}
-            actionLabel="View all"
-            title="Trend"
-          >
-            <TrendGraph points={dashboard.trend} />
-          </ChartPanel>
-        </section>
+                actionLabel="View all"
+                title="Trend"
+              >
+                <TrendGraph points={dashboard.trend} />
+              </ChartPanel>
+            </section>
+          </>
+        )}
       </main>
+    </div>
+  );
+}
+
+function FinanceDashboardBody({
+  bars,
+  dashboard,
+  drivers,
+  pageTitle,
+}: {
+  bars: DashboardPage["bars"];
+  dashboard: DashboardPage;
+  drivers: DashboardPage["drivers"];
+  pageTitle: string;
+}) {
+  const finance = dashboard.finance;
+
+  if (!finance) {
+    return null;
+  }
+
+  const period = dashboard.periodKey ?? "current_month";
+
+  return (
+    <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,0.58fr)]">
+      <div className="grid min-w-0 grid-cols-1 gap-3">
+        <ChartPanel
+          actionHref={financeLedgerHref(period)}
+          actionLabel="Open ledger"
+          priority="primary"
+          title="Cash movement"
+        >
+          <div className="grid min-w-0 gap-3">
+            <CashMovementPanel note={finance.note} steps={finance.cashSteps} />
+            <div className="min-w-0">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-[12px] font-semibold text-foreground">
+                  Operating signals
+                </p>
+                <p className="text-[11px] text-foreground-subtle">
+                  {dashboard.periodLabel ?? "Current period"}
+                </p>
+              </div>
+              <HealthPanel points={bars} />
+            </div>
+          </div>
+        </ChartPanel>
+
+        <ChartPanel
+          actionHref={dashboard.actionHref}
+          actionLabel="View all"
+          title={dashboard.driverTitle}
+        >
+          <DriverList
+            actionHref={dashboard.actionHref}
+            footerLabel={viewAllLabel(pageTitle)}
+            metricLabel={dashboard.driverMetricLabel ?? "Net cash"}
+            points={drivers}
+            progressLabel={dashboard.driverProgressLabel ?? "Collection"}
+          />
+        </ChartPanel>
+      </div>
+
+      <ChartPanel
+        actionHref={financeLedgerHref(period, "attention=1")}
+        actionLabel="Review"
+        title="Finance attention"
+      >
+        <FinanceAttentionPanel
+          actions={finance.actions}
+          period={period}
+          transactions={finance.transactions}
+          trend={dashboard.trend}
+        />
+      </ChartPanel>
+    </section>
+  );
+}
+
+function CashMovementPanel({
+  note,
+  steps,
+}: {
+  note: string;
+  steps: FinanceCashStep[];
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="grid min-w-0 gap-2 sm:grid-cols-5">
+        {steps.map((step) => (
+          <div
+            className="grid min-h-[112px] min-w-0 content-between rounded-md border border-border bg-background/35 p-2.5"
+            key={step.label}
+          >
+            <div className="min-w-0">
+              <p className="truncate text-[11px] font-semibold uppercase text-foreground-subtle">
+                {step.label}
+              </p>
+              <p className={cn("mt-1 text-xl font-semibold tabular-nums", toneTextClass(step.tone))}>
+                {step.value}
+              </p>
+              <p className="mt-0.5 truncate text-[11px] text-foreground-muted">
+                {step.helper}
+              </p>
+            </div>
+            <div className="mt-2 flex h-8 items-end">
+              <span className="block h-2 w-full overflow-hidden rounded-full bg-chart-track">
+                <span
+                  className={cn("block h-full rounded-full", toneBgClass(step.tone))}
+                  style={{ width: `${step.width}%` }}
+                />
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] leading-4 text-foreground-subtle">
+        {note}
+      </p>
+    </div>
+  );
+}
+
+function FinanceAttentionPanel({
+  actions,
+  period,
+  transactions,
+  trend,
+}: {
+  actions: FinanceActionItem[];
+  period: DashboardPeriodKey;
+  transactions: FinanceTransaction[];
+  trend: DashboardPage["trend"];
+}) {
+  return (
+    <div className="grid min-w-0 gap-3">
+      <FinanceActionQueue items={actions} period={period} />
+      <FinanceTrendStrip period={period} points={trend} />
+      <FinanceRecentLedger period={period} transactions={transactions} />
+    </div>
+  );
+}
+
+function FinanceActionQueue({
+  items,
+  period,
+}: {
+  items: FinanceActionItem[];
+  period: DashboardPeriodKey;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <p className="text-[12px] font-semibold text-foreground">
+          Needs action
+        </p>
+        <Link
+          className="text-[12px] font-semibold text-accent hover:text-accent-strong"
+          href={financeLedgerHref(period, "attention=1")}
+        >
+          Review all
+        </Link>
+      </div>
+      {items.map((item) => (
+        <Link
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-1 py-2 transition-colors last:border-b-0 hover:bg-surface-muted"
+          href={item.href}
+          key={item.label}
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-semibold text-foreground">
+              {item.label}
+            </span>
+            <span className="mt-0.5 block truncate text-[11px] text-foreground-muted">
+              {item.helper}
+            </span>
+          </span>
+          <span
+            className={cn(
+              "rounded-md px-2 py-1 text-[11px] font-semibold tabular-nums",
+              helperBadgeClass(item.tone),
+            )}
+          >
+            {item.value}
+          </span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function FinanceTrendStrip({
+  period,
+  points,
+}: {
+  period: DashboardPeriodKey;
+  points: DashboardPage["trend"];
+}) {
+  const first = points.values[0];
+  const last = points.values.at(-1);
+  const delta = first && last ? last.value - first.value : 0;
+
+  return (
+    <Link
+      className="grid min-w-0 grid-cols-[minmax(0,1fr)_116px] items-center gap-3 rounded-md border border-border bg-background/35 p-2.5 transition-colors hover:bg-surface-muted"
+      href={financeLedgerHref(period)}
+    >
+      <span className="min-w-0">
+        <span className="block text-[12px] font-semibold text-foreground">
+          Net cash trend
+        </span>
+        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+          <span className="text-xl font-semibold tabular-nums text-foreground">
+            {last ? formatTrendValue(last.value, points.suffix) : "0"}
+          </span>
+          <span className="rounded-md bg-success-soft px-1.5 py-0.5 text-[10px] font-semibold text-success">
+            {delta >= 0 ? "+" : ""}
+            {formatTrendValue(delta, points.suffix)}
+          </span>
+        </span>
+        <span className="mt-1 block truncate text-[11px] text-foreground-subtle">
+          {points.note}
+        </span>
+      </span>
+      <TrendLineSvg points={points.values} tone="accent" />
+    </Link>
+  );
+}
+
+function TrendLineSvg({
+  points,
+  tone,
+}: {
+  points: SparklinePoint[];
+  tone?: VisualTone;
+}) {
+  const values = points.map((point) => point.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(1, max - min);
+  const coordinates = values
+    .map((value, index) => {
+      const x = 4 + index * (104 / Math.max(1, values.length - 1));
+      const y = 42 - ((value - min) / range) * 32;
+
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const fillCoordinates = `4,48 ${coordinates} 108,48`;
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-14 w-[116px]"
+      preserveAspectRatio="none"
+      viewBox="0 0 112 52"
+    >
+      <polygon
+        fill={toneStroke(tone)}
+        opacity="0.12"
+        points={fillCoordinates}
+      />
+      <polyline
+        fill="none"
+        points={coordinates}
+        stroke={toneStroke(tone)}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2.5"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+function FinanceRecentLedger({
+  period,
+  transactions,
+}: {
+  period: DashboardPeriodKey;
+  transactions: FinanceTransaction[];
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <p className="text-[12px] font-semibold text-foreground">
+          Recent ledger
+        </p>
+        <Link
+          className="text-[12px] font-semibold text-accent hover:text-accent-strong"
+          href={financeLedgerHref(period, "sort=date_desc")}
+        >
+          Ledger
+        </Link>
+      </div>
+      {transactions.slice(0, 3).map((transaction) => (
+        <Link
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-border px-1 py-2 transition-colors last:border-b-0 hover:bg-surface-muted"
+          href={transaction.href}
+          key={`${transaction.date}-${transaction.label}`}
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-semibold text-foreground">
+              {transaction.label}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-foreground-subtle">
+              {transaction.date}
+            </span>
+          </span>
+          <span className={cn("text-[13px] font-semibold tabular-nums", toneTextClass(transaction.tone))}>
+            {transaction.value}
+          </span>
+        </Link>
+      ))}
     </div>
   );
 }
@@ -758,7 +1712,13 @@ function HealthPanel({
   );
 }
 
-function TrendGraph({ points }: { points: DashboardPage["trend"] }) {
+function TrendGraph({
+  compact = false,
+  points,
+}: {
+  compact?: boolean;
+  points: DashboardPage["trend"];
+}) {
   const first = points.values[0];
   const last = points.values.at(-1);
   const delta = first && last ? last.value - first.value : 0;
@@ -788,7 +1748,7 @@ function TrendGraph({ points }: { points: DashboardPage["trend"] }) {
         </span>
       </div>
       <OverviewMetricAreaChart
-        className="h-72 xl:h-[430px]"
+        className={cn("h-72", compact ? "xl:h-[250px]" : "xl:h-[430px]")}
         name={points.label}
         points={points.values}
         suffix={points.suffix}
@@ -810,18 +1770,22 @@ function formatTrendValue(value: number, suffix: string | undefined) {
 function DriverList({
   actionHref,
   footerLabel,
+  metricLabel,
   points,
+  progressLabel,
 }: {
   actionHref: string;
   footerLabel: string;
+  metricLabel: string;
   points: DashboardPage["drivers"];
+  progressLabel: string;
 }) {
   return (
     <div className="min-w-0 overflow-hidden">
       <div className="hidden grid-cols-[minmax(0,1fr)_104px_116px] border-b border-border px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-normal text-foreground-subtle sm:grid">
         <span>Property</span>
-        <span className="text-right">Vacant units</span>
-        <span className="text-right">Availability</span>
+        <span className="text-right">{metricLabel}</span>
+        <span className="text-right">{progressLabel}</span>
       </div>
       {points.map((point, index) => (
         <Link
@@ -830,15 +1794,14 @@ function DriverList({
           key={point.label}
           title={point.helper}
         >
-          <div className="grid min-w-0 grid-cols-[24px_38px_minmax(0,1fr)] items-center gap-2.5">
-            <span className="flex size-6 items-center justify-center rounded-md bg-surface-muted text-[12px] font-semibold text-muted ring-1 ring-border">
-              {index + 1}
+          <div className="grid min-w-0 grid-cols-[22px_38px_minmax(0,1fr)] items-center gap-2.5">
+            <span className="text-right text-[12px] font-semibold tabular-nums text-foreground-subtle">
+              {String(index + 1).padStart(2, "0")}
             </span>
             <BuildingThumb
               className="size-9"
               imageUrl={point.imageUrl}
               label={point.label}
-              tone={point.tone}
             />
             <span className="min-w-0">
               <span className="block truncate text-[13px] font-semibold text-foreground">
@@ -855,8 +1818,8 @@ function DriverList({
             </span>
           </div>
           <div className="flex items-end justify-between gap-3 sm:block sm:text-right">
-              <span className="text-[11px] font-semibold uppercase text-foreground-subtle sm:hidden">
-              Vacant units
+            <span className="text-[11px] font-semibold uppercase text-foreground-subtle sm:hidden">
+              {metricLabel}
             </span>
             <span className={cn("block text-[14px] font-semibold tabular-nums", toneTextClass(point.tone))}>
               {point.value}
@@ -898,6 +1861,10 @@ function viewAllLabel(title: string) {
     return "View all properties";
   }
 
+  if (noun === "finance") {
+    return "View ledger";
+  }
+
   return `View all ${noun}`;
 }
 
@@ -905,16 +1872,14 @@ function BuildingThumb({
   className,
   imageUrl,
   label,
-  tone,
 }: {
   className?: string;
   imageUrl?: string;
   label?: string;
-  tone?: Tone;
 }) {
   const thumbClassName = cn(
-    "relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border shadow-sm",
-    imageUrl ? "border-border bg-cover bg-center" : buildingShellClass(tone),
+    "relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border shadow-sm",
+    imageUrl ? "bg-cover bg-center" : "bg-background/50",
     className,
   );
 
@@ -930,11 +1895,7 @@ function BuildingThumb({
   }
 
   return (
-    <span className={thumbClassName} aria-hidden="true">
-      <span className="absolute bottom-1 left-1 h-6 w-3 rounded-[2px] bg-white/65" />
-      <span className="absolute bottom-1 right-1 h-8 w-4 rounded-[2px] bg-white/78" />
-      <Building2 className="relative text-slate-800/70" size={25} strokeWidth={1.7} />
-    </span>
+    <span className={thumbClassName} aria-hidden="true" />
   );
 }
 
@@ -996,6 +1957,25 @@ function healthTone(value: number): Tone {
 
 function metricIcon(label: string, className: string, size = 25) {
   const normalized = label.toLowerCase();
+
+  if (
+    normalized.includes("net") ||
+    normalized.includes("income")
+  ) {
+    return <Wallet className={className} size={size} strokeWidth={1.8} />;
+  }
+
+  if (normalized.includes("collection")) {
+    return <Percent className={className} size={size} strokeWidth={1.8} />;
+  }
+
+  if (normalized.includes("rent")) {
+    return <Banknote className={className} size={size} strokeWidth={1.8} />;
+  }
+
+  if (normalized.includes("expense") || normalized.includes("report")) {
+    return <ReceiptText className={className} size={size} strokeWidth={1.8} />;
+  }
 
   if (normalized.includes("vacant")) {
     return <Home className={className} size={size} strokeWidth={1.8} />;
@@ -1074,22 +2054,6 @@ function iconShellClass(tone: VisualTone | undefined) {
   }
 
   return "bg-accent-soft";
-}
-
-function buildingShellClass(tone: Tone | undefined) {
-  if (tone === "danger") {
-    return "border-danger/20 bg-danger-soft";
-  }
-
-  if (tone === "warning") {
-    return "border-warning/25 bg-warning-soft";
-  }
-
-  if (tone === "success") {
-    return "border-success/20 bg-success-soft";
-  }
-
-  return "border-accent/20 bg-accent-soft";
 }
 
 function helperBadgeClass(tone: Tone | undefined) {

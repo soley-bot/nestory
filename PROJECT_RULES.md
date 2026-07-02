@@ -1,175 +1,86 @@
 # Nestory Project Rules
 
-Nestory is a web-first Property History and Performance Hub for property
-management companies, starting with Cambodia operations and growing toward a
-broader PMS. This is the compact, always-readable rule set. Keep dated facts and
-deep checklists in owner docs instead of here.
+Nestory is an operating system for property history, maintenance, leasing,
+documents, reporting, and finance. It is no longer a tiny starter build. Treat
+the current app as a real multi-module product with an existing data model,
+server mutation boundaries, role-aware workspace routing, and production-style
+verification.
 
-Product goal:
+## Source Of Truth
 
-> Show the complete history and performance of a property or unit in one place.
+- The codebase is the source of truth. Inspect routes, feature modules,
+  Supabase migrations, actions, and tests before changing product direction.
+- Read only the current docs that fit the task:
+  - `docs/current-state.md` for what exists now.
+  - `docs/engineering-rules.md` for implementation rules.
+  - `docs/verification.md` for checks and handoff.
+- Do not revive deleted planning docs, broad prompt files, or old starter-build
+  language.
+- Keep future docs compact and current. If a doc starts becoming a roadmap
+  archive, split or delete it.
 
-## Context Budget
+## Product Shape
 
-- Read this file first for product and engineering guardrails.
-- Read `docs/project-state.md` only for current environment, hosted service,
-  deployment, or verification facts.
-- Read `docs/operational-ui-handoff.md` only for authenticated UI work.
-- Read `docs/enterprise-lite-database-roadmap.md` only for schema, RLS, storage,
-  or future PMS module design.
-- Read `docs/complete-app-goals.md` for final product scope, build order, or
-  roadmap decisions.
-- Read `docs/foundation-checklist.md` only before verification, auth,
-  Supabase, Vercel, or environment changes.
-- Do not duplicate long checklists across docs. Link to the owner doc instead.
+- The primary product promise is a reliable operating record for every property
+  and unit: rent, lease, ledger, documents, maintenance, activity, and history.
+- Dashboard pages should answer what needs attention and link into records.
+- Operational pages should optimize for repeated work: dense tables, filters,
+  inspectors, drawers, linked records, and clear status.
+- Detail pages should show the full operating record without hiding important
+  financial, lease, maintenance, document, or timeline context.
+- Placeholder routes are allowed only when navigation needs a destination. Do
+  not treat placeholders as complete modules.
 
-## Product Direction
+## Current Access Model
 
-- Web-first and desktop-optimized; mobile must remain usable.
-- Timeline-First Record Room is the north star.
-- Working pages should feel quiet, neutral, dense, operational, and trustworthy.
-- Prefer tables, filters, inspectors, clear icons, readable records, and fast
-  repeated workflows.
-- Avoid decorative dashboards, gradients, oversized cards, and marketing-style
-  layouts on authenticated work surfaces.
-- Overview is the exception: it is a calm decision dashboard that answers "what
-  needs attention and why?" before sending users into records.
-- Build one phase at a time. Do not build the full PMS before the record-room
-  foundation is reliable.
+- Workspace roles are `admin`, `manager`, and `member`.
+- Admins can access the full shell and admin-only modules.
+- Managers and members have restricted operational access through the shell.
+- Workspace context is resolved from the signed-in user and, when configured,
+  an organization subdomain.
+- Unlinked users go to setup or no-access flows. Do not bypass these redirects.
 
-## Reusable PMS Core
+## Data And Write Rules
 
-Build Nestory as a reusable core, not a copied codebase per property company.
-
-Core modules should stay company-agnostic:
-
-- Properties and units.
-- Timeline and Ledger.
-- People, owners, vendors, tenants, leases, terms, and occupancies.
-- Documents and photos.
-- Activity logs.
-- Reports, exports, imports, and settings.
-
-Company-specific behavior should be configuration or bounded extensions:
-
-- Branding, organization settings, currency display, report templates, numbering
-  rules, workflow steps, approval rules, and integrations.
-- Do not hardcode one company's terminology, report layout, or workflow into
-  core modules when it could reasonably become organization settings later.
-
-## Scope And Roadmap
-
-Early constraints stay in place until explicitly changed:
-
-- One `Admin` role.
-- Simple UI.
-- Archive over delete.
-- Activity logging.
-- USD-only MVP money display and writes.
-- Server/RPC write boundaries for important mutations.
-- Reusable components and feature-owned modules.
-
-Roadmap order:
-
-1. Closed Dashboard operating loop.
-2. Unit Operating Record.
-3. Reports and owner/operator outputs.
-4. Deep detail pages and CRUD completeness.
-5. Documents/evidence system.
-6. Maintenance/issues workflow.
-7. Import/data cleanup.
-8. Audit/history hardening.
-9. Role-based access and portals.
-10. Production readiness and onboarding.
-
-The full target product and copy-paste build prompts live in
-`docs/complete-app-goals.md` and `docs/build-goal-prompts.md`.
-
-## Data Rules
-
-- Every business table should be organization-scoped.
-- Prefer columns such as `organization_id`, `property_id`, `unit_id`,
-  `created_at`, `created_by`, `updated_at`, `updated_by`, `archived_at`, and
-  `archived_by` where relevant.
-- New PMS tables must follow the database roadmap: RLS plus explicit grants,
-  exact money, distinct business dates and audit timestamps, indexed foreign
-  keys, private storage, and append-only migrations.
-- Do not build future tenant, payment, or portal workflows around free-text
-  tenant names. Use durable people, tenant, lease, and occupancy identity.
-
-## Write And History Rules
-
-- Use server-side mutations for writes.
-- Use RPCs for changes that affect history, money, documents, archive/restore,
-  ledger locks, linked records, or activity logs.
-- Important business changes should write an activity log entry in the same
-  transaction where practical.
-- Use database constraints for required relationships and uniqueness.
-- Avoid duplicate submissions, client-only validation as the only protection,
-  unsafe multi-step linked updates, and client-only critical totals.
-- Hard deletes are rare; preserve business history through archive/status fields
-  unless an explicit maintenance cleanup requires otherwise.
-
-## Money, Dates, And Storage
-
-- Use USD for MVP money display and writes. Keep exact database money types and
-  currency codes so broader currency support can be added deliberately later.
-- Do not store money as loose JavaScript floats. Use exact database types and a
-  currency code for every amount.
-- Keep business dates such as `event_date`, `lease_start_date`,
-  `lease_end_date`, and `transaction_date` distinct from audit timestamps.
-- Cambodia local-date expectations matter, but avoid hardcoding assumptions that
-  block future company-specific timezones or reporting calendars.
-- Use Supabase Storage for uploaded documents/photos and database rows for
-  metadata. Keep business documents private by default.
+- Every business record must remain organization-scoped.
+- Important mutations belong in server actions backed by Supabase RPCs when
+  they affect history, money, documents, archive/restore, linked records,
+  assignments, or activity logs.
+- Do not replace existing RPC-backed flows with direct client writes.
+- Archive/restore is the default lifecycle pattern. Hard delete only when a
+  maintenance cleanup explicitly requires it.
+- Preserve activity logs and linked record revalidation when changing writes.
+- Keep exact money fields and currency codes. Do not store business money as
+  loose JavaScript floats.
+- Keep business dates distinct from audit timestamps.
+- Supabase Storage business documents stay private by default.
 
 ## UI Rules
 
-- Apply `docs/operational-ui-handoff.md` before changing authenticated list,
-  table, card, inspector, or photo-ready record surfaces.
-- Timeline and Ledger are working tables, not landing pages.
-- Keep primary records visible early in the viewport.
-- Use side drawers for create, edit, archive, restore, attachment, period-lock,
-  and activity-detail workflows.
-- Recent changes is secondary audit context; keep it from taking over primary
-  record pages.
+- Authenticated Nestory should feel quiet, neutral, dense, and operational.
+- Prefer tables, filters, list/card selectors, side drawers, record inspectors,
+  badges, and compact actions over marketing layout.
+- Keep primary records and useful actions early in the viewport.
+- Use shared primitives from `src/components/ui` for visible form controls.
+- Use URL-backed filters and pagination for list surfaces.
 - Hide raw UUIDs from normal operator views.
-- Design mobile-first even though desktop is the main operating context.
-- Long labels, titles, descriptions, file names, and linked records must wrap or
-  truncate deliberately.
-- Use shared Nestory/Radix controls for polished selects, dates, and accounting
-  months.
-- Visible form controls should route through shared UI primitives; keep raw HTML
-  inputs behind those primitives or hidden form plumbing.
+- Long labels, file names, linked records, and descriptions must truncate or
+  wrap deliberately.
+- Mobile must remain usable, but desktop operating density matters.
 
 ## Code Organization
 
-- Follow `AGENTS.md` before editing Next.js code. This repo may use newer
-  Next.js APIs and conventions than old assumptions suggest.
-- Keep feature-specific UI, queries, actions, validation, types, and helpers
-  inside `src/features/<feature>` until real reuse appears.
-- Keep shared primitives boring and practical under `src/components/*` and
-  `src/lib/*`.
-- Avoid dumping-ground files such as giant `utils.ts`, `types.ts`, or
-  `constants.ts`.
-- Review files above 250-400 lines for splitting; 400+ lines should usually be
-  refactored unless the structure is intentionally simple.
-- Prefer server-first data fetching, URL search params for filters, local state
-  for small interactions, and simple form state. Add heavier state only when the
-  product has a clear need.
+- Keep feature code in `src/features/<feature>` until reuse is real.
+- Shared primitives belong under `src/components` and `src/lib`.
+- Avoid dumping unrelated helpers into generic files.
+- Keep server data loaders, filters, actions, types, and components close to
+  their feature.
+- Before changing a shared helper or action, grep callers and fix the root
+  cause once.
 
-## Testing And Verification
+## Verification Rule
 
-- Test business logic as it appears: filters, permissions, occupancy, totals,
-  currency formatting, lease expiry, archive/restore, and import validation.
-- Use `docs/foundation-checklist.md` before or after changes to auth, routing,
-  Supabase policies, Vercel config, environment variables, or new product
-  modules.
-- Run app build/test only when code or config changes justify it. Docs-only
-  changes can use `git diff --check` and focused read-through.
-
-## Documentation Rule
-
-When a change updates architecture, database policy, product scope, UI rules, or
-deployment assumptions, update the smallest relevant doc in the same session.
-Keep always-read docs concise; put deep details in the specialized owner doc.
+- Non-trivial changes need at least one runnable check.
+- Prefer focused checks first: lint/type/test the touched area, then build when
+  route, schema, auth, or shared behavior changed.
+- Use `docs/verification.md` for the current check menu and handoff format.
