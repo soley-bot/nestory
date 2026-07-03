@@ -37,6 +37,13 @@ try {
   await page.goto(`${baseUrl}/properties`, { waitUntil: "networkidle" });
   await page.waitForSelector("text=Properties");
 
+  await page.getByRole("button", { name: /filters/i }).click();
+  await page.getByText("Filter properties").waitFor();
+  await page.getByText("Record state").waitFor();
+  await page.getByText("Operational review").waitFor();
+  await page.getByText("Table setup").waitFor();
+  await page.getByRole("button", { name: /done/i }).click();
+
   await page.getByTitle("Cards view").click();
   await page.waitForURL(/view=cards/);
   await page.getByTitle("Table view").click();

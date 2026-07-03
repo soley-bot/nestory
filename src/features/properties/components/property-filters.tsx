@@ -10,6 +10,7 @@ import {
   RotateCcw,
   SlidersHorizontal,
   Table2,
+  X,
 } from "lucide-react";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
@@ -24,6 +25,56 @@ import type {
   PropertyViewQuery,
 } from "@/features/properties/property.types";
 import { cn } from "@/lib/utils";
+
+type SelectOption = {
+  label: string;
+  value: string;
+};
+
+type ActivePropertyFilter = {
+  defaultValue: string;
+  label: string;
+  param: string;
+  value: string;
+};
+
+const statusFilterOptions = [
+  { label: "All statuses", value: "all" },
+  { label: "Active", value: "active" },
+  { label: "Under renovation", value: "under_renovation" },
+  { label: "Inactive", value: "inactive" },
+] satisfies SelectOption[];
+
+const ownerFilterOptions = [
+  { label: "All owner links", value: "all" },
+  { label: "Missing owner link", value: "missing" },
+] satisfies SelectOption[];
+
+const netFilterOptions = [
+  { label: "All net results", value: "all" },
+  { label: "Negative net income", value: "negative" },
+] satisfies SelectOption[];
+
+const archiveFilterOptions = [
+  { label: "Active records", value: "active" },
+  { label: "Archived", value: "archived" },
+  { label: "All records", value: "all" },
+] satisfies SelectOption[];
+
+const reviewFilterOptions = [
+  { label: "All review states", value: "all" },
+  { label: "Needs units", value: "needs_units" },
+  { label: "Missing photos", value: "missing_photos" },
+  { label: "Missing address", value: "missing_address" },
+] satisfies SelectOption[];
+
+const sortFilterOptions = [
+  { label: "Code", value: "code_asc" },
+  { label: "Name", value: "name_asc" },
+  { label: "Status", value: "status_asc" },
+  { label: "Lowest net income", value: "net_asc" },
+  { label: "Net income", value: "net_desc" },
+] satisfies SelectOption[];
 
 type PropertyFiltersProps = {
   displayMode: PropertyDisplayMode;
@@ -48,18 +99,12 @@ export function PropertyFilters({
     source: viewQuery.query,
     value: viewQuery.query,
   });
-  const activeFilters = [
-    viewQuery.status !== "all",
-    viewQuery.ownerStatus !== "all",
-    viewQuery.netStatus !== "all",
-    viewQuery.review !== "all",
-    viewQuery.archiveState !== "active",
-    viewQuery.sort !== DEFAULT_PROPERTY_SORT,
-    viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE,
-  ].filter(Boolean).length;
-  const hasSearchQuery = viewQuery.query.trim().length > 0;
+  const activeFilterChips = getActivePropertyFilters(viewQuery);
+  const activeFilters = activeFilterChips.filter(
+    (filter) => filter.param !== "query",
+  ).length;
   const hasAdvancedFilters = activeFilters > 0;
-  const hasAnyFilters = hasSearchQuery || hasAdvancedFilters;
+  const hasAnyFilters = activeFilterChips.length > 0;
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
   const compactSelectClassName = "h-8 w-full px-2 text-[13px]";
@@ -145,110 +190,178 @@ export function PropertyFilters({
               <Popover.Portal>
                 <Popover.Content
                   align="end"
-                  className="z-50 w-[min(calc(100vw-2rem),420px)] rounded-md border border-border bg-surface p-2 text-[13px] shadow-lg"
+                  className="z-50 max-h-[min(720px,calc(100vh-8rem))] w-[min(calc(100vw-2rem),520px)] overflow-auto rounded-md border border-border bg-surface text-[13px] shadow-lg"
                   id="property-advanced-search"
                   side="bottom"
                   sideOffset={6}
                 >
-                  <div className="grid gap-1.5 sm:grid-cols-2">
-                    <SelectControl
-                      ariaLabel="Filter by status"
-                      className={compactSelectClassName}
-                      onValueChange={(value) => replaceParam("status", value, "all")}
-                      options={[
-                        { label: "All statuses", value: "all" },
-                        { label: "Active", value: "active" },
-                        { label: "Under renovation", value: "under_renovation" },
-                        { label: "Inactive", value: "inactive" },
-                      ]}
-                      value={viewQuery.status}
-                    />
+                  <div className="border-b border-border px-3 py-2.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="text-sm font-semibold text-foreground">
+                          Filter properties
+                        </h2>
+                        <p className="mt-0.5 text-xs text-muted">
+                          Narrow the portfolio list without changing the page layout.
+                        </p>
+                      </div>
+                      {hasAnyFilters ? (
+                        <Link
+                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                          href={pathname}
+                          scroll={false}
+                        >
+                          <RotateCcw size={13} />
+                          Reset
+                        </Link>
+                      ) : null}
+                    </div>
 
-                    <SelectControl
-                      ariaLabel="Filter by owner link"
-                      className={compactSelectClassName}
-                      onValueChange={(value) =>
-                        replaceParam("ownerStatus", value, "all")
-                      }
-                      options={[
-                        { label: "All owner links", value: "all" },
-                        { label: "Missing owner link", value: "missing" },
-                      ]}
-                      value={viewQuery.ownerStatus}
-                    />
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {activeFilterChips.length > 0 ? (
+                        activeFilterChips.map((filter) => (
+                          <ActiveFilterChip
+                            key={filter.param}
+                            filter={filter}
+                            onRemove={() =>
+                              replaceParam(
+                                filter.param,
+                                filter.defaultValue,
+                                filter.defaultValue,
+                              )
+                            }
+                          />
+                        ))
+                      ) : (
+                        <div className="w-full rounded-md border border-dashed border-border px-2 py-1.5 text-xs text-muted">
+                          No filters applied. Defaults show active records sorted by code.
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                    <SelectControl
-                      ariaLabel="Filter by net income"
-                      className={compactSelectClassName}
-                      onValueChange={(value) =>
-                        replaceParam("netStatus", value, "all")
-                      }
-                      options={[
-                        { label: "All net results", value: "all" },
-                        { label: "Negative net income", value: "negative" },
-                      ]}
-                      value={viewQuery.netStatus}
-                    />
+                  <div className="space-y-3 p-3">
+                    <FilterSection
+                      description="Choose which property records are visible."
+                      title="Record state"
+                    >
+                      <FilterField label="Status">
+                        <SelectControl
+                          ariaLabel="Filter by status"
+                          className={compactSelectClassName}
+                          onValueChange={(value) =>
+                            replaceParam("status", value, "all")
+                          }
+                          options={statusFilterOptions}
+                          value={viewQuery.status}
+                        />
+                      </FilterField>
 
-                    <SelectControl
-                      ariaLabel="Filter by archive state"
-                      className={compactSelectClassName}
-                      onValueChange={(value) =>
-                        replaceParam("archiveState", value, "active")
-                      }
-                      options={[
-                        { label: "Active records", value: "active" },
-                        { label: "Archived", value: "archived" },
-                        { label: "All records", value: "all" },
-                      ]}
-                      value={viewQuery.archiveState}
-                    />
+                      <FilterField label="Archive">
+                        <SelectControl
+                          ariaLabel="Filter by archive state"
+                          className={compactSelectClassName}
+                          onValueChange={(value) =>
+                            replaceParam("archiveState", value, "active")
+                          }
+                          options={archiveFilterOptions}
+                          value={viewQuery.archiveState}
+                        />
+                      </FilterField>
+                    </FilterSection>
 
-                    <SelectControl
-                      ariaLabel="Filter by review need"
-                      className={compactSelectClassName}
-                      onValueChange={(value) => replaceParam("review", value, "all")}
-                      options={[
-                        { label: "All review states", value: "all" },
-                        { label: "Needs units", value: "needs_units" },
-                        { label: "Missing photos", value: "missing_photos" },
-                        { label: "Missing address", value: "missing_address" },
-                      ]}
-                      value={viewQuery.review}
-                    />
+                    <FilterSection
+                      description="Find records that need follow-up or financial review."
+                      title="Operational review"
+                    >
+                      <FilterField label="Owner link">
+                        <SelectControl
+                          ariaLabel="Filter by owner link"
+                          className={compactSelectClassName}
+                          onValueChange={(value) =>
+                            replaceParam("ownerStatus", value, "all")
+                          }
+                          options={ownerFilterOptions}
+                          value={viewQuery.ownerStatus}
+                        />
+                      </FilterField>
 
-                    <SelectControl
-                      ariaLabel="Sort properties"
-                      className={compactSelectClassName}
-                      onValueChange={(value) =>
-                        replaceParam("sort", value, DEFAULT_PROPERTY_SORT)
-                      }
-                      options={[
-                        { label: "Code", value: "code_asc" },
-                        { label: "Name", value: "name_asc" },
-                        { label: "Status", value: "status_asc" },
-                        { label: "Lowest net income", value: "net_asc" },
-                        { label: "Net income", value: "net_desc" },
-                      ]}
-                      value={viewQuery.sort}
-                    />
+                      <FilterField label="Review queue">
+                        <SelectControl
+                          ariaLabel="Filter by review need"
+                          className={compactSelectClassName}
+                          onValueChange={(value) =>
+                            replaceParam("review", value, "all")
+                          }
+                          options={reviewFilterOptions}
+                          value={viewQuery.review}
+                        />
+                      </FilterField>
 
-                    <SelectControl
-                      ariaLabel="Rows per page"
-                      className={compactSelectClassName}
-                      onValueChange={(value) =>
-                        replaceParam(
-                          "pageSize",
-                          value,
-                          String(DEFAULT_PROPERTY_PAGE_SIZE),
-                        )
-                      }
-                      options={PROPERTY_PAGE_SIZE_OPTIONS.map((pageSize) => ({
-                        label: String(pageSize),
-                        value: String(pageSize),
-                      }))}
-                      value={String(viewQuery.pageSize)}
-                    />
+                      <FilterField label="Net result">
+                        <SelectControl
+                          ariaLabel="Filter by net income"
+                          className={compactSelectClassName}
+                          onValueChange={(value) =>
+                            replaceParam("netStatus", value, "all")
+                          }
+                          options={netFilterOptions}
+                          value={viewQuery.netStatus}
+                        />
+                      </FilterField>
+                    </FilterSection>
+
+                    <FilterSection
+                      description="Adjust ordering and row density for this table."
+                      title="Table setup"
+                    >
+                      <FilterField label="Sort">
+                        <SelectControl
+                          ariaLabel="Sort properties"
+                          className={compactSelectClassName}
+                          onValueChange={(value) =>
+                            replaceParam("sort", value, DEFAULT_PROPERTY_SORT)
+                          }
+                          options={sortFilterOptions}
+                          value={viewQuery.sort}
+                        />
+                      </FilterField>
+
+                      <FilterField label="Rows">
+                        <SelectControl
+                          ariaLabel="Rows per page"
+                          className={compactSelectClassName}
+                          onValueChange={(value) =>
+                            replaceParam(
+                              "pageSize",
+                              value,
+                              String(DEFAULT_PROPERTY_PAGE_SIZE),
+                            )
+                          }
+                          options={PROPERTY_PAGE_SIZE_OPTIONS.map((pageSize) => ({
+                            label: String(pageSize),
+                            value: String(pageSize),
+                          }))}
+                          value={String(viewQuery.pageSize)}
+                        />
+                      </FilterField>
+                    </FilterSection>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs text-muted">
+                    <span>
+                      Showing {properties.length}{" "}
+                      {properties.length === 1 ? "property" : "properties"} on this
+                      page
+                    </span>
+                    <Popover.Close asChild>
+                      <button
+                        className="inline-flex h-7 items-center rounded-md border border-border px-2.5 font-medium text-foreground transition-colors hover:bg-surface-muted"
+                        type="button"
+                      >
+                        Done
+                      </button>
+                    </Popover.Close>
                   </div>
                 </Popover.Content>
               </Popover.Portal>
@@ -270,6 +383,149 @@ export function PropertyFilters({
       </div>
     </div>
   );
+}
+
+function FilterSection({
+  children,
+  description,
+  title,
+}: {
+  children: React.ReactNode;
+  description: string;
+  title: string;
+}) {
+  return (
+    <section className="space-y-2">
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">
+          {title}
+        </h3>
+        <p className="mt-0.5 text-xs text-muted">{description}</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">{children}</div>
+    </section>
+  );
+}
+
+function FilterField({
+  children,
+  label,
+}: {
+  children: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <div className="grid gap-1 text-xs font-medium text-foreground-muted">
+      <span>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function ActiveFilterChip({
+  filter,
+  onRemove,
+}: {
+  filter: ActivePropertyFilter;
+  onRemove: () => void;
+}) {
+  return (
+    <button
+      className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-muted px-2 py-1 text-left text-xs text-foreground transition-colors hover:bg-surface"
+      onClick={onRemove}
+      title={`Remove ${filter.label} filter`}
+      type="button"
+    >
+      <span className="font-semibold">{filter.label}</span>
+      <span className="min-w-0 truncate text-muted">{filter.value}</span>
+      <X aria-hidden="true" className="shrink-0 text-muted" size={12} />
+    </button>
+  );
+}
+
+function getActivePropertyFilters(
+  viewQuery: PropertyViewQuery,
+): ActivePropertyFilter[] {
+  const filters: ActivePropertyFilter[] = [];
+  const query = viewQuery.query.trim();
+
+  if (query) {
+    filters.push({
+      defaultValue: "",
+      label: "Search",
+      param: "query",
+      value: query,
+    });
+  }
+
+  if (viewQuery.status !== "all") {
+    filters.push({
+      defaultValue: "all",
+      label: "Status",
+      param: "status",
+      value: getOptionLabel(statusFilterOptions, viewQuery.status),
+    });
+  }
+
+  if (viewQuery.archiveState !== "active") {
+    filters.push({
+      defaultValue: "active",
+      label: "Archive",
+      param: "archiveState",
+      value: getOptionLabel(archiveFilterOptions, viewQuery.archiveState),
+    });
+  }
+
+  if (viewQuery.ownerStatus !== "all") {
+    filters.push({
+      defaultValue: "all",
+      label: "Owner",
+      param: "ownerStatus",
+      value: getOptionLabel(ownerFilterOptions, viewQuery.ownerStatus),
+    });
+  }
+
+  if (viewQuery.review !== "all") {
+    filters.push({
+      defaultValue: "all",
+      label: "Review",
+      param: "review",
+      value: getOptionLabel(reviewFilterOptions, viewQuery.review),
+    });
+  }
+
+  if (viewQuery.netStatus !== "all") {
+    filters.push({
+      defaultValue: "all",
+      label: "Net",
+      param: "netStatus",
+      value: getOptionLabel(netFilterOptions, viewQuery.netStatus),
+    });
+  }
+
+  if (viewQuery.sort !== DEFAULT_PROPERTY_SORT) {
+    filters.push({
+      defaultValue: DEFAULT_PROPERTY_SORT,
+      label: "Sort",
+      param: "sort",
+      value: getOptionLabel(sortFilterOptions, viewQuery.sort),
+    });
+  }
+
+  if (viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE) {
+    filters.push({
+      defaultValue: String(DEFAULT_PROPERTY_PAGE_SIZE),
+      label: "Rows",
+      param: "pageSize",
+      value: String(viewQuery.pageSize),
+    });
+  }
+
+  return filters;
+}
+
+function getOptionLabel(options: SelectOption[], value: string) {
+  return options.find((option) => option.value === value)?.label ?? value;
 }
 
 function getPropertySuggestions(properties: PropertySummary[], query: string) {
