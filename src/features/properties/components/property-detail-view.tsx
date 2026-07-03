@@ -7,6 +7,8 @@ import {
   ArrowLeft,
   Building2,
   CalendarDays,
+  Download,
+  ExternalLink,
   FileText,
   Landmark,
   ListTree,
@@ -28,6 +30,8 @@ import type {
   PropertyTimelineContext,
 } from "@/features/properties/data/property-detail";
 import type { RecentChange } from "@/features/activity/activity.types";
+import type { ReportKind } from "@/features/reports/reports.types";
+import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
@@ -39,6 +43,7 @@ type PropertyRecordSection =
   | "finance"
   | "maintenance"
   | "documents"
+  | "reports"
   | "timeline";
 
 const propertyRecordSections: Array<{
@@ -51,12 +56,70 @@ const propertyRecordSections: Array<{
   { id: "finance", label: "Finance" },
   { id: "maintenance", label: "Maintenance" },
   { id: "documents", label: "Documents" },
+  { id: "reports", label: "Reports" },
   { id: "timeline", label: "Timeline" },
+];
+
+const propertyReportTemplates: Array<{
+  description: string;
+  kind: ReportKind;
+  sources: string;
+  title: string;
+}> = [
+  {
+    description: "Unit status, tenants, lease dates, current rent, and evidence count.",
+    kind: "rent-roll",
+    sources: "Units / leases / documents",
+    title: "Rent roll",
+  },
+  {
+    description: "Income, expenses, NOI, maintenance spend, and missing-record risks.",
+    kind: "property-performance",
+    sources: "Ledger / units / timeline",
+    title: "Property performance",
+  },
+  {
+    description: "Owner-ready income, expense, and net position for the selected period.",
+    kind: "owner-statement",
+    sources: "Ledger / owners",
+    title: "Owner statement",
+  },
+  {
+    description: "Category-level income and expense rows for finance review.",
+    kind: "income-expense",
+    sources: "Ledger / units",
+    title: "Income and expense",
+  },
+  {
+    description: "Repair cost, estimates, completion state, priority, and source records.",
+    kind: "maintenance-cost",
+    sources: "Maintenance / ledger / timeline",
+    title: "Maintenance cost",
+  },
+  {
+    description: "Vacancy, missing lease/rent evidence, and leasing follow-up risk.",
+    kind: "vacancy-risk",
+    sources: "Units / leases / documents",
+    title: "Vacancy and risk",
+  },
+  {
+    description: "Lease expirations by unit so renewal work does not surprise the team.",
+    kind: "lease-expiry",
+    sources: "Leases / units",
+    title: "Lease expiry",
+  },
+  {
+    description: "Missing owners, leases, rent, and document evidence to clean up.",
+    kind: "missing-data",
+    sources: "Property record quality",
+    title: "Missing data",
+  },
 ];
 
 export function PropertyDetailView({ property }: { property: PropertyDetail }) {
   const [activeSection, setActiveSection] =
     useState<PropertyRecordSection>("overview");
+  const reportMonth = getBusinessMonthValue();
 
   return (
     <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
@@ -81,7 +144,7 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
             )}
             id="property-overview"
           >
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="break-words text-base font-semibold">
@@ -93,26 +156,6 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
                 <p className="mt-1 break-words text-sm text-muted">
                   {property.type} / {property.address}
                 </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <ActionLink href={property.hrefs.units} icon={<Building2 size={14} />}>
-                  Units
-                </ActionLink>
-                <ActionLink href={property.hrefs.leases} icon={<ScrollText size={14} />}>
-                  Leases
-                </ActionLink>
-                <ActionLink href={property.hrefs.ledger} icon={<Landmark size={14} />}>
-                  Ledger
-                </ActionLink>
-                <ActionLink href={property.hrefs.maintenance} icon={<Wrench size={14} />}>
-                  Maintenance
-                </ActionLink>
-                <ActionLink href={property.hrefs.timeline} icon={<ListTree size={14} />}>
-                  Timeline
-                </ActionLink>
-                <ActionLink href={property.hrefs.reports} icon={<FileText size={14} />}>
-                  Reports
-                </ActionLink>
               </div>
             </div>
 
@@ -397,6 +440,16 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
             </div>
           </section>
 
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "reports" && "hidden",
+            )}
+            id="property-reports"
+          >
+            <PropertyReportsPanel property={property} reportMonth={reportMonth} />
+          </section>
+
           {property.activity.length > 0 ? (
             <section
               className={cn(
@@ -454,6 +507,159 @@ function PropertyRecordNav({
       </div>
     </nav>
   );
+}
+
+function PropertyReportsPanel({
+  property,
+  reportMonth,
+}: {
+  property: PropertyDetail;
+  reportMonth: string;
+}) {
+  return (
+    <>
+      <SectionTitle
+        description="Property-scoped CSV and PDF exports"
+        icon={<FileText size={16} />}
+        title="Reports"
+      />
+      <div className="space-y-4 p-4">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold">Report workspace</h3>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
+              Build owner packets, finance reviews, leasing checks, maintenance
+              summaries, and cleanup queues from the same traceable records used
+              across this property.
+            </p>
+            <div className="mt-3 grid gap-2 text-[12px] text-muted sm:grid-cols-3">
+              <ReportMetaPill label="Scope" value={property.code} />
+              <ReportMetaPill label="Period" value={reportMonth} />
+              <ReportMetaPill
+                label="Sources"
+                value={`${property.totalUnitCount} units / ${property.counts.ledgerEntries} ledger`}
+              />
+            </div>
+          </div>
+          <ActionLink
+            href={buildPropertyReportHref(property.id, "rent-roll", reportMonth)}
+            icon={<ExternalLink size={14} />}
+            strong
+          >
+            Open builder
+          </ActionLink>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+          {propertyReportTemplates.map((template) => (
+            <ReportTemplateCard
+              key={template.kind}
+              propertyId={property.id}
+              reportMonth={reportMonth}
+              template={template}
+            />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ReportTemplateCard({
+  propertyId,
+  reportMonth,
+  template,
+}: {
+  propertyId: string;
+  reportMonth: string;
+  template: (typeof propertyReportTemplates)[number];
+}) {
+  return (
+    <div className="flex min-h-[176px] flex-col justify-between rounded-md border border-border bg-surface-muted/60 p-3">
+      <div className="min-w-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="break-words text-sm font-semibold">{template.title}</h3>
+            <p className="mt-1 text-xs font-medium uppercase tracking-[0.06em] text-muted">
+              {template.sources}
+            </p>
+          </div>
+          <FileText className="shrink-0 text-muted" size={15} />
+        </div>
+        <p className="mt-3 text-sm leading-5 text-muted">{template.description}</p>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <ActionLink
+          href={buildPropertyReportHref(propertyId, template.kind, reportMonth)}
+          icon={<ExternalLink size={14} />}
+        >
+          Preview
+        </ActionLink>
+        <ActionLink
+          href={buildPropertyReportExportHref(propertyId, template.kind, reportMonth)}
+          icon={<Download size={14} />}
+        >
+          CSV
+        </ActionLink>
+        <ActionLink
+          href={buildPropertyReportPdfHref(propertyId, template.kind, reportMonth)}
+          icon={<Download size={14} />}
+        >
+          PDF
+        </ActionLink>
+      </div>
+    </div>
+  );
+}
+
+function ReportMetaPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-md border border-border bg-surface px-2.5 py-2">
+      <p className="font-medium uppercase tracking-[0.06em]">{label}</p>
+      <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function buildPropertyReportHref(
+  propertyId: string,
+  report: ReportKind,
+  month: string,
+) {
+  return buildPropertyReportUrl("/reports", propertyId, report, month);
+}
+
+function buildPropertyReportExportHref(
+  propertyId: string,
+  report: ReportKind,
+  month: string,
+) {
+  return buildPropertyReportUrl("/api/reports/export", propertyId, report, month);
+}
+
+function buildPropertyReportPdfHref(
+  propertyId: string,
+  report: ReportKind,
+  month: string,
+) {
+  return buildPropertyReportUrl("/api/reports/pdf", propertyId, report, month);
+}
+
+function buildPropertyReportUrl(
+  pathname: string,
+  propertyId: string,
+  report: ReportKind,
+  month: string,
+) {
+  const params = new URLSearchParams({
+    month,
+    propertyId,
+    report,
+  });
+
+  return `${pathname}?${params.toString()}`;
 }
 
 function ActionLink({

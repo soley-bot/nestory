@@ -69,29 +69,18 @@ type NavGroup = {
   label: string;
   roomLabel: string;
   icon: LucideIcon;
+  href?: string;
   items: NavItem[];
 };
 
 const navGroups: NavGroup[] = [
   {
     id: "dashboard",
-    label: "Dashboard",
+    label: "Overview",
     roomLabel: "Dashboard",
     icon: LayoutDashboard,
-    items: [
-      { href: "/overview", label: "Overview", icon: Gauge },
-      {
-        href: "/property-dashboard",
-        label: "Property",
-        icon: Building2,
-      },
-      {
-        href: "/maintenance-dashboard",
-        label: "Maintenance",
-        icon: ClipboardList,
-      },
-      { href: "/finance-dashboard", label: "Finance", icon: Wallet },
-    ],
+    href: "/overview",
+    items: [],
   },
   {
     id: "property",
@@ -99,6 +88,7 @@ const navGroups: NavGroup[] = [
     roomLabel: "Property",
     icon: Building2,
     items: [
+      { href: "/property-dashboard", label: "Dashboard", icon: Gauge },
       { href: "/properties", label: "Properties", icon: House },
       { href: "/units", label: "Units", icon: DoorOpen },
       { href: "/amenities", label: "Amenities", icon: Sparkles },
@@ -132,6 +122,7 @@ const navGroups: NavGroup[] = [
     roomLabel: "Maintenance",
     icon: Wrench,
     items: [
+      { href: "/maintenance-dashboard", label: "Dashboard", icon: Gauge },
       { href: "/maintenance", label: "Requests", icon: CircleAlert },
       { href: "/work-orders", label: "Work Orders", icon: ClipboardList },
       { href: "/schedule", label: "Schedule", icon: CalendarClock },
@@ -147,6 +138,7 @@ const navGroups: NavGroup[] = [
     roomLabel: "Finance",
     icon: Landmark,
     items: [
+      { href: "/finance-dashboard", label: "Dashboard", icon: Gauge },
       { href: "/leases", label: "Leases", icon: ScrollText },
       { href: "/ledger", label: "Ledger", icon: BookOpen },
       { href: "/payments", label: "Payments", icon: CreditCard },
@@ -202,7 +194,7 @@ const settingsGroup: NavGroup = {
 };
 
 const mobilePrimaryItems = [
-  { href: "/overview", label: "Overview", icon: Gauge },
+  { href: "/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/properties", label: "Properties", icon: House },
   { href: "/units", label: "Units", icon: DoorOpen },
   { href: "/maintenance", label: "Requests", icon: CircleAlert },
@@ -262,10 +254,16 @@ function isNavItemActive(pathname: string, item: NavItem) {
   );
 }
 
-function getPathGroup(pathname: string, groups: NavGroup[]) {
-  return groups.find((group) =>
-    group.items.some((item) => isNavItemActive(pathname, item)),
+function isNavGroupActive(pathname: string, group: NavGroup) {
+  return (
+    (group.href !== undefined &&
+      (pathname === group.href || pathname.startsWith(`${group.href}/`))) ||
+    group.items.some((item) => isNavItemActive(pathname, item))
   );
+}
+
+function getPathGroup(pathname: string, groups: NavGroup[]) {
+  return groups.find((group) => isNavGroupActive(pathname, group));
 }
 
 export function AppShell({
@@ -282,7 +280,11 @@ export function AppShell({
       ? [{ href: "/tasks", label: "Tasks", icon: CheckSquare }]
       : mobilePrimaryItems;
   const mobileMoreItems = [
-    ...desktopNavGroups.flatMap((group) => group.items),
+    ...desktopNavGroups.flatMap((group) =>
+      group.href
+        ? [{ href: group.href, label: group.label, icon: group.icon }]
+        : group.items,
+    ),
     ...(role === "admin"
       ? [{ href: "/import", label: "Import data", icon: Upload }]
       : []),
@@ -656,6 +658,24 @@ function CollapsedDesktopSidebar({
           const Icon = group.icon;
           const isActive = selectedGroupId === group.id;
 
+          if (group.href) {
+            return (
+              <Link
+                aria-label={group.label}
+                className={cn(
+                  "grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+                  isActive && "bg-surface-muted text-foreground",
+                )}
+                href={group.href}
+                key={group.id}
+                prefetch={false}
+                title={group.label}
+              >
+                <Icon size={14} />
+              </Link>
+            );
+          }
+
           return (
             <button
               aria-label={`Open ${group.label} navigation`}
@@ -758,6 +778,28 @@ function DesktopSidebarGroup({
 }) {
   const Icon = group.icon;
   const ToggleIcon = isExpanded ? ChevronDown : ChevronRight;
+
+  if (group.href) {
+    return (
+      <Link
+        className={cn(
+          "flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] font-medium text-foreground-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+          isSelected && "bg-surface-muted font-semibold text-foreground",
+        )}
+        href={group.href}
+        prefetch={false}
+      >
+        <Icon
+          className={cn(
+            "ml-[21px] shrink-0",
+            isSelected && "text-foreground",
+          )}
+          size={13}
+        />
+        <span className="min-w-0 flex-1 truncate">{group.label}</span>
+      </Link>
+    );
+  }
 
   return (
     <div>

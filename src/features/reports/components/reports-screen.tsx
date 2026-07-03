@@ -23,7 +23,6 @@ export function ReportsScreen({
   trustedReport,
   viewQuery,
 }: ReportsScreenProps) {
-  const canDownloadPdf = trustedReport.kind === "vacancy-risk";
   const reportRowCount = trustedReport.totalRowCount ?? trustedReport.rows.length;
   const isPreviewLimited = reportRowCount > trustedReport.rows.length;
 
@@ -33,15 +32,13 @@ export function ReportsScreen({
         <PageHeader
           actions={
             <>
-              {canDownloadPdf ? (
-                <a
-                  className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
-                  href={buildPdfHref(viewQuery)}
-                >
-                  <Download size={14} />
-                  Download PDF
-                </a>
-              ) : null}
+              <a
+                className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
+                href={buildPdfHref(viewQuery)}
+              >
+                <Download size={14} />
+                Download PDF
+              </a>
               <a
                 className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
                 href={buildCsvHref(viewQuery)}
@@ -49,7 +46,7 @@ export function ReportsScreen({
                 <Download size={14} />
                 Export CSV
               </a>
-              {canDownloadPdf || isPreviewLimited ? null : <PrintButton />}
+              {isPreviewLimited ? null : <PrintButton />}
             </>
           }
           description="Connected reports built from Unit, Property, Lease, Ledger, Timeline, and Document source rows."
@@ -309,7 +306,7 @@ function buildCsvHref(query: ReportsViewQuery) {
 function buildPdfHref(query: ReportsViewQuery) {
   const params = new URLSearchParams();
 
-  params.set("report", "vacancy-risk");
+  params.set("report", query.report);
   params.set("month", query.month);
 
   if (query.propertyId !== "all") {
