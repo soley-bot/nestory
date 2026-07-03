@@ -10,7 +10,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { GripVertical, Wrench } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type {
   MaintenanceCase,
@@ -53,7 +53,7 @@ export function BoardSurface({
 }: BoardSurfaceProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
+      activationConstraint: { delay: 120, tolerance: 6 },
     }),
     useSensor(KeyboardSensor),
   );
@@ -89,8 +89,8 @@ export function BoardSurface({
       onDragEnd={handleDragEnd}
       sensors={sensors}
     >
-      <div className="overflow-x-auto">
-        <div className="grid min-w-[1320px] grid-cols-6 gap-3">
+      <div className="overflow-x-auto pb-1">
+        <div className="grid min-h-[calc(100vh-310px)] min-w-[1320px] grid-cols-6 gap-3">
           {BOARD_COLUMNS.map((column) => (
             <BoardColumn
               canMove={Boolean(onStatusChange) && !statusChangePending}
@@ -130,7 +130,7 @@ function BoardColumn({
   return (
     <section
       className={cn(
-        "min-h-56 rounded-md border border-border bg-surface transition-colors",
+        "flex min-h-[calc(100vh-310px)] flex-col rounded-md border border-border bg-surface transition-colors",
         isOver && "border-accent bg-accent-soft/40",
       )}
       data-status-column={column.status}
@@ -145,7 +145,7 @@ function BoardColumn({
           {tasks.length}
         </Badge>
       </div>
-      <div className="space-y-2 p-2">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
         {tasks.length === 0 ? (
           <p className="px-1 py-4 text-sm text-muted">No work here.</p>
         ) : (
@@ -193,46 +193,49 @@ function DraggableMaintenanceCard({
       style={style}
     >
       <MaintenanceCard
+        dragAttributes={canMove ? attributes : undefined}
+        dragListeners={canMove ? listeners : undefined}
+        isDragging={isDragging}
         maintenanceCase={maintenanceCase}
+        movable={canMove}
         onSelect={onSelect}
         selected={selected}
       />
-      {canMove ? (
-        <button
-          aria-label={`Move ${maintenanceCase.title}`}
-          className="absolute right-2 top-2 z-10 inline-flex size-7 cursor-grab touch-none items-center justify-center rounded-md border border-border bg-surface text-muted shadow-sm transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          data-drag-handle={maintenanceCase.id}
-          title="Drag to change status"
-          type="button"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={14} />
-        </button>
-      ) : null}
     </div>
   );
 }
 
 function MaintenanceCard({
+  dragAttributes,
+  dragListeners,
+  isDragging,
   maintenanceCase,
+  movable,
   onSelect,
   selected,
 }: {
+  dragAttributes?: ReturnType<typeof useDraggable>["attributes"];
+  dragListeners?: ReturnType<typeof useDraggable>["listeners"];
+  isDragging: boolean;
   maintenanceCase: MaintenanceCase;
+  movable: boolean;
   onSelect: (taskId: string) => void;
   selected: boolean;
 }) {
   return (
     <button
       className={cn(
-        "w-full rounded-md border bg-surface p-3 text-left text-sm shadow-sm transition-colors hover:bg-surface-muted",
+        "w-full touch-none rounded-md border bg-surface p-3 text-left text-sm shadow-sm transition-colors hover:bg-surface-muted",
+        movable && "cursor-grab active:cursor-grabbing",
+        isDragging && "shadow-lg ring-2 ring-accent-soft",
         selected
           ? "border-accent ring-2 ring-accent-soft"
           : "border-border",
       )}
       onClick={() => onSelect(maintenanceCase.id)}
       type="button"
+      {...dragAttributes}
+      {...dragListeners}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -241,7 +244,7 @@ function MaintenanceCard({
             {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
           </p>
         </div>
-        <Wrench className="mt-0.5 shrink-0 text-muted" size={15} />
+        <GripVertical className="mt-0.5 shrink-0 text-muted" size={15} />
       </div>
       <div className="mt-3 flex items-center justify-between gap-2 text-xs">
         <span className="truncate font-medium text-foreground">

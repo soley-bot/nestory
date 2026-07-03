@@ -76,7 +76,7 @@ Maintenance operations:
 - `/maintenance` is the cases workspace with inbox, list, board, calendar,
   templates, and report links over the existing maintenance records.
 - `/work-orders` remains a legacy board route.
-- `/schedule` uses the agenda/calendar surface and is labeled Calendar in nav.
+- `/schedule` redirects to `/maintenance?view=calendar` for legacy links.
 - `/tasks` uses the board/task surface with role-aware assignment controls.
 - `/inspections` uses the checklist surface.
 - `/recurring-tasks` uses the routine surface and is labeled Templates in nav.

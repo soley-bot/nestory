@@ -543,7 +543,6 @@ function revalidateMaintenancePaths({
   revalidatePath("/maintenance");
   revalidatePath("/maintenance-dashboard");
   revalidatePath("/work-orders");
-  revalidatePath("/schedule");
   revalidatePath("/inspections");
   revalidatePath("/recurring-tasks");
   revalidatePath("/tasks");

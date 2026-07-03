@@ -169,14 +169,14 @@ const placeholderPages: Record<string, PlaceholderPage> = {
       bars: [
         { href: "/maintenance?view=overdue", label: "Plumbing", helper: "Oldest category", value: 76 },
         { href: "/maintenance?view=open", label: "Electrical", helper: "Open by trade", value: 58 },
-        { href: "/schedule", label: "Inspection", helper: "Visit load", value: 46 },
+        { href: "/maintenance?view=calendar", label: "Inspection", helper: "Visit load", value: 46 },
         { href: "/recurring-tasks", label: "Cleaning", helper: "Recurring load", value: 34 },
       ],
       driverTitle: "Maintenance load",
       drivers: [
         { href: "/maintenance?category=plumbing&view=overdue", label: "Plumbing", helper: "Leaks and blocked drains", value: "11 open", width: 76, tone: "danger" },
         { href: "/maintenance?category=electrical&view=open", label: "Electrical", helper: "Breaker and fixture work", value: "8 open", width: 58, tone: "warning" },
-        { href: "/schedule?type=inspection", label: "Inspection", helper: "Visits needing confirmation", value: "6 visits", width: 46, tone: "warning" },
+        { href: "/maintenance?view=calendar&review=scheduled", label: "Inspection", helper: "Visits needing confirmation", value: "6 visits", width: 46, tone: "warning" },
         { href: "/recurring-tasks", label: "Cleaning", helper: "Routine service load", value: "4 tasks", width: 34 },
       ],
       kpis: [
@@ -295,11 +295,6 @@ const placeholderPages: Record<string, PlaceholderPage> = {
   "work-orders": {
     title: "Work Orders",
     description: "Assigned maintenance work orders and closeout status.",
-    room: "Operations",
-  },
-  schedule: {
-    title: "Schedule",
-    description: "Maintenance visits, inspections, and operational tasks.",
     room: "Operations",
   },
   tasks: {

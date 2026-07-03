@@ -55,6 +55,10 @@ export default async function MaintenancePage({
 function normalizeCasesViewQuery(
   viewQuery: MaintenanceViewQuery,
 ): MaintenanceViewQuery {
+  if (viewQuery.view === "inbox") {
+    return { ...viewQuery, view: "list" };
+  }
+
   if (viewQuery.view === "board" && viewQuery.review === "open") {
     return { ...viewQuery, review: "work_orders" };
   }
@@ -85,9 +89,9 @@ function getCasesRouteConfig(viewQuery: MaintenanceViewQuery): {
   if (viewQuery.view === "list") {
     return {
       emptyLabel: "No maintenance cases found.",
-      flowLabel: "Case list",
-      showReviewTabs: true,
-      showScopeSummary: true,
+      flowLabel: "Work queue",
+      showReviewTabs: false,
+      showScopeSummary: false,
       surfaceVariant: "table",
     };
   }
@@ -123,10 +127,10 @@ function getCasesRouteConfig(viewQuery: MaintenanceViewQuery): {
   }
 
   return {
-    emptyLabel: "No cases need triage.",
-    flowLabel: "Intake queue",
-    showReviewTabs: true,
-    showScopeSummary: true,
-    surfaceVariant: "inbox",
+    emptyLabel: "No maintenance cases found.",
+    flowLabel: "Work queue",
+    showReviewTabs: false,
+    showScopeSummary: false,
+    surfaceVariant: "table",
   };
 }

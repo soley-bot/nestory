@@ -18,12 +18,10 @@ import {
   ClipboardCheck,
   Columns3,
   FileText,
-  Inbox,
   Landmark,
   ListChecks,
   Pencil,
   Plus,
-  Repeat,
   RotateCcw,
   SlidersHorizontal,
   Wrench,
@@ -173,6 +171,7 @@ export function MaintenanceScreen({
   const router = useRouter();
   const searchParams = useSearchParams();
   const calendarMode = surfaceVariant === "agenda";
+  const balancedCasesWorkspace = showCaseViewTabs && surfaceVariant === "table";
   const createInitialValues = useMemo(
     () => getCreateInitialValues(viewQuery, propertyOptions, unitOptions),
     [propertyOptions, unitOptions, viewQuery],
@@ -187,15 +186,22 @@ export function MaintenanceScreen({
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusOverrides, setStatusOverrides] = useState(
+    () => new Map<string, MaintenanceStatus>(),
+  );
   const [statusChangePending, startStatusChange] = useTransition();
+  const visibleCases = useMemo(
+    () => applyMaintenanceStatusOverrides(cases, statusOverrides),
+    [cases, statusOverrides],
+  );
   const focusedCase = initialTaskId
-    ? cases.find((maintenanceCase) => maintenanceCase.id === initialTaskId) ??
+    ? visibleCases.find((maintenanceCase) => maintenanceCase.id === initialTaskId) ??
       null
     : null;
   const focusedTaskId = focusedCase?.id;
   const selectedCase = getSelectedRecord({
     focusedRecordId: initialTaskId,
-    records: cases,
+    records: visibleCases,
     selectedRecordId: selectedTaskId,
   });
 
@@ -203,10 +209,13 @@ export function MaintenanceScreen({
     if (focusedTaskId) {
       queueMicrotask(() => {
         setSelectedTaskId(focusedTaskId);
-        setPreviewOpen(true);
+        setPreviewOpen(
+          !balancedCasesWorkspace ||
+            !window.matchMedia("(min-width: 1280px)").matches,
+        );
       });
     }
-  }, [focusedTaskId]);
+  }, [balancedCasesWorkspace, focusedTaskId]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -230,7 +239,10 @@ export function MaintenanceScreen({
 
   function previewCase(taskId: string) {
     setSelectedTaskId(taskId);
-    setPreviewOpen(true);
+    setPreviewOpen(
+      !balancedCasesWorkspace ||
+        !window.matchMedia("(min-width: 1280px)").matches,
+    );
   }
 
   function createCaseOnDate(dueDate: string) {
@@ -253,10 +265,20 @@ export function MaintenanceScreen({
     }
 
     setStatusMessage(null);
+    setStatusOverrides((current) => {
+      const next = new Map(current);
+      next.set(maintenanceCase.id, status);
+      return next;
+    });
     startStatusChange(async () => {
       const result = await updateMaintenanceStatusAction(maintenanceCase.id, status);
 
       if (result.status === "error") {
+        setStatusOverrides((current) => {
+          const next = new Map(current);
+          next.delete(maintenanceCase.id);
+          return next;
+        });
         setStatusMessage(result.message ?? "Could not update maintenance status.");
         return;
       }
@@ -306,10 +328,14 @@ export function MaintenanceScreen({
       ) : null}
 
       {showCaseViewTabs ? (
-        <MaintenanceCasesViewTabs viewQuery={viewQuery} />
-      ) : null}
-
-      {showFilters ? (
+        <MaintenanceCasesCommandBar
+          listLabel={listLabel}
+          properties={propertyOptions}
+          summary={summary}
+          units={unitOptions}
+          viewQuery={viewQuery}
+        />
+      ) : showFilters ? (
         <MaintenanceFilters
           baseReview={baseReview}
           listLabel={listLabel}
@@ -330,7 +356,9 @@ export function MaintenanceScreen({
                   ? "h-[calc(100vh-226px)]"
                   : "h-[calc(100vh-122px)]",
               )
-            : "space-y-3 py-4 lg:py-4",
+            : balancedCasesWorkspace
+              ? "h-[calc(100vh-169px)] min-h-0 py-3"
+              : "space-y-3 py-4 lg:py-4",
         )}
       >
         {showScopeSummary ? (
@@ -345,19 +373,52 @@ export function MaintenanceScreen({
           />
         ) : null}
         {surfaceVariant === "table" ? (
-          <div className="space-y-0">
-            <MaintenanceTable
-              cases={cases}
-              emptyLabel={emptyLabel}
-              onSelect={previewCase}
-              recordLabel={recordLabel}
-              selectedTaskId={selectedCase?.id ?? ""}
-            />
-            <PaginationControls attached pagination={pagination} />
-          </div>
+          balancedCasesWorkspace ? (
+            <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="min-h-0 space-y-0">
+                <MaintenanceTable
+                  cases={visibleCases}
+                  emptyLabel={emptyLabel}
+                  fillHeight
+                  onSelect={previewCase}
+                  recordLabel={recordLabel}
+                  selectedTaskId={selectedCase?.id ?? ""}
+                />
+                <PaginationControls attached pagination={pagination} />
+              </div>
+              <div className="hidden min-h-0 overflow-hidden rounded-md border border-border bg-surface xl:block">
+                <div className="h-full overflow-auto">
+                  <MaintenanceInspector
+                    maintenanceCase={selectedCase}
+                    canManageTasks={canManageTasks}
+                    onArchive={(maintenanceCase) =>
+                      openDrawer({ maintenanceCase, mode: "archive" })
+                    }
+                    onEdit={(maintenanceCase) =>
+                      openDrawer({ maintenanceCase, mode: "edit" })
+                    }
+                    onRestore={(maintenanceCase) =>
+                      openDrawer({ maintenanceCase, mode: "restore" })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-0">
+              <MaintenanceTable
+                cases={visibleCases}
+                emptyLabel={emptyLabel}
+                onSelect={previewCase}
+                recordLabel={recordLabel}
+                selectedTaskId={selectedCase?.id ?? ""}
+              />
+              <PaginationControls attached pagination={pagination} />
+            </div>
+          )
         ) : (
           <MaintenanceWorkflowSurface
-            cases={cases}
+            cases={visibleCases}
             emptyLabel={emptyLabel}
             month={viewQuery.month}
             onCreateDate={canManageTasks ? createCaseOnDate : undefined}
@@ -435,36 +496,224 @@ export function MaintenanceScreen({
   );
 }
 
-function MaintenanceCasesViewTabs({
+function MaintenanceCasesCommandBar({
+  listLabel,
+  properties,
+  summary,
+  units,
   viewQuery,
 }: {
+  listLabel: string;
+  properties: MaintenancePropertyOption[];
+  summary: MaintenanceSummary;
+  units: MaintenanceUnitOption[];
   viewQuery: MaintenanceViewQuery;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const advancedFilterCount = getAdvancedFilterCount(viewQuery, "open");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [queryState, setQueryState] = useState({
+    source: viewQuery.query,
+    value: viewQuery.query,
+  });
+  const query =
+    queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
+  const scopeOptions = getScopeOptions(properties, units, listLabel);
+
+  const replaceParam = (name: string, value: string, defaultValue = "") => {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("page");
+    nextParams.delete("taskId");
+
+    if (!value || value === defaultValue) {
+      nextParams.delete(name);
+    } else {
+      nextParams.set(name, value);
+    }
+
+    if (name === "propertyId") {
+      nextParams.delete("unitId");
+      nextParams.delete("scope");
+    }
+
+    if (name === "unitId") {
+      nextParams.delete("scope");
+    }
+
+    if (name === "status" && value && value !== "all") {
+      nextParams.set("review", "all");
+      nextParams.set("view", "list");
+    }
+
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+      scroll: false,
+    });
+  };
+
+  function replaceScope(value: string) {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    const [kind, id] = value.split(":");
+
+    nextParams.delete("page");
+    nextParams.delete("taskId");
+    nextParams.delete("propertyId");
+    nextParams.delete("unitId");
+    nextParams.delete("scope");
+
+    if (kind === "property" && id) {
+      nextParams.set("propertyId", id);
+    } else if (kind === "unit" && id) {
+      const unit = units.find((candidate) => candidate.id === id);
+      if (unit) {
+        nextParams.set("propertyId", unit.propertyId);
+        nextParams.set("unitId", unit.id);
+      }
+    }
+
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+      scroll: false,
+    });
+  }
 
   return (
-    <div className="border-b border-border px-4 py-2 sm:px-6 lg:px-6">
-      <div className="flex flex-wrap gap-1.5">
-        {getMaintenanceCasesViewTabs(pathname, searchParams, viewQuery).map(
-          (tab) => (
+    <div className="relative border-b border-border px-4 py-2 sm:px-6 lg:px-6">
+      <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
+        <div className="flex shrink-0 flex-wrap gap-1.5">
+          {getMaintenanceSavedViewTabs(pathname, searchParams, viewQuery, summary).map(
+            (tab) => (
+              <Link
+                className={cn(
+                  "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors",
+                  tab.active
+                    ? "border-accent bg-accent-soft text-foreground"
+                    : "border-border bg-surface text-muted hover:bg-surface-muted hover:text-foreground",
+                )}
+                href={tab.href}
+                key={tab.review}
+                prefetch={false}
+              >
+                {tab.label}
+              </Link>
+            ),
+          )}
+        </div>
+
+        <div className="grid min-w-0 flex-1 gap-2 lg:grid-cols-[minmax(260px,1fr)_auto]">
+          <SearchCombo
+            ariaLabel={`Search ${listLabel}`}
+            onQueryChange={(value) =>
+              setQueryState({
+                source: viewQuery.query,
+                value,
+              })
+            }
+            onSubmit={(event) => {
+              event.preventDefault();
+              replaceParam("query", query);
+            }}
+            placeholder={`Search ${listLabel}...`}
+            query={query}
+            submitLabel={`Search ${listLabel}`}
+          />
+          <Button
+            aria-expanded={advancedOpen}
+            onClick={() => setAdvancedOpen((current) => !current)}
+            type="button"
+          >
+            <SlidersHorizontal size={14} />
+            Filters{advancedFilterCount > 0 ? ` ${advancedFilterCount}` : ""}
+          </Button>
+        </div>
+
+        <div className="inline-flex h-8 shrink-0 overflow-hidden rounded-md border border-border bg-surface">
+          {getMaintenanceCasesViewTabs(pathname, searchParams, viewQuery).map((tab) => (
             <Link
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium transition-colors",
+                "inline-flex size-8 items-center justify-center border-r border-border text-muted transition-colors last:border-r-0 hover:bg-surface-muted hover:text-foreground",
                 tab.active
-                  ? "border-accent bg-accent-soft text-foreground"
-                  : "border-border bg-surface text-muted hover:bg-surface-muted hover:text-foreground",
+                  ? "bg-accent-soft text-foreground"
+                  : "bg-surface",
               )}
+              aria-label={tab.label}
               href={tab.href}
               key={tab.id}
               prefetch={false}
+              title={tab.label}
             >
               <tab.icon size={14} />
-              {tab.label}
+              <span className="sr-only">{tab.label}</span>
             </Link>
-          ),
-        )}
+          ))}
+        </div>
       </div>
+
+      {advancedOpen ? (
+        <div className="absolute right-4 top-[calc(100%+6px)] z-30 grid w-[min(760px,calc(100vw-2rem))] gap-2 rounded-md border border-border bg-surface p-3 shadow-lg sm:right-6 lg:grid-cols-[minmax(180px,1fr)_160px_160px_160px]">
+          <SelectControl
+            ariaLabel="Maintenance scope"
+            onValueChange={replaceScope}
+            options={scopeOptions}
+            value={getScopeValue(viewQuery)}
+          />
+          <SelectControl
+            ariaLabel="Priority"
+            onValueChange={(value) => replaceParam("priority", value, "all")}
+            options={[
+              { label: "All priority", value: "all" },
+              { label: "Urgent", value: "urgent" },
+              { label: "High", value: "high" },
+              { label: "Normal", value: "normal" },
+              { label: "Low", value: "low" },
+            ]}
+            value={viewQuery.priority}
+          />
+          <SelectControl
+            ariaLabel="Status"
+            onValueChange={(value) => replaceParam("status", value, "all")}
+            options={[
+              { label: "All status", value: "all" },
+              { label: "Pending", value: "pending" },
+              { label: "Scheduled", value: "scheduled" },
+              { label: "In progress", value: "in_progress" },
+              { label: "Blocked", value: "blocked" },
+              { label: "Completed", value: "completed" },
+              { label: "Cancelled", value: "cancelled" },
+            ]}
+            value={viewQuery.status}
+          />
+          <SelectControl
+            ariaLabel="Attention filter"
+            onValueChange={(value) => replaceParam("review", value, "open")}
+            options={[
+              { label: "Open queue", value: "open" },
+              { label: "Work orders", value: "work_orders" },
+              { label: "Scheduled", value: "scheduled" },
+              { label: "Inspections", value: "inspections" },
+              { label: "Due reminders", value: "reminders" },
+              { label: "High priority", value: "high_priority" },
+              { label: "High cost", value: "high_cost" },
+              { label: "Recurring", value: "recurring" },
+              { label: "All attention", value: "all" },
+            ]}
+            value={viewQuery.review}
+          />
+          <MonthPickerField
+            ariaLabel="Report month"
+            defaultValue={viewQuery.month}
+            name="month"
+            onValueChange={(value) => replaceParam("month", value)}
+          />
+          <div className="flex justify-end lg:col-span-4">
+            <LinkButton href={buildClearFiltersHref(pathname, searchParams)}>
+              Clear filters
+            </LinkButton>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -713,26 +962,37 @@ function MaintenanceScopeSummary({
 function MaintenanceTable({
   cases,
   emptyLabel,
+  fillHeight = false,
   onSelect,
   recordLabel,
   selectedTaskId,
 }: {
   cases: MaintenanceCase[];
   emptyLabel: string;
+  fillHeight?: boolean;
   onSelect: (taskId: string) => void;
   recordLabel: string;
   selectedTaskId: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-surface">
-      <div className="max-h-[min(620px,calc(100vh-350px))] overflow-auto">
-        <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
+    <div
+      className={cn(
+        "overflow-hidden rounded-md border border-border bg-surface",
+        fillHeight && "flex h-[calc(100%-41px)] min-h-0 flex-col",
+      )}
+    >
+      <div
+        className={cn(
+          "overflow-auto",
+          fillHeight ? "min-h-0 flex-1" : "max-h-[min(620px,calc(100vh-350px))]",
+        )}
+      >
+        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
-            <col />
-            <col className="w-[210px]" />
-            <col className="w-[150px]" />
-            <col className="w-[150px]" />
-            <col className="w-[130px]" />
+            <col className="w-[33%]" />
+            <col className="w-[27%]" />
+            <col className="w-[17%]" />
+            <col className="w-[23%]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
@@ -741,14 +1001,13 @@ function MaintenanceTable({
               </th>
               <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
               <th className="px-1.5 py-2.5 font-semibold">Status</th>
-              <th className="px-1.5 py-2.5 font-semibold">Due</th>
-              <th className="px-1.5 py-2.5 text-right font-semibold">Cost</th>
+              <th className="px-1.5 py-2.5 font-semibold">Owner / Vendor</th>
             </tr>
           </thead>
           <tbody>
             {cases.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-muted" colSpan={5}>
+                <td className="px-4 py-8 text-center text-muted" colSpan={4}>
                   {emptyLabel}
                 </td>
               </tr>
@@ -775,6 +1034,15 @@ function MaintenanceTable({
                   <p className="truncate font-medium" title={maintenanceCase.title}>
                     {maintenanceCase.title}
                   </p>
+                  <p
+                    className={cn(
+                      "mt-0.5 truncate text-xs text-muted",
+                      maintenanceCase.progressTone === "danger" && "text-danger",
+                    )}
+                  >
+                    Due {formatMaintenanceTableDueDate(maintenanceCase)}
+                    {maintenanceCase.dueTime ? ` at ${maintenanceCase.dueTime}` : ""}
+                  </p>
                   {maintenanceCase.isArchived ? (
                     <Badge className="mt-1 px-2 text-xs" tone="warning">
                       Archived
@@ -800,17 +1068,10 @@ function MaintenanceTable({
                   </div>
                 </td>
                 <td className="px-1.5 py-2">
-                  <p
-                    className={cn(
-                      "truncate",
-                      maintenanceCase.progressTone === "danger" && "text-danger",
-                    )}
-                  >
-                    {maintenanceCase.dueLabel}
+                  <p className="truncate">{maintenanceCase.assigneeLabel}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted">
+                    {maintenanceCase.vendorLabel}
                   </p>
-                </td>
-                <td className="px-1.5 py-2 text-right">
-                  <p className="font-medium">{maintenanceCase.actualCostLabel}</p>
                 </td>
               </tr>
             ))}
@@ -878,6 +1139,12 @@ function MaintenanceInspector({
             {maintenanceCase.statusLabel}
           </CompactFact>
           <CompactFact label="Due">{maintenanceCase.dueLabel}</CompactFact>
+          <CompactFact label="Actual cost">
+            {maintenanceCase.actualCostLabel}
+          </CompactFact>
+          <CompactFact label="Estimate">
+            {maintenanceCase.costEstimateLabel}
+          </CompactFact>
           <CompactFact label="Reminder">
             {maintenanceCase.reminderLabel}
           </CompactFact>
@@ -1562,6 +1829,74 @@ function getHrefWithoutActionParam(
   return query ? `${pathname}?${query}` : pathname;
 }
 
+function applyMaintenanceStatusOverrides(
+  cases: MaintenanceCase[],
+  overrides: Map<string, MaintenanceStatus>,
+) {
+  if (overrides.size === 0) {
+    return cases;
+  }
+
+  return cases.map((maintenanceCase) => {
+    const status = overrides.get(maintenanceCase.id);
+
+    if (!status) {
+      return maintenanceCase;
+    }
+
+    return {
+      ...maintenanceCase,
+      isOpen: status !== "completed" && status !== "cancelled",
+      progressLabel: getOptimisticStatusLabel(status),
+      progressTone: getOptimisticStatusTone(status),
+      status,
+      statusLabel: getOptimisticStatusLabel(status),
+      statusTone: getOptimisticStatusTone(status),
+    };
+  });
+}
+
+function getOptimisticStatusLabel(status: MaintenanceStatus) {
+  if (status === "in_progress") {
+    return "In Progress";
+  }
+
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function getOptimisticStatusTone(status: MaintenanceStatus): MaintenanceBadgeTone {
+  if (status === "completed") {
+    return "success";
+  }
+
+  if (status === "blocked" || status === "cancelled") {
+    return "warning";
+  }
+
+  if (status === "in_progress") {
+    return "accent";
+  }
+
+  return "neutral";
+}
+
+function formatMaintenanceTableDueDate(maintenanceCase: MaintenanceCase) {
+  if (!maintenanceCase.dueDate) {
+    return maintenanceCase.dueLabel;
+  }
+
+  const [year, month, day] = maintenanceCase.dueDate.split("-").map(Number);
+  if (!year || !month || !day) {
+    return maintenanceCase.dueLabel;
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    day: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 const MAINTENANCE_TABS = [
   { label: "Open", review: "open" },
   { label: "Overdue", review: "overdue" },
@@ -1574,17 +1909,71 @@ const MAINTENANCE_TABS = [
 }>;
 
 const MAINTENANCE_CASE_VIEW_TABS = [
-  { icon: Inbox, id: "inbox", label: "Inbox" },
   { icon: ListChecks, id: "list", label: "List" },
   { icon: Columns3, id: "board", label: "Board" },
   { icon: CalendarClock, id: "calendar", label: "Calendar" },
-  { icon: Repeat, id: "templates", label: "Templates" },
-  { icon: FileText, id: "reports", label: "Reports" },
 ] satisfies Array<{
-  icon: typeof Inbox;
-  id: MaintenanceViewQuery["view"] | "reports";
+  icon: typeof ListChecks;
+  id: Extract<MaintenanceViewQuery["view"], "board" | "calendar" | "list">;
   label: string;
 }>;
+
+const MAINTENANCE_SAVED_VIEW_TABS = [
+  { label: "Inbox", review: "open", summaryKey: "open" },
+  { label: "Overdue", review: "overdue", summaryKey: "overdue" },
+  { label: "Upcoming", review: "upcoming", summaryKey: "upcoming" },
+  { label: "Completed", review: "completed", summaryKey: "completed" },
+  { label: "All", review: "all", summaryKey: "total" },
+] satisfies Array<{
+  label: string;
+  review: MaintenanceViewQuery["review"];
+  summaryKey: keyof Pick<
+    MaintenanceSummary,
+    "completed" | "open" | "overdue" | "total" | "upcoming"
+  >;
+}>;
+
+function getMaintenanceSavedViewTabs(
+  pathname: string,
+  searchParams: { toString(): string },
+  viewQuery: MaintenanceViewQuery,
+  summary: MaintenanceSummary,
+) {
+  return MAINTENANCE_SAVED_VIEW_TABS.map((tab) => ({
+    ...tab,
+    active:
+      viewQuery.view === "list" &&
+      viewQuery.status === "all" &&
+      viewQuery.review === tab.review,
+    href: buildMaintenanceSavedViewHref(pathname, searchParams, tab.review),
+    label: `${tab.label} ${summary[tab.summaryKey]}`,
+  }));
+}
+
+function buildMaintenanceSavedViewHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  review: MaintenanceViewQuery["review"],
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+
+  nextParams.set("view", "list");
+  nextParams.delete("page");
+  nextParams.delete("pageSize");
+  nextParams.delete("sort");
+  nextParams.delete("status");
+  nextParams.delete("taskId");
+
+  if (review === "open") {
+    nextParams.delete("review");
+  } else {
+    nextParams.set("review", review);
+  }
+
+  const query = nextParams.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
+}
 
 function getMaintenanceCasesViewTabs(
   pathname: string,
@@ -1593,11 +1982,8 @@ function getMaintenanceCasesViewTabs(
 ) {
   return MAINTENANCE_CASE_VIEW_TABS.map((tab) => ({
     ...tab,
-    active: tab.id !== "reports" && viewQuery.view === tab.id,
-    href:
-      tab.id === "reports"
-        ? getMaintenanceReportHref(viewQuery)
-        : buildMaintenanceCasesViewHref(pathname, searchParams, tab.id),
+    active: viewQuery.view === tab.id,
+    href: buildMaintenanceCasesViewHref(pathname, searchParams, tab.id),
   }));
 }
 

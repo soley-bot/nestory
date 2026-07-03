@@ -10,7 +10,6 @@ import {
   BookOpen,
   Brush,
   Building2,
-  CalendarClock,
   CheckSquare,
   ClipboardCheck,
   ClipboardList,
@@ -127,7 +126,6 @@ const navGroups: NavGroup[] = [
         icon: ClipboardList,
         activeHrefs: ["/work-orders", "/tasks", "/inspections"],
       },
-      { href: "/schedule", label: "Calendar", icon: CalendarClock },
       { href: "/recurring-tasks", label: "Templates", icon: Repeat },
       { href: "/vendors", label: "Vendors", icon: Truck },
       {
