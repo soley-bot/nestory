@@ -1124,38 +1124,57 @@ function missingDataRow({
 }
 
 function buildReportContext(input: TrustedReportInput): ReportContext {
-  const propertiesById = indexById(input.properties);
-  const unitsById = indexById(input.units);
+  const scopedInput = filterReportInputByUnit(input);
+  const propertiesById = indexById(scopedInput.properties);
+  const unitsById = indexById(scopedInput.units);
   const activeLeaseByUnitId = new Map<string, LeaseRow>();
 
-  for (const lease of input.leases.filter(isActiveLease).toSorted(compareLeaseStartDesc)) {
+  for (const lease of scopedInput.leases.filter(isActiveLease).toSorted(compareLeaseStartDesc)) {
     if (lease.unit_id && !activeLeaseByUnitId.has(lease.unit_id)) {
       activeLeaseByUnitId.set(lease.unit_id, lease);
     }
   }
 
   return {
-    ...input,
+    ...scopedInput,
     activeLeaseByUnitId,
-    documentsByLeaseId: groupByNullable(input.documents, "lease_id"),
-    documentsByLedgerId: groupByNullable(input.documents, "ledger_entry_id"),
-    documentsByPropertyId: groupByNullable(input.documents, "property_id"),
-    documentsByTimelineId: groupByNullable(input.documents, "timeline_event_id"),
-    documentsByUnitId: groupByNullable(input.documents, "unit_id"),
-    generatedAt: input.generatedAt ?? new Date().toISOString(),
-    ledgerByPropertyId: groupBy(input.ledgerEntries, "property_id"),
-    ledgerByUnitId: groupByNullable(input.ledgerEntries, "unit_id"),
-    maintenanceByPropertyId: groupBy(input.maintenanceTasks, "property_id"),
-    maintenanceByUnitId: groupByNullable(input.maintenanceTasks, "unit_id"),
-    ownersByPropertyId: indexPrimaryOwners(input.owners),
-    peopleById: indexById(input.people),
-    periodLabel: `${formatDate(input.periodStart)} - ${formatDate(input.periodEnd)}`,
+    documentsByLeaseId: groupByNullable(scopedInput.documents, "lease_id"),
+    documentsByLedgerId: groupByNullable(scopedInput.documents, "ledger_entry_id"),
+    documentsByPropertyId: groupByNullable(scopedInput.documents, "property_id"),
+    documentsByTimelineId: groupByNullable(scopedInput.documents, "timeline_event_id"),
+    documentsByUnitId: groupByNullable(scopedInput.documents, "unit_id"),
+    generatedAt: scopedInput.generatedAt ?? new Date().toISOString(),
+    ledgerByPropertyId: groupBy(scopedInput.ledgerEntries, "property_id"),
+    ledgerByUnitId: groupByNullable(scopedInput.ledgerEntries, "unit_id"),
+    maintenanceByPropertyId: groupBy(scopedInput.maintenanceTasks, "property_id"),
+    maintenanceByUnitId: groupByNullable(scopedInput.maintenanceTasks, "unit_id"),
+    ownersByPropertyId: indexPrimaryOwners(scopedInput.owners),
+    peopleById: indexById(scopedInput.people),
+    periodLabel: `${formatDate(scopedInput.periodStart)} - ${formatDate(scopedInput.periodEnd)}`,
     propertiesById,
-    scopeLabel: getScopeLabel(input.viewQuery.propertyId, propertiesById),
-    timelineByPropertyId: groupBy(input.timelineEvents, "property_id"),
-    timelineByUnitId: groupByNullable(input.timelineEvents, "unit_id"),
+    scopeLabel: getScopeLabel(scopedInput.viewQuery, propertiesById, unitsById),
+    timelineByPropertyId: groupBy(scopedInput.timelineEvents, "property_id"),
+    timelineByUnitId: groupByNullable(scopedInput.timelineEvents, "unit_id"),
     unitsById,
-    unitsByPropertyId: groupBy(input.units, "property_id"),
+    unitsByPropertyId: groupBy(scopedInput.units, "property_id"),
+  };
+}
+
+function filterReportInputByUnit(input: TrustedReportInput): TrustedReportInput {
+  if (input.viewQuery.unitId === "all") {
+    return input;
+  }
+
+  const unitId = input.viewQuery.unitId;
+
+  return {
+    ...input,
+    documents: input.documents.filter((document) => document.unit_id === unitId),
+    ledgerEntries: input.ledgerEntries.filter((entry) => entry.unit_id === unitId),
+    leases: input.leases.filter((lease) => lease.unit_id === unitId),
+    maintenanceTasks: input.maintenanceTasks.filter((task) => task.unit_id === unitId),
+    timelineEvents: input.timelineEvents.filter((event) => event.unit_id === unitId),
+    units: input.units.filter((unit) => unit.id === unitId),
   };
 }
 
@@ -1706,12 +1725,25 @@ function groupByNullable<T, K extends keyof T & string>(rows: T[], key: K) {
   return grouped;
 }
 
-function getScopeLabel(propertyId: string, propertiesById: Map<string, PropertyRow>) {
-  if (propertyId === "all") {
+function getScopeLabel(
+  viewQuery: ReportsViewQuery,
+  propertiesById: Map<string, PropertyRow>,
+  unitsById: Map<string, UnitRow>,
+) {
+  if (viewQuery.unitId !== "all") {
+    const unit = unitsById.get(viewQuery.unitId);
+    const property = unit ? propertiesById.get(unit.property_id) : undefined;
+
+    return unit
+      ? `${propertyLabel(property)} / ${unitLabel(unit)}`
+      : "Selected unit";
+  }
+
+  if (viewQuery.propertyId === "all") {
     return "All properties";
   }
 
-  return propertyLabel(propertiesById.get(propertyId));
+  return propertyLabel(propertiesById.get(viewQuery.propertyId));
 }
 
 async function loadReportProperties(

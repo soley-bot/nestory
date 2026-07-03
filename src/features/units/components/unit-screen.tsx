@@ -78,7 +78,9 @@ export function UnitScreen({
       ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
-  const [displayMode, setDisplayMode] = useState<UnitDisplayMode>("table");
+  const [displayMode, setDisplayMode] = useState<UnitDisplayMode>(() =>
+    searchParams.get("view") === "cards" ? "cards" : "table",
+  );
   const isTableMode = displayMode === "table";
   const [selectedUnitId, setSelectedUnitId] = useState(() =>
     getInitialRecordId(units, initialUnitId),
@@ -109,14 +111,34 @@ export function UnitScreen({
   };
   const previewUnit = (unitId: string) => {
     setSelectedUnitId(unitId);
-    setPreviewOpen(true);
+    if (window.matchMedia("(max-width: 1279px)").matches) {
+      setPreviewOpen(true);
+    }
+  };
+  const changeDisplayMode = (mode: UnitDisplayMode) => {
+    setDisplayMode(mode);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+
+    if (mode === "table") {
+      nextParams.delete("view");
+    } else {
+      nextParams.set("view", mode);
+    }
+
+    const queryString = nextParams.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+      scroll: false,
+    });
   };
 
   useEffect(() => {
     if (focusedUnitId) {
       queueMicrotask(() => {
         setSelectedUnitId(focusedUnitId);
-        setPreviewOpen(true);
+        if (window.matchMedia("(max-width: 1279px)").matches) {
+          setPreviewOpen(true);
+        }
       });
     }
   }, [focusedUnitId]);
@@ -136,7 +158,7 @@ export function UnitScreen({
   }, [createInitialValues, pathname, router, searchParams]);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen lg:flex lg:h-screen lg:min-h-0 lg:flex-col lg:overflow-hidden">
       <PageHeader
         actions={
           <>
@@ -190,7 +212,7 @@ export function UnitScreen({
 
       <UnitFilters
         displayMode={displayMode}
-        onDisplayModeChange={setDisplayMode}
+        onDisplayModeChange={changeDisplayMode}
         properties={propertyOptions}
         viewQuery={viewQuery}
       />
@@ -203,22 +225,43 @@ export function UnitScreen({
         />
       ) : null}
 
-      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div
-          className={isTableMode ? "min-w-0 space-y-0" : "min-w-0 space-y-3"}
-        >
-          <UnitsTable
-            archiveState={viewQuery.archiveState}
-            displayMode={displayMode}
-            onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
-            onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
-            onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
-            onOpenUnit={openUnitRecord}
-            onSelectUnit={previewUnit}
-            selectedUnitId={selectedUnit?.id ?? ""}
-            units={units}
-          />
-          <PaginationControls attached={isTableMode} pagination={pagination} />
+      <div className="px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:px-6 lg:py-4">
+        <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+          <section className="flex min-h-0 min-w-0 flex-col">
+            <div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-[13px]">
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground">Unit records</p>
+                <p className="text-foreground-muted">
+                  Select a row to inspect. Double-click to open the full unit file.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-muted">
+                {pagination.totalCount} total
+              </span>
+            </div>
+            <div className="min-h-0 flex-1">
+              <UnitsTable
+                archiveState={viewQuery.archiveState}
+                displayMode={displayMode}
+                onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
+                onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
+                onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
+                onOpenUnit={openUnitRecord}
+                onSelectUnit={previewUnit}
+                selectedUnitId={selectedUnit?.id ?? ""}
+                units={units}
+              />
+            </div>
+            <PaginationControls attached={isTableMode} pagination={pagination} />
+          </section>
+          <aside className="hidden min-h-0 overflow-hidden rounded-md border border-border bg-surface xl:block">
+            <UnitInspector
+              onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
+              onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
+              onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
+              unit={selectedUnit}
+            />
+          </aside>
         </div>
       </div>
 

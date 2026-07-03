@@ -1,11 +1,15 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import {
-  AlertTriangle,
   ArrowLeft,
   Building2,
   CalendarDays,
   CheckCircle2,
+  Download,
+  ExternalLink,
   FileText,
   Landmark,
   ListTree,
@@ -26,10 +30,91 @@ import type {
   UnitTimelineContext,
 } from "@/features/units/unit.types";
 import type { RecentChange } from "@/features/activity/activity.types";
+import type { ReportKind } from "@/features/reports/reports.types";
+import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
+import { cn } from "@/lib/utils";
+
+type UnitRecordSection =
+  | "overview"
+  | "photos"
+  | "lease"
+  | "finance"
+  | "maintenance"
+  | "documents"
+  | "reports"
+  | "timeline";
+
+const unitRecordSections: Array<{
+  id: UnitRecordSection;
+  label: string;
+}> = [
+  { id: "overview", label: "Overview" },
+  { id: "photos", label: "Photos" },
+  { id: "lease", label: "Lease" },
+  { id: "finance", label: "Finance" },
+  { id: "maintenance", label: "Maintenance" },
+  { id: "documents", label: "Documents" },
+  { id: "reports", label: "Reports" },
+  { id: "timeline", label: "Timeline" },
+];
+
+const unitReportTemplates: Array<{
+  description: string;
+  kind: ReportKind;
+  sources: string;
+  title: string;
+}> = [
+  {
+    description: "Monthly income, expenses, NOI, maintenance spend, and evidence count.",
+    kind: "unit-performance",
+    sources: "Ledger / timeline / documents",
+    title: "Unit performance",
+  },
+  {
+    description: "Tenant, occupancy status, current rent, lease end, and evidence count.",
+    kind: "rent-roll",
+    sources: "Unit / lease / documents",
+    title: "Rent roll",
+  },
+  {
+    description: "Unit-scoped income and expense rows for finance review.",
+    kind: "income-expense",
+    sources: "Ledger",
+    title: "Income and expense",
+  },
+  {
+    description: "Repair cost, estimates, priority, completion state, and linked records.",
+    kind: "maintenance-cost",
+    sources: "Maintenance / ledger / timeline",
+    title: "Maintenance cost",
+  },
+  {
+    description: "Lease end date, tenant, renewal window, and unit status.",
+    kind: "lease-expiry",
+    sources: "Lease / unit",
+    title: "Lease expiry",
+  },
+  {
+    description: "Vacancy, missing lease, missing rent, and missing evidence checks.",
+    kind: "vacancy-risk",
+    sources: "Unit / lease / documents",
+    title: "Vacancy and risk",
+  },
+  {
+    description: "Missing lease, rent, and evidence fields to clean up before reporting.",
+    kind: "missing-data",
+    sources: "Record quality",
+    title: "Missing data",
+  },
+];
 
 export function UnitDetailView({ unit }: { unit: UnitDetail }) {
+  const [activeSection, setActiveSection] =
+    useState<UnitRecordSection>("overview");
+  const reportMonth = getBusinessMonthValue();
+
   return (
     <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
       <Link
@@ -39,11 +124,21 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
         <ArrowLeft size={15} />
         Units
       </Link>
+      <UnitRecordNav
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_340px] xl:overflow-hidden">
-        <div className="space-y-3 xl:overflow-auto xl:pr-1">
-          <section className="rounded-md border border-border bg-surface p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="min-h-0 flex-1 overflow-auto pr-1">
+        <div className="space-y-3">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface p-4",
+              activeSection !== "overview" && "hidden",
+            )}
+            id="unit-overview"
+          >
+            <div className="flex flex-col gap-3">
               <div className="grid min-w-0 gap-3 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-start">
                 <UnitHeroPhoto unit={unit} />
                 <div className="min-w-0">
@@ -58,23 +153,6 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
                     {unit.propertyName} / Floor {unit.floorLabel} / {unit.sizeLabel}
                   </p>
                 </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <ActionLink href={unit.hrefs.property} icon={<Building2 size={14} />}>
-                  Property
-                </ActionLink>
-                <ActionLink href={unit.hrefs.leases} icon={<ScrollText size={14} />}>
-                  Leases
-                </ActionLink>
-                <ActionLink href={unit.hrefs.ledger} icon={<Landmark size={14} />}>
-                  Ledger
-                </ActionLink>
-                <ActionLink href={unit.hrefs.maintenance} icon={<Wrench size={14} />}>
-                  Maintenance
-                </ActionLink>
-                <ActionLink href={unit.hrefs.timeline} icon={<ListTree size={14} />}>
-                  Timeline
-                </ActionLink>
               </div>
             </div>
 
@@ -101,15 +179,63 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
             </dl>
           </section>
 
-          <PhotoGallery
-            emptyLabel="No unit photos yet."
-            photos={unit.photos}
-            propertyId={unit.propertyId}
-            title="Unit photos"
-            unitId={unit.id}
-          />
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "overview" && "hidden",
+            )}
+            id="unit-record-quality"
+          >
+            <SectionTitle
+              description="Lease, rent, evidence, and operating record checks"
+              icon={<CheckCircle2 size={16} />}
+              title="Record quality"
+            />
+            <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+                {unit.healthIndicators.map((indicator) => (
+                  <div
+                    className="rounded-md border border-border bg-surface-muted/60 p-3"
+                    key={indicator.id}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 break-words text-sm font-medium">
+                        {indicator.label}
+                      </p>
+                      <Badge tone={indicator.tone}>{indicator.tone}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      {indicator.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 lg:grid-cols-2">
+                <CountDetail label="Ledger" value={unit.counts.ledgerEntries} />
+                <CountDetail label="Timeline" value={unit.counts.timelineEvents} />
+                <CountDetail label="Cases" value={unit.counts.maintenanceCases ?? 0} />
+                <CountDetail label="Docs" value={unit.counts.documents} />
+              </dl>
+            </div>
+          </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <div className={cn(activeSection !== "photos" && "hidden")} id="unit-photos">
+            <PhotoGallery
+              emptyLabel="No unit photos yet."
+              photos={unit.photos}
+              propertyId={unit.propertyId}
+              title="Unit photos"
+              unitId={unit.id}
+            />
+          </div>
+
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "finance" && "hidden",
+            )}
+            id="unit-finance"
+          >
             <SectionTitle
               description={unit.financialSummary.periodLabel}
               icon={<Landmark size={16} />}
@@ -142,7 +268,13 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
             </div>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "lease" && "hidden",
+            )}
+            id="unit-lease"
+          >
             <SectionTitle
               description={unit.activeLease ? unit.activeLease.statusLabel : "No active lease"}
               icon={<ScrollText size={16} />}
@@ -211,7 +343,13 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
             )}
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "finance" && "hidden",
+            )}
+            id="unit-ledger"
+          >
             <SectionTitle
               description={`${unit.counts.ledgerEntries} active ledger rows`}
               icon={<Landmark size={16} />}
@@ -231,7 +369,13 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
             </div>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "maintenance" && "hidden",
+            )}
+            id="unit-maintenance"
+          >
             <SectionTitle
               description={`${unit.counts.openMaintenanceCases ?? 0} open / ${
                 unit.counts.overdueMaintenanceCases ?? 0
@@ -256,7 +400,13 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
             </div>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "timeline" && "hidden",
+            )}
+            id="unit-timeline"
+          >
             <SectionTitle
               description={`${unit.counts.timelineEvents} active timeline records`}
               icon={<ListTree size={16} />}
@@ -276,7 +426,13 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
             </div>
           </section>
 
-          <section className="rounded-md border border-border bg-surface">
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "documents" && "hidden",
+            )}
+            id="unit-documents"
+          >
             <SectionTitle
               description={`${unit.counts.documents} active evidence records`}
               icon={<FileText size={16} />}
@@ -295,89 +451,228 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
               ))}
             </div>
           </section>
-        </div>
 
-        <aside className="space-y-3 xl:overflow-auto xl:pr-1">
-          <section className="rounded-md border border-border bg-surface p-4">
-            <div className="flex items-center gap-2">
-              <Wrench className="text-muted" size={16} />
-              <h2 className="text-base font-semibold">Next action</h2>
-            </div>
-            <div className="mt-3 rounded-md border border-border bg-surface-muted/60 p-3">
-              <Badge tone={unit.repairAction.tone}>{unit.repairAction.label}</Badge>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                {unit.repairAction.description}
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "reports" && "hidden",
+            )}
+            id="unit-reports"
+          >
+            <UnitReportsPanel unit={unit} reportMonth={reportMonth} />
+          </section>
+
+          <section
+            className={cn(
+              "rounded-md border border-border bg-surface",
+              activeSection !== "overview" && "hidden",
+            )}
+            id="unit-activity"
+          >
+            <SectionTitle
+              description={`${unit.activity.length} recent profile changes`}
+              icon={<CalendarDays size={16} />}
+              title="Recent activity"
+            />
+            {unit.activity.length === 0 ? (
+              <p className="px-4 py-5 text-sm leading-6 text-muted">
+                No unit profile activity has been recorded yet.
               </p>
-              <ActionLink
-                className="mt-3"
-                href={unit.repairAction.href}
-                icon={<Wrench size={14} />}
-                strong
-              >
-                Open action
-              </ActionLink>
-            </div>
-          </section>
-
-          <section className="rounded-md border border-border bg-surface p-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="text-muted" size={16} />
-              <h2 className="text-base font-semibold">Health and risk</h2>
-            </div>
-            <div className="mt-3 space-y-2">
-              {unit.healthIndicators.map((indicator) => (
-                <div
-                  className="rounded-md border border-border bg-surface-muted/60 p-3"
-                  key={indicator.id}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="min-w-0 break-words text-sm font-medium">
-                      {indicator.label}
-                    </p>
-                    <Badge tone={indicator.tone}>{indicator.tone}</Badge>
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    {indicator.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-md border border-border bg-surface p-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="text-muted" size={16} />
-              <h2 className="text-base font-semibold">Record completeness</h2>
-            </div>
-            <dl className="mt-4 grid grid-cols-4 gap-2 text-sm">
-              <CountDetail label="Ledger" value={unit.counts.ledgerEntries} />
-              <CountDetail label="Timeline" value={unit.counts.timelineEvents} />
-              <CountDetail label="Cases" value={unit.counts.maintenanceCases ?? 0} />
-              <CountDetail label="Docs" value={unit.counts.documents} />
-            </dl>
-          </section>
-
-          <section className="rounded-md border border-border bg-surface p-4">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="text-muted" size={16} />
-              <h2 className="text-base font-semibold">Recent activity</h2>
-            </div>
-            <div className="mt-3 space-y-2">
-              {unit.activity.length === 0 ? (
-                <p className="text-sm leading-6 text-muted">
-                  No unit profile activity has been recorded yet.
-                </p>
-              ) : (
-                unit.activity.map((change) => (
+            ) : (
+              <div className="grid gap-2 p-4 lg:grid-cols-2 2xl:grid-cols-3">
+                {unit.activity.slice(0, 3).map((change) => (
                   <ActivityRow change={change} key={change.id} />
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
-        </aside>
+        </div>
       </div>
     </div>
   );
+}
+
+function UnitRecordNav({
+  activeSection,
+  onSectionChange,
+}: {
+  activeSection: UnitRecordSection;
+  onSectionChange: (section: UnitRecordSection) => void;
+}) {
+  return (
+    <nav
+      aria-label="Unit record sections"
+      className="overflow-x-auto rounded-md border border-border bg-surface px-3 py-2"
+    >
+      <div className="flex min-w-max items-center gap-1.5" role="tablist">
+        {unitRecordSections.map((item) => (
+          <button
+            aria-selected={activeSection === item.id}
+            className={cn(
+              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+              activeSection === item.id && "bg-accent-soft text-foreground",
+            )}
+            key={item.id}
+            onClick={() => onSectionChange(item.id)}
+            role="tab"
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+function UnitReportsPanel({
+  reportMonth,
+  unit,
+}: {
+  reportMonth: string;
+  unit: UnitDetail;
+}) {
+  return (
+    <>
+      <SectionTitle
+        description="Unit-scoped CSV and PDF exports"
+        icon={<FileText size={16} />}
+        title="Reports"
+      />
+      <div className="space-y-4 p-4">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold">Unit report workspace</h3>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
+              Export the unit record as finance, leasing, maintenance, risk, or
+              cleanup views while keeping each row tied back to the source record.
+            </p>
+            <div className="mt-3 grid gap-2 text-[12px] text-muted sm:grid-cols-3">
+              <ReportMetaPill label="Scope" value={`Unit ${unit.unitNumber}`} />
+              <ReportMetaPill label="Period" value={reportMonth} />
+              <ReportMetaPill label="Property" value={unit.propertyCode} />
+            </div>
+          </div>
+          <ActionLink
+            href={buildUnitReportHref(unit, "unit-performance", reportMonth)}
+            icon={<ExternalLink size={14} />}
+            strong
+          >
+            Open builder
+          </ActionLink>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+          {unitReportTemplates.map((template) => (
+            <UnitReportTemplateCard
+              key={template.kind}
+              reportMonth={reportMonth}
+              template={template}
+              unit={unit}
+            />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function UnitReportTemplateCard({
+  reportMonth,
+  template,
+  unit,
+}: {
+  reportMonth: string;
+  template: (typeof unitReportTemplates)[number];
+  unit: UnitDetail;
+}) {
+  return (
+    <div className="flex min-h-[176px] flex-col justify-between rounded-md border border-border bg-surface-muted/60 p-3">
+      <div className="min-w-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="break-words text-sm font-semibold">{template.title}</h3>
+            <p className="mt-1 text-xs font-medium uppercase tracking-[0.06em] text-muted">
+              {template.sources}
+            </p>
+          </div>
+          <FileText className="shrink-0 text-muted" size={15} />
+        </div>
+        <p className="mt-3 text-sm leading-5 text-muted">{template.description}</p>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <ActionLink
+          href={buildUnitReportHref(unit, template.kind, reportMonth)}
+          icon={<ExternalLink size={14} />}
+        >
+          Preview
+        </ActionLink>
+        <ActionLink
+          href={buildUnitReportExportHref(unit, template.kind, reportMonth)}
+          icon={<Download size={14} />}
+        >
+          CSV
+        </ActionLink>
+        <ActionLink
+          href={buildUnitReportPdfHref(unit, template.kind, reportMonth)}
+          icon={<Download size={14} />}
+        >
+          PDF
+        </ActionLink>
+      </div>
+    </div>
+  );
+}
+
+function ReportMetaPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-md border border-border bg-surface px-2.5 py-2">
+      <p className="font-medium uppercase tracking-[0.06em]">{label}</p>
+      <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function buildUnitReportHref(
+  unit: UnitDetail,
+  report: ReportKind,
+  month: string,
+) {
+  return buildUnitReportUrl("/reports", unit, report, month);
+}
+
+function buildUnitReportExportHref(
+  unit: UnitDetail,
+  report: ReportKind,
+  month: string,
+) {
+  return buildUnitReportUrl("/api/reports/export", unit, report, month);
+}
+
+function buildUnitReportPdfHref(
+  unit: UnitDetail,
+  report: ReportKind,
+  month: string,
+) {
+  return buildUnitReportUrl("/api/reports/pdf", unit, report, month);
+}
+
+function buildUnitReportUrl(
+  pathname: string,
+  unit: UnitDetail,
+  report: ReportKind,
+  month: string,
+) {
+  const params = new URLSearchParams({
+    month,
+    propertyId: unit.propertyId,
+    report,
+    unitId: unit.id,
+  });
+
+  return `${pathname}?${params.toString()}`;
 }
 
 function ActionLink({

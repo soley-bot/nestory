@@ -28,6 +28,10 @@ export function ReportsFilters({
         className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] md:grid-cols-[minmax(180px,220px)_minmax(180px,240px)_minmax(140px,170px)_minmax(140px,170px)_auto_auto]"
         method="get"
       >
+        {viewQuery.unitId !== "all" ? (
+          <input name="unitId" type="hidden" value={viewQuery.unitId} />
+        ) : null}
+
         <SelectControl
           ariaLabel="Choose report"
           className="h-8 px-2 text-[13px]"

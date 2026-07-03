@@ -1,13 +1,5 @@
-import * as Popover from "@radix-ui/react-popover";
-import {
-  Archive,
-  Ellipsis,
-  Pencil,
-  RotateCcw,
-} from "lucide-react";
 import {
   previewRowClassName,
-  RecordLink,
   selectedPreviewRowClassName,
 } from "@/components/data/interactive-table";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +10,6 @@ import { cn } from "@/lib/utils";
 
 type PropertiesTableProps = {
   displayMode: PropertyDisplayMode;
-  onArchiveProperty: (property: PropertySummary) => void;
-  onEditProperty: (property: PropertySummary) => void;
-  onRestoreProperty: (property: PropertySummary) => void;
   onOpenProperty: (id: string) => void;
   onSelectProperty: (id: string) => void;
   properties: PropertySummary[];
@@ -29,9 +18,6 @@ type PropertiesTableProps = {
 
 export function PropertiesTable({
   displayMode,
-  onArchiveProperty,
-  onEditProperty,
-  onRestoreProperty,
   onOpenProperty,
   onSelectProperty,
   properties,
@@ -68,13 +54,12 @@ export function PropertiesTable({
           <div className="h-full min-h-[540px] overflow-auto">
             <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[28%]" />
-                <col className="w-[17%]" />
-                <col className="w-[18%]" />
-                <col className="w-[13%]" />
-                <col className="w-[12%]" />
+                <col className="w-[30%]" />
+                <col className="w-[19%]" />
+                <col className="w-[19%]" />
+                <col className="w-[14%]" />
+                <col className="w-[10%]" />
                 <col className="w-[8%]" />
-                <col className="w-[4%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -88,18 +73,12 @@ export function PropertiesTable({
                   <th className="px-1.5 py-2.5 text-center font-semibold">
                     Status
                   </th>
-                  <th
-                    aria-label="Actions"
-                    className="px-2 py-2.5 text-center font-semibold"
-                  >
-                    <span className="sr-only">Actions</span>
-                  </th>
                 </tr>
               </thead>
               <tbody>
                 {properties.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={7}>
+                    <td className="px-4 py-8 text-center text-muted" colSpan={6}>
                       No properties match the current filters.
                     </td>
                   </tr>
@@ -127,12 +106,12 @@ export function PropertiesTable({
                       <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
                         <PropertyThumbnail property={property} />
                         <div className="min-w-0">
-                          <RecordLink
-                            href={`/properties/${property.id}`}
-                            title={`Open full property record: ${property.name}`}
+                          <p
+                            className="truncate font-medium"
+                            title={property.name}
                           >
                             {property.name}
-                          </RecordLink>
+                          </p>
                           <p
                             className="mt-0.5 truncate text-xs text-muted"
                             title={`${property.code} / ${property.type}`}
@@ -164,14 +143,6 @@ export function PropertiesTable({
                     </td>
                     <td className="px-1.5 py-2">
                       <PropertyStatusBadges compact property={property} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <PropertyActions
-                        onArchiveProperty={onArchiveProperty}
-                        onEditProperty={onEditProperty}
-                        onRestoreProperty={onRestoreProperty}
-                        property={property}
-                      />
                     </td>
                   </tr>
                 ))}
@@ -228,13 +199,12 @@ function PropertyCard({
         </div>
 
         <div className="min-w-0">
-          <RecordLink
-            className="block truncate text-sm font-semibold leading-5"
-            href={`/properties/${property.id}`}
-            title={`Open full property record: ${property.name}`}
+          <p
+            className="truncate text-sm font-semibold leading-5"
+            title={property.name}
           >
             {property.name}
-          </RecordLink>
+          </p>
           <p
             className="mt-0.5 truncate text-xs text-foreground-muted"
             title={property.type}
@@ -301,108 +271,6 @@ function PropertyStatusBadges({
         </Badge>
       ) : null}
     </div>
-  );
-}
-
-function PropertyActions({
-  className,
-  onArchiveProperty,
-  onEditProperty,
-  onRestoreProperty,
-  size = "compact",
-  property,
-}: {
-  className?: string;
-  onArchiveProperty: (property: PropertySummary) => void;
-  onEditProperty: (property: PropertySummary) => void;
-  onRestoreProperty: (property: PropertySummary) => void;
-  size?: "compact" | "touch";
-  property: PropertySummary;
-}) {
-  const wrapperClassName = cn("flex justify-center gap-1", className);
-  const triggerClassName = cn(
-    "inline-flex items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-border hover:bg-surface-muted hover:text-foreground data-[state=open]:border-border data-[state=open]:bg-surface-muted data-[state=open]:text-foreground",
-    size === "touch" ? "h-9 w-9" : "h-8 w-8",
-  );
-
-  return (
-    <div
-      className={wrapperClassName}
-      onDoubleClick={(event) => event.stopPropagation()}
-    >
-      <Popover.Root>
-        <Popover.Trigger asChild>
-          <button
-            aria-label={`Open actions for ${property.name}`}
-            className={triggerClassName}
-            onClick={(event) => event.stopPropagation()}
-            title="Actions"
-            type="button"
-          >
-            <Ellipsis size={16} />
-          </button>
-        </Popover.Trigger>
-        <Popover.Portal>
-          <Popover.Content
-            align="end"
-            className="z-50 w-44 rounded-md border border-border bg-surface p-1.5 text-sm shadow-lg"
-            onClick={(event) => event.stopPropagation()}
-            side="bottom"
-            sideOffset={6}
-          >
-            {property.isArchived ? (
-              <PropertyActionMenuButton
-                icon={<RotateCcw size={14} />}
-                label="Restore"
-                onClick={() => onRestoreProperty(property)}
-              />
-            ) : (
-              <>
-                <PropertyActionMenuButton
-                  icon={<Pencil size={14} />}
-                  label="Edit"
-                  onClick={() => onEditProperty(property)}
-                />
-                <PropertyActionMenuButton
-                  danger
-                  icon={<Archive size={14} />}
-                  label="Archive"
-                  onClick={() => onArchiveProperty(property)}
-                />
-              </>
-            )}
-          </Popover.Content>
-        </Popover.Portal>
-      </Popover.Root>
-    </div>
-  );
-}
-
-function PropertyActionMenuButton({
-  danger = false,
-  icon,
-  label,
-  onClick,
-}: {
-  danger?: boolean;
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Popover.Close asChild>
-      <button
-        className={cn(
-          "flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted",
-          danger && "text-danger hover:text-danger",
-        )}
-        onClick={onClick}
-        type="button"
-      >
-        {icon}
-        <span>{label}</span>
-      </button>
-    </Popover.Close>
   );
 }
 

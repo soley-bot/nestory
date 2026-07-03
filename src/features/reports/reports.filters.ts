@@ -26,6 +26,7 @@ export function parseReportSearchParams(
     propertyId: getUuidOrAllSearchParam(params.propertyId),
     report: parseReportKind(params.report),
     status: parseStatus(params.status),
+    unitId: getUuidOrAllSearchParam(params.unitId),
   };
 }
 

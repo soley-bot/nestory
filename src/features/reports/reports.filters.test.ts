@@ -15,6 +15,7 @@ describe("report search params", () => {
     expect(query.report).toBe("rent-roll");
     expect(query.propertyId).toBe("all");
     expect(query.status).toBe("all");
+    expect(query.unitId).toBe("all");
     expect(query.month).toMatch(/^\d{4}-\d{2}$/);
   });
 
@@ -30,7 +31,19 @@ describe("report search params", () => {
       propertyId: "all",
       report: "income-expense",
       status: "vacant",
+      unitId: "all",
     });
+  });
+
+  it("keeps a safe unit filter for deep-linked unit reports", () => {
+    expect(
+      parseReportSearchParams({
+        unitId: "8b3a08d2-0898-4de3-9495-994eaf7a08dc",
+      }).unitId,
+    ).toBe("8b3a08d2-0898-4de3-9495-994eaf7a08dc");
+    expect(parseReportSearchParams({ unitId: "not-a-real-id" }).unitId).toBe(
+      "all",
+    );
   });
 
   it("keeps old report aliases pointing at trusted report contracts", () => {

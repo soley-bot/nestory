@@ -154,6 +154,7 @@ function makeReportInput(
       propertyId: "all",
       report: "unit-performance",
       status: "all",
+      unitId: "all",
     },
   };
 
@@ -286,6 +287,25 @@ describe("trusted reports", () => {
     expect(report.rows[0]?.cells).toMatchObject({
       rent: "No rent",
       status: "Vacant",
+    });
+  });
+
+  it("limits report rows and scope labels to a deep-linked unit", () => {
+    const report = buildTrustedReport(
+      makeReportInput({
+        viewQuery: {
+          report: "unit-performance",
+          unitId: "unit-1",
+        },
+      }),
+    );
+
+    expect(report.scopeLabel).toBe("P1 - Property One / Unit A1 / Floor 1");
+    expect(report.rows).toHaveLength(1);
+    expect(report.rows[0]?.id).toBe("unit-1");
+    expect(report.rows[0]?.cells).toMatchObject({
+      income: "USD 500.00",
+      noi: "USD 380.00",
     });
   });
 

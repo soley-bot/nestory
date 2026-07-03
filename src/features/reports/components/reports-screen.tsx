@@ -296,6 +296,10 @@ function buildCsvHref(query: ReportsViewQuery) {
     params.set("propertyId", query.propertyId);
   }
 
+  if (query.unitId !== "all") {
+    params.set("unitId", query.unitId);
+  }
+
   if (query.status !== "all") {
     params.set("status", query.status);
   }
@@ -311,6 +315,10 @@ function buildPdfHref(query: ReportsViewQuery) {
 
   if (query.propertyId !== "all") {
     params.set("propertyId", query.propertyId);
+  }
+
+  if (query.unitId !== "all") {
+    params.set("unitId", query.unitId);
   }
 
   if (query.status !== "all") {

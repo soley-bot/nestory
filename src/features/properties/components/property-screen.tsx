@@ -206,7 +206,7 @@ export function PropertyScreen({
               <div className="min-w-0">
                 <p className="font-semibold text-foreground">Portfolio records</p>
                 <p className="text-foreground-muted">
-                  Select a row to inspect, open a row for the full property file.
+                  Select a row to inspect. Double-click to open the full property file.
                 </p>
               </div>
               <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-muted">
@@ -216,15 +216,6 @@ export function PropertyScreen({
             <div className="min-h-0 flex-1">
               <PropertiesTable
                 displayMode={displayMode}
-                onArchiveProperty={(property) =>
-                  openPropertyAction({ mode: "archive", property })
-                }
-                onEditProperty={(property) =>
-                  openPropertyAction({ mode: "edit", property })
-                }
-                onRestoreProperty={(property) =>
-                  openPropertyAction({ mode: "restore", property })
-                }
                 onOpenProperty={openPropertyRecord}
                 onSelectProperty={previewProperty}
                 properties={properties}

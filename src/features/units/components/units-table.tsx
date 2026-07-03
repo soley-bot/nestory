@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import {
   previewRowClassName,
-  RecordLink,
   selectedPreviewRowClassName,
 } from "@/components/data/interactive-table";
 import { Badge } from "@/components/ui/badge";
@@ -46,11 +45,11 @@ export function UnitsTable({
   units,
 }: UnitsTableProps) {
   return (
-    <div>
+    <div className="h-full min-h-0">
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid max-h-[380px] gap-3 overflow-auto pr-1 sm:grid-cols-2 lg:max-h-none lg:overflow-visible lg:pr-0 xl:grid-cols-3 2xl:grid-cols-3"
+            ? "grid h-full min-h-[380px] auto-rows-max content-start items-start gap-3 overflow-auto pr-1 sm:grid-cols-2 2xl:grid-cols-3"
             : "max-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
         )}
       >
@@ -74,16 +73,16 @@ export function UnitsTable({
       </div>
 
       {displayMode === "table" ? (
-        <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-          <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-            <table className="w-full min-w-[780px] table-fixed border-collapse text-left text-[13px]">
+        <div className="hidden h-full overflow-hidden rounded-md border border-border bg-surface md:block">
+          <div className="h-full min-h-[540px] overflow-auto">
+            <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[31%]" />
+                <col className="w-[28%]" />
+                <col className="w-[10%]" />
                 <col className="w-[12%]" />
-                <col className="w-[13%]" />
-                <col className="w-[15%]" />
+                <col className="w-[14%]" />
+                <col className="w-[14%]" />
                 <col className="w-[22%]" />
-                <col className="w-[7%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -93,11 +92,9 @@ export function UnitsTable({
                     Status
                   </th>
                   <th className="px-2 py-2.5 text-right font-semibold">Rent</th>
+                  <th className="px-2 py-2.5 text-right font-semibold">Net</th>
                   <th className="px-1.5 py-2.5 font-semibold">
                     Lease / Tenant
-                  </th>
-                  <th className="px-2 py-2.5 text-center font-semibold">
-                    Actions
                   </th>
                 </tr>
               </thead>
@@ -147,12 +144,12 @@ export function UnitsTable({
                       </div>
                     </td>
                     <td className="px-1.5 py-2">
-                      <RecordLink
-                        href={`/units/${unit.id}`}
-                        title={`Open full unit record: Unit ${unit.unitNumber}`}
+                      <p
+                        className="truncate font-medium"
+                        title={`Unit ${unit.unitNumber}`}
                       >
                         {unit.unitNumber}
-                      </RecordLink>
+                      </p>
                     </td>
                     <td className="px-1.5 py-2">
                       <div className="flex flex-wrap justify-center gap-1.5">
@@ -175,18 +172,13 @@ export function UnitsTable({
                         </span>
                       )}
                     </td>
+                    <td className="px-2 py-2">
+                      <TableMoneyDisplay value={unit.ledgerNetDisplay} />
+                    </td>
                     <td className="px-1.5 py-2">
                       <p className="line-clamp-2 break-words leading-[18px]">
                         {unit.leaseLabel}
                       </p>
-                    </td>
-                    <td className="px-2 py-2">
-                      <UnitActions
-                        onArchiveUnit={onArchiveUnit}
-                        onEditUnit={onEditUnit}
-                        onRestoreUnit={onRestoreUnit}
-                        unit={unit}
-                      />
                     </td>
                   </tr>
                 ))}
@@ -250,13 +242,12 @@ function UnitCard({
       <div className="px-3.5 py-3.5">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
-            <RecordLink
-              className="text-base font-semibold leading-5"
-              href={`/units/${unit.id}`}
-              title={`Open full unit record: Unit ${unit.unitNumber}`}
+            <p
+              className="truncate text-base font-semibold leading-5"
+              title={`Unit ${unit.unitNumber}`}
             >
               Unit {unit.unitNumber}
-            </RecordLink>
+            </p>
             <p className="mt-1 truncate font-medium" title={unit.propertyName}>
               {unit.propertyName}
             </p>

@@ -27,6 +27,7 @@ export type ReportsViewQuery = {
   propertyId: string;
   report: ReportKind;
   status: ReportStatusFilter;
+  unitId: string;
 };
 
 export type ReportSourceRecordType =
