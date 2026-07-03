@@ -6,6 +6,7 @@ import { join } from "node:path";
 const baseUrl = process.env.NESTORY_BASE_URL ?? "http://localhost:3000";
 const email = process.env.NESTORY_TEST_EMAIL ?? "nestory@gmail.com";
 const password = process.env.NESTORY_TEST_PASSWORD ?? "123456789";
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({
@@ -46,6 +47,52 @@ try {
 
   await page.getByTitle("Cards view").click();
   await page.waitForURL(/view=cards/);
+  const cardGrid = page.locator('[data-property-record-list="cards"]');
+  await cardGrid.getByText("Needs photo").first().waitFor();
+  if (await cardGrid.getByText("Occupancy").count()) {
+    throw new Error("Property cards should leave occupancy detail to the inspector.");
+  }
+  if (await cardGrid.getByText("Net").count()) {
+    throw new Error("Property cards should leave net income detail to the inspector.");
+  }
+  const cardGridLayout = await cardGrid.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+
+    return {
+      clientHeight: element.clientHeight,
+      gridTemplateColumns: style.gridTemplateColumns,
+      overflowY: style.overflowY,
+      scrollHeight: element.scrollHeight,
+    };
+  });
+
+  if (!["auto", "scroll"].includes(cardGridLayout.overflowY)) {
+    throw new Error(
+      `Expected card grid to be scrollable, got ${cardGridLayout.overflowY}`,
+    );
+  }
+
+  if (cardGridLayout.clientHeight < 360) {
+    throw new Error(
+      `Expected card grid viewport height, got ${cardGridLayout.clientHeight}`,
+    );
+  }
+
+  if (cardGridLayout.gridTemplateColumns === "none") {
+    throw new Error(
+      `Expected card grid to render columns, got ${cardGridLayout.gridTemplateColumns}`,
+    );
+  }
+
+  await renamePropertyCard({
+    fromName: "Chroy Changvar River View",
+    toName: "Chroy Changvar River View Smoke",
+  });
+  await renamePropertyCard({
+    fromName: "Chroy Changvar River View Smoke",
+    toName: "Chroy Changvar River View",
+  });
+
   await page.getByTitle("Table view").click();
   await page.waitForURL((url) => !url.searchParams.has("view"));
 
@@ -135,4 +182,23 @@ try {
 } finally {
   await rm(photoPath, { force: true });
   await browser.close();
+}
+
+async function renamePropertyCard({ fromName, toName }) {
+  const card = page.locator("article").filter({ hasText: fromName }).first();
+  await card.waitFor();
+  await card.click({ position: { x: 10, y: 10 } });
+  await page
+    .getByRole("button", {
+      name: new RegExp(`Edit ${escapeRegExp(fromName)}`),
+    })
+    .click();
+
+  const drawer = page.getByRole("dialog", { name: "Edit property" });
+  await drawer.waitFor();
+  await drawer.getByLabel("Property name").fill(toName);
+  await drawer.getByRole("button", { name: "Save changes" }).click();
+  await drawer.waitFor({ state: "hidden" });
+  await page.getByText("Property updated.").waitFor();
+  await page.locator("article").filter({ hasText: toName }).first().waitFor();
 }

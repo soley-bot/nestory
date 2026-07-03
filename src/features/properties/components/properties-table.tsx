@@ -38,26 +38,24 @@ export function PropertiesTable({
   selectedPropertyId,
 }: PropertiesTableProps) {
   return (
-    <div className={displayMode === "table" ? "h-full" : undefined}>
+    <div className="h-full min-h-0">
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid max-h-[380px] gap-3 overflow-auto pr-1 sm:grid-cols-2 lg:max-h-none lg:overflow-visible lg:pr-0 xl:grid-cols-3 2xl:grid-cols-2"
+            ? "grid h-full min-h-[380px] auto-rows-max content-start items-start gap-3 overflow-auto pr-1 sm:grid-cols-2 2xl:grid-cols-3"
             : "max-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
         )}
+        data-property-record-list={displayMode}
       >
         {properties.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted sm:col-span-2 xl:col-span-3 2xl:col-span-2">
+          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted sm:col-span-2 2xl:col-span-3">
             No properties match the current filters.
           </p>
         ) : null}
         {properties.map((property) => (
           <PropertyCard
             key={property.id}
-            onArchiveProperty={onArchiveProperty}
-            onEditProperty={onEditProperty}
             onOpenProperty={onOpenProperty}
-            onRestoreProperty={onRestoreProperty}
             onSelectProperty={onSelectProperty}
             property={property}
             selected={selectedPropertyId === property.id}
@@ -187,26 +185,22 @@ export function PropertiesTable({
 }
 
 function PropertyCard({
-  onArchiveProperty,
-  onEditProperty,
   onOpenProperty,
-  onRestoreProperty,
   onSelectProperty,
   property,
   selected,
 }: {
-  onArchiveProperty: (property: PropertySummary) => void;
-  onEditProperty: (property: PropertySummary) => void;
   onOpenProperty: (id: string) => void;
-  onRestoreProperty: (property: PropertySummary) => void;
   onSelectProperty: (id: string) => void;
   property: PropertySummary;
   selected: boolean;
 }) {
+  const attention = getPropertyCardAttention(property);
+
   return (
     <article
       className={cn(
-        "group min-w-0 cursor-pointer rounded-md border border-border bg-surface px-3.5 py-3.5 text-sm transition-colors hover:border-[#c9d0da] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
+        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-[#c9d0da] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
         selected && "border-accent shadow-[0_0_0_1px_var(--accent)]",
         property.isArchived && "text-muted",
       )}
@@ -220,50 +214,61 @@ function PropertyCard({
       }}
       tabIndex={0}
     >
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)] gap-3">
-          <PropertyThumbnail property={property} size="large" />
-          <div className="min-w-0">
-            <RecordLink
-              className="text-base font-semibold leading-5"
-              href={`/properties/${property.id}`}
-              title={`Open full property record: ${property.name}`}
-            >
-              {property.name}
-            </RecordLink>
-            <p
-              className="mt-1 truncate font-medium"
-              title={`${property.code} / ${property.type}`}
-            >
-              {property.code} / {property.type}
-            </p>
-            <p className="mt-1 truncate text-xs text-muted" title={property.owner}>
-              {property.owner}
-            </p>
-          </div>
+      <PropertyThumbnail property={property} size="card" />
+
+      <div className="grid min-w-0 gap-1 p-2">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <p
+            className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wide text-muted"
+            title={property.code}
+          >
+            {property.code}
+          </p>
+          <PropertyStatusBadges compact property={property} />
         </div>
-        <PropertyStatusBadges property={property} />
-      </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <span className="text-foreground-muted">
-          {property.occupiedUnits}/{property.units} units
-        </span>
-        <TableMoneyDisplay value={property.netIncome} />
-      </div>
+        <div className="min-w-0">
+          <RecordLink
+            className="block truncate text-sm font-semibold leading-5"
+            href={`/properties/${property.id}`}
+            title={`Open full property record: ${property.name}`}
+          >
+            {property.name}
+          </RecordLink>
+          <p
+            className="mt-0.5 truncate text-xs text-foreground-muted"
+            title={property.type}
+          >
+            {property.type}
+          </p>
+        </div>
 
-      <div className="mt-3 flex justify-end border-t border-border pt-2">
-        <PropertyActions
-          className="justify-end gap-1"
-          onArchiveProperty={onArchiveProperty}
-          onEditProperty={onEditProperty}
-          onRestoreProperty={onRestoreProperty}
-          property={property}
-          size="touch"
-        />
+        {attention ? (
+          <Badge className="w-fit px-1.5 py-0.5 text-[10px]" tone={attention.tone}>
+            {attention.label}
+          </Badge>
+        ) : null}
       </div>
     </article>
   );
+}
+
+function getPropertyCardAttention(property: PropertySummary) {
+  const openUnits = Math.max(0, property.units - property.occupiedUnits);
+
+  if (openUnits > 0) {
+    return { label: `${openUnits} open`, tone: "warning" as const };
+  }
+
+  if (!property.hasActiveOwnerLink) {
+    return { label: "Owner needed", tone: "warning" as const };
+  }
+
+  if (property.netIncomeUsd < 0) {
+    return { label: "Negative net", tone: "danger" as const };
+  }
+
+  return null;
 }
 
 function PropertyStatusBadges({
@@ -274,7 +279,9 @@ function PropertyStatusBadges({
   property: PropertySummary;
 }) {
   const badgeClassName = cn(
-    "border-2 px-2.5 py-1 text-xs font-semibold shadow-sm",
+    compact
+      ? "border px-1.5 py-0.5 text-[10px] font-semibold"
+      : "border-2 px-2.5 py-1 text-xs font-semibold shadow-sm",
     !compact && "backdrop-blur",
   );
 
@@ -441,11 +448,15 @@ function PropertyThumbnail({
   size = "small",
 }: {
   property: PropertySummary;
-  size?: "large" | "small";
+  size?: "card" | "large" | "small";
 }) {
   const className = cn(
     "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-muted",
-    size === "large" ? "size-[52px]" : "size-10",
+    size === "card"
+      ? "h-36 w-full rounded-b-none border-x-0 border-t-0"
+      : size === "large"
+        ? "size-[52px]"
+        : "size-10",
   );
 
   if (property.thumbnailUrl) {
@@ -459,8 +470,42 @@ function PropertyThumbnail({
   }
 
   return (
-    <span className={className} aria-hidden="true" />
+    <span className={cn(className, "px-2 text-center")} aria-hidden="true">
+      {size === "card" ? (
+        <span className="grid gap-1">
+          <span className="text-sm font-semibold text-foreground-muted">
+            {getPropertyInitials(property)}
+          </span>
+          <span className="text-[10px] font-medium uppercase tracking-wide">
+            Needs photo
+          </span>
+        </span>
+      ) : null}
+    </span>
   );
+}
+
+function getPropertyInitials(property: PropertySummary) {
+  const codeParts = property.code
+    .split(/[^a-zA-Z0-9]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (codeParts.length > 0) {
+    return codeParts
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase();
+  }
+
+  return property.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function TableOccupancy({ property }: { property: PropertySummary }) {

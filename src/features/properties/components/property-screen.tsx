@@ -200,11 +200,7 @@ export function PropertyScreen({
       <div className="px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:px-6 lg:py-4">
         <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
           <section
-            className={
-              isTableMode
-                ? "flex min-h-0 min-w-0 flex-col"
-                : "min-w-0 space-y-3"
-            }
+            className="flex min-h-0 min-w-0 flex-col"
           >
             <div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-[13px]">
               <div className="min-w-0">
@@ -217,7 +213,7 @@ export function PropertyScreen({
                 {pagination.totalCount} total
               </span>
             </div>
-            <div className={isTableMode ? "min-h-0 flex-1" : undefined}>
+            <div className="min-h-0 flex-1">
               <PropertiesTable
                 displayMode={displayMode}
                 onArchiveProperty={(property) =>

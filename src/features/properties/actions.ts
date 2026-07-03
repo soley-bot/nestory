@@ -32,12 +32,16 @@ const propertyStatusSchema = z.enum([
   "under_renovation",
   "inactive",
 ]);
+const postgresUuidSchema = z.guid();
 const optionalUuidSchema = z
   .string()
   .trim()
-  .refine((value) => value === "" || z.uuid().safeParse(value).success, {
-    message: "Choose a valid owner person.",
-  });
+  .refine(
+    (value) => value === "" || postgresUuidSchema.safeParse(value).success,
+    {
+      message: "Choose a valid owner person.",
+    },
+  );
 
 const propertyMutationSchema = z.object({
   acquisitionDate: z
@@ -68,7 +72,7 @@ const propertyMutationSchema = z.object({
   status: propertyStatusSchema,
 });
 
-const propertyIdSchema = z.uuid("Choose a property.");
+const propertyIdSchema = z.guid("Choose a property.");
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
