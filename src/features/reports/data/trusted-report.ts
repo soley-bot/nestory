@@ -18,15 +18,15 @@ import type {
 } from "@/features/reports/reports.types";
 
 export const REPORT_OPTIONS: Array<{ label: string; value: ReportKind }> = [
-  { label: "Rent roll", value: "rent-roll" },
-  { label: "Unit performance", value: "unit-performance" },
-  { label: "Property performance", value: "property-performance" },
-  { label: "Owner statement", value: "owner-statement" },
-  { label: "Income / expense", value: "income-expense" },
-  { label: "Lease expiry", value: "lease-expiry" },
-  { label: "Vacancy / risk", value: "vacancy-risk" },
-  { label: "Maintenance cost", value: "maintenance-cost" },
-  { label: "Missing data", value: "missing-data" },
+  { label: "Rent Roll", value: "rent-roll" },
+  { label: "Unit Performance", value: "unit-performance" },
+  { label: "Property Performance", value: "property-performance" },
+  { label: "Owner Statement", value: "owner-statement" },
+  { label: "Income & Expense", value: "income-expense" },
+  { label: "Lease Expiry", value: "lease-expiry" },
+  { label: "Vacancy & Lease Risk", value: "vacancy-risk" },
+  { label: "Maintenance Cost", value: "maintenance-cost" },
+  { label: "Record Readiness", value: "missing-data" },
 ];
 
 const reportLeaseSelect =
@@ -670,7 +670,7 @@ function buildIncomeExpenseReport(context: ReportContext): TrustedReport {
     kind: "income-expense",
     rows,
     summary: financialSummary(context, incomeUsd, expenseUsd, rows.length),
-    title: "Income / Expense",
+    title: "Income & Expense",
     totalsTraceLabel: `Totals trace directly to ${rows.length} ledger rows.`,
   });
 }
@@ -819,7 +819,7 @@ function buildVacancyRiskReport(context: ReportContext): TrustedReport {
         rows.length,
       ),
     ],
-    title: "Vacancy / Risk",
+    title: "Vacancy & Lease Risk",
     totalsTraceLabel: `Risk counts trace to ${rows.length} unit rows and their lease/document links.`,
   });
 }
@@ -1093,7 +1093,7 @@ function buildMissingDataReport(context: ReportContext): TrustedReport {
         rows.length,
       ),
     ],
-    title: "Missing Data",
+    title: "Record Readiness",
     totalsTraceLabel: `Missing-data rows trace to property, unit, and lease source records.`,
   });
 }

@@ -10,35 +10,47 @@ import type {
 } from "@/features/reports/reports.types";
 
 type ReportsFiltersProps = {
+  action?: string;
   propertyOptions: ReportPropertyOption[];
+  showReportSelect?: boolean;
   viewQuery: ReportsViewQuery;
 };
 
 export function ReportsFilters({
+  action = "/reports",
   propertyOptions,
+  showReportSelect = true,
   viewQuery,
 }: ReportsFiltersProps) {
   const showStatusFilter =
     viewQuery.report === "rent-roll" || viewQuery.report === "vacancy-risk";
 
   return (
-    <div className="border-b border-border bg-surface px-4 py-2.5 print:hidden sm:px-6 lg:px-6">
+    <section className="rounded-md border border-border bg-surface print:hidden">
+      <div className="border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold text-foreground">Run scope</h2>
+        <p className="mt-1 text-xs text-muted">
+          Set the portfolio, period, and status scope for this report.
+        </p>
+      </div>
       <form
-        action="/reports"
-        className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] md:grid-cols-[minmax(180px,220px)_minmax(180px,240px)_minmax(140px,170px)_minmax(140px,170px)_auto_auto]"
+        action={action}
+        className="grid gap-2 p-3 text-[13px]"
         method="get"
       >
         {viewQuery.unitId !== "all" ? (
           <input name="unitId" type="hidden" value={viewQuery.unitId} />
         ) : null}
 
-        <SelectControl
-          ariaLabel="Choose report"
-          className="h-8 px-2 text-[13px]"
-          defaultValue={viewQuery.report}
-          name="report"
-          options={REPORT_OPTIONS}
-        />
+        {showReportSelect ? (
+          <SelectControl
+            ariaLabel="Choose report"
+            className="h-8 px-2 text-[13px]"
+            defaultValue={viewQuery.report}
+            name="report"
+            options={REPORT_OPTIONS}
+          />
+        ) : null}
 
         <SelectControl
           ariaLabel="Filter report by property"
@@ -99,6 +111,6 @@ export function ReportsFilters({
           <span className="hidden sm:inline">Reset</span>
         </Link>
       </form>
-    </div>
+    </section>
   );
 }

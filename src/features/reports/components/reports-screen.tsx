@@ -1,10 +1,27 @@
 import Link from "next/link";
-import { Download, ExternalLink, FileText } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Download,
+  ExternalLink,
+  FileText,
+  Layers,
+  PackageCheck,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { ReportsFilters } from "@/features/reports/components/reports-filters";
+import { Badge } from "@/components/ui/badge";
 import { PrintButton } from "@/features/reports/components/print-button";
+import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import { formatLongReportDate } from "@/features/reports/data/report-format";
+import {
+  buildReportBuilderHref,
+  getReportCatalogItem,
+  getReportPackets,
+  reportCatalog,
+  reportCategories,
+  type ReportCatalogItem,
+  type ReportPacket,
+} from "@/features/reports/report-catalog";
 import type {
   ReportsScreenData,
   ReportsViewQuery,
@@ -17,7 +34,88 @@ type ReportsScreenProps = ReportsScreenData & {
   organizationName: string;
 };
 
-export function ReportsScreen({
+export function ReportsLibraryScreen({
+  viewQuery,
+}: {
+  viewQuery: ReportsViewQuery;
+}) {
+  const packets = getReportPackets({
+    month: viewQuery.month,
+    propertyId: viewQuery.propertyId,
+  });
+
+  return (
+    <div className="min-h-screen bg-background">
+      <PageHeader
+        description="Choose a report, then build the scoped preview and export from its report builder."
+        title="Reports"
+      />
+      <main className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-6">
+        <section className="rounded-md border border-border bg-surface">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                Report library
+              </h2>
+              <p className="mt-1 text-xs text-muted">
+                Pick the business question first. Builder controls live on the
+                selected report page.
+              </p>
+            </div>
+            <Badge className="px-2 text-xs" tone="neutral">
+              {reportCatalog.length} reports
+            </Badge>
+          </div>
+
+          <div className="grid gap-4 p-4 xl:grid-cols-2">
+            {reportCategories.map((category) => (
+              <div className="space-y-2" key={category}>
+                <div className="flex items-center gap-2 px-1">
+                  <Layers className="text-muted" size={14} />
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-muted">
+                    {category}
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {reportCatalog
+                    .filter((report) => report.category === category)
+                    .map((report) => (
+                      <ReportCatalogCard
+                        key={report.kind}
+                        report={report}
+                        viewQuery={viewQuery}
+                      />
+                    ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <aside className="space-y-3">
+          <ReportPackets packets={packets} />
+          <section className="rounded-md border border-border bg-surface p-4">
+            <h2 className="text-sm font-semibold text-foreground">
+              What a report contains
+            </h2>
+            <div className="mt-3 space-y-3 text-[13px] leading-5 text-foreground-muted">
+              <p>
+                Each builder creates a scoped preview from live Nestory source
+                records, then exports the same rows to CSV or PDF.
+              </p>
+              <p>
+                PDF exports include the report purpose, scope, period, summary
+                metrics, source trace, and the supporting table.
+              </p>
+            </div>
+          </section>
+        </aside>
+      </main>
+    </div>
+  );
+}
+
+export function ReportBuilderScreen({
   organizationName,
   propertyOptions,
   trustedReport,
@@ -25,6 +123,7 @@ export function ReportsScreen({
 }: ReportsScreenProps) {
   const reportRowCount = trustedReport.totalRowCount ?? trustedReport.rows.length;
   const isPreviewLimited = reportRowCount > trustedReport.rows.length;
+  const selectedReport = getReportCatalogItem(viewQuery.report);
 
   return (
     <div className="min-h-screen bg-background print:bg-white">
@@ -49,14 +148,34 @@ export function ReportsScreen({
               {isPreviewLimited ? null : <PrintButton />}
             </>
           }
-          description="Connected reports built from Unit, Property, Lease, Ledger, Timeline, and Document source rows."
-          title="Reports"
+          description={selectedReport.description}
+          title={selectedReport.title}
         />
       </div>
 
-      <ReportsFilters propertyOptions={propertyOptions} viewQuery={viewQuery} />
-
       <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4 print:p-0">
+        <Link
+          className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground print:hidden"
+          href="/reports"
+          prefetch={false}
+        >
+          <ArrowLeft size={14} />
+          Report library
+        </Link>
+
+        <section className="grid gap-4 print:hidden xl:grid-cols-[minmax(0,1fr)_360px]">
+          <SelectedReportPanel
+            report={selectedReport}
+            trustedReport={trustedReport}
+          />
+          <ReportsFilters
+            action={buildReportBuilderHref(viewQuery.report)}
+            propertyOptions={propertyOptions}
+            showReportSelect={false}
+            viewQuery={viewQuery}
+          />
+        </section>
+
         <ReportSummaryGrid report={trustedReport} />
         <TrustedReportTable
           organizationName={organizationName}
@@ -64,6 +183,121 @@ export function ReportsScreen({
         />
       </main>
     </div>
+  );
+}
+
+function ReportCatalogCard({
+  report,
+  viewQuery,
+}: {
+  report: ReportCatalogItem;
+  viewQuery: ReportsViewQuery;
+}) {
+  return (
+    <Link
+      className={cn(
+        "block rounded-md border border-border bg-surface-muted/35 p-3 transition-colors",
+        "hover:border-foreground hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
+      )}
+      href={buildCatalogCardHref(report.kind, viewQuery)}
+      prefetch={false}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="truncate text-sm font-semibold text-foreground">
+            {report.title}
+          </h4>
+          <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-foreground-muted">
+            {report.description}
+          </p>
+        </div>
+        <ArrowRight className="mt-0.5 shrink-0 text-muted" size={15} />
+      </div>
+      <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+        <div className="min-w-0">
+          <dt className="font-medium text-muted">Best for</dt>
+          <dd className="truncate text-foreground">{report.bestFor}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="font-medium text-muted">Sources</dt>
+          <dd className="truncate text-foreground">{report.sources}</dd>
+        </div>
+      </dl>
+    </Link>
+  );
+}
+
+function SelectedReportPanel({
+  report,
+  trustedReport,
+}: {
+  report: ReportCatalogItem;
+  trustedReport: TrustedReport;
+}) {
+  const totalRowCount = trustedReport.totalRowCount ?? trustedReport.rows.length;
+
+  return (
+    <section className="rounded-md border border-border bg-surface p-4">
+      <div className="flex items-start gap-3">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border bg-surface-muted">
+          <FileText size={16} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+            Report builder
+          </p>
+          <h2 className="mt-1 truncate text-base font-semibold text-foreground">
+            {report.title}
+          </h2>
+          <p className="mt-1 text-[13px] leading-5 text-foreground-muted">
+            {trustedReport.description}
+          </p>
+        </div>
+      </div>
+
+      <dl className="mt-4 grid grid-cols-3 gap-2 text-xs">
+        <ReportMeta label="Rows" value={String(totalRowCount)} />
+        <ReportMeta label="Scope" value={trustedReport.scopeLabel} />
+        <ReportMeta label="Period" value={trustedReport.periodLabel} />
+      </dl>
+    </section>
+  );
+}
+
+function ReportPackets({ packets }: { packets: ReportPacket[] }) {
+  return (
+    <section className="rounded-md border border-border bg-surface">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <PackageCheck className="text-muted" size={15} />
+        <h2 className="text-sm font-semibold text-foreground">
+          Report packets
+        </h2>
+      </div>
+      <div className="space-y-2 p-3">
+        {packets.map((packet) => (
+          <Link
+            className="block rounded-md border border-border bg-surface-muted/35 p-3 transition-colors hover:bg-surface-muted"
+            href={packet.href}
+            key={packet.title}
+            prefetch={false}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="truncate text-sm font-semibold text-foreground">
+                  {packet.title}
+                </h3>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
+                  {packet.description}
+                </p>
+              </div>
+              <Badge className="shrink-0 px-2 text-xs" tone="neutral">
+                {packet.reports}
+              </Badge>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -134,7 +368,7 @@ function TrustedReportTable({
           : report.totalsTraceLabel}
       </div>
 
-      <div className="max-h-[320px] overflow-auto sm:max-h-[min(560px,calc(100vh-430px))] print:max-h-none print:overflow-visible">
+      <div className="max-h-[min(560px,calc(100vh-430px))] overflow-auto print:max-h-none print:overflow-visible">
         <table
           aria-label={`${report.title} report`}
           className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-[13px] print:min-w-0 print:border print:border-black print:text-[10px] print:text-black print:[&_td]:border print:[&_td]:border-black print:[&_td]:px-1.5 print:[&_td]:py-1.5 print:[&_th]:border print:[&_th]:border-black print:[&_th]:px-1.5 print:[&_th]:py-1 print:[&_thead_tr]:bg-white"
@@ -326,4 +560,21 @@ function buildPdfHref(query: ReportsViewQuery) {
   }
 
   return `/api/reports/pdf?${params.toString()}`;
+}
+
+function buildCatalogCardHref(
+  report: ReportCatalogItem["kind"],
+  viewQuery: ReportsViewQuery,
+) {
+  const query = new URLSearchParams({ month: viewQuery.month });
+
+  if (viewQuery.propertyId !== "all") {
+    query.set("propertyId", viewQuery.propertyId);
+  }
+
+  if (viewQuery.unitId !== "all") {
+    query.set("unitId", viewQuery.unitId);
+  }
+
+  return buildReportBuilderHref(report, query);
 }

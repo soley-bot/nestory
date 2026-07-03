@@ -1,6 +1,7 @@
-import { ReportsScreen } from "@/features/reports/components/reports-screen";
-import { getReportsScreenData } from "@/features/reports/data/reports";
+import { redirect } from "next/navigation";
+import { ReportsLibraryScreen } from "@/features/reports/components/reports-screen";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
+import { buildReportBuilderHref } from "@/features/reports/report-catalog";
 import { requireAdminContext } from "@/lib/auth/context";
 
 type ReportsPageProps = {
@@ -8,9 +9,27 @@ type ReportsPageProps = {
 };
 
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
-  const context = await requireAdminContext();
-  const viewQuery = parseReportSearchParams(await searchParams);
-  const data = await getReportsScreenData(context.organizationId, viewQuery);
+  await requireAdminContext();
+  const rawSearchParams = await searchParams;
+  const viewQuery = parseReportSearchParams(rawSearchParams);
 
-  return <ReportsScreen {...data} organizationName={context.organizationName} />;
+  if (rawSearchParams.report !== undefined) {
+    const query = new URLSearchParams({ month: viewQuery.month });
+
+    if (viewQuery.propertyId !== "all") {
+      query.set("propertyId", viewQuery.propertyId);
+    }
+
+    if (viewQuery.unitId !== "all") {
+      query.set("unitId", viewQuery.unitId);
+    }
+
+    if (viewQuery.status !== "all") {
+      query.set("status", viewQuery.status);
+    }
+
+    redirect(buildReportBuilderHref(viewQuery.report, query));
+  }
+
+  return <ReportsLibraryScreen viewQuery={viewQuery} />;
 }

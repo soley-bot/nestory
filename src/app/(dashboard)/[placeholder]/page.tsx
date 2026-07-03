@@ -224,7 +224,7 @@ const placeholderPages: Record<string, PlaceholderPage> = {
       finance: {
         actions: [
           { href: "/leases?status=current&endsWithin=30d&sort=end_asc", label: "Lease risk", helper: "5 leases end within 30 days", value: "High", tone: "danger" },
-          { href: "/reports?status=draft&period=current_month", label: "Owner reports", helper: "3 reports not ready to send", value: "Due", tone: "warning" },
+          { href: "/reports/missing-data", label: "Owner reports", helper: "3 reports not ready to send", value: "Due", tone: "warning" },
           { href: "/ledger?direction=expense&sort=amount_desc&period=last_30_days", label: "Expense review", helper: "$4.8k maintenance spike needs review", value: "$4.8k", tone: "warning" },
           { href: "/ledger?direction=income&status=unpaid&period=current_month", label: "Collection follow-up", helper: "8 units have open rent balance", value: "8", tone: "danger" },
         ],
@@ -412,7 +412,7 @@ const financePeriodSnapshots: Record<DashboardPeriodKey, DashboardPeriodSnapshot
     finance: financeData("current_month", {
       actions: [
         ["Lease risk", "5 leases end within 30 days", "High", "danger", "/leases?status=current&endsWithin=30d&sort=end_asc"],
-        ["Owner reports", "3 reports not ready to send", "Due", "warning", "/reports?status=draft"],
+        ["Owner reports", "3 reports not ready to send", "Due", "warning", "/reports/missing-data"],
         ["Expense review", "$4.8k maintenance spike needs review", "$4.8k", "warning", "/ledger?direction=expense&sort=amount_desc"],
         ["Collection follow-up", "8 units have open rent balance", "8", "danger", "/ledger?direction=income&status=unpaid"],
       ],
@@ -451,7 +451,7 @@ const financePeriodSnapshots: Record<DashboardPeriodKey, DashboardPeriodSnapshot
     finance: financeData("last_month", {
       actions: [
         ["Expense review", "2 June vendor lines need coding", "2", "warning", "/ledger?direction=expense&needsReview=1"],
-        ["Owner reports", "12 June reports were sent", "Sent", "success", "/reports?status=sent"],
+        ["Owner reports", "12 June reports were sent", "Sent", "success", "/reports/owner-statement"],
         ["Collection follow-up", "6 balances rolled into July", "6", "warning", "/ledger?direction=income&status=unpaid"],
         ["Lease risk", "9 renewals moved to July queue", "9", "warning", "/leases?status=current&endsWithin=60d"],
       ],
@@ -490,7 +490,7 @@ const financePeriodSnapshots: Record<DashboardPeriodKey, DashboardPeriodSnapshot
       actions: [
         ["Collection follow-up", "11 balances active in rolling window", "11", "danger", "/ledger?direction=income&status=unpaid"],
         ["Expense review", "$6.2k uncategorized outflow", "$6.2k", "warning", "/ledger?direction=expense&needsReview=1"],
-        ["Owner reports", "5 rolling packs need refresh", "5", "warning", "/reports?status=draft"],
+        ["Owner reports", "5 rolling packs need refresh", "5", "warning", "/reports/missing-data"],
         ["Lease risk", "7 leases cross the 30-day window", "7", "warning", "/leases?status=current&endsWithin=30d"],
       ],
       cashSteps: [
@@ -526,7 +526,7 @@ const financePeriodSnapshots: Record<DashboardPeriodKey, DashboardPeriodSnapshot
     ]),
     finance: financeData("qtd", {
       actions: [
-        ["Owner reports", "QTD pack missing 4 source links", "4", "warning", "/reports?kind=owner_statement&status=draft"],
+        ["Owner reports", "QTD pack missing 4 source links", "4", "warning", "/reports/missing-data"],
         ["Expense review", "$14.6k above QTD maintenance plan", "$14.6k", "warning", "/ledger?direction=expense&sort=amount_desc"],
         ["Collection follow-up", "18 unit balances touched QTD", "18", "danger", "/ledger?direction=income&status=unpaid"],
         ["Lease risk", "41 leases within quarter watch", "41", "warning", "/leases?status=current&endsWithin=90d"],
@@ -540,7 +540,7 @@ const financePeriodSnapshots: Record<DashboardPeriodKey, DashboardPeriodSnapshot
       ],
       note: "Quarter cash is ahead, but maintenance variance and report source links need review.",
       transactions: [
-        ["Owner statement batch", "QTD", "43 ready", "success", "/reports?period=qtd"],
+        ["Owner statement batch", "QTD", "43 ready", "success", "/reports/owner-statement"],
         ["Maintenance spend", "QTD", "-$76k", "warning", "/ledger?direction=expense&period=qtd"],
         ["Rent receipts", "QTD", "+$244k", "success", "/ledger?direction=income&period=qtd"],
       ],
@@ -566,7 +566,7 @@ const financePeriodSnapshots: Record<DashboardPeriodKey, DashboardPeriodSnapshot
       actions: [
         ["Collection follow-up", "27 balances appeared YTD", "27", "danger", "/ledger?direction=income&status=unpaid"],
         ["Expense review", "$38k maintenance variance YTD", "$38k", "warning", "/ledger?direction=expense&sort=amount_desc"],
-        ["Owner reports", "81% statement periods ready", "81%", "success", "/reports?period=ytd"],
+        ["Owner reports", "81% statement periods ready", "81%", "success", "/reports/owner-statement"],
         ["Lease risk", "63 lease endings touched YTD", "63", "warning", "/leases?status=current&endsWithin=180d"],
       ],
       cashSteps: [
@@ -769,7 +769,7 @@ function financeBars(
       value: leaseRisk,
     },
     {
-      href: `/reports?period=${period}`,
+      href: "/reports/owner-statement",
       label: "Owner reports",
       helper: "Ready to send",
       value: ownerReports,

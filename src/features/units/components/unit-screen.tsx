@@ -403,16 +403,13 @@ function getUnitReviewContext({
 }
 
 export function getVacantUnitsReportHref(propertyId: string) {
-  const params = new URLSearchParams({
-    report: "vacancy-risk",
-    status: "vacant",
-  });
+  const params = new URLSearchParams({ status: "vacant" });
 
   if (propertyId !== "all") {
     params.set("propertyId", propertyId);
   }
 
-  return `/reports?${params.toString()}`;
+  return `/reports/vacancy-risk?${params.toString()}`;
 }
 
 function getCreateLeaseHref(unit: UnitSummary) {

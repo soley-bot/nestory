@@ -21,9 +21,14 @@ type PdfPage = {
 
 type PdfTableRow = {
   cells: string[];
+  fill?: string;
+  fontSize?: number;
   height: number;
   index: number;
+  isBold?: boolean;
+  lineHeight?: number;
   lines: string[][];
+  textColor?: string;
 };
 
 type PdfColumn = {
@@ -41,6 +46,25 @@ type DrawTextOptions = {
   width?: number;
 };
 
+type BuildPdfRowOptions = Pick<
+  PdfTableRow,
+  "fill" | "fontSize" | "isBold" | "lineHeight" | "textColor"
+> & {
+  minHeight?: number;
+  verticalPadding?: number;
+};
+
+type IncomeExpenseStatementEntry = {
+  amount: number;
+  category: string;
+  currency: string;
+  date: string;
+  description: string;
+  direction: "Expense" | "Income";
+  name: string;
+  property: string;
+};
+
 const pageWidth = 842;
 const pageHeight = 595;
 const marginX = 36;
@@ -48,7 +72,8 @@ const tableWidth = 770;
 const rowFontSize = 8.2;
 const rowLineHeight = 10.4;
 const cellPaddingX = 5;
-const tableTopY = 454;
+const tableTopY = 382;
+const statementTableTopY = 438;
 const tableBottomY = 45;
 const headerRowHeight = 24;
 
@@ -63,6 +88,15 @@ const colors = {
   soft: "#f3f6f9",
   warning: "#ad5700",
 };
+
+const statementColumns: PdfColumn[] = [
+  { label: "Date", maxLines: 1, width: 92 },
+  { label: "Type", maxLines: 1, width: 70 },
+  { label: "Name / Record", maxLines: 2, width: 142 },
+  { label: "Property", maxLines: 2, width: 160 },
+  { align: "right", label: "Amount", maxLines: 1, width: 96 },
+  { label: "Description", maxLines: 2, width: 210 },
+];
 
 const columns: PdfColumn[] = [
   { align: "center", label: "No.", maxLines: 1, width: 30 },
@@ -100,6 +134,10 @@ export function buildTrustedReportPdf({
   organizationName: string;
   report: TrustedReport;
 }) {
+  if (report.kind === "income-expense") {
+    return buildIncomeExpenseStatementPdf({ organizationName, report });
+  }
+
   const reportColumns = buildTrustedReportPdfColumns(report);
   const rows = buildTrustedReportPdfRows(report, reportColumns);
   const pages = paginateRows(rows);
@@ -184,12 +222,15 @@ function buildPdfRow(
   cells: string[],
   index: number,
   pdfColumns: PdfColumn[],
+  options: BuildPdfRowOptions = {},
 ): PdfTableRow {
+  const fontSize = options.fontSize ?? rowFontSize;
+  const lineHeight = options.lineHeight ?? rowLineHeight;
   const lines = cells.map((cell, cellIndex) =>
     wrapText(
       cell,
       pdfColumns[cellIndex].width - cellPaddingX * 2,
-      rowFontSize,
+      fontSize,
       pdfColumns[cellIndex].maxLines ?? 2,
     ),
   );
@@ -197,22 +238,30 @@ function buildPdfRow(
 
   return {
     cells,
-    height: Math.max(22, lineCount * rowLineHeight + 9),
+    fill: options.fill,
+    fontSize,
+    height: Math.max(
+      options.minHeight ?? 22,
+      lineCount * lineHeight + (options.verticalPadding ?? 9),
+    ),
     index,
+    isBold: options.isBold,
+    lineHeight,
     lines,
+    textColor: options.textColor,
   };
 }
 
-function paginateRows(rows: PdfTableRow[]) {
+function paginateRows(rows: PdfTableRow[], yTop = tableTopY) {
   const pages: PdfPage[] = [];
   let currentRows: PdfTableRow[] = [];
-  let remainingHeight = tableTopY - headerRowHeight - tableBottomY;
+  let remainingHeight = yTop - headerRowHeight - tableBottomY;
 
   for (const row of rows) {
     if (currentRows.length > 0 && row.height > remainingHeight) {
       pages.push({ rows: currentRows });
       currentRows = [];
-      remainingHeight = tableTopY - headerRowHeight - tableBottomY;
+      remainingHeight = yTop - headerRowHeight - tableBottomY;
     }
 
     currentRows.push(row);
@@ -342,6 +391,425 @@ function renderTrustedReportPage({
   return commands.join("\n");
 }
 
+function buildIncomeExpenseStatementPdf({
+  organizationName,
+  report,
+}: {
+  organizationName: string;
+  report: TrustedReport;
+}) {
+  const rows = buildIncomeExpenseStatementRows(report);
+  const pages = paginateRows(rows, statementTableTopY);
+  const pageCommands = pages.map((page, pageIndex) =>
+    renderIncomeExpenseStatementPage({
+      organizationName,
+      page,
+      pageIndex,
+      report,
+      totalPages: pages.length,
+    }),
+  );
+
+  return createPdfDocument(pageCommands);
+}
+
+function buildIncomeExpenseStatementRows(report: TrustedReport) {
+  const entries = report.rows
+    .map(toIncomeExpenseStatementEntry)
+    .filter((entry): entry is IncomeExpenseStatementEntry => Boolean(entry));
+  const currency = entries[0]?.currency ?? "USD";
+  const rows: PdfTableRow[] = [];
+
+  if (entries.length === 0) {
+    return [
+      buildPdfRow(
+        [report.emptyTitle, "", "", "", "", report.emptyDescription],
+        0,
+        statementColumns,
+      ),
+    ];
+  }
+
+  let rowIndex = 0;
+  const incomeEntries = entries.filter((entry) => entry.direction === "Income");
+  const expenseEntries = entries.filter((entry) => entry.direction === "Expense");
+  const incomeTotal = sumStatementEntries(incomeEntries);
+  const expenseTotal = sumStatementEntries(expenseEntries);
+
+  rowIndex = appendStatementSectionRows(rows, rowIndex, {
+    entries: incomeEntries,
+    sectionLabel: "Income",
+    totalLabel: "Total Income",
+  });
+  rowIndex = appendStatementSectionRows(rows, rowIndex, {
+    entries: expenseEntries,
+    sectionLabel: "Expenses",
+    totalLabel: "Total Expenses",
+  });
+
+  rows.push(
+    buildStatementTotalRow(
+      "Net operating income",
+      formatStatementMoney(incomeTotal - expenseTotal, currency),
+      rowIndex++,
+    ),
+    buildStatementTotalRow("Other income", formatStatementMoney(0, currency), rowIndex++),
+    buildStatementTotalRow("Other expenses", formatStatementMoney(0, currency), rowIndex++),
+    buildStatementTotalRow("Net other income", formatStatementMoney(0, currency), rowIndex++),
+    buildStatementTotalRow(
+      "Net income",
+      formatStatementMoney(incomeTotal - expenseTotal, currency),
+      rowIndex++,
+    ),
+  );
+
+  return rows;
+}
+
+function appendStatementSectionRows(
+  rows: PdfTableRow[],
+  startIndex: number,
+  {
+    entries,
+    sectionLabel,
+    totalLabel,
+  }: {
+    entries: IncomeExpenseStatementEntry[];
+    sectionLabel: string;
+    totalLabel: string;
+  },
+) {
+  let rowIndex = startIndex;
+  const compactRow = {
+    fontSize: 7.8,
+    lineHeight: 8.6,
+    minHeight: 16,
+    verticalPadding: 6,
+  } satisfies BuildPdfRowOptions;
+
+  rows.push(
+    buildPdfRow(
+      [sectionLabel, "", "", "", "", ""],
+      rowIndex++,
+      statementColumns,
+      {
+        fill: "#e9eef6",
+        fontSize: 8.6,
+        isBold: true,
+        lineHeight: 8.8,
+        minHeight: 16,
+        verticalPadding: 6,
+      },
+    ),
+  );
+
+  for (const [categoryKey, categoryEntries] of groupStatementEntries(entries)) {
+    const category = categoryKey.split("::")[0] ?? "Uncategorized";
+    rows.push(
+      buildPdfRow(
+        ["", "", category, "", "", ""],
+        rowIndex++,
+        statementColumns,
+        {
+          ...compactRow,
+          fontSize: 8.1,
+          isBold: true,
+        },
+      ),
+    );
+
+    for (const entry of categoryEntries) {
+      rows.push(
+        buildPdfRow(
+          [
+            entry.date,
+            entry.direction,
+            entry.name,
+            entry.property,
+            formatStatementMoney(entry.amount, entry.currency),
+            entry.description,
+          ],
+          rowIndex++,
+          statementColumns,
+          compactRow,
+        ),
+      );
+    }
+
+    rows.push(
+      buildPdfRow(
+        [
+          "",
+          "",
+          `Total ${category}`,
+          "",
+          formatStatementMoney(
+            sumStatementEntries(categoryEntries),
+            categoryEntries[0]?.currency ?? "USD",
+          ),
+          "",
+        ],
+        rowIndex++,
+        statementColumns,
+        { ...compactRow, fill: "#f5f7fa", isBold: true },
+      ),
+    );
+  }
+
+  rows.push(
+    buildStatementTotalRow(
+      totalLabel,
+      formatStatementMoney(sumStatementEntries(entries), entries[0]?.currency ?? "USD"),
+      rowIndex++,
+    ),
+  );
+
+  return rowIndex;
+}
+
+function buildStatementTotalRow(label: string, amount: string, index: number) {
+  return buildPdfRow(
+    ["", "", label, "", amount, ""],
+    index,
+    statementColumns,
+    {
+      fill: "#e9eef6",
+      fontSize: 8.6,
+      isBold: true,
+      lineHeight: 8.8,
+      minHeight: 16,
+      verticalPadding: 6,
+    },
+  );
+}
+
+function groupStatementEntries(entries: IncomeExpenseStatementEntry[]) {
+  const groups = new Map<string, IncomeExpenseStatementEntry[]>();
+
+  for (const entry of entries) {
+    const key = `${entry.category}::${entry.currency}`;
+    const group = groups.get(key) ?? [];
+    group.push(entry);
+    groups.set(key, group);
+  }
+
+  return groups;
+}
+
+function sumStatementEntries(entries: IncomeExpenseStatementEntry[]) {
+  return entries.reduce((total, entry) => total + entry.amount, 0);
+}
+
+function toIncomeExpenseStatementEntry(
+  row: TrustedReport["rows"][number],
+): IncomeExpenseStatementEntry | null {
+  const amount = parseReportMoney(row.cells.amount ?? "");
+
+  if (!amount) {
+    return null;
+  }
+
+  const direction = row.cells.direction === "Expense" ? "Expense" : "Income";
+  const unit = row.cells.unit ?? "";
+
+  return {
+    amount: amount.value,
+    category: row.cells.category ?? "Uncategorized",
+    currency: amount.currency,
+    date: row.cells.date ?? "-",
+    description: row.cells.description ?? "-",
+    direction,
+    name: unit && unit !== "Property-level" ? unit : "Property-level",
+    property: row.cells.property ?? "-",
+  };
+}
+
+function parseReportMoney(value: string) {
+  const match = value.match(/^([A-Z]{3})\s+([\d,]+(?:\.\d+)?)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    currency: match[1],
+    value: Number.parseFloat(match[2].replaceAll(",", "")),
+  };
+}
+
+function formatStatementMoney(amount: number, currency: string) {
+  return `${currency} ${amount.toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  })}`;
+}
+
+function renderIncomeExpenseStatementPage({
+  organizationName,
+  page,
+  pageIndex,
+  report,
+  totalPages,
+}: {
+  organizationName: string;
+  page: PdfPage;
+  pageIndex: number;
+  report: TrustedReport;
+  totalPages: number;
+}) {
+  const commands: string[] = [];
+  const pageNumber = pageIndex + 1;
+
+  drawIncomeExpenseHeader(commands, organizationName, report);
+  drawStatementTableHeader(commands, statementTableTopY);
+
+  let y = statementTableTopY - headerRowHeight;
+
+  for (const row of page.rows) {
+    y -= row.height;
+    drawStatementTableRow(commands, row, y);
+  }
+
+  drawFooter(commands, pageNumber, totalPages);
+
+  return commands.join("\n");
+}
+
+function drawStatementTableHeader(commands: string[], yTop: number) {
+  drawRect(commands, marginX, yTop - headerRowHeight, tableWidth, headerRowHeight, {
+    fill: "#f4f7fa",
+  });
+  drawLine(commands, marginX, yTop, marginX + tableWidth, yTop, colors.border, 0.6);
+  drawLine(
+    commands,
+    marginX,
+    yTop - headerRowHeight,
+    marginX + tableWidth,
+    yTop - headerRowHeight,
+    colors.border,
+    0.7,
+  );
+
+  let x = marginX;
+
+  for (const column of statementColumns) {
+    drawText(commands, column.label, x + cellPaddingX, yTop - 15, {
+      align: column.align,
+      bold: true,
+      color: colors.ink,
+      fontSize: 7.8,
+      width: column.width - cellPaddingX * 2,
+    });
+    x += column.width;
+  }
+}
+
+function drawStatementTableRow(commands: string[], row: PdfTableRow, y: number) {
+  if (row.fill) {
+    drawRect(commands, marginX, y, tableWidth, row.height, { fill: row.fill });
+  }
+
+  const isSummaryRow = Boolean(row.fill);
+  const lineColor = isSummaryRow ? colors.border : "#e4eaf0";
+  const lineWidth = isSummaryRow ? 0.65 : 0.35;
+
+  drawLine(commands, marginX, y, marginX + tableWidth, y, lineColor, lineWidth);
+
+  let x = marginX;
+
+  for (const [cellIndex, column] of statementColumns.entries()) {
+    drawCellText(commands, row.lines[cellIndex], x, y, column, row);
+    x += column.width;
+  }
+}
+
+function drawIncomeExpenseHeader(
+  commands: string[],
+  organizationName: string,
+  report: TrustedReport,
+) {
+  drawText(commands, "Profit and loss details", marginX, 548, {
+    color: colors.ink,
+    fontSize: 18,
+  });
+  drawText(commands, report.periodLabel, marginX, 527, {
+    color: colors.muted,
+    fontSize: 11,
+  });
+  drawText(
+    commands,
+    `Cash basis ${formatLongReportDate(report.generatedAt)}`,
+    marginX,
+    507,
+    {
+      color: colors.ink,
+      fontSize: 10.5,
+    },
+  );
+
+  drawBrandPlaceholder(commands, organizationName);
+
+  drawRect(commands, marginX, 473, 118, 24, {
+    fill: "#ffffff",
+    stroke: colors.accent,
+  });
+  drawText(commands, "Scope:", marginX + 6, 481, {
+    bold: true,
+    color: colors.ink,
+    fontSize: 8.5,
+  });
+  drawText(commands, report.scopeLabel, marginX + 46, 481, {
+    color: colors.ink,
+    fontSize: 8.5,
+    width: 66,
+  });
+
+  drawRect(commands, marginX + 126, 473, 148, 24, {
+    fill: "#ffffff",
+    stroke: colors.accent,
+  });
+  drawText(commands, "Beginning balance:", marginX + 132, 481, {
+    bold: true,
+    color: colors.ink,
+    fontSize: 8.5,
+  });
+  drawText(commands, "No", marginX + 232, 481, {
+    color: colors.ink,
+    fontSize: 8.5,
+  });
+
+  drawLine(commands, marginX, 456, marginX + tableWidth, 456, colors.border, 0.6);
+}
+
+function drawBrandPlaceholder(commands: string[], organizationName: string) {
+  const x = pageWidth - marginX - 150;
+  const y = 522;
+
+  drawRect(commands, x, y, 150, 48, {
+    fill: "#ffffff",
+    stroke: colors.border,
+  });
+  drawText(commands, "Company logo", x, y + 28, {
+    align: "center",
+    bold: true,
+    color: colors.ink,
+    fontSize: 12,
+    width: 150,
+  });
+  drawText(commands, organizationName, x, y + 14, {
+    align: "center",
+    color: colors.muted,
+    fontSize: 8,
+    width: 150,
+  });
+  drawText(commands, "Branding settings", x, y + 4, {
+    align: "center",
+    color: colors.muted,
+    fontSize: 7,
+    width: 150,
+  });
+}
+
 function drawTrustedReportHeader(
   commands: string[],
   organizationName: string,
@@ -420,6 +888,71 @@ function drawTrustedReportHeader(
   drawMeta(commands, "Period", report.periodLabel, marginX + 275, 501, 170);
   drawMeta(commands, "Rows", String(rowCount), marginX + 482, 501, 90);
   drawMeta(commands, "Source rows", String(sourceCount), marginX + 610, 501, 120);
+
+  drawReportDescription(commands, report.description, 470);
+  drawSummaryCards(commands, report);
+  drawText(commands, `Trace: ${report.totalsTraceLabel}`, marginX, 395, {
+    color: colors.muted,
+    fontSize: 8,
+    width: tableWidth,
+  });
+}
+
+function drawReportDescription(
+  commands: string[],
+  description: string,
+  y: number,
+) {
+  drawText(commands, "REPORT PURPOSE", marginX, y + 11, {
+    bold: true,
+    color: colors.muted,
+    fontSize: 7,
+    width: 120,
+  });
+
+  const lines = wrapText(description, tableWidth, 8.6, 2);
+
+  lines.forEach((line, index) => {
+    drawText(commands, line, marginX, y - index * 11, {
+      color: colors.ink,
+      fontSize: 8.6,
+      width: tableWidth,
+    });
+  });
+}
+
+function drawSummaryCards(commands: string[], report: TrustedReport) {
+  const metrics = report.summary.slice(0, 4);
+  const cardGap = 8;
+  const cardWidth = (tableWidth - cardGap * 3) / 4;
+  const cardHeight = 42;
+  const y = 418;
+
+  metrics.forEach((metric, index) => {
+    const x = marginX + index * (cardWidth + cardGap);
+
+    drawRect(commands, x, y, cardWidth, cardHeight, {
+      fill: "#ffffff",
+      stroke: colors.border,
+    });
+    drawText(commands, metric.label.toUpperCase(), x + 8, y + 27, {
+      bold: true,
+      color: colors.muted,
+      fontSize: 6.8,
+      width: cardWidth - 16,
+    });
+    drawText(commands, metric.value, x + 8, y + 14, {
+      bold: true,
+      color: colors.ink,
+      fontSize: 10,
+      width: cardWidth - 16,
+    });
+    drawText(commands, `${metric.sourceCount} source rows`, x + 8, y + 4, {
+      color: colors.muted,
+      fontSize: 7,
+      width: cardWidth - 16,
+    });
+  });
 }
 
 function drawHeader(
@@ -570,7 +1103,7 @@ function drawTableRow(
   y: number,
   pdfColumns: PdfColumn[],
 ) {
-  const fill = row.index % 2 === 0 ? colors.rowFill : colors.rowAlt;
+  const fill = row.fill ?? (row.index % 2 === 0 ? colors.rowFill : colors.rowAlt);
   drawRect(commands, marginX, y, tableWidth, row.height, {
     fill,
     stroke: colors.border,
@@ -580,7 +1113,7 @@ function drawTableRow(
 
   for (const [cellIndex, column] of pdfColumns.entries()) {
     drawLine(commands, x, y, x, y + row.height, colors.border, 0.4);
-    drawCellText(commands, row.lines[cellIndex], x, y, column, row.height);
+    drawCellText(commands, row.lines[cellIndex], x, y, column, row);
     x += column.width;
   }
 
@@ -593,19 +1126,27 @@ function drawCellText(
   x: number,
   y: number,
   column: PdfColumn,
-  height: number,
+  row: PdfTableRow,
 ) {
-  let textY = y + height - 8 - rowFontSize;
+  const fontSize = row.fontSize ?? rowFontSize;
+  const lineHeight = row.lineHeight ?? rowLineHeight;
+  let textY = y + row.height - 5 - fontSize;
   const textWidthLimit = column.width - cellPaddingX * 2;
 
   for (const line of lines) {
+    if (line === "") {
+      textY -= lineHeight;
+      continue;
+    }
+
     drawText(commands, line, x + cellPaddingX, textY, {
       align: column.align,
-      color: colors.ink,
-      fontSize: rowFontSize,
+      bold: row.isBold,
+      color: row.textColor ?? colors.ink,
+      fontSize,
       width: textWidthLimit,
     });
-    textY -= rowLineHeight;
+    textY -= lineHeight;
   }
 }
 
@@ -698,6 +1239,10 @@ function wrapText(
   fontSize: number,
   maxLines: number,
 ) {
+  if (value.trim() === "") {
+    return [""];
+  }
+
   const words = sanitizeText(value).split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";

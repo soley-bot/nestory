@@ -92,9 +92,11 @@ Documents, imports, and reports:
   archive/restore, and links to property/unit/lease/ledger/timeline/task.
 - `/import` handles CSV unit imports with template download, mapping, preview,
   validation, cleanup queue, and commit via unit RPCs.
-- `/reports` supports rent roll, unit performance, property performance, owner
-  statement, income/expense, lease expiry, vacancy/risk, maintenance cost, and
-  missing-data reports.
+- `/reports` is the report library. `/reports/[reportKind]` is the selected
+  report builder with scope/period filters, summary metrics, traceable report
+  rows, and CSV/PDF/print export for rent roll, unit performance, property
+  performance, owner statement, income/expense, lease expiry, vacancy/risk,
+  maintenance cost, and record-readiness reports.
 - `/api/reports/export` and `/api/reports/pdf` expose report export endpoints.
 
 Settings and access:

@@ -103,8 +103,6 @@ const navGroups: NavGroup[] = [
       { href: "/owners", label: "Owners", icon: KeyRound },
       { href: "/staff", label: "Staff", icon: IdCard, activeHrefs: ["/team"] },
       { href: "/vendors", label: "Vendors", icon: Truck },
-      { href: "/people-reports", label: "Reports", icon: FileChartColumn },
-      { href: "/people-settings", label: "Settings", icon: Settings },
     ],
   },
   {
@@ -121,12 +119,6 @@ const navGroups: NavGroup[] = [
         activeHrefs: ["/work-orders", "/tasks", "/inspections"],
       },
       { href: "/recurring-tasks", label: "Templates", icon: Repeat },
-      {
-        href: "/reports?report=maintenance-cost",
-        label: "Reports",
-        icon: FileChartColumn,
-      },
-      { href: "/maintenance-settings", label: "Settings", icon: Settings },
     ],
   },
   {
@@ -141,7 +133,6 @@ const navGroups: NavGroup[] = [
       { href: "/payments", label: "Payments", icon: CreditCard },
       { href: "/invoices", label: "Invoices", icon: ReceiptText },
       { href: "/petty-cash", label: "Petty Cash", icon: Coins },
-      { href: "/reports", label: "Reports", icon: FileChartColumn },
     ],
   },
   {
@@ -167,6 +158,14 @@ const navGroups: NavGroup[] = [
         icon: Wallet,
       },
     ],
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    roomLabel: "Reports",
+    icon: FileChartColumn,
+    href: "/reports",
+    items: [],
   },
 ];
 
