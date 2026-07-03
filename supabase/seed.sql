@@ -93,6 +93,9 @@ SET
 TRUNCATE
   public.activity_logs,
   public.documents,
+  public.petty_cash_entries,
+  public.petty_cash_periods,
+  public.petty_cash_accounts,
   public.tasks,
   public.tenant_requests,
   public.lease_deposits,
@@ -304,6 +307,136 @@ VALUES
 ('20000000-0000-0000-0000-000000000034', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', 'RV-402', '4', 70, 'occupied', 1050, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('20000000-0000-0000-0000-000000000035', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', 'RV-501', '5', 88, 'vacant', 1400, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('20000000-0000-0000-0000-000000000036', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', 'RV-G01', 'G', 34, 'maintenance', 680, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
+
+INSERT INTO public.petty_cash_accounts (
+  id,
+  organization_id,
+  account_number,
+  name,
+  float_amount,
+  status,
+  created_by,
+  updated_by
+)
+VALUES (
+  '91000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  'PM-CASH',
+  'Petty Cash PM',
+  290,
+  'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.petty_cash_periods (
+  id,
+  organization_id,
+  account_id,
+  period_start,
+  opening_balance_amount,
+  advance_amount,
+  status,
+  created_by,
+  updated_by
+)
+VALUES (
+  '92000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  '91000000-0000-0000-0000-000000000001',
+  '2026-07-01',
+  0,
+  290,
+  'open',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.petty_cash_entries (
+  id,
+  organization_id,
+  account_id,
+  period_id,
+  property_id,
+  unit_id,
+  invoice_date,
+  clear_date,
+  entry_kind,
+  status,
+  category,
+  supplier,
+  description,
+  receipt_reference,
+  out_amount,
+  in_amount,
+  remark,
+  created_by,
+  updated_by
+)
+VALUES
+(
+  '93000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  '91000000-0000-0000-0000-000000000001',
+  '92000000-0000-0000-0000-000000000001',
+  NULL,
+  NULL,
+  '2026-07-01',
+  '2026-07-01',
+  'advance',
+  'cleared',
+  'Advance PM',
+  'B. Sna',
+  'Monthly petty cash advance for property management purchases.',
+  NULL,
+  0,
+  290,
+  'Opening advance from IPS template.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+),
+(
+  '93000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-000000000001',
+  '91000000-0000-0000-0000-000000000001',
+  '92000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000004',
+  '20000000-0000-0000-0000-000000000019',
+  '2026-07-03',
+  NULL,
+  'expense',
+  'cleared',
+  'Repairs',
+  'Local hardware shop',
+  'Replacement bulbs and small supplies for Unit A-1203.',
+  'INV-PC-0703-01',
+  12,
+  0,
+  'Ready to post after receipt check.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+),
+(
+  '93000000-0000-0000-0000-000000000003',
+  '00000000-0000-0000-0000-000000000001',
+  '91000000-0000-0000-0000-000000000001',
+  '92000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000004',
+  NULL,
+  '2026-07-04',
+  NULL,
+  'expense',
+  'draft',
+  'Cleaning',
+  'Mekong Cleaning Services',
+  'Small hallway cleaning supplies for Bassac Garden.',
+  NULL,
+  18,
+  0,
+  'Receipt missing.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
 
 INSERT INTO public.people (
   id,

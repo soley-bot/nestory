@@ -70,6 +70,10 @@ Finance and history:
 - `/ledger` supports income/expense records, filters, create/update/archive,
   restore, period locks, receipt attachment, and linked timeline/document
   context.
+- `/petty-cash` supports the IPS-style PM petty cash workflow: cash accounts,
+  monthly register periods, advances, cash-in rows, expense rows, running
+  balance, receipt references, and posting cleared cash expenses into the
+  official ledger.
 - `/timeline` supports event filters, create/update/archive/restore, document
   attachment, linked ledger context, and activity display.
 - `/payments` redirects to `/ledger?direction=income`.
@@ -109,7 +113,7 @@ Settings and access:
 Placeholder routes:
 
 - Placeholder modules currently include amenities, property inspections,
-  inventory, invoices, petty cash, people settings, specialized
+  inventory, invoices, people settings, specialized
   timelines, branding, module settings, notifications, security, backup/data,
   integrations, and some dashboard variants. Treat these as navigation
   scaffolding, not complete product modules.
@@ -126,6 +130,7 @@ RPC write boundaries. Current table families include:
   `property_owners`, `vendor_profiles`, `leases`, `lease_parties`,
   `lease_terms`, `lease_occupancies`, `lease_deposits`.
 - Finance and history: `ledger_entries`, `ledger_period_locks`,
+  `petty_cash_accounts`, `petty_cash_periods`, `petty_cash_entries`,
   `timeline_events`, `activity_logs`.
 - Media and documents: `asset_photos` plus private `nestory-photos`, and
   `documents` plus private `nestory-documents`.
@@ -137,6 +142,8 @@ Implemented RPC families include:
 - Property, unit, person, lease, document, ledger, timeline, and maintenance
   create/update/archive/restore.
 - Ledger period locking.
+- Petty cash account creation, register row creation, and posting expense rows
+  into the ledger.
 - Maintenance assignment and task status/update.
 - Branch and team creation.
 - Document link validation and property primary-owner sync.

@@ -1032,6 +1032,268 @@ export type Database = {
           },
         ]
       }
+      petty_cash_accounts: {
+        Row: {
+          account_number: string
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          custodian_person_id: string | null
+          float_amount: number
+          id: string
+          name: string
+          organization_id: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_number: string
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          custodian_person_id?: string | null
+          float_amount?: number
+          id?: string
+          name: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_number?: string
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          custodian_person_id?: string | null
+          float_amount?: number
+          id?: string
+          name?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "petty_cash_accounts_custodian_person_id_fkey"
+            columns: ["custodian_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petty_cash_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      petty_cash_entries: {
+        Row: {
+          account_id: string
+          archived_at: string | null
+          archived_by: string | null
+          category: string
+          clear_date: string | null
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          description: string
+          entry_kind: string
+          id: string
+          in_amount: number
+          invoice_date: string
+          ledger_entry_id: string | null
+          organization_id: string
+          out_amount: number
+          period_id: string
+          property_id: string | null
+          receipt_reference: string | null
+          remark: string | null
+          status: string
+          supplier: string | null
+          unit_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_id: string
+          archived_at?: string | null
+          archived_by?: string | null
+          category: string
+          clear_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          description: string
+          entry_kind?: string
+          id?: string
+          in_amount?: number
+          invoice_date: string
+          ledger_entry_id?: string | null
+          organization_id: string
+          out_amount?: number
+          period_id: string
+          property_id?: string | null
+          receipt_reference?: string | null
+          remark?: string | null
+          status?: string
+          supplier?: string | null
+          unit_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_id?: string
+          archived_at?: string | null
+          archived_by?: string | null
+          category?: string
+          clear_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          description?: string
+          entry_kind?: string
+          id?: string
+          in_amount?: number
+          invoice_date?: string
+          ledger_entry_id?: string | null
+          organization_id?: string
+          out_amount?: number
+          period_id?: string
+          property_id?: string | null
+          receipt_reference?: string | null
+          remark?: string | null
+          status?: string
+          supplier?: string | null
+          unit_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "petty_cash_entries_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "petty_cash_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petty_cash_entries_ledger_entry_id_fkey"
+            columns: ["ledger_entry_id"]
+            isOneToOne: true
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petty_cash_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petty_cash_entries_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "petty_cash_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petty_cash_entries_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petty_cash_entries_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      petty_cash_periods: {
+        Row: {
+          account_id: string
+          advance_amount: number
+          counted_cash_amount: number | null
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          opening_balance_amount: number
+          organization_id: string
+          period_start: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_id: string
+          advance_amount?: number
+          counted_cash_amount?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          opening_balance_amount?: number
+          organization_id: string
+          period_start: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_id?: string
+          advance_amount?: number
+          counted_cash_amount?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          opening_balance_amount?: number
+          organization_id?: string
+          period_start?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "petty_cash_periods_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "petty_cash_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petty_cash_periods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -1753,6 +2015,36 @@ export type Database = {
         }
         Returns: string
       }
+      create_petty_cash_account: {
+        Args: {
+          p_account_number: string
+          p_custodian_person_id?: string | null
+          p_float_amount: number
+          p_name: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
+      create_petty_cash_entry: {
+        Args: {
+          p_account_id: string
+          p_amount: number
+          p_category: string
+          p_clear_date: string | null
+          p_description: string
+          p_entry_kind: string
+          p_invoice_date: string
+          p_organization_id: string
+          p_period_id: string
+          p_property_id: string | null
+          p_receipt_reference?: string | null
+          p_remark?: string | null
+          p_status: string
+          p_supplier: string | null
+          p_unit_id: string | null
+        }
+        Returns: string
+      }
       create_lease: {
         Args: {
           p_deposit_amount: number | null
@@ -1867,6 +2159,10 @@ export type Database = {
       }
       restore_document: {
         Args: { p_document_id: string; p_organization_id: string }
+        Returns: string
+      }
+      post_petty_cash_entry: {
+        Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
       }
       restore_person: {

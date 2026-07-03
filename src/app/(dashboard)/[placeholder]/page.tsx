@@ -327,11 +327,6 @@ const placeholderPages: Record<string, PlaceholderPage> = {
     description: "Invoices, receipts, and billing records.",
     room: "Finance",
   },
-  "petty-cash": {
-    title: "Petty Cash",
-    description: "Small cash expenses, reimbursements, and cash box tracking.",
-    room: "Finance",
-  },
   "property-timeline": {
     title: "Property Timeline",
     description: "Property-level historical records and evidence.",
