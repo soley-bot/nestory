@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getMaintenanceReportHref } from "@/features/maintenance/maintenance.hrefs";
+import {
+  getMaintenanceListHref,
+  getMaintenanceReportHref,
+} from "@/features/maintenance/maintenance.hrefs";
+import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
 
 describe("maintenance screen report links", () => {
   it("opens the maintenance cost report for the current month and property scope", () => {
@@ -13,6 +17,29 @@ describe("maintenance screen report links", () => {
       }),
     ).toBe(
       "/reports?month=2026-06&report=maintenance-cost&propertyId=8b3a08d2-0898-4de3-9495-994eaf7a08dc",
+    );
+  });
+
+  it("keeps non-default case views in maintenance list links", () => {
+    const viewQuery: MaintenanceViewQuery = {
+      archiveState: "active",
+      month: "2026-06",
+      page: 1,
+      pageSize: 25,
+      priority: "all",
+      propertyId: "all",
+      query: "",
+      review: "work_orders",
+      scope: "focused",
+      sort: "due_asc",
+      status: "all",
+      taskId: "all",
+      unitId: "all",
+      view: "board",
+    };
+
+    expect(getMaintenanceListHref(viewQuery)).toBe(
+      "/maintenance?month=2026-06&review=work_orders&view=board",
     );
   });
 });

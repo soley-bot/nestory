@@ -159,7 +159,8 @@ function InboxSurface({
             Needs triage
           </p>
           <p className="mt-0.5 text-sm font-semibold">
-            {attentionCases.length} urgent follow-up
+            {attentionCases.length} urgent{" "}
+            {attentionCases.length === 1 ? "follow-up" : "follow-ups"}
           </p>
         </div>
         {attentionCases.length === 0 ? (

@@ -12,7 +12,6 @@ import {
   Building2,
   CalendarClock,
   CheckSquare,
-  CircleAlert,
   ClipboardCheck,
   ClipboardList,
   Coins,
@@ -36,7 +35,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
-  Package,
   ReceiptText,
   Repeat,
   ScrollText,
@@ -123,13 +121,21 @@ const navGroups: NavGroup[] = [
     icon: Wrench,
     items: [
       { href: "/maintenance-dashboard", label: "Dashboard", icon: Gauge },
-      { href: "/maintenance", label: "Requests", icon: CircleAlert },
-      { href: "/work-orders", label: "Work Orders", icon: ClipboardList },
-      { href: "/schedule", label: "Schedule", icon: CalendarClock },
-      { href: "/tasks", label: "Tasks", icon: CheckSquare },
-      { href: "/inspections", label: "Inspections", icon: ClipboardCheck },
-      { href: "/recurring-tasks", label: "Recurring Tasks", icon: Repeat },
-      { href: "/inventory", label: "Inventory", icon: Package },
+      {
+        href: "/maintenance",
+        label: "Cases",
+        icon: ClipboardList,
+        activeHrefs: ["/work-orders", "/tasks", "/inspections"],
+      },
+      { href: "/schedule", label: "Calendar", icon: CalendarClock },
+      { href: "/recurring-tasks", label: "Templates", icon: Repeat },
+      { href: "/vendors", label: "Vendors", icon: Truck },
+      {
+        href: "/reports?report=maintenance-cost",
+        label: "Reports",
+        icon: FileChartColumn,
+      },
+      { href: "/maintenance-settings", label: "Settings", icon: Settings },
     ],
   },
   {
@@ -197,7 +203,7 @@ const mobilePrimaryItems = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/properties", label: "Properties", icon: House },
   { href: "/units", label: "Units", icon: DoorOpen },
-  { href: "/maintenance", label: "Requests", icon: CircleAlert },
+  { href: "/maintenance", label: "Cases", icon: ClipboardList },
   { href: "/ledger", label: "Ledger", icon: Landmark },
 ] satisfies NavItem[];
 
@@ -218,7 +224,12 @@ function getDesktopNavGroups(role: WorkspaceRole) {
       {
         ...navGroups.find((group) => group.id === "operations")!,
         items: [
-          { href: "/maintenance", label: "Requests", icon: CircleAlert },
+          {
+            href: "/maintenance",
+            label: "Cases",
+            icon: ClipboardList,
+            activeHrefs: ["/tasks"],
+          },
           { href: "/tasks", label: "Tasks", icon: CheckSquare },
         ],
       },

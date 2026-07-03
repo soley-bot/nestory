@@ -94,6 +94,7 @@ function makeViewQuery(
     status: "all",
     taskId: "all",
     unitId: "all",
+    view: "inbox",
     ...overrides,
   };
 }

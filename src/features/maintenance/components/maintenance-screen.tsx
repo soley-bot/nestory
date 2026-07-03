@@ -13,13 +13,17 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
+  CalendarClock,
   CheckCircle2,
   ClipboardCheck,
+  Columns3,
   FileText,
+  Inbox,
   Landmark,
   ListChecks,
   Pencil,
   Plus,
+  Repeat,
   RotateCcw,
   SlidersHorizontal,
   Wrench,
@@ -126,6 +130,7 @@ type MaintenanceScreenProps = {
   reminders?: MaintenanceReminderNotification[];
   showReportAction?: boolean;
   showFilters?: boolean;
+  showCaseViewTabs?: boolean;
   showReviewTabs?: boolean;
   showScopeSummary?: boolean;
   staffOptions: MaintenancePersonOption[];
@@ -154,6 +159,7 @@ export function MaintenanceScreen({
   reminders = [],
   showReportAction = true,
   showFilters = true,
+  showCaseViewTabs = false,
   showReviewTabs = true,
   showScopeSummary = true,
   staffOptions,
@@ -299,6 +305,10 @@ export function MaintenanceScreen({
         </div>
       ) : null}
 
+      {showCaseViewTabs ? (
+        <MaintenanceCasesViewTabs viewQuery={viewQuery} />
+      ) : null}
+
       {showFilters ? (
         <MaintenanceFilters
           baseReview={baseReview}
@@ -314,7 +324,12 @@ export function MaintenanceScreen({
         className={cn(
           "px-4 sm:px-6 lg:px-6",
           calendarMode
-            ? "h-[calc(100vh-122px)] min-h-0 py-3"
+            ? cn(
+                "min-h-0 py-3",
+                showCaseViewTabs
+                  ? "h-[calc(100vh-226px)]"
+                  : "h-[calc(100vh-122px)]",
+              )
             : "space-y-3 py-4 lg:py-4",
         )}
       >
@@ -416,6 +431,40 @@ export function MaintenanceScreen({
         </SideDrawer>
       ) : null}
       <MaintenanceReminderNotifications reminders={reminders} />
+    </div>
+  );
+}
+
+function MaintenanceCasesViewTabs({
+  viewQuery,
+}: {
+  viewQuery: MaintenanceViewQuery;
+}) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  return (
+    <div className="border-b border-border px-4 py-2 sm:px-6 lg:px-6">
+      <div className="flex flex-wrap gap-1.5">
+        {getMaintenanceCasesViewTabs(pathname, searchParams, viewQuery).map(
+          (tab) => (
+            <Link
+              className={cn(
+                "inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium transition-colors",
+                tab.active
+                  ? "border-accent bg-accent-soft text-foreground"
+                  : "border-border bg-surface text-muted hover:bg-surface-muted hover:text-foreground",
+              )}
+              href={tab.href}
+              key={tab.id}
+              prefetch={false}
+            >
+              <tab.icon size={14} />
+              {tab.label}
+            </Link>
+          ),
+        )}
+      </div>
     </div>
   );
 }
@@ -1523,6 +1572,77 @@ const MAINTENANCE_TABS = [
   label: string;
   review: MaintenanceViewQuery["review"];
 }>;
+
+const MAINTENANCE_CASE_VIEW_TABS = [
+  { icon: Inbox, id: "inbox", label: "Inbox" },
+  { icon: ListChecks, id: "list", label: "List" },
+  { icon: Columns3, id: "board", label: "Board" },
+  { icon: CalendarClock, id: "calendar", label: "Calendar" },
+  { icon: Repeat, id: "templates", label: "Templates" },
+  { icon: FileText, id: "reports", label: "Reports" },
+] satisfies Array<{
+  icon: typeof Inbox;
+  id: MaintenanceViewQuery["view"] | "reports";
+  label: string;
+}>;
+
+function getMaintenanceCasesViewTabs(
+  pathname: string,
+  searchParams: { toString(): string },
+  viewQuery: MaintenanceViewQuery,
+) {
+  return MAINTENANCE_CASE_VIEW_TABS.map((tab) => ({
+    ...tab,
+    active: tab.id !== "reports" && viewQuery.view === tab.id,
+    href:
+      tab.id === "reports"
+        ? getMaintenanceReportHref(viewQuery)
+        : buildMaintenanceCasesViewHref(pathname, searchParams, tab.id),
+  }));
+}
+
+function buildMaintenanceCasesViewHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  view: MaintenanceViewQuery["view"],
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+
+  nextParams.delete("page");
+  nextParams.delete("taskId");
+  nextParams.delete("status");
+
+  if (view === "inbox") {
+    nextParams.delete("view");
+    nextParams.delete("review");
+    nextParams.delete("pageSize");
+    nextParams.delete("sort");
+  } else {
+    nextParams.set("view", view);
+  }
+
+  if (view === "board") {
+    nextParams.set("review", "work_orders");
+    nextParams.delete("pageSize");
+    nextParams.delete("sort");
+  } else if (view === "calendar") {
+    nextParams.set("review", "scheduled");
+    nextParams.set("pageSize", "100");
+    nextParams.set("sort", "due_asc");
+  } else if (view === "templates") {
+    nextParams.set("review", "recurring");
+    nextParams.delete("pageSize");
+    nextParams.delete("sort");
+  } else if (view === "list") {
+    nextParams.delete("review");
+    nextParams.delete("pageSize");
+    nextParams.delete("sort");
+  }
+
+  const query = nextParams.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
+}
 
 function getMaintenanceTabs(
   pathname: string,

@@ -15,8 +15,8 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - People directory split into tenants, owners, vendors, and staff.
 - Lease operations with normalized tenant/person and lease backbone records.
 - Ledger operations, timeline history, period locks, and document attachment.
-- Maintenance requests, work orders, schedule, tasks, inspections, recurring
-  work, reminders, assignment, and status changes.
+- Maintenance cases with request intake, work orders, calendar scheduling,
+  inspections, recurring templates, reminders, assignment, and status changes.
 - Dedicated property/unit photo records with private photo storage and cover
   thumbnail selection.
 - Private document storage and document metadata.
@@ -73,12 +73,13 @@ Finance and history:
 
 Maintenance operations:
 
-- `/maintenance` is the request/inbox surface.
-- `/work-orders` uses the board surface.
-- `/schedule` uses the agenda/calendar surface.
+- `/maintenance` is the cases workspace with inbox, list, board, calendar,
+  templates, and report links over the existing maintenance records.
+- `/work-orders` remains a legacy board route.
+- `/schedule` uses the agenda/calendar surface and is labeled Calendar in nav.
 - `/tasks` uses the board/task surface with role-aware assignment controls.
 - `/inspections` uses the checklist surface.
-- `/recurring-tasks` uses the routine surface.
+- `/recurring-tasks` uses the routine surface and is labeled Templates in nav.
 - Maintenance also has workload, reminder, drawer, document, ledger, and
   timeline linkage behavior in feature components and actions.
 

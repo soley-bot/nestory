@@ -28,6 +28,13 @@ export type MaintenanceReviewFilter =
   | "recurring"
   | "completed";
 
+export type MaintenanceCasesView =
+  | "board"
+  | "calendar"
+  | "inbox"
+  | "list"
+  | "templates";
+
 export type MaintenanceScope = "focused" | "all";
 
 export type MaintenanceProgressState =
@@ -70,6 +77,7 @@ export type MaintenanceViewQuery = {
   status: MaintenanceStatus | "all";
   taskId: string;
   unitId: string;
+  view: MaintenanceCasesView;
 };
 
 export type MaintenanceChecklistItem = {

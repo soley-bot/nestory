@@ -1,5 +1,6 @@
 import type {
   MaintenanceArchiveState,
+  MaintenanceCasesView,
   MaintenancePriority,
   MaintenanceReviewFilter,
   MaintenanceScope,
@@ -40,6 +41,7 @@ export function parseMaintenanceSearchParams(
     status: parseStatus(params.status),
     taskId: getUuidOrAllSearchParam(params.taskId),
     unitId: getUuidOrAllSearchParam(params.unitId),
+    view: parseCasesView(params.view),
   };
 }
 
@@ -106,6 +108,17 @@ function parseReview(
     candidate === "completed"
     ? candidate
     : "open";
+}
+
+function parseCasesView(value: string | string[] | undefined): MaintenanceCasesView {
+  const candidate = getFirstSearchParam(value);
+
+  return candidate === "board" ||
+    candidate === "calendar" ||
+    candidate === "list" ||
+    candidate === "templates"
+    ? candidate
+    : "inbox";
 }
 
 function parseSort(value: string | string[] | undefined): MaintenanceSortKey {

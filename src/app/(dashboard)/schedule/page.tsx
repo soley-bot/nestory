@@ -9,7 +9,7 @@ export default function SchedulePage({ searchParams }: SchedulePageProps) {
     baseReview: "scheduled",
     createButtonLabel: "New scheduled case",
     defaults: { pageSize: "100", review: "scheduled", sort: "due_asc" },
-    description: "",
+    description: "Scheduled maintenance visits, due dates, inspections, and service windows.",
     emptyLabel: "No scheduled maintenance found.",
     flowLabel: "Calendar queue",
     listLabel: "scheduled work",
@@ -18,6 +18,6 @@ export default function SchedulePage({ searchParams }: SchedulePageProps) {
     showFilters: false,
     showScopeSummary: false,
     surfaceVariant: "agenda",
-    title: "Schedule",
+    title: "Calendar",
   });
 }

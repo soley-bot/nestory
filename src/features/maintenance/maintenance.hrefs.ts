@@ -31,6 +31,7 @@ export function getMaintenanceListHref(
   if (next.status !== "all") params.set("status", next.status);
   if (next.taskId !== "all") params.set("taskId", next.taskId);
   if (next.unitId !== "all") params.set("unitId", next.unitId);
+  if (next.view !== "inbox") params.set("view", next.view);
 
   const queryString = params.toString();
   return queryString ? `/maintenance?${queryString}` : "/maintenance";

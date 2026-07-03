@@ -9,15 +9,15 @@ export default function RecurringTasksPage({
 }: RecurringTasksPageProps) {
   return renderMaintenanceRoute({
     baseReview: "recurring",
-    createButtonLabel: "New recurring task",
+    createButtonLabel: "New template",
     defaults: { review: "recurring" },
     description: "Repeated AC cleaning, pest control, inspection, and service routines.",
     emptyLabel: "No recurring maintenance found.",
     flowLabel: "Preventive maintenance",
-    listLabel: "recurring tasks",
-    recordLabel: "recurring task",
+    listLabel: "templates",
+    recordLabel: "template",
     searchParams,
     surfaceVariant: "routine",
-    title: "Recurring Tasks",
+    title: "Templates",
   });
 }

@@ -18,11 +18,12 @@ describe("parseMaintenanceSearchParams", () => {
         review: "overdue",
         scope: "all",
         sort: "cost_desc",
-        status: "in_progress",
-        taskId,
-        unitId,
-      }),
-    ).toMatchObject({
+      status: "in_progress",
+      taskId,
+      unitId,
+      view: "board",
+    }),
+  ).toMatchObject({
       archiveState: "all",
       month: "2026-06",
       page: 2,
@@ -35,6 +36,7 @@ describe("parseMaintenanceSearchParams", () => {
       status: "in_progress",
       taskId,
       unitId,
+      view: "board",
     });
   });
 
@@ -51,6 +53,7 @@ describe("parseMaintenanceSearchParams", () => {
       sort: "random",
       status: "open",
       unitId: "also-nope",
+      view: "grid",
     });
 
     expect(parsed).toMatchObject({
@@ -65,6 +68,7 @@ describe("parseMaintenanceSearchParams", () => {
       status: "all",
       taskId: "all",
       unitId: "all",
+      view: "inbox",
     });
   });
 
@@ -77,6 +81,7 @@ describe("parseMaintenanceSearchParams", () => {
       status: "all",
       taskId: "all",
       unitId: "all",
+      view: "inbox",
     });
   });
 
@@ -89,6 +94,16 @@ describe("parseMaintenanceSearchParams", () => {
     );
     expect(parseMaintenanceSearchParams({ review: "inspections" }).review).toBe(
       "inspections",
+    );
+  });
+
+  it("accepts the maintenance cases workspace views", () => {
+    expect(parseMaintenanceSearchParams({ view: "list" }).view).toBe("list");
+    expect(parseMaintenanceSearchParams({ view: "calendar" }).view).toBe(
+      "calendar",
+    );
+    expect(parseMaintenanceSearchParams({ view: "templates" }).view).toBe(
+      "templates",
     );
   });
 });
