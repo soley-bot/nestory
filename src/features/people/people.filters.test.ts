@@ -357,7 +357,7 @@ describe("buildPeopleSummary", () => {
       }),
     );
     expect(summary.nextAction).toMatchObject({
-      href: "/people?archiveState=all&personId=staff-1&query=Sok+Staff",
+      href: "/people/staff-1",
       label: "Review staff profile",
     });
   });
@@ -383,7 +383,7 @@ function buildPersonSummary(
       documents: "/documents?query=Dara+Person",
       ledger: "/ledger?query=Dara+Person",
       leases: "/leases?archiveState=all&query=Dara+Person",
-      people: "/people?archiveState=all&personId=person-1&query=Dara+Person",
+      people: "/people/person-1",
       timeline: "/timeline?archiveState=all&query=Dara+Person",
     },
     id: "person-1",
@@ -396,7 +396,7 @@ function buildPersonSummary(
     },
     nextAction: {
       description: "Assign tenant, owner, vendor, or staff before linking work.",
-      href: "/people?personId=person-1",
+      href: "/people/person-1",
       label: "Assign role",
       tone: "warning",
     },

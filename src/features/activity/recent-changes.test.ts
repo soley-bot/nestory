@@ -292,7 +292,7 @@ describe("toRecentChange", () => {
       }),
     ).toMatchObject({
       entityLabel: "Person",
-      href: "/people?archiveState=all&personId=88888888-8888-4888-8888-888888888888&query=Jane+Owner",
+      href: "/people/88888888-8888-4888-8888-888888888888",
       recordLabel: "Jane Owner",
     });
   });
@@ -412,7 +412,7 @@ describe("toRecentChange", () => {
         previous_values: null,
       }),
     ).toMatchObject({
-      href: "/people?archiveState=all&personId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      href: "/people/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       recordLabel: "Person",
     });
   });

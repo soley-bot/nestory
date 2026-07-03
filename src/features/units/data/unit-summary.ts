@@ -378,10 +378,7 @@ function toPersonLink(person: UnitPersonRecord): UnitPersonLink {
       .filter(Boolean)
       .join(" / ") || "No contact recorded",
     displayName: person.display_name,
-    href: buildHref("/people", {
-      archiveState: "all",
-      personId: person.id,
-    }),
+    href: `/people/${person.id}`,
     id: person.id,
     roleLabel: "Tenant",
   };

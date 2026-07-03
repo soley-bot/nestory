@@ -139,20 +139,17 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
             id="unit-overview"
           >
             <div className="flex flex-col gap-3">
-              <div className="grid min-w-0 gap-3 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-start">
-                <UnitHeroPhoto unit={unit} />
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="break-words text-base font-semibold">
-                      {unit.propertyCode} / Unit {unit.unitNumber}
-                    </h2>
-                    <Badge tone={unit.statusTone}>{unit.statusLabel}</Badge>
-                    {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
-                  </div>
-                  <p className="mt-1 break-words text-sm text-muted">
-                    {unit.propertyName} / Floor {unit.floorLabel} / {unit.sizeLabel}
-                  </p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="break-words text-base font-semibold">
+                    {unit.propertyCode} / Unit {unit.unitNumber}
+                  </h2>
+                  <Badge tone={unit.statusTone}>{unit.statusLabel}</Badge>
+                  {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
                 </div>
+                <p className="mt-1 break-words text-sm text-muted">
+                  {unit.propertyName} / Floor {unit.floorLabel} / {unit.sizeLabel}
+                </p>
               </div>
             </div>
 
@@ -166,12 +163,31 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
                 <Ruler size={14} />
               </Detail>
               <Detail
+                label="Tenant"
+                value={unit.activeLease?.tenantName ?? "No active tenant"}
+              >
+                <UserRound size={14} />
+              </Detail>
+              <Detail
+                label="Lease end"
+                value={
+                  unit.activeLease
+                    ? formatDate(unit.activeLease.endDate)
+                    : "No active lease"
+                }
+              />
+              <Detail
                 label="Current rent"
                 moneyValue={unit.rentDisplay}
                 value={unit.rentLabel}
               />
               <Detail label="Ledger net" moneyValue={unit.ledgerNetDisplay} />
-              <Detail label="Occupancy" value={unit.hasActiveLease ? "Leased" : "No active lease"} />
+              <Detail
+                label="Maintenance"
+                value={`${unit.counts.openMaintenanceCases ?? 0} open / ${
+                  unit.counts.overdueMaintenanceCases ?? 0
+                } overdue`}
+              />
               <Detail
                 label="Records"
                 value={`${unit.counts.ledgerEntries} ledger / ${unit.counts.timelineEvents} timeline / ${unit.counts.maintenanceCases ?? 0} maintenance / ${unit.counts.documents} docs`}
@@ -202,7 +218,9 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
                       <p className="min-w-0 break-words text-sm font-medium">
                         {indicator.label}
                       </p>
-                      <Badge tone={indicator.tone}>{indicator.tone}</Badge>
+                      <Badge tone={indicator.tone}>
+                        {getHealthToneLabel(indicator.tone)}
+                      </Badge>
                     </div>
                     <p className="mt-1 text-xs leading-5 text-muted">
                       {indicator.description}
@@ -410,7 +428,7 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
             <SectionTitle
               description={`${unit.counts.timelineEvents} active timeline records`}
               icon={<ListTree size={16} />}
-              title="Timeline and maintenance"
+              title="Timeline"
             />
             <div className="divide-y divide-border">
               {unit.recentTimelineEvents.length === 0 ? (
@@ -702,23 +720,6 @@ function ActionLink({
   );
 }
 
-function UnitHeroPhoto({ unit }: { unit: UnitDetail }) {
-  const className =
-    "flex aspect-[4/3] w-full max-w-[160px] items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-muted sm:max-w-none";
-
-  if (unit.thumbnailUrl) {
-    return (
-      <div
-        aria-hidden="true"
-        className={`${className} bg-cover bg-center`}
-        style={{ backgroundImage: `url(${unit.thumbnailUrl})` }}
-      />
-    );
-  }
-
-  return <div className={className} aria-hidden="true" />;
-}
-
 function Detail({
   children,
   label,
@@ -741,6 +742,22 @@ function Detail({
       </dd>
     </div>
   );
+}
+
+function getHealthToneLabel(tone: UnitDetail["healthIndicators"][number]["tone"]) {
+  if (tone === "success") {
+    return "Ready";
+  }
+
+  if (tone === "danger") {
+    return "Risk";
+  }
+
+  if (tone === "warning") {
+    return "Review";
+  }
+
+  return "Info";
 }
 
 function Metric({

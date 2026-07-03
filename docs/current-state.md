@@ -54,10 +54,13 @@ Property and units:
 
 People and leases:
 
-- `/people` is the all-roles people directory.
-- `/tenants`, `/owners`, `/vendors`, and `/team` reuse the people module with
+- `/people` is the People command dashboard without a directory table.
+- `/tenants`, `/owners`, `/vendors`, and `/staff` reuse the people module with
   role-specific copy, create defaults, search, and access-status display for
-  staff.
+  staff. `/team` redirects to `/staff` for legacy links.
+- `/people-reports` is a People-domain report hub with CSV/PDF exports for
+  relationship, tenant, owner, vendor, and staff readiness. `/people-settings`
+  is a placeholder for module configuration.
 - `/leases` supports lease list, filters, create/update/archive/restore, linked
   tenant/person data, terms, occupancy, deposits, documents, timeline context,
   risk, and next actions.
@@ -104,10 +107,10 @@ Settings and access:
 Placeholder routes:
 
 - Placeholder modules currently include amenities, property inspections,
-  inventory, invoices, petty cash, specialized timelines, branding, module
-  settings, notifications, security, backup/data, integrations, and some
-  dashboard variants. Treat these as navigation scaffolding, not complete
-  product modules.
+  inventory, invoices, petty cash, people settings, specialized
+  timelines, branding, module settings, notifications, security, backup/data,
+  integrations, and some dashboard variants. Treat these as navigation
+  scaffolding, not complete product modules.
 
 ## Database Shape
 

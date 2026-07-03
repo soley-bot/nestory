@@ -1,23 +1,5 @@
-import { PeopleModulePage } from "@/features/people/components/people-module-page";
+import { redirect } from "next/navigation";
 
-type TeamPageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-};
-
-export default function TeamPage({ searchParams }: TeamPageProps) {
-  return (
-    <PeopleModulePage
-      config={{
-        addButtonLabel: "Add staff",
-        createRole: "staff",
-        description:
-          "Staff directory records for property management contacts and operating follow-up.",
-        role: "staff",
-        searchPlaceholder: "Search staff, contact, role, or operating note",
-        showAccessStatus: true,
-        title: "Staff",
-      }}
-      searchParams={searchParams}
-    />
-  );
+export default function TeamPage() {
+  redirect("/staff");
 }

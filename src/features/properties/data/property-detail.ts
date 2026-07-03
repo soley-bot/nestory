@@ -414,10 +414,7 @@ export function buildPropertyDetailHrefs({
       propertyId,
     }),
     ownerPerson: activeOwner?.personId
-      ? buildHref("/people", {
-          archiveState: "all",
-          personId: activeOwner.personId,
-        })
+      ? `/people/${activeOwner.personId}`
       : undefined,
     propertiesList: buildHref("/properties", {
       archiveState: "all",

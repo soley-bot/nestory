@@ -98,19 +98,13 @@ const navGroups: NavGroup[] = [
     roomLabel: "People",
     icon: UsersRound,
     items: [
-      {
-        href: "/tenants",
-        label: "Tenants",
-        icon: UserRound,
-        activeHrefs: ["/people"],
-      },
-      { href: "/vendors", label: "Vendors", icon: Truck },
+      { href: "/people", label: "Dashboard", icon: Gauge },
+      { href: "/tenants", label: "Tenants", icon: UserRound },
       { href: "/owners", label: "Owners", icon: KeyRound },
-      {
-        href: "/team",
-        label: "Staff",
-        icon: IdCard,
-      },
+      { href: "/staff", label: "Staff", icon: IdCard, activeHrefs: ["/team"] },
+      { href: "/vendors", label: "Vendors", icon: Truck },
+      { href: "/people-reports", label: "Reports", icon: FileChartColumn },
+      { href: "/people-settings", label: "Settings", icon: Settings },
     ],
   },
   {
@@ -127,7 +121,6 @@ const navGroups: NavGroup[] = [
         activeHrefs: ["/work-orders", "/tasks", "/inspections"],
       },
       { href: "/recurring-tasks", label: "Templates", icon: Repeat },
-      { href: "/vendors", label: "Vendors", icon: Truck },
       {
         href: "/reports?report=maintenance-cost",
         label: "Reports",
@@ -187,6 +180,7 @@ const settingsGroup: NavGroup = {
     { href: "/branding", label: "Branding", icon: Brush, section: "Organization" },
     { href: "/users-roles", label: "Users & Roles", icon: UsersRound, section: "Access" },
     { href: "/property-settings", label: "Property", icon: FileCog, section: "Modules" },
+    { href: "/people-settings", label: "People", icon: UsersRound, section: "Modules" },
     { href: "/lease-settings", label: "Lease", icon: ScrollText, section: "Modules" },
     { href: "/maintenance-settings", label: "Maintenance", icon: Wrench, section: "Modules" },
     { href: "/financial-settings", label: "Financial", icon: Wallet, section: "Modules" },

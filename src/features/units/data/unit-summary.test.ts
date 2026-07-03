@@ -246,7 +246,7 @@ describe("buildUnitDetail", () => {
       tenantLinks: [
         {
           contactLabel: "dara@example.com",
-          href: "/people?archiveState=all&personId=person-1",
+          href: "/people/person-1",
         },
       ],
     });
@@ -356,7 +356,7 @@ describe("buildUnitDetailHrefs", () => {
           {
             contactLabel: "dara@example.com",
             displayName: "Dara Tenant",
-            href: "/people?archiveState=all&personId=person-1",
+            href: "/people/person-1",
             id: "person-1",
             roleLabel: "Tenant",
           },
@@ -371,7 +371,7 @@ describe("buildUnitDetailHrefs", () => {
       documents: "/documents?archiveState=all&propertyId=property-1&unitId=unit-1",
       lease: "/leases?archiveState=all&leaseId=lease-1",
       property: "/properties/property-1",
-      tenantPerson: "/people?archiveState=all&personId=person-1",
+      tenantPerson: "/people/person-1",
     });
   });
 });

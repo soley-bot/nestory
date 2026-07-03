@@ -217,6 +217,26 @@ export async function getPeopleScreenData(
   });
 }
 
+export async function getPersonDetail(
+  organizationId: string,
+  personId: string,
+) {
+  const viewQuery = parsePeopleSearchParams({
+    archiveState: "all",
+    personId,
+  });
+
+  if (!viewQuery.personId) {
+    return null;
+  }
+
+  const data = await getPeopleScreenData(organizationId, viewQuery);
+
+  return (
+    data.people.find((person) => person.id === viewQuery.personId) ?? null
+  );
+}
+
 export function canUsePagedPeopleBaseQuery(viewQuery: PeopleViewQuery) {
   return (
     Boolean(viewQuery.personId) ||
@@ -2188,11 +2208,7 @@ function buildPeopleDetailHrefs(
       archiveState: "all",
       query: person.displayName,
     }),
-    people: buildHref("/people", {
-      archiveState: "all",
-      personId: person.id,
-      query: person.displayName,
-    }),
+    people: `/people/${person.id}`,
     timeline: buildHref("/timeline", {
       archiveState: "all",
       query: person.displayName,

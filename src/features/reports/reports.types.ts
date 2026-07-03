@@ -36,6 +36,7 @@ export type ReportSourceRecordType =
   | "ledger"
   | "maintenance"
   | "owner"
+  | "person"
   | "property"
   | "timeline"
   | "unit";

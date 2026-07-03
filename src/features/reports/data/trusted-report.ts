@@ -1379,7 +1379,7 @@ function documentSource(document: DocumentRow): ReportSourceLink {
 
 function ownerSource(owner: OwnerRow, label: string): ReportSourceLink {
   return {
-    href: `/people?archiveState=all&personId=${owner.person_id}`,
+    href: `/people/${owner.person_id}`,
     id: owner.id,
     label,
     recordType: "owner",

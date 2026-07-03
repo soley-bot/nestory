@@ -304,7 +304,7 @@ describe("buildPropertyDetailHrefs", () => {
       addTimelineEvent: "/timeline?action=create&propertyId=property-1",
       addUnit: "/units?action=create&propertyId=property-1",
       documents: "/documents?archiveState=all&propertyId=property-1",
-      ownerPerson: "/people?archiveState=all&personId=person-owner",
+      ownerPerson: "/people/person-owner",
       units: "/units?archiveState=all&propertyId=property-1",
     });
   });

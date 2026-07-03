@@ -6,6 +6,7 @@ const settingsTabs = [
   { href: "/branding", label: "Branding" },
   { href: "/users-roles", label: "Users & Roles" },
   { href: "/property-settings", label: "Property" },
+  { href: "/people-settings", label: "People" },
   { href: "/lease-settings", label: "Lease" },
   { href: "/maintenance-settings", label: "Maintenance" },
   { href: "/financial-settings", label: "Financial" },

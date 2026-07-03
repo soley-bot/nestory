@@ -292,6 +292,11 @@ const placeholderPages: Record<string, PlaceholderPage> = {
     description: "Internal team records and property management assignments.",
     room: "People",
   },
+  "people-settings": {
+    title: "People Settings",
+    description: "People defaults, role labels, vendor categories, and directory controls.",
+    room: "Settings",
+  },
   "work-orders": {
     title: "Work Orders",
     description: "Assigned maintenance work orders and closeout status.",

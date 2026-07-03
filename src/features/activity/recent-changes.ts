@@ -300,11 +300,7 @@ function getActivityHref(log: ActivityLogSnapshot, recordLabel: string) {
   }
 
   if (log.entity_type === "person") {
-    return buildModuleHref("/people", {
-      archiveState: "all",
-      personId: log.entity_id,
-      query: getFocusedQuery(recordLabel, "Person"),
-    });
+    return `/people/${log.entity_id}`;
   }
 
   if (log.entity_type === "document") {

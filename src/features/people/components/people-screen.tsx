@@ -90,8 +90,7 @@ export function PeopleScreen({
     hasFocusedPersonIntent: Boolean(initialPersonId),
   });
   const moduleRole = lockedRole ?? createRole;
-  const getPersonRecordHref = (personId: string) =>
-    getFocusedRecordHref(pathname, searchParams, "personId", personId);
+  const getPersonRecordHref = (personId: string) => `/people/${personId}`;
   const openPersonRecord = (personId: string) => {
     router.push(getPersonRecordHref(personId), { scroll: false });
   };
@@ -102,7 +101,7 @@ export function PeopleScreen({
   };
   const previewPerson = (personId: string) => {
     setSelectedPersonId(personId);
-    setPreviewOpen(true);
+    setPreviewOpen(!usesPersistentInspector());
   };
 
   useEffect(() => {
@@ -112,7 +111,7 @@ export function PeopleScreen({
 
     queueMicrotask(() => {
       setSelectedPersonId(focusedPersonId);
-      setPreviewOpen(true);
+      setPreviewOpen(!usesPersistentInspector());
     });
   }, [focusedPersonId]);
 
@@ -131,7 +130,7 @@ export function PeopleScreen({
   }, [pathname, router, searchParams]);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen lg:flex lg:h-screen lg:flex-col lg:overflow-hidden">
       <PageHeader
         actions={
           <>
@@ -185,20 +184,52 @@ export function PeopleScreen({
         <PeopleReviewStrip context={reviewContext} count={pagination.totalCount} />
       ) : null}
 
-      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div
-          className={isTableMode ? "min-w-0 space-y-0" : "min-w-0 space-y-3"}
-        >
-          <PeopleTable
-            archiveState={viewQuery.archiveState}
-            displayMode={displayMode}
-            getPersonHref={getPersonRecordHref}
-            onOpenPerson={openPersonRecord}
-            onSelectPerson={previewPerson}
-            people={people}
-            selectedPersonId={selectedPerson?.id ?? ""}
-          />
-          <PaginationControls attached={isTableMode} pagination={pagination} />
+      <div className="px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:px-6 lg:py-4">
+        <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+          <section className="flex min-h-0 min-w-0 flex-col">
+            <div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-[13px]">
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground">
+                  {getPeopleListTitle(moduleRole)}
+                </p>
+                <p className="text-foreground-muted">
+                  Select a row to inspect. Double-click to open the full relationship file.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-muted">
+                {pagination.totalCount} total
+              </span>
+            </div>
+            <div className="min-h-0 flex-1">
+              <PeopleTable
+                archiveState={viewQuery.archiveState}
+                displayMode={displayMode}
+                onOpenPerson={openPersonRecord}
+                onSelectPerson={previewPerson}
+                people={people}
+                roleContext={lockedRole}
+                selectedPersonId={selectedPerson?.id ?? ""}
+              />
+            </div>
+            <PaginationControls attached={isTableMode} pagination={pagination} />
+          </section>
+          <aside className="hidden min-h-0 overflow-y-auto rounded-md border border-border bg-surface xl:block">
+            <PeopleInspector
+              onArchivePerson={(person) =>
+                openPeopleAction({ mode: "archive", person })
+              }
+              onEditPerson={(person) => openPeopleAction({ mode: "edit", person })}
+              onRestorePerson={(person) =>
+                openPeopleAction({ mode: "restore", person })
+              }
+              getPersonHref={getPersonRecordHref}
+              accessStatus={
+                selectedPerson ? accessByPersonId?.[selectedPerson.id] : undefined
+              }
+              person={selectedPerson}
+              showAccessStatus={moduleRole === "staff"}
+            />
+          </aside>
         </div>
       </div>
 
@@ -260,18 +291,6 @@ export function PeopleScreen({
       ) : null}
     </div>
   );
-}
-
-function getFocusedRecordHref(
-  pathname: string,
-  searchParams: { toString(): string },
-  key: string,
-  value: string,
-) {
-  const nextParams = new URLSearchParams(searchParams.toString());
-  nextParams.set(key, value);
-
-  return `${pathname}?${nextParams.toString()}`;
 }
 
 function getHrefWithoutActionParam(
@@ -355,6 +374,33 @@ function getPeopleReviewContext(
   }
 
   return null;
+}
+
+function getPeopleListTitle(role?: PersonRoleValue) {
+  if (role === "tenant") {
+    return "Tenant records";
+  }
+
+  if (role === "owner") {
+    return "Owner records";
+  }
+
+  if (role === "vendor") {
+    return "Vendor records";
+  }
+
+  if (role === "staff") {
+    return "Staff records";
+  }
+
+  return "People records";
+}
+
+function usesPersistentInspector() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(min-width: 1280px)").matches
+  );
 }
 
 function getPeopleDrawerTitle(

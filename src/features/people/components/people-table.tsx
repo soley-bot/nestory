@@ -1,7 +1,6 @@
 import { Building2, UserRound } from "lucide-react";
 import {
   previewRowClassName,
-  RecordLink,
   selectedPreviewRowClassName,
 } from "@/components/data/interactive-table";
 import { Badge } from "@/components/ui/badge";
@@ -11,37 +10,39 @@ import type {
   PeopleDisplayMode,
   PeopleSummary,
   PersonRoleSummary,
+  PersonRoleValue,
 } from "@/features/people/people.types";
 import { cn } from "@/lib/utils";
 
 type PeopleTableProps = {
   archiveState: PeopleArchiveState;
   displayMode: PeopleDisplayMode;
-  getPersonHref: (id: string) => string;
   onOpenPerson: (id: string) => void;
   onSelectPerson: (id: string) => void;
   people: PeopleSummary[];
+  roleContext?: PersonRoleValue;
   selectedPersonId: string;
 };
 
 export function PeopleTable({
   archiveState,
   displayMode,
-  getPersonHref,
   onOpenPerson,
   onSelectPerson,
   people,
+  roleContext,
   selectedPersonId,
 }: PeopleTableProps) {
   const emptyMessage = getEmptyMessage(archiveState);
+  const isRoleScoped = Boolean(roleContext);
 
   return (
-    <div>
+    <div className="h-full min-h-0">
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid max-h-[380px] gap-3 overflow-auto pr-1 sm:grid-cols-2 lg:max-h-none lg:overflow-visible lg:pr-0 xl:grid-cols-3 2xl:grid-cols-3"
-            : "max-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
+            ? "grid h-full min-h-[380px] auto-rows-max content-start gap-3 overflow-auto pr-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
+            : "h-full min-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
         )}
       >
         {people.length === 0 ? (
@@ -51,7 +52,6 @@ export function PeopleTable({
         ) : null}
         {people.map((person) => (
           <PersonCard
-            getPersonHref={getPersonHref}
             key={person.id}
             onOpenPerson={onOpenPerson}
             onSelectPerson={onSelectPerson}
@@ -62,33 +62,60 @@ export function PeopleTable({
       </div>
 
       {displayMode === "table" ? (
-        <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-          <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-            <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-[13px]">
-              <colgroup>
-                <col className="w-[28%]" />
-                <col className="w-[11%]" />
-                <col className="w-[25%]" />
-                <col className="w-[26%]" />
-                <col className="w-[10%]" />
-              </colgroup>
+        <div className="hidden h-full min-h-[380px] overflow-hidden rounded-md border border-border bg-surface md:block">
+          <div className="h-full overflow-auto">
+            <table className="w-full min-w-[1040px] table-fixed border-collapse text-left text-[13px]">
+              {isRoleScoped ? (
+                <colgroup>
+                  <col className="w-[26%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[24%]" />
+                  <col className="w-[13%]" />
+                </colgroup>
+              ) : (
+                <colgroup>
+                  <col className="w-[24%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[23%]" />
+                  <col className="w-[8%]" />
+                </colgroup>
+              )}
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
-                <tr>
-                  <th className="px-2.5 py-2.5 font-semibold">Person</th>
-                  <th className="px-1.5 py-2.5 font-semibold">Roles</th>
-                  <th className="px-1.5 py-2.5 font-semibold">Contact</th>
-                  <th className="px-1.5 py-2.5 font-semibold">
-                    Linked
-                  </th>
-                  <th className="px-1.5 py-2.5 text-center font-semibold">
-                    Status
-                  </th>
-                </tr>
+                {isRoleScoped ? (
+                  <tr>
+                    <th className="px-2.5 py-2.5 font-semibold">
+                      {getPersonHeader(roleContext)}
+                    </th>
+                    <th className="px-1.5 py-2.5 font-semibold">Email</th>
+                    <th className="px-1.5 py-2.5 font-semibold">Phone</th>
+                    <th className="px-1.5 py-2.5 font-semibold">
+                      {getContextHeader(roleContext)}
+                    </th>
+                    <th className="px-1.5 py-2.5 font-semibold">Next</th>
+                  </tr>
+                ) : (
+                  <tr>
+                    <th className="px-2.5 py-2.5 font-semibold">Person</th>
+                    <th className="px-1.5 py-2.5 font-semibold">Roles</th>
+                    <th className="px-1.5 py-2.5 font-semibold">Email</th>
+                    <th className="px-1.5 py-2.5 font-semibold">Phone</th>
+                    <th className="px-1.5 py-2.5 font-semibold">Linked</th>
+                    <th className="px-1.5 py-2.5 text-center font-semibold">
+                      Status
+                    </th>
+                  </tr>
+                )}
               </thead>
               <tbody>
                 {people.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={5}>
+                    <td
+                      className="px-4 py-8 text-center text-muted"
+                      colSpan={isRoleScoped ? 5 : 6}
+                    >
                       {emptyMessage}
                     </td>
                   </tr>
@@ -114,12 +141,12 @@ export function PeopleTable({
                   >
                     <td className="px-2.5 py-2">
                       <div className="min-w-0">
-                        <RecordLink
-                          href={getPersonHref(person.id)}
-                          title={`Open full person record: ${person.displayName}`}
+                        <p
+                          className="truncate font-semibold text-foreground"
+                          title={person.displayName}
                         >
                           {person.displayName}
-                        </RecordLink>
+                        </p>
                         <p
                           className="mt-0.5 truncate text-xs text-muted"
                           title={person.legalName ?? person.partyTypeLabel}
@@ -128,18 +155,29 @@ export function PeopleTable({
                         </p>
                       </div>
                     </td>
-                    <td className="px-1.5 py-2">
-                      <RoleBadges roles={person.roles} />
+                    {isRoleScoped ? null : (
+                      <td className="px-1.5 py-2">
+                        <RoleBadges roles={person.roles} />
+                      </td>
+                    )}
+                    <td className="px-2 py-2">
+                      <EmailCell person={person} />
                     </td>
                     <td className="px-2 py-2">
-                      <ContactCell person={person} />
+                      <PhoneCell person={person} />
                     </td>
                     <td className="px-2 py-2">
                       <LinkedCell person={person} />
                     </td>
-                    <td className="px-1.5 py-2">
-                      <StatusBadges compact person={person} />
-                    </td>
+                    {isRoleScoped ? (
+                      <td className="px-2 py-2">
+                        <NextActionCell person={person} />
+                      </td>
+                    ) : (
+                      <td className="px-1.5 py-2">
+                        <StatusBadges compact person={person} />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -152,13 +190,11 @@ export function PeopleTable({
 }
 
 function PersonCard({
-  getPersonHref,
   onOpenPerson,
   onSelectPerson,
   person,
   selected,
 }: {
-  getPersonHref: (id: string) => string;
   onOpenPerson: (id: string) => void;
   onSelectPerson: (id: string) => void;
   person: PeopleSummary;
@@ -192,13 +228,12 @@ function PersonCard({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <RecordLink
-                className="text-base font-semibold leading-5"
-                href={getPersonHref(person.id)}
-                title={`Open full person record: ${person.displayName}`}
+              <p
+                className="truncate text-base font-semibold leading-5 text-foreground"
+                title={person.displayName}
               >
                 {person.displayName}
-              </RecordLink>
+              </p>
               <p className="mt-1 truncate text-xs text-muted">
                 {person.legalName ?? person.partyTypeLabel}
               </p>
@@ -233,22 +268,52 @@ function LinkedCell({ person }: { person: PeopleSummary }) {
   );
 }
 
-function ContactCell({ person }: { person: PeopleSummary }) {
-  const detail = getContactDetail(person);
-
+function EmailCell({ person }: { person: PeopleSummary }) {
   return (
     <div className="min-w-0 space-y-0.5">
       <p
         className={cn(
-          "line-clamp-1 break-words font-medium",
-          !person.hasUsefulContact && "text-warning",
+          "truncate font-medium",
+          !person.contact.email && "text-warning",
         )}
-        title={person.contact.label}
+        title={person.contact.email ?? "No email"}
       >
-        {person.contact.label}
+        {person.contact.email ?? "No email"}
       </p>
-      <p className="truncate text-xs text-muted" title={detail}>
-        {detail}
+      <p className="truncate text-xs text-muted">
+        {person.contact.email ? "Email on file" : "Needs email"}
+      </p>
+    </div>
+  );
+}
+
+function PhoneCell({ person }: { person: PeopleSummary }) {
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <p
+        className={cn(
+          "truncate font-medium",
+          !person.contact.phone && "text-warning",
+        )}
+        title={person.contact.phone ?? "No phone"}
+      >
+        {person.contact.phone ?? "No phone"}
+      </p>
+      <p className="truncate text-xs text-muted">
+        {person.contact.phone ? "Phone on file" : "Needs phone"}
+      </p>
+    </div>
+  );
+}
+
+function NextActionCell({ person }: { person: PeopleSummary }) {
+  return (
+    <div className="min-w-0 space-y-1">
+      <Badge className="max-w-full px-2 text-xs" tone={person.nextAction.tone}>
+        <span className="truncate">{person.nextAction.label}</span>
+      </Badge>
+      <p className="line-clamp-1 text-xs text-muted" title={person.nextAction.description}>
+        {person.nextAction.description}
       </p>
     </div>
   );
@@ -336,22 +401,6 @@ function getLinkedLabel(person: PeopleSummary) {
   return "No linked records";
 }
 
-function getContactDetail(person: PeopleSummary) {
-  if (person.contact.email && person.contact.phone) {
-    return "Email and phone on file";
-  }
-
-  if (person.contact.email) {
-    return "Email on file";
-  }
-
-  if (person.contact.phone) {
-    return "Phone on file";
-  }
-
-  return "Needs email or phone";
-}
-
 function getLinkedDetail(person: PeopleSummary) {
   if (person.linked.activeLease) {
     return `${person.linked.activeLease.unitLabel} / ${person.linked.activeLease.propertyLabel}`;
@@ -368,6 +417,46 @@ function getLinkedDetail(person: PeopleSummary) {
   }
 
   return person.notes ?? person.partyTypeLabel;
+}
+
+function getPersonHeader(roleContext?: PersonRoleValue) {
+  if (roleContext === "tenant") {
+    return "Tenant";
+  }
+
+  if (roleContext === "owner") {
+    return "Owner";
+  }
+
+  if (roleContext === "vendor") {
+    return "Vendor";
+  }
+
+  if (roleContext === "staff") {
+    return "Staff";
+  }
+
+  return "Person";
+}
+
+function getContextHeader(roleContext?: PersonRoleValue) {
+  if (roleContext === "tenant") {
+    return "Lease / Unit";
+  }
+
+  if (roleContext === "owner") {
+    return "Ownership";
+  }
+
+  if (roleContext === "vendor") {
+    return "Service / Coverage";
+  }
+
+  if (roleContext === "staff") {
+    return "Team context";
+  }
+
+  return "Linked";
 }
 
 function getEmptyMessage(archiveState: PeopleArchiveState) {

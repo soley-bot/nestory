@@ -10,7 +10,10 @@ export function PeopleScreenSkeleton({
   title?: string;
 }) {
   return (
-    <div aria-busy="true" className="min-h-screen">
+    <div
+      aria-busy="true"
+      className="min-h-screen lg:flex lg:h-screen lg:flex-col lg:overflow-hidden"
+    >
       <span className="sr-only">Loading people records</span>
       <PageHeader
         actions={
@@ -32,10 +35,17 @@ export function PeopleScreenSkeleton({
           </div>
         </div>
       </div>
-      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="grid grid-cols-1 gap-5">
-          <div className="min-w-0 space-y-3">
-            <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
+      <div className="px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:px-6 lg:py-4">
+        <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="flex min-h-0 min-w-0 flex-col">
+            <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
+              <div className="space-y-1.5">
+                <div className="h-3.5 w-28 rounded bg-foreground/10" />
+                <div className="h-3 w-72 max-w-full rounded bg-foreground/10" />
+              </div>
+              <div className="h-7 w-16 rounded-md border border-border bg-surface-muted" />
+            </div>
+            <div className="hidden h-full min-h-[380px] overflow-hidden rounded-md border border-border bg-surface md:block">
               <div className="grid grid-cols-[24%_16%_25%_26%_9%] bg-surface-muted px-2.5 py-2.5">
                 {rowWidths.map((width, index) => (
                   <div
@@ -81,6 +91,27 @@ export function PeopleScreenSkeleton({
               <div className="h-8 w-44 rounded-md border border-border bg-surface-muted" />
             </div>
           </div>
+          <aside className="hidden min-h-0 rounded-md border border-border bg-surface p-4 xl:block">
+            <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
+              <div className="space-y-2">
+                <div className="h-3 w-20 rounded bg-foreground/10" />
+                <div className="h-4 w-40 rounded bg-foreground/10" />
+                <div className="h-3 w-28 rounded bg-foreground/10" />
+              </div>
+              <div className="h-5 w-14 rounded border border-border bg-surface-muted" />
+            </div>
+            <div className="mt-4 space-y-3">
+              <div className="h-20 rounded-md border border-border bg-surface-muted" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-16 rounded-md border border-border bg-surface-muted" />
+                <div className="h-16 rounded-md border border-border bg-surface-muted" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="h-8 rounded-md border border-border bg-surface-muted" />
+                <div className="h-8 rounded-md border border-border bg-surface-muted" />
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
     </div>
