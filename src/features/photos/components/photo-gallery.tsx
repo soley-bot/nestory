@@ -7,7 +7,10 @@ import { Archive, ImageIcon, Star, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
-import { FileDropzoneField } from "@/components/ui/file-dropzone-field";
+import {
+  FileDropzoneField,
+  PHOTO_FILE_ACCEPT,
+} from "@/components/ui/file-dropzone-field";
 import { Input } from "@/components/ui/input";
 import {
   archiveAssetPhotoAction,
@@ -17,12 +20,6 @@ import {
 } from "@/features/photos/actions";
 import type { AssetPhoto } from "@/features/photos/photo.types";
 import { formatDate } from "@/lib/dates/format";
-
-const PHOTO_FILE_ACCEPT = {
-  "image/jpeg": [".jpg", ".jpeg"],
-  "image/png": [".png"],
-  "image/webp": [".webp"],
-};
 
 const initialState: PhotoActionState = {};
 
@@ -116,7 +113,6 @@ export function PhotoGallery({
         <form
           action={formAction}
           className="space-y-3 rounded-md border border-border bg-surface-muted/30 p-3"
-          encType="multipart/form-data"
           ref={formRef}
         >
           <div>

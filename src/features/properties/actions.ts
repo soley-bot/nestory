@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createDocumentAction } from "@/features/documents/actions";
+import { createAssetPhotoAction } from "@/features/photos/actions";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -10,11 +10,11 @@ type PropertyFieldErrors = {
   acquisitionDate?: string[];
   address?: string[];
   code?: string[];
-  document?: string[];
   name?: string[];
   notes?: string[];
   owner?: string[];
   ownerPersonId?: string[];
+  photo?: string[];
   propertyId?: string[];
   propertyType?: string[];
   status?: string[];
@@ -100,23 +100,19 @@ function nullableString(value: string) {
   return value.length > 0 ? value : null;
 }
 
-function validateInlineDocumentFile(formData: FormData) {
-  const file = formData.get("document");
+function validateInlinePhotoFile(formData: FormData) {
+  const file = formData.get("photo");
 
   if (!(file instanceof File) || file.size === 0) {
     return "";
   }
 
   if (file.size > 10 * 1024 * 1024) {
-    return "Files must be 10 MB or smaller.";
+    return "Photos must be 10 MB or smaller.";
   }
 
-  if (
-    !["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(
-      file.type,
-    )
-  ) {
-    return "Upload a PDF, JPG, PNG, or WebP file.";
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    return "Upload a JPG, PNG, or WebP photo.";
   }
 
   return "";
@@ -135,11 +131,11 @@ export async function createPropertyAction(
     return invalidFormState(parsed.error);
   }
 
-  const documentError = validateInlineDocumentFile(formData);
+  const photoError = validateInlinePhotoFile(formData);
 
-  if (documentError) {
+  if (photoError) {
     return {
-      fieldErrors: { document: [documentError] },
+      fieldErrors: { photo: [photoError] },
       status: "error",
     };
   }
@@ -165,14 +161,15 @@ export async function createPropertyAction(
     };
   }
 
-  const documentState = await uploadInlinePropertyDocument({
+  const photoState = await uploadInlinePropertyPhoto({
     formData,
+    isCover: true,
     propertyId,
   });
 
-  if (documentState?.status === "error") {
+  if (photoState?.status === "error") {
     return {
-      message: "Property added, but the file was not uploaded.",
+      message: "Property added, but the photo was not uploaded.",
       propertyId,
       status: "success",
     };
@@ -181,7 +178,7 @@ export async function createPropertyAction(
   revalidatePropertyPaths(propertyId);
 
   return {
-    message: documentState ? "Property added and file uploaded." : "Property added.",
+    message: photoState ? "Property added and photo uploaded." : "Property added.",
     propertyId,
     status: "success",
   };
@@ -210,11 +207,11 @@ export async function updatePropertyAction(
     return invalidFormState(parsed.error);
   }
 
-  const documentError = validateInlineDocumentFile(formData);
+  const photoError = validateInlinePhotoFile(formData);
 
-  if (documentError) {
+  if (photoError) {
     return {
-      fieldErrors: { document: [documentError] },
+      fieldErrors: { photo: [photoError] },
       status: "error",
     };
   }
@@ -241,20 +238,21 @@ export async function updatePropertyAction(
     };
   }
 
-  const documentState = await uploadInlinePropertyDocument({
+  const photoState = await uploadInlinePropertyPhoto({
     formData,
+    isCover: readString(formData, "hasPhoto") !== "true",
     propertyId: parsedPropertyId.data,
   });
 
-  if (documentState?.status === "error") {
-    return documentState;
+  if (photoState?.status === "error") {
+    return photoState;
   }
 
   revalidatePropertyPaths(parsedPropertyId.data);
 
   return {
-    message: documentState
-      ? "Property updated and file uploaded."
+    message: photoState
+      ? "Property updated and photo uploaded."
       : "Property updated.",
     propertyId: parsedPropertyId.data,
     status: "success",
@@ -351,35 +349,37 @@ function revalidatePropertyPaths(propertyId?: string | null) {
   }
 }
 
-async function uploadInlinePropertyDocument({
+async function uploadInlinePropertyPhoto({
   formData,
+  isCover,
   propertyId,
 }: {
   formData: FormData;
+  isCover: boolean;
   propertyId: string;
 }): Promise<PropertyActionState | null> {
-  const file = formData.get("document");
+  const file = formData.get("photo");
 
   if (!(file instanceof File) || file.size === 0) {
     return null;
   }
 
-  const documentFormData = new FormData();
-  documentFormData.set("category", readString(formData, "documentCategory"));
-  documentFormData.set("document", file);
-  documentFormData.set("leaseId", "");
-  documentFormData.set("propertyId", propertyId);
-  documentFormData.set("taskId", "");
-  documentFormData.set("unitId", "");
+  const photoFormData = new FormData();
+  photoFormData.set("caption", "");
+  photoFormData.set("isCover", String(isCover));
+  photoFormData.set("photo", file);
+  photoFormData.set("propertyId", propertyId);
+  photoFormData.set("takenAt", "");
+  photoFormData.set("unitId", "");
 
-  const state = await createDocumentAction({}, documentFormData);
+  const state = await createAssetPhotoAction({}, photoFormData);
 
   if (state.status === "error") {
     return {
       fieldErrors: {
-        document: state.fieldErrors?.document,
+        photo: state.fieldErrors?.photo,
       },
-      message: state.message ?? "Property saved, but the file was not uploaded.",
+      message: state.message ?? "Property saved, but the photo was not uploaded.",
       propertyId,
       status: "error",
     };

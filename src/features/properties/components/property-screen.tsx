@@ -59,8 +59,9 @@ export function PropertyScreen({
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
     searchParams.get("action") === "create" ? { mode: "create" } : null,
   );
-  const [displayMode, setDisplayMode] =
-    useState<PropertyDisplayMode>("table");
+  const [displayMode, setDisplayMode] = useState<PropertyDisplayMode>(() =>
+    searchParams.get("view") === "cards" ? "cards" : "table",
+  );
   const isTableMode = displayMode === "table";
   const [selectedPropertyId, setSelectedPropertyId] = useState(() =>
     getInitialRecordId(properties, initialPropertyId),
@@ -90,6 +91,22 @@ export function PropertyScreen({
     if (window.matchMedia("(max-width: 1279px)").matches) {
       setPreviewOpen(true);
     }
+  };
+  const changeDisplayMode = (mode: PropertyDisplayMode) => {
+    setDisplayMode(mode);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+
+    if (mode === "table") {
+      nextParams.delete("view");
+    } else {
+      nextParams.set("view", mode);
+    }
+
+    const queryString = nextParams.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+      scroll: false,
+    });
   };
 
   useEffect(() => {
@@ -166,7 +183,7 @@ export function PropertyScreen({
       ) : null}
 
       <PropertyFilters
-        onDisplayModeChange={setDisplayMode}
+        onDisplayModeChange={changeDisplayMode}
         displayMode={displayMode}
         onSelectProperty={previewProperty}
         properties={properties}
@@ -347,6 +364,35 @@ function getPropertyReviewContext(
         "Showing properties where active ledger totals are below zero and need income, expense, or occupancy review.",
       nextStep:
         "Select a property, then open its Ledger, Units, or Timeline context from the inspector.",
+    };
+  }
+
+  if (viewQuery.review === "needs_units") {
+    return {
+      countLabel: "without unit records",
+      description:
+        "Showing property shells that need units before leasing, vacancy, and operating history can work reliably.",
+      nextStep:
+        "Open the property record, then add the first unit from its operating record.",
+    };
+  }
+
+  if (viewQuery.review === "missing_photos") {
+    return {
+      countLabel: "missing a property photo",
+      description:
+        "Showing properties that need at least one saved photo for visual identification.",
+      nextStep:
+        "Open the full property record, then use the Photos tab to upload a cover image.",
+    };
+  }
+
+  if (viewQuery.review === "missing_address") {
+    return {
+      countLabel: "missing an address",
+      description:
+        "Showing properties that need an address before documents, reports, and field work are clear.",
+      nextStep: "Select a property, then add the address in the edit drawer.",
     };
   }
 

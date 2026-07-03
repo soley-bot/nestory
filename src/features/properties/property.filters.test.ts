@@ -7,6 +7,7 @@ import {
 import {
   propertyMatchesNetStatusFilter,
   propertyMatchesOwnerStatusFilter,
+  propertyMatchesReviewFilter,
 } from "@/features/properties/data/properties";
 
 describe("parsePropertySearchParams", () => {
@@ -18,6 +19,7 @@ describe("parsePropertySearchParams", () => {
       page: 1,
       pageSize: DEFAULT_PROPERTY_PAGE_SIZE,
       query: "",
+      review: "all",
       sort: DEFAULT_PROPERTY_SORT,
       status: "all",
     });
@@ -30,6 +32,7 @@ describe("parsePropertySearchParams", () => {
         netStatus: "negative",
         page: "2",
         query: "  central  ",
+        review: "missing_photos",
         sort: "net_asc",
         status: "active",
       }),
@@ -38,6 +41,7 @@ describe("parsePropertySearchParams", () => {
       ownerStatus: "missing",
       page: 2,
       query: "central",
+      review: "missing_photos",
       sort: "net_asc",
       status: "active",
     });
@@ -49,12 +53,14 @@ describe("parsePropertySearchParams", () => {
         ownerStatus: "assigned",
         netStatus: "positive",
         pageSize: "999",
+        review: "everything",
         sort: "random",
       }),
     ).toMatchObject({
       netStatus: "all",
       ownerStatus: "all",
       pageSize: DEFAULT_PROPERTY_PAGE_SIZE,
+      review: "all",
       sort: DEFAULT_PROPERTY_SORT,
     });
   });
@@ -88,5 +94,31 @@ describe("propertyMatchesOwnerStatusFilter", () => {
         "missing",
       ),
     ).toBe(false);
+  });
+});
+
+describe("propertyMatchesReviewFilter", () => {
+  it("matches property review queues", () => {
+    expect(
+      propertyMatchesReviewFilter(
+        { address: "No address recorded", units: 2 },
+        "missing_address",
+      ),
+    ).toBe(true);
+    expect(
+      propertyMatchesReviewFilter({ address: "Street 1", units: 0 }, "needs_units"),
+    ).toBe(true);
+    expect(
+      propertyMatchesReviewFilter(
+        { address: "Street 1", thumbnailUrl: undefined, units: 2 },
+        "missing_photos",
+      ),
+    ).toBe(true);
+    expect(
+      propertyMatchesReviewFilter(
+        { address: "Street 1", thumbnailUrl: "/photo.jpg", units: 2 },
+        "all",
+      ),
+    ).toBe(true);
   });
 });

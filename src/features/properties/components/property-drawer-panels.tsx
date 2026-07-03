@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect } from "react";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,8 +37,15 @@ export function ArchivePropertyPanel({
     }
   }, [onClose, onSuccess, state.message, state.status]);
 
+  const hasActiveUnits = property.units > 0;
+  const flowState = getArchiveFlowState({
+    blocked: hasActiveUnits,
+    pending,
+    status: state.status,
+  });
+
   return (
-    <form action={action} className="flex h-full flex-col">
+    <form action={action} className="flex h-full flex-col" data-flow-state={flowState}>
       <input name="propertyId" type="hidden" value={property.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="flex items-center gap-2 text-danger">
@@ -49,11 +57,25 @@ export function ArchivePropertyPanel({
           This hides the property from active operational views. Active units must
           be archived first, so unit history does not lose its parent context.
         </p>
+        {flowState === "blocked" ? (
+          <div className="rounded-md border border-warning/40 bg-warning-soft/30 px-3 py-2 text-sm">
+            <p className="font-medium text-foreground">
+              Archive or move active units before archiving this property.
+            </p>
+            <Link
+              className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+              href={`/units?propertyId=${property.id}`}
+            >
+              Review active units
+            </Link>
+          </div>
+        ) : null}
         <PanelMessage state={state} />
       </div>
 
       <PanelFooter
         confirmLabel={pending ? "Archiving..." : "Archive property"}
+        disabled={flowState === "blocked"}
         icon={<Archive size={15} />}
         onClose={onClose}
         pending={pending}
@@ -104,6 +126,32 @@ export function RestorePropertyPanel({
   );
 }
 
+type ArchiveFlowState = "blocked" | "confirming" | "failed" | "saving";
+
+function getArchiveFlowState({
+  blocked,
+  pending,
+  status,
+}: {
+  blocked: boolean;
+  pending: boolean;
+  status?: PropertyActionState["status"];
+}): ArchiveFlowState {
+  if (blocked) {
+    return "blocked";
+  }
+
+  if (pending) {
+    return "saving";
+  }
+
+  if (status === "error") {
+    return "failed";
+  }
+
+  return "confirming";
+}
+
 function PropertyPanelSummary({ property }: { property: PropertySummary }) {
   return (
     <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
@@ -117,7 +165,9 @@ function PropertyPanelSummary({ property }: { property: PropertySummary }) {
 }
 
 function PanelMessage({ state }: { state: PropertyActionState }) {
-  if (!state.message) {
+  const message = state.message ?? state.fieldErrors?.propertyId?.[0];
+
+  if (!message) {
     return null;
   }
 
@@ -126,18 +176,20 @@ function PanelMessage({ state }: { state: PropertyActionState }) {
       className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
       role={state.status === "error" ? "alert" : "status"}
     >
-      {state.message}
+      {message}
     </p>
   );
 }
 
 function PanelFooter({
   confirmLabel,
+  disabled = false,
   icon,
   onClose,
   pending,
 }: {
   confirmLabel: string;
+  disabled?: boolean;
   icon: React.ReactNode;
   onClose: () => void;
   pending: boolean;
@@ -150,7 +202,7 @@ function PanelFooter({
         </Button>
         <Button
           className="w-full sm:w-auto"
-          disabled={pending}
+          disabled={pending || disabled}
           type="submit"
           variant="primary"
         >

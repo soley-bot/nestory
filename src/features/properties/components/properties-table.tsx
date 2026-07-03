@@ -2,7 +2,6 @@ import * as Popover from "@radix-ui/react-popover";
 import {
   Archive,
   Ellipsis,
-  ImagePlus,
   Pencil,
   RotateCcw,
 } from "lucide-react";
@@ -352,11 +351,6 @@ function PropertyActions({
               />
             ) : (
               <>
-                <PropertyActionMenuButton
-                  icon={<ImagePlus size={14} />}
-                  label={property.thumbnailUrl ? "Add photo" : "Upload photo"}
-                  onClick={() => onEditProperty(property)}
-                />
                 <PropertyActionMenuButton
                   icon={<Pencil size={14} />}
                   label="Edit"

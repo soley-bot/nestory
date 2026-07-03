@@ -13,6 +13,12 @@ export type PropertyOwnerStatusFilter = "missing" | "all";
 
 export type PropertyNetStatusFilter = "negative" | "all";
 
+export type PropertyReviewFilter =
+  | "all"
+  | "missing_address"
+  | "missing_photos"
+  | "needs_units";
+
 export type PropertyDisplayMode = "table" | "cards";
 
 export type PropertyBadgeTone =
@@ -55,6 +61,7 @@ export type PropertyViewQuery = {
   pageSize: number;
   ownerStatus: PropertyOwnerStatusFilter;
   query: string;
+  review: PropertyReviewFilter;
   sort: PropertySortKey;
   status: PropertyStatusValue | "all";
 };

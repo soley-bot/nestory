@@ -67,7 +67,7 @@ export function UnitForm({
   }, [isEditMode, onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col" encType="multipart/form-data">
+    <form action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {state.message ? (
           <p

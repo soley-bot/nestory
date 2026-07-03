@@ -146,7 +146,7 @@ export function SideDrawer({
       {...(description ? { "aria-describedby": descriptionId } : {})}
     >
       <button
-        aria-label="Close drawer"
+        aria-hidden="true"
         className="absolute inset-0 cursor-default"
         onClick={onClose}
         tabIndex={-1}

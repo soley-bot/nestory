@@ -3,6 +3,9 @@
 Use the smallest check that proves the change, then expand when the blast radius
 is larger.
 
+For authenticated UI flow work, also apply
+`docs/frontend-quality-checklist.md`.
+
 ## Standard Checks
 
 ```bash

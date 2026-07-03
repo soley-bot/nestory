@@ -2,6 +2,7 @@ import type {
   PropertyArchiveState,
   PropertyNetStatusFilter,
   PropertyOwnerStatusFilter,
+  PropertyReviewFilter,
   PropertySortKey,
   PropertyViewQuery,
 } from "@/features/properties/property.types";
@@ -30,6 +31,7 @@ export function parsePropertySearchParams(
     page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
     query: getTrimmedSearchParam(params.query),
+    review: parseReview(params.review),
     sort: parseSort(params.sort),
     status: parseStatus(params.status),
   };
@@ -45,6 +47,16 @@ function parseOwnerStatus(
   value: string | string[] | undefined,
 ): PropertyOwnerStatusFilter {
   return getFirstSearchParam(value) === "missing" ? "missing" : "all";
+}
+
+function parseReview(value: string | string[] | undefined): PropertyReviewFilter {
+  const candidate = getFirstSearchParam(value);
+
+  return candidate === "missing_address" ||
+    candidate === "missing_photos" ||
+    candidate === "needs_units"
+    ? candidate
+    : "all";
 }
 
 function parseArchiveState(

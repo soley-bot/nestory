@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:properties-flow": "node scripts/smoke-properties-flow.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "db:lint": "supabase db lint",

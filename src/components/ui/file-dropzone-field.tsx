@@ -12,6 +12,12 @@ export const DOCUMENT_FILE_ACCEPT: Accept = {
   "image/webp": [".webp"],
 };
 
+export const PHOTO_FILE_ACCEPT: Accept = {
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
+  "image/webp": [".webp"],
+};
+
 export const CSV_FILE_ACCEPT: Accept = {
   "text/csv": [".csv"],
 };

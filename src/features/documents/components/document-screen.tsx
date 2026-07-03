@@ -625,7 +625,6 @@ function DocumentForm({
     <form
       action={action}
       className="flex h-full flex-col"
-      encType="multipart/form-data"
     >
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
         {document ? (

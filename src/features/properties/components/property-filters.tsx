@@ -52,6 +52,7 @@ export function PropertyFilters({
     viewQuery.status !== "all",
     viewQuery.ownerStatus !== "all",
     viewQuery.netStatus !== "all",
+    viewQuery.review !== "all",
     viewQuery.archiveState !== "active",
     viewQuery.sort !== DEFAULT_PROPERTY_SORT,
     viewQuery.pageSize !== DEFAULT_PROPERTY_PAGE_SIZE,
@@ -201,6 +202,19 @@ export function PropertyFilters({
                         { label: "All records", value: "all" },
                       ]}
                       value={viewQuery.archiveState}
+                    />
+
+                    <SelectControl
+                      ariaLabel="Filter by review need"
+                      className={compactSelectClassName}
+                      onValueChange={(value) => replaceParam("review", value, "all")}
+                      options={[
+                        { label: "All review states", value: "all" },
+                        { label: "Needs units", value: "needs_units" },
+                        { label: "Missing photos", value: "missing_photos" },
+                        { label: "Missing address", value: "missing_address" },
+                      ]}
+                      value={viewQuery.review}
                     />
 
                     <SelectControl
