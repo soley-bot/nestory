@@ -8,6 +8,7 @@ import type {
   PettyCashEntryStatus,
   PettyCashPeriod,
   PettyCashPropertyOption,
+  PettyCashSchemaStatus,
   PettyCashSummary,
   PettyCashUnitOption,
 } from "@/features/petty-cash/petty-cash.types";
@@ -68,6 +69,10 @@ export async function getPettyCashScreenData(organizationId: string) {
   ]);
 
   if (accountsResult.error) {
+    if (isMissingPettyCashSchema(accountsResult.error.message)) {
+      return buildUnavailableScreenData();
+    }
+
     throw new Error(
       `Could not load petty cash accounts: ${accountsResult.error.message}`,
     );
@@ -131,6 +136,7 @@ export async function getPettyCashScreenData(organizationId: string) {
         propertyId: unit.property_id,
       };
     }),
+    schemaStatus: { isReady: true } satisfies PettyCashSchemaStatus,
   };
 }
 
@@ -148,6 +154,10 @@ async function getSelectedPeriod(organizationId: string, accountId: string) {
     .maybeSingle();
 
   if (result.error) {
+    if (isMissingPettyCashSchema(result.error.message)) {
+      return null;
+    }
+
     throw new Error(
       `Could not load petty cash period: ${result.error.message}`,
     );
@@ -191,6 +201,10 @@ async function getPeriodEntries({
     .order("created_at", { ascending: true });
 
   if (result.error) {
+    if (isMissingPettyCashSchema(result.error.message)) {
+      return [];
+    }
+
     throw new Error(
       `Could not load petty cash entries: ${result.error.message}`,
     );
@@ -267,6 +281,32 @@ function buildSummary(
       )
       .length.toString(),
   };
+}
+
+function buildUnavailableScreenData() {
+  return {
+    accounts: [],
+    entries: [],
+    period: null,
+    propertyOptions: [],
+    schemaStatus: {
+      isReady: false,
+      message:
+        "Petty cash is not available yet because the database migration has not been applied in this environment.",
+    } satisfies PettyCashSchemaStatus,
+    selectedAccount: undefined,
+    summary: buildSummary(null, []),
+    unitOptions: [],
+  };
+}
+
+function isMissingPettyCashSchema(message: string) {
+  return (
+    message.includes("petty_cash_") &&
+    (message.includes("schema cache") ||
+      message.includes("Could not find the table") ||
+      message.includes("does not exist"))
+  );
 }
 
 function indexById<T extends { id: string }>(rows: T[]) {

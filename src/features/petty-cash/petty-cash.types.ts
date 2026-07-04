@@ -64,3 +64,8 @@ export type PettyCashSummary = {
   readyToPostCount: string;
   receiptMissingCount: string;
 };
+
+export type PettyCashSchemaStatus = {
+  isReady: boolean;
+  message?: string;
+};

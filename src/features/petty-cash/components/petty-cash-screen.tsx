@@ -32,6 +32,7 @@ import type {
   PettyCashEntry,
   PettyCashPeriod,
   PettyCashPropertyOption,
+  PettyCashSchemaStatus,
   PettyCashSummary,
   PettyCashUnitOption,
 } from "@/features/petty-cash/petty-cash.types";
@@ -54,6 +55,7 @@ type PettyCashScreenProps = {
   entries: PettyCashEntry[];
   period: PettyCashPeriod | null;
   propertyOptions: PettyCashPropertyOption[];
+  schemaStatus?: PettyCashSchemaStatus;
   selectedAccount?: PettyCashAccount;
   summary: PettyCashSummary;
   unitOptions: PettyCashUnitOption[];
@@ -64,6 +66,7 @@ export function PettyCashScreen({
   entries,
   period,
   propertyOptions,
+  schemaStatus = { isReady: true },
   selectedAccount,
   summary,
   unitOptions,
@@ -83,7 +86,7 @@ export function PettyCashScreen({
     <div className="flex min-h-screen flex-col bg-background">
       <PageHeader
         actions={
-          selectedAccount && period ? (
+          !schemaStatus.isReady ? undefined : selectedAccount && period ? (
             <Button onClick={() => openDrawer({ mode: "entry" })} variant="primary">
               <Plus size={15} />
               Add cash row
@@ -141,7 +144,19 @@ export function PettyCashScreen({
             />
           </main>
         ) : (
-          <EmptyPettyCashState onCreate={() => openDrawer({ mode: "account" })} />
+          <EmptyPettyCashState
+            message={schemaStatus.message}
+            onCreate={
+              schemaStatus.isReady
+                ? () => openDrawer({ mode: "account" })
+                : undefined
+            }
+            title={
+              schemaStatus.isReady
+                ? "Create the PM cash account"
+                : "Petty cash is not available"
+            }
+          />
         )}
       </div>
 
@@ -731,7 +746,15 @@ function PostPettyCashPanel({
   );
 }
 
-function EmptyPettyCashState({ onCreate }: { onCreate: () => void }) {
+function EmptyPettyCashState({
+  message,
+  onCreate,
+  title,
+}: {
+  message?: string;
+  onCreate?: () => void;
+  title: string;
+}) {
   return (
     <main className="flex min-h-0 items-start px-4 py-5 sm:px-6">
       <div className="w-full rounded-md border border-border bg-surface p-5">
@@ -740,15 +763,17 @@ function EmptyPettyCashState({ onCreate }: { onCreate: () => void }) {
             <Wallet size={17} />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold">Create the PM cash account</h2>
+            <h2 className="text-sm font-semibold">{title}</h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
-              IPS tracks petty cash as an operating register: advance, expense,
-              receipt, clearing, balance, then ledger posting for real expenses.
+              {message ??
+                "IPS tracks petty cash as an operating register: advance, expense, receipt, clearing, balance, then ledger posting for real expenses."}
             </p>
-            <Button className="mt-4" onClick={onCreate} variant="primary">
-              <Plus size={15} />
-              Create account
-            </Button>
+            {onCreate ? (
+              <Button className="mt-4" onClick={onCreate} variant="primary">
+                <Plus size={15} />
+                Create account
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>
