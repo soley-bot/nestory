@@ -8,6 +8,7 @@ import {
   DashboardPeriodPicker,
   dashboardPeriodOptions,
   normalizeDashboardPeriod,
+  type DashboardPeriodOption,
   type DashboardPeriodKey,
 } from "@/components/dashboard/dashboard-period-picker";
 import { PageHeader } from "@/components/layout/page-header";
@@ -18,7 +19,9 @@ import {
   type PropertySummary,
 } from "@/features/properties/data/properties";
 import { requireWorkspaceContext } from "@/lib/auth/context";
+import { formatDate } from "@/lib/dates/format";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { formatMoney, type CurrencyCode } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 type PlaceholderPageProps = {
@@ -42,6 +45,7 @@ type DashboardPage = {
   periodHref?: string;
   periodKey?: DashboardPeriodKey;
   periodLabel?: string;
+  periodOptions?: Array<DashboardPeriodOption<DashboardPeriodKey>>;
   trend: {
     label: string;
     note: string;
@@ -53,6 +57,33 @@ type DashboardPage = {
 type PropertyDashboardCounts = {
   expiringLeases: number;
   overdueMaintenance: number;
+};
+
+type FinanceDashboardSource = {
+  entries: FinanceLedgerEntryRow[];
+  expiringLeases: number;
+  latestDate: string;
+  period: FinancePeriodRange;
+  properties: PropertySummary[];
+  trendEntries: FinanceLedgerEntryRow[];
+};
+
+type FinanceLedgerEntryRow = {
+  amount: number | null;
+  category: string | null;
+  currency: CurrencyCode | null;
+  description: string | null;
+  direction: string | null;
+  id: string;
+  property_id: string | null;
+  transaction_date: string;
+};
+
+type FinancePeriodRange = {
+  from: string;
+  key: DashboardPeriodKey;
+  label: string;
+  toExclusive: string;
 };
 
 type DashboardBarPoint = {
@@ -958,6 +989,13 @@ export default async function PlaceholderPage({
     resolvedPage = await withLivePropertyDashboard(resolvedPage);
   }
 
+  if (placeholder === "finance-dashboard") {
+    resolvedPage = await withLiveFinanceDashboard(
+      resolvedPage,
+      normalizeDashboardPeriod(rawSearchParams.period),
+    );
+  }
+
   return resolvedPage.dashboard ? (
     <DomainDashboard page={resolvedPage} />
   ) : (
@@ -984,6 +1022,725 @@ async function withLivePropertyDashboard(
     description: "Occupancy, ownership, and net position from live property records.",
     dashboard,
   };
+}
+
+async function withLiveFinanceDashboard(
+  page: PlaceholderPage,
+  periodKey: DashboardPeriodKey,
+): Promise<PlaceholderPage> {
+  if (!page.dashboard) {
+    return page;
+  }
+
+  const context = await requireWorkspaceContext();
+  const source = await getFinanceDashboardSource(
+    context.organizationId,
+    periodKey,
+  );
+  const dashboard = buildFinanceDashboard(page.dashboard, source);
+
+  return {
+    ...page,
+    description: "Cash movement, lease risk, and reports from live finance records.",
+    dashboard,
+  };
+}
+
+async function getFinanceDashboardSource(
+  organizationId: string,
+  periodKey: DashboardPeriodKey,
+): Promise<FinanceDashboardSource> {
+  const supabase = await createSupabaseServerClient();
+  const latestResult = await supabase
+    .from("ledger_entries")
+    .select("transaction_date")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .order("transaction_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestResult.error) {
+    throw new Error(
+      `Could not load finance dashboard latest ledger date: ${latestResult.error.message}`,
+    );
+  }
+
+  const latestDate =
+    (latestResult.data as { transaction_date?: string } | null)
+      ?.transaction_date ?? getIsoToday();
+  const period = getFinancePeriodRange(periodKey, latestDate);
+  const trendFrom = addMonths(getMonthStart(latestDate), -5);
+  const leaseWindowEnd = addDays(latestDate, 30);
+
+  const [properties, entriesResult, trendResult, leaseResult] =
+    await Promise.all([
+      getPropertySummaries(organizationId),
+      supabase
+        .from("ledger_entries")
+        .select(
+          "id, property_id, transaction_date, direction, category, amount, currency, description",
+        )
+        .eq("organization_id", organizationId)
+        .is("archived_at", null)
+        .gte("transaction_date", period.from)
+        .lt("transaction_date", period.toExclusive)
+        .order("transaction_date", { ascending: false })
+        // ponytail: dashboard summarizes the first 1000 period rows; move this to an aggregate RPC if live ledgers outgrow it.
+        .limit(1000),
+      supabase
+        .from("ledger_entries")
+        .select(
+          "id, property_id, transaction_date, direction, category, amount, currency, description",
+        )
+        .eq("organization_id", organizationId)
+        .is("archived_at", null)
+        .gte("transaction_date", trendFrom)
+        .lt("transaction_date", period.toExclusive)
+        .order("transaction_date", { ascending: true })
+        .limit(2000),
+      supabase
+        .from("leases")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId)
+        .is("archived_at", null)
+        .in("status", ["active", "notice_given"])
+        .gte("lease_end_date", latestDate)
+        .lte("lease_end_date", leaseWindowEnd),
+    ]);
+
+  if (entriesResult.error) {
+    throw new Error(
+      `Could not load finance dashboard ledger entries: ${entriesResult.error.message}`,
+    );
+  }
+
+  if (trendResult.error) {
+    throw new Error(
+      `Could not load finance dashboard trend entries: ${trendResult.error.message}`,
+    );
+  }
+
+  if (leaseResult.error) {
+    throw new Error(
+      `Could not load finance dashboard leases: ${leaseResult.error.message}`,
+    );
+  }
+
+  return {
+    entries: (entriesResult.data ?? []) as FinanceLedgerEntryRow[],
+    expiringLeases: leaseResult.count ?? 0,
+    latestDate,
+    period,
+    properties,
+    trendEntries: (trendResult.data ?? []) as FinanceLedgerEntryRow[],
+  };
+}
+
+function buildFinanceDashboard(
+  baseDashboard: DashboardPage,
+  source: FinanceDashboardSource,
+): DashboardPage {
+  const incomeEntries = source.entries.filter(isIncomeLedgerEntry);
+  const expenseEntries = source.entries.filter(isExpenseLedgerEntry);
+  const rentEntries = incomeEntries.filter(isRentLedgerEntry);
+  const maintenanceEntries = expenseEntries.filter(isMaintenanceLedgerEntry);
+  const incomeTotal = sumLedgerAmounts(incomeEntries);
+  const expenseTotal = sumLedgerAmounts(expenseEntries);
+  const rentIncome = sumLedgerAmounts(rentEntries);
+  const maintenanceExpense = sumLedgerAmounts(maintenanceEntries);
+  const netCash = incomeTotal - expenseTotal;
+  const missingOwnerReports = source.properties.filter(
+    (property) => !property.hasActiveOwnerLink,
+  ).length;
+  const largestExpense = expenseEntries.toSorted(
+    (first, second) => ledgerAmount(second) - ledgerAmount(first),
+  )[0];
+
+  return {
+    ...baseDashboard,
+    actionHref: financeLedgerHref(source.period.key),
+    actionLabel: "Action center",
+    bars: buildFinanceBars({
+      entries: source.entries,
+      expenseTotal,
+      incomeTotal,
+      missingOwnerReports,
+      period: source.period,
+      properties: source.properties,
+      source,
+    }),
+    driverMetricLabel: "Net cash",
+    driverProgressLabel: "Cash share",
+    driverTitle: "Property cash position",
+    drivers: buildFinanceDrivers(source.entries, source.properties, source.period),
+    finance: {
+      actions: buildFinanceActions({
+        expiringLeases: source.expiringLeases,
+        largestExpense,
+        maintenanceExpense,
+        missingOwnerReports,
+        period: source.period,
+        rentEntries,
+        rentIncome,
+      }),
+      cashSteps: buildFinanceCashSteps({
+        expenseTotal,
+        netCash,
+        otherIncome: Math.max(0, incomeTotal - rentIncome),
+        rentIncome,
+      }),
+      note:
+        source.entries.length === 0
+          ? `No ledger entries are recorded for ${source.period.label}.`
+          : `${source.period.label} uses ${source.entries.length} live ${pluralize(
+              "ledger entry",
+              source.entries.length,
+            )}.`,
+      transactions: buildFinanceTransactions(source.entries),
+    },
+    healthTitle: "Operating signals",
+    kpis: [
+      {
+        label: "Net cash",
+        value: formatMoney(netCash),
+        helper:
+          source.entries.length === 0
+            ? "No ledger entries"
+            : `${source.entries.length} period entries`,
+        tone: netCash < 0 ? "danger" : netCash > 0 ? "success" : undefined,
+      },
+      {
+        label: "Lease risk",
+        value: String(source.expiringLeases),
+        helper: "Next 30 days",
+        tone: source.expiringLeases > 0 ? "warning" : undefined,
+      },
+      {
+        label: "Rent income",
+        value: formatCompactMoney(rentIncome),
+        helper:
+          rentEntries.length === 0
+            ? "No rent entries"
+            : `${rentEntries.length} rent ${pluralize("entry", rentEntries.length)}`,
+        tone: rentIncome > 0 ? "success" : undefined,
+      },
+      {
+        label: "Expenses",
+        value: formatCompactMoney(expenseTotal),
+        helper:
+          expenseEntries.length === 0
+            ? "No expense entries"
+            : `${expenseEntries.length} expense ${pluralize(
+                "entry",
+                expenseEntries.length,
+              )}`,
+        tone: expenseTotal > 0 ? "warning" : undefined,
+      },
+    ],
+    leadDriverLabel: "Top cash",
+    leadHealthLabel: "Needs attention",
+    periodHref: "/finance-dashboard",
+    periodKey: source.period.key,
+    periodLabel: source.period.label,
+    periodOptions: getFinancePeriodOptions(source.latestDate),
+    trend: buildFinanceTrend(source.trendEntries, source.latestDate, netCash),
+  };
+}
+
+function buildFinanceBars({
+  entries,
+  expenseTotal,
+  incomeTotal,
+  missingOwnerReports,
+  period,
+  properties,
+  source,
+}: {
+  entries: FinanceLedgerEntryRow[];
+  expenseTotal: number;
+  incomeTotal: number;
+  missingOwnerReports: number;
+  period: FinancePeriodRange;
+  properties: PropertySummary[];
+  source: FinanceDashboardSource;
+}): DashboardBarPoint[] {
+  const expenseControl =
+    incomeTotal === 0
+      ? expenseTotal > 0
+        ? 0
+        : 0
+      : clampPercent(100 - (expenseTotal / incomeTotal) * 100);
+  const ownerReportScore =
+    properties.length === 0
+      ? 0
+      : clampPercent(
+          ((properties.length - missingOwnerReports) / properties.length) * 100,
+        );
+
+  return [
+    {
+      helper: `${entries.length} period ${pluralize("entry", entries.length)}`,
+      href: financeLedgerHref(period.key),
+      label: "Ledger activity",
+      value: entries.length > 0 ? 100 : 0,
+    },
+    {
+      helper:
+        expenseTotal === 0
+          ? "No expenses recorded"
+          : `${formatCompactMoney(expenseTotal)} outflow`,
+      href: financeLedgerHref(period.key, "direction=expense&sort=amount_desc"),
+      label: "Expense control",
+      value: expenseControl,
+    },
+    {
+      helper:
+        source.expiringLeases === 0
+          ? "No leases expiring"
+          : `${source.expiringLeases} ${pluralize(
+              "lease",
+              source.expiringLeases,
+            )} expiring`,
+      href: "/leases?status=current&endsWithin=30d&sort=end_asc",
+      label: "Lease expiry risk",
+      value: clampPercent(100 - source.expiringLeases * 10),
+    },
+    {
+      helper:
+        properties.length === 0
+          ? "No properties yet"
+          : `${properties.length - missingOwnerReports}/${properties.length} owner linked`,
+      href:
+        missingOwnerReports > 0
+          ? "/properties?ownerStatus=missing"
+          : "/reports/owner-statement",
+      label: "Owner reports",
+      value: ownerReportScore,
+    },
+  ];
+}
+
+function buildFinanceDrivers(
+  entries: FinanceLedgerEntryRow[],
+  properties: PropertySummary[],
+  period: FinancePeriodRange,
+): DashboardDriverPoint[] {
+  const propertyTotals = new Map<
+    string,
+    { expense: number; income: number; property: PropertySummary }
+  >();
+
+  for (const property of properties) {
+    propertyTotals.set(property.id, { expense: 0, income: 0, property });
+  }
+
+  for (const entry of entries) {
+    if (!entry.property_id) {
+      continue;
+    }
+
+    const existing = propertyTotals.get(entry.property_id);
+
+    if (!existing) {
+      continue;
+    }
+
+    if (isExpenseLedgerEntry(entry)) {
+      existing.expense += ledgerAmount(entry);
+    } else {
+      existing.income += ledgerAmount(entry);
+    }
+  }
+
+  const totals = [...propertyTotals.values()]
+    .map((row) => ({ ...row, net: row.income - row.expense }))
+    .toSorted(
+      (first, second) =>
+        second.net - first.net ||
+        first.property.name.localeCompare(second.property.name),
+    )
+    .slice(0, 6);
+  const largestMovement = Math.max(
+    1,
+    ...totals.map((row) => Math.abs(row.net)),
+  );
+
+  return totals.map((row) => ({
+    helper:
+      row.income === 0 && row.expense === 0
+        ? "No period ledger"
+        : `${formatCompactMoney(row.income)} in / ${formatCompactMoney(
+            row.expense,
+          )} out`,
+    href: buildQueryHref("/ledger", {
+      period: period.key,
+      propertyId: row.property.id,
+    }),
+    imageUrl: row.property.thumbnailUrl,
+    label: row.property.name,
+    tone: row.net < 0 ? "danger" : row.expense > row.income * 0.75 ? "warning" : "success",
+    value: formatCompactMoney(row.net),
+    width: clampPercent((Math.abs(row.net) / largestMovement) * 100),
+  }));
+}
+
+function buildFinanceActions({
+  expiringLeases,
+  largestExpense,
+  maintenanceExpense,
+  missingOwnerReports,
+  period,
+  rentEntries,
+  rentIncome,
+}: {
+  expiringLeases: number;
+  largestExpense?: FinanceLedgerEntryRow;
+  maintenanceExpense: number;
+  missingOwnerReports: number;
+  period: FinancePeriodRange;
+  rentEntries: FinanceLedgerEntryRow[];
+  rentIncome: number;
+}): FinanceActionItem[] {
+  const largestExpenseAmount = largestExpense ? ledgerAmount(largestExpense) : 0;
+
+  return [
+    {
+      helper:
+        expiringLeases === 0
+          ? "No leases end within 30 days"
+          : `${expiringLeases} ${pluralize("lease", expiringLeases)} end within 30 days`,
+      href: "/leases?status=current&endsWithin=30d&sort=end_asc",
+      label: "Lease risk",
+      tone: expiringLeases > 0 ? "warning" : "success",
+      value: String(expiringLeases),
+    },
+    {
+      helper:
+        missingOwnerReports === 0
+          ? "Owner links are ready"
+          : `${missingOwnerReports} ${pluralize("property", missingOwnerReports)} missing owner link`,
+      href:
+        missingOwnerReports > 0
+          ? "/properties?ownerStatus=missing"
+          : "/reports/owner-statement",
+      label: "Owner reports",
+      tone: missingOwnerReports > 0 ? "warning" : "success",
+      value: missingOwnerReports > 0 ? "Due" : "Ready",
+    },
+    {
+      helper: largestExpense
+        ? `${normalizeLedgerLabel(largestExpense)} is the largest outflow`
+        : "No expenses recorded",
+      href: largestExpense
+        ? buildQueryHref("/ledger", {
+            archiveState: "all",
+            entryId: largestExpense.id,
+          })
+        : financeLedgerHref(period.key, "direction=expense"),
+      label: "Expense review",
+      tone: largestExpenseAmount > 0 ? "warning" : "success",
+      value: formatCompactMoney(largestExpenseAmount),
+    },
+    {
+      helper:
+        rentEntries.length === 0
+          ? "No rent income entries"
+          : `${rentEntries.length} rent ${pluralize("entry", rentEntries.length)} recorded`,
+      href: financeLedgerHref(period.key, "direction=income&query=rent"),
+      label: "Income review",
+      tone: rentIncome > maintenanceExpense ? "success" : undefined,
+      value: formatCompactMoney(rentIncome),
+    },
+  ];
+}
+
+function buildFinanceCashSteps({
+  expenseTotal,
+  netCash,
+  otherIncome,
+  rentIncome,
+}: {
+  expenseTotal: number;
+  netCash: number;
+  otherIncome: number;
+  rentIncome: number;
+}): FinanceCashStep[] {
+  const largestMovement = Math.max(
+    1,
+    Math.abs(rentIncome),
+    Math.abs(otherIncome),
+    Math.abs(expenseTotal),
+    Math.abs(netCash),
+  );
+
+  return [
+    {
+      helper: "No opening balance table",
+      label: "Opening cash",
+      value: "Not tracked",
+      width: 0,
+    },
+    {
+      helper: "Rent ledger income",
+      label: "Rent income",
+      tone: rentIncome > 0 ? "success" : undefined,
+      value: formatSignedMoney(rentIncome),
+      width: clampPercent((Math.abs(rentIncome) / largestMovement) * 100),
+    },
+    {
+      helper: "Other income",
+      label: "Other income",
+      tone: otherIncome > 0 ? "success" : undefined,
+      value: formatSignedMoney(otherIncome),
+      width: clampPercent((Math.abs(otherIncome) / largestMovement) * 100),
+    },
+    {
+      helper: "Ledger expenses",
+      label: "Expenses",
+      tone: expenseTotal > 0 ? "danger" : undefined,
+      value: expenseTotal > 0 ? `-${formatMoney(expenseTotal)}` : formatMoney(0),
+      width: clampPercent((Math.abs(expenseTotal) / largestMovement) * 100),
+    },
+    {
+      helper: "Income minus expenses",
+      label: "Net cash",
+      tone: netCash < 0 ? "danger" : netCash > 0 ? "success" : undefined,
+      value: formatMoney(netCash),
+      width: clampPercent((Math.abs(netCash) / largestMovement) * 100),
+    },
+  ];
+}
+
+function buildFinanceTransactions(
+  entries: FinanceLedgerEntryRow[],
+): FinanceTransaction[] {
+  return entries.slice(0, 4).map((entry) => {
+    const amount = ledgerAmount(entry);
+    const signedAmount = isExpenseLedgerEntry(entry) ? -amount : amount;
+
+    return {
+      date: formatDate(entry.transaction_date),
+      href: buildQueryHref("/ledger", {
+        archiveState: "all",
+        entryId: entry.id,
+      }),
+      label: normalizeLedgerLabel(entry),
+      tone: signedAmount < 0 ? "warning" : "success",
+      value: formatSignedMoney(signedAmount),
+    };
+  });
+}
+
+function buildFinanceTrend(
+  entries: FinanceLedgerEntryRow[],
+  latestDate: string,
+  periodNetCash: number,
+): DashboardPage["trend"] {
+  const months = Array.from({ length: 6 }, (_, index) =>
+    addMonths(getMonthStart(latestDate), index - 5),
+  );
+  const netCashByMonth = new Map(months.map((month) => [month, 0]));
+
+  for (const entry of entries) {
+    const month = getMonthStart(entry.transaction_date);
+
+    if (!netCashByMonth.has(month)) {
+      continue;
+    }
+
+    netCashByMonth.set(
+      month,
+      (netCashByMonth.get(month) ?? 0) +
+        (isExpenseLedgerEntry(entry) ? -ledgerAmount(entry) : ledgerAmount(entry)),
+    );
+  }
+
+  return {
+    label: "Net cash",
+    note: `Selected period net ${formatCompactMoney(periodNetCash)}`,
+    suffix: "k",
+    values: months.map((month) => ({
+      label: formatShortMonthLabel(month),
+      value: Math.round((netCashByMonth.get(month) ?? 0) / 1000),
+    })),
+  };
+}
+
+function getFinancePeriodRange(
+  key: DashboardPeriodKey,
+  anchorDate: string,
+): FinancePeriodRange {
+  if (key === "last_month") {
+    const currentMonth = getMonthStart(anchorDate);
+    const previousMonth = addMonths(currentMonth, -1);
+
+    return {
+      from: previousMonth,
+      key,
+      label: formatMonthLabel(previousMonth),
+      toExclusive: currentMonth,
+    };
+  }
+
+  if (key === "last_30_days") {
+    return {
+      from: addDays(anchorDate, -29),
+      key,
+      label: "Last 30 days",
+      toExclusive: addDays(anchorDate, 1),
+    };
+  }
+
+  if (key === "qtd") {
+    return {
+      from: getQuarterStart(anchorDate),
+      key,
+      label: "QTD",
+      toExclusive: addDays(anchorDate, 1),
+    };
+  }
+
+  if (key === "ytd") {
+    return {
+      from: `${anchorDate.slice(0, 4)}-01-01`,
+      key,
+      label: "YTD",
+      toExclusive: addDays(anchorDate, 1),
+    };
+  }
+
+  const monthStart = getMonthStart(anchorDate);
+
+  return {
+    from: monthStart,
+    key: "current_month",
+    label: formatMonthLabel(monthStart),
+    toExclusive: addMonths(monthStart, 1),
+  };
+}
+
+function getFinancePeriodOptions(
+  anchorDate: string,
+): Array<DashboardPeriodOption<DashboardPeriodKey>> {
+  return dashboardPeriodOptions.map((option) => ({
+    ...option,
+    label:
+      option.key === "current_month" || option.key === "last_month"
+        ? getFinancePeriodRange(option.key, anchorDate).label
+        : option.label,
+  }));
+}
+
+function sumLedgerAmounts(entries: FinanceLedgerEntryRow[]) {
+  return sum(entries, ledgerAmount);
+}
+
+function ledgerAmount(entry: FinanceLedgerEntryRow) {
+  return entry.amount ?? 0;
+}
+
+function isIncomeLedgerEntry(entry: FinanceLedgerEntryRow) {
+  return entry.direction !== "expense";
+}
+
+function isExpenseLedgerEntry(entry: FinanceLedgerEntryRow) {
+  return entry.direction === "expense";
+}
+
+function isRentLedgerEntry(entry: FinanceLedgerEntryRow) {
+  return ledgerText(entry).includes("rent") || ledgerText(entry).includes("lease");
+}
+
+function isMaintenanceLedgerEntry(entry: FinanceLedgerEntryRow) {
+  const text = ledgerText(entry);
+
+  return (
+    text.includes("maintenance") ||
+    text.includes("repair") ||
+    text.includes("service")
+  );
+}
+
+function ledgerText(entry: FinanceLedgerEntryRow) {
+  return `${entry.category ?? ""} ${entry.description ?? ""}`.toLowerCase();
+}
+
+function normalizeLedgerLabel(entry: FinanceLedgerEntryRow) {
+  const label = entry.category?.trim() || entry.description?.trim();
+
+  if (!label) {
+    return "Ledger entry";
+  }
+
+  return label
+    .replace(/[_-]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function formatCompactMoney(amount: number, currency: CurrencyCode = "USD") {
+  const sign = amount < 0 ? "-" : "";
+  const formatter = new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1,
+    notation: "compact",
+  });
+
+  return `${sign}${currency} ${formatter.format(Math.abs(amount))}`;
+}
+
+function formatSignedMoney(amount: number) {
+  return amount > 0 ? `+${formatMoney(amount)}` : formatMoney(amount);
+}
+
+function clampPercent(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function getIsoToday() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getMonthStart(isoDate: string) {
+  return `${isoDate.slice(0, 7)}-01`;
+}
+
+function getQuarterStart(isoDate: string) {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+  const quarterStartMonth = Math.floor(date.getUTCMonth() / 3) * 3;
+
+  return formatIsoDate(
+    new Date(Date.UTC(date.getUTCFullYear(), quarterStartMonth, 1)),
+  );
+}
+
+function addMonths(isoDate: string, months: number) {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+
+  return formatIsoDate(
+    new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1)),
+  );
+}
+
+function formatIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatMonthLabel(isoDate: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(new Date(`${isoDate}T00:00:00.000Z`));
+}
+
+function formatShortMonthLabel(isoDate: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${isoDate}T00:00:00.000Z`));
 }
 
 async function getPropertyDashboardCounts(
@@ -1231,7 +1988,7 @@ async function DomainDashboard({ page }: { page: PlaceholderPage }) {
             {dashboard.periodKey ? (
               <DashboardPeriodPicker
                 href={dashboard.periodHref ?? "#"}
-                options={dashboardPeriodOptions}
+                options={dashboard.periodOptions ?? dashboardPeriodOptions}
                 selectedPeriod={dashboard.periodKey}
               />
             ) : (
