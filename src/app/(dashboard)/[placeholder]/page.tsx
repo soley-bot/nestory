@@ -13,8 +13,12 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { OverviewMetricAreaChart } from "@/features/overview/components/overview-charts";
-import { getPropertySummaries } from "@/features/properties/data/properties";
+import {
+  getPropertySummaries,
+  type PropertySummary,
+} from "@/features/properties/data/properties";
 import { requireWorkspaceContext } from "@/lib/auth/context";
+import { createSupabaseServerClient } from "@/lib/db/server";
 import { cn } from "@/lib/utils";
 
 type PlaceholderPageProps = {
@@ -44,6 +48,11 @@ type DashboardPage = {
     suffix?: string;
     values: Array<{ label: string; value: number }>;
   };
+};
+
+type PropertyDashboardCounts = {
+  expiringLeases: number;
+  overdueMaintenance: number;
 };
 
 type DashboardBarPoint = {
@@ -937,7 +946,7 @@ export default async function PlaceholderPage({
     notFound();
   }
 
-  const resolvedPage = dashboardPeriodSnapshots[placeholder]
+  let resolvedPage = dashboardPeriodSnapshots[placeholder]
     ? withDashboardPeriod(
         page,
         placeholder,
@@ -945,11 +954,251 @@ export default async function PlaceholderPage({
       )
     : page;
 
+  if (placeholder === "property-dashboard") {
+    resolvedPage = await withLivePropertyDashboard(resolvedPage);
+  }
+
   return resolvedPage.dashboard ? (
     <DomainDashboard page={resolvedPage} />
   ) : (
     <PlaceholderView activeHref={`/${placeholder}`} page={resolvedPage} />
   );
+}
+
+async function withLivePropertyDashboard(
+  page: PlaceholderPage,
+): Promise<PlaceholderPage> {
+  if (!page.dashboard) {
+    return page;
+  }
+
+  const context = await requireWorkspaceContext();
+  const [properties, counts] = await Promise.all([
+    getPropertySummaries(context.organizationId),
+    getPropertyDashboardCounts(context.organizationId),
+  ]);
+  const dashboard = buildPropertyDashboard(page.dashboard, properties, counts);
+
+  return {
+    ...page,
+    description: "Occupancy, ownership, and net position from live property records.",
+    dashboard,
+  };
+}
+
+async function getPropertyDashboardCounts(
+  organizationId: string,
+): Promise<PropertyDashboardCounts> {
+  const supabase = await createSupabaseServerClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const leaseWindowEnd = addDays(today, 30);
+  const [maintenanceResult, leaseResult] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .in("status", ["pending", "scheduled", "in_progress", "blocked"])
+      .lt("due_date", today),
+    supabase
+      .from("leases")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .in("status", ["active", "notice_given"])
+      .gte("lease_end_date", today)
+      .lte("lease_end_date", leaseWindowEnd),
+  ]);
+
+  if (maintenanceResult.error) {
+    throw new Error(
+      `Could not load property dashboard maintenance: ${maintenanceResult.error.message}`,
+    );
+  }
+
+  if (leaseResult.error) {
+    throw new Error(
+      `Could not load property dashboard leases: ${leaseResult.error.message}`,
+    );
+  }
+
+  return {
+    expiringLeases: leaseResult.count ?? 0,
+    overdueMaintenance: maintenanceResult.count ?? 0,
+  };
+}
+
+function buildPropertyDashboard(
+  baseDashboard: DashboardPage,
+  properties: PropertySummary[],
+  counts: PropertyDashboardCounts,
+): DashboardPage {
+  const totalUnits = sum(properties, (property) => property.units);
+  const occupiedUnits = sum(properties, (property) => property.occupiedUnits);
+  const vacantUnits = Math.max(0, totalUnits - occupiedUnits);
+  const occupancyRate = totalUnits === 0 ? 0 : (occupiedUnits / totalUnits) * 100;
+  const roundedOccupancy = Math.round(occupancyRate);
+  const vacancyRows = properties
+    .map(toPropertyVacancyPoint)
+    .toSorted((first, second) => first.width - second.width || first.label.localeCompare(second.label))
+    .slice(0, 6);
+  const healthRows = properties
+    .map(toPropertyHealthPoint)
+    .toSorted((first, second) => first.value - second.value || first.label.localeCompare(second.label))
+    .slice(0, 6);
+
+  return {
+    ...baseDashboard,
+    actionHref: "/properties",
+    actionLabel: "Action center",
+    bars: healthRows,
+    driverMetricLabel: "Vacant units",
+    driverProgressLabel: "Vacancy",
+    driverTitle: "Vacancy by property",
+    drivers: vacancyRows,
+    healthTitle: "Health",
+    kpis: [
+      {
+        label: "Occupancy",
+        value: formatPercent(occupancyRate),
+        helper:
+          totalUnits === 0
+            ? "No units yet"
+            : `${occupiedUnits}/${totalUnits} occupied`,
+        tone: occupancyRate < 80 && totalUnits > 0 ? "warning" : undefined,
+      },
+      {
+        label: "Vacant units",
+        value: String(vacantUnits),
+        helper:
+          totalUnits === 0
+            ? "Add units to track"
+            : `${properties.length} ${pluralize("property", properties.length)}`,
+        tone: vacantUnits > 0 ? "warning" : undefined,
+      },
+      {
+        label: "Maintenance",
+        value: String(counts.overdueMaintenance),
+        helper: counts.overdueMaintenance > 0 ? "Overdue" : "No overdue cases",
+        tone: counts.overdueMaintenance > 0 ? "danger" : undefined,
+      },
+      {
+        label: "Lease expiring",
+        value: String(counts.expiringLeases),
+        helper: "Next 30 days",
+        tone: counts.expiringLeases > 0 ? "warning" : undefined,
+      },
+    ],
+    leadDriverLabel: "Lowest vacancy",
+    leadHealthLabel: "Lowest health",
+    periodKey: undefined,
+    periodLabel: "Current records",
+    trend: {
+      label: "Occupancy rate",
+      note:
+        totalUnits === 0
+          ? "Add units to start tracking"
+          : `Target 90% / Gap ${Math.max(0, Math.round(90 - occupancyRate))}%`,
+      suffix: "%",
+      values: [{ label: "Now", value: roundedOccupancy }],
+    },
+  };
+}
+
+function toPropertyVacancyPoint(property: PropertySummary): DashboardDriverPoint {
+  const vacantUnits = Math.max(0, property.units - property.occupiedUnits);
+  const vacancyRate = property.units === 0 ? 0 : (vacantUnits / property.units) * 100;
+
+  return {
+    helper:
+      property.units === 0
+        ? "Needs units"
+        : vacantUnits === 0
+          ? "Fully occupied"
+          : `${property.occupiedUnits}/${property.units} occupied`,
+    href: buildQueryHref("/units", {
+      occupancy: "unoccupied",
+      propertyId: property.id,
+    }),
+    imageUrl: property.thumbnailUrl,
+    label: property.name,
+    tone: vacancyTone(vacancyRate),
+    value: `${vacantUnits} ${pluralize("unit", vacantUnits)}`,
+    width: Math.round(vacancyRate),
+  };
+}
+
+function toPropertyHealthPoint(property: PropertySummary): DashboardBarPoint {
+  const occupancyScore =
+    property.units === 0 ? 0 : (property.occupiedUnits / property.units) * 70;
+  const ownerScore = property.hasActiveOwnerLink ? 20 : 0;
+  const netScore = property.netIncomeUsd >= 0 ? 10 : 0;
+  const score = Math.max(0, Math.min(100, Math.round(occupancyScore + ownerScore + netScore)));
+
+  return {
+    helper: getPropertyHealthHelper(property),
+    href: `/properties/${property.id}`,
+    imageUrl: property.thumbnailUrl,
+    label: property.name,
+    value: score,
+  };
+}
+
+function getPropertyHealthHelper(property: PropertySummary) {
+  if (property.units === 0) {
+    return "Needs units";
+  }
+
+  if (!property.hasActiveOwnerLink) {
+    return "Missing owner";
+  }
+
+  if (property.netIncomeUsd < 0) {
+    return "Negative net";
+  }
+
+  if (property.occupiedUnits < property.units) {
+    return "Vacancy review";
+  }
+
+  return "Operating clean";
+}
+
+function vacancyTone(vacancyRate: number): Tone | undefined {
+  if (vacancyRate >= 50) {
+    return "danger";
+  }
+
+  if (vacancyRate > 0) {
+    return "warning";
+  }
+
+  return "success";
+}
+
+function sum<T>(items: T[], readValue: (item: T) => number) {
+  return items.reduce((total, item) => total + readValue(item), 0);
+}
+
+function pluralize(noun: string, count: number) {
+  return count === 1 ? noun : `${noun}s`;
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value)}%`;
+}
+
+function addDays(isoDate: string, days: number) {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildQueryHref(pathname: string, params: Record<string, string>) {
+  const searchParams = new URLSearchParams(params);
+  const queryString = searchParams.toString();
+
+  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 async function DomainDashboard({ page }: { page: PlaceholderPage }) {
@@ -988,7 +1237,7 @@ async function DomainDashboard({ page }: { page: PlaceholderPage }) {
             ) : (
               <span className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-foreground shadow-sm">
                 <CalendarDays size={15} />
-                Jul 2024
+                {dashboard.periodLabel ?? "Current"}
               </span>
             )}
             <Link
@@ -1037,7 +1286,7 @@ async function DomainDashboard({ page }: { page: PlaceholderPage }) {
                   detail={leadDriver.label}
                   href={leadDriver.href}
                   label={dashboard.leadDriverLabel ?? "Top availability"}
-                  tone="success"
+                  tone={leadDriver.tone ?? "success"}
                   value={leadDriver.value}
                 />
               </section>
