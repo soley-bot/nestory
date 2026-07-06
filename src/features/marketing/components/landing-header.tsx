@@ -13,8 +13,9 @@ const navItems = [
   { href: "#start", label: "Start" },
 ];
 
-export function LandingHeader() {
+export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
   const [isOpen, setIsOpen] = useState(false);
+  const isHeroTone = tone === "hero";
 
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "";
@@ -40,28 +41,43 @@ export function LandingHeader() {
           <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
             <Link
               aria-label="Nestory home"
-              className="leading-none text-[var(--landing-heading)]"
+              className={isHeroTone ? "leading-none text-white" : "leading-none text-[var(--landing-heading)]"}
               href="/"
             >
               <NestoryLogo
                 markClassName="h-9 w-9"
+                markTone={isHeroTone ? "light" : "auto"}
                 priority
-                subtitleClassName="text-[var(--landing-subtle)]"
-                textClassName="text-2xl text-[var(--landing-heading)]"
+                subtitleClassName={isHeroTone ? "text-white/50" : "text-[var(--landing-subtle)]"}
+                textClassName={isHeroTone ? "text-2xl text-white" : "text-2xl text-[var(--landing-heading)]"}
               />
             </Link>
 
-            <div className="flex items-center gap-5 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--landing-muted)]">
+            <div
+              className={
+                isHeroTone
+                  ? "flex items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em] text-white/65 sm:gap-5"
+                  : "flex items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--landing-muted)] sm:gap-5"
+              }
+            >
               <Link
-                className="transition-colors hover:text-[var(--landing-heading)]"
+                className={
+                  isHeroTone
+                    ? "whitespace-nowrap transition-colors hover:text-white"
+                    : "whitespace-nowrap transition-colors hover:text-[var(--landing-heading)]"
+                }
                 href="/login"
               >
                 Sign in
               </Link>
-              <LandingThemeToggle onToggle={toggleTheme} />
+              <LandingThemeToggle onToggle={toggleTheme} variant={isHeroTone ? "hero" : "page"} />
               <button
                 aria-label="Open menu"
-                className="inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] transition-opacity hover:opacity-65"
+                className={
+                  isHeroTone
+                    ? "inline-flex h-8 w-8 items-center justify-center text-white transition-opacity hover:opacity-65"
+                    : "inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] transition-opacity hover:opacity-65"
+                }
                 onClick={() => setIsOpen(true)}
                 type="button"
               >
@@ -149,13 +165,13 @@ function LandingThemeToggle({
   variant = "page",
 }: {
   onToggle: () => void;
-  variant?: "overlay" | "page";
+  variant?: "hero" | "overlay" | "page";
 }) {
   return (
     <button
       aria-label="Toggle color theme"
       className={
-        variant === "overlay"
+        variant === "overlay" || variant === "hero"
           ? "inline-flex h-8 w-8 items-center justify-center text-white transition-opacity hover:opacity-65"
           : "inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] transition-opacity hover:opacity-65"
       }

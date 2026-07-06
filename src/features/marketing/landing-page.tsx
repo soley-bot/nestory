@@ -1,9 +1,10 @@
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 
 import { LandingHeader } from "./components/landing-header";
-import { RecordRoomPreview } from "./components/record-room-preview";
+import { ControlPreview } from "./components/control-preview";
 
 const heroStats = [
   {
@@ -20,22 +21,32 @@ const heroStats = [
   },
 ];
 
+const heroImage = {
+  alt: "Modern apartment building at dusk",
+  src: "/marketing/property-operations-building-dusk.png",
+};
+
+const heroToneStyle = {
+  "--landing-heading": "#ffffff",
+  "--landing-muted": "rgb(255 255 255 / 72%)",
+} as CSSProperties;
+
 const photoTiles = [
   {
-    alt: "High-rise residential portfolio",
-    src: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1100&q=82",
+    alt: "Managed apartment building facade",
+    src: "/marketing/workspace-building-facade.png",
   },
   {
-    alt: "Modern residential unit with pool",
-    src: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1100&q=82",
+    alt: "Apartment unit corridor",
+    src: "/marketing/workspace-unit-corridor.png",
   },
   {
-    alt: "Real estate agreement being reviewed",
-    src: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1100&q=82",
+    alt: "Property keys and document folders",
+    src: "/marketing/workspace-keys-documents.png",
   },
   {
-    alt: "Building service and maintenance work",
-    src: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1100&q=82",
+    alt: "Apartment building maintenance service area",
+    src: "/marketing/workspace-maintenance-service.png",
   },
 ];
 
@@ -83,21 +94,49 @@ export function LandingPage() {
   return (
     <main className="landing-page bg-[var(--landing-bg)] text-[var(--landing-fg)] transition-colors">
       <LandingMotion />
-      <LandingHeader />
+      <LandingHeader tone="hero" />
 
-      <section className="relative flex min-h-[92svh] flex-col px-6 pt-24 sm:min-h-[96svh] sm:px-10 lg:px-14">
-        <div className="mx-auto flex w-full max-w-[1360px] flex-1 items-center justify-center py-16">
+      <section
+        className="relative isolate flex min-h-[100svh] flex-col overflow-hidden bg-[#050607] pt-24"
+        style={heroToneStyle}
+      >
+        <Image
+          alt={heroImage.alt}
+          className="absolute inset-0 -z-30 object-cover"
+          fill
+          priority
+          sizes="100vw"
+          src={heroImage.src}
+          style={{
+            objectPosition: "center 46%",
+            transform: "scale(1.06)",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-20"
+          style={{
+            background:
+              "linear-gradient(90deg, rgb(5 6 7 / 82%) 0%, rgb(5 6 7 / 50%) 38%, rgb(5 6 7 / 24%) 70%, rgb(5 6 7 / 54%) 100%)",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 -z-10 h-52 bg-gradient-to-b from-transparent via-[#050607]/60 to-[#050607]"
+        />
+
+        <div className="mx-auto flex w-full max-w-[1360px] flex-1 items-center px-6 py-16 sm:px-10 lg:px-14">
           <div
-            className="max-w-5xl text-center"
+            className="max-w-3xl"
             style={{ animation: "nestory-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
           >
-            <h1 className="font-display text-4xl font-semibold leading-[1.08] text-[var(--landing-heading)] sm:text-5xl lg:text-6xl">
+            <h1 className="font-display text-4xl font-semibold leading-[1.08] text-[var(--landing-heading)] drop-shadow-[0_2px_18px_rgb(0_0_0_/_30%)] sm:text-5xl lg:text-6xl">
               What if your whole portfolio stayed under control?
             </h1>
           </div>
         </div>
 
-        <div className="mx-auto grid w-full max-w-[1360px] gap-8 pb-10 text-center sm:grid-cols-3 sm:gap-10 sm:pb-12">
+        <div className="mx-auto grid w-full max-w-[1360px] gap-8 px-6 pb-10 text-center sm:grid-cols-3 sm:gap-10 sm:px-10 sm:pb-12 lg:px-14">
           {heroStats.map((item, index) => (
             <div
               className="mx-auto max-w-sm"
@@ -156,8 +195,8 @@ export function LandingPage() {
             subtitle="Occupied, owed, open, late, changing. Clear at a glance."
             title="Control"
           />
-          <div className="mt-12">
-            <RecordRoomPreview />
+          <div className="mx-auto mt-12 max-w-5xl">
+            <ControlPreview />
           </div>
         </div>
       </section>
