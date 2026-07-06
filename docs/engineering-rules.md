@@ -82,11 +82,12 @@ These rules are grounded in the current implementation.
 
 ## Imports
 
-- CSV import is currently for unit/rent-roll data.
-- Keep template download, header mapping, validation preview, cleanup queue,
-  and safe commit behavior.
-- Commits should continue using unit RPCs and activity logs.
-- Do not silently import invalid or ambiguous property/unit rows.
+- CSV import supports properties, unit/rent-roll data, people, and leases.
+- Keep template download, header mapping, staged import runs, validation
+  preview, cleanup queue, recent run history, and safe commit behavior.
+- Commits should stay RPC-backed and preserve activity logs.
+- Do not silently import invalid or ambiguous property, unit, people, or lease
+  rows.
 
 ## Placeholder Policy
 

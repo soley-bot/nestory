@@ -7,6 +7,41 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 describe("getOverviewScreenData", () => {
+  it("marks a brand new workspace as not yet set up", async () => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub([
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { data: [] },
+        { count: 0, data: [] },
+        { data: [] },
+      ]),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+    );
+
+    expect(data.workspaceSetup).toEqual({
+      activeLeaseCount: 0,
+      hasAnyOperatingData: false,
+      ledgerEntryCount: 0,
+      peopleCount: 0,
+      propertyCount: 0,
+      unitCount: 0,
+    });
+    expect(data.quickActions[0]).toEqual({
+      href: "/import",
+      label: "Import data",
+    });
+  });
+
   it("surfaces open maintenance work as a dashboard attention item", async () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(
       createSupabaseStub([
@@ -37,6 +72,7 @@ describe("getOverviewScreenData", () => {
     });
     expect(data.attentionTotal).toBe(2);
     expect(data.dashboardSummary.actionHref).toBe("#focus-now");
+    expect(data.workspaceSetup.hasAnyOperatingData).toBe(true);
   });
 
   it("links missing lease tenant records to the lease repair view", async () => {

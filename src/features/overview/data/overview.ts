@@ -307,6 +307,20 @@ export async function getOverviewScreenData(
       { href: "/ledger?action=create", label: "Add ledger entry" },
     ],
     recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
+    workspaceSetup: {
+      activeLeaseCount: currentLeases.length,
+      hasAnyOperatingData:
+        activeProperties.length > 0 ||
+        operationalUnits.length > 0 ||
+        activePeople.length > 0 ||
+        currentLeases.length > 0 ||
+        ledgerNetRows.length > 0 ||
+        openMaintenanceCount > 0,
+      ledgerEntryCount: ledgerNetRows.length,
+      peopleCount: activePeople.length,
+      propertyCount: activeProperties.length,
+      unitCount: operationalUnits.length,
+    },
   };
 }
 

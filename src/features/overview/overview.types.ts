@@ -55,6 +55,15 @@ export type OverviewQuickAction = {
   label: string;
 };
 
+export type OverviewWorkspaceSetup = {
+  activeLeaseCount: number;
+  hasAnyOperatingData: boolean;
+  ledgerEntryCount: number;
+  peopleCount: number;
+  propertyCount: number;
+  unitCount: number;
+};
+
 export type OverviewScreenData = {
   attentionItems: OverviewAttentionItem[];
   attentionTotal: number;
@@ -67,4 +76,5 @@ export type OverviewScreenData = {
   occupancyByProperty: OverviewOccupancyPoint[];
   quickActions: OverviewQuickAction[];
   recentChanges: RecentChange[];
+  workspaceSetup: OverviewWorkspaceSetup;
 };

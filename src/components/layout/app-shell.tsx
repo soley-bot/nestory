@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronRight,
   DoorOpen,
+  FileText,
   FileChartColumn,
   FileCog,
   Gauge,
@@ -169,6 +170,17 @@ const navGroups: NavGroup[] = [
   },
 ];
 
+const dataGroup: NavGroup = {
+  id: "data",
+  label: "Data",
+  roomLabel: "Data",
+  icon: Database,
+  items: [
+    { href: "/documents", label: "Documents", icon: FileText },
+    { href: "/import", label: "Import data", icon: Upload },
+  ],
+};
+
 const settingsGroup: NavGroup = {
   id: "settings",
   label: "Settings",
@@ -207,7 +219,7 @@ type AppShellProps = {
 
 function getDesktopNavGroups(role: WorkspaceRole) {
   if (role === "admin") {
-    return [...navGroups, settingsGroup];
+    return [...navGroups, dataGroup, settingsGroup];
   }
 
   if (role === "manager") {
@@ -287,9 +299,6 @@ export function AppShell({
         ? [{ href: group.href, label: group.label, icon: group.icon }]
         : group.items,
     ),
-    ...(role === "admin"
-      ? [{ href: "/import", label: "Import data", icon: Upload }]
-      : []),
   ] satisfies NavItem[];
   const pathGroup = getPathGroup(pathname, desktopNavGroups);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);

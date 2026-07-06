@@ -3,10 +3,14 @@ import type { ReactNode } from "react";
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   Building2,
   CalendarClock,
   CircleCheck,
   DollarSign,
+  ScrollText,
+  Upload,
+  UsersRound,
   Plus,
   type LucideIcon,
 } from "lucide-react";
@@ -44,9 +48,14 @@ type OverviewVisualTone = OverviewMetricTone | "accent";
 const supportingMetricLabels = ["Lease gaps", "Active leases", "Attention"];
 
 export function OverviewScreen({ data }: OverviewScreenProps) {
+  if (!data.workspaceSetup.hasAnyOperatingData) {
+    return <EmptyWorkspaceOnboarding data={data} />;
+  }
+
   const occupancyMetric = getMetric(data.metrics, "Occupancy");
   const ledgerMetric = getMetric(data.metrics, "Ledger net");
   const attentionMetric = getMetric(data.metrics, "Attention");
+  const showSetupProgress = !isBaseSetupComplete(data.workspaceSetup);
   const primaryMetrics: PrimaryMetric[] = [
     {
       href: "/units?occupancy=unoccupied",
@@ -83,6 +92,10 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
     <main className="min-h-screen bg-background px-4 py-3 sm:px-5 lg:px-5">
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-stretch 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-3">
+          {showSetupProgress ? (
+            <SetupProgressPanel setup={data.workspaceSetup} />
+          ) : null}
+
           <DashboardSummaryPanel
             summary={data.dashboardSummary}
             supportingMetrics={supportingMetrics}
@@ -152,6 +165,112 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
   );
 }
 
+function EmptyWorkspaceOnboarding({ data }: { data: OverviewScreenData }) {
+  const setupSteps = buildSetupSteps(data.workspaceSetup);
+  const nextStep = setupSteps.find((step) => !step.complete) ?? setupSteps[0];
+
+  return (
+    <main className="min-h-screen bg-background px-4 py-3 sm:px-5 lg:px-5">
+      <section className="grid min-h-[calc(100vh-24px)] gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col rounded-lg border border-border bg-surface shadow-sm">
+          <div className="border-b border-border px-4 py-4 sm:px-5">
+            <Badge tone="warning">Setup needed</Badge>
+            <h1 className="mt-2 text-xl font-semibold leading-7 text-foreground">
+              Start with your operating records.
+            </h1>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-foreground-muted">
+              Create the first property, then use guided imports for units,
+              people, and leases as your records become available.
+            </p>
+          </div>
+
+          <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
+            <div className="min-w-0 rounded-md border border-border bg-background/40">
+              <div className="grid gap-3 border-b border-border px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold">Setup plan</h2>
+                  <p className="mt-1 text-sm leading-5 text-foreground-muted">
+                    The reliable path is property shell, unit rent roll, people,
+                    leases, then opening ledger rows. Imports can now help with
+                    the first four record types.
+                  </p>
+                </div>
+                <Link
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-[13px] font-semibold text-white transition-colors hover:bg-accent-strong"
+                  href={nextStep.actionHref}
+                >
+                  {nextStep.actionLabel}
+                  <ArrowRight size={15} />
+                </Link>
+              </div>
+              <div className="divide-y divide-border">
+                {setupSteps.map((step, index) => (
+                  <SetupStepRow
+                    index={index + 1}
+                    key={step.label}
+                    step={step}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <section className="rounded-md border border-border bg-surface p-3">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold">Import center</h2>
+                  <p className="mt-1 text-sm leading-5 text-foreground-muted">
+                    Use staged CSV imports for properties, units, people, and
+                    leases. Templates prefill existing record anchors where
+                    Nestory already has them.
+                  </p>
+                </div>
+                <Link
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
+                  href="/import"
+                >
+                  <Upload size={15} />
+                  Open imports
+                </Link>
+              </div>
+              <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                <ImportFact label="Files" value="Properties, units, people, leases" />
+                <ImportFact label="Limit" value="500 valid rows per commit" />
+                <ImportFact label="Needs" value="Matched record anchors" />
+                <ImportFact label="Result" value="Staged create or update" />
+              </dl>
+            </section>
+          </div>
+        </div>
+
+        <aside className="min-w-0 space-y-3">
+          <section className="rounded-lg border border-border bg-surface shadow-sm">
+            <div className="border-b border-border px-3 py-2.5">
+              <h2 className="text-sm font-semibold leading-5">
+                Workspace counts
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 gap-2 p-3">
+              <SetupCount
+                label="Properties"
+                value={data.workspaceSetup.propertyCount}
+              />
+              <SetupCount label="Units" value={data.workspaceSetup.unitCount} />
+              <SetupCount
+                label="People"
+                value={data.workspaceSetup.peopleCount}
+              />
+              <SetupCount
+                label="Leases"
+                value={data.workspaceSetup.activeLeaseCount}
+              />
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
+  );
+}
+
 function DashboardSummaryPanel({
   summary,
   supportingMetrics,
@@ -189,6 +308,103 @@ function DashboardSummaryPanel({
         ))}
       </div>
     </section>
+  );
+}
+
+type SetupStep = {
+  actionHref: string;
+  actionLabel: string;
+  complete: boolean;
+  helper: string;
+  icon: LucideIcon;
+  label: string;
+};
+
+function SetupProgressPanel({
+  setup,
+}: {
+  setup: OverviewScreenData["workspaceSetup"];
+}) {
+  const steps = buildSetupSteps(setup);
+  const completedCount = steps.filter((step) => step.complete).length;
+  const nextStep = steps.find((step) => !step.complete) ?? steps[0];
+
+  return (
+    <section className="rounded-lg border border-warning/30 bg-warning-soft/20 p-3 shadow-sm">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="warning">Setup {completedCount}/{steps.length}</Badge>
+            <p className="text-sm font-semibold text-foreground">
+              Finish the records that make Overview reliable.
+            </p>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {steps.map((step) => (
+              <span
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium",
+                  step.complete
+                    ? "border-success/20 bg-success-soft text-success"
+                    : "border-border bg-surface text-foreground-muted",
+                )}
+                key={step.label}
+              >
+                <step.icon size={13} />
+                {step.label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <Link
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
+          href={nextStep.actionHref}
+        >
+          {nextStep.actionLabel}
+          <ArrowRight size={14} />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function SetupStepRow({
+  index,
+  step,
+}: {
+  index: number;
+  step: SetupStep;
+}) {
+  return (
+    <div className="grid min-w-0 gap-3 px-3 py-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-center">
+      <span
+        className={cn(
+          "flex size-8 items-center justify-center rounded-md border text-[12px] font-semibold",
+          step.complete
+            ? "border-success/20 bg-success-soft text-success"
+            : "border-border bg-surface text-foreground-subtle",
+        )}
+      >
+        {step.complete ? <CircleCheck size={16} /> : index}
+      </span>
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <step.icon className="shrink-0 text-foreground-subtle" size={15} />
+          <p className="truncate text-sm font-semibold text-foreground">
+            {step.label}
+          </p>
+        </div>
+        <p className="mt-0.5 text-sm leading-5 text-foreground-muted">
+          {step.helper}
+        </p>
+      </div>
+      <Link
+        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
+        href={step.actionHref}
+      >
+        {step.actionLabel}
+      </Link>
+    </div>
   );
 }
 
@@ -238,6 +454,26 @@ function PrimaryMetricTile({
   );
 }
 
+function ImportFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-md border border-border bg-background/40 px-3 py-2">
+      <dt className="text-foreground-subtle">{label}</dt>
+      <dd className="mt-0.5 font-medium text-foreground">{value}</dd>
+    </div>
+  );
+}
+
+function SetupCount({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border bg-background/40 px-3 py-2">
+      <p className="text-xs font-medium text-foreground-subtle">{label}</p>
+      <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function SupportingMetric({ metric }: { metric: OverviewMetric }) {
   return (
     <div
@@ -254,6 +490,62 @@ function SupportingMetric({ metric }: { metric: OverviewMetric }) {
         {isMoneyDisplayValue(metric.value) ? metric.value.primary : metric.value}
       </span>
     </div>
+  );
+}
+
+function buildSetupSteps(
+  setup: OverviewScreenData["workspaceSetup"],
+): SetupStep[] {
+  return [
+    {
+      actionHref: "/properties?action=create",
+      actionLabel: "Add first property",
+      complete: setup.propertyCount > 0,
+      helper: "Create at least one property shell before importing units.",
+      icon: Building2,
+      label: "Properties",
+    },
+    {
+      actionHref: "/import",
+      actionLabel: setup.propertyCount > 0 ? "Import units" : "Open imports",
+      complete: setup.unitCount > 0,
+      helper: "Upload the unit rent roll after property codes exist.",
+      icon: Upload,
+      label: "Units",
+    },
+    {
+      actionHref: "/people?action=create",
+      actionLabel: "Add person",
+      complete: setup.peopleCount > 0,
+      helper: "Add tenants, owners, vendors, or staff records.",
+      icon: UsersRound,
+      label: "People",
+    },
+    {
+      actionHref: "/leases?action=create",
+      actionLabel: "Add lease",
+      complete: setup.activeLeaseCount > 0,
+      helper: "Link tenants to units so occupancy and lease risk work.",
+      icon: ScrollText,
+      label: "Leases",
+    },
+    {
+      actionHref: "/ledger?action=create",
+      actionLabel: "Add ledger",
+      complete: setup.ledgerEntryCount > 0,
+      helper: "Add opening rent or expense rows when finance is ready.",
+      icon: BookOpen,
+      label: "Ledger",
+    },
+  ];
+}
+
+function isBaseSetupComplete(setup: OverviewScreenData["workspaceSetup"]) {
+  return (
+    setup.propertyCount > 0 &&
+    setup.unitCount > 0 &&
+    setup.peopleCount > 0 &&
+    setup.activeLeaseCount > 0
   );
 }
 
