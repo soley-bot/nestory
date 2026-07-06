@@ -3,8 +3,31 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Nestory",
-  description: "Property management system for growing portfolios",
+  applicationName: "Nestory",
+  title: {
+    default: "Nestory",
+    template: "%s | Nestory",
+  },
+  description:
+    "Property operations software for portfolios, leases, rent, maintenance, documents, and reporting.",
+  icons: {
+    apple: "/apple-icon.png",
+    icon: "/icon.png",
+    shortcut: "/favicon.ico",
+  },
+  openGraph: {
+    description:
+      "Property operations software for portfolios, leases, rent, maintenance, documents, and reporting.",
+    siteName: "Nestory",
+    title: "Nestory",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    description:
+      "Property operations software for portfolios, leases, rent, maintenance, documents, and reporting.",
+    title: "Nestory",
+  },
 };
 
 const inter = Inter({

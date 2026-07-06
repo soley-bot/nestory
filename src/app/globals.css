@@ -48,6 +48,42 @@
   --chart-track: #27313d;
 }
 
+.landing-page {
+  --landing-bg: #fdfdfc;
+  --landing-fg: #080b12;
+  --landing-heading: #080d1a;
+  --landing-muted: #6f7887;
+  --landing-subtle: #9aa0aa;
+  --landing-border: #dfe4ea;
+  --landing-accent: #9b4fd0;
+  --landing-media-bg: #080d1a;
+  --landing-cta-bg: #050607;
+  --landing-cta-fg: #ffffff;
+  --landing-inverse-bg: #050607;
+  --landing-inverse-fg: #ffffff;
+  --landing-inverse-muted: rgb(255 255 255 / 55%);
+  --landing-inverse-border: rgb(255 255 255 / 10%);
+  --landing-inverse-accent: #a8c5df;
+}
+
+[data-theme="dark"] .landing-page {
+  --landing-bg: #090a0c;
+  --landing-fg: #f4f6f8;
+  --landing-heading: #f8fafc;
+  --landing-muted: #9aa4af;
+  --landing-subtle: #6f7782;
+  --landing-border: #242930;
+  --landing-accent: #8fb8ff;
+  --landing-media-bg: #111820;
+  --landing-cta-bg: #f4f6f8;
+  --landing-cta-fg: #080b12;
+  --landing-inverse-bg: #11151b;
+  --landing-inverse-fg: #f8fafc;
+  --landing-inverse-muted: rgb(248 250 252 / 58%);
+  --landing-inverse-border: rgb(248 250 252 / 12%);
+  --landing-inverse-accent: #8fb8ff;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -83,6 +119,10 @@ body {
 
 .theme-toggle-sun {
   display: none;
+}
+
+[data-theme="dark"] .nestory-logo-mark-auto {
+  filter: brightness(0) invert(1);
 }
 
 [data-theme="dark"] .theme-toggle-moon {

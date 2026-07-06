@@ -81,7 +81,7 @@ const proofStats = [
 
 export function LandingPage() {
   return (
-    <main className="bg-[#fdfdfc] text-[#080b12]">
+    <main className="landing-page bg-[var(--landing-bg)] text-[var(--landing-fg)] transition-colors">
       <LandingMotion />
       <LandingHeader />
 
@@ -91,7 +91,7 @@ export function LandingPage() {
             className="max-w-5xl text-center"
             style={{ animation: "nestory-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
           >
-            <h1 className="font-display text-4xl font-semibold leading-[1.08] text-[#080d1a] sm:text-5xl lg:text-6xl">
+            <h1 className="font-display text-4xl font-semibold leading-[1.08] text-[var(--landing-heading)] sm:text-5xl lg:text-6xl">
               What if your whole portfolio stayed under control?
             </h1>
           </div>
@@ -107,10 +107,10 @@ export function LandingPage() {
                 animationDelay: `${160 + index * 110}ms`,
               }}
             >
-              <p className="font-display text-2xl font-semibold leading-none text-[#080d1a] sm:text-3xl">
+              <p className="font-display text-2xl font-semibold leading-none text-[var(--landing-heading)] sm:text-3xl">
                 {item.label}
               </p>
-              <p className="mx-auto mt-3 max-w-[18rem] text-sm leading-6 text-[#768091]">{item.text}</p>
+              <p className="mx-auto mt-3 max-w-[18rem] text-sm leading-6 text-[var(--landing-muted)]">{item.text}</p>
             </div>
           ))}
         </div>
@@ -172,22 +172,22 @@ export function LandingPage() {
             title="Operations"
           />
 
-          <div className="mt-12 border-t border-[#dfe4ea]">
+          <div className="mt-12 border-t border-[var(--landing-border)]">
             {modules.map((item) => (
               <Link
-                className="group grid gap-4 border-b border-[#dfe4ea] py-7 text-[#080d1a] transition-opacity hover:opacity-70 md:grid-cols-[0.42fr_1fr_32px] md:items-center"
+                className="group grid gap-4 border-b border-[var(--landing-border)] py-7 text-[var(--landing-heading)] transition-opacity hover:opacity-70 md:grid-cols-[0.42fr_1fr_32px] md:items-center"
                 href={item.href}
                 key={item.title}
               >
                 <h3 className="font-display text-2xl font-semibold leading-tight sm:text-3xl">
                   {item.title}
                 </h3>
-                <p className="max-w-xl text-sm leading-6 text-[#7a8394]">
+                <p className="max-w-xl text-sm leading-6 text-[var(--landing-muted)]">
                   {item.description}
                 </p>
                 <ArrowRight
                   aria-hidden="true"
-                  className="text-[#9aa3b2] transition-transform group-hover:translate-x-1"
+                  className="text-[var(--landing-subtle)] transition-transform group-hover:translate-x-1"
                   size={20}
                   strokeWidth={1.6}
                 />
@@ -198,18 +198,18 @@ export function LandingPage() {
       </section>
 
       <section className="px-6 py-24 sm:px-10 lg:px-14" id="method">
-        <div className="mx-auto max-w-[1360px] rounded-lg bg-[#050607] px-8 py-14 text-white sm:px-12 sm:py-16 lg:px-16">
+        <div className="mx-auto max-w-[1360px] rounded-lg bg-[var(--landing-inverse-bg)] px-8 py-14 text-[var(--landing-inverse-fg)] sm:px-12 sm:py-16 lg:px-16">
           <div className="grid gap-10 lg:grid-cols-[0.55fr_0.45fr] lg:items-start">
             <div>
               <h2 className="font-display text-3xl font-semibold leading-[1.1] sm:text-4xl">
                 One system. Every property operation.
               </h2>
-              <p className="mt-5 max-w-xl text-sm leading-6 text-white/55">
+              <p className="mt-5 max-w-xl text-sm leading-6 text-[var(--landing-inverse-muted)]">
                 Leases, rent, maintenance, documents, and history stay connected.
               </p>
             </div>
             <Link
-              className="inline-flex items-center gap-2 justify-self-start text-[12px] font-semibold uppercase tracking-[0.2em] text-white/70 transition-colors hover:text-white lg:justify-self-end"
+              className="inline-flex items-center gap-2 justify-self-start text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)] lg:justify-self-end"
               href="/signup"
             >
               Create workspace
@@ -221,7 +221,7 @@ export function LandingPage() {
             {proofStats.map(([value, text]) => (
               <div key={value}>
                 <p className="font-display text-3xl font-semibold leading-none sm:text-4xl">{value}</p>
-                <p className="mt-5 max-w-48 text-[11px] font-semibold uppercase leading-5 tracking-[0.2em] text-[#a8c5df]">
+                <p className="mt-5 max-w-48 text-[11px] font-semibold uppercase leading-5 tracking-[0.2em] text-[var(--landing-inverse-accent)]">
                   {text}
                 </p>
               </div>
@@ -231,48 +231,48 @@ export function LandingPage() {
       </section>
 
       <section className="px-6 pb-20 pt-12 sm:px-10 lg:px-14" id="start">
-        <div className="mx-auto grid max-w-[1360px] gap-10 border-t border-[#dfe4ea] pt-20 lg:grid-cols-[0.58fr_0.42fr] lg:items-center">
-          <h2 className="font-display max-w-4xl text-3xl font-semibold leading-[1.1] text-[#080d1a] sm:text-4xl">
+        <div className="mx-auto grid max-w-[1360px] gap-10 border-t border-[var(--landing-border)] pt-20 lg:grid-cols-[0.58fr_0.42fr] lg:items-center">
+          <h2 className="font-display max-w-4xl text-3xl font-semibold leading-[1.1] text-[var(--landing-heading)] sm:text-4xl">
             Property management, kept under control.
           </h2>
           <div className="lg:justify-self-end lg:text-center">
             <Link
-              className="inline-flex h-14 items-center gap-3 rounded-full bg-[#050607] px-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-white transition-transform hover:-translate-y-0.5 hover:bg-[#15171c]"
+              className="inline-flex h-14 items-center gap-3 rounded-full bg-[var(--landing-cta-bg)] px-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--landing-cta-fg)] transition-transform hover:-translate-y-0.5 hover:opacity-90"
               href="/signup"
             >
               Create workspace
               <ArrowRight size={17} strokeWidth={1.8} />
             </Link>
-            <p className="mt-5 text-sm italic leading-6 text-[#7a8394]">
+            <p className="mt-5 text-sm italic leading-6 text-[var(--landing-muted)]">
               Start with one clean admin workspace.
             </p>
           </div>
         </div>
       </section>
 
-      <footer className="bg-[#050607] px-6 py-16 text-white sm:px-10 lg:px-14">
+      <footer className="bg-[var(--landing-inverse-bg)] px-6 py-16 text-[var(--landing-inverse-fg)] sm:px-10 lg:px-14">
         <div className="mx-auto max-w-[1360px]">
-          <nav className="flex flex-col items-center gap-2 border-b border-white/10 pb-14 text-center font-display text-2xl font-semibold leading-tight text-white/35 sm:text-3xl">
-            <a className="transition-colors hover:text-white" href="#workspace">
+          <nav className="flex flex-col items-center gap-2 border-b border-[var(--landing-inverse-border)] pb-14 text-center font-display text-2xl font-semibold leading-tight text-[var(--landing-inverse-muted)] sm:text-3xl">
+            <a className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="#workspace">
               Workspace
             </a>
-            <a className="transition-colors hover:text-white" href="#operations">
+            <a className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="#operations">
               Operations
             </a>
-            <a className="transition-colors hover:text-white" href="#control">
+            <a className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="#control">
               Control
             </a>
-            <Link className="transition-colors hover:text-white" href="/signup">
+            <Link className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="/signup">
               Start workspace
             </Link>
           </nav>
-          <div className="mt-10 flex flex-col gap-6 text-sm text-white/50 md:flex-row md:items-center md:justify-between">
+          <div className="mt-10 flex flex-col gap-6 text-sm text-[var(--landing-inverse-muted)] md:flex-row md:items-center md:justify-between">
             <p>&copy; 2026 Nestory</p>
             <div className="flex flex-wrap gap-6">
-              <Link className="transition-colors hover:text-white" href="/login">
+              <Link className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="/login">
                 Sign in
               </Link>
-              <Link className="transition-colors hover:text-white" href="/signup">
+              <Link className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="/signup">
                 Create workspace
               </Link>
             </div>
@@ -300,17 +300,17 @@ function SectionIntro({
     <div className="grid gap-8 md:grid-cols-[minmax(0,680px)_1fr] md:items-end">
       <div>
         {kicker ? (
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#c765ee]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--landing-accent)]">
             {kicker}
           </p>
         ) : null}
-        <h2 className="font-display text-3xl font-semibold leading-[1.1] text-[#080d1a] sm:text-4xl">
+        <h2 className="font-display text-3xl font-semibold leading-[1.1] text-[var(--landing-heading)] sm:text-4xl">
           {title}
         </h2>
-        <p className="mt-4 max-w-2xl text-base leading-7 text-[#6f7887]">{subtitle}</p>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--landing-muted)]">{subtitle}</p>
       </div>
       <Link
-        className="inline-flex items-center gap-2 justify-self-start text-[12px] font-semibold uppercase tracking-[0.2em] text-[#c765ee] transition-opacity hover:opacity-70 md:justify-self-end"
+        className="inline-flex items-center gap-2 justify-self-start text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-accent)] transition-opacity hover:opacity-70 md:justify-self-end"
         href={actionHref}
       >
         {actionLabel}
@@ -340,7 +340,7 @@ function PhotoTile({
       }}
     >
       <div
-        className={`relative min-h-[360px] overflow-hidden rounded-lg bg-[#080d1a] ${className}`}
+        className={`relative min-h-[360px] overflow-hidden rounded-lg bg-[var(--landing-media-bg)] ${className}`}
       >
         <Image
           alt={alt}

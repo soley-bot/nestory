@@ -22,17 +22,6 @@ type WorkspaceMembership = {
   role: WorkspaceRole;
 };
 
-type MembershipRow = {
-  branch_id: string | null;
-  organization_id: string;
-  organizations:
-    | { name: string; slug?: string | null }
-    | { name: string; slug?: string | null }[]
-    | null;
-  person_id: string | null;
-  role: string;
-};
-
 type WorkspaceMembershipOptions = {
   organizationSlug?: string | null;
 };
@@ -105,13 +94,14 @@ export async function getWorkspaceMembershipForUser(
   if (error && !membershipOptions.organizationSlug) {
     const legacyResult = await supabase
       .from("organization_members")
-      .select("organization_id, role, organizations(name)")
+      .select("organization_id, role, person_id, branch_id, created_at, organizations(name, slug)")
       .eq("user_id", userId)
       .in("role", ["admin", "manager", "member"])
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
 
-    data = legacyResult.data as typeof data;
+    data = legacyResult.data;
     error = legacyResult.error;
   }
 
@@ -119,22 +109,21 @@ export async function getWorkspaceMembershipForUser(
     return null;
   }
 
-  const row = data as unknown as MembershipRow;
-  const organization = Array.isArray(row.organizations)
-    ? row.organizations[0]
-    : row.organizations;
+  const organization = Array.isArray(data.organizations)
+    ? data.organizations[0]
+    : data.organizations;
 
-  if (!isWorkspaceRole(row.role) || !organization?.name) {
+  if (!isWorkspaceRole(data.role) || !organization?.name) {
     return null;
   }
 
   return {
-    branchId: row.branch_id ?? undefined,
-    organizationId: row.organization_id,
+    branchId: data.branch_id ?? undefined,
+    organizationId: data.organization_id,
     organizationName: organization.name,
     organizationSlug: organization.slug ?? undefined,
-    personId: row.person_id ?? undefined,
-    role: row.role,
+    personId: data.person_id ?? undefined,
+    role: data.role,
   };
 }
 

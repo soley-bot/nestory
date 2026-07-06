@@ -140,7 +140,7 @@ export function SideDrawer({
     <div
       aria-labelledby={titleId}
       aria-modal="true"
-      className="fixed bottom-0 left-0 top-0 z-50 flex justify-end bg-foreground/20"
+      className="fixed bottom-0 left-0 top-0 z-50 flex justify-end bg-background/70 backdrop-blur-[2px]"
       role="dialog"
       style={{ right: "var(--removed-body-scroll-bar-size, 0px)" }}
       {...(description ? { "aria-describedby": descriptionId } : {})}
@@ -154,17 +154,17 @@ export function SideDrawer({
       />
       <aside
         className={cn(
-          "relative flex h-full w-full flex-col border-l border-border bg-surface shadow-xl",
+          "relative flex h-full w-full flex-col border-l border-border bg-background shadow-xl outline-none",
           size === "preview"
             ? "max-w-[min(100vw,520px)]"
-            : "max-w-[min(100vw,600px)]",
+            : "max-w-[min(100vw,680px)]",
         )}
         ref={drawerRef}
         tabIndex={-1}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+        <div className="flex items-start justify-between gap-4 border-b border-border bg-surface px-5 py-4">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold tracking-tight" id={titleId}>
+            <h2 className="text-lg font-semibold tracking-tight" id={titleId}>
               {title}
             </h2>
             {description ? (
@@ -178,6 +178,7 @@ export function SideDrawer({
           </div>
           <Button
             aria-label="Close drawer"
+            className="h-8 w-8 shrink-0 px-0"
             onClick={onClose}
             type="button"
             variant="ghost"

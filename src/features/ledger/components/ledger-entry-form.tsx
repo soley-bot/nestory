@@ -80,109 +80,111 @@ export function LedgerEntryForm({
           <input name="entryId" type="hidden" value={entry.id} />
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
-            <SelectControl
-              ariaLabel="Property"
-              name="propertyId"
-              onValueChange={(value) => {
-                setSelectedPropertyId(value);
-                setSelectedUnitId("");
-              }}
-              options={[
-                { label: "Select property", value: "" },
-                ...properties.map((property) => ({
-                  label: property.label,
-                  value: property.id,
-                })),
-              ]}
-              required
-              value={selectedPropertyId}
+        <FormSection title="Allocation">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
+              <SelectControl
+                ariaLabel="Property"
+                name="propertyId"
+                onValueChange={(value) => {
+                  setSelectedPropertyId(value);
+                  setSelectedUnitId("");
+                }}
+                options={[
+                  { label: "Select property", value: "" },
+                  ...properties.map((property) => ({
+                    label: property.label,
+                    value: property.id,
+                  })),
+                ]}
+                required
+                value={selectedPropertyId}
+              />
+            </Field>
+
+            <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
+              <SelectControl
+                ariaLabel="Unit"
+                disabled={!selectedPropertyId}
+                name="unitId"
+                onValueChange={setSelectedUnitId}
+                options={[
+                  { label: "Property level", value: "" },
+                  ...availableUnits.map((unit) => ({
+                    label: unit.label,
+                    value: unit.id,
+                  })),
+                ]}
+                value={selectedUnitId}
+              />
+            </Field>
+          </div>
+        </FormSection>
+
+        <FormSection title="Ledger row">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Direction" error={state.fieldErrors?.direction?.[0]}>
+              <SelectControl
+                ariaLabel="Direction"
+                defaultValue={
+                  entry?.direction ?? initialValues?.direction ?? "income"
+                }
+                name="direction"
+                options={[
+                  { label: "Income", value: "income" },
+                  { label: "Expense", value: "expense" },
+                ]}
+                required
+              />
+            </Field>
+
+            <Field
+              label="Transaction date"
+              error={state.fieldErrors?.transactionDate?.[0]}
+            >
+              <DatePickerField
+                ariaLabel="Transaction date"
+                defaultValue={entry?.transactionDate}
+                name="transactionDate"
+                required
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
+            <Field label="Category" error={state.fieldErrors?.category?.[0]}>
+              <Input
+                defaultValue={entry?.category}
+                name="category"
+                placeholder="Rent, maintenance, utilities"
+                required
+                type="text"
+              />
+            </Field>
+
+            <Field label="Amount" error={state.fieldErrors?.amount?.[0]}>
+              <NumberInput
+                defaultValue={entry?.amount}
+                min="0.01"
+                name="amount"
+                placeholder="0.00"
+                required
+                step="0.01"
+              />
+            </Field>
+          </div>
+
+          <Field label="Description" error={state.fieldErrors?.description?.[0]}>
+            <Textarea
+              defaultValue={entry?.description ?? ""}
+              name="description"
+              placeholder="Payment source, invoice reference, or operational notes"
             />
           </Field>
-
-          <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
-            <SelectControl
-              ariaLabel="Unit"
-              disabled={!selectedPropertyId}
-              name="unitId"
-              onValueChange={setSelectedUnitId}
-              options={[
-                { label: "Property level", value: "" },
-                ...availableUnits.map((unit) => ({
-                  label: unit.label,
-                  value: unit.id,
-                })),
-              ]}
-              value={selectedUnitId}
-            />
-          </Field>
-
-          <Field label="Direction" error={state.fieldErrors?.direction?.[0]}>
-            <SelectControl
-              ariaLabel="Direction"
-              defaultValue={
-                entry?.direction ?? initialValues?.direction ?? "income"
-              }
-              name="direction"
-              options={[
-                { label: "Income", value: "income" },
-                { label: "Expense", value: "expense" },
-              ]}
-              required
-            />
-          </Field>
-
-          <Field
-            label="Transaction date"
-            error={state.fieldErrors?.transactionDate?.[0]}
-          >
-            <DatePickerField
-              ariaLabel="Transaction date"
-              defaultValue={entry?.transactionDate}
-              name="transactionDate"
-              required
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_140px]">
-          <Field label="Category" error={state.fieldErrors?.category?.[0]}>
-            <Input
-              defaultValue={entry?.category}
-              name="category"
-              placeholder="Rent, maintenance, utilities"
-              required
-              type="text"
-            />
-          </Field>
-
-          <Field label="Amount" error={state.fieldErrors?.amount?.[0]}>
-            <NumberInput
-              defaultValue={entry?.amount}
-              min="0.01"
-              name="amount"
-              placeholder="0.00"
-              required
-              step="0.01"
-            />
-          </Field>
-        </div>
-
-        <Field
-          className="mt-4"
-          label="Description"
-          error={state.fieldErrors?.description?.[0]}
-        >
-          <Textarea
-            defaultValue={entry?.description ?? ""}
-            name="description"
-            placeholder="Payment source, invoice reference, or operational notes"
-          />
-        </Field>
+        </FormSection>
       </div>
 
-      <div className="border-t border-border px-4 py-4 sm:px-5">
+      <div className="border-t border-border bg-surface px-5 py-4">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button className="w-full sm:w-auto" onClick={onClose} type="button">
             Cancel
@@ -204,6 +206,23 @@ export function LedgerEntryForm({
         </div>
       </div>
     </form>
+  );
+}
+
+function FormSection({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="space-y-4">
+      <h3 className="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+        {title}
+      </h3>
+      {children}
+    </section>
   );
 }
 

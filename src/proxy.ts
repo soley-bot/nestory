@@ -5,7 +5,13 @@ import type { Database } from "@/types/database";
 
 const AUTH_ROUTES = new Set(["/login", "/signup"]);
 const AUTH_CALLBACK_ROUTE = "/auth/callback";
-const PUBLIC_ROUTES = new Set(["/", AUTH_CALLBACK_ROUTE, ...AUTH_ROUTES]);
+const AUTH_CONFIRM_ROUTE = "/auth/confirm";
+const PUBLIC_ROUTES = new Set([
+  "/",
+  AUTH_CALLBACK_ROUTE,
+  AUTH_CONFIRM_ROUTE,
+  ...AUTH_ROUTES,
+]);
 const REDIRECT_AUTHENTICATED_ROUTES = new Set(["/", ...AUTH_ROUTES]);
 
 function redirectToLogin(request: NextRequest) {

@@ -127,129 +127,128 @@ export function LeaseForm({
           </div>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
-          <Field label="Tenant" error={state.fieldErrors?.tenantPersonId?.[0]}>
-            <SelectControl
-              ariaLabel="Tenant"
-              defaultValue={defaults.tenantPersonId}
-              name="tenantPersonId"
-              options={[
-                { label: "Select tenant", value: "" },
-                ...tenantOptions.map((tenant) => ({
-                  label: tenant.label,
-                  value: tenant.id,
-                })),
-              ]}
-              required
-            />
-          </Field>
+        <FormSection title="Lease party">
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
+            <Field label="Tenant" error={state.fieldErrors?.tenantPersonId?.[0]}>
+              <SelectControl
+                ariaLabel="Tenant"
+                defaultValue={defaults.tenantPersonId}
+                name="tenantPersonId"
+                options={[
+                  { label: "Select tenant", value: "" },
+                  ...tenantOptions.map((tenant) => ({
+                    label: tenant.label,
+                    value: tenant.id,
+                  })),
+                ]}
+                required
+              />
+            </Field>
 
-          <Field label="Status" error={state.fieldErrors?.status?.[0]}>
-            <SelectControl
-              ariaLabel="Status"
-              defaultValue={defaults.status}
-              name="status"
-              options={normalizedStatusOptions}
-              required
-            />
-          </Field>
-        </div>
+            <Field label="Status" error={state.fieldErrors?.status?.[0]}>
+              <SelectControl
+                ariaLabel="Status"
+                defaultValue={defaults.status}
+                name="status"
+                options={normalizedStatusOptions}
+                required
+              />
+            </Field>
+          </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
-            <SelectControl
-              ariaLabel="Property"
-              name="propertyId"
-              onValueChange={(value) => {
-                setSelectedPropertyId(value);
-                setSelectedUnitId("");
-              }}
-              options={[
-                { label: "Select property", value: "" },
-                ...propertyOptions.map((property) => ({
-                  label: property.label,
-                  value: property.id,
-                })),
-              ]}
-              required
-              value={selectedPropertyId}
-            />
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
+              <SelectControl
+                ariaLabel="Property"
+                name="propertyId"
+                onValueChange={(value) => {
+                  setSelectedPropertyId(value);
+                  setSelectedUnitId("");
+                }}
+                options={[
+                  { label: "Select property", value: "" },
+                  ...propertyOptions.map((property) => ({
+                    label: property.label,
+                    value: property.id,
+                  })),
+                ]}
+                required
+                value={selectedPropertyId}
+              />
+            </Field>
 
-          <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
-            <SelectControl
-              ariaLabel="Unit"
-              disabled={!selectedPropertyId}
-              name="unitId"
-              onValueChange={setSelectedUnitId}
-              options={[
-                { label: "No unit assigned", value: "" },
-                ...unitOptions.map((unit) => ({
-                  label: unit.label,
-                  value: unit.id,
-                })),
-              ]}
-              value={formUnitId}
-            />
-          </Field>
-        </div>
+            <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
+              <SelectControl
+                ariaLabel="Unit"
+                disabled={!selectedPropertyId}
+                name="unitId"
+                onValueChange={setSelectedUnitId}
+                options={[
+                  { label: "No unit assigned", value: "" },
+                  ...unitOptions.map((unit) => ({
+                    label: unit.label,
+                    value: unit.id,
+                  })),
+                ]}
+                value={formUnitId}
+              />
+            </Field>
+          </div>
+        </FormSection>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Start date"
-            error={state.fieldErrors?.leaseStartDate?.[0]}
-          >
-            <DatePickerField
-              ariaLabel="Lease start date"
-              defaultValue={defaults.leaseStartDate}
-              name="leaseStartDate"
-              required
-            />
-          </Field>
+        <FormSection title="Term and money">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Start date"
+              error={state.fieldErrors?.leaseStartDate?.[0]}
+            >
+              <DatePickerField
+                ariaLabel="Lease start date"
+                defaultValue={defaults.leaseStartDate}
+                name="leaseStartDate"
+                required
+              />
+            </Field>
 
-          <Field label="End date" error={state.fieldErrors?.leaseEndDate?.[0]}>
-            <DatePickerField
-              ariaLabel="Lease end date"
-              defaultValue={defaults.leaseEndDate}
-              name="leaseEndDate"
-              required
-            />
-          </Field>
-        </div>
+            <Field label="End date" error={state.fieldErrors?.leaseEndDate?.[0]}>
+              <DatePickerField
+                ariaLabel="Lease end date"
+                defaultValue={defaults.leaseEndDate}
+                name="leaseEndDate"
+                required
+              />
+            </Field>
+          </div>
 
-        <div className="grid gap-4">
-          <Field
-            label="Monthly rent"
-            error={state.fieldErrors?.monthlyRentAmount?.[0]}
-          >
-            <NumberInput
-              defaultValue={defaults.monthlyRentAmount}
-              min="0"
-              name="monthlyRentAmount"
-              placeholder="0.00"
-              required
-              step="0.01"
-            />
-          </Field>
-        </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Monthly rent"
+              error={state.fieldErrors?.monthlyRentAmount?.[0]}
+            >
+              <NumberInput
+                defaultValue={defaults.monthlyRentAmount}
+                min="0"
+                name="monthlyRentAmount"
+                placeholder="0.00"
+                required
+                step="0.01"
+              />
+            </Field>
 
-        <div className="grid gap-4">
-          <Field
-            label="Deposit"
-            error={state.fieldErrors?.depositAmount?.[0]}
-          >
-            <NumberInput
-              defaultValue={defaults.depositAmount}
-              min="0"
-              name="depositAmount"
-              placeholder="0.00"
-              step="0.01"
-            />
-          </Field>
-        </div>
+            <Field label="Deposit" error={state.fieldErrors?.depositAmount?.[0]}>
+              <NumberInput
+                defaultValue={defaults.depositAmount}
+                min="0"
+                name="depositAmount"
+                placeholder="0.00"
+                step="0.01"
+              />
+            </Field>
+          </div>
+        </FormSection>
       </div>
 
-      <div className="border-t border-border px-4 py-4 sm:px-5">
+      <div className="border-t border-border bg-surface px-5 py-4">
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button className="w-full sm:w-auto" onClick={onClose} type="button">
             Cancel
@@ -271,6 +270,23 @@ export function LeaseForm({
         </div>
       </div>
     </form>
+  );
+}
+
+function FormSection({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="space-y-4">
+      <h3 className="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+        {title}
+      </h3>
+      {children}
+    </section>
   );
 }
 

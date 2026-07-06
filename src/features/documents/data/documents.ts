@@ -145,24 +145,18 @@ export async function getDocumentsScreenData(
   const taskIds = rows.flatMap((document) => document.task_id ?? []);
   const timelineIds = rows.flatMap((document) => document.timeline_event_id ?? []);
   const [leases, ledgerEntries, tasks, timelineEvents, activityRows] = await Promise.all([
-    getRowsById(supabase, "leases", "id, tenant_name", organizationId, leaseIds),
-    getRowsById(
-      supabase,
-      "ledger_entries",
-      "id, category, direction",
-      organizationId,
-      ledgerIds,
-    ),
-    getRowsById(supabase, "tasks", "id, title", organizationId, taskIds),
-    getRowsById(supabase, "timeline_events", "id, title", organizationId, timelineIds),
+    getLeasesById(supabase, organizationId, leaseIds),
+    getLedgerEntriesById(supabase, organizationId, ledgerIds),
+    getTasksById(supabase, organizationId, taskIds),
+    getTimelineEventsById(supabase, organizationId, timelineIds),
     getDocumentActivity(supabase, organizationId, documentIds),
   ]);
   const propertiesById = indexById(propertiesResult.data ?? []);
   const unitsById = indexById(unitsResult.data ?? []);
-  const leasesById = indexById(leases as unknown as LeaseRow[]);
-  const ledgerById = indexById(ledgerEntries as unknown as LedgerRow[]);
-  const tasksById = indexById(tasks as unknown as TaskRow[]);
-  const timelineById = indexById(timelineEvents as unknown as TimelineRow[]);
+  const leasesById = indexById(leases);
+  const ledgerById = indexById(ledgerEntries);
+  const tasksById = indexById(tasks);
+  const timelineById = indexById(timelineEvents);
   const activityByDocumentId = groupActivityByDocumentId(activityRows);
   const signedUrlsByPath = await getSignedDocumentUrls(rows, supabase);
   const documents = rows.map((document) =>
@@ -419,30 +413,108 @@ async function getSignedDocumentUrls(
   return urlsByPath;
 }
 
-async function getRowsById(
+async function getLeasesById(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  table: "leases" | "ledger_entries" | "tasks" | "timeline_events",
-  select: string,
   organizationId: string,
   ids: string[],
 ) {
-  const uniqueIds = [...new Set(ids)];
+  const uniqueIds = uniqueIdsOrEmpty(ids);
 
   if (uniqueIds.length === 0) {
     return [];
   }
 
   const result = await supabase
-    .from(table)
-    .select(select)
+    .from("leases")
+    .select("id, tenant_name")
     .eq("organization_id", organizationId)
     .in("id", uniqueIds);
 
   if (result.error) {
-    throw new Error(`Could not load document ${table}: ${result.error.message}`);
+    throw new Error(`Could not load document leases: ${result.error.message}`);
   }
 
   return result.data ?? [];
+}
+
+async function getLedgerEntriesById(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  ids: string[],
+) {
+  const uniqueIds = uniqueIdsOrEmpty(ids);
+
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const result = await supabase
+    .from("ledger_entries")
+    .select("id, category, direction")
+    .eq("organization_id", organizationId)
+    .in("id", uniqueIds);
+
+  if (result.error) {
+    throw new Error(
+      `Could not load document ledger entries: ${result.error.message}`,
+    );
+  }
+
+  return result.data ?? [];
+}
+
+async function getTasksById(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  ids: string[],
+) {
+  const uniqueIds = uniqueIdsOrEmpty(ids);
+
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const result = await supabase
+    .from("tasks")
+    .select("id, title")
+    .eq("organization_id", organizationId)
+    .in("id", uniqueIds);
+
+  if (result.error) {
+    throw new Error(`Could not load document tasks: ${result.error.message}`);
+  }
+
+  return result.data ?? [];
+}
+
+async function getTimelineEventsById(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  ids: string[],
+) {
+  const uniqueIds = uniqueIdsOrEmpty(ids);
+
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const result = await supabase
+    .from("timeline_events")
+    .select("id, title")
+    .eq("organization_id", organizationId)
+    .in("id", uniqueIds);
+
+  if (result.error) {
+    throw new Error(
+      `Could not load document timeline events: ${result.error.message}`,
+    );
+  }
+
+  return result.data ?? [];
+}
+
+function uniqueIdsOrEmpty(ids: string[]) {
+  return [...new Set(ids)];
 }
 
 async function getDocumentActivity(

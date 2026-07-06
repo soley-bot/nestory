@@ -1,8 +1,10 @@
 "use client";
 
-import { Menu, X } from "lucide-react";
+import { Menu, Moon, Sun, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+
+import { NestoryLogo } from "@/components/brand/nestory-logo";
 
 const navItems = [
   { href: "#workspace", label: "Workspace" },
@@ -22,6 +24,15 @@ export function LandingHeader() {
     };
   }, [isOpen]);
 
+  function toggleTheme() {
+    const currentTheme =
+      document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+
+    document.documentElement.dataset.theme = nextTheme;
+    window.localStorage.setItem("nestory-theme", nextTheme);
+  }
+
   return (
     <>
       {!isOpen ? (
@@ -29,22 +40,28 @@ export function LandingHeader() {
           <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
             <Link
               aria-label="Nestory home"
-              className="font-display leading-none text-[#060910]"
+              className="leading-none text-[var(--landing-heading)]"
               href="/"
             >
-              <span className="block text-2xl font-semibold">NESTORY</span>
-              <span className="mt-0.5 block text-center text-[10px] font-medium uppercase tracking-[0.24em] text-[#9aa0aa]">
-                Property Management
-              </span>
+              <NestoryLogo
+                markClassName="h-9 w-9"
+                priority
+                subtitleClassName="text-[var(--landing-subtle)]"
+                textClassName="text-2xl text-[var(--landing-heading)]"
+              />
             </Link>
 
-            <div className="flex items-center gap-7 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8b96aa]">
-              <Link className="transition-colors hover:text-[#060910]" href="/login">
+            <div className="flex items-center gap-5 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--landing-muted)]">
+              <Link
+                className="transition-colors hover:text-[var(--landing-heading)]"
+                href="/login"
+              >
                 Sign in
               </Link>
+              <LandingThemeToggle onToggle={toggleTheme} />
               <button
                 aria-label="Open menu"
-                className="inline-flex h-8 w-8 items-center justify-center text-[#060910] transition-opacity hover:opacity-65"
+                className="inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] transition-opacity hover:opacity-65"
                 onClick={() => setIsOpen(true)}
                 type="button"
               >
@@ -64,17 +81,20 @@ export function LandingHeader() {
           <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
             <Link
               aria-label="Nestory home"
-              className="font-display leading-none text-white"
+              className="leading-none text-white"
               href="/"
               onClick={() => setIsOpen(false)}
             >
-              <span className="block text-2xl font-semibold">NESTORY</span>
-              <span className="mt-0.5 block text-center text-[10px] font-medium uppercase tracking-[0.24em] text-white/40">
-                Property Management
-              </span>
+              <NestoryLogo
+                markClassName="h-9 w-9"
+                markTone="light"
+                priority
+                subtitleClassName="text-white/40"
+                textClassName="text-2xl text-white"
+              />
             </Link>
 
-            <div className="flex items-center gap-7 text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">
+            <div className="flex items-center gap-5 text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">
               <Link
                 className="transition-colors hover:text-white"
                 href="/login"
@@ -82,6 +102,7 @@ export function LandingHeader() {
               >
                 Sign in
               </Link>
+              <LandingThemeToggle onToggle={toggleTheme} variant="overlay" />
               <button
                 aria-label="Close menu"
                 className="inline-flex h-8 w-8 items-center justify-center text-white transition-opacity hover:opacity-65"
@@ -120,5 +141,30 @@ export function LandingHeader() {
         </div>
       ) : null}
     </>
+  );
+}
+
+function LandingThemeToggle({
+  onToggle,
+  variant = "page",
+}: {
+  onToggle: () => void;
+  variant?: "overlay" | "page";
+}) {
+  return (
+    <button
+      aria-label="Toggle color theme"
+      className={
+        variant === "overlay"
+          ? "inline-flex h-8 w-8 items-center justify-center text-white transition-opacity hover:opacity-65"
+          : "inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] transition-opacity hover:opacity-65"
+      }
+      onClick={onToggle}
+      title="Toggle color theme"
+      type="button"
+    >
+      <Moon className="theme-toggle-moon" size={20} strokeWidth={1.45} />
+      <Sun className="theme-toggle-sun" size={20} strokeWidth={1.45} />
+    </button>
   );
 }

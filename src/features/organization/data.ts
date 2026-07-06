@@ -1,14 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 
-type UntypedSupabaseClient = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  from: (table: string) => any;
-  rpc: (
-    fn: string,
-    args: Record<string, unknown>,
-  ) => Promise<{ data: unknown; error: { message: string } | null }>;
-};
-
 export type OrganizationBranch = {
   address: string | null;
   code: string;
@@ -43,48 +34,14 @@ export type OrganizationPersonAccessStatus = {
   role: OrganizationMembership["role"];
 };
 
-type BranchRow = {
-  address: string | null;
-  code: string;
-  id: string;
-  name: string;
-  status: string;
-};
-
-type TeamRow = {
-  branch_id: string | null;
-  id: string;
-  manager_person_id: string | null;
-  name: string;
-};
-
-type PersonRow = {
-  display_name: string;
-  id: string;
-};
-
-type RoleRow = {
-  person_id: string;
-};
-
-type MembershipRow = {
-  branch_id: string | null;
-  email?: string | null;
-  id: string;
-  person_id: string | null;
-  role: string;
-  user_id: string;
-};
-
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 export async function getOrganizationSettingsData(organizationId: string) {
   const supabase = await createSupabaseServerClient();
-  const untypedSupabase = supabase as unknown as UntypedSupabaseClient;
 
   const [branches, teams, staff] = await Promise.all([
-    loadBranches(untypedSupabase, organizationId),
-    loadTeams(untypedSupabase, organizationId),
+    loadBranches(supabase, organizationId),
+    loadTeams(supabase, organizationId),
     loadStaffForOrganization(supabase, organizationId),
   ]);
 
@@ -93,11 +50,10 @@ export async function getOrganizationSettingsData(organizationId: string) {
 
 export async function getAccessSettingsData(organizationId: string) {
   const supabase = await createSupabaseServerClient();
-  const untypedSupabase = supabase as unknown as UntypedSupabaseClient;
 
   const [branches, members, staff] = await Promise.all([
-    loadBranches(untypedSupabase, organizationId),
-    loadMemberships(untypedSupabase, organizationId),
+    loadBranches(supabase, organizationId),
+    loadMemberships(supabase, organizationId),
     loadStaffForOrganization(supabase, organizationId),
   ]);
 
@@ -114,10 +70,7 @@ export async function getAccessByPersonId(
 
   const supabase = await createSupabaseServerClient();
   const personIdSet = new Set(personIds);
-  const memberships = await loadMemberships(
-    supabase as unknown as UntypedSupabaseClient,
-    organizationId,
-  );
+  const memberships = await loadMemberships(supabase, organizationId);
 
   return Object.fromEntries(
     memberships.flatMap((member) =>
@@ -129,7 +82,7 @@ export async function getAccessByPersonId(
 }
 
 async function loadBranches(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<OrganizationBranch[]> {
   const { data, error } = await supabase
@@ -143,7 +96,7 @@ async function loadBranches(
     throw new Error(`Could not load branches: ${error.message}`);
   }
 
-  return (((data ?? []) as unknown) as BranchRow[]).map((branch) => ({
+  return (data ?? []).map((branch) => ({
     address: branch.address,
     code: branch.code,
     id: branch.id,
@@ -153,7 +106,7 @@ async function loadBranches(
 }
 
 async function loadTeams(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<OrganizationTeam[]> {
   const { data, error } = await supabase
@@ -167,7 +120,7 @@ async function loadTeams(
     throw new Error(`Could not load teams: ${error.message}`);
   }
 
-  return (((data ?? []) as unknown) as TeamRow[]).map((team) => ({
+  return (data ?? []).map((team) => ({
     branchId: team.branch_id,
     id: team.id,
     managerPersonId: team.manager_person_id,
@@ -176,31 +129,37 @@ async function loadTeams(
 }
 
 async function loadMemberships(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<OrganizationMembership[]> {
   const membersResult = await supabase.rpc("get_organization_access_members", {
     p_organization_id: organizationId,
   });
-  let memberRows = ((membersResult.data ?? []) as unknown) as MembershipRow[];
 
-  if (membersResult.error) {
-    const fallback = await supabase
-      .from("organization_members")
-      .select("id, user_id, role, person_id, branch_id")
-      .eq("organization_id", organizationId)
-      .order("created_at", { ascending: true });
-
-    if (fallback.error) {
-      throw new Error(`Could not load memberships: ${fallback.error.message}`);
-    }
-
-    memberRows = ((fallback.data ?? []) as unknown) as MembershipRow[];
+  if (!membersResult.error) {
+    return (membersResult.data ?? []).map((member) => ({
+      branchId: member.branch_id,
+      email: member.email,
+      id: member.id,
+      personId: member.person_id,
+      role: normalizeRole(member.role),
+      userId: member.user_id,
+    }));
   }
 
-  return memberRows.map((member) => ({
+  const fallback = await supabase
+    .from("organization_members")
+    .select("id, user_id, role, person_id, branch_id")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: true });
+
+  if (fallback.error) {
+    throw new Error(`Could not load memberships: ${fallback.error.message}`);
+  }
+
+  return (fallback.data ?? []).map((member) => ({
     branchId: member.branch_id,
-    email: member.email ?? null,
+    email: null,
     id: member.id,
     personId: member.person_id,
     role: normalizeRole(member.role),
@@ -224,7 +183,9 @@ async function loadStaffForOrganization(
     throw new Error(`Could not load staff roles: ${error.message}`);
   }
 
-  const staffIds = Array.from(new Set(((data ?? []) as RoleRow[]).map((role) => role.person_id)));
+  const staffIds = Array.from(
+    new Set((data ?? []).map((role) => role.person_id)),
+  );
   return loadStaffOptions(supabase, organizationId, staffIds);
 }
 
@@ -249,7 +210,7 @@ async function loadStaffOptions(
     throw new Error(`Could not load staff: ${error.message}`);
   }
 
-  return ((data ?? []) as PersonRow[]).map((person) => ({
+  return (data ?? []).map((person) => ({
     id: person.id,
     label: person.display_name,
   }));

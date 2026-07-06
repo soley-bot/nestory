@@ -71,48 +71,6 @@ const commitResultSchema = z.object({
   updated: z.number().int().nonnegative(),
 });
 
-const propertyImportDataSchema = z.object({
-  acquisitionDate: z.string().nullable(),
-  address: z.string().nullable(),
-  code: z.string().min(1),
-  existingPropertyId: z.uuid().nullable(),
-  name: z.string().min(1),
-  notes: z.string().nullable(),
-  owner: z.string().nullable(),
-  propertyType: z.string().min(1),
-  status: z.enum(["active", "under_renovation", "inactive"]),
-});
-
-const peopleImportDataSchema = z.object({
-  displayName: z.string().min(1),
-  existingPersonId: z.uuid().nullable(),
-  legalName: z.string().nullable(),
-  notes: z.string().nullable(),
-  partyType: z.enum(["individual", "company"]),
-  primaryEmail: z.string().nullable(),
-  primaryPhone: z.string().nullable(),
-  roles: z.array(z.enum(["tenant", "owner", "vendor", "staff"])).min(1),
-  taxIdentifier: z.string().nullable(),
-});
-
-const leaseImportDataSchema = z.object({
-  depositAmount: z.number().nonnegative().nullable(),
-  leaseEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  leaseStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  monthlyRentAmount: z.number().nonnegative(),
-  propertyId: z.uuid(),
-  status: z.enum([
-    "active",
-    "cancelled",
-    "draft",
-    "ended",
-    "notice_given",
-    "terminated",
-  ]),
-  tenantPersonId: z.uuid(),
-  unitId: z.uuid(),
-});
-
 export async function stageImportRunAction(
   _state: StageImportRunState,
   formData: FormData,
@@ -137,7 +95,7 @@ export async function stageImportRunAction(
 
   const context = await requireAdminContext();
   const supabase = await createSupabaseServerClient();
-  const importDb = supabase as unknown as ImportSupabaseClient;
+  const importDb = supabase;
   const referenceData = await getImportReferenceData(context.organizationId);
   const rows = buildGenericImportPreviewRows({
     mapping: parsedPayload.data.mapping,
@@ -241,7 +199,7 @@ export async function commitStagedImportRunAction(
 
   const context = await requireAdminContext();
   const supabase = await createSupabaseServerClient();
-  const importDb = supabase as unknown as ImportSupabaseClient;
+  const importDb = supabase;
   const runResult = await importDb
     .from("import_runs")
     .select("id, import_type, status")
@@ -257,7 +215,7 @@ export async function commitStagedImportRunAction(
     };
   }
 
-  const run = runResult.data as ImportRunRow;
+  const run = runResult.data;
   const importType = importTypeSchema.safeParse(run.import_type);
 
   if (!importType.success) {
@@ -295,55 +253,9 @@ export async function commitStagedImportRunAction(
   });
 }
 
-type ImportSupabaseClient = {
-  from: (table: "import_mappings" | "import_rows" | "import_runs") => {
-    insert: (values: unknown) => ImportQuery<{ id: string }>;
-    select: (columns: string) => ImportQuery<unknown>;
-    update: (values: unknown) => ImportQuery<unknown>;
-    upsert: (
-      values: unknown,
-      options: { onConflict: string },
-    ) => Promise<DbResult<unknown>>;
-  };
-  rpc: (
-    fn:
-      | "commit_unit_import_run"
-      | "create_lease"
-      | "create_person"
-      | "create_property"
-      | "update_person"
-      | "update_property",
-    args: Record<string, unknown>,
-  ) => Promise<DbResult<unknown>>;
-};
-
-type DbResult<T> = {
-  data: T | null;
-  error: { message: string } | null;
-};
-
-type ImportQuery<T> = Promise<DbResult<T>> & {
-  eq: (column: string, value: unknown) => ImportQuery<T>;
-  in: (column: string, values: unknown[]) => ImportQuery<T>;
-  order: (
-    column: string,
-    options: { ascending: boolean },
-  ) => Promise<DbResult<T>>;
-  select: (columns: string) => ImportQuery<T>;
-  single: () => Promise<DbResult<T>>;
-};
-
-type ImportRunRow = {
-  id: string;
-  import_type: string;
-  status: string;
-};
-
-type StagedImportRow = {
-  id: string;
-  normalized_data: unknown;
-  source_row_number: number;
-};
+type ImportSupabaseClient = Awaited<
+  ReturnType<typeof createSupabaseServerClient>
+>;
 
 async function commitUnitImportRun({
   importDb,
@@ -400,277 +312,38 @@ async function commitGenericImportRun({
   organizationId: string;
   runId: string;
 }): Promise<CommitImportRunState> {
-  await importDb
-    .from("import_runs")
-    .update({
-      error_message: null,
-      status: "committing",
-    })
-    .eq("id", runId)
-    .eq("organization_id", organizationId);
+  const { data, error } = await importDb.rpc("commit_generic_import_run", {
+    p_import_run_id: runId,
+    p_organization_id: organizationId,
+  });
 
-  const skippedResult = await importDb
-    .from("import_rows")
-    .select("id")
-    .eq("import_run_id", runId)
-    .eq("organization_id", organizationId)
-    .eq("row_status", "error");
-  const rowsResult = await importDb
-    .from("import_rows")
-    .select("id, source_row_number, normalized_data")
-    .eq("import_run_id", runId)
-    .eq("organization_id", organizationId)
-    .in("row_status", ["ready", "warning"])
-    .order("source_row_number", { ascending: true });
-
-  if (rowsResult.error) {
-    await markImportRunFailed(importDb, organizationId, runId, rowsResult.error.message);
-
+  if (error) {
     return {
-      message: "The staged import rows could not be loaded.",
+      message: importRunErrorMessage(error.message),
       runId,
       status: "error",
     };
   }
 
-  let created = 0;
-  let updated = 0;
-  let failed = 0;
-  const skipped = Array.isArray(skippedResult.data)
-    ? skippedResult.data.length
-    : 0;
+  const summary = commitResultSchema.safeParse(data);
 
-  for (const row of (rowsResult.data ?? []) as StagedImportRow[]) {
-    const result = await commitGenericImportRow({
-      importDb,
-      importType,
-      normalizedData: row.normalized_data,
-      organizationId,
-    });
-
-    if (result.status === "error") {
-      failed += 1;
-      await markImportRowFailed(importDb, row.id, result.message);
-      continue;
-    }
-
-    if (result.action === "created") {
-      created += 1;
-    } else {
-      updated += 1;
-    }
-
-    await importDb
-      .from("import_rows")
-      .update({
-        error_message: null,
-        result_action: result.action,
-        row_status: "committed",
-      })
-      .eq("id", row.id);
+  if (!summary.success) {
+    return {
+      message: "Import committed, but the commit summary could not be read.",
+      runId,
+      status: "success",
+    };
   }
-
-  const status =
-    failed > 0 && created + updated > 0
-      ? "committed_with_errors"
-      : failed > 0
-        ? "failed"
-        : "committed";
-
-  await importDb
-    .from("import_runs")
-    .update({
-      committed_at: new Date().toISOString(),
-      created_count: created,
-      error_message: failed > 0 ? "Some rows could not be committed." : null,
-      failed_count: failed,
-      skipped_count: skipped,
-      status,
-      updated_count: updated,
-    })
-    .eq("id", runId)
-    .eq("organization_id", organizationId);
 
   revalidateImportPaths(importType);
 
   return {
-    message: `Committed ${created + updated} ${importType} row${
-      created + updated === 1 ? "" : "s"
+    message: `Committed ${summary.data.created + summary.data.updated} ${importType} row${
+      summary.data.created + summary.data.updated === 1 ? "" : "s"
     }.`,
     runId,
     status: "success",
-    summary: {
-      created,
-      failed,
-      skipped,
-      updated,
-    },
-  };
-}
-
-async function commitGenericImportRow({
-  importDb,
-  importType,
-  normalizedData,
-  organizationId,
-}: {
-  importDb: ImportSupabaseClient;
-  importType: Exclude<ImportType, "units">;
-  normalizedData: unknown;
-  organizationId: string;
-}): Promise<
-  | { action: "created" | "updated"; status: "success" }
-  | { message: string; status: "error" }
-> {
-  if (importType === "properties") {
-    return commitPropertyRow(importDb, organizationId, normalizedData);
-  }
-
-  if (importType === "people") {
-    return commitPeopleRow(importDb, organizationId, normalizedData);
-  }
-
-  return commitLeaseRow(importDb, organizationId, normalizedData);
-}
-
-async function commitPropertyRow(
-  importDb: ImportSupabaseClient,
-  organizationId: string,
-  normalizedData: unknown,
-): Promise<
-  | { action: "created" | "updated"; status: "success" }
-  | { message: string; status: "error" }
-> {
-  const parsed = propertyImportDataSchema.safeParse(normalizedData);
-
-  if (!parsed.success) {
-    return {
-      message: "The staged property row is no longer valid.",
-      status: "error" as const,
-    };
-  }
-
-  const payload = {
-    p_acquisition_date: parsed.data.acquisitionDate,
-    p_address: parsed.data.address,
-    p_code: parsed.data.code,
-    p_name: parsed.data.name,
-    p_notes: parsed.data.notes,
-    p_organization_id: organizationId,
-    p_owner: parsed.data.owner,
-    p_owner_person_id: null,
-    p_property_type: parsed.data.propertyType,
-    p_status: parsed.data.status,
-  };
-  const rpcResult = parsed.data.existingPropertyId
-    ? await importDb.rpc("update_property", {
-        ...payload,
-        p_property_id: parsed.data.existingPropertyId,
-      })
-    : await importDb.rpc("create_property", payload);
-
-  if (rpcResult.error) {
-    return {
-      message: rpcResult.error.message,
-      status: "error" as const,
-    };
-  }
-
-  return {
-    action: parsed.data.existingPropertyId ? ("updated" as const) : ("created" as const),
-    status: "success" as const,
-  };
-}
-
-async function commitPeopleRow(
-  importDb: ImportSupabaseClient,
-  organizationId: string,
-  normalizedData: unknown,
-): Promise<
-  | { action: "created" | "updated"; status: "success" }
-  | { message: string; status: "error" }
-> {
-  const parsed = peopleImportDataSchema.safeParse(normalizedData);
-
-  if (!parsed.success) {
-    return {
-      message: "The staged people row is no longer valid.",
-      status: "error" as const,
-    };
-  }
-
-  const payload = {
-    p_display_name: parsed.data.displayName,
-    p_legal_name: parsed.data.legalName,
-    p_notes: parsed.data.notes,
-    p_organization_id: organizationId,
-    p_party_type: parsed.data.partyType,
-    p_primary_email: parsed.data.primaryEmail,
-    p_primary_phone: parsed.data.primaryPhone,
-    p_roles: parsed.data.roles,
-    p_tax_identifier: parsed.data.taxIdentifier,
-  };
-  const rpcResult = parsed.data.existingPersonId
-    ? await importDb.rpc("update_person", {
-        ...payload,
-        p_person_id: parsed.data.existingPersonId,
-      })
-    : await importDb.rpc("create_person", payload);
-
-  if (rpcResult.error) {
-    return {
-      message: rpcResult.error.message,
-      status: "error" as const,
-    };
-  }
-
-  return {
-    action: parsed.data.existingPersonId ? ("updated" as const) : ("created" as const),
-    status: "success" as const,
-  };
-}
-
-async function commitLeaseRow(
-  importDb: ImportSupabaseClient,
-  organizationId: string,
-  normalizedData: unknown,
-): Promise<
-  | { action: "created" | "updated"; status: "success" }
-  | { message: string; status: "error" }
-> {
-  const parsed = leaseImportDataSchema.safeParse(normalizedData);
-
-  if (!parsed.success) {
-    return {
-      message: "The staged lease row is no longer valid.",
-      status: "error" as const,
-    };
-  }
-
-  const rpcResult = await importDb.rpc("create_lease", {
-    p_deposit_amount: parsed.data.depositAmount,
-    p_deposit_currency: parsed.data.depositAmount === null ? null : "USD",
-    p_lease_end_date: parsed.data.leaseEndDate,
-    p_lease_start_date: parsed.data.leaseStartDate,
-    p_monthly_rent_amount: parsed.data.monthlyRentAmount,
-    p_monthly_rent_currency: "USD",
-    p_organization_id: organizationId,
-    p_primary_tenant_person_id: parsed.data.tenantPersonId,
-    p_property_id: parsed.data.propertyId,
-    p_status: parsed.data.status,
-    p_unit_id: parsed.data.unitId,
-  });
-
-  if (rpcResult.error) {
-    return {
-      message: rpcResult.error.message,
-      status: "error" as const,
-    };
-  }
-
-  return {
-    action: "created" as const,
-    status: "success" as const,
+    summary: summary.data,
   };
 }
 
@@ -696,36 +369,6 @@ function toImportRowInsert({
     row_status: hasErrors ? "error" : hasWarnings ? "warning" : "ready",
     source_row_number: row.sourceRowNumber,
   };
-}
-
-async function markImportRunFailed(
-  importDb: ImportSupabaseClient,
-  organizationId: string,
-  runId: string,
-  message: string,
-) {
-  await importDb
-    .from("import_runs")
-    .update({
-      error_message: message,
-      status: "failed",
-    })
-    .eq("id", runId)
-    .eq("organization_id", organizationId);
-}
-
-async function markImportRowFailed(
-  importDb: ImportSupabaseClient,
-  rowId: string,
-  message: string,
-) {
-  await importDb
-    .from("import_rows")
-    .update({
-      error_message: message,
-      row_status: "failed",
-    })
-    .eq("id", rowId);
 }
 
 function readJsonFormValue(formData: FormData, key: string) {

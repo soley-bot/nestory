@@ -15,6 +15,10 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - People directory split into tenants, owners, vendors, and staff.
 - Lease operations with normalized tenant/person and lease backbone records.
 - Ledger operations, timeline history, period locks, and document attachment.
+- Rent & Income operations for expected and received incoming money before
+  confirmed rows post into the ledger.
+- Bills & Expenses operations for outgoing bills and expense approvals before
+  approved rows post into the ledger.
 - Maintenance cases with request intake, work orders, calendar scheduling,
   inspections, recurring templates, reminders, assignment, and status changes.
 - Dedicated property/unit photo records with private photo storage and cover
@@ -67,16 +71,23 @@ People and leases:
 
 Finance and history:
 
+- `/rent-income` supports expected and received incoming money across rent,
+  deposits, reimbursements, parking, late fees, owner contributions, and other
+  income. Confirmed receipts post into the official ledger.
+- `/bills-expenses` supports outgoing vendor bills, maintenance, utilities,
+  supplies, owner payouts, refunds, and other expenses. Approved rows post into
+  the official ledger.
 - `/ledger` supports income/expense records, filters, create/update/archive,
-  restore, period locks, receipt attachment, and linked timeline/document
-  context.
+  restore, period locks, receipt attachment, month-close workflow queues, and
+  linked timeline/document context.
 - `/petty-cash` supports the IPS-style PM petty cash workflow: cash accounts,
   monthly register periods, advances, cash-in rows, expense rows, running
   balance, receipt references, and posting cleared cash expenses into the
   official ledger.
 - `/timeline` supports event filters, create/update/archive/restore, document
   attachment, linked ledger context, and activity display.
-- `/payments` redirects to `/ledger?direction=income`.
+- `/payments` redirects to `/rent-income` for legacy links.
+- `/invoices` redirects to `/bills-expenses` for legacy links.
 
 Maintenance operations:
 
@@ -115,7 +126,7 @@ Settings and access:
 Placeholder routes:
 
 - Placeholder modules currently include amenities, property inspections,
-  inventory, invoices, people settings, specialized
+  inventory, people settings, specialized
   timelines, branding, module settings, notifications, security, backup/data,
   integrations, and some dashboard variants. Treat these as navigation
   scaffolding, not complete product modules.
@@ -131,9 +142,10 @@ RPC write boundaries. Current table families include:
 - People and lease backbone: `people`, `person_roles`, `person_contacts`,
   `property_owners`, `vendor_profiles`, `leases`, `lease_parties`,
   `lease_terms`, `lease_occupancies`, `lease_deposits`.
-- Finance and history: `ledger_entries`, `ledger_period_locks`,
-  `petty_cash_accounts`, `petty_cash_periods`, `petty_cash_entries`,
-  `timeline_events`, `activity_logs`.
+- Finance and history: `finance_income_items`, `finance_expense_items`,
+  `ledger_entries`, `ledger_period_locks`, `petty_cash_accounts`,
+  `petty_cash_periods`, `petty_cash_entries`, `timeline_events`,
+  `activity_logs`.
 - Media and documents: `asset_photos` plus private `nestory-photos`, and
   `documents` plus private `nestory-documents`.
 - Maintenance: `tenant_requests`, `tasks`.
@@ -143,6 +155,8 @@ Implemented RPC families include:
 - Workspace bootstrap and access-member lookup/invites.
 - Property, unit, person, lease, document, ledger, timeline, and maintenance
   create/update/archive/restore.
+- Finance income and expense workflow creation, status changes, and posting
+  into the ledger.
 - Ledger period locking.
 - Petty cash account creation, register row creation, and posting expense rows
   into the ledger.
@@ -159,6 +173,9 @@ Implemented RPC families include:
 - Photos: `src/features/photos`.
 - People: `src/features/people`.
 - Leases: `src/features/leases`.
+- Rent & Income: `src/features/rent-income`.
+- Bills & Expenses: `src/features/bills-expenses`.
+- Finance close summaries: `src/features/finance`.
 - Ledger: `src/features/ledger`.
 - Timeline: `src/features/timeline`.
 - Maintenance: `src/features/maintenance`.

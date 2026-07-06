@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdminContext } from "@/lib/auth/context";
@@ -9,13 +10,6 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 export type OrganizationActionState = {
   message?: string;
   status?: "error" | "success";
-};
-
-type UntypedSupabaseClient = {
-  rpc: (
-    fn: string,
-    args: Record<string, unknown>,
-  ) => Promise<{ error: { message: string } | null }>;
 };
 
 const uuidShapeSchema = z
@@ -47,17 +41,11 @@ const memberSchema = z.object({
   role: z.enum(["admin", "manager", "member"]),
 });
 
-const temporaryPasswordSchema = z
-  .string()
-  .transform((value) => (value.length > 0 ? value : null))
-  .pipe(z.string().min(8).nullable());
-
 const userAccessSchema = z.object({
   branchId: optionalUuidSchema,
   email: z.email().trim(),
   personId: optionalUuidSchema,
   role: z.enum(["admin", "manager", "member"]),
-  temporaryPassword: temporaryPasswordSchema,
 });
 
 function readString(formData: FormData, key: string) {
@@ -82,15 +70,12 @@ export async function createBranchAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
-    "create_organization_branch",
-    {
-      p_address: parsed.data.address || null,
-      p_code: parsed.data.code,
-      p_name: parsed.data.name,
-      p_organization_id: context.organizationId,
-    },
-  );
+  const { error } = await supabase.rpc("create_organization_branch", {
+    p_address: parsed.data.address || null,
+    p_code: parsed.data.code,
+    p_name: parsed.data.name,
+    p_organization_id: context.organizationId,
+  });
 
   if (error) {
     return { message: organizationErrorMessage(error.message), status: "error" };
@@ -116,15 +101,12 @@ export async function createTeamAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
-    "create_organization_team",
-    {
-      p_branch_id: parsed.data.branchId,
-      p_manager_person_id: parsed.data.managerPersonId,
-      p_name: parsed.data.name,
-      p_organization_id: context.organizationId,
-    },
-  );
+  const { error } = await supabase.rpc("create_organization_team", {
+    p_branch_id: parsed.data.branchId,
+    p_manager_person_id: parsed.data.managerPersonId,
+    p_name: parsed.data.name,
+    p_organization_id: context.organizationId,
+  });
 
   if (error) {
     return { message: organizationErrorMessage(error.message), status: "error" };
@@ -151,16 +133,13 @@ export async function updateMemberAccessAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
-    "update_organization_member_access",
-    {
-      p_branch_id: parsed.data.branchId,
-      p_member_id: parsed.data.memberId,
-      p_organization_id: context.organizationId,
-      p_person_id: parsed.data.personId,
-      p_role: parsed.data.role,
-    },
-  );
+  const { error } = await supabase.rpc("update_organization_member_access", {
+    p_branch_id: parsed.data.branchId,
+    p_member_id: parsed.data.memberId,
+    p_organization_id: context.organizationId,
+    p_person_id: parsed.data.personId,
+    p_role: parsed.data.role,
+  });
 
   if (error) {
     return { message: organizationErrorMessage(error.message), status: "error" };
@@ -180,51 +159,48 @@ export async function addExistingUserAccessAction(
     email: readString(formData, "email"),
     personId: readString(formData, "personId"),
     role: readString(formData, "role"),
-    temporaryPassword: readString(formData, "temporaryPassword"),
   });
 
   if (!parsed.success) {
-    return { message: "Enter a valid email, role, and 8+ character password.", status: "error" };
-  }
-
-  const authResult = await createAuthUserIfNeeded({
-    email: parsed.data.email,
-    password: parsed.data.temporaryPassword,
-  });
-
-  if (authResult.status === "error") {
-    return { message: authResult.message, status: "error" };
+    return { message: "Enter a valid email and role.", status: "error" };
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
-    "add_existing_organization_member",
-    {
-      p_branch_id: parsed.data.branchId,
-      p_email: parsed.data.email,
-      p_organization_id: context.organizationId,
-      p_person_id: parsed.data.personId,
-      p_role: parsed.data.role,
-    },
-  );
+  let { error } = await supabase.rpc("add_existing_organization_member", {
+    p_branch_id: parsed.data.branchId,
+    p_email: parsed.data.email,
+    p_organization_id: context.organizationId,
+    p_person_id: parsed.data.personId,
+    p_role: parsed.data.role,
+  });
+  let invited = false;
 
   if (error) {
-    if (error.message.includes("User account not found") && !parsed.data.temporaryPassword) {
-      return {
-        message: "Enter a temporary password to create this user.",
-        status: "error",
-      };
+    if (error.message.includes("User account not found")) {
+      const inviteResult = await inviteAuthUser(parsed.data.email);
+
+      if (inviteResult.status === "error") {
+        return { message: inviteResult.message, status: "error" };
+      }
+
+      invited = inviteResult.status === "invited";
+      ({ error } = await supabase.rpc("add_existing_organization_member", {
+        p_branch_id: parsed.data.branchId,
+        p_email: parsed.data.email,
+        p_organization_id: context.organizationId,
+        p_person_id: parsed.data.personId,
+        p_role: parsed.data.role,
+      }));
     }
 
-    return { message: organizationErrorMessage(error.message), status: "error" };
+    if (error) {
+      return { message: organizationErrorMessage(error.message), status: "error" };
+    }
   }
 
   revalidateSettings();
   return {
-    message:
-      authResult.status === "created"
-        ? "User created and access added."
-        : "User access added.",
+    message: invited ? "Invite sent and access added." : "User access added.",
     status: "success",
   };
 }
@@ -263,26 +239,19 @@ function organizationErrorMessage(message: string) {
   return "We could not save the organization setting.";
 }
 
-async function createAuthUserIfNeeded({
-  email,
-  password,
-}: {
-  email: string;
-  password: string | null;
-}): Promise<{ status: "created" | "error" | "skipped"; message?: string }> {
-  if (!password) {
-    return { status: "skipped" };
-  }
-
+async function inviteAuthUser(
+  email: string,
+): Promise<{ status: "error" | "invited" | "skipped"; message?: string }> {
   try {
-    const { error } = await createSupabaseAdminClient().auth.admin.createUser({
+    const { error } = await createSupabaseAdminClient().auth.admin.inviteUserByEmail(
       email,
-      email_confirm: true,
-      password,
-    });
+      {
+        redirectTo: await getAuthCallbackUrl(),
+      },
+    );
 
     if (!error) {
-      return { status: "created" };
+      return { status: "invited" };
     }
 
     if (isExistingAuthUserError(error.message)) {
@@ -294,8 +263,8 @@ async function createAuthUserIfNeeded({
     return {
       message:
         error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY")
-          ? "Add SUPABASE_SERVICE_ROLE_KEY before creating users with passwords."
-          : "We could not create the auth user.",
+          ? "Add SUPABASE_SERVICE_ROLE_KEY before sending invites."
+          : "We could not send the invite.",
       status: "error",
     };
   }
@@ -312,9 +281,20 @@ function isExistingAuthUserError(message: string) {
 }
 
 function authAdminErrorMessage(message: string) {
-  if (message.toLowerCase().includes("password")) {
-    return "Use a stronger temporary password.";
+  if (message.toLowerCase().includes("email")) {
+    return "Use a valid invite email.";
   }
 
-  return "We could not create the auth user.";
+  return "We could not send the invite.";
+}
+
+async function getAuthCallbackUrl() {
+  const requestHeaders = await headers();
+  const origin =
+    requestHeaders.get("origin") ??
+    (process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000");
+
+  return new URL("/auth/callback", origin).toString();
 }

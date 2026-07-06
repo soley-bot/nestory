@@ -2,6 +2,7 @@ import type { CurrencyCode } from "@/lib/money/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 import type { RecentChange } from "@/features/activity/activity.types";
 import type { LinkedDocument } from "@/features/documents/document.types";
+import type { FinanceCloseSummary } from "@/features/finance/finance.types";
 
 export type LedgerDirection = "income" | "expense";
 
@@ -117,3 +118,5 @@ export type LedgerPagination = {
   totalCount: number;
   totalPages: number;
 };
+
+export type LedgerCloseSummary = FinanceCloseSummary;

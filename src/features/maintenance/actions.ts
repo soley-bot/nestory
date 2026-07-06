@@ -36,13 +36,6 @@ export type MaintenanceActionState = {
   status?: "error" | "success";
 };
 
-type UntypedSupabaseClient = {
-  rpc: (
-    fn: string,
-    args: Record<string, unknown>,
-  ) => Promise<{ error: { message: string } | null }>;
-};
-
 const uuidShapeSchema = z
   .string()
   .trim()
@@ -498,15 +491,12 @@ async function assignMaintenanceTask({
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   taskId: string;
 }): Promise<MaintenanceActionState | null> {
-  const { error } = await (supabase as unknown as UntypedSupabaseClient).rpc(
-    "assign_maintenance_task",
-    {
+  const { error } = await supabase.rpc("assign_maintenance_task", {
     p_assignee_person_id: assigneePersonId,
     p_branch_id: branchId,
     p_organization_id: organizationId,
     p_task_id: taskId,
-    },
-  );
+  });
 
   if (!error) {
     return null;

@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
+import { NestoryLogo } from "@/components/brand/nestory-logo";
+
 type AuthPageShellProps = {
   children: ReactNode;
   contextItems?: Array<{
@@ -50,13 +52,15 @@ export function AuthPageShell({
         <div className="mx-auto box-border flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
           <Link
             aria-label="Nestory home"
-            className="font-display leading-none text-[#060910]"
+            className="leading-none text-[#060910]"
             href="/"
           >
-            <span className="block text-2xl font-semibold">NESTORY</span>
-            <span className="mt-0.5 block text-center text-[10px] font-medium uppercase tracking-[0.24em] text-[#9aa0aa]">
-              Property Management
-            </span>
+            <NestoryLogo
+              markClassName="h-9 w-9"
+              priority
+              subtitleClassName="text-[#9aa0aa]"
+              textClassName="text-2xl text-[#060910]"
+            />
           </Link>
 
           <Link

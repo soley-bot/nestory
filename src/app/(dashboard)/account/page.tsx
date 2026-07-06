@@ -20,10 +20,7 @@ type AccountBranch = {
   name: string;
 };
 
-type UntypedSupabaseClient = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  from: (table: string) => any;
-};
+type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 export default async function AccountPage() {
   const context = await requireWorkspaceContext();
@@ -154,17 +151,16 @@ async function getAccountProfile({
   personId?: string;
 }) {
   const supabase = await createSupabaseServerClient();
-  const untypedSupabase = supabase as unknown as UntypedSupabaseClient;
   const [branch, person] = await Promise.all([
-    branchId ? loadBranch(untypedSupabase, organizationId, branchId) : null,
-    personId ? loadPerson(untypedSupabase, organizationId, personId) : null,
+    branchId ? loadBranch(supabase, organizationId, branchId) : null,
+    personId ? loadPerson(supabase, organizationId, personId) : null,
   ]);
 
   return { branch, person };
 }
 
 async function loadBranch(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   branchId: string,
 ): Promise<AccountBranch | null> {
@@ -180,13 +176,13 @@ async function loadBranch(
   }
 
   return {
-    code: readString(data, "code"),
-    name: readString(data, "name"),
+    code: data.code,
+    name: data.name,
   };
 }
 
 async function loadPerson(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   personId: string,
 ): Promise<AccountPerson | null> {
@@ -211,16 +207,12 @@ async function loadPerson(
   }
 
   return {
-    displayName: readString(personResult.data, "display_name"),
-    email: readNullableString(personResult.data, "primary_email"),
-    legalName: readNullableString(personResult.data, "legal_name"),
-    partyType: readString(personResult.data, "party_type"),
-    phone: readNullableString(personResult.data, "primary_phone"),
-    roles: Array.isArray(roleResult.data)
-      ? roleResult.data.flatMap((row: unknown) =>
-          isRecord(row) ? [readString(row, "role")] : [],
-        )
-      : [],
+    displayName: personResult.data.display_name,
+    email: personResult.data.primary_email,
+    legalName: personResult.data.legal_name,
+    partyType: personResult.data.party_type,
+    phone: personResult.data.primary_phone,
+    roles: (roleResult.data ?? []).map((row) => row.role),
   };
 }
 
@@ -300,28 +292,4 @@ function formatPersonRole(value: string) {
   }
 
   return "Staff";
-}
-
-function readNullableString(row: unknown, key: string) {
-  if (!isRecord(row)) {
-    return null;
-  }
-
-  const value = row[key];
-
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function readString(row: unknown, key: string) {
-  if (!isRecord(row)) {
-    return "";
-  }
-
-  const value = row[key];
-
-  return typeof value === "string" ? value : "";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

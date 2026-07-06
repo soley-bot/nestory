@@ -51,6 +51,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NestoryLogo } from "@/components/brand/nestory-logo";
 import { signOutAction } from "@/features/auth/actions";
 import type { WorkspaceRole } from "@/lib/auth/context";
 
@@ -129,10 +130,20 @@ const navGroups: NavGroup[] = [
     icon: Landmark,
     items: [
       { href: "/finance-dashboard", label: "Dashboard", icon: Gauge },
+      {
+        href: "/rent-income",
+        label: "Rent & Income",
+        icon: CreditCard,
+        activeHrefs: ["/payments"],
+      },
+      {
+        href: "/bills-expenses",
+        label: "Bills & Expenses",
+        icon: ReceiptText,
+        activeHrefs: ["/invoices"],
+      },
       { href: "/leases", label: "Leases", icon: ScrollText },
       { href: "/ledger", label: "Ledger", icon: BookOpen },
-      { href: "/payments", label: "Payments", icon: CreditCard },
-      { href: "/invoices", label: "Invoices", icon: ReceiptText },
       { href: "/petty-cash", label: "Petty Cash", icon: Coins },
     ],
   },
@@ -397,14 +408,12 @@ export function AppShell({
         <div className="border-b border-border bg-surface print:hidden lg:hidden">
           <div className="flex items-center justify-between gap-3 px-4 py-2">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="min-w-0">
-                <p className="text-lg font-semibold leading-none tracking-normal">
-                  NESTORY
-                </p>
-                <p className="truncate text-xs text-muted">
-                  {userEmail ?? organizationName}
-                </p>
-              </div>
+              <NestoryLogo
+                markClassName="h-8 w-8"
+                subtitle={userEmail ?? organizationName}
+                subtitleClassName="text-muted normal-case tracking-normal"
+                textClassName="text-lg text-foreground"
+              />
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <ThemeToggle onToggle={toggleTheme} />
@@ -559,15 +568,12 @@ function ExpandedDesktopSidebar({
           href="/overview"
           prefetch={false}
         >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-background text-[13px] font-semibold text-foreground">
-            N
-          </span>
-          <span className="min-w-0 leading-none">
-            <span className="block truncate text-[13px] font-semibold">Nestory</span>
-            <span className="mt-1 block truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-              Dashboard
-            </span>
-          </span>
+          <NestoryLogo
+            markClassName="h-8 w-8"
+            subtitle="Dashboard"
+            subtitleClassName="text-muted"
+            textClassName="text-foreground"
+          />
         </Link>
         <button
           aria-label="Collapse sidebar"
@@ -643,12 +649,12 @@ function CollapsedDesktopSidebar({
       <div className="flex h-24 shrink-0 flex-col items-center justify-center gap-2 border-b border-border">
         <Link
           aria-label="Nestory dashboard"
-          className="grid h-8 w-8 place-items-center rounded-md border border-border bg-background text-[13px] font-semibold text-foreground"
+          className="grid h-8 w-8 place-items-center overflow-hidden"
           href="/overview"
           prefetch={false}
           title="Nestory"
         >
-          N
+          <NestoryLogo markClassName="h-8 w-8" showText={false} />
         </Link>
         <button
           aria-label="Expand sidebar"

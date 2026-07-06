@@ -12,8 +12,7 @@ export async function getRecentImportRuns(
   organizationId: string,
 ): Promise<ImportRunSummary[]> {
   const supabase = await createSupabaseServerClient();
-  const importDb = supabase as unknown as ImportRunsClient;
-  const { data, error } = await importDb
+  const { data, error } = await supabase
     .from("import_runs")
     .select(
       "id, import_type, status, source_file_name, total_rows, ready_rows, warning_rows, error_rows, created_count, updated_count, failed_count, skipped_count, committed_at, created_at",
@@ -48,28 +47,27 @@ export async function getImportReferenceData(
   organizationId: string,
 ): Promise<ImportReferenceData> {
   const supabase = await createSupabaseServerClient();
-  const importDb = supabase as unknown as ImportReferenceClient;
   const [propertiesResult, unitsResult, peopleResult, rolesResult] =
     await Promise.all([
-      importDb
+      supabase
         .from("properties")
         .select("id, code, name")
         .eq("organization_id", organizationId)
         .is("archived_at", null)
         .order("code", { ascending: true }),
-      importDb
+      supabase
         .from("units")
         .select("id, property_id, unit_number")
         .eq("organization_id", organizationId)
         .is("archived_at", null)
         .order("unit_number", { ascending: true }),
-      importDb
+      supabase
         .from("people")
         .select("id, display_name, primary_email")
         .eq("organization_id", organizationId)
         .is("archived_at", null)
         .order("display_name", { ascending: true }),
-      importDb
+      supabase
         .from("person_roles")
         .select("person_id, role")
         .eq("organization_id", organizationId)
@@ -149,8 +147,7 @@ export async function getImportSavedMappings(
   organizationId: string,
 ): Promise<ImportSavedMapping[]> {
   const supabase = await createSupabaseServerClient();
-  const importDb = supabase as unknown as ImportMappingsClient;
-  const { data, error } = await importDb
+  const { data, error } = await supabase
     .from("import_mappings")
     .select("id, import_type, name, mapping, updated_at")
     .eq("organization_id", organizationId)
@@ -175,41 +172,6 @@ export async function getImportSavedMappings(
   }));
 }
 
-type ImportRunRow = {
-  committed_at: string | null;
-  created_at: string;
-  created_count: number;
-  error_rows: number;
-  failed_count: number;
-  id: string;
-  import_type: string;
-  ready_rows: number;
-  skipped_count: number;
-  source_file_name: string;
-  status: string;
-  total_rows: number;
-  updated_count: number;
-  warning_rows: number;
-};
-
-type ImportRunsClient = {
-  from: (table: "import_runs") => {
-    select: (columns: string) => {
-      eq: (column: "organization_id", value: string) => {
-        order: (
-          column: "created_at",
-          options: { ascending: boolean },
-        ) => {
-          limit: (count: number) => Promise<{
-            data: ImportRunRow[] | null;
-            error: { message: string } | null;
-          }>;
-        };
-      };
-    };
-  };
-};
-
 type PropertyReferenceRow = {
   code: string;
   id: string;
@@ -231,96 +193,6 @@ type PersonReferenceRow = {
 type RoleReferenceRow = {
   person_id: string;
   role: string;
-};
-
-type ImportReferenceClient = {
-  from: (table: "people" | "person_roles" | "properties" | "units") => {
-    select: (columns: string) => {
-      eq: (
-        column: "organization_id" | "status",
-        value: string,
-      ) => ImportReferenceQuery;
-    };
-  };
-};
-
-type ImportReferenceQuery = Promise<{
-  data:
-    | Array<{
-        code: string;
-        id: string;
-        name: string;
-      }>
-    | Array<{
-        id: string;
-        property_id: string;
-        unit_number: string;
-      }>
-    | Array<{
-        display_name: string;
-        id: string;
-        primary_email: string | null;
-      }>
-    | Array<{
-        person_id: string;
-        role: string;
-      }>
-    | null;
-  error: { message: string } | null;
-}> & {
-  eq: (column: "organization_id" | "status", value: string) => ImportReferenceQuery;
-  is: (
-    column: "archived_at",
-    value: null,
-  ) => ImportReferenceQuery & {
-    order: (
-      column: "code" | "display_name" | "unit_number",
-      options: { ascending: boolean },
-    ) => Promise<{
-      data:
-        | Array<{
-            code: string;
-            id: string;
-            name: string;
-          }>
-        | Array<{
-            id: string;
-            property_id: string;
-            unit_number: string;
-          }>
-        | Array<{
-            display_name: string;
-            id: string;
-            primary_email: string | null;
-          }>
-        | null;
-      error: { message: string } | null;
-    }>;
-  };
-};
-
-type ImportMappingsClient = {
-  from: (table: "import_mappings") => {
-    select: (columns: string) => {
-      eq: (column: "organization_id", value: string) => {
-        order: (
-          column: "updated_at",
-          options: { ascending: boolean },
-        ) => Promise<{
-          data: ImportMappingRow[] | null;
-          error: { message: string } | null;
-        }>;
-      };
-    };
-  };
-};
-
-type ImportMappingRow = {
-  id: string;
-  import_type: string;
-  mapping: unknown;
-  name: string;
-  updated_at: string;
 };
 
 function toImportType(value: string): ImportType {

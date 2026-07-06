@@ -18,6 +18,16 @@ import {
   getPropertySummaries,
   type PropertySummary,
 } from "@/features/properties/data/properties";
+import {
+  BuildingThumb,
+  MiniSparkline,
+  healthTone,
+  helperBadgeClass,
+  toneBgClass,
+  toneRuleClass,
+  toneStroke,
+  toneTextClass,
+} from "./placeholder-visuals";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 import { formatDate } from "@/lib/dates/format";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -2381,11 +2391,11 @@ function FinanceRecentLedger({
           Ledger
         </Link>
       </div>
-      {transactions.slice(0, 3).map((transaction) => (
+      {transactions.slice(0, 3).map((transaction, index) => (
         <Link
           className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-border px-1 py-2 transition-colors last:border-b-0 hover:bg-surface-muted"
           href={transaction.href}
-          key={`${transaction.date}-${transaction.label}`}
+          key={`${transaction.date}-${transaction.label}-${transaction.href}-${transaction.value}-${index}`}
         >
           <span className="min-w-0">
             <span className="block truncate text-[13px] font-semibold text-foreground">
@@ -2419,11 +2429,12 @@ function PlaceholderView({
         <section className="rounded-md border border-border bg-surface px-4 py-5">
           <p className="text-xs font-medium text-muted">{page.room}</p>
           <h2 className="mt-2 text-[15px] font-semibold text-foreground">
-            Placeholder
+            Planned workspace
           </h2>
           <p className="mt-1 max-w-2xl text-[13px] leading-5 text-foreground-muted">
-            This sidebar destination is wired. The full workflow can replace
-            this placeholder when this room becomes the next active build slice.
+            This area is reserved for a future Nestory workflow. It is visible
+            now so operators know where the capability will live; active records
+            remain available in the connected modules.
           </p>
         </section>
       </main>
@@ -2845,171 +2856,4 @@ function viewAllLabel(title: string) {
   }
 
   return `View all ${noun}`;
-}
-
-function BuildingThumb({
-  className,
-  imageUrl,
-  label,
-}: {
-  className?: string;
-  imageUrl?: string;
-  label?: string;
-}) {
-  const thumbClassName = cn(
-    "relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border shadow-sm",
-    imageUrl ? "bg-cover bg-center" : "bg-background/50",
-    className,
-  );
-
-  if (imageUrl) {
-    return (
-      <span
-        aria-label={label ? `${label} photo` : "Property photo"}
-        className={thumbClassName}
-        role="img"
-        style={{ backgroundImage: `url(${imageUrl})` }}
-      />
-    );
-  }
-
-  return (
-    <span className={thumbClassName} aria-hidden="true" />
-  );
-}
-
-function MiniSparkline({
-  index,
-  points,
-  tone,
-}: {
-  index: number;
-  points: SparklinePoint[];
-  tone?: VisualTone;
-}) {
-  const values = points.map((point, pointIndex) =>
-    point.value + (index - 1) * 1.8 + (pointIndex % 2 === 0 ? 0 : index),
-  );
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = Math.max(1, max - min);
-  const coordinates = values
-    .map((value, pointIndex) => {
-      const x = 4 + pointIndex * (68 / Math.max(1, values.length - 1));
-      const y = 34 - ((value - min) / range) * 24;
-
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-7 w-[58px]"
-      preserveAspectRatio="none"
-      viewBox="0 0 76 40"
-    >
-      <polyline
-        fill="none"
-        points={coordinates}
-        stroke={toneStroke(tone)}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  );
-}
-
-function healthTone(value: number): Tone {
-  if (value < 50) {
-    return "danger";
-  }
-
-  if (value < 80) {
-    return "warning";
-  }
-
-  return "success";
-}
-
-function toneBgClass(tone: VisualTone | undefined) {
-  if (tone === "danger") {
-    return "bg-danger";
-  }
-
-  if (tone === "warning") {
-    return "bg-warning";
-  }
-
-  if (tone === "success") {
-    return "bg-success";
-  }
-
-  return "bg-accent";
-}
-
-function toneTextClass(tone: VisualTone | undefined) {
-  if (tone === "danger") {
-    return "text-danger";
-  }
-
-  if (tone === "warning") {
-    return "text-warning";
-  }
-
-  if (tone === "success") {
-    return "text-success";
-  }
-
-  return "text-accent";
-}
-
-function toneRuleClass(tone: VisualTone | undefined) {
-  if (tone === "danger") {
-    return "before:bg-danger";
-  }
-
-  if (tone === "warning") {
-    return "before:bg-warning";
-  }
-
-  if (tone === "success") {
-    return "before:bg-success";
-  }
-
-  return "before:bg-accent";
-}
-
-function helperBadgeClass(tone: Tone | undefined) {
-  if (tone === "danger") {
-    return "bg-danger-soft text-danger";
-  }
-
-  if (tone === "warning") {
-    return "bg-warning-soft text-warning";
-  }
-
-  if (tone === "success") {
-    return "bg-success-soft text-success";
-  }
-
-  return "bg-accent-soft text-accent";
-}
-
-function toneStroke(tone: VisualTone | undefined) {
-  if (tone === "danger") {
-    return "var(--danger)";
-  }
-
-  if (tone === "warning") {
-    return "var(--warning)";
-  }
-
-  if (tone === "success") {
-    return "var(--success)";
-  }
-
-  return "var(--accent)";
 }

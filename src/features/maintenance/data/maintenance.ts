@@ -55,10 +55,7 @@ const MAINTENANCE_QUERY_BATCH_SIZE = 1_000;
 const OPEN_TASK_STATUSES = ["pending", "scheduled", "in_progress", "blocked"];
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
-type UntypedSupabaseClient = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  from: (table: string) => any;
-};
+type MaintenanceTaskQuery = ReturnType<typeof createBaseTaskQuery>;
 
 type MaintenanceTaskRow = {
   actual_cost_amount: number | null;
@@ -137,7 +134,6 @@ export async function getMaintenanceScreenData(
   actor?: MaintenanceActor,
 ): Promise<MaintenanceScreenData> {
   const supabase = await createSupabaseServerClient();
-  const untypedSupabase = supabase as unknown as UntypedSupabaseClient;
   const now = new Date();
   const today = toIsoDate(now);
   const currentTime = toIsoTime(now);
@@ -148,7 +144,7 @@ export async function getMaintenanceScreenData(
     peopleResult,
     staffRolesResult,
   ] = await Promise.all([
-    untypedSupabase
+    supabase
       .from("organization_branches")
       .select(branchSelect)
       .eq("organization_id", organizationId)
@@ -208,9 +204,7 @@ export async function getMaintenanceScreenData(
     );
   }
 
-  const branchesById = indexById(
-    ((branchesResult.data ?? []) as unknown) as BranchRow[],
-  );
+  const branchesById = indexById(branchesResult.data ?? []);
   const propertiesById = indexById(propertiesResult.data ?? []);
   const unitsById = indexById(unitsResult.data ?? []);
   const peopleById = indexById(peopleResult.data ?? []);
@@ -219,9 +213,9 @@ export async function getMaintenanceScreenData(
   );
 
   const [pagedTasks, summaryTaskRows] = await Promise.all([
-    getPagedTaskRows(untypedSupabase, organizationId, viewQuery, today, currentTime, actor),
+    getPagedTaskRows(supabase, organizationId, viewQuery, today, currentTime, actor),
     getSummaryTaskRows(
-      untypedSupabase,
+      supabase,
       organizationId,
       viewQuery,
       today,
@@ -272,9 +266,7 @@ export async function getMaintenanceScreenData(
       ),
     })),
     pagination: pagedTasks.pagination,
-    branchOptions: toBranchOptions(
-      ((branchesResult.data ?? []) as unknown) as BranchRow[],
-    ),
+    branchOptions: toBranchOptions(branchesResult.data ?? []),
     peopleOptions: (peopleResult.data ?? []).map((person) => ({
       id: person.id,
       label: person.display_name,
@@ -296,8 +288,7 @@ export async function getMaintenanceReminderNotifications(
   actor?: MaintenanceActor,
 ): Promise<MaintenanceReminderNotification[]> {
   const supabase = await createSupabaseServerClient();
-  const untypedSupabase = supabase as unknown as UntypedSupabaseClient;
-  let query = untypedSupabase
+  let query = supabase
     .from("tasks")
     .select(
       "id, property_id, unit_id, title, status, due_date, due_time, reminder_date, reminder_time",
@@ -534,7 +525,7 @@ export function buildMaintenanceSummary(
 }
 
 async function getPagedTaskRows(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   viewQuery: MaintenanceViewQuery,
   today: string,
@@ -590,7 +581,7 @@ async function getPagedTaskRows(
 }
 
 async function getSummaryTaskRows(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   viewQuery: MaintenanceViewQuery,
   today: string,
@@ -630,17 +621,14 @@ async function getSummaryTaskRows(
 }
 
 function buildTasksQuery(
-  supabase: UntypedSupabaseClient,
+  supabase: SupabaseServerClient,
   organizationId: string,
   viewQuery: MaintenanceViewQuery,
   today: string,
   currentTime: string,
   actor?: MaintenanceActor,
 ) {
-  let query = supabase
-    .from("tasks")
-    .select(taskSelect, { count: "exact" })
-    .eq("organization_id", organizationId);
+  let query = createBaseTaskQuery(supabase, organizationId);
 
   query = applyActorTaskScope(query, actor);
 
@@ -678,8 +666,18 @@ function buildTasksQuery(
   return applyTaskSort(query, viewQuery.sort);
 }
 
+function createBaseTaskQuery(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+) {
+  return supabase
+    .from("tasks")
+    .select(taskSelect, { count: "exact" })
+    .eq("organization_id", organizationId);
+}
+
 function applyReviewFilter(
-  query: ReturnType<UntypedSupabaseClient["from"]>,
+  query: MaintenanceTaskQuery,
   viewQuery: MaintenanceViewQuery,
   today: string,
   currentTime: string,
@@ -746,7 +744,7 @@ function applyReviewFilter(
 }
 
 function applySearchFilter(
-  query: ReturnType<UntypedSupabaseClient["from"]>,
+  query: MaintenanceTaskQuery,
   search: string,
 ) {
   return getSearchTokens(search).reduce(
@@ -765,7 +763,7 @@ function applySearchFilter(
 }
 
 function applyTaskSort(
-  query: ReturnType<UntypedSupabaseClient["from"]>,
+  query: MaintenanceTaskQuery,
   sort: MaintenanceViewQuery["sort"],
 ) {
   if (sort === "created_desc") {

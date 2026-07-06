@@ -13,7 +13,7 @@
     "supabase:stop": "supabase stop",
     "db:lint": "supabase db lint",
     "db:reset": "supabase db reset",
-    "db:types": "supabase gen types --local --schema public > src/types/database.ts"
+    "db:types": "supabase gen types --local --schema public > src/types/database.generated.ts && node -e \"const fs=require('fs');const p='src/types/database.generated.ts';fs.writeFileSync(p,fs.readFileSync(p,'utf8').trimEnd()+'\\n');\""
   },
   "dependencies": {
     "@carbon/icons-react": "^11.83.0",

@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Archive, Lock, Plus, RotateCcw, Upload } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import {
@@ -35,6 +36,7 @@ import { LedgerInspector } from "@/features/ledger/components/ledger-inspector";
 import { LedgerTable } from "@/features/ledger/components/ledger-table";
 import type {
   LedgerEntry,
+  LedgerCloseSummary,
   LedgerPagination as LedgerPaginationMeta,
   LedgerPeriodLock,
   LedgerPropertyOption,
@@ -62,6 +64,7 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange };
 
 type LedgerScreenProps = {
+  closeSummary: LedgerCloseSummary;
   entries: LedgerEntry[];
   initialEntryId?: string;
   pagination: LedgerPaginationMeta;
@@ -73,6 +76,7 @@ type LedgerScreenProps = {
 };
 
 export function LedgerScreen({
+  closeSummary,
   entries,
   initialEntryId,
   pagination,
@@ -203,6 +207,8 @@ export function LedgerScreen({
         units={unitOptions}
         viewQuery={viewQuery}
       />
+
+      <LedgerCloseStrip closeSummary={closeSummary} />
 
       {reviewContext ? (
         <LedgerReviewStrip
@@ -475,6 +481,64 @@ function formatLedgerDateRange(dateFrom: string, dateTo: string) {
   }
 
   return `entries through ${formatDate(dateTo)}`;
+}
+
+function LedgerCloseStrip({
+  closeSummary,
+}: {
+  closeSummary: LedgerCloseSummary;
+}) {
+  return (
+    <section className="grid gap-3 border-b border-border bg-surface-muted/35 px-4 py-3 sm:px-6 lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(150px,1fr))]">
+      <div className="rounded-md border border-border bg-surface px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+          Month close
+        </p>
+        <p className="mt-1 text-sm font-semibold">{closeSummary.monthLabel}</p>
+        <p className="mt-0.5 text-xs text-muted">
+          Clear workflow queues before relying on owner and finance reports.
+        </p>
+      </div>
+      <CloseLink
+        count={closeSummary.incomeReadyToPost}
+        href={closeSummary.incomeReadyHref}
+        label="Income ready"
+      />
+      <CloseLink
+        count={closeSummary.billsReadyToPost}
+        href={closeSummary.billsReadyHref}
+        label="Bills ready"
+      />
+      <CloseLink
+        count={closeSummary.pettyCashReadyToPost}
+        href={closeSummary.pettyCashReadyHref}
+        label="Petty cash ready"
+      />
+    </section>
+  );
+}
+
+function CloseLink({
+  count,
+  href,
+  label,
+}: {
+  count: string;
+  href: string;
+  label: string;
+}) {
+  return (
+    <Link
+      className="rounded-md border border-border bg-surface px-3 py-2 transition-colors hover:bg-surface-muted"
+      href={href}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </p>
+      <p className="mt-1 text-base font-semibold">{count}</p>
+      <p className="mt-0.5 text-xs text-muted">Open queue</p>
+    </Link>
+  );
 }
 
 function formatLedgerAmountThreshold(value: number) {

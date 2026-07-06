@@ -106,7 +106,7 @@ function InviteUserForm({
   return (
     <form
       action={action}
-      className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(170px,1fr)_170px_130px_170px_200px_auto_auto] lg:items-center"
+      className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(170px,1fr)_130px_170px_200px_auto_auto] lg:items-center"
     >
       <Input
         defaultValue={defaults?.email ?? ""}
@@ -114,13 +114,6 @@ function InviteUserForm({
         placeholder="user@example.com"
         required
         type="email"
-      />
-      <Input
-        autoComplete="new-password"
-        minLength={8}
-        name="temporaryPassword"
-        placeholder="Temporary password"
-        type="password"
       />
       <SelectControl
         ariaLabel="Role"
@@ -168,7 +161,7 @@ function InviteUserForm({
         <span className="truncate">Add person</span>
       </Link>
       {state.message ? (
-        <p className="text-xs text-muted lg:col-span-7" role="status">
+        <p className="text-xs text-muted lg:col-span-6" role="status">
           {state.message}
         </p>
       ) : null}

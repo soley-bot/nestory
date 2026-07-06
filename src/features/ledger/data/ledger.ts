@@ -1,12 +1,17 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
+  getFinanceCloseMonth,
+  getFinanceCloseSummary,
+} from "@/features/finance/data/finance-close";
+import {
   DEFAULT_LEDGER_VIEW_QUERY,
   buildLedgerPagination,
   getLedgerTransactionDateScope,
 } from "@/features/ledger/ledger.filters";
 import type {
   LedgerEntry,
+  LedgerCloseSummary,
   LedgerNextAction,
   LedgerPeriodLock,
   LedgerPropertyOption,
@@ -265,8 +270,13 @@ export async function getLedgerScreenData(
       unit: entry.unit_id ? unitsById.get(entry.unit_id) : undefined,
     }),
   );
+  const closeSummary: LedgerCloseSummary = await getFinanceCloseSummary({
+    month: getLedgerCloseMonth(viewQuery),
+    organizationId,
+  });
 
   return {
+    closeSummary,
     entries,
     pagination: buildLedgerPagination({
       page,
@@ -290,6 +300,14 @@ export async function getLedgerScreenData(
     }),
     viewQuery,
   };
+}
+
+function getLedgerCloseMonth(viewQuery: LedgerViewQuery) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(viewQuery.dateFrom)) {
+    return viewQuery.dateFrom.slice(0, 7);
+  }
+
+  return getFinanceCloseMonth();
 }
 
 function toLedgerEntry({
