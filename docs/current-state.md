@@ -83,8 +83,8 @@ Finance and history:
   linked timeline/document context.
 - `/petty-cash` supports the IPS-style PM petty cash workflow: cash accounts,
   monthly register periods, advances, cash-in rows, expense rows, running
-  balance, receipt references, and posting cleared cash expenses into the
-  official ledger.
+  balance, receipt references, month rollover, and posting cleared cash
+  expenses into the official ledger.
 - `/timeline` supports event filters, create/update/archive/restore, document
   attachment, linked ledger context, and activity display.
 - `/payments` redirects to `/rent-income` for legacy links.
@@ -98,7 +98,8 @@ Maintenance operations:
 - `/schedule` redirects to `/maintenance?view=calendar` for legacy links.
 - `/tasks` uses the board/task surface with role-aware assignment controls.
 - `/inspections` uses the checklist surface.
-- `/recurring-tasks` uses the routine surface and is labeled Templates in nav.
+- `/recurring-tasks` uses the routine surface and is labeled Recurring Work in
+  nav.
 - Maintenance also has workload, reminder, drawer, document, ledger, and
   timeline linkage behavior in feature components and actions.
 
@@ -159,8 +160,8 @@ Implemented RPC families include:
 - Finance income and expense workflow creation, status changes, and posting
   into the ledger.
 - Ledger period locking.
-- Petty cash account creation, register row creation, and posting expense rows
-  into the ledger.
+- Petty cash account creation, register row creation, month rollover, and
+  posting expense rows into the ledger.
 - Maintenance assignment and task status/update.
 - Branch and team creation.
 - Document link validation and property primary-owner sync.

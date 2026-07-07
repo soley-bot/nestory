@@ -2781,6 +2781,15 @@ export type Database = {
         }
         Returns: string
       }
+      open_next_petty_cash_period: {
+        Args: {
+          p_account_id: string
+          p_advance_amount?: number
+          p_organization_id: string
+          p_period_id: string
+        }
+        Returns: string
+      }
       create_property: {
         Args: {
           p_acquisition_date: string

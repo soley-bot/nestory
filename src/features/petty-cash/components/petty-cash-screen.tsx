@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
+  CalendarPlus,
   ExternalLink,
   FileText,
   Plus,
@@ -24,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   createPettyCashAccountAction,
   createPettyCashEntryAction,
+  openNextPettyCashPeriodAction,
   postPettyCashEntryAction,
   type PettyCashActionState,
 } from "@/features/petty-cash/actions";
@@ -39,15 +42,18 @@ import type {
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
+import { buildHref } from "@/lib/url/href";
 import { cn } from "@/lib/utils";
 
 const accountInitialState: PettyCashActionState = {};
 const entryInitialState: PettyCashActionState = {};
+const openNextPeriodInitialState: PettyCashActionState = {};
 const postInitialState: PettyCashActionState = {};
 
 type DrawerState =
   | { mode: "account" }
   | { mode: "entry" }
+  | { account: PettyCashAccount; mode: "rollover"; period: PettyCashPeriod; summary: PettyCashSummary }
   | { entry: PettyCashEntry; mode: "post" };
 
 type PettyCashScreenProps = {
@@ -71,6 +77,7 @@ export function PettyCashScreen({
   summary,
   unitOptions,
 }: PettyCashScreenProps) {
+  const router = useRouter();
   const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState(entries[0]?.id ?? "");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -86,16 +93,37 @@ export function PettyCashScreen({
     <div className="flex min-h-screen flex-col bg-background">
       <PageHeader
         actions={
-          !schemaStatus.isReady ? undefined : selectedAccount && period ? (
-            <Button onClick={() => openDrawer({ mode: "entry" })} variant="primary">
-              <Plus size={15} />
-              Add cash row
-            </Button>
-          ) : (
-            <Button onClick={() => openDrawer({ mode: "account" })} variant="primary">
-              <Wallet size={15} />
-              Create account
-            </Button>
+          !schemaStatus.isReady ? undefined : (
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => openDrawer({ mode: "account" })}>
+                <Wallet size={15} />
+                Add account
+              </Button>
+              {selectedAccount && period ? (
+                <>
+                  <Button
+                    onClick={() =>
+                      openDrawer({
+                        account: selectedAccount,
+                        mode: "rollover",
+                        period,
+                        summary,
+                      })
+                    }
+                  >
+                    <CalendarPlus size={15} />
+                    Open next month
+                  </Button>
+                  <Button
+                    onClick={() => openDrawer({ mode: "entry" })}
+                    variant="primary"
+                  >
+                    <Plus size={15} />
+                    Add cash row
+                  </Button>
+                </>
+              ) : null}
+            </div>
           )
         }
         description="Track PM cash advances, receipt clearing, and ledger posting without turning the register into a second ledger."
@@ -114,6 +142,9 @@ export function PettyCashScreen({
         <PettyCashSummaryStrip
           account={selectedAccount}
           accounts={accounts}
+          onSelectAccount={(accountId) =>
+            router.replace(buildHref("/petty-cash", { accountId }))
+          }
           period={period}
           summary={summary}
         />
@@ -153,7 +184,7 @@ export function PettyCashScreen({
             }
             title={
               schemaStatus.isReady
-                ? "Create the PM cash account"
+                ? "Create a petty cash account"
                 : "Petty cash is not available"
             }
           />
@@ -178,6 +209,14 @@ export function PettyCashScreen({
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
             />
+          ) : drawerState.mode === "rollover" ? (
+            <OpenNextPeriodPanel
+              account={drawerState.account}
+              onClose={() => setDrawerState(null)}
+              onSuccess={setStatusMessage}
+              period={drawerState.period}
+              summary={drawerState.summary}
+            />
           ) : (
             <PettyCashEntryForm
               account={selectedAccount}
@@ -197,30 +236,44 @@ export function PettyCashScreen({
 function PettyCashSummaryStrip({
   account,
   accounts,
+  onSelectAccount,
   period,
   summary,
 }: {
   account?: PettyCashAccount;
   accounts: PettyCashAccount[];
+  onSelectAccount: (accountId: string) => void;
   period: PettyCashPeriod | null;
   summary: PettyCashSummary;
 }) {
   return (
     <section className="border-b border-border bg-surface-muted/35 px-4 py-3 sm:px-6">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(110px,1fr))]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.45fr)_repeat(6,minmax(106px,1fr))]">
         <div className="min-w-0 rounded-md border border-border bg-surface px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
             Account
           </p>
-          <p className="mt-1 truncate text-sm font-semibold">
-            {account ? `${account.accountNumber} / ${account.name}` : "No account"}
-          </p>
+          {accounts.length > 0 && account ? (
+            <SelectControl
+              ariaLabel="Petty cash account"
+              className="mt-1"
+              onValueChange={onSelectAccount}
+              options={accounts.map((option) => ({
+                label: `${option.accountNumber} / ${option.name}`,
+                value: option.id,
+              }))}
+              value={account.id}
+            />
+          ) : (
+            <p className="mt-1 truncate text-sm font-semibold">No account</p>
+          )}
           <p className="mt-0.5 text-xs text-muted">
             {period
               ? `${formatDate(period.periodStart)} period / ${period.status}`
               : `${accounts.length} configured accounts`}
           </p>
         </div>
+        <MetricCard label="Opening float" value={summary.openingFloat.primary} />
         <MetricCard label="Cash in" value={summary.cashIn.primary} />
         <MetricCard label="Cash out" value={summary.cashOut.primary} />
         <MetricCard label="Balance" value={summary.balance.primary} />
@@ -506,17 +559,17 @@ function PettyCashAccountForm({
     <form action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <Field label="Account number" error={state.fieldErrors?.accountNumber?.[0]}>
-          <Input defaultValue="PM-CASH" name="accountNumber" required />
+          <Input name="accountNumber" placeholder="PM-CASH-01" required />
         </Field>
         <Field label="Account name" error={state.fieldErrors?.name?.[0]}>
-          <Input defaultValue="Petty Cash PM" name="name" required />
+          <Input name="name" placeholder="Office petty cash" required />
         </Field>
         <Field label="Float / advance amount" error={state.fieldErrors?.floatAmount?.[0]}>
-          <NumberInput defaultValue="290.00" min="0" name="floatAmount" step="0.01" />
+          <NumberInput min="0" name="floatAmount" placeholder="0.00" step="0.01" />
         </Field>
         <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs leading-5 text-muted">
-          This creates the active PM petty cash account and opens the current
-          month with the advance amount.
+          This creates the account and opens the current month with the opening
+          float amount.
         </p>
         <FormMessage state={state} />
       </div>
@@ -576,15 +629,15 @@ function PettyCashEntryForm({
       <input name="periodId" type="hidden" value={period.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Type" error={state.fieldErrors?.entryKind?.[0]}>
+          <Field label="Movement" error={state.fieldErrors?.entryKind?.[0]}>
             <SelectControl
-              ariaLabel="Type"
+              ariaLabel="Movement"
               name="entryKind"
               onValueChange={setEntryKind}
               options={[
-                { label: "Cash expense", value: "expense" },
-                { label: "Advance PM", value: "advance" },
-                { label: "Cash in", value: "cash_in" },
+                { label: "Expense", value: "expense" },
+                { label: "PM advance", value: "advance" },
+                { label: "Cash returned / top-up", value: "cash_in" },
               ]}
               value={entryKind}
             />
@@ -741,6 +794,71 @@ function PostPettyCashPanel({
         disabled={pending}
         onClose={onClose}
         submitLabel={pending ? "Posting..." : "Post to ledger"}
+      />
+    </form>
+  );
+}
+
+function OpenNextPeriodPanel({
+  account,
+  onClose,
+  onSuccess,
+  period,
+  summary,
+}: {
+  account: PettyCashAccount;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+  period: PettyCashPeriod;
+  summary: PettyCashSummary;
+}) {
+  const [state, action, pending] = useActionState(
+    openNextPettyCashPeriodAction,
+    openNextPeriodInitialState,
+  );
+
+  useEffect(() => {
+    if (state.status === "success") {
+      onSuccess(state.message ?? "Next petty cash month opened.");
+      onClose();
+    }
+  }, [onClose, onSuccess, state.message, state.status]);
+
+  return (
+    <form action={action} className="flex h-full flex-col">
+      <input name="accountId" type="hidden" value={account.id} />
+      <input name="periodId" type="hidden" value={period.id} />
+      <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
+        <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
+          <p className="text-sm font-semibold">
+            {formatDate(period.periodStart)} close balance
+          </p>
+          <p className="mt-2 text-sm font-semibold tabular-nums">
+            {summary.balance.primary}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            This closes the current month and carries this balance into the next
+            month.
+          </p>
+        </div>
+        <Field label="Next advance amount" error={state.fieldErrors?.advanceAmount?.[0]}>
+          <NumberInput
+            min="0"
+            name="advanceAmount"
+            placeholder="Auto top up to target float"
+            step="0.01"
+          />
+        </Field>
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs leading-5 text-muted">
+          Leave blank to top up toward the account float of{" "}
+          {formatMoneyDisplay(account.floatAmount, account.currency).primary}.
+        </p>
+        <FormMessage state={state} />
+      </div>
+      <DrawerFooter
+        disabled={pending}
+        onClose={onClose}
+        submitLabel={pending ? "Opening..." : "Open next month"}
       />
     </form>
   );
@@ -907,6 +1025,10 @@ function getDrawerTitle(drawer: DrawerState) {
     return "Post to ledger";
   }
 
+  if (drawer.mode === "rollover") {
+    return "Open next month";
+  }
+
   return "Add petty cash row";
 }
 
@@ -917,6 +1039,10 @@ function getDrawerDescription(drawer: DrawerState) {
 
   if (drawer.mode === "post") {
     return "Create the official ledger expense for this cash-out row.";
+  }
+
+  if (drawer.mode === "rollover") {
+    return "Close this period and carry its cash balance forward.";
   }
 
   return "Record the cash movement first; post expenses to the ledger after review.";

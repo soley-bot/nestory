@@ -45,7 +45,10 @@ type PettyCashEntryRow = {
   unit_id: string | null;
 };
 
-export async function getPettyCashScreenData(organizationId: string) {
+export async function getPettyCashScreenData(
+  organizationId: string,
+  selectedAccountId?: string,
+) {
   const supabase = await createSupabaseServerClient();
   const [accountsResult, propertiesResult, unitsResult] = await Promise.all([
     supabase
@@ -100,7 +103,8 @@ export async function getPettyCashScreenData(organizationId: string) {
       status: account.status,
     }),
   );
-  const selectedAccount = accounts[0];
+  const selectedAccount =
+    accounts.find((account) => account.id === selectedAccountId) ?? accounts[0];
   const properties = propertiesResult.data ?? [];
   const units = unitsResult.data ?? [];
   const propertiesById = indexById(properties);
@@ -248,21 +252,22 @@ async function getPeriodEntries({
   });
 }
 
-function buildSummary(
+export function buildSummary(
   period: PettyCashPeriod | null,
   entries: PettyCashEntry[],
 ): PettyCashSummary {
   const hasAdvanceRows = entries.some((entry) => entry.entryKind === "advance");
-  const startingAdvance = hasAdvanceRows ? 0 : (period?.advanceAmount ?? 0);
-  const cashIn =
-    startingAdvance + entries.reduce((total, entry) => total + entry.inAmount, 0);
+  const openingFloat = hasAdvanceRows ? 0 : (period?.advanceAmount ?? 0);
+  const cashIn = entries.reduce((total, entry) => total + entry.inAmount, 0);
   const cashOut = entries.reduce((total, entry) => total + entry.outAmount, 0);
-  const balance = (period?.openingBalanceAmount ?? 0) + cashIn - cashOut;
+  const balance =
+    (period?.openingBalanceAmount ?? 0) + openingFloat + cashIn - cashOut;
 
   return {
     balance: formatMoneyDisplay(balance, "USD"),
     cashIn: formatMoneyDisplay(cashIn, "USD"),
     cashOut: formatMoneyDisplay(cashOut, "USD"),
+    openingFloat: formatMoneyDisplay(openingFloat, "USD"),
     postedCount: entries.filter((entry) => entry.status === "posted").length.toString(),
     readyToPostCount: entries
       .filter(

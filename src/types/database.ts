@@ -189,6 +189,15 @@ type RpcFunctionOverrides = {
       p_unit_id: string | null;
     }
   >;
+  open_next_petty_cash_period: WithArgs<
+    "open_next_petty_cash_period",
+    {
+      p_account_id: string;
+      p_advance_amount?: number | null;
+      p_organization_id: string;
+      p_period_id: string;
+    }
+  >;
   create_lease: WithArgs<
     "create_lease",
     {

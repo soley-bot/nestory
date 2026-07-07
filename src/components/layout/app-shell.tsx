@@ -120,7 +120,7 @@ const navGroups: NavGroup[] = [
         icon: ClipboardList,
         activeHrefs: ["/work-orders", "/tasks", "/inspections"],
       },
-      { href: "/recurring-tasks", label: "Templates", icon: Repeat },
+      { href: "/recurring-tasks", label: "Recurring Work", icon: Repeat },
     ],
   },
   {

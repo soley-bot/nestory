@@ -60,6 +60,7 @@ export type PettyCashSummary = {
   balance: MoneyDisplayValue;
   cashIn: MoneyDisplayValue;
   cashOut: MoneyDisplayValue;
+  openingFloat: MoneyDisplayValue;
   postedCount: string;
   readyToPostCount: string;
   receiptMissingCount: string;

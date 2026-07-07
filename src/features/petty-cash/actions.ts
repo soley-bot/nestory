@@ -7,6 +7,7 @@ import { requireAdminContext } from "@/lib/auth/context";
 
 type PettyCashFieldErrors = {
   accountNumber?: string[];
+  advanceAmount?: string[];
   amount?: string[];
   category?: string[];
   clearDate?: string[];
@@ -117,6 +118,11 @@ const createEntrySchema = z
   });
 
 const entryIdSchema = looseUuidSchema;
+const openNextPeriodSchema = z.object({
+  accountId: looseUuidSchema,
+  advanceAmount: z.string().trim(),
+  periodId: looseUuidSchema,
+});
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -248,6 +254,56 @@ export async function createPettyCashEntryAction(
   };
 }
 
+export async function openNextPettyCashPeriodAction(
+  _state: PettyCashActionState,
+  formData: FormData,
+): Promise<PettyCashActionState> {
+  const context = await requireAdminContext();
+  const parsed = openNextPeriodSchema.safeParse({
+    accountId: readString(formData, "accountId"),
+    advanceAmount: readString(formData, "advanceAmount"),
+    periodId: readString(formData, "periodId"),
+  });
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const advanceAmount =
+    parsed.data.advanceAmount.length > 0
+      ? Number(parsed.data.advanceAmount)
+      : null;
+
+  if (advanceAmount !== null && (!Number.isFinite(advanceAmount) || advanceAmount < 0)) {
+    return {
+      fieldErrors: { advanceAmount: ["Enter a zero or positive amount."] },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("open_next_petty_cash_period", {
+    p_account_id: parsed.data.accountId,
+    p_advance_amount: advanceAmount,
+    p_organization_id: context.organizationId,
+    p_period_id: parsed.data.periodId,
+  });
+
+  if (error) {
+    return {
+      message: pettyCashErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidatePettyCashPaths();
+
+  return {
+    message: "Next petty cash month opened.",
+    status: "success",
+  };
+}
+
 export async function postPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
@@ -294,6 +350,14 @@ function pettyCashErrorMessage(message: string) {
 
   if (message.includes("Only petty cash expenses")) {
     return "Only cash-out expense rows post to the ledger.";
+  }
+
+  if (message.includes("Post or void petty cash expenses")) {
+    return "Post or void cash expense rows before opening the next month.";
+  }
+
+  if (message.includes("Petty cash period is already closed")) {
+    return "This petty cash month is already closed.";
   }
 
   return "We could not save the petty cash record. Please check the fields and try again.";
