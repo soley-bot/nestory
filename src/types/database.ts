@@ -107,6 +107,44 @@ type RpcFunctionOverrides = {
       p_unit_id: string | null;
     }
   >;
+  get_finance_expense_workflow_summary: {
+    Args: {
+      p_invoice_before: string;
+      p_invoice_from: string;
+      p_organization_id: string;
+      p_property_id: string | null;
+      p_query: string | null;
+      p_status: string | null;
+      p_today: string;
+      p_unit_id: string | null;
+    };
+    Returns: {
+      approved_count: number;
+      draft_count: number;
+      overdue_count: number;
+      posted_total: number;
+      unposted_total: number;
+    }[];
+  };
+  get_finance_income_workflow_summary: {
+    Args: {
+      p_due_before: string;
+      p_due_from: string;
+      p_organization_id: string;
+      p_property_id: string | null;
+      p_query: string | null;
+      p_status: string | null;
+      p_today: string;
+      p_unit_id: string | null;
+    };
+    Returns: {
+      open_count: number;
+      overdue_count: number;
+      receivable_total: number;
+      received_total: number;
+      unposted_count: number;
+    }[];
+  };
   create_ledger_entry: WithArgs<
     "create_ledger_entry",
     {

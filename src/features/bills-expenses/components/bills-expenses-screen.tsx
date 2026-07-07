@@ -292,7 +292,7 @@ function BillsExpensesTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-surface">
+    <div className="overflow-x-auto rounded-md border border-border bg-surface">
       <table className="w-full min-w-[860px] text-left text-sm">
         <thead className="border-b border-border bg-surface-muted text-[11px] uppercase tracking-[0.06em] text-muted">
           <tr>

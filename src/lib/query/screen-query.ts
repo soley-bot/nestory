@@ -57,6 +57,21 @@ export function getQueryTokens(query: string) {
     .slice(0, 6);
 }
 
+export function buildPostgrestIlikeOrFilters(
+  columns: string[],
+  query: string,
+) {
+  return getQueryTokens(query).map((token) =>
+    columns
+      .map((column) => `${column}.ilike.%${escapePostgrestIlikeToken(token)}%`)
+      .join(","),
+  );
+}
+
+function escapePostgrestIlikeToken(token: string) {
+  return token.replace(/\\/g, "\\\\").replace(/_/g, "\\_");
+}
+
 export function getPageRange(page: number, pageSize: number) {
   const from = (page - 1) * pageSize;
 

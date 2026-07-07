@@ -31,6 +31,8 @@ export const REPORT_OPTIONS: Array<{ label: string; value: ReportKind }> = [
 
 const reportLeaseSelect =
   "id, property_id, unit_id, tenant_name, primary_tenant_person_id, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
+const maxReportSourceRows = 5_000;
+const reportSourceRangeEnd = maxReportSourceRows - 1;
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -1753,20 +1755,23 @@ async function loadReportProperties(
 ) {
   let query = supabase
     .from("properties")
-    .select("id, code, name, owner, property_type, status")
+    .select("id, code, name, owner, property_type, status", { count: "exact" })
     .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .order("code", { ascending: true });
+    .is("archived_at", null);
 
   if (viewQuery.propertyId !== "all") {
     query = query.eq("id", viewQuery.propertyId);
   }
 
-  const result = await query;
+  const result = await query
+    .order("code", { ascending: true })
+    .range(0, reportSourceRangeEnd);
 
   if (result.error) {
     throw new Error(`Could not load report properties: ${result.error.message}`);
   }
+
+  assertCompleteReportSource("report properties", result);
 
   return result.data ?? [];
 }
@@ -1780,14 +1785,18 @@ async function loadReportUnits(
     .from("units")
     .select(
       "id, property_id, unit_number, floor, size_sqm, status, current_rent_amount, current_rent_currency",
+      { count: "exact" },
     )
     .eq("organization_id", organizationId)
     .in("property_id", propertyIds)
-    .is("archived_at", null);
+    .is("archived_at", null)
+    .range(0, reportSourceRangeEnd);
 
   if (result.error) {
     throw new Error(`Could not load report units: ${result.error.message}`);
   }
+
+  assertCompleteReportSource("report units", result);
 
   return result.data ?? [];
 }
@@ -1799,15 +1808,18 @@ async function loadReportLeases(
 ) {
   const result = await supabase
     .from("leases")
-    .select(reportLeaseSelect)
+    .select(reportLeaseSelect, { count: "exact" })
     .eq("organization_id", organizationId)
     .in("property_id", propertyIds)
     .is("archived_at", null)
-    .order("lease_start_date", { ascending: false });
+    .order("lease_start_date", { ascending: false })
+    .range(0, reportSourceRangeEnd);
 
   if (result.error) {
     throw new Error(`Could not load report leases: ${result.error.message}`);
   }
+
+  assertCompleteReportSource("report leases", result);
 
   return result.data ?? [];
 }
@@ -1822,17 +1834,21 @@ async function loadReportLedger(
     .from("ledger_entries")
     .select(
       "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description",
+      { count: "exact" },
     )
     .eq("organization_id", organizationId)
     .in("property_id", propertyIds)
     .is("archived_at", null)
     .gte("transaction_date", period.start)
     .lte("transaction_date", period.end)
-    .order("transaction_date", { ascending: true });
+    .order("transaction_date", { ascending: true })
+    .range(0, reportSourceRangeEnd);
 
   if (result.error) {
     throw new Error(`Could not load report ledger entries: ${result.error.message}`);
   }
+
+  assertCompleteReportSource("report ledger entries", result);
 
   return result.data ?? [];
 }
@@ -1847,17 +1863,21 @@ async function loadReportTimeline(
     .from("timeline_events")
     .select(
       "id, property_id, unit_id, lease_id, ledger_entry_id, event_date, event_type, title, description, cost_amount, cost_currency",
+      { count: "exact" },
     )
     .eq("organization_id", organizationId)
     .in("property_id", propertyIds)
     .is("archived_at", null)
     .gte("event_date", period.start)
     .lte("event_date", period.end)
-    .order("event_date", { ascending: true });
+    .order("event_date", { ascending: true })
+    .range(0, reportSourceRangeEnd);
 
   if (result.error) {
     throw new Error(`Could not load report timeline events: ${result.error.message}`);
   }
+
+  assertCompleteReportSource("report timeline events", result);
 
   return result.data ?? [];
 }
@@ -1868,23 +1888,30 @@ async function loadReportMaintenanceTasks(
   propertyIds: string[],
   period: { end: string; start: string },
 ) {
+  const periodEndExclusive = addIsoDays(period.end, 1);
   const result = await supabase
     .from("tasks")
     .select(
       "id, property_id, unit_id, title, category, priority, status, due_date, due_time, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, recurrence_frequency, ledger_entry_id, timeline_event_id, created_at",
+      { count: "exact" },
     )
     .eq("organization_id", organizationId)
     .in("property_id", propertyIds)
     .is("archived_at", null)
+    .or(
+      `and(due_date.gte.${period.start},due_date.lte.${period.end}),and(due_date.is.null,created_at.gte.${period.start}T00:00:00.000Z,created_at.lt.${periodEndExclusive}T00:00:00.000Z)`,
+    )
     .order("due_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true })
-    .limit(2_000);
+    .range(0, reportSourceRangeEnd);
 
   if (result.error) {
     throw new Error(
       `Could not load report maintenance cases: ${result.error.message}`,
     );
   }
+
+  assertCompleteReportSource("report maintenance cases", result);
 
   return ((result.data ?? []) as MaintenanceTaskRow[]).filter((task) =>
     taskFallsInPeriod(task, period),
@@ -1899,13 +1926,17 @@ async function loadReportDocuments(
     .from("documents")
     .select(
       "id, property_id, unit_id, lease_id, ledger_entry_id, timeline_event_id, file_name",
+      { count: "exact" },
     )
     .eq("organization_id", organizationId)
-    .is("archived_at", null);
+    .is("archived_at", null)
+    .range(0, reportSourceRangeEnd);
 
   if (result.error) {
     throw new Error(`Could not load report documents: ${result.error.message}`);
   }
+
+  assertCompleteReportSource("report documents", result);
 
   return result.data ?? [];
 }
@@ -1917,16 +1948,21 @@ async function loadReportOwners(
 ) {
   const result = await supabase
     .from("property_owners")
-    .select("id, property_id, person_id, ownership_label, ownership_percent")
+    .select("id, property_id, person_id, ownership_label, ownership_percent", {
+      count: "exact",
+    })
     .eq("organization_id", organizationId)
     .in("property_id", propertyIds)
     .eq("is_primary", true)
     .is("archived_at", null)
-    .is("ended_on", null);
+    .is("ended_on", null)
+    .range(0, reportSourceRangeEnd);
 
   if (result.error) {
     throw new Error(`Could not load report owners: ${result.error.message}`);
   }
+
+  assertCompleteReportSource("report owners", result);
 
   return result.data ?? [];
 }
@@ -1942,14 +1978,40 @@ async function loadReportPeople(
 
   const result = await supabase
     .from("people")
-    .select("id, display_name")
+    .select("id, display_name", { count: "exact" })
     .eq("organization_id", organizationId)
     .in("id", [...personIds])
-    .is("archived_at", null);
+    .is("archived_at", null)
+    .range(0, reportSourceRangeEnd);
 
   if (result.error) {
     throw new Error(`Could not load report owner people: ${result.error.message}`);
   }
 
+  assertCompleteReportSource("report owner people", result);
+
   return result.data ?? [];
+}
+
+function assertCompleteReportSource(
+  sourceName: string,
+  result: { count: number | null; data: unknown[] | null },
+) {
+  const loadedRows = result.data?.length ?? 0;
+  const totalRows = result.count ?? loadedRows;
+
+  if (totalRows <= loadedRows) {
+    return;
+  }
+
+  throw new Error(
+    `${sourceName} has ${totalRows.toLocaleString()} rows, which exceeds the ${maxReportSourceRows.toLocaleString()} row report source limit. Narrow the report scope before exporting.`,
+  );
+}
+
+function addIsoDays(date: string, days: number) {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+
+  return value.toISOString().slice(0, 10);
 }

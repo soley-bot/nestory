@@ -5,6 +5,7 @@ import {
   buildRentIncomePagination,
   getRentIncomeMonthScope,
 } from "@/features/rent-income/rent-income.filters";
+import { buildPostgrestIlikeOrFilters } from "@/lib/query/screen-query";
 import {
   incomeTypeOptions,
   type RentIncomeItem,
@@ -19,6 +20,8 @@ import type { Database } from "@/types/database";
 
 type IncomeRow =
   Database["public"]["Tables"]["finance_income_items"]["Row"];
+type IncomeSummaryRow =
+  Database["public"]["Functions"]["get_finance_income_workflow_summary"]["Returns"][number];
 type PropertyRow = Pick<
   Database["public"]["Tables"]["properties"]["Row"],
   "code" | "id" | "name"
@@ -81,6 +84,7 @@ export async function getRentIncomeScreenData(
   const leases = leasesResult.data ?? [];
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
+  const incomeSearchColumns = ["payer_label", "description", "reference"];
   const baseQuery = () => {
     let query = supabase
       .from("finance_income_items")
@@ -102,18 +106,36 @@ export async function getRentIncomeScreenData(
       query = query.eq("unit_id", viewQuery.unitId);
     }
 
-    const cleanedQuery = viewQuery.query.trim();
-
-    if (cleanedQuery) {
-      const token = cleanedQuery.replaceAll("%", "\\%");
-      query = query.or(
-        `payer_label.ilike.%${token}%,description.ilike.%${token}%,reference.ilike.%${token}%`,
-      );
+    for (const searchGroup of buildPostgrestIlikeOrFilters(
+      incomeSearchColumns,
+      viewQuery.query,
+    )) {
+      query = query.or(searchGroup);
     }
 
     return query;
   };
-  const summaryResult = await baseQuery();
+  const today = getBusinessDateValue();
+  const [countResult, summaryResult] = await Promise.all([
+    baseQuery().limit(0),
+    supabase.rpc("get_finance_income_workflow_summary", {
+      p_due_before: monthScope.before,
+      p_due_from: monthScope.from,
+      p_organization_id: organizationId,
+      p_property_id:
+        viewQuery.propertyId === "all" ? null : viewQuery.propertyId,
+      p_query: viewQuery.query,
+      p_status: viewQuery.status === "all" ? null : viewQuery.status,
+      p_today: today,
+      p_unit_id: viewQuery.unitId === "all" ? null : viewQuery.unitId,
+    }),
+  ]);
+
+  if (countResult.error) {
+    throw new Error(
+      `Could not load income count: ${countResult.error.message}`,
+    );
+  }
 
   if (summaryResult.error) {
     throw new Error(
@@ -124,7 +146,7 @@ export async function getRentIncomeScreenData(
   const pagination = buildRentIncomePagination({
     page: viewQuery.page,
     pageSize: viewQuery.pageSize,
-    totalCount: summaryResult.count ?? 0,
+    totalCount: countResult.count ?? 0,
   });
   const rangeFrom = pagination.totalCount === 0 ? 0 : pagination.from - 1;
   const rangeTo = pagination.totalCount === 0 ? 0 : pagination.to - 1;
@@ -139,9 +161,8 @@ export async function getRentIncomeScreenData(
     );
   }
 
-  const today = getBusinessDateValue();
   const rows = (itemsResult.data ?? []) as IncomeRow[];
-  const summaryRows = (summaryResult.data ?? []) as IncomeRow[];
+  const summaryRow = summaryResult.data?.[0] ?? null;
 
   return {
     incomeItems: rows.map((row) =>
@@ -155,7 +176,7 @@ export async function getRentIncomeScreenData(
     leaseOptions: toLeaseOptions(leases),
     pagination,
     propertyOptions: toPropertyOptions(properties),
-    summary: buildRentIncomeSummary(summaryRows, today),
+    summary: buildRentIncomeSummary(summaryRow),
     unitOptions: toUnitOptions(units, propertiesById),
     viewQuery,
   };
@@ -215,29 +236,14 @@ function toRentIncomeItem({
 }
 
 function buildRentIncomeSummary(
-  rows: IncomeRow[],
-  today: string,
+  row: IncomeSummaryRow | null,
 ): RentIncomeSummary {
-  const receivable = rows.reduce((sum, row) => sum + row.amount_due, 0);
-  const received = rows.reduce((sum, row) => sum + row.amount_received, 0);
-  const openRows = rows.filter((row) =>
-    ["open", "partially_received", "received"].includes(row.status),
-  );
-  const overdueRows = rows.filter(
-    (row) =>
-      row.due_date < today &&
-      (row.status === "open" || row.status === "partially_received"),
-  );
-  const unpostedRows = rows.filter((row) =>
-    ["partially_received", "received"].includes(row.status),
-  );
-
   return {
-    openCount: String(openRows.length),
-    overdueCount: String(overdueRows.length),
-    receivedTotal: formatMoneyDisplay(received),
-    receivableTotal: formatMoneyDisplay(receivable),
-    unpostedCount: String(unpostedRows.length),
+    openCount: String(row?.open_count ?? 0),
+    overdueCount: String(row?.overdue_count ?? 0),
+    receivedTotal: formatMoneyDisplay(row?.received_total ?? 0),
+    receivableTotal: formatMoneyDisplay(row?.receivable_total ?? 0),
+    unpostedCount: String(row?.unposted_count ?? 0),
   };
 }
 

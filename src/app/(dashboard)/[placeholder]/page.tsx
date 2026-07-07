@@ -28,7 +28,7 @@ import {
   toneStroke,
   toneTextClass,
 } from "./placeholder-visuals";
-import { requireWorkspaceContext } from "@/lib/auth/context";
+import { requireAdminContext, requireWorkspaceContext } from "@/lib/auth/context";
 import { formatDate } from "@/lib/dates/format";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { formatMoney, type CurrencyCode } from "@/lib/money/format";
@@ -70,6 +70,7 @@ type PropertyDashboardCounts = {
 };
 
 type FinanceDashboardSource = {
+  entryCount: number;
   entries: FinanceLedgerEntryRow[];
   expiringLeases: number;
   latestDate: string;
@@ -1042,7 +1043,7 @@ async function withLiveFinanceDashboard(
     return page;
   }
 
-  const context = await requireWorkspaceContext();
+  const context = await requireAdminContext();
   const source = await getFinanceDashboardSource(
     context.organizationId,
     periodKey,
@@ -1090,6 +1091,7 @@ async function getFinanceDashboardSource(
         .from("ledger_entries")
         .select(
           "id, property_id, transaction_date, direction, category, amount, currency, description",
+          { count: "exact" },
         )
         .eq("organization_id", organizationId)
         .is("archived_at", null)
@@ -1097,18 +1099,19 @@ async function getFinanceDashboardSource(
         .lt("transaction_date", period.toExclusive)
         .order("transaction_date", { ascending: false })
         // ponytail: dashboard summarizes the first 1000 period rows; move this to an aggregate RPC if live ledgers outgrow it.
-        .limit(1000),
+        .range(0, 999),
       supabase
         .from("ledger_entries")
         .select(
           "id, property_id, transaction_date, direction, category, amount, currency, description",
+          { count: "exact" },
         )
         .eq("organization_id", organizationId)
         .is("archived_at", null)
         .gte("transaction_date", trendFrom)
         .lt("transaction_date", period.toExclusive)
         .order("transaction_date", { ascending: true })
-        .limit(2000),
+        .range(0, 1999),
       supabase
         .from("leases")
         .select("id", { count: "exact", head: true })
@@ -1138,6 +1141,7 @@ async function getFinanceDashboardSource(
   }
 
   return {
+    entryCount: entriesResult.count ?? entriesResult.data?.length ?? 0,
     entries: (entriesResult.data ?? []) as FinanceLedgerEntryRow[],
     expiringLeases: leaseResult.count ?? 0,
     latestDate,
@@ -1203,6 +1207,8 @@ function buildFinanceDashboard(
       note:
         source.entries.length === 0
           ? `No ledger entries are recorded for ${source.period.label}.`
+          : source.entryCount > source.entries.length
+            ? `${source.period.label} is showing the first ${source.entries.length} of ${source.entryCount} live ledger entries.`
           : `${source.period.label} uses ${source.entries.length} live ${pluralize(
               "ledger entry",
               source.entries.length,
@@ -1217,7 +1223,7 @@ function buildFinanceDashboard(
         helper:
           source.entries.length === 0
             ? "No ledger entries"
-            : `${source.entries.length} period entries`,
+            : `${source.entryCount} period entries`,
         tone: netCash < 0 ? "danger" : netCash > 0 ? "success" : undefined,
       },
       {

@@ -5,6 +5,7 @@ import {
   buildBillsExpensesPagination,
   getBillsExpensesMonthScope,
 } from "@/features/bills-expenses/bills-expenses.filters";
+import { buildPostgrestIlikeOrFilters } from "@/lib/query/screen-query";
 import {
   expenseTypeOptions,
   type BillsExpenseItem,
@@ -18,6 +19,8 @@ import type { Database } from "@/types/database";
 
 type ExpenseRow =
   Database["public"]["Tables"]["finance_expense_items"]["Row"];
+type ExpenseSummaryRow =
+  Database["public"]["Functions"]["get_finance_expense_workflow_summary"]["Returns"][number];
 type PropertyRow = Pick<
   Database["public"]["Tables"]["properties"]["Row"],
   "code" | "id" | "name"
@@ -79,6 +82,12 @@ export async function getBillsExpensesScreenData(
   const vendors = vendorsResult.data ?? [];
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
+  const expenseSearchColumns = [
+    "vendor_label",
+    "category",
+    "description",
+    "reference",
+  ];
   const baseQuery = () => {
     let query = supabase
       .from("finance_expense_items")
@@ -100,18 +109,36 @@ export async function getBillsExpensesScreenData(
       query = query.eq("unit_id", viewQuery.unitId);
     }
 
-    const cleanedQuery = viewQuery.query.trim();
-
-    if (cleanedQuery) {
-      const token = cleanedQuery.replaceAll("%", "\\%");
-      query = query.or(
-        `vendor_label.ilike.%${token}%,category.ilike.%${token}%,description.ilike.%${token}%,reference.ilike.%${token}%`,
-      );
+    for (const searchGroup of buildPostgrestIlikeOrFilters(
+      expenseSearchColumns,
+      viewQuery.query,
+    )) {
+      query = query.or(searchGroup);
     }
 
     return query;
   };
-  const summaryResult = await baseQuery();
+  const today = getBusinessDateValue();
+  const [countResult, summaryResult] = await Promise.all([
+    baseQuery().limit(0),
+    supabase.rpc("get_finance_expense_workflow_summary", {
+      p_invoice_before: monthScope.before,
+      p_invoice_from: monthScope.from,
+      p_organization_id: organizationId,
+      p_property_id:
+        viewQuery.propertyId === "all" ? null : viewQuery.propertyId,
+      p_query: viewQuery.query,
+      p_status: viewQuery.status === "all" ? null : viewQuery.status,
+      p_today: today,
+      p_unit_id: viewQuery.unitId === "all" ? null : viewQuery.unitId,
+    }),
+  ]);
+
+  if (countResult.error) {
+    throw new Error(
+      `Could not load expense count: ${countResult.error.message}`,
+    );
+  }
 
   if (summaryResult.error) {
     throw new Error(
@@ -122,7 +149,7 @@ export async function getBillsExpensesScreenData(
   const pagination = buildBillsExpensesPagination({
     page: viewQuery.page,
     pageSize: viewQuery.pageSize,
-    totalCount: summaryResult.count ?? 0,
+    totalCount: countResult.count ?? 0,
   });
   const rangeFrom = pagination.totalCount === 0 ? 0 : pagination.from - 1;
   const rangeTo = pagination.totalCount === 0 ? 0 : pagination.to - 1;
@@ -137,9 +164,8 @@ export async function getBillsExpensesScreenData(
     );
   }
 
-  const today = getBusinessDateValue();
   const rows = (itemsResult.data ?? []) as ExpenseRow[];
-  const summaryRows = (summaryResult.data ?? []) as ExpenseRow[];
+  const summaryRow = summaryResult.data?.[0] ?? null;
 
   return {
     expenseItems: rows.map((row) =>
@@ -152,7 +178,7 @@ export async function getBillsExpensesScreenData(
     ),
     pagination,
     propertyOptions: toPropertyOptions(properties),
-    summary: buildBillsExpensesSummary(summaryRows, today),
+    summary: buildBillsExpensesSummary(summaryRow),
     unitOptions: toUnitOptions(units, propertiesById),
     vendorOptions: toVendorOptions(vendors),
     viewQuery,
@@ -211,30 +237,14 @@ function toBillsExpenseItem({
 }
 
 function buildBillsExpensesSummary(
-  rows: ExpenseRow[],
-  today: string,
+  row: ExpenseSummaryRow | null,
 ): BillsExpensesSummary {
-  const unpostedRows = rows.filter((row) => row.status === "approved");
-  const postedRows = rows.filter(
-    (row) => row.status === "posted" || row.status === "paid",
-  );
-  const overdueRows = rows.filter(
-    (row) =>
-      Boolean(row.due_date) &&
-      row.due_date! < today &&
-      (row.status === "draft" || row.status === "approved"),
-  );
-
   return {
-    approvedCount: String(unpostedRows.length),
-    draftCount: String(rows.filter((row) => row.status === "draft").length),
-    overdueCount: String(overdueRows.length),
-    postedTotal: formatMoneyDisplay(
-      postedRows.reduce((sum, row) => sum + row.amount, 0),
-    ),
-    unpostedTotal: formatMoneyDisplay(
-      unpostedRows.reduce((sum, row) => sum + row.amount, 0),
-    ),
+    approvedCount: String(row?.approved_count ?? 0),
+    draftCount: String(row?.draft_count ?? 0),
+    overdueCount: String(row?.overdue_count ?? 0),
+    postedTotal: formatMoneyDisplay(row?.posted_total ?? 0),
+    unpostedTotal: formatMoneyDisplay(row?.unposted_total ?? 0),
   };
 }
 

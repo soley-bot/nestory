@@ -269,6 +269,22 @@ function getDesktopNavGroups(role: WorkspaceRole) {
   ];
 }
 
+function getMobilePrimaryNavItems(role: WorkspaceRole) {
+  if (role === "admin") {
+    return mobilePrimaryItems;
+  }
+
+  if (role === "manager") {
+    return [
+      { href: "/maintenance", label: "Cases", icon: ClipboardList },
+      { href: "/tasks", label: "Tasks", icon: CheckSquare },
+      { href: "/settings", label: "Settings", icon: Settings },
+    ] satisfies NavItem[];
+  }
+
+  return [{ href: "/tasks", label: "Tasks", icon: CheckSquare }] satisfies NavItem[];
+}
+
 function isNavItemActive(pathname: string, item: NavItem) {
   return (
     pathname === item.href ||
@@ -300,10 +316,7 @@ export function AppShell({
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const desktopNavGroups = getDesktopNavGroups(role);
-  const mobilePrimaryNavItems =
-    role === "member"
-      ? [{ href: "/tasks", label: "Tasks", icon: CheckSquare }]
-      : mobilePrimaryItems;
+  const mobilePrimaryNavItems = getMobilePrimaryNavItems(role);
   const mobileMoreItems = [
     ...desktopNavGroups.flatMap((group) =>
       group.href
