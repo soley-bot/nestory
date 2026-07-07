@@ -41,6 +41,7 @@ import {
   formatMoneyDisplay,
   type CurrencyCode,
 } from "@/lib/money/format";
+import { buildHref } from "@/lib/url/href";
 
 const taskSelect =
   "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
@@ -1573,16 +1574,3 @@ function indexById<T extends { id: string }>(rows: T[]) {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
-function buildHref(pathname: string, params: Record<string, string | undefined>) {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      searchParams.set(key, value);
-    }
-  }
-
-  const queryString = searchParams.toString();
-
-  return queryString ? `${pathname}?${queryString}` : pathname;
-}

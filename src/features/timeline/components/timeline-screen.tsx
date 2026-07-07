@@ -16,6 +16,7 @@ import {
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { PageHeader } from "@/components/layout/page-header";
+import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
 import { RecentChangesPopover } from "@/features/activity/components/recent-changes-popover";
 import type { RecentChange } from "@/features/activity/activity.types";
@@ -317,17 +318,6 @@ function getTimelineDrawerDescription(drawer: DrawerState) {
   }
 
   return "Hide this record from normal timeline views while keeping audit history.";
-}
-
-function getHrefWithoutActionParam(
-  pathname: string,
-  searchParams: { toString(): string },
-) {
-  const nextParams = new URLSearchParams(searchParams.toString());
-  nextParams.delete("action");
-
-  const queryString = nextParams.toString();
-  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 function getTimelineCreateInitialValues(

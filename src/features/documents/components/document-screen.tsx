@@ -23,6 +23,7 @@ import {
 } from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
+import { removeSearchParams } from "@/lib/url/href";
 import { Button } from "@/components/ui/button";
 import {
   DOCUMENT_FILE_ACCEPT,
@@ -1008,12 +1009,7 @@ function getHrefWithoutActionParam(
   pathname: string,
   searchParams: { toString(): string },
 ) {
-  const nextParams = new URLSearchParams(searchParams.toString());
-  nextParams.delete("action");
-  nextParams.delete("category");
-
-  const query = nextParams.toString();
-  return query ? `${pathname}?${query}` : pathname;
+  return removeSearchParams(pathname, searchParams, ["action", "category"]);
 }
 
 function getDrawerTitle(drawer: DrawerState) {

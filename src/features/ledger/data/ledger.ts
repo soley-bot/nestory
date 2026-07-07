@@ -23,6 +23,7 @@ import type {
 import type { LinkedDocument } from "@/features/documents/document.types";
 import type { CurrencyCode } from "@/lib/money/format";
 import { getQueryTokens, textMatchesToken } from "@/lib/query/screen-query";
+import { buildHref } from "@/lib/url/href";
 
 const ledgerEntrySelect =
   "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, archived_at";
@@ -599,23 +600,6 @@ function buildLedgerNextAction({
     label: "Review timeline",
     tone: "neutral",
   };
-}
-
-function buildHref(
-  pathname: string,
-  params: Record<string, string | undefined>,
-) {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      searchParams.set(key, value);
-    }
-  }
-
-  const query = searchParams.toString();
-
-  return query ? `${pathname}?${query}` : pathname;
 }
 
 function toLedgerPeriodLocks(rows: PeriodLockRow[]): LedgerPeriodLock[] {

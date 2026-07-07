@@ -20,6 +20,7 @@ import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/layout/page-header";
+import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
 import { RecentChangesPopover } from "@/features/activity/components/recent-changes-popover";
 import type { RecentChange } from "@/features/activity/activity.types";
@@ -353,17 +354,6 @@ function getLedgerDrawerDescription(drawer: DrawerState) {
   }
 
   return "Hide this entry from ledger totals and archive the linked timeline event when present.";
-}
-
-function getHrefWithoutActionParam(
-  pathname: string,
-  searchParams: { toString(): string },
-) {
-  const nextParams = new URLSearchParams(searchParams.toString());
-  nextParams.delete("action");
-
-  const queryString = nextParams.toString();
-  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 type LedgerReviewContext = {

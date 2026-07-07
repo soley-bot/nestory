@@ -3,6 +3,7 @@ import {
   formatMoney,
   formatMoneyDisplay,
 } from "@/lib/money/format";
+import { buildHref } from "@/lib/url/href";
 import type { Database } from "@/types/database";
 import type {
   LeaseBadgeTone,
@@ -614,20 +615,6 @@ function formatStoredLabel(value: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function buildHref(pathname: string, params: Record<string, string | undefined>) {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      searchParams.set(key, value);
-    }
-  }
-
-  const query = searchParams.toString();
-
-  return query ? `${pathname}?${query}` : pathname;
 }
 
 function getOccupancyLabel(status: LeaseStatusValue, unit?: LeaseUnitRow) {

@@ -40,8 +40,9 @@ Public and auth:
 Core dashboard shell:
 
 - `/overview` loads dashboard attention and portfolio context.
-- `/property-dashboard`, `/finance-dashboard`, and some planned settings or
-  timeline routes use the placeholder dashboard/detail surface.
+- `/property-dashboard` and `/finance-dashboard` render live dashboard preview
+  routes. Some planned settings or timeline routes use the placeholder
+  roadmap surface.
 - `/maintenance-dashboard` is a real maintenance summary using maintenance data.
 
 Property and units:

@@ -7,6 +7,7 @@ import {
   type CurrencyCode,
 } from "@/lib/money/format";
 import { formatMoneyTotals, formatMoneyTotalsDisplay } from "@/lib/money/totals";
+import { buildHref } from "@/lib/url/href";
 import type {
   UnitBadgeTone,
   UnitDetailHrefs,
@@ -1029,23 +1030,6 @@ function formatPercent(value: number) {
   }
 
   return `${Math.round(value * 100)}%`;
-}
-
-function buildHref(
-  pathname: string,
-  params: Record<string, string | undefined>,
-) {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      searchParams.set(key, value);
-    }
-  }
-
-  const queryString = searchParams.toString();
-
-  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 function normalizeUnitStatus(status: string): UnitStatusValue {

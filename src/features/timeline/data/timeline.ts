@@ -18,6 +18,7 @@ import type {
 } from "@/features/timeline/timeline.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { CurrencyCode } from "@/lib/money/format";
+import { buildHref } from "@/lib/url/href";
 
 const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
   archiveState: "active",
@@ -699,23 +700,6 @@ function buildTimelineNextAction({
     label: "Review event",
     tone: "neutral",
   };
-}
-
-function buildHref(
-  pathname: string,
-  params: Record<string, string | undefined>,
-) {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      searchParams.set(key, value);
-    }
-  }
-
-  const query = searchParams.toString();
-
-  return query ? `${pathname}?${query}` : pathname;
 }
 
 function isTimelineEventLocked(

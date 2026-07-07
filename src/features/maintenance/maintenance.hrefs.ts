@@ -51,3 +51,117 @@ export function getMaintenanceReportHref(
 
   return `/reports?${params.toString()}`;
 }
+
+export function buildMaintenanceSavedViewHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  review: MaintenanceViewQuery["review"],
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+
+  nextParams.set("view", "list");
+  nextParams.delete("page");
+  nextParams.delete("pageSize");
+  nextParams.delete("sort");
+  nextParams.delete("status");
+  nextParams.delete("taskId");
+
+  if (review === "open") {
+    nextParams.delete("review");
+  } else {
+    nextParams.set("review", review);
+  }
+
+  const query = nextParams.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+export function buildMaintenanceCasesViewHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  view: MaintenanceViewQuery["view"],
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+
+  nextParams.delete("page");
+  nextParams.delete("taskId");
+  nextParams.delete("status");
+
+  if (view === "inbox") {
+    nextParams.delete("view");
+    nextParams.delete("review");
+    nextParams.delete("pageSize");
+    nextParams.delete("sort");
+  } else {
+    nextParams.set("view", view);
+  }
+
+  if (view === "board") {
+    nextParams.set("review", "work_orders");
+    nextParams.delete("pageSize");
+    nextParams.delete("sort");
+  } else if (view === "calendar") {
+    nextParams.set("review", "scheduled");
+    nextParams.set("pageSize", "100");
+    nextParams.set("sort", "due_asc");
+  } else if (view === "templates") {
+    nextParams.set("review", "recurring");
+    nextParams.delete("pageSize");
+    nextParams.delete("sort");
+  } else if (view === "list") {
+    nextParams.delete("review");
+    nextParams.delete("pageSize");
+    nextParams.delete("sort");
+  }
+
+  const query = nextParams.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+export function buildMaintenanceTabHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  review: MaintenanceViewQuery["review"],
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+
+  if (review === "open") {
+    nextParams.delete("review");
+  } else {
+    nextParams.set("review", review);
+  }
+
+  nextParams.delete("page");
+  nextParams.delete("status");
+  nextParams.delete("taskId");
+  const query = nextParams.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+export function buildClearFiltersHref(
+  pathname: string,
+  searchParams: { toString(): string },
+) {
+  const nextParams = new URLSearchParams(searchParams.toString());
+
+  [
+    "archiveState",
+    "month",
+    "page",
+    "priority",
+    "propertyId",
+    "query",
+    "review",
+    "scope",
+    "sort",
+    "status",
+    "taskId",
+    "unitId",
+  ].forEach((key) => nextParams.delete(key));
+
+  const query = nextParams.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}

@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import {
   ArchiveUnitPanel,
   RestoreUnitPanel,
@@ -314,17 +315,6 @@ export function UnitScreen({
       ) : null}
     </div>
   );
-}
-
-function getHrefWithoutActionParam(
-  pathname: string,
-  searchParams: { toString(): string },
-) {
-  const nextParams = new URLSearchParams(searchParams.toString());
-  nextParams.delete("action");
-
-  const queryString = nextParams.toString();
-  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 function UnitReviewStrip({

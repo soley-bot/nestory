@@ -3,7 +3,9 @@ import {
   type ActivityLogSnapshot,
 } from "@/features/activity/recent-changes";
 import type { LinkedDocument } from "@/features/documents/document.types";
+import { formatDate } from "@/lib/dates/format";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { buildHref } from "@/lib/url/href";
 import {
   DEFAULT_PEOPLE_SORT,
   parsePeopleSearchParams,
@@ -3120,37 +3122,6 @@ function differenceSets<T>(first: ReadonlySet<T>, second: ReadonlySet<T>) {
   }
 
   return difference;
-}
-
-function buildHref(
-  pathname: string,
-  params: Record<string, string | undefined>,
-) {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      searchParams.set(key, value);
-    }
-  }
-
-  const query = searchParams.toString();
-
-  return query ? `${pathname}?${query}` : pathname;
-}
-
-function formatDate(value: string) {
-  const date = new Date(`${value}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
 }
 
 function readPartyType(row: UnknownRecord, key: string): PersonPartyType {

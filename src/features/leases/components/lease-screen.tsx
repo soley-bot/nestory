@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import { removeSearchParams } from "@/lib/url/href";
 import {
   ArchiveLeasePanel,
   RestoreLeasePanel,
@@ -288,13 +289,11 @@ function getHrefWithoutActionParam(
   pathname: string,
   searchParams: { toString(): string },
 ) {
-  const nextParams = new URLSearchParams(searchParams.toString());
-  nextParams.delete("action");
-  nextParams.delete("source");
-  nextParams.delete("tenantPersonId");
-
-  const queryString = nextParams.toString();
-  return queryString ? `${pathname}?${queryString}` : pathname;
+  return removeSearchParams(pathname, searchParams, [
+    "action",
+    "source",
+    "tenantPersonId",
+  ]);
 }
 
 function getLeaseCreateIntent(

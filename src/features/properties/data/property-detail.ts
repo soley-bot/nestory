@@ -16,6 +16,7 @@ import {
   type MoneyDisplayValue,
 } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
+import { buildHref } from "@/lib/url/href";
 
 export type PropertyDetailUnitRecord = {
   archived_at: string | null;
@@ -1066,20 +1067,6 @@ function formatPercent(value: number) {
   }
 
   return `${Math.round(value * 100)}%`;
-}
-
-function buildHref(pathname: string, params: Record<string, string | undefined>) {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      searchParams.set(key, value);
-    }
-  }
-
-  const queryString = searchParams.toString();
-
-  return queryString ? `${pathname}?${queryString}` : pathname;
 }
 
 function indexById<T extends { id: string }>(rows: T[]) {
