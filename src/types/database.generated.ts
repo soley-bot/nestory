@@ -2581,7 +2581,7 @@ export type Database = {
         Returns: string
       }
       bootstrap_admin_organization: {
-        Args: { organization_name: string }
+        Args: { organization_name: string; workspace_slug?: string | null }
         Returns: {
           membership_id: string
           organization_id: string

@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
 import { NestoryLogo } from "@/components/brand/nestory-logo";
+import { cn } from "@/lib/utils";
 
 type AuthPageShellProps = {
   children: ReactNode;
@@ -17,6 +19,7 @@ type AuthPageShellProps = {
   switchLabel?: string;
   switchText?: string;
   title: string;
+  visualSrc?: string;
 };
 
 const defaultContextItems = [
@@ -45,26 +48,66 @@ export function AuthPageShell({
   switchLabel,
   switchText,
   title,
+  visualSrc,
 }: AuthPageShellProps) {
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#fdfdfc] text-[#080b12]">
+    <main
+      className={cn(
+        "relative isolate min-h-screen overflow-x-hidden bg-background text-foreground",
+        visualSrc && "auth-photo-page",
+      )}
+    >
+      {visualSrc ? (
+        <div className="absolute inset-0 -z-10">
+          <Image
+            alt=""
+            aria-hidden="true"
+            className="object-cover"
+            fill
+            priority
+            sizes="100vw"
+            src={visualSrc}
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={{ background: "var(--auth-page-scrim)" }}
+          />
+        </div>
+      ) : null}
+
       <header className="absolute inset-x-0 top-0 z-20">
         <div className="mx-auto box-border flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
           <Link
             aria-label="Nestory home"
-            className="leading-none text-[#060910]"
+            className={cn(
+              "leading-none",
+              visualSrc ? "text-[var(--auth-page-fg)]" : "text-foreground",
+            )}
             href="/"
           >
             <NestoryLogo
               markClassName="h-9 w-9"
+              markTone="auto"
               priority
-              subtitleClassName="text-[#9aa0aa]"
-              textClassName="text-2xl text-[#060910]"
+              subtitleClassName={
+                visualSrc
+                  ? "text-[var(--auth-page-subtle)]"
+                  : "text-foreground-subtle"
+              }
+              textClassName={
+                visualSrc ? "text-2xl text-[var(--auth-page-fg)]" : "text-2xl text-foreground"
+              }
             />
           </Link>
 
           <Link
-            className="hidden text-[11px] font-medium uppercase tracking-[0.16em] text-[#838995] transition-colors hover:text-[#060910] sm:inline-flex"
+            className={cn(
+              "hidden text-[11px] font-medium uppercase tracking-[0.16em] transition-colors sm:inline-flex",
+              visualSrc
+                ? "text-[var(--auth-page-subtle)] hover:text-[var(--auth-page-fg)]"
+                : "text-foreground-subtle hover:text-foreground",
+            )}
             href={switchHref ?? "/"}
           >
             {switchLabel ?? "Home"}
@@ -73,25 +116,62 @@ export function AuthPageShell({
       </header>
 
       <section className="mx-auto box-border flex min-h-screen w-full max-w-[1180px] flex-col justify-center gap-10 px-6 pb-12 pt-32 sm:px-10 lg:grid lg:grid-cols-[minmax(0,1fr)_430px] lg:items-center lg:px-14">
-        <aside className="hidden max-w-[560px] lg:block">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#9aa3b2]">
+        <aside className="auth-shell-context hidden max-w-[560px] lg:block">
+          <p
+            className={cn(
+              "text-[11px] font-semibold uppercase tracking-[0.22em]",
+              visualSrc ? "text-[var(--auth-page-subtle)]" : "text-foreground-subtle",
+            )}
+          >
             {contextLabel}
           </p>
-          <h2 className="mt-5 font-display text-3xl font-semibold leading-[1.12] text-[#080d1a]">
+          <h2
+            className={cn(
+              "mt-5 font-display text-3xl font-semibold leading-[1.12]",
+              visualSrc ? "text-[var(--auth-page-fg)]" : "text-foreground",
+            )}
+          >
             {contextTitle}
           </h2>
-          <p className="mt-5 max-w-md text-sm leading-6 text-[#6f7887]">{contextText}</p>
+          <p
+            className={cn(
+              "mt-5 max-w-md text-sm leading-6",
+              visualSrc ? "text-[var(--auth-page-muted)]" : "text-foreground-muted",
+            )}
+          >
+            {contextText}
+          </p>
 
-          <div className="mt-10 border-t border-[#dfe4ea]">
+          <div
+            className={cn(
+              "mt-10 border-t",
+              visualSrc ? "border-[color:var(--auth-page-line)]" : "border-border",
+            )}
+          >
             {contextItems.map((item) => (
               <div
-                className="grid grid-cols-[0.4fr_1fr] gap-8 border-b border-[#dfe4ea] py-5"
+                className={cn(
+                  "grid grid-cols-[0.4fr_1fr] gap-8 border-b py-5",
+                  visualSrc ? "border-[color:var(--auth-page-line)]" : "border-border",
+                )}
                 key={item.label}
               >
-                <p className="font-display text-lg font-semibold leading-tight text-[#080d1a]">
+                <p
+                  className={cn(
+                    "font-display text-lg font-semibold leading-tight",
+                    visualSrc ? "text-[var(--auth-page-fg)]" : "text-foreground",
+                  )}
+                >
                   {item.label}
                 </p>
-                <p className="text-sm leading-6 text-[#7a8394]">{item.text}</p>
+                <p
+                  className={cn(
+                    "text-sm leading-6",
+                    visualSrc ? "text-[var(--auth-page-muted)]" : "text-foreground-muted",
+                  )}
+                >
+                  {item.text}
+                </p>
               </div>
             ))}
           </div>
@@ -101,21 +181,30 @@ export function AuthPageShell({
           className="min-w-0 self-center justify-self-center lg:justify-self-end"
           style={{ maxWidth: "430px", width: "calc(100vw - 48px)" }}
         >
-          <div className="box-border w-full rounded-lg border border-[#dfe4ea] bg-white p-5 shadow-[0_18px_60px_rgba(8,11,18,0.045)] sm:p-6">
+          <div
+            className={cn(
+              "auth-shell-card box-border w-full rounded-lg border p-5 sm:p-6",
+              visualSrc
+                ? "border-[color:var(--auth-page-card-border)] bg-surface/90 shadow-[0_20px_70px_rgb(0_0_0/0.18)] backdrop-blur-xl"
+                : "border-border bg-surface shadow-sm",
+            )}
+          >
             <div className="mb-6">
-              <h1 className="font-display text-2xl font-semibold leading-tight text-[#080b12]">
+              <h1 className="font-display text-2xl font-semibold leading-tight text-foreground">
                 {title}
               </h1>
-              <p className="mt-2 text-sm leading-6 text-[#6e7681]">{description}</p>
+              <p className="mt-2 text-sm leading-6 text-foreground-muted">
+                {description}
+              </p>
             </div>
 
             {children}
 
             {switchHref && switchLabel && switchText ? (
-              <p className="mt-5 border-t border-[#edf0f3] pt-5 text-sm leading-6 text-[#6e7681]">
+              <p className="mt-5 border-t border-border pt-5 text-sm leading-6 text-foreground-muted">
                 <span>{switchText} </span>
                 <Link
-                  className="font-semibold text-[#080b12] transition-opacity hover:opacity-65"
+                  className="font-semibold text-foreground transition-opacity hover:opacity-65"
                   href={switchHref}
                 >
                   {switchLabel}

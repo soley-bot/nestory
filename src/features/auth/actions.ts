@@ -16,6 +16,7 @@ type AuthFieldErrors = {
   email?: string[];
   organizationName?: string[];
   password?: string[];
+  workspaceSlug?: string[];
 };
 
 export type AuthActionState = {
@@ -37,11 +38,26 @@ const organizationSchema = z.object({
     .max(120, "Keep the company name under 120 characters."),
 });
 
+const workspaceSlugSchema = z
+  .string()
+  .trim()
+  .min(3, "Use at least 3 characters.")
+  .max(63, "Keep the workspace URL under 63 characters.")
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+    "Use lowercase letters, numbers, and hyphens.",
+  )
+  .refine((value) => !["api", "app", "www"].includes(value), {
+    message: "That workspace URL is reserved.",
+  });
+
 const signupSchema = loginSchema.extend({
   password: z.string().min(8, "Use at least 8 characters."),
 });
 
-const setupSchema = organizationSchema;
+const setupSchema = organizationSchema.extend({
+  workspaceSlug: workspaceSlugSchema,
+});
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -68,14 +84,37 @@ async function getAuthCallbackUrl() {
 
 async function bootstrapAdminOrganization(
   organizationName: string,
+  workspaceSlug: string,
   client?: SupabaseServerClient,
 ): Promise<AuthActionState | null> {
   const supabase = client ?? (await createSupabaseServerClient());
   const { error } = await supabase.rpc("bootstrap_admin_organization", {
     organization_name: organizationName,
+    workspace_slug: workspaceSlug,
   });
 
   if (error) {
+    if (error.message.includes("Workspace URL is already taken")) {
+      return {
+        fieldErrors: {
+          workspaceSlug: ["That workspace URL is already taken."],
+        },
+        status: "error",
+      };
+    }
+
+    if (
+      error.message.includes("Workspace URL is invalid") ||
+      error.message.includes("Workspace URL is reserved")
+    ) {
+      return {
+        fieldErrors: {
+          workspaceSlug: ["Choose another workspace URL."],
+        },
+        status: "error",
+      };
+    }
+
     return {
       message: "We could not create the workspace. Please try again.",
       status: "error",
@@ -174,6 +213,7 @@ export async function setupOrganizationAction(
 
   const parsed = setupSchema.safeParse({
     organizationName: readString(formData, "organizationName"),
+    workspaceSlug: readString(formData, "workspaceSlug"),
   });
 
   if (!parsed.success) {
@@ -188,6 +228,7 @@ export async function setupOrganizationAction(
 
   const bootstrapError = await bootstrapAdminOrganization(
     parsed.data.organizationName,
+    parsed.data.workspaceSlug,
   );
 
   if (bootstrapError) {

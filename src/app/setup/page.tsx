@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SetupPage() {
   const user = await requireUser();
+  const rootDomain = process.env.APP_ROOT_DOMAIN ?? "nestory-kh.com";
   const organizationSlug = await getCurrentOrganizationSlug();
   const membership = await getAdminMembershipForUser(user.id, undefined, {
     organizationSlug,
@@ -27,15 +28,33 @@ export default async function SetupPage() {
 
   return (
     <AuthPageShell
-      description="Name the company this workspace belongs to."
-      title="Finish workspace"
+      contextItems={[
+        {
+          label: "Identity",
+          text: "Name the company record your portfolio belongs to.",
+        },
+        {
+          label: "Address",
+          text: "Choose the workspace URL before property data moves in.",
+        },
+        {
+          label: "First run",
+          text: "Add a property, import units, or open the overview next.",
+        },
+      ]}
+      contextLabel="Workspace setup"
+      contextText="Nestory creates one admin workspace first. Property records, rent, maintenance, and documents attach to it after setup."
+      contextTitle="Start with a clean operating base."
+      description="Create the admin workspace and choose the address your team will use."
+      title="Set up workspace"
+      visualSrc="/marketing/login-property-building-blue-hour.png"
     >
       <div>
-        <p className="text-sm leading-6 text-[#6e7681]">{user.email}</p>
-        <SetupOrganizationForm />
-        <form action={signOutAction} className="mt-5 border-t border-[#edf0f3] pt-4">
+        <p className="text-sm leading-6 text-foreground-muted">{user.email}</p>
+        <SetupOrganizationForm rootDomain={rootDomain} />
+        <form action={signOutAction} className="mt-5 border-t border-border pt-4">
           <button
-            className="text-sm font-semibold text-[#6e7681] transition-colors hover:text-[#080b12]"
+            className="text-sm font-semibold text-foreground-muted transition-colors hover:text-foreground"
             type="submit"
           >
             Sign out

@@ -25,7 +25,16 @@ export type ImportUnitOption = {
   unitNumber: string;
 };
 
+export type ImportLeaseOccupancyOption = {
+  endDate: string | null;
+  leaseId: string;
+  startDate: string | null;
+  status: "notice_given" | "occupied" | "reserved";
+  unitId: string;
+};
+
 export type ImportReferenceData = {
+  leaseOccupancies: ImportLeaseOccupancyOption[];
   people: ImportPersonOption[];
   properties: ImportPropertyOption[];
   units: ImportUnitOption[];

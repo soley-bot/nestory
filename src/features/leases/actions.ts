@@ -64,10 +64,10 @@ const leaseMutationSchema = z
       });
     }
 
-    if (data.leaseEndDate < data.leaseStartDate) {
+    if (data.leaseEndDate <= data.leaseStartDate) {
       context.addIssue({
         code: "custom",
-        message: "End date must be on or after the start date.",
+        message: "End date must be after the start date.",
         path: ["leaseEndDate"],
       });
     }
@@ -372,6 +372,13 @@ function leaseActionErrorMessage(message: string) {
 
   if (message.includes("Unit not found under selected property")) {
     return "Choose a unit under the selected property.";
+  }
+
+  if (
+    message.includes("Unit already has an open lease") ||
+    message.includes("lease_occupancies_one_active_unit_idx")
+  ) {
+    return "This unit already has an open lease. End or cancel the existing lease before saving another open lease.";
   }
 
   if (message.includes("Lease not found")) {

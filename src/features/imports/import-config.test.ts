@@ -9,6 +9,7 @@ import type { ImportReferenceData } from "@/features/imports/import.types";
 import { parseCsv } from "@/features/imports/unit-import";
 
 const referenceData: ImportReferenceData = {
+  leaseOccupancies: [],
   people: [
     {
       displayName: "Sok Dara",
@@ -179,6 +180,136 @@ describe("import config", () => {
     expect(getGenericImportStats(rows)).toMatchObject({
       errorCount: 1,
       readyCount: 1,
+    });
+  });
+
+  it("blocks same-day lease date ranges before staging", () => {
+    const parsed = parseCsv(
+      [
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Status",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-01-01,850,Active",
+      ].join("\n"),
+    );
+    const rows = buildGenericImportPreviewRows({
+      mapping: autoMapImportHeaders("leases", parsed.headers),
+      records: parsed.records,
+      referenceData,
+      type: "leases",
+    });
+
+    expect(rows[0].issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: "error",
+          message: "End date must be after start date.",
+        }),
+      ]),
+    );
+    expect(getGenericImportStats(rows)).toMatchObject({
+      errorCount: 1,
+      readyCount: 0,
+    });
+  });
+
+  it("blocks lease imports when a unit already has open occupancy", () => {
+    const leaseId = "44444444-4444-4444-8444-444444444444";
+    const parsed = parseCsv(
+      [
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Status",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-12-31,850,Active",
+      ].join("\n"),
+    );
+    const rows = buildGenericImportPreviewRows({
+      mapping: autoMapImportHeaders("leases", parsed.headers),
+      records: parsed.records,
+      referenceData: {
+        ...referenceData,
+        leaseOccupancies: [
+          {
+            endDate: "2026-12-31",
+            leaseId,
+            startDate: "2026-01-01",
+            status: "occupied",
+            unitId: "22222222-2222-4222-8222-222222222222",
+          },
+        ],
+      },
+      type: "leases",
+    });
+
+    expect(rows[0].issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actionHref: `/leases?query=${leaseId}`,
+          actionLabel: "Review lease",
+          level: "error",
+          message:
+            'Unit "12A" already has an open occupied occupancy (2026-01-01 to 2026-12-31). End or cancel the existing lease before importing another open lease.',
+        }),
+      ]),
+    );
+  });
+
+  it("allows ended historical leases even when a unit has open occupancy", () => {
+    const parsed = parseCsv(
+      [
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Status",
+        "CTR,12A,tenant@example.com,Sok Dara,2025-01-01,2025-12-31,800,Ended",
+      ].join("\n"),
+    );
+    const rows = buildGenericImportPreviewRows({
+      mapping: autoMapImportHeaders("leases", parsed.headers),
+      records: parsed.records,
+      referenceData: {
+        ...referenceData,
+        leaseOccupancies: [
+          {
+            endDate: "2026-12-31",
+            leaseId: "44444444-4444-4444-8444-444444444444",
+            startDate: "2026-01-01",
+            status: "occupied",
+            unitId: "22222222-2222-4222-8222-222222222222",
+          },
+        ],
+      },
+      type: "leases",
+    });
+
+    expect(rows[0]).toMatchObject({
+      actionLabel: "Create",
+      statusLabel: "ended",
+    });
+    expect(rows[0].issues).toHaveLength(0);
+  });
+
+  it("blocks overlapping open lease rows for the same unit in one import", () => {
+    const parsed = parseCsv(
+      [
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Status",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-06-30,850,Active",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-03-01,2026-12-31,900,Notice Given",
+      ].join("\n"),
+    );
+    const rows = buildGenericImportPreviewRows({
+      mapping: autoMapImportHeaders("leases", parsed.headers),
+      records: parsed.records,
+      referenceData,
+      type: "leases",
+    });
+
+    expect(rows.every((row) => row.actionLabel === "Needs review")).toBe(true);
+    expect(
+      rows.every((row) =>
+        row.issues.some((issue) =>
+          issue.message.includes(
+            "Lease import rows 2 and 3 would overlap for Unit 12A.",
+          ),
+        ),
+      ),
+    ).toBe(true);
+    expect(getGenericImportStats(rows)).toMatchObject({
+      errorCount: 2,
+      readyCount: 0,
     });
   });
 });

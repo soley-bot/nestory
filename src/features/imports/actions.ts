@@ -292,11 +292,9 @@ async function commitUnitImportRun({
   revalidateImportPaths("units");
 
   return {
-    message: `Committed ${summary.data.created + summary.data.updated} unit row${
-      summary.data.created + summary.data.updated === 1 ? "" : "s"
-    }.`,
+    message: formatCommitSummaryMessage("units", summary.data),
     runId,
-    status: "success",
+    status: toCommitActionStatus(summary.data),
     summary: summary.data,
   };
 }
@@ -338,14 +336,48 @@ async function commitGenericImportRun({
   revalidateImportPaths(importType);
 
   return {
-    message: `Committed ${summary.data.created + summary.data.updated} ${importType} row${
-      summary.data.created + summary.data.updated === 1 ? "" : "s"
-    }.`,
+    message: formatCommitSummaryMessage(importType, summary.data),
     runId,
-    status: "success",
+    status: toCommitActionStatus(summary.data),
     summary: summary.data,
   };
 }
+
+function formatCommitSummaryMessage(
+  importType: ImportType,
+  summary: z.infer<typeof commitResultSchema>,
+) {
+  const saved = summary.created + summary.updated;
+  const label = importTypeLabels[importType];
+  const rowLabel = `${label} row${saved === 1 ? "" : "s"}`;
+
+  if (summary.failed > 0 && saved === 0) {
+    return `No ${label} rows were committed. Review ${summary.failed} failed row${
+      summary.failed === 1 ? "" : "s"
+    }.`;
+  }
+
+  if (summary.failed > 0) {
+    return `Committed ${saved} ${rowLabel}; ${summary.failed} row${
+      summary.failed === 1 ? "" : "s"
+    } need review.`;
+  }
+
+  return `Committed ${saved} ${rowLabel}.`;
+}
+
+function toCommitActionStatus(summary: z.infer<typeof commitResultSchema>) {
+  return summary.failed > 0 && summary.created + summary.updated === 0
+    ? "error"
+    : "success";
+}
+
+const importTypeLabels: Record<ImportType, string> = {
+  leases: "lease",
+  people: "person",
+  properties: "property",
+  units: "unit",
+};
 
 function toImportRowInsert({
   organizationId,

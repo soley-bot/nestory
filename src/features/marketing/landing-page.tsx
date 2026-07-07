@@ -1,9 +1,20 @@
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  Building2,
+  ClipboardList,
+  FileText,
+  Landmark,
+  ScrollText,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 
 import { LandingHeader } from "./components/landing-header";
+import { LandingScrollMotion } from "./components/landing-scroll-motion";
 import { ControlPreview } from "./components/control-preview";
 
 const heroStats = [
@@ -50,59 +61,103 @@ const photoTiles = [
   },
 ];
 
-const modules = [
+const operationModules: Array<{
+  description: string;
+  href: string;
+  icon: LucideIcon;
+  signal: string;
+  title: string;
+}> = [
   {
-    description: "Properties, units, owners, tenants.",
+    description: "Properties, units, owners, tenants",
     href: "/properties",
+    icon: Building2,
+    signal: "Portfolio record",
     title: "Portfolio",
   },
   {
-    description: "Move-ins, renewals, deposits.",
+    description: "Move-ins, renewals, deposits",
     href: "/leases",
+    icon: ScrollText,
+    signal: "Lease backbone",
     title: "Leasing",
   },
   {
-    description: "Collections, balances, expenses.",
+    description: "Collections, balances, expenses",
     href: "/ledger",
+    icon: Landmark,
+    signal: "Money movement",
     title: "Rent & accounting",
   },
   {
-    description: "Requests, vendors, inspections.",
+    description: "Requests, vendors, inspections",
     href: "/maintenance",
+    icon: Wrench,
+    signal: "Open work",
     title: "Maintenance",
   },
   {
-    description: "Agreements, invoices, receipts.",
+    description: "Agreements, invoices, receipts",
     href: "/documents",
+    icon: FileText,
+    signal: "Private files",
     title: "Documents",
   },
   {
-    description: "Occupancy, collections, open repairs.",
+    description: "Occupancy, collections, open repairs",
     href: "/reports",
+    icon: BookOpen,
+    signal: "Traceable output",
     title: "Reporting",
   },
 ];
 
-const proofStats = [
-  ["500+", "units"],
-  ["790", "records"],
-  ["686", "ledger entries"],
-  ["1", "workspace"],
+const recordFlow = [
+  ["Property", "Central Residence"],
+  ["Unit", "12B"],
+  ["Lease", "Active, renews Sep"],
+  ["Ledger", "Rent received"],
+  ["Maintenance", "AC vendor waiting"],
+  ["Documents", "Lease + receipt linked"],
+] as const;
+
+const systemProof = [
+  {
+    description: "portfolio scale without splitting work across files",
+    label: "units",
+    value: "500+",
+  },
+  {
+    description: "people, leases, documents, and activity history",
+    label: "records",
+    value: "790",
+  },
+  {
+    description: "rent, expenses, deposits, and month-close history",
+    label: "ledger entries",
+    value: "686",
+  },
+  {
+    description: "one admin workspace controlling the operating record",
+    label: "workspace",
+    value: "1",
+  },
 ];
 
 export function LandingPage() {
   return (
     <main className="landing-page bg-[var(--landing-bg)] text-[var(--landing-fg)] transition-colors">
       <LandingMotion />
+      <LandingScrollMotion />
       <LandingHeader tone="hero" />
 
       <section
-        className="relative isolate flex min-h-[100svh] flex-col overflow-hidden bg-[#050607] pt-24"
+        className="landing-hero relative isolate flex min-h-[100svh] flex-col overflow-hidden bg-[#050607] pt-24"
         style={heroToneStyle}
       >
         <Image
           alt={heroImage.alt}
-          className="absolute inset-0 -z-30 object-cover"
+          className="landing-hero-image absolute inset-0 -z-30 object-cover"
           fill
           priority
           sizes="100vw"
@@ -114,15 +169,11 @@ export function LandingPage() {
         />
         <div
           aria-hidden="true"
-          className="absolute inset-0 -z-20"
-          style={{
-            background:
-              "linear-gradient(90deg, rgb(5 6 7 / 82%) 0%, rgb(5 6 7 / 50%) 38%, rgb(5 6 7 / 24%) 70%, rgb(5 6 7 / 54%) 100%)",
-          }}
+          className="landing-hero-overlay absolute inset-0 -z-20"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-x-0 bottom-0 -z-10 h-52 bg-gradient-to-b from-transparent via-[#050607]/60 to-[#050607]"
+          className="landing-hero-bottom absolute inset-x-0 bottom-0 -z-10 h-52"
         />
 
         <div className="mx-auto flex w-full max-w-[1360px] flex-1 items-center px-6 py-16 sm:px-10 lg:px-14">
@@ -155,7 +206,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="px-6 py-20 sm:px-10 lg:px-14" id="workspace">
+      <section className="px-6 py-20 sm:px-10 lg:px-14" data-landing-reveal id="workspace">
         <div className="mx-auto max-w-[1360px]">
           <SectionIntro
             actionHref="#control"
@@ -186,7 +237,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="px-6 py-24 sm:px-10 lg:px-14" id="control">
+      <section className="px-6 py-24 sm:px-10 lg:px-14" data-landing-reveal id="control">
         <div className="mx-auto max-w-[1360px]">
           <SectionIntro
             actionHref="/signup"
@@ -201,54 +252,99 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="px-6 py-24 sm:px-10 lg:px-14" id="operations">
+      <section className="px-6 py-24 sm:px-10 lg:px-14" data-landing-reveal id="operations">
         <div className="mx-auto max-w-[1360px]">
           <SectionIntro
             actionHref="/signup"
             actionLabel="Start"
             kicker=""
-            subtitle="Core PMS workflows, kept connected."
+            subtitle="A property, unit, lease, ledger row, repair, and document can stay in the same operating story."
             title="Operations"
           />
 
-          <div className="mt-12 border-t border-[var(--landing-border)]">
-            {modules.map((item) => (
-              <Link
-                className="group grid gap-4 border-b border-[var(--landing-border)] py-7 text-[var(--landing-heading)] transition-opacity hover:opacity-70 md:grid-cols-[0.42fr_1fr_32px] md:items-center"
-                href={item.href}
-                key={item.title}
-              >
-                <h3 className="font-display text-2xl font-semibold leading-tight sm:text-3xl">
-                  {item.title}
-                </h3>
-                <p className="max-w-xl text-sm leading-6 text-[var(--landing-muted)]">
-                  {item.description}
-                </p>
-                <ArrowRight
-                  aria-hidden="true"
-                  className="text-[var(--landing-subtle)] transition-transform group-hover:translate-x-1"
-                  size={20}
-                  strokeWidth={1.6}
-                />
-              </Link>
-            ))}
+          <div className="mt-12 grid gap-10 lg:grid-cols-[0.42fr_minmax(0,1fr)] lg:items-start">
+            <div className="border-y border-[var(--landing-border)] py-7">
+              <div className="flex items-center gap-3 text-[var(--landing-heading)]">
+                <span className="grid size-10 place-items-center rounded-lg border border-[var(--landing-border)]">
+                  <ClipboardList size={18} strokeWidth={1.7} />
+                </span>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-subtle)]">
+                    Unit record
+                  </p>
+                  <h3 className="mt-1 font-display text-2xl font-semibold leading-tight">
+                    One thread of work
+                  </h3>
+                </div>
+              </div>
+
+              <div className="mt-8 space-y-0 border-t border-[var(--landing-border)]">
+                {recordFlow.map(([label, value]) => (
+                  <div
+                    className="grid grid-cols-[112px_minmax(0,1fr)] gap-4 border-b border-[var(--landing-border)] py-4 text-sm"
+                    key={label}
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--landing-subtle)]">
+                      {label}
+                    </p>
+                    <p className="min-w-0 text-[var(--landing-heading)]">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-[var(--landing-border)]">
+              {operationModules.map((item) => (
+                <Link
+                  className="group grid grid-cols-[44px_minmax(0,1fr)_24px] gap-x-4 gap-y-3 border-b border-[var(--landing-border)] py-6 text-[var(--landing-heading)] transition-opacity hover:opacity-75 md:grid-cols-[44px_minmax(220px,0.36fr)_minmax(0,1fr)_32px] md:items-center"
+                  href={item.href}
+                  key={item.title}
+                >
+                  <span className="grid size-10 place-items-center rounded-lg border border-[var(--landing-border)] text-[var(--landing-muted)] transition-colors group-hover:text-[var(--landing-heading)]">
+                    <item.icon size={18} strokeWidth={1.7} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-display text-xl font-semibold leading-tight sm:text-2xl">
+                      {item.title}
+                    </span>
+                    <span className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--landing-subtle)]">
+                      {item.signal}
+                    </span>
+                  </span>
+                  <span className="col-start-2 max-w-xl text-sm leading-6 text-[var(--landing-muted)] md:col-start-auto">
+                    {item.description}
+                  </span>
+                  <ArrowRight
+                    aria-hidden="true"
+                    className="col-start-3 row-start-1 justify-self-end text-[var(--landing-subtle)] transition-transform group-hover:translate-x-1 md:col-start-auto md:row-start-auto md:justify-self-auto"
+                    size={20}
+                    strokeWidth={1.6}
+                  />
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="px-6 py-24 sm:px-10 lg:px-14" id="method">
-        <div className="mx-auto max-w-[1360px] rounded-lg bg-[var(--landing-inverse-bg)] px-8 py-14 text-[var(--landing-inverse-fg)] sm:px-12 sm:py-16 lg:px-16">
-          <div className="grid gap-10 lg:grid-cols-[0.55fr_0.45fr] lg:items-start">
+      <section className="px-6 py-16 sm:px-10 sm:py-20 lg:px-14" data-landing-reveal id="method">
+        <div className="mx-auto max-w-[1360px] border-t border-[var(--landing-border)] py-14 sm:py-16">
+          <div className="grid gap-12 lg:grid-cols-[0.42fr_minmax(0,1fr)] lg:items-start">
             <div>
-              <h2 className="font-display text-3xl font-semibold leading-[1.1] sm:text-4xl">
-                One system. Every property operation.
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--landing-subtle)]">
+                Operating proof
+              </p>
+              <h2 className="mt-4 font-display text-3xl font-semibold leading-[1.1] text-[var(--landing-heading)] sm:text-4xl">
+                Every operation leaves a record.
               </h2>
-              <p className="mt-5 max-w-xl text-sm leading-6 text-[var(--landing-inverse-muted)]">
-                Leases, rent, maintenance, documents, and history stay connected.
+              <p className="mt-5 max-w-xl text-sm leading-6 text-[var(--landing-muted)]">
+                Nestory is built around the work that usually gets scattered:
+                unit status, lease movement, rent history, repair work, files,
+                and the timeline behind each decision.
               </p>
             </div>
             <Link
-              className="inline-flex items-center gap-2 justify-self-start text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)] lg:justify-self-end"
+              className="inline-flex items-center gap-2 justify-self-start text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-accent)] transition-opacity hover:opacity-70 lg:justify-self-end"
               href="/signup"
             >
               Create workspace
@@ -256,12 +352,20 @@ export function LandingPage() {
             </Link>
           </div>
 
-          <div className="mt-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-            {proofStats.map(([value, text]) => (
-              <div key={value}>
-                <p className="font-display text-3xl font-semibold leading-none sm:text-4xl">{value}</p>
-                <p className="mt-5 max-w-48 text-[11px] font-semibold uppercase leading-5 tracking-[0.2em] text-[var(--landing-inverse-accent)]">
-                  {text}
+          <div className="mt-12 grid border-t border-[var(--landing-border)] sm:grid-cols-2 lg:grid-cols-4">
+            {systemProof.map((item) => (
+              <div
+                className="border-b border-[var(--landing-border)] py-7 sm:px-6 sm:first:pl-0 lg:border-b-0 lg:border-r lg:last:border-r-0"
+                key={item.label}
+              >
+                <p className="font-display text-3xl font-semibold leading-none text-[var(--landing-heading)] sm:text-4xl">
+                  {item.value}
+                </p>
+                <p className="mt-4 text-[11px] font-semibold uppercase leading-5 tracking-[0.2em] text-[var(--landing-subtle)]">
+                  {item.label}
+                </p>
+                <p className="mt-3 max-w-56 text-sm leading-6 text-[var(--landing-muted)]">
+                  {item.description}
                 </p>
               </div>
             ))}
@@ -269,12 +373,21 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="px-6 pb-20 pt-12 sm:px-10 lg:px-14" id="start">
-        <div className="mx-auto grid max-w-[1360px] gap-10 border-t border-[var(--landing-border)] pt-20 lg:grid-cols-[0.58fr_0.42fr] lg:items-center">
-          <h2 className="font-display max-w-4xl text-3xl font-semibold leading-[1.1] text-[var(--landing-heading)] sm:text-4xl">
-            Property management, kept under control.
-          </h2>
-          <div className="lg:justify-self-end lg:text-center">
+      <section className="px-6 pb-14 pt-8 sm:px-10 sm:pb-16 lg:px-14" data-landing-reveal id="start">
+        <div className="mx-auto grid max-w-[1360px] gap-8 border-t border-[var(--landing-border)] py-14 lg:grid-cols-[minmax(0,0.58fr)_minmax(280px,0.42fr)] lg:items-center">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--landing-subtle)]">
+              Start workspace
+            </p>
+            <h2 className="mt-4 font-display max-w-4xl text-3xl font-semibold leading-[1.1] text-[var(--landing-heading)] sm:text-4xl">
+              Bring the portfolio into one operating record.
+            </h2>
+            <p className="mt-5 max-w-2xl text-sm leading-6 text-[var(--landing-muted)]">
+              Start with the admin workspace, then connect properties, units,
+              leases, rent, maintenance, and files as the records come online.
+            </p>
+          </div>
+          <div className="lg:justify-self-end">
             <Link
               className="inline-flex h-14 items-center gap-3 rounded-full bg-[var(--landing-cta-bg)] px-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--landing-cta-fg)] transition-transform hover:-translate-y-0.5 hover:opacity-90"
               href="/signup"
@@ -289,32 +402,63 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="bg-[var(--landing-inverse-bg)] px-6 py-16 text-[var(--landing-inverse-fg)] sm:px-10 lg:px-14">
+      <footer className="border-t border-[var(--landing-inverse-border)] bg-[var(--landing-inverse-bg)] px-6 py-14 text-[var(--landing-inverse-fg)] sm:px-10 lg:px-14" data-landing-reveal>
         <div className="mx-auto max-w-[1360px]">
-          <nav className="flex flex-col items-center gap-2 border-b border-[var(--landing-inverse-border)] pb-14 text-center font-display text-2xl font-semibold leading-tight text-[var(--landing-inverse-muted)] sm:text-3xl">
-            <a className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="#workspace">
-              Workspace
-            </a>
-            <a className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="#operations">
-              Operations
-            </a>
-            <a className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="#control">
-              Control
-            </a>
-            <Link className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="/signup">
-              Start workspace
-            </Link>
-          </nav>
-          <div className="mt-10 flex flex-col gap-6 text-sm text-[var(--landing-inverse-muted)] md:flex-row md:items-center md:justify-between">
-            <p>&copy; 2026 Nestory</p>
-            <div className="flex flex-wrap gap-6">
-              <Link className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="/login">
-                Sign in
-              </Link>
-              <Link className="transition-colors hover:text-[var(--landing-inverse-fg)]" href="/signup">
-                Create workspace
-              </Link>
+          <div className="grid gap-10 border-b border-[var(--landing-inverse-border)] pb-12 lg:grid-cols-[minmax(0,0.52fr)_minmax(360px,0.48fr)]">
+            <div>
+              <p className="font-display text-2xl font-semibold leading-none">Nestory</p>
+              <p className="mt-5 max-w-md text-sm leading-6 text-[var(--landing-inverse-muted)]">
+                Property operations software for portfolios, leases, rent,
+                maintenance, documents, and reporting.
+              </p>
             </div>
+
+            <div className="grid gap-8 text-sm sm:grid-cols-3 lg:justify-self-end lg:text-left">
+              <nav className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-inverse-accent)]">
+                  Product
+                </p>
+                <a className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="#workspace">
+                  Workspace
+                </a>
+                <a className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="#control">
+                  Control
+                </a>
+                <a className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="#operations">
+                  Operations
+                </a>
+              </nav>
+              <nav className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-inverse-accent)]">
+                  Records
+                </p>
+                <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/properties">
+                  Properties
+                </Link>
+                <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/maintenance">
+                  Maintenance
+                </Link>
+                <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/reports">
+                  Reports
+                </Link>
+              </nav>
+              <nav className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-inverse-accent)]">
+                  Access
+                </p>
+                <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/login">
+                  Sign in
+                </Link>
+                <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/signup">
+                  Create workspace
+                </Link>
+              </nav>
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-col gap-6 text-sm text-[var(--landing-inverse-muted)] md:flex-row md:items-center md:justify-between">
+            <p>&copy; 2026 Nestory</p>
+            <p>One workspace for the operating record.</p>
           </div>
         </div>
       </footer>
@@ -397,6 +541,82 @@ function LandingMotion() {
   return (
     <style>
       {`
+        .landing-hero {
+          --landing-hero-bg: #101317;
+          --landing-hero-bottom: linear-gradient(
+            to bottom,
+            transparent,
+            rgb(5 6 7 / 48%),
+            #050607
+          );
+          --landing-hero-image-filter: brightness(1.06) contrast(0.96) saturate(0.92);
+          --landing-hero-overlay: linear-gradient(
+            90deg,
+            rgb(5 6 7 / 74%) 0%,
+            rgb(5 6 7 / 43%) 38%,
+            rgb(5 6 7 / 16%) 70%,
+            rgb(5 6 7 / 42%) 100%
+          );
+          background: var(--landing-hero-bg);
+        }
+
+        [data-theme="dark"] .landing-hero {
+          --landing-hero-bg: #050607;
+          --landing-hero-bottom: linear-gradient(
+            to bottom,
+            transparent,
+            rgb(5 6 7 / 66%),
+            #050607
+          );
+          --landing-hero-image-filter: brightness(0.76) contrast(1.08) saturate(0.86);
+          --landing-hero-overlay: linear-gradient(
+            90deg,
+            rgb(5 6 7 / 86%) 0%,
+            rgb(5 6 7 / 58%) 38%,
+            rgb(5 6 7 / 30%) 70%,
+            rgb(5 6 7 / 62%) 100%
+          );
+        }
+
+        .landing-hero-image {
+          filter: var(--landing-hero-image-filter);
+          transition: filter 260ms ease;
+        }
+
+        .landing-hero-overlay {
+          background: var(--landing-hero-overlay);
+          transition: background 260ms ease;
+        }
+
+        .landing-hero-bottom {
+          background: var(--landing-hero-bottom);
+          transition: background 260ms ease;
+        }
+
+        html:has(.landing-page) {
+          scroll-behavior: smooth;
+        }
+
+        .landing-page [data-landing-reveal] {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .landing-page[data-motion-ready="true"] [data-landing-reveal] {
+          opacity: 0;
+          transform: translateY(28px);
+          transition:
+            opacity 780ms cubic-bezier(0.22, 1, 0.36, 1),
+            transform 780ms cubic-bezier(0.22, 1, 0.36, 1);
+          transition-delay: calc(var(--landing-reveal-index, 0) * 42ms);
+          will-change: opacity, transform;
+        }
+
+        .landing-page[data-motion-ready="true"] [data-landing-reveal][data-revealed="true"] {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
         @keyframes nestory-rise {
           from {
             opacity: 0;
@@ -414,6 +634,11 @@ function LandingMotion() {
             animation-iteration-count: 1 !important;
             scroll-behavior: auto !important;
             transition-duration: 0.001ms !important;
+          }
+
+          .landing-page [data-landing-reveal] {
+            opacity: 1 !important;
+            transform: none !important;
           }
         }
       `}

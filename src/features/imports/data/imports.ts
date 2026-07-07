@@ -47,7 +47,13 @@ export async function getImportReferenceData(
   organizationId: string,
 ): Promise<ImportReferenceData> {
   const supabase = await createSupabaseServerClient();
-  const [propertiesResult, unitsResult, peopleResult, rolesResult] =
+  const [
+    propertiesResult,
+    unitsResult,
+    peopleResult,
+    rolesResult,
+    occupanciesResult,
+  ] =
     await Promise.all([
       supabase
         .from("properties")
@@ -73,6 +79,16 @@ export async function getImportReferenceData(
         .eq("organization_id", organizationId)
         .eq("status", "active")
         .is("archived_at", null),
+      supabase
+        .from("lease_occupancies")
+        .select(
+          "lease_id, unit_id, status, scheduled_move_in_date, actual_move_in_date, scheduled_move_out_date",
+        )
+        .eq("organization_id", organizationId)
+        .is("archived_at", null)
+        .is("actual_move_out_date", null)
+        .not("unit_id", "is", null)
+        .in("status", ["reserved", "occupied", "notice_given"]),
     ]);
 
   if (propertiesResult.error) {
@@ -95,10 +111,18 @@ export async function getImportReferenceData(
     throw new Error(`Could not load import roles: ${rolesResult.error.message}`);
   }
 
+  if (occupanciesResult.error) {
+    throw new Error(
+      `Could not load import lease occupancy: ${occupanciesResult.error.message}`,
+    );
+  }
+
   const propertyRows = (propertiesResult.data ?? []) as PropertyReferenceRow[];
   const unitRows = (unitsResult.data ?? []) as UnitReferenceRow[];
   const peopleRows = (peopleResult.data ?? []) as PersonReferenceRow[];
   const roleRows = (rolesResult.data ?? []) as RoleReferenceRow[];
+  const occupancyRows = (occupanciesResult.data ??
+    []) as LeaseOccupancyReferenceRow[];
   const properties = propertyRows.map((property) => ({
     code: property.code,
     id: property.id,
@@ -117,6 +141,24 @@ export async function getImportReferenceData(
   }
 
   return {
+    leaseOccupancies: occupancyRows.flatMap((occupancy) => {
+      const status = toLeaseOccupancyStatus(occupancy.status);
+
+      if (!occupancy.unit_id || !status) {
+        return [];
+      }
+
+      return [
+        {
+          endDate: occupancy.scheduled_move_out_date,
+          leaseId: occupancy.lease_id,
+          startDate:
+            occupancy.actual_move_in_date ?? occupancy.scheduled_move_in_date,
+          status,
+          unitId: occupancy.unit_id,
+        },
+      ];
+    }),
     people: peopleRows.map((person) => ({
       displayName: person.display_name,
       id: person.id,
@@ -195,6 +237,15 @@ type RoleReferenceRow = {
   role: string;
 };
 
+type LeaseOccupancyReferenceRow = {
+  actual_move_in_date: string | null;
+  lease_id: string;
+  scheduled_move_in_date: string | null;
+  scheduled_move_out_date: string | null;
+  status: string;
+  unit_id: string | null;
+};
+
 function toImportType(value: string): ImportType {
   return importTypes.includes(value as ImportType)
     ? (value as ImportType)
@@ -213,6 +264,18 @@ function toImportRunStatus(status: string): ImportRunSummary["status"] {
   }
 
   return "failed";
+}
+
+function toLeaseOccupancyStatus(value: string) {
+  if (
+    value === "notice_given" ||
+    value === "occupied" ||
+    value === "reserved"
+  ) {
+    return value;
+  }
+
+  return null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

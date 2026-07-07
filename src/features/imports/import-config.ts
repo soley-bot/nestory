@@ -1,6 +1,7 @@
 import type {
   GenericImportPreviewRow,
   ImportFieldDefinition,
+  ImportLeaseOccupancyOption,
   ImportMapping,
   ImportReferenceData,
   ImportType,
@@ -420,12 +421,14 @@ export function buildGenericImportPreviewRows({
     }));
   }
 
-  return flagDuplicateGenericRows(
+  const rows = flagDuplicateGenericRows(
     type,
     records.map((record) =>
       buildNonUnitPreviewRow({ mapping, record, referenceData, type }),
     ),
   );
+
+  return type === "leases" ? flagLeaseImportOccupancyConflicts(rows) : rows;
 }
 
 export function getGenericImportStats(rows: GenericImportPreviewRow[]) {
@@ -546,6 +549,62 @@ function flagDuplicateGenericRows(
         level: "error",
         message: `Duplicate ${importTypeConfigs[type].label.toLowerCase()} import rows: rows ${rowNumbers}. Keep one row before committing.`,
       });
+    }
+  }
+
+  return rows;
+}
+
+function flagLeaseImportOccupancyConflicts(rows: GenericImportPreviewRow[]) {
+  const candidates = rows.flatMap((row) => {
+    if (row.issues.some((issue) => issue.level === "error")) {
+      return [];
+    }
+
+    const status = getNormalizedString(row.normalizedData, "status");
+    const unitId = getNormalizedString(row.normalizedData, "unitId");
+    const startDate = getNormalizedString(row.normalizedData, "leaseStartDate");
+    const endDate = getNormalizedString(row.normalizedData, "leaseEndDate");
+
+    if (
+      !unitId ||
+      !isOpenLeaseImportStatus(status) ||
+      !isIsoDate(startDate) ||
+      !isIsoDate(endDate)
+    ) {
+      return [];
+    }
+
+    return [{ endDate, row, startDate, unitId }];
+  });
+
+  for (let leftIndex = 0; leftIndex < candidates.length; leftIndex += 1) {
+    const left = candidates[leftIndex];
+
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < candidates.length;
+      rightIndex += 1
+    ) {
+      const right = candidates[rightIndex];
+
+      if (left.unitId !== right.unitId) {
+        continue;
+      }
+
+      const rowsLabel = `rows ${left.row.sourceRowNumber} and ${right.row.sourceRowNumber}`;
+      const unitLabel = left.row.primaryLabel || right.row.primaryLabel || "this unit";
+      const message = leaseRangesOverlap(
+        left.startDate,
+        left.endDate,
+        right.startDate,
+        right.endDate,
+      )
+        ? `Lease import ${rowsLabel} would overlap for Unit ${unitLabel}. Keep one open lease row before committing.`
+        : `Lease import ${rowsLabel} would create more than one open lease for Unit ${unitLabel}. End or cancel one row before committing.`;
+
+      addLeaseImportIssue(left.row, message);
+      addLeaseImportIssue(right.row, message);
     }
   }
 
@@ -735,6 +794,12 @@ function buildLeasePreviewRow({
   const rent = parseMoney(readMappedValue(record.raw, mapping.monthlyRentAmount));
   const deposit = parseOptionalMoney(readMappedValue(record.raw, mapping.depositAmount));
   const status = normalizeLeaseStatus(readMappedValue(record.raw, mapping.status));
+  const openOccupancy =
+    unit && isOpenLeaseImportStatus(status)
+      ? referenceData.leaseOccupancies.find(
+          (occupancy) => occupancy.unitId === unit.id,
+        )
+      : undefined;
 
   requireValue(issues, mapping.property, propertyInput, "Property");
   requireValue(issues, mapping.unitNumber, unitNumber, "Unit no.");
@@ -778,8 +843,8 @@ function buildLeasePreviewRow({
     issues.push({ level: "error", message: "End date must use YYYY-MM-DD." });
   }
 
-  if (leaseStartDate && leaseEndDate && leaseEndDate < leaseStartDate) {
-    issues.push({ level: "error", message: "End date must be on or after start date." });
+  if (leaseStartDate && leaseEndDate && leaseEndDate <= leaseStartDate) {
+    issues.push({ level: "error", message: "End date must be after start date." });
   }
 
   if (rent.error) {
@@ -792,6 +857,15 @@ function buildLeasePreviewRow({
 
   if (!status) {
     issues.push({ level: "error", message: "Status must be active, draft, ended, notice given, cancelled, or terminated." });
+  }
+
+  if (openOccupancy) {
+    issues.push({
+      actionHref: `/leases?query=${openOccupancy.leaseId}`,
+      actionLabel: "Review lease",
+      level: "error",
+      message: buildOpenOccupancyMessage(unitNumber, openOccupancy),
+    });
   }
 
   return {
@@ -877,6 +951,67 @@ function requireValue(
 
 function readMappedValue(raw: Record<string, string>, header?: string) {
   return header ? (raw[header]?.trim() ?? "") : "";
+}
+
+function addLeaseImportIssue(row: GenericImportPreviewRow, message: string) {
+  if (row.issues.some((issue) => issue.message === message)) {
+    return;
+  }
+
+  row.actionLabel = "Needs review";
+  row.issues.push({ level: "error", message });
+}
+
+function buildOpenOccupancyMessage(
+  unitNumber: string,
+  occupancy: ImportLeaseOccupancyOption,
+) {
+  const dateRange = formatDateRange(occupancy.startDate, occupancy.endDate);
+  const status = formatOccupancyStatus(occupancy.status);
+
+  return `Unit "${unitNumber}" already has an open ${status} occupancy${
+    dateRange ? ` (${dateRange})` : ""
+  }. End or cancel the existing lease before importing another open lease.`;
+}
+
+function formatDateRange(startDate: string | null, endDate: string | null) {
+  if (startDate && endDate) {
+    return `${startDate} to ${endDate}`;
+  }
+
+  return startDate || endDate || "";
+}
+
+function formatOccupancyStatus(
+  status: ImportLeaseOccupancyOption["status"],
+) {
+  if (status === "notice_given") {
+    return "notice-given";
+  }
+
+  return status;
+}
+
+function getNormalizedString(
+  data: Record<string, unknown>,
+  key: string,
+) {
+  const value = data[key];
+
+  return typeof value === "string" ? value : "";
+}
+
+function isOpenLeaseImportStatus(status: string | null) {
+  return status === "active" || status === "draft" || status === "notice_given";
+}
+
+function leaseRangesOverlap(
+  leftStart: string,
+  leftEnd: string,
+  rightStart: string,
+  rightEnd: string,
+) {
+  return leftStart <= rightEnd && rightStart <= leftEnd;
 }
 
 function normalizeLookup(value: string) {

@@ -63,7 +63,7 @@
   --landing-inverse-fg: #ffffff;
   --landing-inverse-muted: rgb(255 255 255 / 55%);
   --landing-inverse-border: rgb(255 255 255 / 10%);
-  --landing-inverse-accent: #a8c5df;
+  --landing-inverse-accent: rgb(255 255 255 / 72%);
 }
 
 [data-theme="dark"] .landing-page {
@@ -77,11 +77,33 @@
   --landing-media-bg: #111820;
   --landing-cta-bg: #f4f6f8;
   --landing-cta-fg: #080b12;
-  --landing-inverse-bg: #11151b;
+  --landing-inverse-bg: #090a0c;
   --landing-inverse-fg: #f8fafc;
-  --landing-inverse-muted: rgb(248 250 252 / 58%);
+  --landing-inverse-muted: rgb(248 250 252 / 56%);
   --landing-inverse-border: rgb(248 250 252 / 12%);
-  --landing-inverse-accent: #8fb8ff;
+  --landing-inverse-accent: rgb(248 250 252 / 72%);
+}
+
+.auth-photo-page {
+  --auth-page-fg: #0f172a;
+  --auth-page-muted: rgb(15 23 42 / 74%);
+  --auth-page-subtle: rgb(15 23 42 / 58%);
+  --auth-page-line: rgb(15 23 42 / 13%);
+  --auth-page-card-border: rgb(226 232 240 / 88%);
+  --auth-page-scrim:
+    linear-gradient(90deg, rgb(246 247 248 / 94%) 0%, rgb(246 247 248 / 82%) 48%, rgb(246 247 248 / 62%) 100%),
+    linear-gradient(0deg, rgb(246 247 248 / 10%), rgb(246 247 248 / 10%));
+}
+
+[data-theme="dark"] .auth-photo-page {
+  --auth-page-fg: #f8fafc;
+  --auth-page-muted: rgb(248 250 252 / 74%);
+  --auth-page-subtle: rgb(248 250 252 / 58%);
+  --auth-page-line: rgb(248 250 252 / 16%);
+  --auth-page-card-border: rgb(148 163 184 / 22%);
+  --auth-page-scrim:
+    linear-gradient(90deg, rgb(15 20 27 / 91%) 0%, rgb(15 20 27 / 76%) 48%, rgb(15 20 27 / 58%) 100%),
+    linear-gradient(0deg, rgb(15 20 27 / 18%), rgb(15 20 27 / 18%));
 }
 
 @theme inline {
@@ -138,6 +160,45 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+.auth-photo-page .auth-shell-context {
+  animation: nestory-auth-context-in 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.auth-photo-page .auth-shell-card {
+  animation: nestory-auth-card-in 720ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes nestory-auth-context-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nestory-auth-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-photo-page .auth-shell-context,
+  .auth-photo-page .auth-shell-card {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 @media print {
