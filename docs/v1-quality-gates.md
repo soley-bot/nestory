@@ -65,8 +65,9 @@ permissioned, audited, backed up, and presented as a real product.
 - Latest `main` deployment should be verified on Vercel before v1.0 signoff.
 - Linked Supabase migrations must match local migration history.
 - Logs must be accessible.
-- Backup and restore procedure is required before v1.0 signoff. A full restore
-  drill may depend on the selected Supabase plan.
+- Backup and restore procedure is required before v1.0 signoff. Use
+  `docs/backup-restore.md`; a full restore drill may depend on the selected
+  Supabase plan.
 
 ## Deferred Inputs
 

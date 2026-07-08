@@ -61,6 +61,7 @@ adjacent pages. See `docs/current-state.md`.
 - `docs/engineering-rules.md` explains current architecture and implementation
   rules.
 - `docs/verification.md` lists checks and handoff expectations.
+- `docs/backup-restore.md` covers the database and Storage recovery procedure.
 
 Old roadmap and starter-build docs were removed. Keep new docs tied to
 implemented code.
