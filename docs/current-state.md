@@ -24,8 +24,8 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - Dedicated property/unit photo records with private photo storage and cover
   thumbnail selection.
 - Private document storage and document metadata.
-- CSV unit import with mapping, validation, create/update commit, and cleanup
-  queue.
+- CSV imports for properties, units/rent roll, people, and leases with mapping,
+  validation, create/update commit, and cleanup queue.
 - Traceable reports and CSV/PDF endpoints.
 - Organization branches, teams, users, roles, and access management.
 
