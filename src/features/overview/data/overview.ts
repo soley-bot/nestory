@@ -302,7 +302,7 @@ export async function getOverviewScreenData(
       { href: "/properties?action=create", label: "Add property" },
       { href: "/units?action=create", label: "Add unit" },
       { href: "/leases?action=create", label: "Add lease" },
-      { href: "/tenants?action=create", label: "Add tenant" },
+      { href: "/people?action=create", label: "Add person" },
       { href: "/timeline?action=create", label: "Add event" },
       { href: "/ledger?action=create", label: "Add ledger entry" },
     ],

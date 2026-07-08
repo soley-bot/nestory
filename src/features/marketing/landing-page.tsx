@@ -97,7 +97,7 @@ const operationModules: Array<{
     title: "Maintenance",
   },
   {
-    description: "Agreements, bills, receipts",
+    description: "Agreements, invoices, receipts",
     href: "/documents",
     icon: FileText,
     signal: "Private files",

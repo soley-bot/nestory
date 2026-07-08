@@ -170,8 +170,8 @@ describe("import config", () => {
     expect(rows[1].issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          actionHref: "/tenants?action=create",
-          actionLabel: "Add tenant",
+          actionHref: "/people?action=create",
+          actionLabel: "Add person",
           level: "error",
           message: "Tenant must already exist in People before importing leases.",
         }),

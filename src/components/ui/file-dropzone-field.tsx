@@ -104,7 +104,7 @@ export function FileDropzoneField({
         ),
       })}
     >
-      <input {...getInputProps({ name, required })} aria-required={required} />
+      <input {...getInputProps({ name })} aria-required={required} />
       <UploadCloud className="text-muted" size={18} />
       <span className="mt-2 font-medium text-foreground">
         {displayLabel}

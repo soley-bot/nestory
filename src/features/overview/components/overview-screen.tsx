@@ -514,8 +514,8 @@ function buildSetupSteps(
       label: "Units",
     },
     {
-      actionHref: "/tenants?action=create",
-      actionLabel: "Add tenant",
+      actionHref: "/people?action=create",
+      actionLabel: "Add person",
       complete: setup.peopleCount > 0,
       helper: "Add tenants, owners, vendors, or staff records.",
       icon: UsersRound,

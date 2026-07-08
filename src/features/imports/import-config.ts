@@ -828,8 +828,8 @@ function buildLeasePreviewRow({
 
   if ((tenantName || tenantEmail) && !tenant) {
     issues.push({
-      actionHref: "/tenants?action=create",
-      actionLabel: "Add tenant",
+      actionHref: "/people?action=create",
+      actionLabel: "Add person",
       level: "error",
       message: "Tenant must already exist in People before importing leases.",
     });

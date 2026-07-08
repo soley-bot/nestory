@@ -60,7 +60,7 @@ const placeholderPages: Record<string, PlaceholderPage> = {
     room: "Settings",
   },
   notifications: {
-    title: "Notifications",
+    title: "Notification",
     description: "Notification channels, reminders, and alert defaults.",
     room: "Settings",
   },
@@ -75,7 +75,7 @@ const placeholderPages: Record<string, PlaceholderPage> = {
     room: "Settings",
   },
   integrations: {
-    title: "Integrations",
+    title: "Integration",
     description: "External system connections and import/export endpoints.",
     room: "Settings",
   },

@@ -35,13 +35,11 @@ npm run db:types
   `/finance-dashboard`
 - Property: `/properties`, `/properties/[propertyId]`, `/units`,
   `/units/[unitId]`, `/amenities`, `/property-inspections`
-- People: `/people`, `/tenants`, `/owners`, `/vendors`, `/staff`; `/team`
-  redirects to `/staff`.
+- People: `/people`, `/tenants`, `/owners`, `/vendors`, `/team`
 - Maintenance: `/maintenance`, `/work-orders`, `/schedule`, `/tasks`,
   `/inspections`, `/recurring-tasks`, `/inventory`
-- Finance: `/rent-income`, `/bills-expenses`, `/leases`, `/ledger`,
-  `/petty-cash`, `/reports`; `/payments` and `/invoices` redirect to the
-  current finance queues.
+- Finance: `/leases`, `/ledger`, `/payments`, `/invoices`, `/petty-cash`,
+  `/reports`
 - Timeline: `/timeline`, `/property-timeline`, `/maintenance-timeline`,
   `/financial-timeline`
 - Admin/settings: `/settings`, `/users-roles`, `/branding`,
@@ -61,7 +59,6 @@ adjacent pages. See `docs/current-state.md`.
 - `docs/engineering-rules.md` explains current architecture and implementation
   rules.
 - `docs/verification.md` lists checks and handoff expectations.
-- `docs/backup-restore.md` covers the database and Storage recovery procedure.
 
 Old roadmap and starter-build docs were removed. Keep new docs tied to
 implemented code.

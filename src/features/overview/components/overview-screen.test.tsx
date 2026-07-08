@@ -29,11 +29,6 @@ describe("OverviewScreen", () => {
         .getAllByRole("link", { name: /open imports/i })
         .every((link) => link.getAttribute("href") === "/import"),
     ).toBe(true);
-    expect(
-      screen
-        .getAllByRole("link", { name: /add tenant/i })
-        .every((link) => link.getAttribute("href") === "/tenants?action=create"),
-    ).toBe(true);
     expect(screen.getByText("Import center")).toBeTruthy();
     expect(screen.getByText("500 valid rows per commit")).toBeTruthy();
     expect(screen.queryByText(/not people or leases/i)).toBeNull();

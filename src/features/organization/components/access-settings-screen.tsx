@@ -155,10 +155,10 @@ function InviteUserForm({
       </Button>
       <Link
         className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
-        href="/staff?action=create"
+        href="/people?action=create"
       >
         <UserPlus size={15} />
-        <span className="truncate">Add staff</span>
+        <span className="truncate">Add person</span>
       </Link>
       {state.message ? (
         <p className="text-xs text-muted lg:col-span-6" role="status">
