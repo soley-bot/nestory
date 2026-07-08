@@ -38,8 +38,9 @@ npm run db:types
 - People: `/people`, `/tenants`, `/owners`, `/vendors`, `/team`
 - Maintenance: `/maintenance`, `/work-orders`, `/schedule`, `/tasks`,
   `/inspections`, `/recurring-tasks`, `/inventory`
-- Finance: `/leases`, `/ledger`, `/payments`, `/invoices`, `/petty-cash`,
-  `/reports`
+- Finance: `/rent-income`, `/bills-expenses`, `/leases`, `/ledger`,
+  `/petty-cash`, `/reports`; `/payments` and `/invoices` redirect to the
+  current finance queues.
 - Timeline: `/timeline`, `/property-timeline`, `/maintenance-timeline`,
   `/financial-timeline`
 - Admin/settings: `/settings`, `/users-roles`, `/branding`,
