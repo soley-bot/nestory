@@ -35,7 +35,8 @@ npm run db:types
   `/finance-dashboard`
 - Property: `/properties`, `/properties/[propertyId]`, `/units`,
   `/units/[unitId]`, `/amenities`, `/property-inspections`
-- People: `/people`, `/tenants`, `/owners`, `/vendors`, `/team`
+- People: `/people`, `/tenants`, `/owners`, `/vendors`, `/staff`; `/team`
+  redirects to `/staff`.
 - Maintenance: `/maintenance`, `/work-orders`, `/schedule`, `/tasks`,
   `/inspections`, `/recurring-tasks`, `/inventory`
 - Finance: `/rent-income`, `/bills-expenses`, `/leases`, `/ledger`,

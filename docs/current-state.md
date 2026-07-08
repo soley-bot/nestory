@@ -1,6 +1,6 @@
 # Current State
 
-Last rebuilt from code inventory on 2026-07-02. This file describes what is
+Last rebuilt from code inventory on 2026-07-08. This file describes what is
 implemented now. It is not a roadmap or early-stage plan.
 
 ## Product Baseline
@@ -41,8 +41,7 @@ Core dashboard shell:
 
 - `/overview` loads dashboard attention and portfolio context.
 - `/property-dashboard` and `/finance-dashboard` render live dashboard preview
-  routes. Some planned settings or timeline routes use the placeholder
-  roadmap surface.
+  routes. Planned settings routes use the placeholder roadmap surface.
 - `/maintenance-dashboard` is a real maintenance summary using maintenance data.
 
 Property and units:
@@ -130,9 +129,10 @@ Settings and access:
 Placeholder routes:
 
 - Placeholder modules currently include amenities, property inspections,
-  inventory, people settings, branding, module settings, notifications,
-  security, backup/data, integrations, and some dashboard variants. Treat these
-  as navigation scaffolding, not complete product modules.
+  inventory, branding, property settings, people settings, lease settings,
+  maintenance settings, financial settings, notifications, security,
+  backup/data, and integrations. Treat these as navigation scaffolding, not
+  complete product modules.
 
 ## Database Shape
 
