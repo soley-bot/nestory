@@ -32,6 +32,9 @@ const actionLabels: Record<string, string> = {
   maintenance_task_created: "Maintenance case created",
   maintenance_task_status_changed: "Maintenance status changed",
   maintenance_task_updated: "Maintenance case updated",
+  payment_recorded: "Payment recorded",
+  posted: "Posted to ledger",
+  posted_to_ledger: "Posted to ledger",
   receipt_attached: "Receipt attached",
   restored: "Restored",
   restored_from_ledger: "Restored from ledger",
@@ -55,7 +58,10 @@ const hiddenDetailFields = new Set([
 ]);
 
 const fieldLabels: Record<string, string> = {
+  account_id: "Cash account",
   amount: "Amount",
+  amount_due: "Amount due",
+  amount_received: "Amount received",
   archived_at: "Archived",
   category: "Category",
   cost_amount: "Cost",
@@ -68,15 +74,22 @@ const fieldLabels: Record<string, string> = {
   document_id: "Document",
   due_date: "Due date",
   due_time: "Due time",
+  entry_kind: "Type",
   event_date: "Event date",
   event_type: "Event type",
+  expense_type: "Expense type",
   file_name: "File name",
   floor: "Floor",
   created_count: "Created",
   import_type: "Import type",
+  income_type: "Income type",
+  invoice_date: "Invoice date",
   lease_id: "Lease",
   ledger_entry_id: "Ledger link",
   mime_type: "File type",
+  paid_date: "Paid date",
+  payer_label: "Payer",
+  period_id: "Cash period",
   priority: "Priority",
   property_id: "Property",
   recurrence_frequency: "Recurrence",
@@ -95,6 +108,7 @@ const fieldLabels: Record<string, string> = {
   unit_id: "Unit",
   unit_number: "Unit number",
   updated_count: "Updated",
+  vendor_label: "Vendor",
 };
 
 const referenceFields = new Set([
@@ -163,6 +177,16 @@ function getRecordLabel(log: ActivityLogSnapshot) {
     getString(previousValues, "unit_number") ??
     getString(nextValues, "file_name") ??
     getString(previousValues, "file_name") ??
+    getString(nextValues, "payer_label") ??
+    getString(previousValues, "payer_label") ??
+    getString(nextValues, "vendor_label") ??
+    getString(previousValues, "vendor_label") ??
+    getString(nextValues, "income_type") ??
+    getString(previousValues, "income_type") ??
+    getString(nextValues, "expense_type") ??
+    getString(previousValues, "expense_type") ??
+    getString(nextValues, "entry_kind") ??
+    getString(previousValues, "entry_kind") ??
     getString(nextValues, "category") ??
     getString(previousValues, "category");
 
@@ -180,6 +204,18 @@ function getFallbackRecordLabel(entityType: string) {
 
   if (entityType === "ledger_period") {
     return "Period lock";
+  }
+
+  if (entityType === "finance_income_item") {
+    return "Income item";
+  }
+
+  if (entityType === "finance_expense_item") {
+    return "Expense item";
+  }
+
+  if (entityType === "petty_cash_entry") {
+    return "Petty cash row";
   }
 
   if (entityType === "document") {
@@ -238,6 +274,18 @@ function getEntityLabel(entityType: string) {
     return "Period lock";
   }
 
+  if (entityType === "finance_income_item") {
+    return "Rent & Income";
+  }
+
+  if (entityType === "finance_expense_item") {
+    return "Bills & Expenses";
+  }
+
+  if (entityType === "petty_cash_entry") {
+    return "Petty Cash";
+  }
+
   if (entityType === "import") {
     return "Import";
   }
@@ -266,6 +314,22 @@ function getActivityHref(log: ActivityLogSnapshot, recordLabel: string) {
       eventId: log.entity_id,
       query: getFocusedQuery(recordLabel, "Timeline event"),
     });
+  }
+
+  if (log.entity_type === "finance_income_item") {
+    return buildModuleHref("/rent-income", {
+      query: getFocusedQuery(recordLabel, "Income item"),
+    });
+  }
+
+  if (log.entity_type === "finance_expense_item") {
+    return buildModuleHref("/bills-expenses", {
+      query: getFocusedQuery(recordLabel, "Expense item"),
+    });
+  }
+
+  if (log.entity_type === "petty_cash_entry") {
+    return "/petty-cash";
   }
 
   if (log.entity_type === "task") {

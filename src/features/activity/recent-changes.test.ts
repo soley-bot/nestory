@@ -257,6 +257,78 @@ describe("toRecentChange", () => {
     });
   });
 
+  it("labels finance workflow activity and links to the owning module", () => {
+    expect(
+      toRecentChange({
+        action: "payment_recorded",
+        created_at: "2026-07-08T09:00:00.000Z",
+        entity_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        entity_type: "finance_income_item",
+        id: "log-finance-income",
+        new_values: {
+          amount_received: 500,
+          payer_label: "John Smith",
+          status: "received",
+        },
+        previous_values: {
+          amount_received: 0,
+          status: "open",
+        },
+      }),
+    ).toMatchObject({
+      actionLabel: "Payment recorded",
+      entityLabel: "Rent & Income",
+      href: "/rent-income?query=John+Smith",
+      recordLabel: "John Smith",
+    });
+
+    expect(
+      toRecentChange({
+        action: "posted",
+        created_at: "2026-07-08T09:05:00.000Z",
+        entity_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        entity_type: "finance_expense_item",
+        id: "log-finance-expense",
+        new_values: {
+          expense_type: "maintenance",
+          ledger_entry_id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        },
+        previous_values: null,
+      }),
+    ).toMatchObject({
+      actionLabel: "Posted to ledger",
+      entityLabel: "Bills & Expenses",
+      href: "/bills-expenses?query=maintenance",
+      recordLabel: "maintenance",
+    });
+  });
+
+  it("labels petty cash activity without inventing a brittle row focus link", () => {
+    expect(
+      toRecentChange({
+        action: "posted_to_ledger",
+        created_at: "2026-07-08T09:10:00.000Z",
+        entity_id: "abababab-abab-4aba-8aba-abababababab",
+        entity_type: "petty_cash_entry",
+        id: "log-petty-cash",
+        new_values: {
+          ledger_entry_id: "cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd",
+          status: "posted",
+        },
+        previous_values: {
+          ledger_entry_id: null,
+          status: "cleared",
+        },
+      }),
+    ).toMatchObject({
+      actionLabel: "Posted to ledger",
+      entityLabel: "Petty Cash",
+      href: "/petty-cash",
+      recordLabel: "Petty cash row",
+      tone: "accent",
+    });
+  });
+
   it("preserves lease focus ids with a useful tenant query", () => {
     expect(
       toRecentChange({

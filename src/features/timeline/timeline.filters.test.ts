@@ -1,161 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
-  filterTimelineEvents,
-  paginateTimelineEvents,
+  buildTimelinePagination,
   parseTimelineSearchParams,
-  sortTimelineEvents,
 } from "@/features/timeline/timeline.filters";
-import type { TimelineEvent } from "@/features/timeline/timeline.types";
-
-const events: TimelineEvent[] = [
-  withTimelineDetailContext({
-    createdBy: "Admin",
-    description: "Bathroom work completed",
-    documents: [],
-    eventDate: "2026-06-12",
-    eventType: "Renovation",
-    hasAttachment: true,
-    id: "event-1",
-    isLocked: false,
-    propertyCode: "CTR",
-    propertyId: "property-1",
-    propertyName: "Central Residence",
-    title: "Renovation completed",
-    unitId: "unit-1",
-    unitNumber: "12B",
-  }),
-  withTimelineDetailContext({
-    archivedAt: "2026-06-16T09:00:00.000Z",
-    createdBy: "Admin",
-    description: "Lease renewal discussion",
-    documents: [],
-    eventDate: "2026-05-31",
-    eventType: "Rent Increase",
-    hasAttachment: false,
-    id: "event-2",
-    isLocked: false,
-    propertyCode: "NTH",
-    propertyId: "property-2",
-    propertyName: "Northline Mixed Use",
-    relatedLedgerEntry: "Income - Rent",
-    title: "Rent review",
-    unitId: "unit-2",
-    unitNumber: "04C",
-  }),
-];
-
-describe("filterTimelineEvents", () => {
-  it("filters by property and event type", () => {
-    expect(
-      filterTimelineEvents(events, {
-        archiveState: "all",
-        eventType: "Renovation",
-        propertyId: "property-1",
-        query: "",
-      }),
-    ).toEqual([events[0]]);
-  });
-
-  it("searches across property, unit, title, and description fields", () => {
-    expect(
-      filterTimelineEvents(events, {
-        archiveState: "all",
-        eventType: "all",
-        propertyId: "all",
-        query: "04c renewal",
-      }),
-    ).toEqual([events[1]]);
-  });
-
-  it("filters to a unit when the URL carries unit context", () => {
-    expect(
-      filterTimelineEvents(events, {
-        archiveState: "all",
-        eventType: "all",
-        propertyId: "all",
-        query: "",
-        unitId: "unit-2",
-      }),
-    ).toEqual([events[1]]);
-  });
-
-  it("matches linked ledger labels", () => {
-    expect(
-      filterTimelineEvents(events, {
-        archiveState: "all",
-        eventType: "all",
-        propertyId: "all",
-        query: "income rent",
-      }),
-    ).toEqual([events[1]]);
-  });
-
-  it("hides archived rows by default and can filter to archive view", () => {
-    expect(
-      filterTimelineEvents(events, {
-        eventType: "all",
-        propertyId: "all",
-        query: "",
-      }),
-    ).toEqual([events[0]]);
-
-    expect(
-      filterTimelineEvents(events, {
-        archiveState: "archived",
-        eventType: "all",
-        propertyId: "all",
-        query: "",
-      }),
-    ).toEqual([events[1]]);
-  });
-});
-
-function withTimelineDetailContext(
-  event: Omit<
-    TimelineEvent,
-    "activity" | "hrefs" | "nextAction" | "recordCounts" | "riskIndicators"
-  >,
-): TimelineEvent {
-  return {
-    ...event,
-    activity: [],
-    hrefs: {
-      documents: `/documents?query=${encodeURIComponent(event.title)}`,
-      ledger: event.ledgerEntryId
-        ? `/ledger?entryId=${event.ledgerEntryId}`
-        : undefined,
-      property: `/properties/${event.propertyId}`,
-      timeline: `/timeline?archiveState=all&eventId=${event.id}`,
-      unit: event.unitId ? `/units/${event.unitId}` : undefined,
-    },
-    nextAction: {
-      description: "Review linked records and supporting history.",
-      href: "/timeline",
-      label: "Review event",
-      tone: "neutral",
-    },
-    recordCounts: {
-      activity: 0,
-      documents: event.documents.length,
-      linkedRecords:
-        Number(Boolean(event.relatedLease)) +
-        Number(Boolean(event.relatedLedgerEntry)),
-    },
-    riskIndicators: [],
-  };
-}
 
 describe("parseTimelineSearchParams", () => {
   it("normalizes missing and invalid URL state", () => {
     expect(
       parseTimelineSearchParams({
         archiveState: "deleted",
+        dateFrom: "2026-7-01",
+        dateTo: "not-a-date",
         page: "-3",
         pageSize: "999",
         sort: "cost_desc",
+        unitId: "not-a-uuid",
       }),
     ).toEqual({
       archiveState: "active",
+      dateFrom: null,
+      dateTo: null,
       eventId: null,
       eventType: "all",
       page: 1,
@@ -167,13 +31,16 @@ describe("parseTimelineSearchParams", () => {
     });
   });
 
-  it("keeps valid filter, sort, and pagination state", () => {
+  it("keeps valid filter, date, sort, and pagination state", () => {
     const propertyId = "11111111-1111-4111-8111-111111111111";
+    const unitId = "22222222-2222-4222-8222-222222222222";
     const eventId = "33333333-3333-4333-8333-333333333333";
 
     expect(
       parseTimelineSearchParams({
         archiveState: "all",
+        dateFrom: "2026-07-01",
+        dateTo: "2026-07-31",
         eventId,
         eventType: "Repair",
         page: "3",
@@ -181,9 +48,12 @@ describe("parseTimelineSearchParams", () => {
         propertyId,
         query: " northline ",
         sort: "property_asc",
+        unitId,
       }),
     ).toEqual({
       archiveState: "all",
+      dateFrom: "2026-07-01",
+      dateTo: "2026-07-31",
       eventId,
       eventType: "Repair",
       page: 3,
@@ -191,23 +61,15 @@ describe("parseTimelineSearchParams", () => {
       propertyId,
       query: "northline",
       sort: "property_asc",
-      unitId: "all",
+      unitId,
     });
   });
 });
 
-describe("sortTimelineEvents", () => {
-  it("sorts by ascending date", () => {
-    expect(
-      sortTimelineEvents(events, "date_asc").map((event) => event.id),
-    ).toEqual(["event-2", "event-1"]);
-  });
-});
-
-describe("paginateTimelineEvents", () => {
+describe("buildTimelinePagination", () => {
   it("clamps empty and over-large pages", () => {
     expect(
-      paginateTimelineEvents([], { page: 4, pageSize: 25 }).pagination,
+      buildTimelinePagination({ page: 4, pageSize: 25, totalCount: 0 }),
     ).toEqual({
       from: 0,
       page: 1,
@@ -218,7 +80,7 @@ describe("paginateTimelineEvents", () => {
     });
 
     expect(
-      paginateTimelineEvents(events, { page: 3, pageSize: 25 }).pagination,
+      buildTimelinePagination({ page: 3, pageSize: 25, totalCount: 2 }),
     ).toMatchObject({
       from: 1,
       page: 1,

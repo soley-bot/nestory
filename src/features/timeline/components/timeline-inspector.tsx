@@ -210,16 +210,14 @@ function AttentionNote({
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? "Review" : "Action"}
           </Badge>
-          {item ? null : (
-            <Link
-              aria-label="Open action"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
-              href={href}
-              title="Open action"
-            >
-              <ExternalLink size={13} />
-            </Link>
-          )}
+          <Link
+            aria-label="Open action"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+            href={href}
+            title="Open action"
+          >
+            <ExternalLink size={13} />
+          </Link>
         </div>
       </div>
     </div>

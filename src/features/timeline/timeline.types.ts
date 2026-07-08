@@ -87,11 +87,15 @@ export type TimelineUnitOption = {
 
 export type TimelineArchiveState = "active" | "archived" | "all";
 
+export type TimelineScope = "global" | "property" | "maintenance" | "financial";
+
 export type TimelineSortKey =
   "date_desc" | "date_asc" | "type_asc" | "property_asc";
 
 export type TimelineViewQuery = {
   archiveState: TimelineArchiveState;
+  dateFrom: string | null;
+  dateTo: string | null;
   eventId: string | null;
   eventType: TimelineEventType | "all";
   page: number;

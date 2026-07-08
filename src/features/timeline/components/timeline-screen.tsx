@@ -56,23 +56,27 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange };
 
 type TimelineScreenProps = {
+  description?: string;
   eventTypes: TimelineEventType[];
   events: TimelineEvent[];
   initialEventId?: string;
   pagination: TimelinePagination;
   propertyOptions: TimelinePropertyOption[];
   recentChanges: RecentChange[];
+  title?: string;
   unitOptions: TimelineUnitOption[];
   viewQuery: TimelineViewQuery;
 };
 
 export function TimelineScreen({
+  description = "Search, filter, and inspect the full historical record across properties and units.",
   eventTypes,
   events,
   initialEventId,
   pagination,
   propertyOptions,
   recentChanges,
+  title = "Timeline History",
   unitOptions,
   viewQuery,
 }: TimelineScreenProps) {
@@ -168,8 +172,8 @@ export function TimelineScreen({
             </Button>
           </>
         }
-        description="Search, filter, and inspect the full historical record across properties and units."
-        title="Timeline History"
+        description={description}
+        title={title}
       />
 
       {statusMessage ? (
@@ -186,6 +190,7 @@ export function TimelineScreen({
       <TimelineFilters
         eventTypes={eventTypes}
         properties={propertyOptions}
+        units={unitOptions}
         viewQuery={viewQuery}
       />
 

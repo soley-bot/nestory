@@ -13,6 +13,7 @@ import type {
   TimelinePropertyOption,
   TimelineRecordCounts,
   TimelineRiskIndicator,
+  TimelineScope,
   TimelineUnitOption,
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
@@ -22,6 +23,8 @@ import { buildHref } from "@/lib/url/href";
 
 const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
   archiveState: "active",
+  dateFrom: null,
+  dateTo: null,
   eventId: null,
   eventType: "all",
   page: 1,
@@ -29,6 +32,51 @@ const DEFAULT_TIMELINE_VIEW_QUERY: TimelineViewQuery = {
   propertyId: "all",
   query: "",
   sort: DEFAULT_TIMELINE_SORT,
+  unitId: "all",
+};
+
+export const MAINTENANCE_TIMELINE_EVENT_TYPES = [
+  "Maintenance",
+  "Repair",
+  "Renovation",
+  "Inspection",
+] as const satisfies readonly TimelineEventType[];
+
+export const FINANCIAL_TIMELINE_SCOPE_FILTER =
+  "ledger_entry_id.not.is.null,cost_amount.not.is.null";
+
+const TIMELINE_RECENT_ACTIVITY_ENTITY_TYPES: Record<TimelineScope, string[]> = {
+  financial: [
+    "timeline_event",
+    "ledger_entry",
+    "ledger_period",
+    "finance_income_item",
+    "finance_expense_item",
+    "petty_cash_entry",
+  ],
+  global: [
+    "timeline_event",
+    "ledger_entry",
+    "ledger_period",
+    "document",
+    "task",
+    "tenant_request",
+    "lease",
+    "property",
+    "unit",
+  ],
+  maintenance: ["timeline_event", "task", "tenant_request"],
+  property: [
+    "timeline_event",
+    "ledger_entry",
+    "ledger_period",
+    "document",
+    "task",
+    "tenant_request",
+    "lease",
+    "property",
+    "unit",
+  ],
 };
 
 type PropertyRow = {
@@ -68,6 +116,14 @@ type DocumentRow = {
   uploaded_at: string;
 };
 
+export type TimelineSearchMatches = {
+  eventIds: string[];
+  ledgerEntryIds: string[];
+  leaseIds: string[];
+  propertyIds: string[];
+  unitIds: string[];
+};
+
 type TimelineEventRow = {
   archived_at: string | null;
   cost_amount: number | null;
@@ -97,7 +153,10 @@ type TimelineDocumentWithLink = LinkedDocument & {
 
 type FilterableQuery<TQuery> = {
   eq: (column: string, value: string) => TQuery;
+  gte: (column: string, value: string) => TQuery;
+  in: (column: string, values: readonly string[]) => TQuery;
   is: (column: string, value: null) => TQuery;
+  lte: (column: string, value: string) => TQuery;
   not: (column: string, operator: string, value: null) => TQuery;
   or: (filters: string) => TQuery;
 };
@@ -109,8 +168,15 @@ type SortableQuery<TQuery> = {
 export async function getTimelineScreenData(
   organizationId: string,
   viewQuery: TimelineViewQuery = DEFAULT_TIMELINE_VIEW_QUERY,
+  options: { scope?: TimelineScope } = {},
 ) {
   const supabase = await createSupabaseServerClient();
+  const scope = options.scope ?? "global";
+  const searchMatches = await getTimelineSearchMatches({
+    organizationId,
+    query: viewQuery.query,
+    supabase,
+  });
 
   const fetchEventsPage = (page: number) => {
     const { from, to } = getRange(page, viewQuery.pageSize);
@@ -122,7 +188,7 @@ export async function getTimelineScreenData(
       )
       .eq("organization_id", organizationId);
 
-    query = applyTimelineFilters(query, viewQuery);
+    query = applyTimelineFilters(query, viewQuery, scope, searchMatches);
     query = applyTimelineSort(query, viewQuery.sort);
 
     return query.range(from, to);
@@ -160,7 +226,7 @@ export async function getTimelineScreenData(
         "id, entity_type, entity_id, action, previous_values, new_values, created_at",
       )
       .eq("organization_id", organizationId)
-      .in("entity_type", ["timeline_event", "ledger_entry", "ledger_period"])
+      .in("entity_type", getRecentActivityEntityTypes(scope))
       .order("created_at", { ascending: false })
       .limit(6),
   ]);
@@ -391,8 +457,10 @@ function toTimelineEvent({
 function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
   query: TQuery,
   viewQuery: TimelineViewQuery,
+  scope: TimelineScope,
+  searchMatches: TimelineSearchMatches,
 ) {
-  let nextQuery = query;
+  let nextQuery = applyTimelineScope(query, scope);
 
   if (viewQuery.archiveState === "active") {
     nextQuery = nextQuery.is("archived_at", null);
@@ -403,6 +471,14 @@ function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
   if (viewQuery.eventId) {
     nextQuery = nextQuery.eq("id", viewQuery.eventId);
   } else {
+    if (viewQuery.dateFrom) {
+      nextQuery = nextQuery.gte("event_date", viewQuery.dateFrom);
+    }
+
+    if (viewQuery.dateTo) {
+      nextQuery = nextQuery.lte("event_date", viewQuery.dateTo);
+    }
+
     if (viewQuery.propertyId !== "all") {
       nextQuery = nextQuery.eq("property_id", viewQuery.propertyId);
     }
@@ -419,12 +495,33 @@ function applyTimelineFilters<TQuery extends FilterableQuery<TQuery>>(
 
     if (searchPattern) {
       nextQuery = nextQuery.or(
-        `title.ilike.${searchPattern},description.ilike.${searchPattern}`,
+        buildTimelineSearchClauses(searchPattern, searchMatches).join(","),
       );
     }
   }
 
   return nextQuery;
+}
+
+function applyTimelineScope<TQuery extends FilterableQuery<TQuery>>(
+  query: TQuery,
+  scope: TimelineScope,
+) {
+  const eventTypes = getTimelineScopeEventTypes(scope);
+
+  if (eventTypes) {
+    return query.in("event_type", eventTypes);
+  }
+
+  if (scope === "financial") {
+    return query.or(FINANCIAL_TIMELINE_SCOPE_FILTER);
+  }
+
+  return query;
+}
+
+export function getTimelineScopeEventTypes(scope: TimelineScope) {
+  return scope === "maintenance" ? MAINTENANCE_TIMELINE_EVENT_TYPES : null;
 }
 
 function applyTimelineSort<TQuery extends SortableQuery<TQuery>>(
@@ -549,6 +646,118 @@ function groupActivityByEventId(rows: Parameters<typeof toRecentChange>[0][]) {
   }
 
   return grouped;
+}
+
+async function getTimelineSearchMatches({
+  organizationId,
+  query,
+  supabase,
+}: {
+  organizationId: string;
+  query: string;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+}): Promise<TimelineSearchMatches> {
+  const searchPattern = getSearchPattern(query);
+
+  if (!searchPattern) {
+    return {
+      eventIds: [],
+      ledgerEntryIds: [],
+      leaseIds: [],
+      propertyIds: [],
+      unitIds: [],
+    };
+  }
+
+  const [properties, units, leases, ledgerEntries, documents] =
+    await Promise.all([
+      supabase
+        .from("properties")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .or(`name.ilike.${searchPattern},code.ilike.${searchPattern}`)
+        .limit(100),
+      supabase
+        .from("units")
+        .select("id, property_id")
+        .eq("organization_id", organizationId)
+        .ilike("unit_number", searchPattern)
+        .limit(100),
+      supabase
+        .from("leases")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .ilike("tenant_name", searchPattern)
+        .limit(100),
+      supabase
+        .from("ledger_entries")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .or(`category.ilike.${searchPattern},direction.ilike.${searchPattern}`)
+        .limit(100),
+      supabase
+        .from("documents")
+        .select("timeline_event_id")
+        .eq("organization_id", organizationId)
+        .not("timeline_event_id", "is", null)
+        .or(`file_name.ilike.${searchPattern},category.ilike.${searchPattern}`)
+        .limit(100),
+    ]);
+
+  for (const [label, result] of [
+    ["properties", properties],
+    ["units", units],
+    ["leases", leases],
+    ["ledger entries", ledgerEntries],
+    ["documents", documents],
+  ] as const) {
+    if (result.error) {
+      throw new Error(
+        `Could not search timeline ${label}: ${result.error.message}`,
+      );
+    }
+  }
+
+  return {
+    eventIds: unique(
+      (documents.data ?? []).flatMap((row) => row.timeline_event_id ?? []),
+    ),
+    ledgerEntryIds: (ledgerEntries.data ?? []).map((row) => row.id),
+    leaseIds: (leases.data ?? []).map((row) => row.id),
+    propertyIds: unique([
+      ...(properties.data ?? []).map((row) => row.id),
+      ...(units.data ?? []).map((row) => row.property_id),
+    ]),
+    unitIds: (units.data ?? []).map((row) => row.id),
+  };
+}
+
+export function getRecentActivityEntityTypes(scope: TimelineScope) {
+  return TIMELINE_RECENT_ACTIVITY_ENTITY_TYPES[scope];
+}
+
+export function buildTimelineSearchClauses(
+  searchPattern: string,
+  matches: TimelineSearchMatches,
+) {
+  const clauses = [
+    `title.ilike.${searchPattern}`,
+    `description.ilike.${searchPattern}`,
+  ];
+
+  addInClause(clauses, "id", matches.eventIds);
+  addInClause(clauses, "ledger_entry_id", matches.ledgerEntryIds);
+  addInClause(clauses, "lease_id", matches.leaseIds);
+  addInClause(clauses, "property_id", matches.propertyIds);
+  addInClause(clauses, "unit_id", matches.unitIds);
+
+  return clauses;
+}
+
+function addInClause(clauses: string[], column: string, values: string[]) {
+  if (values.length > 0) {
+    clauses.push(`${column}.in.(${values.join(",")})`);
+  }
 }
 
 function buildTimelineDetailHrefs(

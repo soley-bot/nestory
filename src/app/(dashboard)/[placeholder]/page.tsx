@@ -29,21 +29,6 @@ const placeholderPages: Record<string, PlaceholderPage> = {
     description: "Maintenance stock, tools, and supply tracking.",
     room: "Operations",
   },
-  "property-timeline": {
-    title: "Property Timeline",
-    description: "Property-level historical records and evidence.",
-    room: "Timeline",
-  },
-  "maintenance-timeline": {
-    title: "Maintenance Timeline",
-    description: "Maintenance history across properties and units.",
-    room: "Timeline",
-  },
-  "financial-timeline": {
-    title: "Financial Timeline",
-    description: "Financial events, locks, and linked ledger changes.",
-    room: "Timeline",
-  },
   branding: {
     title: "Branding",
     description: "Brand colors, report identity, and organization presentation.",

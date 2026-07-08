@@ -85,8 +85,10 @@ Finance and history:
   monthly register periods, advances, cash-in rows, expense rows, running
   balance, receipt references, month rollover, and posting cleared cash
   expenses into the official ledger.
-- `/timeline` supports event filters, create/update/archive/restore, document
-  attachment, linked ledger context, and activity display.
+- `/timeline`, `/property-timeline`, `/maintenance-timeline`, and
+  `/financial-timeline` support scoped event filters, date and unit filtering,
+  create/update/archive/restore, document attachment, linked ledger context,
+  and activity display.
 - `/payments` redirects to `/rent-income` for legacy links.
 - `/invoices` redirects to `/bills-expenses` for legacy links.
 
@@ -128,10 +130,9 @@ Settings and access:
 Placeholder routes:
 
 - Placeholder modules currently include amenities, property inspections,
-  inventory, people settings, specialized
-  timelines, branding, module settings, notifications, security, backup/data,
-  integrations, and some dashboard variants. Treat these as navigation
-  scaffolding, not complete product modules.
+  inventory, people settings, branding, module settings, notifications,
+  security, backup/data, integrations, and some dashboard variants. Treat these
+  as navigation scaffolding, not complete product modules.
 
 ## Database Shape
 
