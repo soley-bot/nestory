@@ -279,7 +279,7 @@ function revalidateBillsExpensesPaths(
   unitId?: string | null,
 ) {
   revalidatePath("/overview");
-  revalidatePath("/finance-dashboard");
+  revalidatePath("/ledger");
   revalidatePath("/bills-expenses");
   revalidatePath("/ledger");
   revalidatePath("/reports");

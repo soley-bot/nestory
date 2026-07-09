@@ -1,14 +1,5 @@
-import { DashboardPreviewPage } from "@/features/dashboard-placeholders/dashboard-preview-page";
+import { redirect } from "next/navigation";
 
-type FinanceDashboardPageProps = {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-};
-
-export default async function FinanceDashboardPage({
-  searchParams,
-}: FinanceDashboardPageProps) {
-  return DashboardPreviewPage({
-    dashboard: "finance-dashboard",
-    searchParams,
-  });
+export default function FinanceDashboardPage() {
+  redirect("/ledger");
 }

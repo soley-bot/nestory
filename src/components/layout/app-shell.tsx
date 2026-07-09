@@ -6,12 +6,9 @@ import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import {
   Activity,
-  Bell,
   BookOpen,
-  Brush,
   Building2,
   CheckSquare,
-  ClipboardCheck,
   ClipboardList,
   Coins,
   CreditCard,
@@ -21,7 +18,6 @@ import {
   DoorOpen,
   FileText,
   FileChartColumn,
-  FileCog,
   Gauge,
   History,
   House,
@@ -34,13 +30,10 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
-  Plug,
   ReceiptText,
   Repeat,
   ScrollText,
   Settings,
-  Shield,
-  Sparkles,
   Sun,
   Truck,
   Upload,
@@ -87,11 +80,8 @@ const navGroups: NavGroup[] = [
     roomLabel: "Property",
     icon: Building2,
     items: [
-      { href: "/property-dashboard", label: "Dashboard", icon: Gauge },
       { href: "/properties", label: "Properties", icon: House },
       { href: "/units", label: "Units", icon: DoorOpen },
-      { href: "/amenities", label: "Amenities", icon: Sparkles },
-      { href: "/property-inspections", label: "Inspections", icon: ClipboardCheck },
     ],
   },
   {
@@ -129,7 +119,6 @@ const navGroups: NavGroup[] = [
     roomLabel: "Finance",
     icon: Landmark,
     items: [
-      { href: "/finance-dashboard", label: "Dashboard", icon: Gauge },
       {
         href: "/rent-income",
         label: "Rent & Income",
@@ -199,17 +188,7 @@ const settingsGroup: NavGroup = {
   icon: Settings,
   items: [
     { href: "/settings", label: "Organization", icon: Building2, section: "Organization" },
-    { href: "/branding", label: "Branding", icon: Brush, section: "Organization" },
     { href: "/users-roles", label: "Users & Roles", icon: UsersRound, section: "Access" },
-    { href: "/property-settings", label: "Property", icon: FileCog, section: "Modules" },
-    { href: "/people-settings", label: "People", icon: UsersRound, section: "Modules" },
-    { href: "/lease-settings", label: "Lease", icon: ScrollText, section: "Modules" },
-    { href: "/maintenance-settings", label: "Maintenance", icon: Wrench, section: "Modules" },
-    { href: "/financial-settings", label: "Financial", icon: Wallet, section: "Modules" },
-    { href: "/notifications", label: "Notifications", icon: Bell, section: "Communication" },
-    { href: "/security", label: "Security", icon: Shield, section: "System" },
-    { href: "/backup-data", label: "Backup", icon: Database, section: "System" },
-    { href: "/integrations", label: "Integrations", icon: Plug, section: "System" },
   ],
 };
 

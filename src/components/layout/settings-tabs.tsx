@@ -3,17 +3,7 @@ import { cn } from "@/lib/utils";
 
 const settingsTabs = [
   { href: "/settings", label: "Organization" },
-  { href: "/branding", label: "Branding" },
   { href: "/users-roles", label: "Users & Roles" },
-  { href: "/property-settings", label: "Property" },
-  { href: "/people-settings", label: "People" },
-  { href: "/lease-settings", label: "Lease" },
-  { href: "/maintenance-settings", label: "Maintenance" },
-  { href: "/financial-settings", label: "Financial" },
-  { href: "/notifications", label: "Notifications" },
-  { href: "/security", label: "Security" },
-  { href: "/backup-data", label: "Backup" },
-  { href: "/integrations", label: "Integrations" },
 ];
 
 export function SettingsTabs({ activeHref }: { activeHref: string }) {

@@ -326,7 +326,7 @@ function revalidateFinanceIncomePaths(
   unitId?: string | null,
 ) {
   revalidatePath("/overview");
-  revalidatePath("/finance-dashboard");
+  revalidatePath("/ledger");
   revalidatePath("/rent-income");
   revalidatePath("/ledger");
   revalidatePath("/reports");

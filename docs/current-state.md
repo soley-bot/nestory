@@ -40,9 +40,8 @@ Public and auth:
 Core dashboard shell:
 
 - `/overview` loads dashboard attention and portfolio context.
-- `/property-dashboard` and `/finance-dashboard` render live dashboard preview
-  routes. Some planned settings or timeline routes use the placeholder
-  roadmap surface.
+- `/property-dashboard` redirects to `/properties` for legacy links.
+- `/finance-dashboard` redirects to `/ledger` for legacy links.
 - `/maintenance-dashboard` is a real maintenance summary using maintenance data.
 
 Property and units:
@@ -64,8 +63,7 @@ People and leases:
   role-specific copy, create defaults, search, and access-status display for
   staff. `/team` redirects to `/staff` for legacy links.
 - `/people-reports` is a People-domain report hub with CSV/PDF exports for
-  relationship, tenant, owner, vendor, and staff readiness. `/people-settings`
-  is a placeholder for module configuration.
+  relationship, tenant, owner, vendor, and staff readiness.
 - `/leases` supports lease list, filters, create/update/archive/restore, linked
   tenant/person data, terms, occupancy, deposits, documents, timeline context,
   risk, and next actions.
@@ -126,13 +124,6 @@ Settings and access:
 - `/users-roles` manages software access, roles, staff/person links, branches,
   and existing-user access invites.
 - `/account` shows the signed-in user's workspace profile.
-
-Placeholder routes:
-
-- Placeholder modules currently include amenities, property inspections,
-  inventory, people settings, branding, module settings, notifications,
-  security, backup/data, integrations, and some dashboard variants. Treat these
-  as navigation scaffolding, not complete product modules.
 
 ## Database Shape
 
