@@ -36,11 +36,13 @@ type NumberTooltipProps = Partial<TooltipContentProps> & {
 };
 
 export function OverviewOccupancyBars({
+  limit = 5,
   points,
 }: {
+  limit?: number;
   points: OverviewOccupancyPoint[];
 }) {
-  const data = points.slice(0, 5);
+  const data = points.slice(0, limit);
   const maxOpenUnits = Math.max(1, ...data.map((point) => point.unoccupiedUnits));
 
   return (

@@ -162,7 +162,14 @@ describe("filterLedgerEntries", () => {
 function withLedgerDetailContext(
   entry: Omit<
     LedgerEntry,
-    "activity" | "hrefs" | "nextAction" | "recordCounts" | "riskIndicators"
+    | "activity"
+    | "hrefs"
+    | "nextAction"
+    | "recordCounts"
+    | "riskIndicators"
+    | "sourceId"
+    | "sourceLabel"
+    | "sourceType"
   >,
 ): LedgerEntry {
   return {
@@ -190,6 +197,8 @@ function withLedgerDetailContext(
       timelineEvents: entry.relatedTimelineEvent ? 1 : 0,
     },
     riskIndicators: [],
+    sourceLabel: entry.direction === "income" ? "Rent & Income" : "Manual",
+    sourceType: entry.direction === "income" ? "finance_income" : "manual",
   };
 }
 

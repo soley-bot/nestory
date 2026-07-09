@@ -26,7 +26,7 @@ import { getQueryTokens, textMatchesToken } from "@/lib/query/screen-query";
 import { buildHref } from "@/lib/url/href";
 
 const ledgerEntrySelect =
-  "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, archived_at";
+  "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, source_type, source_id, archived_at";
 const maxRelatedSearchIds = 100;
 
 type PropertyRow = {
@@ -50,6 +50,8 @@ type LedgerEntryRow = {
   direction: string;
   id: string;
   property_id: string;
+  source_id: string | null;
+  source_type: string;
   transaction_date: string;
   unit_id: string | null;
 };
@@ -371,6 +373,9 @@ function toLedgerEntry({
       relatedTimelineEvent,
       unitId: entry.unit_id,
     }),
+    sourceId: entry.source_id ?? undefined,
+    sourceLabel: formatLedgerSource(entry.source_type),
+    sourceType: normalizeLedgerSource(entry.source_type),
     transactionDate: entry.transaction_date,
     unitId: entry.unit_id ?? undefined,
     unitNumber: unit?.unit_number,
@@ -379,6 +384,39 @@ function toLedgerEntry({
 
 function indexById<T extends { id: string }>(rows: T[]) {
   return new Map(rows.map((row) => [row.id, row]));
+}
+
+function normalizeLedgerSource(value: string) {
+  if (
+    value === "finance_income" ||
+    value === "finance_expense" ||
+    value === "petty_cash" ||
+    value === "maintenance_task"
+  ) {
+    return value;
+  }
+
+  return "manual";
+}
+
+function formatLedgerSource(value: string) {
+  if (value === "finance_income") {
+    return "Rent & Income";
+  }
+
+  if (value === "finance_expense") {
+    return "Bills & Expenses";
+  }
+
+  if (value === "petty_cash") {
+    return "Petty Cash";
+  }
+
+  if (value === "maintenance_task") {
+    return "Maintenance";
+  }
+
+  return "Manual";
 }
 
 function indexTimelineEventsByLedgerEntryId(rows: TimelineEventRow[]) {

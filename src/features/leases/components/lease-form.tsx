@@ -186,7 +186,7 @@ export function LeaseForm({
                 options={[
                   { label: "No unit assigned", value: "" },
                   ...unitOptions.map((unit) => ({
-                    label: unit.label,
+                    label: formatUnitSelectLabel(unit.label),
                     value: unit.id,
                   })),
                 ]}
@@ -383,6 +383,10 @@ function ensureSelectedTenant(
       label: selectedTenantName || "Current tenant",
     },
   ];
+}
+
+function formatUnitSelectLabel(label: string) {
+  return label.includes(" / ") ? label.split(" / ").at(-1) ?? label : label;
 }
 
 function ensureSelectedStatus(

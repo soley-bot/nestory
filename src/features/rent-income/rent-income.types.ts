@@ -7,6 +7,10 @@ export const incomeTypeOptions = [
   { label: "Parking", value: "parking" },
   { label: "Late fee", value: "late_fee" },
   { label: "Owner contribution", value: "owner_contribution" },
+  { label: "Management fee", value: "management_fee" },
+  { label: "Leasing commission", value: "leasing_commission" },
+  { label: "Service fee", value: "service_fee" },
+  { label: "Maintenance markup", value: "maintenance_markup" },
   { label: "Other income", value: "other" },
 ] as const;
 

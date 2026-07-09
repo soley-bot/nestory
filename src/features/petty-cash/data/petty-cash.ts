@@ -3,9 +3,11 @@ import { formatMoneyDisplay } from "@/lib/money/format";
 import type { CurrencyCode } from "@/lib/money/format";
 import type {
   PettyCashAccount,
+  PettyCashEconomicScope,
   PettyCashEntry,
   PettyCashEntryKind,
   PettyCashEntryStatus,
+  PettyCashOwnerBillStatus,
   PettyCashPeriod,
   PettyCashPropertyOption,
   PettyCashSchemaStatus,
@@ -31,12 +33,16 @@ type PettyCashEntryRow = {
   created_at: string;
   currency: CurrencyCode;
   description: string;
+  economic_scope: string;
   entry_kind: string;
   id: string;
   in_amount: number;
   invoice_date: string;
   ledger_entry_id: string | null;
   out_amount: number;
+  owner_bill_status: string;
+  owner_reimbursable_amount: number;
+  owner_reimbursed_amount: number;
   property_id: string | null;
   receipt_reference: string | null;
   remark: string | null;
@@ -196,7 +202,7 @@ async function getPeriodEntries({
   const result = await supabase
     .from("petty_cash_entries")
     .select(
-      "id, property_id, unit_id, ledger_entry_id, invoice_date, clear_date, entry_kind, status, category, supplier, description, receipt_reference, out_amount, in_amount, currency, remark, created_at",
+      "id, property_id, unit_id, ledger_entry_id, invoice_date, clear_date, entry_kind, status, category, supplier, description, receipt_reference, out_amount, in_amount, currency, economic_scope, owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount, remark, created_at",
     )
     .eq("organization_id", organizationId)
     .eq("period_id", period.id)
@@ -225,6 +231,14 @@ async function getPeriodEntries({
       ? propertiesById.get(entry.property_id)
       : undefined;
     const unit = entry.unit_id ? unitsById.get(entry.unit_id) : undefined;
+    const ownerReceivableAmount =
+      entry.economic_scope === "company_advance"
+        ? Math.max(
+            0,
+            Number(entry.owner_reimbursable_amount) -
+              Number(entry.owner_reimbursed_amount),
+          )
+        : 0;
 
     return {
       balanceAfter: balance,
@@ -233,12 +247,20 @@ async function getPeriodEntries({
       createdAt: entry.created_at,
       currency: entry.currency,
       description: entry.description,
+      economicScope: normalizeEconomicScope(entry.economic_scope),
+      economicScopeLabel: formatStoredLabel(entry.economic_scope),
       entryKind: normalizeEntryKind(entry.entry_kind),
       id: entry.id,
       inAmount: entry.in_amount,
       invoiceDate: entry.invoice_date,
       ledgerEntryId: entry.ledger_entry_id ?? undefined,
       outAmount: entry.out_amount,
+      ownerBillStatus: normalizeOwnerBillStatus(entry.owner_bill_status),
+      ownerBillStatusLabel: formatStoredLabel(entry.owner_bill_status),
+      ownerReceivable: formatMoneyDisplay(ownerReceivableAmount, entry.currency),
+      ownerReceivableAmount,
+      ownerReimbursableAmount: Number(entry.owner_reimbursable_amount),
+      ownerReimbursedAmount: Number(entry.owner_reimbursed_amount),
       propertyCode: property?.code,
       propertyId: entry.property_id ?? undefined,
       propertyName: property?.name,
@@ -332,4 +354,33 @@ function normalizeStatus(value: string): PettyCashEntryStatus {
   }
 
   return "draft";
+}
+
+function normalizeEconomicScope(value: string): PettyCashEconomicScope {
+  if (value === "company_advance" || value === "company_cost") {
+    return value;
+  }
+
+  return "property_expense";
+}
+
+function normalizeOwnerBillStatus(value: string): PettyCashOwnerBillStatus {
+  if (
+    value === "billable" ||
+    value === "billed" ||
+    value === "partially_reimbursed" ||
+    value === "reimbursed" ||
+    value === "written_off"
+  ) {
+    return value;
+  }
+
+  return "not_billable";
+}
+
+function formatStoredLabel(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

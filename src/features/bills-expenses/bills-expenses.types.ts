@@ -28,6 +28,32 @@ export type BillsExpenseStatusFilter =
   | "all"
   | Exclude<BillsExpenseStatus, "void">;
 export type BillsExpenseType = (typeof expenseTypeOptions)[number]["value"];
+export type BillsExpenseEconomicScope =
+  | "company_advance"
+  | "company_cost"
+  | "property_expense";
+export type BillsExpenseOwnerBillStatus =
+  | "billable"
+  | "billed"
+  | "not_billable"
+  | "partially_reimbursed"
+  | "reimbursed"
+  | "written_off";
+
+export const economicScopeOptions = [
+  { label: "Property expense", value: "property_expense" },
+  { label: "Company advance", value: "company_advance" },
+  { label: "Company cost", value: "company_cost" },
+] as const;
+
+export const ownerBillStatusOptions = [
+  { label: "Not billable", value: "not_billable" },
+  { label: "Billable", value: "billable" },
+  { label: "Billed", value: "billed" },
+  { label: "Partially reimbursed", value: "partially_reimbursed" },
+  { label: "Reimbursed", value: "reimbursed" },
+  { label: "Written off", value: "written_off" },
+] as const;
 
 export type BillsExpensesViewQuery = {
   month: string;
@@ -55,6 +81,8 @@ export type BillsExpenseItem = {
   currency: CurrencyCode;
   description: string;
   dueDate: string | null;
+  economicScope: BillsExpenseEconomicScope;
+  economicScopeLabel: string;
   expenseType: BillsExpenseType;
   expenseTypeLabel: string;
   hrefs: {
@@ -67,6 +95,11 @@ export type BillsExpenseItem = {
   isOverdue: boolean;
   ledgerEntryId: string | null;
   nextAction: string;
+  ownerBillStatus: BillsExpenseOwnerBillStatus;
+  ownerBillStatusLabel: string;
+  ownerReceivableDisplay: MoneyDisplayValue;
+  ownerReimbursableAmount: number;
+  ownerReimbursedAmount: number;
   paidDate: string | null;
   propertyCode: string;
   propertyId: string;
@@ -74,6 +107,8 @@ export type BillsExpenseItem = {
   reference: string;
   status: BillsExpenseStatus;
   statusLabel: string;
+  companyLossAmount: number;
+  companyLossDisplay: MoneyDisplayValue;
   unitId: string | null;
   unitNumber: string;
   vendorLabel: string;

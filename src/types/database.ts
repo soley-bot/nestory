@@ -77,11 +77,16 @@ type RpcFunctionOverrides = {
     {
       p_amount: number;
       p_category: string;
+      p_company_loss_amount?: number;
       p_description: string | null;
       p_due_date: string | null;
+      p_economic_scope?: string;
       p_expense_type: string;
       p_invoice_date: string;
       p_organization_id: string;
+      p_owner_bill_status?: string;
+      p_owner_reimbursable_amount?: number;
+      p_owner_reimbursed_amount?: number;
       p_property_id: string;
       p_reference: string | null;
       p_task_id: string | null;

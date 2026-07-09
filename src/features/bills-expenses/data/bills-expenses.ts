@@ -8,6 +8,8 @@ import {
 import { buildPostgrestIlikeOrFilters } from "@/lib/query/screen-query";
 import {
   expenseTypeOptions,
+  economicScopeOptions,
+  ownerBillStatusOptions,
   type BillsExpenseItem,
   type BillsExpenseOption,
   type BillsExpensesSummary,
@@ -202,6 +204,11 @@ function toBillsExpenseItem({
     Boolean(row.due_date) &&
     row.due_date! < today &&
     (row.status === "draft" || row.status === "approved");
+  const ownerReceivable = Math.max(
+    0,
+    Number(row.owner_reimbursable_amount ?? 0) -
+      Number(row.owner_reimbursed_amount ?? 0),
+  );
 
   return {
     amount: row.amount,
@@ -210,6 +217,8 @@ function toBillsExpenseItem({
     currency: row.currency,
     description: row.description ?? "",
     dueDate: row.due_date,
+    economicScope: row.economic_scope as BillsExpenseItem["economicScope"],
+    economicScopeLabel: getEconomicScopeLabel(row.economic_scope),
     expenseType: row.expense_type as BillsExpenseItem["expenseType"],
     expenseTypeLabel: getExpenseTypeLabel(row.expense_type),
     hrefs: {
@@ -222,6 +231,11 @@ function toBillsExpenseItem({
     isOverdue,
     ledgerEntryId: row.ledger_entry_id,
     nextAction: getNextAction(row.status as BillsExpenseStatus, isOverdue),
+    ownerBillStatus: row.owner_bill_status as BillsExpenseItem["ownerBillStatus"],
+    ownerBillStatusLabel: getOwnerBillStatusLabel(row.owner_bill_status),
+    ownerReceivableDisplay: formatMoneyDisplay(ownerReceivable, row.currency),
+    ownerReimbursableAmount: row.owner_reimbursable_amount,
+    ownerReimbursedAmount: row.owner_reimbursed_amount,
     paidDate: row.paid_date,
     propertyCode: property?.code ?? "Property",
     propertyId: row.property_id,
@@ -229,6 +243,8 @@ function toBillsExpenseItem({
     reference: row.reference ?? "",
     status: row.status as BillsExpenseStatus,
     statusLabel: getStatusLabel(row.status),
+    companyLossAmount: row.company_loss_amount,
+    companyLossDisplay: formatMoneyDisplay(row.company_loss_amount, row.currency),
     unitId: row.unit_id,
     unitNumber: unit?.unit_number ?? "No unit",
     vendorLabel: row.vendor_label,
@@ -277,6 +293,20 @@ function getExpenseTypeLabel(value: string) {
   return (
     expenseTypeOptions.find((option) => option.value === value)?.label ??
     "Other expense"
+  );
+}
+
+function getEconomicScopeLabel(value: string) {
+  return (
+    economicScopeOptions.find((option) => option.value === value)?.label ??
+    "Property expense"
+  );
+}
+
+function getOwnerBillStatusLabel(value: string) {
+  return (
+    ownerBillStatusOptions.find((option) => option.value === value)?.label ??
+    "Not billable"
   );
 }
 

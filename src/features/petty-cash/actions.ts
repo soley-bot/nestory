@@ -11,13 +11,18 @@ type PettyCashFieldErrors = {
   amount?: string[];
   category?: string[];
   clearDate?: string[];
+  companyLossAmount?: string[];
   description?: string[];
+  economicScope?: string[];
   entryId?: string[];
   entryKind?: string[];
   floatAmount?: string[];
   invoiceDate?: string[];
   name?: string[];
   periodId?: string[];
+  ownerBillStatus?: string[];
+  ownerReimbursableAmount?: string[];
+  ownerReimbursedAmount?: string[];
   propertyId?: string[];
   receiptReference?: string[];
   remark?: string[];
@@ -56,9 +61,21 @@ const createEntrySchema = z
     amount: z.string().trim(),
     category: z.string().trim().min(2, "Enter a category."),
     clearDate: z.string().trim(),
+    companyLossAmount: z.string().trim(),
     description: z.string().trim().min(2, "Enter a description."),
+    economicScope: z.enum(["company_advance", "company_cost", "property_expense"]),
     entryKind: z.enum(["advance", "cash_in", "expense"]),
     invoiceDate: dateSchema,
+    ownerBillStatus: z.enum([
+      "billable",
+      "billed",
+      "not_billable",
+      "partially_reimbursed",
+      "reimbursed",
+      "written_off",
+    ]),
+    ownerReimbursableAmount: z.string().trim(),
+    ownerReimbursedAmount: z.string().trim(),
     periodId: looseUuidSchema,
     propertyId: z.string().trim(),
     receiptReference: z.string().trim().max(120, "Keep receipt reference short."),
@@ -78,11 +95,65 @@ const createEntrySchema = z
       });
     }
 
+    const ownerReimbursableAmount = Number(data.ownerReimbursableAmount || "0");
+    const ownerReimbursedAmount = Number(data.ownerReimbursedAmount || "0");
+    const companyLossAmount = Number(data.companyLossAmount || "0");
+
+    for (const [field, value] of [
+      ["ownerReimbursableAmount", ownerReimbursableAmount],
+      ["ownerReimbursedAmount", ownerReimbursedAmount],
+      ["companyLossAmount", companyLossAmount],
+    ] as const) {
+      if (!Number.isFinite(value) || value < 0) {
+        context.addIssue({
+          code: "custom",
+          message: "Enter a zero or positive amount.",
+          path: [field],
+        });
+      }
+    }
+
+    if (
+      Number.isFinite(ownerReimbursedAmount) &&
+      Number.isFinite(ownerReimbursableAmount) &&
+      ownerReimbursedAmount > ownerReimbursableAmount
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Reimbursed cannot exceed billable amount.",
+        path: ["ownerReimbursedAmount"],
+      });
+    }
+
+    if (
+      Number.isFinite(companyLossAmount) &&
+      Number.isFinite(amount) &&
+      companyLossAmount > amount
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Company loss cannot exceed the cash amount.",
+        path: ["companyLossAmount"],
+      });
+    }
+
     if (data.entryKind === "expense" && data.propertyId.length === 0) {
       context.addIssue({
         code: "custom",
         message: "Choose a property before recording an expense.",
         path: ["propertyId"],
+      });
+    }
+
+    if (
+      data.entryKind === "expense" &&
+      data.economicScope === "company_advance" &&
+      data.ownerBillStatus === "not_billable"
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose how the owner will be billed.",
+        path: ["ownerBillStatus"],
       });
     }
 
@@ -194,9 +265,14 @@ export async function createPettyCashEntryAction(
     amount: readString(formData, "amount"),
     category: readString(formData, "category"),
     clearDate: readString(formData, "clearDate"),
+    companyLossAmount: readString(formData, "companyLossAmount"),
     description: readString(formData, "description"),
+    economicScope: readString(formData, "economicScope") || "property_expense",
     entryKind: readString(formData, "entryKind"),
     invoiceDate: readString(formData, "invoiceDate"),
+    ownerBillStatus: readString(formData, "ownerBillStatus") || "not_billable",
+    ownerReimbursableAmount: readString(formData, "ownerReimbursableAmount"),
+    ownerReimbursedAmount: readString(formData, "ownerReimbursedAmount"),
     periodId: readString(formData, "periodId"),
     propertyId: readString(formData, "propertyId"),
     receiptReference: readString(formData, "receiptReference"),
@@ -220,10 +296,17 @@ export async function createPettyCashEntryAction(
     p_category: parsed.data.category,
     p_clear_date:
       parsed.data.clearDate.length > 0 ? parsed.data.clearDate : null,
+    p_company_loss_amount: Number(parsed.data.companyLossAmount || "0"),
     p_description: parsed.data.description,
+    p_economic_scope: parsed.data.economicScope,
     p_entry_kind: parsed.data.entryKind,
     p_invoice_date: parsed.data.invoiceDate,
     p_organization_id: context.organizationId,
+    p_owner_bill_status: parsed.data.ownerBillStatus,
+    p_owner_reimbursable_amount: Number(
+      parsed.data.ownerReimbursableAmount || "0",
+    ),
+    p_owner_reimbursed_amount: Number(parsed.data.ownerReimbursedAmount || "0"),
     p_period_id: parsed.data.periodId,
     p_property_id: propertyId,
     p_receipt_reference:

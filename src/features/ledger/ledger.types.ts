@@ -5,6 +5,12 @@ import type { LinkedDocument } from "@/features/documents/document.types";
 import type { FinanceCloseSummary } from "@/features/finance/finance.types";
 
 export type LedgerDirection = "income" | "expense";
+export type LedgerSourceType =
+  | "finance_expense"
+  | "finance_income"
+  | "maintenance_task"
+  | "manual"
+  | "petty_cash";
 
 export type LedgerRecordCounts = {
   activity: number;
@@ -57,6 +63,9 @@ export type LedgerEntry = {
     title: string;
   };
   riskIndicators: LedgerRiskIndicator[];
+  sourceId?: string;
+  sourceLabel: string;
+  sourceType: LedgerSourceType;
   transactionDate: string;
   unitId?: string;
   unitNumber?: string;

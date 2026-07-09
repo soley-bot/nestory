@@ -1,6 +1,7 @@
 import { toRecentChange } from "@/features/activity/recent-changes";
 import type {
   OverviewAttentionItem,
+  OverviewCompanyFinanceProperty,
   OverviewLedgerPoint,
   OverviewMetric,
   OverviewOccupancyPoint,
@@ -8,6 +9,7 @@ import type {
 } from "@/features/overview/overview.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { CurrencyCode } from "@/lib/money/format";
+import { formatMoneyDisplay } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
 const activeLeaseStatuses = ["active", "notice_given"] as const;
@@ -19,6 +21,12 @@ const openMaintenanceStatuses = [
 ] as const;
 const largeExpenseReviewThreshold = 1000;
 const largeExpenseReviewHref = `/ledger?direction=expense&sort=amount_desc&period=last_30_days&minAmount=${largeExpenseReviewThreshold}`;
+const companyIncomeTypes = new Set([
+  "management_fee",
+  "leasing_commission",
+  "service_fee",
+  "maintenance_markup",
+]);
 const monthLabelFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
 });
@@ -53,6 +61,31 @@ type LedgerNetRow = {
   currency: CurrencyCode;
   direction: string;
   property_id: string;
+};
+
+type CompanyIncomeRow = {
+  amount_received: number;
+  currency: CurrencyCode;
+  due_date: string;
+  income_type: string;
+  property_id: string;
+  status: string;
+};
+
+type CompanyExpenseRow = {
+  amount: number;
+  category: string;
+  company_loss_amount: number;
+  currency: CurrencyCode;
+  economic_scope: string;
+  id: string;
+  invoice_date: string;
+  owner_bill_status: string;
+  owner_reimbursable_amount: number;
+  owner_reimbursed_amount: number;
+  property_id: string;
+  source_type: "bill" | "petty_cash";
+  vendor_label: string;
 };
 
 type PersonRow = {
@@ -100,6 +133,9 @@ export async function getOverviewScreenData(
     rolesResult,
     contactsResult,
     propertyOwnersResult,
+    companyIncomeResult,
+    companyExpenseResult,
+    pettyCashCompanyResult,
     openMaintenanceResult,
     recentActivityResult,
   ] = await Promise.all([
@@ -158,6 +194,33 @@ export async function getOverviewScreenData(
       .is("archived_at", null)
       .is("ended_on", null),
     supabase
+      .from("finance_income_items")
+      .select("property_id, due_date, income_type, amount_received, currency, status")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .gte("due_date", ledgerStartInput)
+      .lt("due_date", currentMonthEndInput),
+    supabase
+      .from("finance_expense_items")
+      .select(
+        "id, property_id, invoice_date, vendor_label, category, amount, currency, economic_scope, owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount",
+      )
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .gte("invoice_date", ledgerStartInput)
+      .lt("invoice_date", currentMonthEndInput),
+    supabase
+      .from("petty_cash_entries")
+      .select(
+        "id, property_id, invoice_date, supplier, category, description, out_amount, currency, economic_scope, owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount",
+      )
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .eq("entry_kind", "expense")
+      .or("economic_scope.neq.property_expense,company_loss_amount.gt.0")
+      .gte("invoice_date", ledgerStartInput)
+      .lt("invoice_date", currentMonthEndInput),
+    supabase
       .from("tasks")
       .select("id", { count: "exact", head: true })
       .eq("organization_id", organizationId)
@@ -182,6 +245,9 @@ export async function getOverviewScreenData(
   assertNoError(rolesResult.error, "overview person roles");
   assertNoError(contactsResult.error, "overview person contacts");
   assertNoError(propertyOwnersResult.error, "overview property owners");
+  assertNoError(companyIncomeResult.error, "overview company income");
+  assertNoError(companyExpenseResult.error, "overview company expenses");
+  assertNoError(pettyCashCompanyResult.error, "overview petty cash company expenses");
   assertNoError(openMaintenanceResult.error, "overview maintenance");
   assertNoError(recentActivityResult.error, "overview activity");
 
@@ -194,6 +260,41 @@ export async function getOverviewScreenData(
   const roles = (rolesResult.data ?? []) as PersonRoleRow[];
   const contacts = (contactsResult.data ?? []) as PersonContactRow[];
   const propertyOwners = (propertyOwnersResult.data ?? []) as PropertyOwnerRow[];
+  const companyIncomeRows = (companyIncomeResult.data ?? []) as CompanyIncomeRow[];
+  const companyExpenseRows = [
+    ...((companyExpenseResult.data ?? []) as Array<
+      Omit<CompanyExpenseRow, "source_type">
+    >).map((row) => ({ ...row, source_type: "bill" as const })),
+    ...((pettyCashCompanyResult.data ?? []) as Array<{
+      category: string;
+      company_loss_amount: number;
+      currency: CurrencyCode;
+      description: string;
+      economic_scope: string;
+      id: string;
+      invoice_date: string;
+      out_amount: number;
+      owner_bill_status: string;
+      owner_reimbursable_amount: number;
+      owner_reimbursed_amount: number;
+      property_id: string;
+      supplier: string | null;
+    }>).map((row) => ({
+      amount: Number(row.out_amount),
+      category: row.category,
+      company_loss_amount: Number(row.company_loss_amount),
+      currency: row.currency,
+      economic_scope: row.economic_scope,
+      id: row.id,
+      invoice_date: row.invoice_date,
+      owner_bill_status: row.owner_bill_status,
+      owner_reimbursable_amount: Number(row.owner_reimbursable_amount),
+      owner_reimbursed_amount: Number(row.owner_reimbursed_amount),
+      property_id: row.property_id,
+      source_type: "petty_cash" as const,
+      vendor_label: row.supplier ?? row.description ?? "Petty cash",
+    })),
+  ];
   const openMaintenanceCount = openMaintenanceResult.count ?? 0;
   const activeProperties = properties;
   const currentLeasedUnitIds = new Set(
@@ -276,6 +377,12 @@ export async function getOverviewScreenData(
       peopleWithoutRoles,
       vacantUnits,
     }),
+    companyFinance: buildCompanyFinanceSummary({
+      companyExpenseRows,
+      companyIncomeRows,
+      monthStart: ledgerStart,
+      properties: activeProperties,
+    }),
     leaseEndings: buildLeaseEndingsChart(currentLeases, currentMonthStart),
     leaseRiskCount: leasesEndingSoon.length,
     ledgerCurrency: "USD",
@@ -322,6 +429,289 @@ export async function getOverviewScreenData(
       unitCount: operationalUnits.length,
     },
   };
+}
+
+function buildCompanyFinanceSummary({
+  companyExpenseRows,
+  companyIncomeRows,
+  monthStart,
+  properties,
+}: {
+  companyExpenseRows: CompanyExpenseRow[];
+  companyIncomeRows: CompanyIncomeRow[];
+  monthStart: Date;
+  properties: PropertyRow[];
+}) {
+  const companyRevenueRows = companyIncomeRows.filter(
+    (row) => companyIncomeTypes.has(row.income_type) && row.status !== "void",
+  );
+  const companyRevenueAmount = sumCompanyRevenue(companyRevenueRows);
+  const companyCostAmount = sumCompanyCosts(companyExpenseRows);
+  const ownerReceivableAmount = sumOwnerReceivables(companyExpenseRows);
+  const companyNetAmount = companyRevenueAmount - companyCostAmount;
+  const propertiesById = new Map(properties.map((property) => [property.id, property]));
+  const propertyRows = buildCompanyFinanceProperties({
+    companyExpenseRows,
+    companyRevenueRows,
+    propertiesById,
+  });
+
+  return {
+    companyCost: formatMoneyDisplay(companyCostAmount),
+    companyCostAmount,
+    companyNet: formatMoneyDisplay(companyNetAmount),
+    companyNetAmount,
+    companyRevenue: formatMoneyDisplay(companyRevenueAmount),
+    companyRevenueAmount,
+    marginLabel: formatMargin(companyNetAmount, companyRevenueAmount),
+    monthlyPnl: buildCompanyPnlTrend({
+      companyExpenseRows,
+      companyRevenueRows,
+      monthStart,
+    }),
+    ownerReceivable: formatMoneyDisplay(ownerReceivableAmount),
+    ownerReceivableAmount,
+    ownerReceivables: buildOwnerReceivables({
+      companyExpenseRows,
+      propertiesById,
+    }),
+    properties: propertyRows,
+  };
+}
+
+function buildCompanyFinanceProperties({
+  companyExpenseRows,
+  companyRevenueRows,
+  propertiesById,
+}: {
+  companyExpenseRows: CompanyExpenseRow[];
+  companyRevenueRows: CompanyIncomeRow[];
+  propertiesById: Map<string, PropertyRow>;
+}): OverviewCompanyFinanceProperty[] {
+  const rowsByProperty = new Map<
+    string,
+    {
+      companyCostAmount: number;
+      companyRevenueAmount: number;
+      ownerReceivableAmount: number;
+    }
+  >();
+
+  for (const row of companyRevenueRows) {
+    const summary = getPropertyCompanySummary(rowsByProperty, row.property_id);
+    summary.companyRevenueAmount += Number(row.amount_received);
+  }
+
+  for (const row of companyExpenseRows) {
+    const summary = getPropertyCompanySummary(rowsByProperty, row.property_id);
+    summary.companyCostAmount += getCompanyCostAmount(row);
+    summary.ownerReceivableAmount += getOwnerReceivableAmount(row);
+  }
+
+  return Array.from(rowsByProperty.entries())
+    .map(([propertyId, summary]) => {
+      const property = propertiesById.get(propertyId);
+      const companyRevenueAmount = summary.companyRevenueAmount;
+      const companyCostAmount = summary.companyCostAmount;
+      const ownerReceivableAmount = summary.ownerReceivableAmount;
+      const netContributionAmount = companyRevenueAmount - companyCostAmount;
+
+      return {
+        companyCost: formatMoneyDisplay(companyCostAmount),
+        companyCostAmount,
+        companyRevenue: formatMoneyDisplay(companyRevenueAmount),
+        companyRevenueAmount,
+        href: `/properties/${propertyId}`,
+        label: property ? `${property.code} / ${property.name}` : "Unknown property",
+        marginLabel: formatMargin(netContributionAmount, companyRevenueAmount),
+        netContribution: formatMoneyDisplay(netContributionAmount),
+        netContributionAmount,
+        ownerReceivable: formatMoneyDisplay(ownerReceivableAmount),
+        ownerReceivableAmount,
+        tone: (netContributionAmount < 0
+          ? "danger"
+          : "success") as OverviewCompanyFinanceProperty["tone"],
+      };
+    })
+    .filter(
+      (row) =>
+        row.companyRevenueAmount > 0 ||
+        row.companyCostAmount > 0 ||
+        row.ownerReceivableAmount > 0,
+    )
+    .toSorted(
+      (first, second) =>
+        second.netContributionAmount - first.netContributionAmount ||
+        second.companyRevenueAmount - first.companyRevenueAmount ||
+        first.label.localeCompare(second.label),
+    )
+    .slice(0, 12);
+}
+
+function buildCompanyPnlTrend({
+  companyExpenseRows,
+  companyRevenueRows,
+  monthStart,
+}: {
+  companyExpenseRows: CompanyExpenseRow[];
+  companyRevenueRows: CompanyIncomeRow[];
+  monthStart: Date;
+}): OverviewLedgerPoint[] {
+  const months = Array.from({ length: 6 }, (_, index) => addMonths(monthStart, index));
+  const points = new Map(
+    months.map((month) => [
+      getMonthKey(month),
+      {
+        expense: 0,
+        href: `/overview?lens=finance&financeView=company-pnl`,
+        income: 0,
+        label: monthLabelFormatter.format(month),
+        net: 0,
+      },
+    ]),
+  );
+
+  for (const row of companyRevenueRows) {
+    const point = points.get(row.due_date.slice(0, 7));
+
+    if (!point) {
+      continue;
+    }
+
+    const amount = Number(row.amount_received);
+    point.income += amount;
+    point.net += amount;
+  }
+
+  for (const row of companyExpenseRows) {
+    const point = points.get(row.invoice_date.slice(0, 7));
+
+    if (!point) {
+      continue;
+    }
+
+    const amount = getCompanyCostAmount(row);
+    point.expense += amount;
+    point.net -= amount;
+  }
+
+  return Array.from(points.values());
+}
+
+function buildOwnerReceivables({
+  companyExpenseRows,
+  propertiesById,
+}: {
+  companyExpenseRows: CompanyExpenseRow[];
+  propertiesById: Map<string, PropertyRow>;
+}) {
+  return companyExpenseRows
+    .map((row) => {
+      const ownerReceivableAmount = getOwnerReceivableAmount(row);
+      const property = propertiesById.get(row.property_id);
+
+      return {
+        amount: formatMoneyDisplay(row.amount, row.currency),
+        amountValue: Number(row.amount),
+        billStatus: formatOwnerBillStatus(row.owner_bill_status),
+        href:
+          row.source_type === "petty_cash"
+            ? `/petty-cash?query=${encodeURIComponent(row.vendor_label)}`
+            : `/bills-expenses?propertyId=${row.property_id}&query=${encodeURIComponent(row.vendor_label)}`,
+        invoiceDate: row.invoice_date,
+        label: row.category,
+        ownerReceivable: formatMoneyDisplay(ownerReceivableAmount, row.currency),
+        ownerReceivableAmount,
+        propertyLabel: property
+          ? `${property.code} / ${property.name}`
+          : "Unknown property",
+        reimbursed: formatMoneyDisplay(row.owner_reimbursed_amount, row.currency),
+        vendorLabel: row.vendor_label,
+      };
+    })
+    .filter((row) => row.ownerReceivableAmount > 0)
+    .toSorted(
+      (first, second) =>
+        second.ownerReceivableAmount - first.ownerReceivableAmount ||
+        first.invoiceDate.localeCompare(second.invoiceDate),
+    )
+    .slice(0, 12);
+}
+
+function getPropertyCompanySummary(
+  rowsByProperty: Map<
+    string,
+    {
+      companyCostAmount: number;
+      companyRevenueAmount: number;
+      ownerReceivableAmount: number;
+    }
+  >,
+  propertyId: string,
+) {
+  const existing = rowsByProperty.get(propertyId);
+
+  if (existing) {
+    return existing;
+  }
+
+  const next = {
+    companyCostAmount: 0,
+    companyRevenueAmount: 0,
+    ownerReceivableAmount: 0,
+  };
+  rowsByProperty.set(propertyId, next);
+  return next;
+}
+
+function sumCompanyRevenue(rows: CompanyIncomeRow[]) {
+  return rows.reduce((total, row) => total + Number(row.amount_received), 0);
+}
+
+function sumCompanyCosts(rows: CompanyExpenseRow[]) {
+  return rows.reduce((total, row) => total + getCompanyCostAmount(row), 0);
+}
+
+function sumOwnerReceivables(rows: CompanyExpenseRow[]) {
+  return rows.reduce((total, row) => total + getOwnerReceivableAmount(row), 0);
+}
+
+function getCompanyCostAmount(row: CompanyExpenseRow) {
+  if (row.economic_scope === "company_cost") {
+    return Number(row.company_loss_amount || row.amount);
+  }
+
+  if (row.owner_bill_status === "written_off") {
+    return Number(row.company_loss_amount || getOwnerReceivableAmount(row));
+  }
+
+  return Number(row.company_loss_amount || 0);
+}
+
+function getOwnerReceivableAmount(row: CompanyExpenseRow) {
+  if (row.economic_scope !== "company_advance") {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Number(row.owner_reimbursable_amount) - Number(row.owner_reimbursed_amount),
+  );
+}
+
+function formatMargin(net: number, revenue: number) {
+  if (revenue <= 0) {
+    return net < 0 ? "Loss" : "No revenue";
+  }
+
+  return `${Math.round((net / revenue) * 100)}%`;
+}
+
+function formatOwnerBillStatus(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function buildDashboardSummary({

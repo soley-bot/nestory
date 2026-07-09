@@ -25,8 +25,10 @@ import {
   voidBillsExpenseItemAction,
 } from "@/features/bills-expenses/actions";
 import {
+  economicScopeOptions,
   expenseStatusOptions,
   expenseTypeOptions,
+  ownerBillStatusOptions,
   type BillsExpenseItem,
   type BillsExpenseOption,
   type BillsExpensesPagination,
@@ -389,6 +391,14 @@ function BillsExpensesInspector({
           <Detail label="Due">
             {item.dueDate ? formatDate(item.dueDate) : "No due date"}
           </Detail>
+          <Detail label="Company handling">{item.economicScopeLabel}</Detail>
+          <Detail label="Owner bill status">{item.ownerBillStatusLabel}</Detail>
+          <Detail label="Owner receivable">
+            <MoneyDisplay value={item.ownerReceivableDisplay} />
+          </Detail>
+          <Detail label="Company loss">
+            <MoneyDisplay value={item.companyLossDisplay} />
+          </Detail>
         </div>
 
         <div className="space-y-2 text-sm">
@@ -521,6 +531,59 @@ function BillsExpenseForm({
                   })),
                 ]}
               />
+            </Field>
+          </div>
+        </FormSection>
+
+        <FormSection title="Company / owner handling">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Company handling"
+              error={state.fieldErrors?.economicScope?.[0]}
+            >
+              <SelectControl
+                defaultValue="property_expense"
+                name="economicScope"
+                options={economicScopeOptions.map((option) => ({
+                  label: option.label,
+                  value: option.value,
+                }))}
+                required
+              />
+            </Field>
+            <Field
+              label="Owner bill status"
+              error={state.fieldErrors?.ownerBillStatus?.[0]}
+            >
+              <SelectControl
+                defaultValue="not_billable"
+                name="ownerBillStatus"
+                options={ownerBillStatusOptions.map((option) => ({
+                  label: option.label,
+                  value: option.value,
+                }))}
+                required
+              />
+            </Field>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field
+              label="Owner billable"
+              error={state.fieldErrors?.ownerReimbursableAmount?.[0]}
+            >
+              <NumberInput name="ownerReimbursableAmount" placeholder="0.00" />
+            </Field>
+            <Field
+              label="Owner reimbursed"
+              error={state.fieldErrors?.ownerReimbursedAmount?.[0]}
+            >
+              <NumberInput name="ownerReimbursedAmount" placeholder="0.00" />
+            </Field>
+            <Field
+              label="Company loss"
+              error={state.fieldErrors?.companyLossAmount?.[0]}
+            >
+              <NumberInput name="companyLossAmount" placeholder="0.00" />
             </Field>
           </div>
         </FormSection>

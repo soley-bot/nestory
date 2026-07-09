@@ -24,6 +24,7 @@ import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
 import { RecentChangesPopover } from "@/features/activity/components/recent-changes-popover";
 import type { RecentChange } from "@/features/activity/activity.types";
+import { Badge } from "@/components/ui/badge";
 import {
   archiveLedgerEntryAction,
   attachLedgerReceiptAction,
@@ -45,6 +46,7 @@ import type {
   LedgerViewQuery,
 } from "@/features/ledger/ledger.types";
 import { formatDate } from "@/lib/dates/format";
+import { formatMoneyDisplay } from "@/lib/money/format";
 
 const archiveInitialState: LedgerActionState = {};
 const receiptInitialState: LedgerActionState = {};
@@ -209,7 +211,7 @@ export function LedgerScreen({
         viewQuery={viewQuery}
       />
 
-      <LedgerCloseStrip closeSummary={closeSummary} />
+      <LedgerCloseStrip closeSummary={closeSummary} entries={entries} />
 
       {reviewContext ? (
         <LedgerReviewStrip
@@ -475,35 +477,69 @@ function formatLedgerDateRange(dateFrom: string, dateTo: string) {
 
 function LedgerCloseStrip({
   closeSummary,
+  entries,
 }: {
   closeSummary: LedgerCloseSummary;
+  entries: LedgerEntry[];
 }) {
+  const income = entries
+    .filter((entry) => entry.direction === "income")
+    .reduce((total, entry) => total + entry.amount, 0);
+  const expense = entries
+    .filter((entry) => entry.direction === "expense")
+    .reduce((total, entry) => total + entry.amount, 0);
+  const net = income - expense;
+  const sourceSummary = summarizeLedgerSources(entries);
+
   return (
-    <section className="grid gap-3 border-b border-border bg-surface-muted/35 px-4 py-3 sm:px-6 lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(150px,1fr))]">
-      <div className="rounded-md border border-border bg-surface px-3 py-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
-          Month close
-        </p>
-        <p className="mt-1 text-sm font-semibold">{closeSummary.monthLabel}</p>
-        <p className="mt-0.5 text-xs text-muted">
-          Clear workflow queues before relying on owner and finance reports.
-        </p>
+    <section className="border-b border-border bg-surface px-4 py-3 sm:px-6">
+      <div className="grid gap-3 xl:grid-cols-[minmax(260px,1.15fr)_minmax(0,2.4fr)_minmax(260px,1fr)] xl:items-stretch">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+            Month close
+          </p>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold">{closeSummary.monthLabel}</p>
+            <Badge tone={hasOpenCloseQueue(closeSummary) ? "warning" : "success"}>
+              {hasOpenCloseQueue(closeSummary) ? "Open queues" : "Ready"}
+            </Badge>
+          </div>
+          <p className="mt-0.5 text-xs leading-5 text-muted">
+            Clear received income, approved bills, and cleared petty cash before
+            relying on owner or finance reports.
+          </p>
+        </div>
+        <div className="grid overflow-hidden rounded-md border border-border bg-surface-muted/25 sm:grid-cols-3">
+          <CloseLink
+            count={closeSummary.incomeReadyToPost}
+            href={closeSummary.incomeReadyHref}
+            label="Received income"
+          />
+          <CloseLink
+            count={closeSummary.billsReadyToPost}
+            href={closeSummary.billsReadyHref}
+            label="Approved bills"
+          />
+          <CloseLink
+            count={closeSummary.pettyCashReadyToPost}
+            href={closeSummary.pettyCashReadyHref}
+            label="Cleared petty cash"
+          />
+        </div>
+        <div className="grid grid-cols-2 overflow-hidden rounded-md border border-border bg-surface-muted/25">
+          <CloseMetric label="Visible income" value={formatMoneyDisplay(income).primary} />
+          <CloseMetric
+            label="Visible expense"
+            value={formatMoneyDisplay(expense).primary}
+          />
+          <CloseMetric
+            label="Visible net"
+            tone={net < 0 ? "danger" : "success"}
+            value={formatMoneyDisplay(net).primary}
+          />
+          <CloseMetric label="Sources" value={sourceSummary} />
+        </div>
       </div>
-      <CloseLink
-        count={closeSummary.incomeReadyToPost}
-        href={closeSummary.incomeReadyHref}
-        label="Income ready"
-      />
-      <CloseLink
-        count={closeSummary.billsReadyToPost}
-        href={closeSummary.billsReadyHref}
-        label="Bills ready"
-      />
-      <CloseLink
-        count={closeSummary.pettyCashReadyToPost}
-        href={closeSummary.pettyCashReadyHref}
-        label="Petty cash ready"
-      />
     </section>
   );
 }
@@ -519,16 +555,65 @@ function CloseLink({
 }) {
   return (
     <Link
-      className="rounded-md border border-border bg-surface px-3 py-2 transition-colors hover:bg-surface-muted"
+      className="min-w-0 border-b border-border px-3 py-2 transition-colors last:border-b-0 hover:bg-surface-muted sm:border-b-0 sm:border-r sm:last:border-r-0"
       href={href}
     >
       <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
         {label}
       </p>
       <p className="mt-1 text-base font-semibold">{count}</p>
-      <p className="mt-0.5 text-xs text-muted">Open queue</p>
+      <p className="mt-0.5 text-xs text-muted">
+        {Number(count) > 0 ? "Open queue" : "Clear"}
+      </p>
     </Link>
   );
+}
+
+function CloseMetric({
+  label,
+  tone = "neutral",
+  value,
+}: {
+  label: string;
+  tone?: "danger" | "neutral" | "success";
+  value: string;
+}) {
+  const valueClass =
+    tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "";
+
+  return (
+    <div className="min-w-0 px-3 py-2">
+      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </p>
+      <p className={`mt-1 truncate text-[13px] font-semibold tabular-nums ${valueClass}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function hasOpenCloseQueue(closeSummary: LedgerCloseSummary) {
+  return (
+    Number(closeSummary.incomeReadyToPost) +
+      Number(closeSummary.billsReadyToPost) +
+      Number(closeSummary.pettyCashReadyToPost) >
+    0
+  );
+}
+
+function summarizeLedgerSources(entries: LedgerEntry[]) {
+  const counts = new Map<string, number>();
+
+  for (const entry of entries) {
+    counts.set(entry.sourceLabel, (counts.get(entry.sourceLabel) ?? 0) + 1);
+  }
+
+  const [topSource, topCount] =
+    Array.from(counts.entries()).sort((first, second) => second[1] - first[1])[0] ??
+    [];
+
+  return topSource ? `${topSource} ${topCount} rows` : "No rows";
 }
 
 function formatLedgerAmountThreshold(value: number) {

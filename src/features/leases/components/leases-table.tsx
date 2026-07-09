@@ -48,13 +48,13 @@ export function LeasesTable({
 
       <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
         <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-          <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
+          <table className="w-full min-w-[920px] table-fixed border-collapse text-left text-[13px]">
             <colgroup>
-              <col />
-              <col className="w-[210px]" />
-              <col className="w-[170px]" />
-              <col className="w-[140px]" />
-              <col className="w-[100px]" />
+              <col className="w-[26%]" />
+              <col className="w-[24%]" />
+              <col className="w-[16%]" />
+              <col className="w-[10%]" />
+              <col className="w-[24%]" />
             </colgroup>
             <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
               <tr>
@@ -62,9 +62,7 @@ export function LeasesTable({
                 <th className="px-2 py-2.5 font-semibold">Unit</th>
                 <th className="px-2 py-2.5 font-semibold">Term</th>
                 <th className="px-2 py-2.5 text-right font-semibold">Rent</th>
-                <th className="px-1.5 py-2.5 text-center font-semibold">
-                  Status
-                </th>
+                <th className="px-3 py-2.5 font-semibold">Review</th>
               </tr>
             </thead>
             <tbody>
@@ -93,15 +91,21 @@ export function LeasesTable({
                   }}
                   tabIndex={0}
                 >
-                  <td className="px-2 py-2">
+                  <td className="px-2 py-2.5 align-middle">
                     <RecordLink
                       href={getLeaseHref(lease.id)}
                       title={`Open lease for ${lease.tenantName}`}
                     >
                       {lease.tenantName}
                     </RecordLink>
+                    <p
+                      className="mt-0.5 truncate text-xs text-muted"
+                      title={lease.partySummary}
+                    >
+                      {lease.partySummary}
+                    </p>
                   </td>
-                  <td className="px-2 py-2">
+                  <td className="px-2 py-2.5 align-middle">
                     <p className="truncate font-medium" title={lease.unitLabel}>
                       {lease.unitLabel}
                     </p>
@@ -112,25 +116,39 @@ export function LeasesTable({
                       {lease.propertyName}
                     </p>
                   </td>
-                  <td className="px-2 py-2">
+                  <td className="px-2 py-2.5 align-middle">
                     <p className="truncate font-medium">{lease.startDateLabel}</p>
                     <p className="mt-0.5 truncate text-xs text-muted">
                       Ends {lease.endDateLabel}
                     </p>
                   </td>
-                  <td className="px-2 py-2 text-right align-top">
+                  <td className="px-2 py-2.5 text-right align-middle">
                     <TableMoneyDisplay value={lease.rentDisplay} />
                   </td>
-                  <td className="px-1.5 py-2">
-                    <div className="flex flex-wrap justify-center gap-1.5">
+                  <td className="px-3 py-2.5 align-middle">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
                       <Badge className="px-2 text-xs" tone={lease.statusTone}>
                         {lease.statusLabel}
                       </Badge>
+                      {lease.riskIndicators[0] ? (
+                        <Badge
+                          className="px-2 text-xs"
+                          tone={lease.riskIndicators[0].tone}
+                        >
+                          {lease.riskIndicators[0].label}
+                        </Badge>
+                      ) : null}
                       {lease.isArchived ? (
                         <Badge className="px-2 text-xs" tone="warning">
                           Archived
                         </Badge>
                       ) : null}
+                      <p
+                        className="min-w-0 shrink truncate text-xs text-muted"
+                        title={lease.nextAction.description}
+                      >
+                        {lease.nextAction.label}
+                      </p>
                     </div>
                   </td>
                 </tr>
@@ -212,6 +230,12 @@ function LeaseCard({
         <LeaseCardDetail align="right" label="Rent">
           <TableMoneyDisplay value={lease.rentDisplay} />
         </LeaseCardDetail>
+        <LeaseCardDetail label="Next action" value={lease.nextAction.label} />
+        <LeaseCardDetail
+          align="right"
+          label="Review"
+          value={lease.riskIndicators[0]?.label ?? "Ready"}
+        />
       </dl>
     </article>
   );

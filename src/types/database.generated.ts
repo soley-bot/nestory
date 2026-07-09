@@ -258,16 +258,21 @@ export type Database = {
           archived_at: string | null
           archived_by: string | null
           category: string
+          company_loss_amount: number
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
           description: string | null
           due_date: string | null
+          economic_scope: string
           expense_type: string
           id: string
           invoice_date: string
           ledger_entry_id: string | null
           organization_id: string
+          owner_bill_status: string
+          owner_reimbursable_amount: number
+          owner_reimbursed_amount: number
           paid_date: string | null
           property_id: string
           reference: string | null
@@ -284,16 +289,21 @@ export type Database = {
           archived_at?: string | null
           archived_by?: string | null
           category: string
+          company_loss_amount?: number
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
           description?: string | null
           due_date?: string | null
+          economic_scope?: string
           expense_type?: string
           id?: string
           invoice_date: string
           ledger_entry_id?: string | null
           organization_id: string
+          owner_bill_status?: string
+          owner_reimbursable_amount?: number
+          owner_reimbursed_amount?: number
           paid_date?: string | null
           property_id: string
           reference?: string | null
@@ -310,16 +320,21 @@ export type Database = {
           archived_at?: string | null
           archived_by?: string | null
           category?: string
+          company_loss_amount?: number
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
           description?: string | null
           due_date?: string | null
+          economic_scope?: string
           expense_type?: string
           id?: string
           invoice_date?: string
           ledger_entry_id?: string | null
           organization_id?: string
+          owner_bill_status?: string
+          owner_reimbursable_amount?: number
+          owner_reimbursed_amount?: number
           paid_date?: string | null
           property_id?: string
           reference?: string | null
@@ -1114,6 +1129,8 @@ export type Database = {
           id: string
           organization_id: string
           property_id: string
+          source_id: string | null
+          source_type: string
           transaction_date: string
           unit_id: string | null
           updated_at: string
@@ -1132,6 +1149,8 @@ export type Database = {
           id?: string
           organization_id: string
           property_id: string
+          source_id?: string | null
+          source_type?: string
           transaction_date: string
           unit_id?: string | null
           updated_at?: string
@@ -1150,6 +1169,8 @@ export type Database = {
           id?: string
           organization_id?: string
           property_id?: string
+          source_id?: string | null
+          source_type?: string
           transaction_date?: string
           unit_id?: string | null
           updated_at?: string
@@ -1680,10 +1701,12 @@ export type Database = {
           archived_by: string | null
           category: string
           clear_date: string | null
+          company_loss_amount: number
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
           description: string
+          economic_scope: string
           entry_kind: string
           id: string
           in_amount: number
@@ -1691,6 +1714,9 @@ export type Database = {
           ledger_entry_id: string | null
           organization_id: string
           out_amount: number
+          owner_bill_status: string
+          owner_reimbursable_amount: number
+          owner_reimbursed_amount: number
           period_id: string
           property_id: string | null
           receipt_reference: string | null
@@ -1707,10 +1733,12 @@ export type Database = {
           archived_by?: string | null
           category: string
           clear_date?: string | null
+          company_loss_amount?: number
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
           description: string
+          economic_scope?: string
           entry_kind?: string
           id?: string
           in_amount?: number
@@ -1718,6 +1746,9 @@ export type Database = {
           ledger_entry_id?: string | null
           organization_id: string
           out_amount?: number
+          owner_bill_status?: string
+          owner_reimbursable_amount?: number
+          owner_reimbursed_amount?: number
           period_id: string
           property_id?: string | null
           receipt_reference?: string | null
@@ -1734,10 +1765,12 @@ export type Database = {
           archived_by?: string | null
           category?: string
           clear_date?: string | null
+          company_loss_amount?: number
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
           description?: string
+          economic_scope?: string
           entry_kind?: string
           id?: string
           in_amount?: number
@@ -1745,6 +1778,9 @@ export type Database = {
           ledger_entry_id?: string | null
           organization_id?: string
           out_amount?: number
+          owner_bill_status?: string
+          owner_reimbursable_amount?: number
+          owner_reimbursed_amount?: number
           period_id?: string
           property_id?: string | null
           receipt_reference?: string | null
@@ -2581,7 +2617,7 @@ export type Database = {
         Returns: string
       }
       bootstrap_admin_organization: {
-        Args: { organization_name: string; workspace_slug?: string | null }
+        Args: { organization_name: string; workspace_slug?: string }
         Returns: {
           membership_id: string
           organization_id: string
@@ -2636,11 +2672,16 @@ export type Database = {
         Args: {
           p_amount: number
           p_category: string
+          p_company_loss_amount?: number
           p_description: string
           p_due_date: string
+          p_economic_scope?: string
           p_expense_type: string
           p_invoice_date: string
           p_organization_id: string
+          p_owner_bill_status?: string
+          p_owner_reimbursable_amount?: number
+          p_owner_reimbursed_amount?: number
           p_property_id: string
           p_reference: string
           p_task_id: string
@@ -2767,10 +2808,15 @@ export type Database = {
           p_amount: number
           p_category: string
           p_clear_date: string
+          p_company_loss_amount?: number
           p_description: string
+          p_economic_scope?: string
           p_entry_kind: string
           p_invoice_date: string
           p_organization_id: string
+          p_owner_bill_status?: string
+          p_owner_reimbursable_amount?: number
+          p_owner_reimbursed_amount?: number
           p_period_id: string
           p_property_id: string
           p_receipt_reference?: string
@@ -2778,15 +2824,6 @@ export type Database = {
           p_status: string
           p_supplier: string
           p_unit_id: string
-        }
-        Returns: string
-      }
-      open_next_petty_cash_period: {
-        Args: {
-          p_account_id: string
-          p_advance_amount?: number
-          p_organization_id: string
-          p_period_id: string
         }
         Returns: string
       }
@@ -2832,6 +2869,48 @@ export type Database = {
         }
         Returns: string
       }
+      generate_monthly_rent_income_items: {
+        Args: { p_month?: string; p_organization_id: string }
+        Returns: number
+      }
+      get_finance_expense_workflow_summary: {
+        Args: {
+          p_invoice_before: string
+          p_invoice_from: string
+          p_organization_id: string
+          p_property_id: string
+          p_query: string
+          p_status: string
+          p_today: string
+          p_unit_id: string
+        }
+        Returns: {
+          approved_count: number
+          draft_count: number
+          overdue_count: number
+          posted_total: number
+          unposted_total: number
+        }[]
+      }
+      get_finance_income_workflow_summary: {
+        Args: {
+          p_due_before: string
+          p_due_from: string
+          p_organization_id: string
+          p_property_id: string
+          p_query: string
+          p_status: string
+          p_today: string
+          p_unit_id: string
+        }
+        Returns: {
+          open_count: number
+          overdue_count: number
+          receivable_total: number
+          received_total: number
+          unposted_count: number
+        }[]
+      }
       get_organization_access_members: {
         Args: { p_organization_id: string }
         Returns: {
@@ -2842,6 +2921,15 @@ export type Database = {
           role: string
           user_id: string
         }[]
+      }
+      open_next_petty_cash_period: {
+        Args: {
+          p_account_id: string
+          p_advance_amount?: number
+          p_organization_id: string
+          p_period_id: string
+        }
+        Returns: string
       }
       post_finance_expense_item: {
         Args: {

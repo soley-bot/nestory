@@ -8,11 +8,16 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 type BillsExpensesFieldErrors = {
   amount?: string[];
   category?: string[];
+  companyLossAmount?: string[];
   description?: string[];
   dueDate?: string[];
+  economicScope?: string[];
   expenseItemId?: string[];
   expenseType?: string[];
   invoiceDate?: string[];
+  ownerBillStatus?: string[];
+  ownerReimbursableAmount?: string[];
+  ownerReimbursedAmount?: string[];
   paidDate?: string[];
   propertyId?: string[];
   reference?: string[];
@@ -44,6 +49,7 @@ const createExpenseSchema = z
       .max(80, "Keep the category under 80 characters."),
     description: z.string().trim().max(1200, "Keep the note under 1,200 characters."),
     dueDate: z.string().trim(),
+    economicScope: z.enum(["property_expense", "company_advance", "company_cost"]),
     expenseType: z.enum([
       "vendor_bill",
       "maintenance",
@@ -57,6 +63,17 @@ const createExpenseSchema = z
       .string()
       .trim()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose an invoice date."),
+    ownerBillStatus: z.enum([
+      "not_billable",
+      "billable",
+      "billed",
+      "partially_reimbursed",
+      "reimbursed",
+      "written_off",
+    ]),
+    ownerReimbursableAmount: z.string().trim(),
+    ownerReimbursedAmount: z.string().trim(),
+    companyLossAmount: z.string().trim(),
     propertyId: z.uuid("Choose a property."),
     reference: z.string().trim().max(120, "Keep the reference under 120 characters."),
     unitId: optionalUuidSchema,
@@ -69,12 +86,89 @@ const createExpenseSchema = z
   })
   .superRefine((data, context) => {
     const amount = Number(data.amount);
+    const ownerReimbursableAmount = Number(data.ownerReimbursableAmount || "0");
+    const ownerReimbursedAmount = Number(data.ownerReimbursedAmount || "0");
+    const companyLossAmount = Number(data.companyLossAmount || "0");
 
     if (!Number.isFinite(amount) || amount <= 0) {
       context.addIssue({
         code: "custom",
         message: "Enter an amount greater than zero.",
         path: ["amount"],
+      });
+    }
+
+    if (!Number.isFinite(ownerReimbursableAmount) || ownerReimbursableAmount < 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter a valid owner billable amount.",
+        path: ["ownerReimbursableAmount"],
+      });
+    }
+
+    if (!Number.isFinite(ownerReimbursedAmount) || ownerReimbursedAmount < 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter a valid reimbursed amount.",
+        path: ["ownerReimbursedAmount"],
+      });
+    }
+
+    if (ownerReimbursedAmount > ownerReimbursableAmount) {
+      context.addIssue({
+        code: "custom",
+        message: "Reimbursed cannot exceed billable.",
+        path: ["ownerReimbursedAmount"],
+      });
+    }
+
+    if (!Number.isFinite(companyLossAmount) || companyLossAmount < 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter a valid company loss amount.",
+        path: ["companyLossAmount"],
+      });
+    }
+
+    if (Number.isFinite(amount) && companyLossAmount > amount) {
+      context.addIssue({
+        code: "custom",
+        message: "Company loss cannot exceed the expense.",
+        path: ["companyLossAmount"],
+      });
+    }
+
+    if (
+      data.economicScope === "company_advance" &&
+      data.ownerBillStatus === "not_billable"
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Company advances must be billable, billed, reimbursed, or written off.",
+        path: ["ownerBillStatus"],
+      });
+    }
+
+    if (
+      data.economicScope === "company_advance" &&
+      Number.isFinite(ownerReimbursableAmount) &&
+      ownerReimbursableAmount <= 0
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the amount to bill the owner.",
+        path: ["ownerReimbursableAmount"],
+      });
+    }
+
+    if (
+      data.economicScope !== "company_advance" &&
+      (ownerReimbursableAmount > 0 || ownerReimbursedAmount > 0)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Owner reimbursement only applies to company advances.",
+        path: ["ownerReimbursableAmount"],
       });
     }
 
@@ -115,10 +209,15 @@ export async function createBillsExpenseItemAction(
   const parsed = createExpenseSchema.safeParse({
     amount: readString(formData, "amount"),
     category: readString(formData, "category"),
+    companyLossAmount: readString(formData, "companyLossAmount"),
     description: readString(formData, "description"),
     dueDate: readString(formData, "dueDate"),
+    economicScope: readString(formData, "economicScope") || "property_expense",
     expenseType: readString(formData, "expenseType"),
     invoiceDate: readString(formData, "invoiceDate"),
+    ownerBillStatus: readString(formData, "ownerBillStatus") || "not_billable",
+    ownerReimbursableAmount: readString(formData, "ownerReimbursableAmount"),
+    ownerReimbursedAmount: readString(formData, "ownerReimbursedAmount"),
     propertyId: readString(formData, "propertyId"),
     reference: readString(formData, "reference"),
     unitId: readString(formData, "unitId"),
@@ -136,9 +235,14 @@ export async function createBillsExpenseItemAction(
     p_category: parsed.data.category,
     p_description: parsed.data.description || null,
     p_due_date: parsed.data.dueDate || null,
+    p_economic_scope: parsed.data.economicScope,
     p_expense_type: parsed.data.expenseType,
     p_invoice_date: parsed.data.invoiceDate,
     p_organization_id: context.organizationId,
+    p_owner_bill_status: parsed.data.ownerBillStatus,
+    p_owner_reimbursable_amount: Number(parsed.data.ownerReimbursableAmount || "0"),
+    p_owner_reimbursed_amount: Number(parsed.data.ownerReimbursedAmount || "0"),
+    p_company_loss_amount: Number(parsed.data.companyLossAmount || "0"),
     p_property_id: parsed.data.propertyId,
     p_reference: parsed.data.reference || null,
     p_task_id: null,

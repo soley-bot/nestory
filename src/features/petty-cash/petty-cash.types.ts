@@ -2,6 +2,17 @@ import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
 export type PettyCashEntryKind = "advance" | "cash_in" | "expense";
 export type PettyCashEntryStatus = "cleared" | "draft" | "posted" | "void";
+export type PettyCashEconomicScope =
+  | "company_advance"
+  | "company_cost"
+  | "property_expense";
+export type PettyCashOwnerBillStatus =
+  | "billable"
+  | "billed"
+  | "not_billable"
+  | "partially_reimbursed"
+  | "reimbursed"
+  | "written_off";
 
 export type PettyCashAccount = {
   accountNumber: string;
@@ -28,12 +39,20 @@ export type PettyCashEntry = {
   createdAt: string;
   currency: CurrencyCode;
   description: string;
+  economicScope: PettyCashEconomicScope;
+  economicScopeLabel: string;
   entryKind: PettyCashEntryKind;
   id: string;
   inAmount: number;
   invoiceDate: string;
   ledgerEntryId?: string;
   outAmount: number;
+  ownerBillStatus: PettyCashOwnerBillStatus;
+  ownerBillStatusLabel: string;
+  ownerReceivable: MoneyDisplayValue;
+  ownerReceivableAmount: number;
+  ownerReimbursableAmount: number;
+  ownerReimbursedAmount: number;
   propertyCode?: string;
   propertyId?: string;
   propertyName?: string;

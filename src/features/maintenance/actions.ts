@@ -531,7 +531,7 @@ function revalidateMaintenancePaths({
   unitIds?: Array<string | null | undefined>;
 }) {
   revalidatePath("/maintenance");
-  revalidatePath("/maintenance-dashboard");
+  revalidatePath("/overview");
   revalidatePath("/work-orders");
   revalidatePath("/inspections");
   revalidatePath("/recurring-tasks");

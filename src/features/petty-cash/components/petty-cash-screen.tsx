@@ -30,6 +30,10 @@ import {
   postPettyCashEntryAction,
   type PettyCashActionState,
 } from "@/features/petty-cash/actions";
+import {
+  economicScopeOptions,
+  ownerBillStatusOptions,
+} from "@/features/bills-expenses/bills-expenses.types";
 import type {
   PettyCashAccount,
   PettyCashEntry,
@@ -363,6 +367,12 @@ function PettyCashTable({
                 </td>
                 <td className="px-3 py-2">
                   <EntryKindBadge entry={entry} />
+                  {entry.entryKind === "expense" &&
+                  entry.economicScope !== "property_expense" ? (
+                    <p className="mt-1 truncate text-xs text-muted">
+                      {entry.economicScopeLabel}
+                    </p>
+                  ) : null}
                 </td>
                 <td className="px-3 py-2">
                   <p className="truncate font-medium">
@@ -512,6 +522,32 @@ function PettyCashInspector({
           </div>
         )}
 
+        {entry.entryKind === "expense" ? (
+          <div className="rounded-md border border-border px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-semibold">{entry.economicScopeLabel}</p>
+              <Badge
+                tone={
+                  entry.economicScope === "company_advance"
+                    ? "warning"
+                    : entry.economicScope === "company_cost"
+                      ? "danger"
+                      : "neutral"
+                }
+              >
+                {entry.ownerBillStatusLabel}
+              </Badge>
+            </div>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              {entry.economicScope === "company_advance"
+                ? `${entry.ownerReceivable.primary} still receivable from owner.`
+                : entry.economicScope === "company_cost"
+                  ? "This cash spend reduces company P&L."
+                  : "This remains ordinary property expense handling."}
+            </p>
+          </div>
+        ) : null}
+
         {entry.ledgerEntryId ? (
           <Link
             className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm hover:bg-surface-muted"
@@ -598,6 +634,8 @@ function PettyCashEntryForm({
   units: PettyCashUnitOption[];
 }) {
   const [entryKind, setEntryKind] = useState("expense");
+  const [economicScope, setEconomicScope] = useState("property_expense");
+  const [ownerBillStatus, setOwnerBillStatus] = useState("not_billable");
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [state, action, pending] = useActionState(
     createPettyCashEntryAction,
@@ -734,6 +772,97 @@ function PettyCashEntryForm({
         >
           <Input name="receiptReference" placeholder="Receipt number or file note" />
         </Field>
+
+        {entryKind === "expense" ? (
+          <section className="rounded-md border border-border bg-surface-muted/45 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">Company / owner handling</p>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  Use this when the company pays cash first and owner billing or
+                  company cost needs tracking.
+                </p>
+              </div>
+              <Badge tone={economicScope === "company_advance" ? "warning" : "neutral"}>
+                {economicScope === "company_advance"
+                  ? "Owner receivable"
+                  : economicScope === "company_cost"
+                    ? "Company cost"
+                    : "Property expense"}
+              </Badge>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field
+                label="Handling"
+                error={state.fieldErrors?.economicScope?.[0]}
+              >
+                <SelectControl
+                  ariaLabel="Company handling"
+                  name="economicScope"
+                  onValueChange={(value) => {
+                    setEconomicScope(value);
+                    setOwnerBillStatus(
+                      value === "company_advance" ? "billable" : "not_billable",
+                    );
+                  }}
+                  options={[...economicScopeOptions]}
+                  value={economicScope}
+                />
+              </Field>
+              <Field
+                label="Owner bill status"
+                error={state.fieldErrors?.ownerBillStatus?.[0]}
+              >
+                <SelectControl
+                  ariaLabel="Owner bill status"
+                  disabled={economicScope !== "company_advance"}
+                  name="ownerBillStatus"
+                  onValueChange={setOwnerBillStatus}
+                  options={[...ownerBillStatusOptions]}
+                  value={ownerBillStatus}
+                />
+              </Field>
+              <Field
+                label="Billable to owner"
+                error={state.fieldErrors?.ownerReimbursableAmount?.[0]}
+              >
+                <NumberInput
+                  disabled={economicScope !== "company_advance"}
+                  min="0"
+                  name="ownerReimbursableAmount"
+                  placeholder="Defaults to amount"
+                  step="0.01"
+                />
+              </Field>
+              <Field
+                label="Owner reimbursed"
+                error={state.fieldErrors?.ownerReimbursedAmount?.[0]}
+              >
+                <NumberInput
+                  disabled={economicScope !== "company_advance"}
+                  min="0"
+                  name="ownerReimbursedAmount"
+                  placeholder="0.00"
+                  step="0.01"
+                />
+              </Field>
+              <Field
+                label="Company loss"
+                error={state.fieldErrors?.companyLossAmount?.[0]}
+              >
+                <NumberInput
+                  disabled={economicScope === "property_expense"}
+                  min="0"
+                  name="companyLossAmount"
+                  placeholder={
+                    economicScope === "company_cost" ? "Defaults to amount" : "0.00"
+                  }
+                  step="0.01"
+                />
+              </Field>
+            </div>
+          </section>
+        ) : null}
         <Field label="Remark" error={state.fieldErrors?.remark?.[0]}>
           <Textarea name="remark" placeholder="Clearing note or exception" />
         </Field>

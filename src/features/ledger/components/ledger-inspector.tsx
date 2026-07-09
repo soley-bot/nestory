@@ -81,6 +81,7 @@ export function LedgerInspector({
       <div className="space-y-4 p-4 text-sm sm:p-5">
         <div className="grid grid-cols-2 gap-3">
           <CompactFact label="Date">{formatDate(entry.transactionDate)}</CompactFact>
+          <CompactFact label="Source">{entry.sourceLabel}</CompactFact>
           <CompactFact label="Property">
             <Link
               className="line-clamp-2 break-words text-accent hover:underline"
@@ -90,6 +91,9 @@ export function LedgerInspector({
                 ? `${entry.propertyCode} / Unit ${entry.unitNumber}`
                 : entry.propertyCode}
             </Link>
+          </CompactFact>
+          <CompactFact label="Scope">
+            {entry.unitNumber ? `Unit ${entry.unitNumber}` : "Property level"}
           </CompactFact>
         </div>
 

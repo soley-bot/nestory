@@ -103,7 +103,6 @@ const navGroups: NavGroup[] = [
     roomLabel: "Maintenance",
     icon: Wrench,
     items: [
-      { href: "/maintenance-dashboard", label: "Dashboard", icon: Gauge },
       {
         href: "/maintenance",
         label: "Cases",

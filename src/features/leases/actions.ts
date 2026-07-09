@@ -306,6 +306,41 @@ export async function restoreLeaseAction(
   };
 }
 
+export async function generateMonthlyRentAction(
+  _state: LeaseActionState,
+): Promise<LeaseActionState> {
+  void _state;
+
+  const context = await requireAdminContext();
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("generate_monthly_rent_income_items", {
+    p_organization_id: context.organizationId,
+  });
+
+  if (error) {
+    return {
+      message: "We could not generate this month's rent charges. Please try again.",
+      status: "error",
+    };
+  }
+
+  revalidatePath("/leases");
+  revalidatePath("/rent-income");
+  revalidatePath("/ledger");
+  revalidatePath("/overview");
+  revalidatePath("/reports");
+
+  const count = Number(data ?? 0);
+
+  return {
+    message:
+      count === 0
+        ? "Rent charges are already generated for this month."
+        : `${count} rent charge${count === 1 ? "" : "s"} generated for this month.`,
+    status: "success",
+  };
+}
+
 function readLeaseMutationInput(formData: FormData) {
   return {
     depositAmount: readString(formData, "depositAmount"),

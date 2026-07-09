@@ -10,7 +10,7 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - Workspace auth, setup, organization membership, roles, and subdomain-aware
   workspace lookup.
 - Desktop-first authenticated shell with role-aware navigation.
-- Overview and module dashboards.
+- Overview with domain lenses and module workspaces.
 - Property and unit operating records.
 - People directory split into tenants, owners, vendors, and staff.
 - Lease operations with normalized tenant/person and lease backbone records.
@@ -39,10 +39,12 @@ Public and auth:
 
 Core dashboard shell:
 
-- `/overview` loads dashboard attention and portfolio context.
-- `/property-dashboard` redirects to `/properties` for legacy links.
-- `/finance-dashboard` redirects to `/ledger` for legacy links.
-- `/maintenance-dashboard` is a real maintenance summary using maintenance data.
+- `/overview` loads dashboard attention, portfolio context, and URL-backed
+  lenses for all, finance, leasing, maintenance, and records. The finance lens
+  includes nested Company P&L, Property Ranking, Owner Receivables, and Ledger
+  views.
+- `/property-dashboard`, `/finance-dashboard`, and `/maintenance-dashboard`
+  redirect to the consolidated Overview lenses for legacy links.
 
 Property and units:
 
@@ -71,18 +73,22 @@ People and leases:
 Finance and history:
 
 - `/rent-income` supports expected and received incoming money across rent,
-  deposits, reimbursements, parking, late fees, owner contributions, and other
-  income. Confirmed receipts post into the official ledger.
+  deposits, reimbursements, parking, late fees, owner contributions, company
+  revenue categories, and other income. Leases can generate idempotent monthly
+  rent charge rows for active/notice leases. Confirmed receipts post into the
+  official ledger.
 - `/bills-expenses` supports outgoing vendor bills, maintenance, utilities,
-  supplies, owner payouts, refunds, and other expenses. Approved rows post into
-  the official ledger.
+  supplies, owner payouts, refunds, and other expenses. Rows can classify
+  company advances, company costs, and owner reimbursement status for Company
+  P&L reporting. Approved rows post into the official ledger.
 - `/ledger` supports income/expense records, filters, create/update/archive,
   restore, period locks, receipt attachment, month-close workflow queues, and
-  linked timeline/document context.
+  linked timeline/document context. Posted rows carry source metadata for manual,
+  rent/income, bills/expenses, petty cash, and maintenance origins.
 - `/petty-cash` supports the IPS-style PM petty cash workflow: cash accounts,
   monthly register periods, advances, cash-in rows, expense rows, running
-  balance, receipt references, month rollover, and posting cleared cash
-  expenses into the official ledger.
+  balance, receipt references, owner-reimbursable/company-cost handling, month
+  rollover, and posting cleared cash expenses into the official ledger.
 - `/timeline`, `/property-timeline`, `/maintenance-timeline`, and
   `/financial-timeline` support scoped event filters, date and unit filtering,
   create/update/archive/restore, document attachment, linked ledger context,

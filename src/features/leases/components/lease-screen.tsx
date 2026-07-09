@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
@@ -17,6 +17,10 @@ import {
   ArchiveLeasePanel,
   RestoreLeasePanel,
 } from "@/features/leases/components/lease-drawer-panels";
+import {
+  generateMonthlyRentAction,
+  type LeaseActionState,
+} from "@/features/leases/actions";
 import { LeaseFilters } from "@/features/leases/components/lease-filters";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import { LeaseInspector } from "@/features/leases/components/lease-inspector";
@@ -35,6 +39,7 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   year: "numeric",
 });
+const rentGenerationInitialState: LeaseActionState = {};
 
 type LeaseCreateInitialValues = Partial<
   Pick<LeaseFormValues, "propertyId" | "tenantPersonId" | "unitId">
@@ -99,6 +104,10 @@ export function LeaseScreen({
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [rentState, generateRent, generatingRent] = useActionState(
+    generateMonthlyRentAction,
+    rentGenerationInitialState,
+  );
   const focusedLease = initialLeaseId
     ? leases.find((lease) => lease.id === initialLeaseId) ?? null
     : null;
@@ -160,17 +169,32 @@ export function LeaseScreen({
     });
   }, [createInitialValues, createIntent, pathname, router, searchParams]);
 
+  useEffect(() => {
+    if (rentState.status === "success" || rentState.status === "error") {
+      queueMicrotask(() => {
+        setStatusMessage(rentState.message ?? null);
+      });
+    }
+  }, [rentState.message, rentState.status]);
+
   return (
     <div className="min-h-screen">
       <PageHeader
         actions={
-          <Button
-            onClick={() => openLeaseAction({ mode: "create" })}
-            variant="primary"
-          >
-            <Plus size={15} />
-            Add lease
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <form action={generateRent}>
+              <Button disabled={generatingRent} type="submit">
+                {generatingRent ? "Generating..." : "Generate rent"}
+              </Button>
+            </form>
+            <Button
+              onClick={() => openLeaseAction({ mode: "create" })}
+              variant="primary"
+            >
+              <Plus size={15} />
+              Add lease
+            </Button>
+          </div>
         }
         description="Operational lease records connected to tenants, units, terms, deposits, and occupancy history."
         title="Leases"
@@ -186,6 +210,8 @@ export function LeaseScreen({
           </p>
         </div>
       ) : null}
+
+      <LeaseCommandStrip leases={leases} totalCount={pagination.totalCount} />
 
       <LeaseFilters
         properties={propertyOptions}
@@ -378,7 +404,7 @@ function getLeaseDrawerDescription(drawer: DrawerState) {
   }
 
   if (drawer.mode === "edit") {
-    return "Update the lease terms used across unit, timeline, ledger, and tenant context.";
+    return "Update tenant, unit, status, dates, rent, and deposit.";
   }
 
   if (drawer.mode === "restore") {
@@ -496,6 +522,110 @@ function getLeaseReviewContext(
   }
 
   return null;
+}
+
+function LeaseCommandStrip({
+  leases,
+  totalCount,
+}: {
+  leases: LeaseSummary[];
+  totalCount: number;
+}) {
+  const currentCount = leases.filter(
+    (lease) =>
+      lease.statusValue === "active" || lease.statusValue === "notice_given",
+  ).length;
+  const endingSoonCount = leases.filter((lease) =>
+    lease.riskIndicators.some((item) => item.id === "end" && item.tone !== "success"),
+  ).length;
+  const missingTenantCount = leases.filter(
+    (lease) => !lease.formValues.tenantPersonId,
+  ).length;
+  const missingDocumentsCount = leases.filter(
+    (lease) => lease.recordCounts.documents === 0,
+  ).length;
+  const rentAtRisk = leases
+    .filter((lease) =>
+      lease.riskIndicators.some((item) => item.id === "end" && item.tone !== "success"),
+    )
+    .reduce((total, lease) => total + lease.rentUsd, 0);
+
+  return (
+    <section className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-6">
+      <div className="grid gap-3 lg:grid-cols-[minmax(230px,1.15fr)_minmax(0,4fr)] lg:items-stretch">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+            Lease register
+          </p>
+          <p className="mt-1 truncate text-sm font-semibold">
+            {totalCount} lease{totalCount === 1 ? "" : "s"} in view
+          </p>
+          <p className="mt-0.5 max-w-[34rem] truncate text-xs text-muted">
+            Renewals, tenant links, rent exposure, evidence gaps.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 overflow-hidden rounded-md border border-border bg-surface-muted/25 sm:grid-cols-5">
+          <LeaseCommandMetric label="Current" value={String(currentCount)} />
+          <LeaseCommandMetric
+            label="Ending risk"
+            tone={endingSoonCount > 0 ? "warning" : "success"}
+            value={String(endingSoonCount)}
+          />
+          <LeaseCommandMetric
+            label="Tenant gaps"
+            tone={missingTenantCount > 0 ? "warning" : "success"}
+            value={String(missingTenantCount)}
+          />
+          <LeaseCommandMetric
+            label="Missing docs"
+            tone={missingDocumentsCount > 0 ? "warning" : "success"}
+            value={String(missingDocumentsCount)}
+          />
+          <LeaseCommandMetric
+            label="Rent at risk"
+            tone={rentAtRisk > 0 ? "warning" : "neutral"}
+            value={formatDollarMetric(rentAtRisk)}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LeaseCommandMetric({
+  label,
+  tone = "neutral",
+  value,
+}: {
+  label: string;
+  tone?: "neutral" | "success" | "warning";
+  value: string;
+}) {
+  const toneClass =
+    tone === "success"
+      ? "text-success"
+      : tone === "warning"
+        ? "text-warning"
+        : "text-foreground";
+
+  return (
+    <div className="min-w-0 border-b border-r border-border px-3 py-2 last:border-r-0 sm:border-b-0">
+      <p className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </p>
+      <p className={`mt-1 truncate text-sm font-semibold tabular-nums ${toneClass}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function formatDollarMetric(value: number) {
+  return value.toLocaleString("en-US", {
+    currency: "USD",
+    maximumFractionDigits: 0,
+    style: "currency",
+  });
 }
 
 function formatLeaseMonth(monthValue: string) {

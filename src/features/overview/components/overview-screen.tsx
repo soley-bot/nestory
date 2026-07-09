@@ -7,11 +7,19 @@ import {
   Building2,
   CalendarClock,
   CircleCheck,
+  ClipboardList,
+  DoorOpen as DoorOpenIcon,
   DollarSign,
+  FileText,
+  Landmark,
+  LayoutDashboard,
+  ReceiptText,
   ScrollText,
+  TrendingUp,
   Upload,
   UsersRound,
   Plus,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
@@ -24,16 +32,21 @@ import {
 import type {
   OverviewAttentionItem,
   OverviewDashboardSummary,
+  OverviewFinanceView,
+  OverviewLens,
   OverviewMetric,
   OverviewMetricTone,
   OverviewQuickAction,
   OverviewScreenData,
 } from "@/features/overview/overview.types";
+import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 type OverviewScreenProps = {
   data: OverviewScreenData;
+  financeView?: OverviewFinanceView;
+  lens?: OverviewLens;
 };
 
 type PrimaryMetric = {
@@ -44,62 +57,130 @@ type PrimaryMetric = {
 };
 
 type OverviewVisualTone = OverviewMetricTone | "accent";
+type OverviewChartKey = "occupancy" | "ledger" | "leases" | "queue";
+type OverviewChartConfig = {
+  actionHref: string;
+  actionLabel: string;
+  key: OverviewChartKey;
+  title: string;
+};
 
-const supportingMetricLabels = ["Lease gaps", "Active leases", "Attention"];
+const financeViewTabs: Array<{
+  href: string;
+  key: OverviewFinanceView;
+  label: string;
+}> = [
+  {
+    href: "/overview?lens=finance&financeView=company-pnl",
+    key: "company-pnl",
+    label: "Company P&L",
+  },
+  {
+    href: "/overview?lens=finance&financeView=property-ranking",
+    key: "property-ranking",
+    label: "Property Ranking",
+  },
+  {
+    href: "/overview?lens=finance&financeView=owner-receivables",
+    key: "owner-receivables",
+    label: "Owner Receivables",
+  },
+  {
+    href: "/overview?lens=finance&financeView=ledger",
+    key: "ledger",
+    label: "Ledger",
+  },
+];
 
-export function OverviewScreen({ data }: OverviewScreenProps) {
+const overviewLensTabs: Array<{
+  helper: string;
+  href: string;
+  icon: LucideIcon;
+  key: OverviewLens;
+  label: string;
+}> = [
+  {
+    helper: "Full operating read",
+    href: "/overview",
+    icon: LayoutDashboard,
+    key: "all",
+    label: "All",
+  },
+  {
+    helper: "Cash, arrears, and posting queues",
+    href: "/overview?lens=finance",
+    icon: Landmark,
+    key: "finance",
+    label: "Finance",
+  },
+  {
+    helper: "Lease expiries, gaps, and occupancy",
+    href: "/overview?lens=leasing",
+    icon: ScrollText,
+    key: "leasing",
+    label: "Leasing",
+  },
+  {
+    helper: "Open cases and repair pressure",
+    href: "/overview?lens=maintenance",
+    icon: Wrench,
+    key: "maintenance",
+    label: "Maintenance",
+  },
+  {
+    helper: "Missing data and record readiness",
+    href: "/overview?lens=records",
+    icon: FileText,
+    key: "records",
+    label: "Records",
+  },
+];
+
+export function OverviewScreen({
+  data,
+  financeView = "company-pnl",
+  lens = "all",
+}: OverviewScreenProps) {
   if (!data.workspaceSetup.hasAnyOperatingData) {
     return <EmptyWorkspaceOnboarding data={data} />;
   }
 
-  const occupancyMetric = getMetric(data.metrics, "Occupancy");
-  const ledgerMetric = getMetric(data.metrics, "Ledger net");
-  const attentionMetric = getMetric(data.metrics, "Attention");
+  const lensAttentionItems = getLensAttentionItems(data.attentionItems, lens);
+  const lensAttentionTotal = countAttention(lensAttentionItems);
+  const lensSummary = getLensSummary(
+    data.dashboardSummary,
+    data,
+    lens,
+    lensAttentionTotal,
+  );
+  const lensCharts = getLensChartConfigs(lens);
   const showSetupProgress = !isBaseSetupComplete(data.workspaceSetup);
-  const primaryMetrics: PrimaryMetric[] = [
-    {
-      href: "/units?occupancy=unoccupied",
-      icon: Building2,
-      metric: occupancyMetric,
-    },
-    {
-      href: "/ledger?period=current_month",
-      icon: DollarSign,
-      metric: { ...ledgerMetric, label: "Current month net" },
-      visualTone: "accent",
-    },
-    {
-      href: "/leases?status=current&endsWithin=60d&sort=end_asc",
-      icon: CalendarClock,
-      metric: {
-        helper: "Leases ending in 60 days",
-        label: "Lease risk, 60d",
-        tone: data.leaseRiskCount > 0 ? "warning" : "success",
-        value: String(data.leaseRiskCount),
-      },
-    },
-    {
-      href: data.dashboardSummary.actionHref,
-      icon: AlertTriangle,
-      metric: { ...attentionMetric, label: "Open checks" },
-    },
-  ];
-  const supportingMetrics = supportingMetricLabels.map((label) =>
-    getMetric(data.metrics, label),
+  const primaryMetrics = getLensMetrics(
+    data,
+    lens,
+    lensAttentionItems,
+    lensAttentionTotal,
   );
 
   return (
     <main className="min-h-screen bg-background px-4 py-3 sm:px-5 lg:px-5">
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-stretch 2xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div
+        className={cn(
+          "grid gap-3",
+          lens === "all"
+            ? "xl:grid-cols-[minmax(0,1fr)_340px] xl:items-stretch 2xl:grid-cols-[minmax(0,1fr)_360px]"
+            : null,
+        )}
+      >
         <div className="min-w-0 space-y-3">
+          <OverviewLensHeader
+            attentionItems={data.attentionItems}
+            lens={lens}
+          />
+
           {showSetupProgress ? (
             <SetupProgressPanel setup={data.workspaceSetup} />
           ) : null}
-
-          <DashboardSummaryPanel
-            summary={data.dashboardSummary}
-            supportingMetrics={supportingMetrics}
-          />
 
           <section
             aria-label="Portfolio signals"
@@ -116,52 +197,103 @@ export function OverviewScreen({ data }: OverviewScreenProps) {
             ))}
           </section>
 
-          <section className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
-            <ChartPanel
-              actionHref="/units?occupancy=unoccupied"
-              actionLabel="Review open units"
-              className="xl:h-full"
-              priority="primary"
-              title="Lowest occupancy by property"
-            >
-              <OccupancyChart points={data.occupancyByProperty} />
-            </ChartPanel>
-
-            <div className="grid min-w-0 grid-cols-1 gap-3 xl:h-full xl:grid-rows-[minmax(0,1fr)_auto]">
-              <ChartPanel
-                actionHref="/ledger?period=current_month"
-                actionLabel="Open ledger"
-                title="Cash movement, 6 months"
-              >
-                <LedgerFlowChart
-                  className="h-52 xl:h-56"
-                  currency={data.ledgerCurrency}
-                  points={data.ledgerFlow}
-                />
-              </ChartPanel>
-
-              <ChartPanel
-                actionHref="/leases?status=current&sort=end_asc"
-                actionLabel="Open leases"
-                title="Lease endings by month"
-              >
-                <LeaseEndingChart points={data.leaseEndings} />
-              </ChartPanel>
-            </div>
-          </section>
+          {lens === "finance" ? (
+            <FinanceLensWorkspace
+              data={data}
+              financeView={financeView}
+              lensAttentionItems={lensAttentionItems}
+            />
+          ) : (
+            <section className={getLensGridClass(lens)}>
+              {lensCharts.map((chart) => (
+                <ChartPanel
+                  actionHref={chart.actionHref}
+                  actionLabel={chart.actionLabel}
+                  className={getChartPanelClass(chart, lens)}
+                  key={chart.key}
+                  title={chart.title}
+                >
+                  <OverviewChart
+                    config={chart}
+                    data={data}
+                    lens={lens}
+                    lensAttentionItems={lensAttentionItems}
+                  />
+                </ChartPanel>
+              ))}
+            </section>
+          )}
         </div>
 
-        <aside className="min-w-0 space-y-3 xl:sticky xl:top-3 xl:flex xl:h-full xl:flex-col xl:self-stretch xl:space-y-0 xl:gap-3">
-          <FocusPanel
-            className="xl:flex-1"
-            items={data.attentionItems}
-            summary={data.dashboardSummary}
-            total={data.attentionTotal}
-          />
-          <QuickActions actions={data.quickActions} />
-        </aside>
+        {lens === "all" ? (
+          <aside className="min-w-0 space-y-3 xl:sticky xl:top-3 xl:flex xl:h-full xl:flex-col xl:self-stretch xl:space-y-0 xl:gap-3">
+            <FocusPanel
+              className="xl:flex-1"
+              items={data.attentionItems}
+              summary={lensSummary}
+              total={data.attentionTotal}
+            />
+            <QuickActions actions={data.quickActions} />
+          </aside>
+        ) : null}
       </div>
     </main>
+  );
+}
+
+function OverviewLensHeader({
+  attentionItems,
+  lens,
+}: {
+  attentionItems: OverviewAttentionItem[];
+  lens: OverviewLens;
+}) {
+  return (
+    <section className="min-w-0 rounded-lg border border-border bg-surface p-2 shadow-sm">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="mr-auto min-w-[120px]">
+          <h1 className="text-sm font-semibold leading-5 text-foreground">
+            Overview
+          </h1>
+        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-md border border-border bg-background/50 p-1 md:flex-none">
+          {overviewLensTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = tab.key === lens;
+            const count =
+              tab.key === "all"
+                ? countAttention(attentionItems)
+                : countAttention(getLensAttentionItems(attentionItems, tab.key));
+
+            return (
+              <Link
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors",
+                  isActive
+                    ? cn(
+                        "border bg-surface text-foreground shadow-sm",
+                        activeLensClass(tab.key),
+                      )
+                    : "text-foreground-muted hover:bg-surface-muted hover:text-foreground",
+                )}
+                href={tab.href}
+                key={tab.key}
+                title={tab.helper}
+              >
+                <Icon size={14} />
+                <span>{tab.label}</span>
+                {count > 0 ? (
+                  <Badge className="ml-0.5" tone={isActive ? "accent" : "neutral"}>
+                    {count}
+                  </Badge>
+                ) : null}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -268,46 +400,6 @@ function EmptyWorkspaceOnboarding({ data }: { data: OverviewScreenData }) {
         </aside>
       </section>
     </main>
-  );
-}
-
-function DashboardSummaryPanel({
-  summary,
-  supportingMetrics,
-}: {
-  summary: OverviewDashboardSummary;
-  supportingMetrics: OverviewMetric[];
-}) {
-  return (
-    <section className="min-w-0 rounded-lg border border-border bg-surface p-3 shadow-sm">
-      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_170px] lg:items-start">
-        <div className="min-w-0">
-          <Badge tone={summary.tone}>{summaryStateLabel(summary.tone)}</Badge>
-          <h1 className="mt-2 max-w-3xl text-[15px] font-semibold leading-5 text-foreground">
-            {summary.headline}
-          </h1>
-          <p className="mt-1 line-clamp-1 max-w-3xl text-[13px] leading-5 text-foreground-muted">
-            {summary.detail}
-          </p>
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-2 lg:items-end">
-          <Link
-            className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted lg:w-auto"
-            href={summary.actionHref}
-          >
-            <span className="truncate">{summary.actionLabel}</span>
-            <ArrowRight size={15} />
-          </Link>
-        </div>
-      </div>
-
-      <div className="mt-3 grid min-w-0 divide-y divide-border overflow-hidden rounded-md border border-border bg-background/35 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-        {supportingMetrics.map((metric) => (
-          <SupportingMetric key={metric.label} metric={metric} />
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -474,25 +566,6 @@ function SetupCount({ label, value }: { label: string; value: number }) {
   );
 }
 
-function SupportingMetric({ metric }: { metric: OverviewMetric }) {
-  return (
-    <div
-      className="flex min-h-9 min-w-0 items-center justify-between gap-3 px-3 py-2"
-      title={metric.helper}
-    >
-      <span className="min-w-0">
-        <span className="block truncate text-xs font-medium text-foreground-subtle">
-          {summaryMetricLabel(metric.label)}
-        </span>
-        <span className="sr-only">{metric.helper}</span>
-      </span>
-      <span className="shrink-0 text-sm font-semibold tabular-nums">
-        {isMoneyDisplayValue(metric.value) ? metric.value.primary : metric.value}
-      </span>
-    </div>
-  );
-}
-
 function buildSetupSteps(
   setup: OverviewScreenData["workspaceSetup"],
 ): SetupStep[] {
@@ -612,13 +685,281 @@ function FocusPanel({
   );
 }
 
+function FinanceLensWorkspace({
+  data,
+  financeView,
+  lensAttentionItems,
+}: {
+  data: OverviewScreenData;
+  financeView: OverviewFinanceView;
+  lensAttentionItems: OverviewAttentionItem[];
+}) {
+  return (
+    <section className="space-y-3">
+      <FinanceViewTabs financeView={financeView} />
+      {financeView === "property-ranking" ? (
+        <ChartPanel
+          actionHref="/reports/property-performance"
+          actionLabel="Open report"
+          title="Property Ranking"
+        >
+          <PropertyRankingTable properties={data.companyFinance.properties} />
+        </ChartPanel>
+      ) : null}
+      {financeView === "owner-receivables" ? (
+        <ChartPanel
+          actionHref="/bills-expenses"
+          actionLabel="Open bills"
+          title="Owner Receivables"
+        >
+          <OwnerReceivablesTable receivables={data.companyFinance.ownerReceivables} />
+        </ChartPanel>
+      ) : null}
+      {financeView === "ledger" ? (
+        <section className={getLensGridClass("finance")}>
+          {getLensChartConfigs("finance").map((chart) => (
+            <ChartPanel
+              actionHref={chart.actionHref}
+              actionLabel={chart.actionLabel}
+              className={getChartPanelClass(chart, "finance")}
+              key={chart.key}
+              title={chart.title}
+            >
+              <OverviewChart
+                config={chart}
+                data={data}
+                lens="finance"
+                lensAttentionItems={lensAttentionItems}
+              />
+            </ChartPanel>
+          ))}
+        </section>
+      ) : null}
+      {financeView === "company-pnl" ? (
+        <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <ChartPanel
+            actionHref="/rent-income"
+            actionLabel="Add income"
+            className="xl:row-span-2"
+            title="Company P&L trend"
+          >
+            <LedgerFlowChart
+              className="h-60 xl:h-64"
+              currency={data.ledgerCurrency}
+              points={data.companyFinance.monthlyPnl}
+            />
+          </ChartPanel>
+          <ChartPanel
+            actionHref="/bills-expenses"
+            actionLabel="Open bills"
+            title="Revenue and cost"
+          >
+            <CompanyPnlBreakdown data={data} />
+          </ChartPanel>
+          <ChartPanel
+            actionHref="/overview?lens=finance&financeView=owner-receivables"
+            actionLabel="Review"
+            title="Urgent finance actions"
+          >
+            <LensQueue items={lensAttentionItems} />
+          </ChartPanel>
+        </section>
+      ) : null}
+    </section>
+  );
+}
+
+function FinanceViewTabs({ financeView }: { financeView: OverviewFinanceView }) {
+  return (
+    <div className="flex min-w-0 gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-1 shadow-sm">
+      {financeViewTabs.map((tab) => {
+        const isActive = tab.key === financeView;
+
+        return (
+          <Link
+            aria-current={isActive ? "page" : undefined}
+            className={cn(
+              "inline-flex h-8 shrink-0 items-center rounded-md px-2.5 text-[13px] font-medium transition-colors",
+              isActive
+                ? "bg-accent text-white shadow-sm"
+                : "text-foreground-muted hover:bg-surface-muted hover:text-foreground",
+            )}
+            href={tab.href}
+            key={tab.key}
+          >
+            {tab.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function CompanyPnlBreakdown({ data }: { data: OverviewScreenData }) {
+  const rows = [
+    {
+      href: "/rent-income?query=management",
+      icon: TrendingUp,
+      label: "Company revenue",
+      value: data.companyFinance.companyRevenue,
+    },
+    {
+      href: "/bills-expenses?query=company",
+      icon: ReceiptText,
+      label: "Company costs",
+      value: data.companyFinance.companyCost,
+    },
+    {
+      href: "/overview?lens=finance&financeView=owner-receivables",
+      icon: Landmark,
+      label: "Owner receivable",
+      value: data.companyFinance.ownerReceivable,
+    },
+    {
+      href: "/overview?lens=finance&financeView=company-pnl",
+      icon: DollarSign,
+      label: "Net P&L",
+      value: data.companyFinance.companyNet,
+    },
+  ];
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => {
+        const Icon = row.icon;
+
+        return (
+          <Link
+            className="grid min-w-0 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border px-3 py-2 transition-colors hover:bg-surface-muted"
+            href={row.href}
+            key={row.label}
+          >
+            <Icon className="text-foreground-subtle" size={14} />
+            <span className="truncate text-[13px] font-medium">{row.label}</span>
+            <span className="text-right text-[13px] font-semibold tabular-nums">
+              <MoneyDisplay value={row.value} />
+            </span>
+          </Link>
+        );
+      })}
+      <div className="rounded-md border border-border bg-background/40 px-3 py-2 text-xs text-foreground-muted">
+        Margin:{" "}
+        <span className="font-semibold text-foreground">
+          {data.companyFinance.marginLabel}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PropertyRankingTable({
+  properties,
+}: {
+  properties: OverviewScreenData["companyFinance"]["properties"];
+}) {
+  if (properties.length === 0) {
+    return <EmptyPanelText>No company P&L rows exist for this period.</EmptyPanelText>;
+  }
+
+  return (
+    <div className="min-w-0 overflow-hidden rounded-md border border-border">
+      <div className="grid min-w-[760px] grid-cols-[minmax(220px,1.4fr)_120px_120px_130px_120px_80px] gap-3 border-b border-border bg-background/45 px-3 py-2 text-xs font-medium text-foreground-subtle">
+        <span>Property</span>
+        <span className="text-right">Revenue</span>
+        <span className="text-right">Costs</span>
+        <span className="text-right">Receivable</span>
+        <span className="text-right">Net</span>
+        <span className="text-right">Margin</span>
+      </div>
+      <div className="max-h-[520px] min-w-0 overflow-auto">
+        {properties.map((property) => (
+          <Link
+            className="grid min-w-[760px] grid-cols-[minmax(220px,1.4fr)_120px_120px_130px_120px_80px] gap-3 border-b border-border px-3 py-2.5 text-[13px] last:border-b-0 hover:bg-surface-muted"
+            href={property.href}
+            key={property.href}
+          >
+            <span className="truncate font-medium">{property.label}</span>
+            <span className="text-right tabular-nums">
+              <MoneyDisplay value={property.companyRevenue} />
+            </span>
+            <span className="text-right tabular-nums">
+              <MoneyDisplay value={property.companyCost} />
+            </span>
+            <span className="text-right tabular-nums">
+              <MoneyDisplay value={property.ownerReceivable} />
+            </span>
+            <span
+              className={cn(
+                "text-right font-semibold tabular-nums",
+                property.netContributionAmount < 0 ? "text-danger" : "text-success",
+              )}
+            >
+              <MoneyDisplay value={property.netContribution} />
+            </span>
+            <span className="text-right text-foreground-muted">
+              {property.marginLabel}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OwnerReceivablesTable({
+  receivables,
+}: {
+  receivables: OverviewScreenData["companyFinance"]["ownerReceivables"];
+}) {
+  if (receivables.length === 0) {
+    return <EmptyPanelText>No open owner receivables for company advances.</EmptyPanelText>;
+  }
+
+  return (
+    <div className="min-w-0 overflow-hidden rounded-md border border-border">
+      <div className="grid min-w-[760px] grid-cols-[110px_minmax(190px,1fr)_minmax(180px,1fr)_110px_120px_130px] gap-3 border-b border-border bg-background/45 px-3 py-2 text-xs font-medium text-foreground-subtle">
+        <span>Invoice</span>
+        <span>Property</span>
+        <span>Vendor / bill</span>
+        <span>Status</span>
+        <span className="text-right">Reimbursed</span>
+        <span className="text-right">Receivable</span>
+      </div>
+      <div className="max-h-[520px] min-w-0 overflow-auto">
+        {receivables.map((row) => (
+          <Link
+            className="grid min-w-[760px] grid-cols-[110px_minmax(190px,1fr)_minmax(180px,1fr)_110px_120px_130px] gap-3 border-b border-border px-3 py-2.5 text-[13px] last:border-b-0 hover:bg-surface-muted"
+            href={row.href}
+            key={`${row.href}-${row.invoiceDate}-${row.vendorLabel}`}
+          >
+            <span className="text-foreground-muted">{formatDate(row.invoiceDate)}</span>
+            <span className="truncate font-medium">{row.propertyLabel}</span>
+            <span className="min-w-0">
+              <span className="block truncate font-medium">{row.vendorLabel}</span>
+              <span className="block truncate text-xs text-foreground-subtle">
+                {row.label}
+              </span>
+            </span>
+            <span className="truncate text-foreground-muted">{row.billStatus}</span>
+            <span className="text-right tabular-nums">
+              <MoneyDisplay value={row.reimbursed} />
+            </span>
+            <span className="text-right font-semibold tabular-nums text-warning">
+              <MoneyDisplay value={row.ownerReceivable} />
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChartPanel({
   actionHref,
   actionLabel,
   children,
   className,
   description,
-  priority = "secondary",
   title,
 }: {
   actionHref: string;
@@ -626,14 +967,12 @@ function ChartPanel({
   children: ReactNode;
   className?: string;
   description?: string;
-  priority?: "primary" | "secondary";
   title: string;
 }) {
   return (
     <section
       className={cn(
         "min-w-0 rounded-lg border border-border bg-surface p-3 shadow-sm",
-        priority === "primary" ? "xl:min-h-[260px]" : null,
         className,
       )}
     >
@@ -665,16 +1004,90 @@ function ChartPanel({
   );
 }
 
+function OverviewChart({
+  config,
+  data,
+  lens,
+  lensAttentionItems,
+}: {
+  config: OverviewChartConfig;
+  data: OverviewScreenData;
+  lens: OverviewLens;
+  lensAttentionItems: OverviewAttentionItem[];
+}) {
+  if (config.key === "ledger") {
+    return (
+      <LedgerFlowChart
+        className={lens === "finance" ? "h-60 xl:h-64" : "h-52 xl:h-56"}
+        currency={data.ledgerCurrency}
+        points={data.ledgerFlow}
+      />
+    );
+  }
+
+  if (config.key === "leases") {
+    return <LeaseEndingChart points={data.leaseEndings} />;
+  }
+
+  if (config.key === "queue") {
+    return <LensQueue items={lensAttentionItems} />;
+  }
+
+  return (
+    <OccupancyChart
+      limit={lens === "all" ? 5 : 4}
+      points={data.occupancyByProperty}
+    />
+  );
+}
+
+function LensQueue({ items }: { items: OverviewAttentionItem[] }) {
+  if (items.length === 0) {
+    return (
+      <div className="flex min-h-40 items-center gap-2 rounded-md border border-success/20 bg-success-soft/30 px-3 py-3 text-sm text-success">
+        <CircleCheck size={16} />
+        <span>No open checks for this lens.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-w-0 divide-y divide-border overflow-hidden rounded-md border border-border">
+      {items.slice(0, 5).map((item) => (
+        <Link
+          className="grid min-w-0 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2.5 transition-colors hover:bg-surface-muted"
+          href={item.href}
+          key={item.label}
+          title={item.helper}
+        >
+          <ClipboardList className="text-foreground-subtle" size={14} />
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-medium">
+              {item.label}
+            </span>
+            <span className="block truncate text-xs text-foreground-subtle">
+              {item.helper}
+            </span>
+          </span>
+          <Badge tone={item.tone}>{item.count}</Badge>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 function OccupancyChart({
+  limit,
   points,
 }: {
+  limit?: number;
   points: OverviewScreenData["occupancyByProperty"];
 }) {
   if (points.length === 0) {
     return <EmptyPanelText>No property/unit data yet.</EmptyPanelText>;
   }
 
-  return <OverviewOccupancyBars points={points} />;
+  return <OverviewOccupancyBars limit={limit} points={points} />;
 }
 
 function LedgerFlowChart({
@@ -708,7 +1121,7 @@ function QuickActions({ actions }: { actions: OverviewQuickAction[] }) {
     <section className="rounded-lg border border-border bg-surface shadow-sm">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
         <Plus size={15} className="text-foreground-subtle" />
-        <h2 className="text-sm font-semibold leading-5">Quick actions</h2>
+        <h2 className="text-sm font-semibold leading-5">Next actions</h2>
       </div>
       <div className="grid grid-cols-2 gap-2 p-3">
         {actions.map((action) => (
@@ -733,6 +1146,483 @@ function EmptyPanelText({
   className?: string;
 }) {
   return <p className={cn("text-sm text-foreground-muted", className)}>{children}</p>;
+}
+
+function getLensMetrics(
+  data: OverviewScreenData,
+  lens: OverviewLens,
+  lensAttentionItems: OverviewAttentionItem[],
+  lensAttentionTotal: number,
+): PrimaryMetric[] {
+  const occupancyMetric = getMetric(data.metrics, "Occupancy");
+  const ledgerMetric = getMetric(data.metrics, "Ledger net");
+  const activeLeasesMetric = getMetric(data.metrics, "Active leases");
+  const leaseGapsMetric = getMetric(data.metrics, "Lease gaps");
+  const attentionMetric = getMetric(data.metrics, "Attention");
+  const openMaintenance = getAttentionCount(data.attentionItems, "Open maintenance");
+  const vacantUnits = getAttentionCount(data.attentionItems, "Vacant units");
+  const ownerGaps = getAttentionCount(data.attentionItems, "Properties without owner link");
+  const missingContacts = getAttentionCount(data.attentionItems, "People missing contact");
+  const missingRoles = getAttentionCount(data.attentionItems, "People without role");
+
+  if (lens === "finance") {
+    return [
+      {
+        href: "/overview?lens=finance&financeView=company-pnl",
+        icon: DollarSign,
+        metric: {
+          helper: "Company revenue minus company costs",
+          label: "Company net P&L",
+          tone: data.companyFinance.companyNetAmount < 0 ? "danger" : "success",
+          value: data.companyFinance.companyNet,
+        },
+        visualTone: data.companyFinance.companyNetAmount < 0 ? "danger" : "success",
+      },
+      {
+        href: "/rent-income?query=management",
+        icon: TrendingUp,
+        metric: {
+          helper: "Management fees, commissions, service fees, and markup",
+          label: "Company revenue",
+          tone: "neutral",
+          value: data.companyFinance.companyRevenue,
+        },
+      },
+      {
+        href: "/bills-expenses?query=company",
+        icon: ReceiptText,
+        metric: {
+          helper: "Company-only costs and unrecovered advances",
+          label: "Company costs",
+          tone: data.companyFinance.companyCostAmount > 0 ? "warning" : "success",
+          value: data.companyFinance.companyCost,
+        },
+      },
+      {
+        href: "/overview?lens=finance&financeView=owner-receivables",
+        icon: Landmark,
+        metric: {
+          helper: "Company advances still owed by owners",
+          label: "Owner receivables",
+          tone:
+            data.companyFinance.ownerReceivableAmount > 0 ? "warning" : "success",
+          value: data.companyFinance.ownerReceivable,
+        },
+      },
+    ];
+  }
+
+  if (lens === "leasing") {
+    return [
+      {
+        href: "/leases?status=current&endsWithin=60d&sort=end_asc",
+        icon: CalendarClock,
+        metric: {
+          helper: "Leases ending in 60 days",
+          label: "Renewals, 60d",
+          tone: data.leaseRiskCount > 0 ? "warning" : "success",
+          value: String(data.leaseRiskCount),
+        },
+      },
+      {
+        href: "/units?leaseStatus=missing",
+        icon: ScrollText,
+        metric: leaseGapsMetric,
+      },
+      {
+        href: "/units?status=vacant",
+        icon: DoorOpenIcon,
+        metric: {
+          helper: "Marked vacant",
+          label: "Vacant units",
+          tone: vacantUnits > 0 ? "warning" : "success",
+          value: String(vacantUnits),
+        },
+      },
+      {
+        href: "/leases?status=current",
+        icon: BookOpen,
+        metric: activeLeasesMetric,
+      },
+    ];
+  }
+
+  if (lens === "maintenance") {
+    return [
+      {
+        href: "/maintenance?review=open",
+        icon: Wrench,
+        metric: {
+          helper: "Open cases",
+          label: "Open cases",
+          tone: openMaintenance > 0 ? "warning" : "success",
+          value: String(openMaintenance),
+        },
+      },
+      {
+        href: "/overview?lens=maintenance",
+        icon: AlertTriangle,
+        metric: {
+          helper: "Maintenance lens attention",
+          label: "Maintenance checks",
+          tone: lensAttentionTotal > 0 ? "warning" : "success",
+          value: String(lensAttentionTotal),
+        },
+      },
+      {
+        href: "/ledger?period=current_month",
+        icon: DollarSign,
+        metric: { ...ledgerMetric, label: "Cost signal" },
+        visualTone: "accent",
+      },
+      {
+        href: "/units?occupancy=unoccupied",
+        icon: Building2,
+        metric: { ...occupancyMetric, label: "Unit exposure" },
+      },
+    ];
+  }
+
+  if (lens === "records") {
+    return [
+      {
+        href: "/overview?lens=records",
+        icon: FileText,
+        metric: {
+          helper: "Records lens attention",
+          label: "Record checks",
+          tone: lensAttentionTotal > 0 ? "warning" : "success",
+          value: String(lensAttentionTotal),
+        },
+      },
+      {
+        href: "/units?leaseStatus=missing",
+        icon: ScrollText,
+        metric: leaseGapsMetric,
+      },
+      {
+        href: "/properties?ownerStatus=missing",
+        icon: UsersRound,
+        metric: {
+          helper: "Needs ownership relationship",
+          label: "Owner links",
+          tone: ownerGaps > 0 ? "warning" : "success",
+          value: String(ownerGaps),
+        },
+      },
+      {
+        href: "/people?status=missing_contact",
+        icon: UsersRound,
+        metric: {
+          helper: "Missing contacts or roles",
+          label: "People cleanup",
+          tone: missingContacts + missingRoles > 0 ? "warning" : "success",
+          value: String(missingContacts + missingRoles),
+        },
+      },
+    ];
+  }
+
+  return [
+    {
+      href: "/units?occupancy=unoccupied",
+      icon: Building2,
+      metric: occupancyMetric,
+    },
+    {
+      href: "/ledger?period=current_month",
+      icon: DollarSign,
+      metric: { ...ledgerMetric, label: "Current month net" },
+      visualTone: "accent",
+    },
+    {
+      href: "/leases?status=current&endsWithin=60d&sort=end_asc",
+      icon: CalendarClock,
+      metric: {
+        helper: "Leases ending in 60 days",
+        label: "Lease risk, 60d",
+        tone: data.leaseRiskCount > 0 ? "warning" : "success",
+        value: String(data.leaseRiskCount),
+      },
+    },
+    {
+      href: "/overview",
+      icon: AlertTriangle,
+      metric: {
+        ...attentionMetric,
+        label: "Open checks",
+        value: String(countAttention(lensAttentionItems)),
+      },
+    },
+  ];
+}
+
+function getLensSummary(
+  summary: OverviewDashboardSummary,
+  data: OverviewScreenData,
+  lens: OverviewLens,
+  attentionTotal: number,
+): OverviewDashboardSummary {
+  if (lens === "all") {
+    return summary;
+  }
+
+  const needsReview = attentionTotal > 0;
+  const tone: OverviewMetricTone = needsReview ? "warning" : "success";
+
+  if (lens === "finance") {
+    return {
+      actionHref: "/overview?lens=finance&financeView=company-pnl",
+      actionLabel: "Open Company P&L",
+      detail: needsReview
+        ? `${attentionTotal} finance checks need review alongside ${data.companyFinance.ownerReceivable.primary} in owner receivables.`
+        : `Company net P&L is ${data.companyFinance.companyNet.primary} from current company-classified rows.`,
+      headline: "Finance lens is focused on company-wide P&L.",
+      tone: data.companyFinance.companyNetAmount < 0 ? "danger" : tone,
+    };
+  }
+
+  if (lens === "leasing") {
+    return {
+      actionHref: "/leases?status=current&sort=end_asc",
+      actionLabel: "Open leases",
+      detail: needsReview
+        ? `${attentionTotal} leasing checks need lease, tenant, or vacancy review.`
+        : "Lease and occupancy checks are clear from the current data.",
+      headline: "Leasing lens tracks renewals, gaps, and occupancy risk.",
+      tone,
+    };
+  }
+
+  if (lens === "maintenance") {
+    return {
+      actionHref: "/maintenance?review=open",
+      actionLabel: "Open cases",
+      detail: needsReview
+        ? `${attentionTotal} maintenance checks are open for operator follow-up.`
+        : "No open maintenance checks are visible from the current data.",
+      headline: "Maintenance lens keeps open work and repair pressure visible.",
+      tone,
+    };
+  }
+
+  return {
+    actionHref: "/people?status=missing_contact",
+    actionLabel: "Review records",
+    detail: needsReview
+      ? `${attentionTotal} record readiness checks need cleanup.`
+      : "Core property, people, and lease records are clear from current checks.",
+    headline: "Records lens surfaces missing links and incomplete operating data.",
+    tone,
+  };
+}
+
+function getLensChartConfigs(lens: OverviewLens): OverviewChartConfig[] {
+  if (lens === "finance") {
+    return [
+      {
+        actionHref: "/ledger?period=current_month",
+        actionLabel: "Open ledger",
+        key: "ledger",
+        title: "Cash flow",
+      },
+      {
+        actionHref: "/ledger?expenseBand=large",
+        actionLabel: "Review expenses",
+        key: "queue",
+        title: "Finance checks",
+      },
+      {
+        actionHref: "/leases?status=current&sort=end_asc",
+        actionLabel: "Open leases",
+        key: "leases",
+        title: "Lease-driven cash risk",
+      },
+    ];
+  }
+
+  if (lens === "leasing") {
+    return [
+      {
+        actionHref: "/leases?status=current&sort=end_asc",
+        actionLabel: "Open leases",
+        key: "leases",
+        title: "Lease endings",
+      },
+      {
+        actionHref: "/units?occupancy=unoccupied",
+        actionLabel: "Review units",
+        key: "occupancy",
+        title: "Occupancy pressure",
+      },
+      {
+        actionHref: "/leases?status=current&tenantStatus=missing",
+        actionLabel: "Repair links",
+        key: "queue",
+        title: "Leasing checks",
+      },
+    ];
+  }
+
+  if (lens === "maintenance") {
+    return [
+      {
+        actionHref: "/maintenance?review=open",
+        actionLabel: "Open cases",
+        key: "queue",
+        title: "Maintenance queue",
+      },
+      {
+        actionHref: "/units?occupancy=unoccupied",
+        actionLabel: "Review units",
+        key: "occupancy",
+        title: "Unit exposure",
+      },
+      {
+        actionHref: "/ledger?period=current_month",
+        actionLabel: "Open ledger",
+        key: "ledger",
+        title: "Cost movement",
+      },
+    ];
+  }
+
+  if (lens === "records") {
+    return [
+      {
+        actionHref: "/people?status=missing_contact",
+        actionLabel: "Review records",
+        key: "queue",
+        title: "Record readiness",
+      },
+      {
+        actionHref: "/units?occupancy=unoccupied",
+        actionLabel: "Open units",
+        key: "occupancy",
+        title: "Property and unit coverage",
+      },
+      {
+        actionHref: "/leases?status=current&sort=end_asc",
+        actionLabel: "Open leases",
+        key: "leases",
+        title: "Lease records",
+      },
+    ];
+  }
+
+  return [
+    {
+      actionHref: "/units?occupancy=unoccupied",
+      actionLabel: "Review open units",
+      key: "occupancy",
+      title: "Lowest occupancy by property",
+    },
+    {
+      actionHref: "/ledger?period=current_month",
+      actionLabel: "Open ledger",
+      key: "ledger",
+      title: "Cash movement, 6 months",
+    },
+    {
+      actionHref: "/leases?status=current&sort=end_asc",
+      actionLabel: "Open leases",
+      key: "leases",
+      title: "Lease endings by month",
+    },
+  ];
+}
+
+function getLensAttentionItems(
+  items: OverviewAttentionItem[],
+  lens: OverviewLens,
+) {
+  if (lens === "all") {
+    return items;
+  }
+
+  return items.filter((item) => {
+    if (lens === "finance") {
+      return (
+        item.href.startsWith("/ledger") ||
+        item.href.includes("netStatus=negative") ||
+        item.label.toLowerCase().includes("expense")
+      );
+    }
+
+    if (lens === "leasing") {
+      return (
+        item.href.startsWith("/leases") ||
+        item.href.includes("leaseStatus=missing") ||
+        item.href.includes("status=vacant")
+      );
+    }
+
+    if (lens === "maintenance") {
+      return item.href.startsWith("/maintenance");
+    }
+
+    return (
+      item.href.startsWith("/people") ||
+      item.href.includes("ownerStatus=missing") ||
+      item.href.includes("tenantStatus=missing") ||
+      item.href.includes("leaseStatus=missing")
+    );
+  });
+}
+
+function countAttention(items: OverviewAttentionItem[]) {
+  return items.reduce((total, item) => total + item.count, 0);
+}
+
+function getAttentionCount(items: OverviewAttentionItem[], label: string) {
+  return items.find((item) => item.label === label)?.count ?? 0;
+}
+
+function getChartPanelClass(chart: OverviewChartConfig, lens: OverviewLens) {
+  if (lens === "finance" && chart.key === "ledger") {
+    return "xl:row-span-2 xl:min-h-[310px]";
+  }
+
+  if (
+    (lens === "leasing" || lens === "maintenance" || lens === "records") &&
+    chart.key === "occupancy"
+  ) {
+    return "xl:row-span-2";
+  }
+
+  return undefined;
+}
+
+function getLensGridClass(lens: OverviewLens) {
+  if (lens === "finance") {
+    return "grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_360px]";
+  }
+
+  if (lens === "all") {
+    return "grid grid-cols-1 items-start gap-3 xl:grid-cols-3";
+  }
+
+  return "grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.95fr)]";
+}
+
+function activeLensClass(lens: OverviewLens) {
+  if (lens === "finance") {
+    return "border-accent/40 bg-accent-soft/35";
+  }
+
+  if (lens === "leasing") {
+    return "border-warning/35 bg-warning-soft/30";
+  }
+
+  if (lens === "maintenance") {
+    return "border-danger/30 bg-danger-soft/25";
+  }
+
+  if (lens === "records") {
+    return "border-success/30 bg-success-soft/25";
+  }
+
+  return "border-border bg-surface";
 }
 
 function getMetric(metrics: OverviewMetric[], label: string): OverviewMetric {
@@ -768,30 +1658,6 @@ function metricAccentClass(tone: OverviewVisualTone) {
   }
 
   return null;
-}
-
-function summaryStateLabel(tone: OverviewMetricTone) {
-  if (tone === "success") {
-    return "Clear";
-  }
-
-  if (tone === "warning") {
-    return "Needs review";
-  }
-
-  if (tone === "danger") {
-    return "Needs action";
-  }
-
-  return "Current read";
-}
-
-function summaryMetricLabel(label: string) {
-  if (label === "Attention") {
-    return "Open checks";
-  }
-
-  return label;
 }
 
 function toneIconClass(tone: OverviewVisualTone) {

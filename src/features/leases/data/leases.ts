@@ -733,18 +733,10 @@ function toTenantOptions(
     primary_phone: string | null;
   }>,
 ): LeaseTenantOption[] {
-  return people.map((person) => {
-    const contact = [person.primary_email, person.primary_phone]
-      .filter(Boolean)
-      .join(" / ");
-
-    return {
-      id: person.id,
-      label: contact
-        ? `${person.display_name} / ${contact}`
-        : person.display_name,
-    };
-  });
+  return people.map((person) => ({
+    id: person.id,
+    label: person.display_name,
+  }));
 }
 
 function buildLeaseSearchFilters(
