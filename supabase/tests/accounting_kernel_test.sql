@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(20);
+SELECT plan(29);
 
 SELECT has_table('public', 'accounting_books', 'accounting_books exists');
 SELECT has_table('public', 'accounting_accounts', 'accounting_accounts exists');
@@ -139,6 +139,210 @@ SELECT throws_ok(
   '22023',
   'Accounting book currency is required',
   'bootstrap rejects a missing currency explicitly'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000101',
+  true
+);
+
+SELECT lives_ok(
+  $$SELECT public.post_accounting_journal(
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    (
+      SELECT id
+      FROM public.accounting_books
+      WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid
+        AND book_type = 'client'
+        AND currency = 'USD'
+        AND is_default
+        AND archived_at IS NULL
+    ),
+    'kernel_test',
+    '90000000-0000-0000-0000-000000000001'::uuid,
+    'balanced-posting',
+    '2026-07-01'::date,
+    'USD'::public.currency_code,
+    'Balanced rent receipt',
+    'KERNEL-001',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_system_code', 'client_cash_clearing',
+        'debit_amount', 125.00,
+        'credit_amount', 0,
+        'property_id', '10000000-0000-0000-0000-000000000001'
+      ),
+      jsonb_build_object(
+        'account_system_code', 'rental_income',
+        'debit_amount', 0,
+        'credit_amount', 125.00,
+        'property_id', '10000000-0000-0000-0000-000000000001'
+      )
+    )
+  )$$,
+  'a balanced journal posts'
+);
+
+SELECT is(
+  (
+    SELECT sum(line.debit_amount)
+    FROM public.accounting_journal_lines AS line
+    JOIN public.accounting_journal_entries AS journal
+      ON journal.id = line.journal_entry_id
+    WHERE journal.source_id = '90000000-0000-0000-0000-000000000001'::uuid
+      AND journal.posting_key = 'balanced-posting'
+  ),
+  125.00::numeric,
+  'posted debit total is exact'
+);
+
+SELECT is(
+  (
+    SELECT sum(line.credit_amount)
+    FROM public.accounting_journal_lines AS line
+    JOIN public.accounting_journal_entries AS journal
+      ON journal.id = line.journal_entry_id
+    WHERE journal.source_id = '90000000-0000-0000-0000-000000000001'::uuid
+      AND journal.posting_key = 'balanced-posting'
+  ),
+  125.00::numeric,
+  'posted credit total is exact'
+);
+
+SELECT is(
+  public.post_accounting_journal(
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    (
+      SELECT id
+      FROM public.accounting_books
+      WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid
+        AND book_type = 'client'
+        AND currency = 'USD'
+        AND is_default
+        AND archived_at IS NULL
+    ),
+    'kernel_test',
+    '90000000-0000-0000-0000-000000000001'::uuid,
+    'balanced-posting',
+    '2026-07-01'::date,
+    'USD'::public.currency_code,
+    'Balanced rent receipt',
+    'KERNEL-001',
+    jsonb_build_array(
+      jsonb_build_object(
+        'account_system_code', 'client_cash_clearing',
+        'debit_amount', 125.00,
+        'credit_amount', 0,
+        'property_id', '10000000-0000-0000-0000-000000000001'
+      ),
+      jsonb_build_object(
+        'account_system_code', 'rental_income',
+        'debit_amount', 0,
+        'credit_amount', 125.00,
+        'property_id', '10000000-0000-0000-0000-000000000001'
+      )
+    )
+  ),
+  (
+    SELECT id
+    FROM public.accounting_journal_entries
+    WHERE source_id = '90000000-0000-0000-0000-000000000001'::uuid
+      AND posting_key = 'balanced-posting'
+  ),
+  'an identical retry returns the existing journal'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.accounting_journal_entries
+    WHERE source_id = '90000000-0000-0000-0000-000000000001'::uuid
+      AND posting_key = 'balanced-posting'
+  ),
+  1::bigint,
+  'an identical retry does not duplicate the journal'
+);
+
+SELECT throws_ok(
+  $$SELECT public.post_accounting_journal(
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    (SELECT id FROM public.accounting_books WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid AND book_type = 'client' AND currency = 'USD' AND is_default AND archived_at IS NULL),
+    'kernel_test',
+    '90000000-0000-0000-0000-000000000001'::uuid,
+    'balanced-posting',
+    '2026-07-01'::date,
+    'USD'::public.currency_code,
+    'Balanced rent receipt',
+    'KERNEL-001',
+    jsonb_build_array(
+      jsonb_build_object('account_system_code', 'client_cash_clearing', 'debit_amount', 126.00, 'credit_amount', 0, 'property_id', '10000000-0000-0000-0000-000000000001'),
+      jsonb_build_object('account_system_code', 'rental_income', 'debit_amount', 0, 'credit_amount', 126.00, 'property_id', '10000000-0000-0000-0000-000000000001')
+    )
+  )$$,
+  '22023',
+  'Conflicting accounting posting',
+  'a conflicting retry is rejected'
+);
+
+SELECT throws_ok(
+  $$SELECT public.post_accounting_journal(
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    (SELECT id FROM public.accounting_books WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid AND book_type = 'client' AND currency = 'USD' AND is_default AND archived_at IS NULL),
+    'kernel_test',
+    '90000000-0000-0000-0000-000000000002'::uuid,
+    'unbalanced-posting',
+    '2026-07-01'::date,
+    'USD'::public.currency_code,
+    'Unbalanced journal',
+    NULL,
+    jsonb_build_array(
+      jsonb_build_object('account_system_code', 'client_cash_clearing', 'debit_amount', 125.00, 'credit_amount', 0, 'property_id', '10000000-0000-0000-0000-000000000001'),
+      jsonb_build_object('account_system_code', 'rental_income', 'debit_amount', 0, 'credit_amount', 124.00, 'property_id', '10000000-0000-0000-0000-000000000001')
+    )
+  )$$,
+  '22023',
+  'Journal is not balanced',
+  'an unbalanced journal is rejected'
+);
+
+SELECT throws_ok(
+  $$SELECT public.post_accounting_journal(
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    (SELECT id FROM public.accounting_books WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid AND book_type = 'client' AND currency = 'USD' AND is_default AND archived_at IS NULL),
+    'kernel_test',
+    '90000000-0000-0000-0000-000000000003'::uuid,
+    'empty-posting',
+    '2026-07-01'::date,
+    'USD'::public.currency_code,
+    'Empty journal',
+    NULL,
+    '[]'::jsonb
+  )$$,
+  '22023',
+  'Journal requires at least two lines',
+  'a journal with no lines is rejected'
+);
+
+SELECT throws_ok(
+  $$SELECT public.post_accounting_journal(
+    '00000000-0000-0000-0000-000000000001'::uuid,
+    (SELECT id FROM public.accounting_books WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid AND book_type = 'client' AND currency = 'USD' AND is_default AND archived_at IS NULL),
+    'kernel_test',
+    '90000000-0000-0000-0000-000000000004'::uuid,
+    'currency-mismatch',
+    '2026-07-01'::date,
+    NULL,
+    'Wrong currency',
+    NULL,
+    jsonb_build_array(
+      jsonb_build_object('account_system_code', 'client_cash_clearing', 'debit_amount', 125.00, 'credit_amount', 0, 'property_id', '10000000-0000-0000-0000-000000000001'),
+      jsonb_build_object('account_system_code', 'rental_income', 'debit_amount', 0, 'credit_amount', 125.00, 'property_id', '10000000-0000-0000-0000-000000000001')
+    )
+  )$$,
+  '22023',
+  'Accounting date, currency, and description are required',
+  'a journal without a currency is rejected'
 );
 
 SELECT * FROM finish();
