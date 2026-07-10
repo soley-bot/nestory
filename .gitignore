@@ -27,6 +27,7 @@
 /.codex/
 /.codex-artifacts/
 /.temp/
+/.worktrees/
 
 # debug
 npm-debug.log*
