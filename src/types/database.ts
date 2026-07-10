@@ -353,6 +353,24 @@ type RpcFunctionOverrides = {
       p_reference?: string | null;
     }
   >;
+  reverse_finance_payment: WithArgs<
+    "reverse_finance_payment",
+    {
+      p_organization_id: string;
+      p_payment_id: string;
+      p_reference?: string | null;
+      p_reversal_date: string;
+    }
+  >;
+  reverse_finance_receipt: WithArgs<
+    "reverse_finance_receipt",
+    {
+      p_organization_id: string;
+      p_receipt_id: string;
+      p_reference?: string | null;
+      p_reversal_date: string;
+    }
+  >;
   update_document: WithArgs<
     "update_document",
     {

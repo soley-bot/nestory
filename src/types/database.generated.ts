@@ -944,6 +944,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "finance_payment_allocations_org_expense_item_fkey"
+            columns: ["organization_id", "expense_item_id"]
+            isOneToOne: false
+            referencedRelation: "finance_expense_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_payment_allocations_org_payment_fkey"
+            columns: ["organization_id", "payment_id"]
+            isOneToOne: false
+            referencedRelation: "finance_payments"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "finance_payment_allocations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -1001,6 +1015,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "finance_payments_org_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "finance_payments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -1020,6 +1041,23 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "finance_payments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_payments_scope_reversal_fkey"
+            columns: [
+              "organization_id",
+              "property_id",
+              "currency",
+              "reversal_of_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "finance_payments"
+            referencedColumns: [
+              "organization_id",
+              "property_id",
+              "currency",
+              "id",
+            ]
           },
         ]
       }
@@ -1058,6 +1096,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "finance_income_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_receipt_allocations_org_income_item_fkey"
+            columns: ["organization_id", "income_item_id"]
+            isOneToOne: false
+            referencedRelation: "finance_income_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_receipt_allocations_org_receipt_fkey"
+            columns: ["organization_id", "receipt_id"]
+            isOneToOne: false
+            referencedRelation: "finance_receipts"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "finance_receipt_allocations_organization_id_fkey"
@@ -1117,6 +1169,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "finance_receipts_org_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "finance_receipts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -1136,6 +1195,23 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "finance_receipts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_receipts_scope_reversal_fkey"
+            columns: [
+              "organization_id",
+              "property_id",
+              "currency",
+              "reversal_of_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "finance_receipts"
+            referencedColumns: [
+              "organization_id",
+              "property_id",
+              "currency",
+              "id",
+            ]
           },
         ]
       }
@@ -1397,6 +1473,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "lease_deposit_events_org_deposit_fkey"
+            columns: ["organization_id", "lease_deposit_id"]
+            isOneToOne: false
+            referencedRelation: "lease_deposits"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_deposit_events_org_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "lease_deposit_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -1416,6 +1506,23 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "lease_deposit_events"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_deposit_events_scope_reversal_fkey"
+            columns: [
+              "organization_id",
+              "property_id",
+              "currency",
+              "reversal_of_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "lease_deposit_events"
+            referencedColumns: [
+              "organization_id",
+              "property_id",
+              "currency",
+              "id",
+            ]
           },
         ]
       }
@@ -3750,6 +3857,24 @@ export type Database = {
           p_journal_id: string
           p_organization_id: string
           p_reason: string
+          p_reversal_date: string
+        }
+        Returns: string
+      }
+      reverse_finance_payment: {
+        Args: {
+          p_organization_id: string
+          p_payment_id: string
+          p_reference?: string
+          p_reversal_date: string
+        }
+        Returns: string
+      }
+      reverse_finance_receipt: {
+        Args: {
+          p_organization_id: string
+          p_receipt_id: string
+          p_reference?: string
           p_reversal_date: string
         }
         Returns: string

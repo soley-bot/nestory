@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(24);
+SELECT plan(44);
 
 SELECT has_table('public', 'finance_receipts', 'finance_receipts exists');
 SELECT has_table('public', 'finance_receipt_allocations', 'receipt allocations exist');
@@ -192,6 +192,18 @@ SELECT is(
   'event tables have organization and business-date indexes'
 );
 
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'public.finance_receipts', 'INSERT')
+  AND NOT has_table_privilege('authenticated', 'public.finance_receipts', 'UPDATE')
+  AND NOT has_table_privilege('authenticated', 'public.finance_receipt_allocations', 'INSERT')
+  AND NOT has_table_privilege('authenticated', 'public.finance_payments', 'INSERT')
+  AND NOT has_table_privilege('authenticated', 'public.finance_payment_allocations', 'INSERT')
+  AND NOT has_table_privilege('authenticated', 'public.lease_deposit_events', 'INSERT')
+  AND NOT has_table_privilege('service_role', 'public.finance_receipts', 'INSERT')
+  AND NOT has_table_privilege('service_role', 'public.finance_payments', 'INSERT'),
+  'event and allocation writes are RPC-only for API roles'
+);
+
 SELECT set_config(
   'request.jwt.claim.sub',
   '00000000-0000-0000-0000-000000000101',
@@ -248,6 +260,25 @@ SELECT ok(
       AND payment.reference = 'BACKFILL-EXPENSE-d1000000-0000-0000-0000-000000000001'
   ),
   'legacy settlement columns backfill deterministic cash events'
+);
+
+SELECT app_private.backfill_property_cash_events();
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM (
+      SELECT receipt.reference
+      FROM public.finance_receipts AS receipt
+      WHERE receipt.reference = 'BACKFILL-INCOME-c1000000-0000-0000-0000-000000000001'
+      UNION ALL
+      SELECT payment.reference
+      FROM public.finance_payments AS payment
+      WHERE payment.reference = 'BACKFILL-EXPENSE-d1000000-0000-0000-0000-000000000001'
+    ) AS backfill_events
+  ),
+  2::bigint,
+  'backfill reruns remain unique per obligation target'
 );
 
 INSERT INTO public.finance_income_items (
@@ -330,6 +361,28 @@ SELECT ok(
 );
 
 SELECT throws_ok(
+  $$INSERT INTO public.finance_receipts (
+    organization_id, property_id, received_date, amount, currency, payer_label, reference
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '2026-07-10', 1, 'USD', 'Direct writer', 'DIRECT-WRITE'
+  )$$,
+  '42501',
+  'permission denied for table finance_receipts',
+  'authenticated callers cannot insert receipt events directly'
+);
+
+SELECT throws_ok(
+  $$UPDATE public.finance_receipts
+    SET amount = amount + 1
+    WHERE reference = 'TEST-RECEIPT'$$,
+  '42501',
+  'permission denied for table finance_receipts',
+  'authenticated callers cannot mutate receipt events directly'
+);
+
+SELECT throws_ok(
   $$SELECT public.record_finance_receipt(
     '00000000-0000-0000-0000-000000000001',
     'a1000000-0000-0000-0000-000000000001',
@@ -340,6 +393,84 @@ SELECT throws_ok(
   'P0001',
   'Receipt allocation exceeds open balance',
   'receipt over-allocation is rejected'
+);
+
+SELECT lives_ok(
+  $$SELECT public.reverse_finance_receipt(
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT id FROM public.finance_receipts WHERE reference = 'TEST-RECEIPT'),
+    '2026-07-11',
+    'REVERSE-TEST-RECEIPT'
+  )$$,
+  'receipt reversal RPC records a balancing event'
+);
+
+SELECT ok(
+  (
+    SELECT amount_received = 0 AND status = 'open' AND received_date IS NULL
+    FROM public.finance_income_items
+    WHERE id = 'a1000000-0000-0000-0000-000000000001'
+  )
+  AND (
+    SELECT coalesce(sum(
+      CASE WHEN receipt.reversal_of_id IS NULL THEN allocation.amount ELSE -allocation.amount END
+    ), 0) = 0
+    FROM public.finance_receipt_allocations AS allocation
+    JOIN public.finance_receipts AS receipt ON receipt.id = allocation.receipt_id
+    WHERE allocation.income_item_id = 'a1000000-0000-0000-0000-000000000001'
+  ),
+  'receipt reversal is negative reporting cash and restores income compatibility'
+);
+
+SELECT throws_ok(
+  $$SELECT public.reverse_finance_receipt(
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT id FROM public.finance_receipts WHERE reference = 'TEST-RECEIPT'),
+    '2026-07-12',
+    'DUPLICATE-RECEIPT-REVERSAL'
+  )$$,
+  '22023',
+  'Finance receipt is already reversed',
+  'a receipt can only be reversed once'
+);
+
+SELECT lives_ok(
+  $$SELECT public.reverse_finance_payment(
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT id FROM public.finance_payments WHERE reference = 'TEST-PAYMENT'),
+    '2026-07-11',
+    'REVERSE-TEST-PAYMENT'
+  )$$,
+  'payment reversal RPC records a balancing event'
+);
+
+SELECT ok(
+  (
+    SELECT status = 'approved' AND paid_date IS NULL
+    FROM public.finance_expense_items
+    WHERE id = 'b1000000-0000-0000-0000-000000000001'
+  )
+  AND (
+    SELECT coalesce(sum(
+      CASE WHEN payment.reversal_of_id IS NULL THEN allocation.amount ELSE -allocation.amount END
+    ), 0) = 0
+    FROM public.finance_payment_allocations AS allocation
+    JOIN public.finance_payments AS payment ON payment.id = allocation.payment_id
+    WHERE allocation.expense_item_id = 'b1000000-0000-0000-0000-000000000001'
+  ),
+  'payment reversal is negative reporting cash and restores expense compatibility'
+);
+
+SELECT throws_ok(
+  $$SELECT public.reverse_finance_payment(
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT id FROM public.finance_payments WHERE reference = 'TEST-PAYMENT'),
+    '2026-07-12',
+    'DUPLICATE-PAYMENT-REVERSAL'
+  )$$,
+  '22023',
+  'Finance payment is already reversed',
+  'a payment can only be reversed once'
 );
 
 SELECT set_config(
@@ -363,11 +494,217 @@ SELECT throws_ok(
 
 RESET ROLE;
 
+INSERT INTO public.properties (
+  id, organization_id, name, code, property_type, status, created_by, updated_by
+) VALUES (
+  '10000000-0000-0000-0000-000000000099',
+  '00000000-0000-0000-0000-000000000002',
+  'Cross-scope property', 'CROSS-ORG', 'Residential', 'active',
+  '00000000-0000-0000-0000-000000000301',
+  '00000000-0000-0000-0000-000000000301'
+);
+
+INSERT INTO public.properties (
+  id, organization_id, name, code, property_type, status, created_by, updated_by
+) VALUES (
+  '10000000-0000-0000-0000-000000000098',
+  '00000000-0000-0000-0000-000000000001',
+  'Alternate reversal property', 'REV-SCOPE', 'Residential', 'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.finance_income_items (
+  id, organization_id, property_id, income_type, payer_label, due_date,
+  amount_due, amount_received, currency, status, created_by, updated_by
+) VALUES (
+  'a2000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000002',
+  '10000000-0000-0000-0000-000000000099',
+  'rent', 'Other organization tenant', '2026-07-01', 100, 0, 'USD', 'open',
+  '00000000-0000-0000-0000-000000000301',
+  '00000000-0000-0000-0000-000000000301'
+);
+
+INSERT INTO public.finance_expense_items (
+  id, organization_id, property_id, expense_type, vendor_label, invoice_date,
+  amount, currency, category, status, economic_scope, owner_bill_status,
+  owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount,
+  created_by, updated_by
+) VALUES (
+  'b2000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000002',
+  '10000000-0000-0000-0000-000000000099',
+  'maintenance', 'Other organization vendor', '2026-07-01', 100, 'USD',
+  'Repair', 'approved', 'property_expense', 'not_billable', 0, 0, 0,
+  '00000000-0000-0000-0000-000000000301',
+  '00000000-0000-0000-0000-000000000301'
+);
+
+SELECT throws_matching(
+  $$INSERT INTO public.finance_receipts (
+    organization_id, property_id, received_date, amount, currency, payer_label, reference
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000001',
+    '2026-07-10', 10, 'USD', 'Cross-scope tenant', 'CROSS-PROPERTY-RECEIPT'
+  )$$,
+  'finance_receipts_org_property_fkey',
+  'receipt organization must match its property'
+);
+
+SELECT throws_matching(
+  $$INSERT INTO public.finance_payments (
+    organization_id, property_id, paid_date, amount, currency, payee_label, reference
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000001',
+    '2026-07-10', 10, 'USD', 'Cross-scope vendor', 'CROSS-PROPERTY-PAYMENT'
+  )$$,
+  'finance_payments_org_property_fkey',
+  'payment organization must match its property'
+);
+
+SELECT throws_matching(
+  $$INSERT INTO public.finance_receipt_allocations (
+    organization_id, receipt_id, income_item_id, amount
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT id FROM public.finance_receipts WHERE reference = 'TEST-RECEIPT'),
+    'a2000000-0000-0000-0000-000000000001',
+    10
+  )$$,
+  'finance_receipt_allocations_org_income_item_fkey',
+  'receipt allocation organization must match its obligation'
+);
+
+SELECT throws_matching(
+  $$INSERT INTO public.finance_payment_allocations (
+    organization_id, payment_id, expense_item_id, amount
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT id FROM public.finance_payments WHERE reference = 'TEST-PAYMENT'),
+    'b2000000-0000-0000-0000-000000000001',
+    10
+  )$$,
+  'finance_payment_allocations_org_expense_item_fkey',
+  'payment allocation organization must match its obligation'
+);
+
+SELECT throws_matching(
+  $$INSERT INTO public.lease_deposit_events (
+    organization_id, property_id, lease_deposit_id, event_type,
+    event_date, amount, currency, reference
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000099',
+    '88000000-0000-0000-0000-000000000001',
+    'received', '2026-07-10', 10, 'USD', 'CROSS-DEPOSIT'
+  )$$,
+  'lease_deposit_events_org_deposit_fkey',
+  'deposit event organization must match its deposit record'
+);
+
+SELECT throws_matching(
+  $$INSERT INTO public.finance_receipts (
+    organization_id, property_id, received_date, amount, currency,
+    payer_label, reference, reversal_of_id
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000099',
+    '2026-07-12', 75, 'USD', 'Cross reversal', 'CROSS-RECEIPT-REVERSAL',
+    (SELECT id FROM public.finance_receipts
+     WHERE reference = 'BACKFILL-INCOME-c1000000-0000-0000-0000-000000000001')
+  )$$,
+  'finance_receipts_scope_reversal_fkey',
+  'receipt reversal must match original organization property and currency'
+);
+
+SELECT throws_matching(
+  $$INSERT INTO public.finance_payments (
+    organization_id, property_id, paid_date, amount, currency,
+    payee_label, reference, reversal_of_id
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000099',
+    '2026-07-12', 200, 'USD', 'Cross reversal', 'CROSS-PAYMENT-REVERSAL',
+    (SELECT id FROM public.finance_payments
+     WHERE reference = 'BACKFILL-EXPENSE-d1000000-0000-0000-0000-000000000001')
+  )$$,
+  'finance_payments_scope_reversal_fkey',
+  'payment reversal must match original organization property and currency'
+);
+
+INSERT INTO public.lease_deposit_events (
+  id, organization_id, property_id, lease_deposit_id, event_type,
+  event_date, amount, currency, reference
+)
+SELECT
+  'e1000000-0000-0000-0000-000000000001',
+  deposit.organization_id,
+  lease.property_id,
+  deposit.id,
+  'received',
+  '2026-07-10',
+  100,
+  deposit.currency,
+  'DEPOSIT-ORIGINAL'
+FROM public.lease_deposits AS deposit
+JOIN public.leases AS lease
+  ON lease.id = deposit.lease_id
+ AND lease.organization_id = deposit.organization_id
+WHERE deposit.id = '88000000-0000-0000-0000-000000000001';
+
+SELECT throws_matching(
+  $$INSERT INTO public.lease_deposit_events (
+    organization_id, property_id, lease_deposit_id, event_type,
+    event_date, amount, currency, reference, reversal_of_id
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000098',
+    '88000000-0000-0000-0000-000000000001',
+    'reversed', '2026-07-12', 100, 'USD', 'CROSS-DEPOSIT-REVERSAL',
+    'e1000000-0000-0000-0000-000000000001'
+  )$$,
+  'lease_deposit_events_scope_reversal_fkey',
+  'deposit reversal must match original organization property and currency'
+);
+
+SELECT throws_matching(
+  $$INSERT INTO public.finance_receipts (
+    id, organization_id, property_id, received_date, amount, currency,
+    payer_label, reference, reversal_of_id
+  ) VALUES (
+    'e2000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '2026-07-12', 10, 'USD', 'Self reversal', 'SELF-REVERSAL',
+    'e2000000-0000-0000-0000-000000000001'
+  )$$,
+  'finance_receipts_not_self_reversal_check',
+  'receipt events cannot reverse themselves'
+);
+
+SELECT throws_matching(
+  $$INSERT INTO public.finance_receipts (
+    organization_id, property_id, received_date, amount, currency,
+    payer_label, reference, reversal_of_id
+  )
+  SELECT
+    organization_id, property_id, '2026-07-12', amount, currency,
+    payer_label, 'REVERSAL-CHAIN', id
+  FROM public.finance_receipts
+  WHERE reference = 'REVERSE-TEST-RECEIPT'$$,
+  'Reversal chains are not allowed',
+  'receipt reversal chains are rejected'
+);
+
 SELECT is(
   (
     SELECT count(*)::bigint
     FROM public.lease_deposit_events
     WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND reference <> 'DEPOSIT-ORIGINAL'
   ),
   0::bigint,
   'finance settlements do not create deposit events'
