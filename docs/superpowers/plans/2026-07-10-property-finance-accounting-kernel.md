@@ -33,7 +33,7 @@
 - `supabase/tests/accounting_kernel_test.sql`: pgTAP contract for schema, balanced posting, idempotency, period locks, and reversals.
 - `supabase/tests/accounting_security_test.sql`: pgTAP contract for RLS, cross-organization rejection, grants, and immutability.
 - `supabase/tests/accounting_compatibility_test.sql`: pgTAP contract for domain mappings and legacy dual-posting.
-- `supabase/migrations/*_property_finance_accounting_kernel.sql`: CLI-generated migration containing tables, indexes, RLS, bootstrap helpers, journal posting, reversal, and historical backfill. The timestamped path is recorded in this plan immediately after `npx supabase migration new property_finance_accounting_kernel` creates it.
+- `supabase/migrations/20260710005932_property_finance_accounting_kernel.sql`: CLI-generated migration containing tables, indexes, RLS, bootstrap helpers, journal posting, reversal, and historical backfill.
 - `supabase/migrations/*_property_finance_accounting_compatibility.sql`: CLI-generated migration replacing existing finance, petty-cash, and manual-ledger posting RPCs with atomic dual-posting.
 - `src/types/database.generated.ts`: regenerated local Supabase types.
 - `src/features/accounting/accounting.types.ts`: journal-link and posting-health application types.
@@ -54,7 +54,7 @@
 
 **Files:**
 - Create: `supabase/tests/accounting_kernel_test.sql`
-- Create via CLI: `supabase/migrations/*_property_finance_accounting_kernel.sql`
+- Create via CLI: `supabase/migrations/20260710005932_property_finance_accounting_kernel.sql`
 
 **Interfaces:**
 - Consumes: `public.currency_code`, `public.organizations`, `public.organization_members`, `app_private.is_org_admin(uuid)`.
@@ -80,19 +80,19 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(14);
 
-select has_table('public', 'accounting_books');
-select has_table('public', 'accounting_accounts');
-select has_table('public', 'accounting_periods');
-select has_table('public', 'accounting_journal_entries');
-select has_table('public', 'accounting_journal_lines');
-select has_column('public', 'ledger_entries', 'accounting_journal_entry_id');
+select has_table('public', 'accounting_books', 'accounting_books exists');
+select has_table('public', 'accounting_accounts', 'accounting_accounts exists');
+select has_table('public', 'accounting_periods', 'accounting_periods exists');
+select has_table('public', 'accounting_journal_entries', 'accounting_journal_entries exists');
+select has_table('public', 'accounting_journal_lines', 'accounting_journal_lines exists');
+select has_column('public', 'ledger_entries', 'accounting_journal_entry_id', 'ledger entries link to accounting journals');
 
-select col_type_is('public', 'accounting_journal_lines', 'debit_amount', 'numeric(18,2)');
-select col_type_is('public', 'accounting_journal_lines', 'credit_amount', 'numeric(18,2)');
-select col_not_null('public', 'accounting_books', 'organization_id');
-select col_not_null('public', 'accounting_accounts', 'book_id');
-select col_not_null('public', 'accounting_journal_entries', 'book_id');
-select col_not_null('public', 'accounting_journal_lines', 'journal_entry_id');
+select col_type_is('public', 'accounting_journal_lines', 'debit_amount', 'numeric(18,2)', 'journal debits use exact money');
+select col_type_is('public', 'accounting_journal_lines', 'credit_amount', 'numeric(18,2)', 'journal credits use exact money');
+select col_not_null('public', 'accounting_books', 'organization_id', 'accounting books are organization scoped');
+select col_not_null('public', 'accounting_accounts', 'book_id', 'accounting accounts require a book');
+select col_not_null('public', 'accounting_journal_entries', 'book_id', 'journal entries require a book');
+select col_not_null('public', 'accounting_journal_lines', 'journal_entry_id', 'journal lines require a journal entry');
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.accounting_books'::regclass),
@@ -179,7 +179,7 @@ Expected: reset succeeds, all 14 pgTAP assertions pass, and lint is clean.
 Run:
 
 ```powershell
-git add supabase/tests/accounting_kernel_test.sql supabase/migrations/*_property_finance_accounting_kernel.sql
+git add supabase/tests/accounting_kernel_test.sql supabase/migrations/20260710005932_property_finance_accounting_kernel.sql
 git commit -m "feat: add property accounting book schema"
 ```
 
@@ -189,7 +189,7 @@ git commit -m "feat: add property accounting book schema"
 
 **Files:**
 - Modify: `supabase/tests/accounting_kernel_test.sql`
-- Modify: `supabase/migrations/*_property_finance_accounting_kernel.sql`
+- Modify: `supabase/migrations/20260710005932_property_finance_accounting_kernel.sql`
 
 **Interfaces:**
 - Consumes: `app_private.ensure_accounting_books_and_accounts(uuid, currency_code)` and JSON line objects containing `account_system_code`, `debit_amount`, `credit_amount`, and optional operational dimensions.
@@ -262,7 +262,7 @@ Expected: all schema and posting assertions pass.
 Run:
 
 ```powershell
-git add supabase/tests/accounting_kernel_test.sql supabase/migrations/*_property_finance_accounting_kernel.sql
+git add supabase/tests/accounting_kernel_test.sql supabase/migrations/20260710005932_property_finance_accounting_kernel.sql
 git commit -m "feat: enforce balanced accounting journals"
 ```
 
@@ -272,7 +272,7 @@ git commit -m "feat: enforce balanced accounting journals"
 
 **Files:**
 - Create: `supabase/tests/accounting_security_test.sql`
-- Modify: `supabase/migrations/*_property_finance_accounting_kernel.sql`
+- Modify: `supabase/migrations/20260710005932_property_finance_accounting_kernel.sql`
 
 **Interfaces:**
 - Consumes: posted journals from `post_accounting_journal`.
@@ -340,7 +340,7 @@ Expected: all security assertions pass and lint is clean.
 Run:
 
 ```powershell
-git add supabase/tests/accounting_security_test.sql supabase/migrations/*_property_finance_accounting_kernel.sql
+git add supabase/tests/accounting_security_test.sql supabase/migrations/20260710005932_property_finance_accounting_kernel.sql
 git commit -m "feat: protect accounting periods and reversals"
 ```
 
@@ -350,7 +350,7 @@ git commit -m "feat: protect accounting periods and reversals"
 
 **Files:**
 - Create: `supabase/tests/accounting_compatibility_test.sql`
-- Modify: `supabase/migrations/*_property_finance_accounting_kernel.sql`
+- Modify: `supabase/migrations/20260710005932_property_finance_accounting_kernel.sql`
 
 **Interfaces:**
 - Consumes: legacy `ledger_entries.source_type`, `source_id`, related finance/petty-cash rows, and system charts.
@@ -408,7 +408,7 @@ Expected: all backfill and idempotency assertions pass.
 Run:
 
 ```powershell
-git add supabase/tests/accounting_compatibility_test.sql supabase/migrations/*_property_finance_accounting_kernel.sql
+git add supabase/tests/accounting_compatibility_test.sql supabase/migrations/20260710005932_property_finance_accounting_kernel.sql
 git commit -m "feat: backfill balanced property journals"
 ```
 
