@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
-import { CheckCircle2, Plus, Send, XCircle } from "lucide-react";
+import { CheckCircle2, Plus, XCircle } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
@@ -19,7 +19,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   approveBillsExpenseItemAction,
   createBillsExpenseItemAction,
-  markBillsExpensePaidAction,
   postBillsExpenseItemAction,
   type BillsExpensesActionState,
   voidBillsExpenseItemAction,
@@ -43,14 +42,12 @@ import { cn } from "@/lib/utils";
 const createInitialState: BillsExpensesActionState = {};
 const approveInitialState: BillsExpensesActionState = {};
 const postInitialState: BillsExpensesActionState = {};
-const paidInitialState: BillsExpensesActionState = {};
 const voidInitialState: BillsExpensesActionState = {};
 
 type DrawerState =
   | { mode: "create" }
   | { item: BillsExpenseItem; mode: "approve" }
   | { item: BillsExpenseItem; mode: "post" }
-  | { item: BillsExpenseItem; mode: "paid" }
   | { item: BillsExpenseItem; mode: "void" };
 
 type BillsExpensesScreenProps = {
@@ -94,7 +91,7 @@ export function BillsExpensesScreen({
             Add bill
           </Button>
         }
-        description="Track outgoing money for vendor bills, maintenance, utilities, refunds, owner payouts, and other expenses before posting approved rows to the ledger."
+        description="Track outgoing money for vendor bills, maintenance, utilities, refunds, owner payouts, and other property expenses from approval through payment."
         title="Bills & Expenses"
       />
 
@@ -126,7 +123,6 @@ export function BillsExpensesScreen({
         <BillsExpensesInspector
           item={selectedItem}
           onApprove={(item) => openDrawer({ item, mode: "approve" })}
-          onMarkPaid={(item) => openDrawer({ item, mode: "paid" })}
           onPost={(item) => openDrawer({ item, mode: "post" })}
           onVoid={(item) => openDrawer({ item, mode: "void" })}
         />
@@ -152,7 +148,7 @@ export function BillsExpensesScreen({
               action={approveBillsExpenseItemAction}
               initialState={approveInitialState}
               item={drawerState.item}
-              message="Approve this bill so it can be posted to ledger."
+              message="Approve this bill so its payment can be recorded."
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
               submitLabel="Approve"
@@ -162,16 +158,6 @@ export function BillsExpensesScreen({
               item={drawerState.item}
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
-            />
-          ) : drawerState.mode === "paid" ? (
-            <StatusPanel
-              action={markBillsExpensePaidAction}
-              initialState={paidInitialState}
-              item={drawerState.item}
-              message="Mark this posted expense as paid and closed."
-              onClose={() => setDrawerState(null)}
-              onSuccess={setStatusMessage}
-              submitLabel="Mark paid"
             />
           ) : (
             <StatusPanel
@@ -352,13 +338,11 @@ function BillsExpensesTable({
 function BillsExpensesInspector({
   item,
   onApprove,
-  onMarkPaid,
   onPost,
   onVoid,
 }: {
   item: BillsExpenseItem | null;
   onApprove: (item: BillsExpenseItem) => void;
-  onMarkPaid: (item: BillsExpenseItem) => void;
   onPost: (item: BillsExpenseItem) => void;
   onVoid: (item: BillsExpenseItem) => void;
 }) {
@@ -433,14 +417,14 @@ function BillsExpensesInspector({
           ) : null}
           {item.status === "approved" ? (
             <Button onClick={() => onPost(item)} variant="primary">
-              <Send size={15} />
-              Post
+              <CheckCircle2 size={15} />
+              Record payment
             </Button>
           ) : null}
           {item.status === "posted" ? (
-            <Button onClick={() => onMarkPaid(item)}>
+            <Button onClick={() => onPost(item)}>
               <CheckCircle2 size={15} />
-              Mark paid
+              Record payment
             </Button>
           ) : null}
           {item.status !== "posted" && item.status !== "paid" ? (
@@ -647,11 +631,15 @@ function PostExpensePanel({
     <form action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
         <input name="expenseItemId" type="hidden" value={item.id} />
+        <input name="amount" type="hidden" value={String(item.amount)} />
+        <input name="propertyId" type="hidden" value={item.propertyId} />
+        <input name="reference" type="hidden" value={item.reference} />
+        <input name="unitId" type="hidden" value={item.unitId ?? ""} />
         <p className="rounded-md border border-border bg-surface-muted p-3 text-sm">
-          This posts <strong>{item.amountDisplay.primary}</strong> for{" "}
-          <strong>{item.vendorLabel}</strong> to the official ledger.
+          Record a <strong>{item.amountDisplay.primary}</strong> property payment to{" "}
+          <strong>{item.vendorLabel}</strong>.
         </p>
-        <Field label="Posting date" error={state.fieldErrors?.paidDate?.[0]}>
+        <Field label="Payment date" error={state.fieldErrors?.paidDate?.[0]}>
           <DatePickerField
             defaultValue={item.paidDate ?? item.invoiceDate}
             name="paidDate"
@@ -663,7 +651,7 @@ function PostExpensePanel({
       <DrawerActions
         onCancel={onClose}
         pending={pending}
-        submitLabel="Post to ledger"
+        submitLabel="Record payment"
       />
     </form>
   );
@@ -843,11 +831,7 @@ function getDrawerTitle(drawer: DrawerState) {
   }
 
   if (drawer.mode === "post") {
-    return "Post expense";
-  }
-
-  if (drawer.mode === "paid") {
-    return "Mark paid";
+    return "Record payment";
   }
 
   return "Void bill";
@@ -859,15 +843,11 @@ function getDrawerDescription(drawer: DrawerState) {
   }
 
   if (drawer.mode === "approve") {
-    return "Approved bills can be posted into the official ledger.";
+    return "Approved bills can have their property payment recorded.";
   }
 
   if (drawer.mode === "post") {
-    return "Posting creates the official expense ledger entry.";
-  }
-
-  if (drawer.mode === "paid") {
-    return "Close the bill after it has been posted.";
+    return "Record the outgoing property cash event for this bill.";
   }
 
   return "Void this unposted bill or expense.";

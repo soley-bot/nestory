@@ -182,11 +182,20 @@ const createExpenseSchema = z
   });
 
 const postExpenseSchema = z.object({
+  amount: z
+    .string()
+    .trim()
+    .refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
+      message: "Enter an amount greater than zero.",
+    }),
   expenseItemId: expenseItemIdSchema,
   paidDate: z
     .string()
     .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a posting date."),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a payment date."),
+  propertyId: optionalUuidSchema,
+  reference: z.string().trim().max(120, "Keep the reference under 120 characters."),
+  unitId: optionalUuidSchema,
 });
 
 function readString(formData: FormData, key: string) {
@@ -273,13 +282,6 @@ export async function approveBillsExpenseItemAction(
   return setExpenseStatus(formData, "approved", "Bill approved.");
 }
 
-export async function markBillsExpensePaidAction(
-  _state: BillsExpensesActionState,
-  formData: FormData,
-): Promise<BillsExpensesActionState> {
-  return setExpenseStatus(formData, "paid", "Expense marked paid.");
-}
-
 export async function voidBillsExpenseItemAction(
   _state: BillsExpensesActionState,
   formData: FormData,
@@ -293,8 +295,12 @@ export async function postBillsExpenseItemAction(
 ): Promise<BillsExpensesActionState> {
   const context = await requireAdminContext();
   const parsed = postExpenseSchema.safeParse({
+    amount: readString(formData, "amount"),
     expenseItemId: readString(formData, "expenseItemId"),
     paidDate: readString(formData, "paidDate"),
+    propertyId: readString(formData, "propertyId"),
+    reference: readString(formData, "reference"),
+    unitId: readString(formData, "unitId"),
   });
 
   if (!parsed.success) {
@@ -302,10 +308,12 @@ export async function postBillsExpenseItemAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("post_finance_expense_item", {
+  const { error } = await supabase.rpc("record_finance_payment", {
+    p_amount: Number(parsed.data.amount),
     p_expense_item_id: parsed.data.expenseItemId,
     p_organization_id: context.organizationId,
     p_paid_date: parsed.data.paidDate,
+    p_reference: parsed.data.reference || null,
   });
 
   if (error) {
@@ -315,17 +323,20 @@ export async function postBillsExpenseItemAction(
     };
   }
 
-  revalidateBillsExpensesPaths();
+  revalidateBillsExpensesPaths(
+    parsed.data.propertyId || null,
+    parsed.data.unitId || null,
+  );
 
   return {
-    message: "Expense posted to ledger.",
+    message: "Payment recorded.",
     status: "success",
   };
 }
 
 async function setExpenseStatus(
   formData: FormData,
-  status: "approved" | "paid" | "void",
+  status: "approved" | "void",
   successMessage: string,
 ): Promise<BillsExpensesActionState> {
   const context = await requireAdminContext();
@@ -385,6 +396,7 @@ function revalidateBillsExpensesPaths(
   revalidatePath("/overview");
   revalidatePath("/ledger");
   revalidatePath("/bills-expenses");
+  revalidatePath("/rent-income");
   revalidatePath("/ledger");
   revalidatePath("/reports");
 

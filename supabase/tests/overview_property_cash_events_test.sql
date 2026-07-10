@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(57);
+SELECT plan(59);
 
 SELECT has_table('public', 'finance_receipts', 'finance_receipts exists');
 SELECT has_table('public', 'finance_receipt_allocations', 'receipt allocations exist');
@@ -234,6 +234,21 @@ INSERT INTO public.finance_expense_items (
   '10000000-0000-0000-0000-000000000001',
   'maintenance', 'Backfill vendor', '2026-06-01', '2026-06-06', 200, 'USD',
   'Repair', 'paid', 'property_expense', 'not_billable', 0, 0, 0,
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.finance_expense_items (
+  id, organization_id, property_id, expense_type, vendor_label, invoice_date,
+  amount, currency, category, status, economic_scope, owner_bill_status,
+  owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount,
+  created_by, updated_by
+) VALUES (
+  'b1000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'maintenance', 'Full payment vendor', '2026-07-01', 200, 'USD', 'Repair',
+  'approved', 'property_expense', 'not_billable', 0, 0, 0,
   '00000000-0000-0000-0000-000000000101',
   '00000000-0000-0000-0000-000000000101'
 );
@@ -503,6 +518,14 @@ SELECT ok(
     WHERE income_item_id = 'a1000000-0000-0000-0000-000000000001'
   )
   AND (
+    SELECT count(*) = 1
+    FROM public.finance_receipts AS receipt
+    JOIN public.finance_receipt_allocations AS allocation
+      ON allocation.receipt_id = receipt.id
+    WHERE allocation.income_item_id = 'a1000000-0000-0000-0000-000000000001'
+      AND receipt.reference = 'TEST-RECEIPT'
+  )
+  AND (
     SELECT amount_received = 100 AND status = 'partially_received'
     FROM public.finance_income_items
     WHERE id = 'a1000000-0000-0000-0000-000000000001'
@@ -533,6 +556,36 @@ SELECT ok(
     WHERE id = 'b1000000-0000-0000-0000-000000000001'
   ),
   'partial payment allocates without falsely marking the expense paid'
+);
+
+SELECT lives_ok(
+  $$SELECT public.record_finance_payment(
+    '00000000-0000-0000-0000-000000000001',
+    'b1000000-0000-0000-0000-000000000002',
+    200,
+    '2026-07-11',
+    'TEST-PAYMENT-FINAL'
+  )$$,
+  'payment RPC records the remaining settlement'
+);
+
+SELECT ok(
+  (
+    SELECT status = 'paid'
+      AND paid_date = '2026-07-11'
+      AND economic_scope = 'property_expense'
+      AND owner_reimbursable_amount = 0
+      AND owner_reimbursed_amount = 0
+      AND company_loss_amount = 0
+    FROM public.finance_expense_items
+    WHERE id = 'b1000000-0000-0000-0000-000000000002'
+  )
+  AND (
+    SELECT count(*) = 1 AND sum(amount) = 200
+    FROM public.finance_payment_allocations
+    WHERE expense_item_id = 'b1000000-0000-0000-0000-000000000002'
+  ),
+  'full payment marks the compatibility row paid without company accounting data'
 );
 
 SELECT throws_ok(

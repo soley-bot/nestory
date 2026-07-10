@@ -212,8 +212,8 @@ export async function recordRentIncomePaymentAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("record_finance_income_payment", {
-    p_amount_received: Number(parsed.data.amountReceived),
+  const { error } = await supabase.rpc("record_finance_receipt", {
+    p_amount: Number(parsed.data.amountReceived),
     p_income_item_id: parsed.data.incomeItemId,
     p_organization_id: context.organizationId,
     p_received_date: parsed.data.receivedDate,
@@ -230,7 +230,7 @@ export async function recordRentIncomePaymentAction(
   revalidateFinanceIncomePaths();
 
   return {
-    message: "Received money recorded.",
+    message: "Receipt recorded.",
     status: "success",
   };
 }

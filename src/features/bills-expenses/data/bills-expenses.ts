@@ -320,11 +320,11 @@ function getNextAction(status: BillsExpenseStatus, isOverdue: boolean) {
   }
 
   if (status === "approved") {
-    return "Post to ledger";
+    return "Record payment";
   }
 
   if (status === "posted") {
-    return "Mark paid";
+    return "Record payment";
   }
 
   if (status === "paid") {
