@@ -6,6 +6,7 @@ import type {
   OverviewMetric,
   OverviewOccupancyPoint,
   OverviewScreenData,
+  OverviewViewQuery,
 } from "@/features/overview/overview.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { CurrencyCode } from "@/lib/money/format";
@@ -112,7 +113,9 @@ type PropertyOwnerRow = {
 
 export async function getOverviewScreenData(
   organizationId: string,
+  _query?: OverviewViewQuery,
 ): Promise<OverviewScreenData> {
+  void _query;
   const supabase = await createSupabaseServerClient();
   const now = new Date();
   const businessToday = getBusinessDateString(now);

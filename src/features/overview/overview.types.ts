@@ -4,44 +4,31 @@ import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 export type OverviewMetricTone = "neutral" | "success" | "warning" | "danger";
 export type OverviewLens = "all" | "finance" | "leasing" | "maintenance" | "records";
 export type OverviewFinanceView =
+  | "collections"
+  | "expenses"
+  | "management-fees"
+  | "owner-statements"
+  | "transactions";
+export type OverviewReview =
+  | "all"
+  | "negative"
+  | "arrears"
+  | "bills"
+  | "statement-blocked";
+
+export type OverviewViewQuery = {
+  financeView: OverviewFinanceView;
+  lens: OverviewLens;
+  month: string;
+  propertyId: string;
+  review: OverviewReview;
+};
+
+export type OverviewLegacyFinanceView =
   | "company-pnl"
   | "ledger"
   | "owner-receivables"
   | "property-ranking";
-
-const overviewLenses: OverviewLens[] = [
-  "all",
-  "finance",
-  "leasing",
-  "maintenance",
-  "records",
-];
-const overviewFinanceViews: OverviewFinanceView[] = [
-  "company-pnl",
-  "property-ranking",
-  "owner-receivables",
-  "ledger",
-];
-
-export function normalizeOverviewLens(
-  lens: string | string[] | undefined,
-): OverviewLens {
-  const value = Array.isArray(lens) ? lens[0] : lens;
-
-  return overviewLenses.includes(value as OverviewLens)
-    ? (value as OverviewLens)
-    : "all";
-}
-
-export function normalizeOverviewFinanceView(
-  financeView: string | string[] | undefined,
-): OverviewFinanceView {
-  const value = Array.isArray(financeView) ? financeView[0] : financeView;
-
-  return overviewFinanceViews.includes(value as OverviewFinanceView)
-    ? (value as OverviewFinanceView)
-    : "company-pnl";
-}
 
 export type OverviewMetric = {
   helper: string;

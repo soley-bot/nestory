@@ -32,12 +32,13 @@ import {
 import type {
   OverviewAttentionItem,
   OverviewDashboardSummary,
-  OverviewFinanceView,
+  OverviewLegacyFinanceView,
   OverviewLens,
   OverviewMetric,
   OverviewMetricTone,
   OverviewQuickAction,
   OverviewScreenData,
+  OverviewViewQuery,
 } from "@/features/overview/overview.types";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
@@ -45,8 +46,9 @@ import { cn } from "@/lib/utils";
 
 type OverviewScreenProps = {
   data: OverviewScreenData;
-  financeView?: OverviewFinanceView;
+  financeView?: OverviewLegacyFinanceView;
   lens?: OverviewLens;
+  query?: OverviewViewQuery;
 };
 
 type PrimaryMetric = {
@@ -67,7 +69,7 @@ type OverviewChartConfig = {
 
 const financeViewTabs: Array<{
   href: string;
-  key: OverviewFinanceView;
+  key: OverviewLegacyFinanceView;
   label: string;
 }> = [
   {
@@ -138,9 +140,14 @@ const overviewLensTabs: Array<{
 
 export function OverviewScreen({
   data,
-  financeView = "company-pnl",
-  lens = "all",
+  financeView: legacyFinanceView = "company-pnl",
+  lens: legacyLens = "all",
+  query,
 }: OverviewScreenProps) {
+  const lens = query?.lens ?? legacyLens;
+  const financeView = query
+    ? toLegacyFinanceView(query.financeView)
+    : legacyFinanceView;
   if (!data.workspaceSetup.hasAnyOperatingData) {
     return <EmptyWorkspaceOnboarding data={data} />;
   }
@@ -239,6 +246,23 @@ export function OverviewScreen({
       </div>
     </main>
   );
+}
+
+function toLegacyFinanceView(
+  financeView: OverviewViewQuery["financeView"],
+): OverviewLegacyFinanceView {
+  if (financeView === "transactions") {
+    return "ledger";
+  }
+
+  if (
+    financeView === "management-fees" ||
+    financeView === "owner-statements"
+  ) {
+    return "owner-receivables";
+  }
+
+  return "company-pnl";
 }
 
 function OverviewLensHeader({
@@ -691,7 +715,7 @@ function FinanceLensWorkspace({
   lensAttentionItems,
 }: {
   data: OverviewScreenData;
-  financeView: OverviewFinanceView;
+  financeView: OverviewLegacyFinanceView;
   lensAttentionItems: OverviewAttentionItem[];
 }) {
   return (
@@ -769,7 +793,11 @@ function FinanceLensWorkspace({
   );
 }
 
-function FinanceViewTabs({ financeView }: { financeView: OverviewFinanceView }) {
+function FinanceViewTabs({
+  financeView,
+}: {
+  financeView: OverviewLegacyFinanceView;
+}) {
   return (
     <div className="flex min-w-0 gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-1 shadow-sm">
       {financeViewTabs.map((tab) => {
