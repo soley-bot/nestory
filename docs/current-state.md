@@ -1,6 +1,6 @@
 # Current State
 
-Last rebuilt from code inventory on 2026-07-02. This file describes what is
+Last rebuilt from code inventory on 2026-07-10. This file describes what is
 implemented now. It is not a roadmap or early-stage plan.
 
 ## Product Baseline
@@ -19,6 +19,9 @@ Nestory is a multi-module property operations app. The implemented core covers:
   confirmed rows post into the ledger.
 - Bills & Expenses operations for outgoing bills and expense approvals before
   approved rows post into the ledger.
+- A balanced double-entry accounting kernel behind the operational finance
+  workflows, with separate client-money and management-company books,
+  accounting periods, immutable journals, and explicit reversals.
 - Maintenance cases with request intake, work orders, calendar scheduling,
   inspections, recurring templates, reminders, assignment, and status changes.
 - Dedicated property/unit photo records with private photo storage and cover
@@ -84,7 +87,9 @@ Finance and history:
 - `/ledger` supports income/expense records, filters, create/update/archive,
   restore, period locks, receipt attachment, month-close workflow queues, and
   linked timeline/document context. Posted rows carry source metadata for manual,
-  rent/income, bills/expenses, petty cash, and maintenance origins.
+  rent/income, bills/expenses, petty cash, and maintenance origins. Active rows
+  are linked to balanced accounting journals, the inspector shows journal-link
+  health, and month close reports any missing journal links.
 - `/petty-cash` supports the IPS-style PM petty cash workflow: cash accounts,
   monthly register periods, advances, cash-in rows, expense rows, running
   balance, receipt references, owner-reimbursable/company-cost handling, month
@@ -146,6 +151,11 @@ RPC write boundaries. Current table families include:
   `ledger_entries`, `ledger_period_locks`, `petty_cash_accounts`,
   `petty_cash_periods`, `petty_cash_entries`, `timeline_events`,
   `activity_logs`.
+- Accounting: `accounting_books`, `accounting_accounts`,
+  `accounting_periods`, `accounting_journal_entries`, and
+  `accounting_journal_lines`. Each organization receives separate default
+  client-money and management-company books for each supported currency. The
+  current currency enum supports USD.
 - Media and documents: `asset_photos` plus private `nestory-photos`, and
   `documents` plus private `nestory-documents`.
 - Maintenance: `tenant_requests`, `tasks`.
@@ -156,7 +166,9 @@ Implemented RPC families include:
 - Property, unit, person, lease, document, ledger, timeline, and maintenance
   create/update/archive/restore.
 - Finance income and expense workflow creation, status changes, and posting
-  into the ledger.
+  into the ledger and balanced accounting journals in one transaction.
+- Idempotent balanced journal posting, accounting period locking, immutable
+  posted journals, reversal creation, and historical ledger backfill.
 - Ledger period locking.
 - Petty cash account creation, register row creation, month rollover, and
   posting expense rows into the ledger.
@@ -176,6 +188,7 @@ Implemented RPC families include:
 - Rent & Income: `src/features/rent-income`.
 - Bills & Expenses: `src/features/bills-expenses`.
 - Finance close summaries: `src/features/finance`.
+- Accounting journal health: `src/features/accounting`.
 - Ledger: `src/features/ledger`.
 - Timeline: `src/features/timeline`.
 - Maintenance: `src/features/maintenance`.
@@ -191,4 +204,7 @@ Tests currently cover filters, search param validation, date helpers, money
 totals, record selection, property/unit summary and detail, people filters,
 lease summaries, ledger summaries/filters, timeline filters, maintenance
 filters/checklists/summary/notifications, imports, reports/export, auth tenant
-host parsing, and schema-error helpers.
+host parsing, and schema-error helpers. Database tests additionally cover the
+accounting schema and security boundary, balanced/idempotent posting, period
+locks and reversals, historical backfill, dual posting from existing finance
+workflows, transaction rollback, and seeded ledger-to-journal parity.

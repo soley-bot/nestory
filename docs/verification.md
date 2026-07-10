@@ -29,11 +29,17 @@ npm run supabase:start
 npm run db:lint
 npm run db:reset
 npm run db:types
+npx supabase test db --local supabase/tests
 npm run supabase:stop
 ```
 
 Use Supabase checks when migrations, generated database types, RLS, RPCs,
 storage, seed data, or local database behavior changed.
+
+Accounting changes must also prove that journals remain balanced, source
+posting is idempotent, locked periods reject new postings, reversals preserve
+the original journal, and active operational ledger rows retain journal links.
+The pgTAP files under `supabase/tests/accounting_*.sql` provide these checks.
 
 ## Browser Checks
 
