@@ -223,6 +223,61 @@ ON public.lease_deposit_events
 FOR EACH ROW
 EXECUTE FUNCTION app_private.validate_property_cash_reversal();
 
+CREATE OR REPLACE FUNCTION app_private.enforce_finance_settlement_derived_fields()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  table_owner name;
+BEGIN
+  SELECT pg_catalog.pg_get_userbyid(table_record.relowner)
+  INTO table_owner
+  FROM pg_catalog.pg_class AS table_record
+  WHERE table_record.oid = TG_RELID;
+
+  IF TG_TABLE_NAME = 'finance_income_items' THEN
+    IF (
+      NEW.amount_received IS DISTINCT FROM OLD.amount_received
+      OR NEW.received_date IS DISTINCT FROM OLD.received_date
+      OR (
+        NEW.status IS DISTINCT FROM OLD.status
+        AND NEW.status IN ('open', 'partially_received', 'received')
+      )
+    ) AND current_user <> table_owner THEN
+      RAISE EXCEPTION 'Income settlement fields are event-derived'
+        USING ERRCODE = '55000';
+    END IF;
+  ELSIF TG_TABLE_NAME = 'finance_expense_items' THEN
+    IF (
+      NEW.paid_date IS DISTINCT FROM OLD.paid_date
+      OR (
+        NEW.status IS DISTINCT FROM OLD.status
+        AND (NEW.status = 'paid' OR OLD.status = 'paid')
+      )
+    ) AND current_user <> table_owner THEN
+      RAISE EXCEPTION 'Expense settlement fields are event-derived'
+        USING ERRCODE = '55000';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER enforce_finance_income_settlement_derived_fields
+BEFORE UPDATE OF amount_received, received_date, status
+ON public.finance_income_items
+FOR EACH ROW
+EXECUTE FUNCTION app_private.enforce_finance_settlement_derived_fields();
+
+CREATE TRIGGER enforce_finance_expense_settlement_derived_fields
+BEFORE UPDATE OF paid_date, status
+ON public.finance_expense_items
+FOR EACH ROW
+EXECUTE FUNCTION app_private.enforce_finance_settlement_derived_fields();
+
 ALTER TABLE public.finance_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_receipt_allocations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.finance_payments ENABLE ROW LEVEL SECURITY;
@@ -316,6 +371,7 @@ BEGIN
   SET amount_received = compatibility_amount,
       received_date = CASE WHEN compatibility_amount > 0 THEN compatibility_date ELSE NULL END,
       status = CASE
+        WHEN status = 'posted' OR ledger_entry_id IS NOT NULL THEN status
         WHEN compatibility_amount <= 0 THEN 'open'
         WHEN compatibility_amount >= amount_due THEN 'received'
         ELSE 'partially_received'
@@ -406,6 +462,11 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Income item not found';
+  END IF;
+
+  IF target.status = 'posted' OR target.ledger_entry_id IS NOT NULL THEN
+    RAISE EXCEPTION 'Posted income cannot accept receipt changes; reverse the ledger posting first'
+      USING ERRCODE = '55000';
   END IF;
 
   SELECT coalesce(sum(
@@ -621,6 +682,29 @@ BEGIN
     WHERE reversal.reversal_of_id = target.id
   ) THEN
     RAISE EXCEPTION 'Finance receipt is already reversed' USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM income_item.id
+  FROM public.finance_receipt_allocations AS allocation
+  JOIN public.finance_income_items AS income_item
+    ON income_item.id = allocation.income_item_id
+   AND income_item.organization_id = allocation.organization_id
+  WHERE allocation.receipt_id = target.id
+    AND allocation.organization_id = target.organization_id
+  FOR UPDATE OF income_item;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.finance_receipt_allocations AS allocation
+    JOIN public.finance_income_items AS income_item
+      ON income_item.id = allocation.income_item_id
+     AND income_item.organization_id = allocation.organization_id
+    WHERE allocation.receipt_id = target.id
+      AND allocation.organization_id = target.organization_id
+      AND (income_item.status = 'posted' OR income_item.ledger_entry_id IS NOT NULL)
+  ) THEN
+    RAISE EXCEPTION 'Posted income cannot reverse receipts; reverse the ledger posting first'
+      USING ERRCODE = '55000';
   END IF;
 
   INSERT INTO public.finance_receipts (
@@ -874,6 +958,329 @@ AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.create_finance_income_item(
+  p_organization_id uuid,
+  p_property_id uuid,
+  p_unit_id uuid,
+  p_lease_id uuid,
+  p_income_type text,
+  p_payer_label text,
+  p_due_date date,
+  p_amount_due numeric,
+  p_amount_received numeric,
+  p_received_date date,
+  p_description text,
+  p_reference text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  new_income_id uuid;
+  normalized_income_type text := lower(trim(coalesce(p_income_type, 'rent')));
+  normalized_payer_label text := NULLIF(trim(coalesce(p_payer_label, '')), '');
+  normalized_amount_due numeric := coalesce(p_amount_due, 0);
+  normalized_amount_received numeric := coalesce(p_amount_received, 0);
+  derived_status text;
+BEGIN
+  IF (SELECT auth.uid()) IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
+  END IF;
+
+  IF NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  IF normalized_payer_label IS NULL THEN
+    RAISE EXCEPTION 'Payer is required' USING ERRCODE = '22023';
+  END IF;
+
+  IF normalized_amount_due <= 0 THEN
+    RAISE EXCEPTION 'Income amount is required' USING ERRCODE = '22023';
+  END IF;
+
+  IF normalized_amount_received < 0
+    OR normalized_amount_received > normalized_amount_due THEN
+    RAISE EXCEPTION 'Initial received amount exceeds income amount due'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF normalized_amount_received > 0 AND p_received_date IS NULL THEN
+    RAISE EXCEPTION 'Received date is required for initial received income'
+      USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO public.finance_income_items (
+    organization_id,
+    property_id,
+    unit_id,
+    lease_id,
+    income_type,
+    payer_label,
+    due_date,
+    amount_due,
+    amount_received,
+    received_date,
+    status,
+    description,
+    reference,
+    created_by,
+    updated_by
+  )
+  VALUES (
+    p_organization_id,
+    p_property_id,
+    p_unit_id,
+    p_lease_id,
+    normalized_income_type,
+    normalized_payer_label,
+    p_due_date,
+    normalized_amount_due,
+    0,
+    NULL,
+    'open',
+    NULLIF(trim(coalesce(p_description, '')), ''),
+    NULLIF(trim(coalesce(p_reference, '')), ''),
+    (SELECT auth.uid()),
+    (SELECT auth.uid())
+  )
+  RETURNING id INTO new_income_id;
+
+  IF normalized_amount_received > 0 THEN
+    PERFORM public.record_finance_receipt(
+      p_organization_id,
+      new_income_id,
+      normalized_amount_received,
+      p_received_date,
+      p_reference
+    );
+  END IF;
+
+  SELECT status
+  INTO derived_status
+  FROM public.finance_income_items
+  WHERE id = new_income_id;
+
+  INSERT INTO public.activity_logs (
+    organization_id,
+    entity_type,
+    entity_id,
+    action,
+    actor_id,
+    new_values
+  )
+  VALUES (
+    p_organization_id,
+    'finance_income_item',
+    new_income_id,
+    'created',
+    (SELECT auth.uid()),
+    jsonb_build_object(
+      'income_type', normalized_income_type,
+      'payer_label', normalized_payer_label,
+      'amount_due', normalized_amount_due,
+      'amount_received', normalized_amount_received,
+      'status', derived_status
+    )
+  );
+
+  RETURN new_income_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.set_finance_expense_status(
+  p_expense_item_id uuid,
+  p_organization_id uuid,
+  p_status text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  target_expense public.finance_expense_items%ROWTYPE;
+  normalized_status text := lower(trim(p_status));
+BEGIN
+  IF (SELECT auth.uid()) IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
+  END IF;
+
+  IF NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT *
+  INTO target_expense
+  FROM public.finance_expense_items
+  WHERE id = p_expense_item_id
+    AND organization_id = p_organization_id
+    AND archived_at IS NULL
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Expense item not found' USING ERRCODE = '23503';
+  END IF;
+
+  IF normalized_status NOT IN ('approved', 'paid', 'void') THEN
+    RAISE EXCEPTION 'Unsupported expense status' USING ERRCODE = '22023';
+  END IF;
+
+  IF normalized_status = 'paid' THEN
+    RAISE EXCEPTION 'Use record_finance_payment to settle expenses'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF target_expense.status = 'posted' AND normalized_status = 'approved' THEN
+    RAISE EXCEPTION 'Posted expenses cannot move back to approved' USING ERRCODE = '22023';
+  END IF;
+
+  UPDATE public.finance_expense_items
+  SET status = normalized_status,
+      archived_at = CASE WHEN normalized_status = 'void' THEN now() ELSE archived_at END,
+      archived_by = CASE
+        WHEN normalized_status = 'void' THEN (SELECT auth.uid())
+        ELSE archived_by
+      END,
+      updated_by = (SELECT auth.uid())
+  WHERE id = target_expense.id;
+
+  INSERT INTO public.activity_logs (
+    organization_id,
+    entity_type,
+    entity_id,
+    action,
+    actor_id,
+    previous_values,
+    new_values
+  )
+  VALUES (
+    p_organization_id,
+    'finance_expense_item',
+    target_expense.id,
+    normalized_status,
+    (SELECT auth.uid()),
+    jsonb_build_object('status', target_expense.status),
+    jsonb_build_object('status', normalized_status)
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.post_finance_expense_item(
+  p_expense_item_id uuid,
+  p_organization_id uuid,
+  p_paid_date date DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  actor_id uuid := (SELECT auth.uid());
+  target_expense public.finance_expense_items%ROWTYPE;
+  new_ledger_entry_id uuid;
+  journal_entry_id uuid;
+  transaction_date date;
+BEGIN
+  IF actor_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
+  END IF;
+
+  IF NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT *
+  INTO target_expense
+  FROM public.finance_expense_items
+  WHERE id = p_expense_item_id
+    AND organization_id = p_organization_id
+    AND archived_at IS NULL
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Expense item not found' USING ERRCODE = '23503';
+  END IF;
+
+  IF target_expense.status IN ('posted', 'paid')
+    AND target_expense.ledger_entry_id IS NOT NULL THEN
+    RETURN target_expense.ledger_entry_id;
+  END IF;
+
+  IF target_expense.status = 'void' THEN
+    RAISE EXCEPTION 'Voided expense cannot be posted' USING ERRCODE = '22023';
+  END IF;
+
+  IF target_expense.status <> 'approved' THEN
+    RAISE EXCEPTION 'Approve the expense before posting' USING ERRCODE = '22023';
+  END IF;
+
+  IF target_expense.expense_type = 'owner_payout' THEN
+    RAISE EXCEPTION 'Use the owner distribution workflow'
+      USING ERRCODE = '22023';
+  END IF;
+
+  transaction_date := coalesce(p_paid_date, target_expense.invoice_date);
+
+  new_ledger_entry_id := app_private.create_legacy_ledger_entry_internal(
+    p_organization_id,
+    target_expense.property_id,
+    target_expense.unit_id,
+    transaction_date,
+    'expense',
+    target_expense.category,
+    target_expense.amount,
+    target_expense.currency,
+    concat_ws(' - ', target_expense.vendor_label, target_expense.description),
+    'finance_expense',
+    target_expense.id,
+    actor_id
+  );
+
+  journal_entry_id := app_private.post_legacy_ledger_accounting_internal(
+    new_ledger_entry_id,
+    NULL,
+    target_expense.expense_type,
+    target_expense.economic_scope,
+    NULL,
+    target_expense.vendor_person_id,
+    'paid',
+    actor_id
+  );
+
+  UPDATE public.finance_expense_items
+  SET ledger_entry_id = new_ledger_entry_id,
+      status = 'posted',
+      updated_by = actor_id
+  WHERE id = target_expense.id;
+
+  INSERT INTO public.activity_logs (
+    organization_id,
+    actor_id,
+    entity_type,
+    entity_id,
+    action,
+    new_values
+  )
+  VALUES (
+    p_organization_id,
+    actor_id,
+    'finance_expense_item',
+    target_expense.id,
+    'posted_to_ledger',
+    jsonb_build_object(
+      'ledger_entry_id', new_ledger_entry_id,
+      'accounting_journal_entry_id', journal_entry_id
+    )
+  );
+
+  RETURN new_ledger_entry_id;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.record_finance_income_payment(
   p_income_item_id uuid,
   p_organization_id uuid,
@@ -1097,6 +1504,8 @@ FROM PUBLIC;
 REVOKE ALL ON FUNCTION app_private.refresh_finance_expense_compatibility(uuid, uuid)
 FROM PUBLIC;
 REVOKE ALL ON FUNCTION app_private.validate_property_cash_reversal() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app_private.enforce_finance_settlement_derived_fields()
+FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.record_finance_receipt(
   uuid, uuid, numeric, date, text

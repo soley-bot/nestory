@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(44);
+SELECT plan(53);
 
 SELECT has_table('public', 'finance_receipts', 'finance_receipts exists');
 SELECT has_table('public', 'finance_receipt_allocations', 'receipt allocations exist');
@@ -308,7 +308,110 @@ INSERT INTO public.finance_expense_items (
   '00000000-0000-0000-0000-000000000101'
 );
 
+CREATE TEMP TABLE property_cash_event_state (
+  initial_income_id uuid
+) ON COMMIT DROP;
+
+GRANT SELECT, INSERT ON property_cash_event_state TO authenticated;
+
 SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$INSERT INTO property_cash_event_state (initial_income_id)
+    SELECT public.create_finance_income_item(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      NULL,
+      NULL,
+      'rent',
+      'Initial receipt tenant',
+      '2026-07-01',
+      300,
+      100,
+      '2026-07-09',
+      'Created with initial cash',
+      'INITIAL-RECEIPT'
+    )$$,
+  'initial received income creates through the compatibility RPC'
+);
+
+SELECT ok(
+  (
+    SELECT income.amount_received = 100
+      AND income.received_date = '2026-07-09'
+      AND income.status = 'partially_received'
+    FROM public.finance_income_items AS income
+    WHERE income.id = (SELECT initial_income_id FROM property_cash_event_state)
+  )
+  AND (
+    SELECT count(*) = 1
+    FROM public.finance_receipt_allocations AS allocation
+    JOIN public.finance_receipts AS receipt ON receipt.id = allocation.receipt_id
+    WHERE allocation.income_item_id = (
+      SELECT initial_income_id FROM property_cash_event_state
+    )
+      AND allocation.amount = 100
+      AND receipt.reference = 'INITIAL-RECEIPT'
+  ),
+  'initial received income is backed by one receipt allocation'
+);
+
+RESET ROLE;
+
+SELECT lives_ok(
+  $$SELECT public.post_finance_income_item(
+    (SELECT initial_income_id FROM property_cash_event_state),
+    '00000000-0000-0000-0000-000000000001'
+  )$$,
+  'received income can be posted before immutability checks'
+);
+
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$SELECT public.record_finance_receipt(
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT initial_income_id FROM property_cash_event_state),
+    25,
+    '2026-07-10',
+    'POSTED-EXTRA-RECEIPT'
+  )$$,
+  '55000',
+  'Posted income cannot accept receipt changes; reverse the ledger posting first',
+  'posted income rejects additional receipt recording'
+);
+
+SELECT throws_ok(
+  $$SELECT public.reverse_finance_receipt(
+    '00000000-0000-0000-0000-000000000001',
+    (
+      SELECT receipt.id
+      FROM public.finance_receipts AS receipt
+      JOIN public.finance_receipt_allocations AS allocation
+        ON allocation.receipt_id = receipt.id
+      WHERE allocation.income_item_id = (
+        SELECT initial_income_id FROM property_cash_event_state
+      )
+        AND receipt.reversal_of_id IS NULL
+    ),
+    '2026-07-10',
+    'POSTED-RECEIPT-REVERSAL'
+  )$$,
+  '55000',
+  'Posted income cannot reverse receipts; reverse the ledger posting first',
+  'posted income rejects receipt reversal'
+);
+
+SELECT ok(
+  (
+    SELECT status = 'posted'
+      AND ledger_entry_id IS NOT NULL
+      AND amount_received = 100
+    FROM public.finance_income_items
+    WHERE id = (SELECT initial_income_id FROM property_cash_event_state)
+  ),
+  'rejected cash changes preserve posted income compatibility state'
+);
 
 SELECT lives_ok(
   $$SELECT public.record_finance_income_payment(
@@ -380,6 +483,35 @@ SELECT throws_ok(
   '42501',
   'permission denied for table finance_receipts',
   'authenticated callers cannot mutate receipt events directly'
+);
+
+SELECT throws_ok(
+  $$UPDATE public.finance_income_items
+    SET amount_received = 499, received_date = '2026-07-10', status = 'received'
+    WHERE id = 'a1000000-0000-0000-0000-000000000001'$$,
+  '55000',
+  'Income settlement fields are event-derived',
+  'authenticated callers cannot update income settlement aggregates directly'
+);
+
+SELECT throws_ok(
+  $$UPDATE public.finance_expense_items
+    SET paid_date = '2026-07-10', status = 'paid'
+    WHERE id = 'b1000000-0000-0000-0000-000000000001'$$,
+  '55000',
+  'Expense settlement fields are event-derived',
+  'authenticated callers cannot update expense settlement aggregates directly'
+);
+
+SELECT throws_ok(
+  $$SELECT public.set_finance_expense_status(
+    'b1000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000001',
+    'paid'
+  )$$,
+  '22023',
+  'Use record_finance_payment to settle expenses',
+  'legacy paid-status shortcut is rejected'
 );
 
 SELECT throws_ok(
