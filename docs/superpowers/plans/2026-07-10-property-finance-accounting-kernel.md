@@ -33,9 +33,10 @@
 - `supabase/tests/accounting_kernel_test.sql`: pgTAP contract for schema, balanced posting, idempotency, period locks, and reversals.
 - `supabase/tests/accounting_security_test.sql`: pgTAP contract for RLS, cross-organization rejection, grants, and immutability.
 - `supabase/tests/accounting_compatibility_test.sql`: pgTAP contract for domain mappings and legacy dual-posting.
+- `supabase/tests/accounting_dual_post_test.sql`: pgTAP integration contract for current income, expense, manual ledger, and petty-cash posting RPCs.
 - `supabase/seed.sql`: invoke the idempotent historical backfill after local demo finance rows are inserted.
 - `supabase/migrations/20260710005932_property_finance_accounting_kernel.sql`: CLI-generated migration containing tables, indexes, RLS, bootstrap helpers, journal posting, reversal, and historical backfill.
-- `supabase/migrations/*_property_finance_accounting_compatibility.sql`: CLI-generated migration replacing existing finance, petty-cash, and manual-ledger posting RPCs with atomic dual-posting.
+- `supabase/migrations/20260710011833_property_finance_accounting_compatibility.sql`: CLI-generated migration replacing existing finance, petty-cash, and manual-ledger posting RPCs with atomic dual-posting.
 - `src/types/database.generated.ts`: regenerated local Supabase types.
 - `src/features/accounting/accounting.types.ts`: journal-link and posting-health application types.
 - `src/features/accounting/data/accounting-health.ts`: organization-scoped count of active legacy rows without journals.
@@ -419,7 +420,7 @@ git commit -m "feat: backfill balanced property journals"
 
 **Files:**
 - Modify: `supabase/tests/accounting_compatibility_test.sql`
-- Create via CLI: `supabase/migrations/*_property_finance_accounting_compatibility.sql`
+- Create via CLI: `supabase/migrations/20260710011833_property_finance_accounting_compatibility.sql`
 
 **Interfaces:**
 - Consumes: `post_accounting_journal` and domain classification helpers.
@@ -485,7 +486,7 @@ Expected: all database mapping tests and existing feature tests pass.
 Run:
 
 ```powershell
-git add supabase/tests/accounting_compatibility_test.sql supabase/migrations/*_property_finance_accounting_compatibility.sql
+git add supabase/tests/accounting_compatibility_test.sql supabase/migrations/20260710011833_property_finance_accounting_compatibility.sql
 git commit -m "feat: dual-post finance workflows to journals"
 ```
 
