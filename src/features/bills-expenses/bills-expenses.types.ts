@@ -77,6 +77,8 @@ export type BillsExpenseUnitOption = BillsExpenseOption & {
 export type BillsExpenseItem = {
   amount: number;
   amountDisplay: MoneyDisplayValue;
+  amountPaid: number;
+  amountPaidDisplay: MoneyDisplayValue;
   category: string;
   currency: CurrencyCode;
   description: string;
@@ -95,6 +97,8 @@ export type BillsExpenseItem = {
   isOverdue: boolean;
   ledgerEntryId: string | null;
   nextAction: string;
+  outstandingAmount: number;
+  outstandingAmountDisplay: MoneyDisplayValue;
   ownerBillStatus: BillsExpenseOwnerBillStatus;
   ownerBillStatusLabel: string;
   ownerReceivableDisplay: MoneyDisplayValue;

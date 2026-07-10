@@ -576,7 +576,9 @@ function RecordPaymentPanel({
             error={state.fieldErrors?.amountReceived?.[0]}
           >
             <NumberInput
-              defaultValue={String(item.amountReceived || item.amountDue)}
+              defaultValue={String(
+                Math.max(item.amountDue - item.amountReceived, 0),
+              )}
               name="amountReceived"
               required
             />

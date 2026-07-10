@@ -370,6 +370,12 @@ function BillsExpensesInspector({
           <Detail label="Amount">
             <MoneyDisplay value={item.amountDisplay} />
           </Detail>
+          <Detail label="Paid">
+            <MoneyDisplay value={item.amountPaidDisplay} />
+          </Detail>
+          <Detail label="Remaining">
+            <MoneyDisplay value={item.outstandingAmountDisplay} />
+          </Detail>
           <Detail label="Category">{item.category}</Detail>
           <Detail label="Invoice">{formatDate(item.invoiceDate)}</Detail>
           <Detail label="Due">
@@ -415,13 +421,13 @@ function BillsExpensesInspector({
               Approve
             </Button>
           ) : null}
-          {item.status === "approved" ? (
+          {item.status === "approved" && item.outstandingAmount > 0 ? (
             <Button onClick={() => onPost(item)} variant="primary">
               <CheckCircle2 size={15} />
               Record payment
             </Button>
           ) : null}
-          {item.status === "posted" ? (
+          {item.status === "posted" && item.outstandingAmount > 0 ? (
             <Button onClick={() => onPost(item)}>
               <CheckCircle2 size={15} />
               Record payment
@@ -631,12 +637,17 @@ function PostExpensePanel({
     <form action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
         <input name="expenseItemId" type="hidden" value={item.id} />
-        <input name="amount" type="hidden" value={String(item.amount)} />
+        <input
+          name="amount"
+          type="hidden"
+          value={String(item.outstandingAmount)}
+        />
         <input name="propertyId" type="hidden" value={item.propertyId} />
         <input name="reference" type="hidden" value={item.reference} />
         <input name="unitId" type="hidden" value={item.unitId ?? ""} />
         <p className="rounded-md border border-border bg-surface-muted p-3 text-sm">
-          Record a <strong>{item.amountDisplay.primary}</strong> property payment to{" "}
+          Record the remaining property payment of{" "}
+          <strong>{item.outstandingAmountDisplay.primary}</strong> to{" "}
           <strong>{item.vendorLabel}</strong>.
         </p>
         <Field label="Payment date" error={state.fieldErrors?.paidDate?.[0]}>

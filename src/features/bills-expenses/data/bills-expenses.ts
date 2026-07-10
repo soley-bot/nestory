@@ -35,6 +35,15 @@ type PersonRow = Pick<
   Database["public"]["Tables"]["people"]["Row"],
   "display_name" | "id"
 >;
+type PaymentAllocationRow = Pick<
+  Database["public"]["Tables"]["finance_payment_allocations"]["Row"],
+  "amount" | "expense_item_id"
+> & {
+  finance_payments: Pick<
+    Database["public"]["Tables"]["finance_payments"]["Row"],
+    "reversal_of_id"
+  > | null;
+};
 
 export async function getBillsExpensesScreenData(
   organizationId: string,
@@ -167,11 +176,32 @@ export async function getBillsExpensesScreenData(
   }
 
   const rows = (itemsResult.data ?? []) as ExpenseRow[];
+  const expenseIds = rows.map((row) => row.id);
+  const paymentAllocationsResult = expenseIds.length
+    ? await supabase
+        .from("finance_payment_allocations")
+        .select(
+          "amount, expense_item_id, finance_payments!finance_payment_allocations_payment_id_fkey(reversal_of_id)",
+        )
+        .eq("organization_id", organizationId)
+        .in("expense_item_id", expenseIds)
+    : { data: [], error: null };
+
+  if (paymentAllocationsResult.error) {
+    throw new Error(
+      `Could not load expense payment allocations: ${paymentAllocationsResult.error.message}`,
+    );
+  }
+
+  const amountPaidByExpenseId = buildAmountPaidByExpenseId(
+    (paymentAllocationsResult.data ?? []) as PaymentAllocationRow[],
+  );
   const summaryRow = summaryResult.data?.[0] ?? null;
 
   return {
     expenseItems: rows.map((row) =>
       toBillsExpenseItem({
+        amountPaid: amountPaidByExpenseId.get(row.id) ?? 0,
         propertiesById,
         row,
         today,
@@ -188,11 +218,13 @@ export async function getBillsExpensesScreenData(
 }
 
 function toBillsExpenseItem({
+  amountPaid,
   propertiesById,
   row,
   today,
   unitsById,
 }: {
+  amountPaid: number;
   propertiesById: Map<string, PropertyRow>;
   row: ExpenseRow;
   today: string;
@@ -209,10 +241,13 @@ function toBillsExpenseItem({
     Number(row.owner_reimbursable_amount ?? 0) -
       Number(row.owner_reimbursed_amount ?? 0),
   );
+  const outstandingAmount = Math.max(Number(row.amount) - amountPaid, 0);
 
   return {
     amount: row.amount,
     amountDisplay: formatMoneyDisplay(row.amount, row.currency),
+    amountPaid,
+    amountPaidDisplay: formatMoneyDisplay(amountPaid, row.currency),
     category: row.category,
     currency: row.currency,
     description: row.description ?? "",
@@ -231,6 +266,8 @@ function toBillsExpenseItem({
     isOverdue,
     ledgerEntryId: row.ledger_entry_id,
     nextAction: getNextAction(row.status as BillsExpenseStatus, isOverdue),
+    outstandingAmount,
+    outstandingAmountDisplay: formatMoneyDisplay(outstandingAmount, row.currency),
     ownerBillStatus: row.owner_bill_status as BillsExpenseItem["ownerBillStatus"],
     ownerBillStatusLabel: getOwnerBillStatusLabel(row.owner_bill_status),
     ownerReceivableDisplay: formatMoneyDisplay(ownerReceivable, row.currency),
@@ -250,6 +287,24 @@ function toBillsExpenseItem({
     vendorLabel: row.vendor_label,
     vendorPersonId: row.vendor_person_id,
   };
+}
+
+function buildAmountPaidByExpenseId(rows: PaymentAllocationRow[]) {
+  const amounts = new Map<string, number>();
+
+  for (const row of rows) {
+    const direction = row.finance_payments?.reversal_of_id ? -1 : 1;
+    amounts.set(
+      row.expense_item_id,
+      (amounts.get(row.expense_item_id) ?? 0) + Number(row.amount) * direction,
+    );
+  }
+
+  for (const [expenseItemId, amount] of amounts) {
+    amounts.set(expenseItemId, Math.max(amount, 0));
+  }
+
+  return amounts;
 }
 
 function buildBillsExpensesSummary(

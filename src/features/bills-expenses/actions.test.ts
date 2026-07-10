@@ -26,7 +26,7 @@ describe("postBillsExpenseItemAction", () => {
   it("records the submitted outstanding property payment", async () => {
     const formData = new FormData();
     formData.set("expenseItemId", "22222222-2222-4222-8222-222222222222");
-    formData.set("amount", "200");
+    formData.set("amount", "150");
     formData.set("paidDate", "2026-07-10");
     formData.set("propertyId", "33333333-3333-4333-8333-333333333333");
     formData.set("reference", "INV-200");
@@ -35,7 +35,7 @@ describe("postBillsExpenseItemAction", () => {
     const result = await postBillsExpenseItemAction({}, formData);
 
     expect(mocks.rpc).toHaveBeenCalledWith("record_finance_payment", {
-      p_amount: 200,
+      p_amount: 150,
       p_expense_item_id: "22222222-2222-4222-8222-222222222222",
       p_organization_id: "org-1",
       p_paid_date: "2026-07-10",
