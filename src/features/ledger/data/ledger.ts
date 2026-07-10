@@ -26,7 +26,7 @@ import { getQueryTokens, textMatchesToken } from "@/lib/query/screen-query";
 import { buildHref } from "@/lib/url/href";
 
 const ledgerEntrySelect =
-  "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, source_type, source_id, archived_at";
+  "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, source_type, source_id, accounting_journal_entry_id, archived_at";
 const maxRelatedSearchIds = 100;
 
 type PropertyRow = {
@@ -42,6 +42,7 @@ type UnitRow = {
 };
 
 type LedgerEntryRow = {
+  accounting_journal_entry_id: string | null;
   amount: number;
   archived_at: string | null;
   category: string;
@@ -338,6 +339,7 @@ function toLedgerEntry({
   };
 
   return {
+    accountingJournalEntryId: entry.accounting_journal_entry_id ?? undefined,
     activity,
     amount: entry.amount,
     archivedAt: entry.archived_at ?? undefined,
@@ -367,6 +369,7 @@ function toLedgerEntry({
         }
       : undefined,
     riskIndicators: buildLedgerRiskIndicators({
+      accountingJournalEntryId: entry.accounting_journal_entry_id,
       isArchived: Boolean(entry.archived_at),
       isLocked,
       recordCounts,
@@ -522,12 +525,14 @@ function buildLedgerDetailHrefs(
 }
 
 function buildLedgerRiskIndicators({
+  accountingJournalEntryId,
   isArchived,
   isLocked,
   recordCounts,
   relatedTimelineEvent,
   unitId,
 }: {
+  accountingJournalEntryId: string | null;
   isArchived: boolean;
   isLocked: boolean;
   recordCounts: LedgerRecordCounts;
@@ -535,6 +540,16 @@ function buildLedgerRiskIndicators({
   unitId: string | null;
 }): LedgerRiskIndicator[] {
   return [
+    {
+      description: accountingJournalEntryId
+        ? "A balanced accounting journal is linked to this operational row."
+        : "No balanced accounting journal is linked. Month close must remain open until this is repaired.",
+      id: "accounting",
+      label: accountingJournalEntryId
+        ? "Balanced journal linked"
+        : "Accounting journal missing",
+      tone: accountingJournalEntryId ? "success" : "danger",
+    },
     {
       description: isLocked
         ? "The accounting month is locked, so this entry cannot be changed."

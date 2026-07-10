@@ -95,6 +95,18 @@ export function LedgerInspector({
           <CompactFact label="Scope">
             {entry.unitNumber ? `Unit ${entry.unitNumber}` : "Property level"}
           </CompactFact>
+          <CompactFact label="Accounting">
+            <span
+              className={
+                entry.accountingJournalEntryId ? "text-success" : "text-danger"
+              }
+              title={entry.accountingJournalEntryId}
+            >
+              {entry.accountingJournalEntryId
+                ? "Balanced journal linked"
+                : "Accounting journal missing"}
+            </span>
+          </CompactFact>
         </div>
 
         <AttentionNote

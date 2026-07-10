@@ -505,11 +505,11 @@ function LedgerCloseStrip({
             </Badge>
           </div>
           <p className="mt-0.5 text-xs leading-5 text-muted">
-            Clear received income, approved bills, and cleared petty cash before
-            relying on owner or finance reports.
+            Clear operational queues and repair any missing accounting journals
+            before relying on owner or finance reports.
           </p>
         </div>
-        <div className="grid overflow-hidden rounded-md border border-border bg-surface-muted/25 sm:grid-cols-3">
+        <div className="grid overflow-hidden rounded-md border border-border bg-surface-muted/25 sm:grid-cols-4">
           <CloseLink
             count={closeSummary.incomeReadyToPost}
             href={closeSummary.incomeReadyHref}
@@ -524,6 +524,11 @@ function LedgerCloseStrip({
             count={closeSummary.pettyCashReadyToPost}
             href={closeSummary.pettyCashReadyHref}
             label="Cleared petty cash"
+          />
+          <CloseLink
+            count={closeSummary.accountingUnlinkedCount}
+            href={closeSummary.accountingUnlinkedHref}
+            label="Missing journals"
           />
         </div>
         <div className="grid grid-cols-2 overflow-hidden rounded-md border border-border bg-surface-muted/25">
@@ -597,7 +602,8 @@ function hasOpenCloseQueue(closeSummary: LedgerCloseSummary) {
   return (
     Number(closeSummary.incomeReadyToPost) +
       Number(closeSummary.billsReadyToPost) +
-      Number(closeSummary.pettyCashReadyToPost) >
+      Number(closeSummary.pettyCashReadyToPost) +
+      Number(closeSummary.accountingUnlinkedCount) >
     0
   );
 }

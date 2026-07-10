@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { FinanceCloseSummary } from "@/features/finance/finance.types";
+import { getAccountingPostingHealth } from "@/features/accounting/data/accounting-health";
 
 export async function getFinanceCloseSummary({
   month,
@@ -10,7 +11,8 @@ export async function getFinanceCloseSummary({
 }): Promise<FinanceCloseSummary> {
   const supabase = await createSupabaseServerClient();
   const scope = getMonthScope(month);
-  const [incomeResult, expenseResult, pettyCashResult] = await Promise.all([
+  const [incomeResult, expenseResult, pettyCashResult, accountingHealth] =
+    await Promise.all([
     supabase
       .from("finance_income_items")
       .select("id", { count: "exact", head: true })
@@ -36,6 +38,7 @@ export async function getFinanceCloseSummary({
       .is("ledger_entry_id", null)
       .gte("invoice_date", scope.from)
       .lt("invoice_date", scope.before),
+    getAccountingPostingHealth({ organizationId }),
   ]);
 
   if (incomeResult.error) {
@@ -57,6 +60,8 @@ export async function getFinanceCloseSummary({
   }
 
   return {
+    accountingUnlinkedCount: String(accountingHealth.unlinkedCount),
+    accountingUnlinkedHref: "/ledger?archiveState=active",
     billsReadyHref: `/bills-expenses?month=${month}&status=approved`,
     billsReadyToPost: String(expenseResult.count ?? 0),
     incomeReadyHref: `/rent-income?month=${month}&status=received`,

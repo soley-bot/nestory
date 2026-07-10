@@ -9,6 +9,411 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      accounting_accounts: {
+        Row: {
+          account_type: string
+          archived_at: string | null
+          archived_by: string | null
+          book_id: string
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          is_control_account: boolean
+          name: string
+          normal_balance: string
+          organization_id: string
+          system_code: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_type: string
+          archived_at?: string | null
+          archived_by?: string | null
+          book_id: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_control_account?: boolean
+          name: string
+          normal_balance: string
+          organization_id: string
+          system_code: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_type?: string
+          archived_at?: string | null
+          archived_by?: string | null
+          book_id?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_control_account?: boolean
+          name?: string
+          normal_balance?: string
+          organization_id?: string
+          system_code?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_accounts_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_books: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          book_type: string
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          id: string
+          is_default: boolean
+          name: string
+          organization_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          book_type: string
+          created_at?: string
+          created_by?: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          is_default?: boolean
+          name: string
+          organization_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          book_type?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          is_default?: boolean
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_books_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_journal_entries: {
+        Row: {
+          book_id: string
+          created_at: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          description: string
+          entry_date: string
+          id: string
+          legacy_ledger_entry_id: string | null
+          organization_id: string
+          payload_hash: string
+          posted_at: string
+          posted_by: string | null
+          posting_key: string
+          reference: string | null
+          reversal_of_id: string | null
+          reversed_by_id: string | null
+          source_id: string
+          source_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          description: string
+          entry_date: string
+          id?: string
+          legacy_ledger_entry_id?: string | null
+          organization_id: string
+          payload_hash: string
+          posted_at?: string
+          posted_by?: string | null
+          posting_key: string
+          reference?: string | null
+          reversal_of_id?: string | null
+          reversed_by_id?: string | null
+          source_id: string
+          source_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          description?: string
+          entry_date?: string
+          id?: string
+          legacy_ledger_entry_id?: string | null
+          organization_id?: string
+          payload_hash?: string
+          posted_at?: string
+          posted_by?: string | null
+          posting_key?: string
+          reference?: string | null
+          reversal_of_id?: string | null
+          reversed_by_id?: string | null
+          source_id?: string
+          source_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_journal_entries_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_entries_legacy_ledger_entry_id_fkey"
+            columns: ["legacy_ledger_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_entries_reversal_of_id_fkey"
+            columns: ["reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_entries_reversed_by_id_fkey"
+            columns: ["reversed_by_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_journal_lines: {
+        Row: {
+          account_id: string
+          created_at: string
+          credit_amount: number
+          debit_amount: number
+          description: string | null
+          id: string
+          journal_entry_id: string
+          lease_id: string | null
+          line_number: number
+          organization_id: string
+          owner_person_id: string | null
+          property_id: string | null
+          tenant_person_id: string | null
+          unit_id: string | null
+          vendor_person_id: string | null
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          credit_amount?: number
+          debit_amount?: number
+          description?: string | null
+          id?: string
+          journal_entry_id: string
+          lease_id?: string | null
+          line_number: number
+          organization_id: string
+          owner_person_id?: string | null
+          property_id?: string | null
+          tenant_person_id?: string | null
+          unit_id?: string | null
+          vendor_person_id?: string | null
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          credit_amount?: number
+          debit_amount?: number
+          description?: string | null
+          id?: string
+          journal_entry_id?: string
+          lease_id?: string | null
+          line_number?: number
+          organization_id?: string
+          owner_person_id?: string | null
+          property_id?: string | null
+          tenant_person_id?: string | null
+          unit_id?: string | null
+          vendor_person_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_journal_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_lines_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_lines_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_lines_owner_person_id_fkey"
+            columns: ["owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_lines_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_lines_tenant_person_id_fkey"
+            columns: ["tenant_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_lines_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_journal_lines_vendor_person_id_fkey"
+            columns: ["vendor_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_periods: {
+        Row: {
+          book_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          lock_reason: string | null
+          locked_at: string | null
+          locked_by: string | null
+          organization_id: string
+          period_start: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lock_reason?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          organization_id: string
+          period_start: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lock_reason?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          organization_id?: string
+          period_start?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_periods_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_periods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_logs: {
         Row: {
           action: string
@@ -1117,6 +1522,7 @@ export type Database = {
       }
       ledger_entries: {
         Row: {
+          accounting_journal_entry_id: string | null
           amount: number
           archived_at: string | null
           archived_by: string | null
@@ -1137,6 +1543,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          accounting_journal_entry_id?: string | null
           amount: number
           archived_at?: string | null
           archived_by?: string | null
@@ -1157,6 +1564,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          accounting_journal_entry_id?: string | null
           amount?: number
           archived_at?: string | null
           archived_by?: string | null
@@ -1177,6 +1585,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ledger_entries_accounting_journal_entry_id_fkey"
+            columns: ["accounting_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_journal_entries"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ledger_entries_organization_id_fkey"
             columns: ["organization_id"]
@@ -2931,6 +3346,21 @@ export type Database = {
         }
         Returns: string
       }
+      post_accounting_journal: {
+        Args: {
+          p_book_id: string
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_description: string
+          p_entry_date: string
+          p_lines: Json
+          p_organization_id: string
+          p_posting_key: string
+          p_reference: string
+          p_source_id: string
+          p_source_type: string
+        }
+        Returns: string
+      }
       post_finance_expense_item: {
         Args: {
           p_expense_item_id: string
@@ -2988,6 +3418,25 @@ export type Database = {
       restore_unit: {
         Args: { p_organization_id: string; p_unit_id: string }
         Returns: string
+      }
+      reverse_accounting_journal: {
+        Args: {
+          p_journal_id: string
+          p_organization_id: string
+          p_reason: string
+          p_reversal_date: string
+        }
+        Returns: string
+      }
+      set_accounting_period_lock: {
+        Args: {
+          p_book_id: string
+          p_locked: boolean
+          p_organization_id: string
+          p_period_start: string
+          p_reason: string
+        }
+        Returns: undefined
       }
       set_asset_photo_cover: {
         Args: { p_organization_id: string; p_photo_id: string }

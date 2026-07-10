@@ -42,6 +42,7 @@ export type LedgerNextAction = {
 };
 
 export type LedgerEntry = {
+  accountingJournalEntryId?: string;
   activity: RecentChange[];
   amount: number;
   archivedAt?: string;

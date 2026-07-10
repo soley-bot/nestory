@@ -1,4 +1,6 @@
 export type FinanceCloseSummary = {
+  accountingUnlinkedCount: string;
+  accountingUnlinkedHref: string;
   billsReadyHref: string;
   billsReadyToPost: string;
   incomeReadyHref: string;
