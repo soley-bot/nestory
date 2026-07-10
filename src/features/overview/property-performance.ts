@@ -21,6 +21,7 @@ export type OverviewUnitInputRow = {
 
 export type OverviewIncomeItemInputRow = {
   amount_due: number;
+  due_date: string;
   id: string;
   income_type: string;
   property_id: string;
@@ -29,6 +30,7 @@ export type OverviewIncomeItemInputRow = {
 export type OverviewReceiptAllocationInputRow = {
   amount: number;
   income_item_id: string;
+  received_date: string;
   reversal_of_id: string | null;
 };
 
@@ -42,6 +44,7 @@ export type OverviewExpenseItemInputRow = {
 export type OverviewPaymentAllocationInputRow = {
   amount: number;
   expense_item_id: string;
+  paid_date: string;
   reversal_of_id: string | null;
 };
 
@@ -51,11 +54,25 @@ export type OverviewDepositEventType =
   | "refunded"
   | "retained";
 
-export type OverviewDepositEventInputRow = {
+type OverviewDepositEventInputBase = {
   amount: number;
-  event_type: OverviewDepositEventType | "reversed";
+  event_date: string;
   property_id: string;
-  reversed_event_type: OverviewDepositEventType | null;
+};
+
+export type OverviewDepositEventInputRow =
+  | (OverviewDepositEventInputBase & {
+      event_type: OverviewDepositEventType;
+      reversed_event_type: null;
+    })
+  | (OverviewDepositEventInputBase & {
+      event_type: "reversed";
+      reversed_event_type: OverviewDepositEventType;
+    });
+
+export type OverviewMonthScope = {
+  before: string;
+  from: string;
 };
 
 export type OverviewPropertyCountInputRow = {
@@ -72,6 +89,7 @@ export type OverviewPropertyPerformanceInput = {
   depositEvents: OverviewDepositEventInputRow[];
   expenseItems: OverviewExpenseItemInputRow[];
   incomeItems: OverviewIncomeItemInputRow[];
+  monthScope: OverviewMonthScope;
   openBills: OverviewPropertyCountInputRow[];
   paymentAllocations: OverviewPaymentAllocationInputRow[];
   properties: OverviewPropertyInputRow[];
@@ -86,6 +104,7 @@ type PropertyAccumulator = {
   cashIncomeAmount: number;
   managementFeeEarnedAmount: number;
   managementFeeOutstandingAmount: number;
+  managementFeeReceivedAmount: number;
   openBillCount: number;
   rentDueAmount: number;
   rentReceivedAmount: number;
@@ -99,6 +118,13 @@ const statusOrder: Record<OverviewPropertyPerformanceRow["status"], number> = {
   attention: 2,
   healthy: 3,
 };
+
+const managementCompanyFeeTypes = new Set([
+  "leasing_commission",
+  "maintenance_markup",
+  "management_fee",
+  "service_fee",
+]);
 
 export function buildOverviewPropertyPerformance(
   input: OverviewPropertyPerformanceInput,
@@ -123,14 +149,17 @@ export function buildOverviewPropertyPerformance(
     const amountDue = Number(item.amount_due);
     const receivedAmount = receiptAmountByIncomeItemId.get(item.id) ?? 0;
 
-    if (item.income_type === "rent") {
+    if (item.income_type === "rent" && isDateInScope(item.due_date, input.monthScope)) {
       totals.rentDueAmount += amountDue;
       totals.rentReceivedAmount += clamp(receivedAmount, 0, amountDue);
       totals.arrearsAmount += Math.max(amountDue - receivedAmount, 0);
     }
 
-    if (item.income_type === "management_fee") {
-      totals.managementFeeEarnedAmount += receivedAmount;
+    if (
+      isManagementCompanyFee(item.income_type) &&
+      isDateInScope(item.due_date, input.monthScope)
+    ) {
+      totals.managementFeeEarnedAmount += amountDue;
       totals.managementFeeOutstandingAmount += Math.max(amountDue - receivedAmount, 0);
     }
   }
@@ -140,9 +169,12 @@ export function buildOverviewPropertyPerformance(
     const totals = item ? accumulators.get(item.property_id) : undefined;
     if (!item || !totals) continue;
 
+    if (!isDateInScope(allocation.received_date, input.monthScope)) continue;
+
     const signedAmount = signed(allocation.amount, allocation.reversal_of_id);
-    if (item.income_type === "management_fee") {
+    if (isManagementCompanyFee(item.income_type)) {
       totals.cashExpensesAmount += signedAmount;
+      totals.managementFeeReceivedAmount += signedAmount;
     } else if (
       item.income_type !== "security_deposit" &&
       item.income_type !== "owner_contribution"
@@ -163,12 +195,15 @@ export function buildOverviewPropertyPerformance(
       continue;
     }
 
+    if (!isDateInScope(allocation.paid_date, input.monthScope)) continue;
+
     totals.cashExpensesAmount += signed(allocation.amount, allocation.reversal_of_id);
   }
 
   for (const event of input.depositEvents) {
     const totals = accumulators.get(event.property_id);
     if (!totals) continue;
+    if (event.event_date >= input.monthScope.before) continue;
     totals.securityDepositHeldAmount += getDepositBalanceEffect(event);
   }
 
@@ -207,6 +242,7 @@ function emptyAccumulator(): PropertyAccumulator {
     cashIncomeAmount: 0,
     managementFeeEarnedAmount: 0,
     managementFeeOutstandingAmount: 0,
+    managementFeeReceivedAmount: 0,
     openBillCount: 0,
     rentDueAmount: 0,
     rentReceivedAmount: 0,
@@ -236,12 +272,15 @@ function signed(amount: number, reversalOfId: string | null) {
 
 function getDepositBalanceEffect(event: OverviewDepositEventInputRow) {
   if (event.event_type === "reversed") {
+    if (!event.reversed_event_type) {
+      throw new Error("Deposit reversal must identify the reversed event type");
+    }
     return -depositDirection(event.reversed_event_type) * Number(event.amount);
   }
   return depositDirection(event.event_type) * Number(event.amount);
 }
 
-function depositDirection(eventType: OverviewDepositEventType | null) {
+function depositDirection(eventType: OverviewDepositEventType) {
   return eventType === "received" ? 1 : -1;
 }
 
@@ -271,6 +310,7 @@ function toPerformanceRow({
   const managementFeeOutstandingAmount = roundMoney(
     totals.managementFeeOutstandingAmount,
   );
+  const managementFeeReceivedAmount = roundMoney(totals.managementFeeReceivedAmount);
   const netCashAmount = roundMoney(cashIncomeAmount - cashExpensesAmount);
   const collectionRate = percentage(totals.rentReceivedAmount, totals.rentDueAmount);
   const status = getStatus({
@@ -295,6 +335,8 @@ function toPerformanceRow({
     managementFeeEarned: formatMoneyDisplay(managementFeeEarnedAmount, currency),
     managementFeeEarnedAmount,
     managementFeeOutstandingAmount,
+    managementFeeReceived: formatMoneyDisplay(managementFeeReceivedAmount, currency),
+    managementFeeReceivedAmount,
     netCash: formatMoneyDisplay(netCashAmount, currency),
     netCashAmount,
     propertyId: property.id,
@@ -333,6 +375,8 @@ function buildSummary(
         summary.managementFeeEarnedAmount + row.managementFeeEarnedAmount,
       managementFeeOutstandingAmount:
         summary.managementFeeOutstandingAmount + row.managementFeeOutstandingAmount,
+      managementFeeReceivedAmount:
+        summary.managementFeeReceivedAmount + row.managementFeeReceivedAmount,
       rentDueAmount:
         summary.rentDueAmount +
         (accumulators.get(row.propertyId)?.rentDueAmount ?? 0),
@@ -346,6 +390,7 @@ function buildSummary(
       cashIncomeAmount: 0,
       managementFeeEarnedAmount: 0,
       managementFeeOutstandingAmount: 0,
+      managementFeeReceivedAmount: 0,
       rentDueAmount: 0,
       rentReceivedAmount: 0,
     },
@@ -361,6 +406,7 @@ function buildSummary(
     managementFeeOutstandingAmount: roundMoney(
       totals.managementFeeOutstandingAmount,
     ),
+    managementFeeReceivedAmount: roundMoney(totals.managementFeeReceivedAmount),
     netCashAmount: roundMoney(
       totals.cashIncomeAmount - totals.cashExpensesAmount,
     ),
@@ -400,6 +446,14 @@ function compareRows(
 function percentage(numerator: number, denominator: number) {
   if (denominator <= 0) return 0;
   return Math.round(clamp((numerator / denominator) * 100, 0, 100));
+}
+
+function isManagementCompanyFee(incomeType: string) {
+  return managementCompanyFeeTypes.has(incomeType);
+}
+
+function isDateInScope(date: string, scope: OverviewMonthScope) {
+  return date >= scope.from && date < scope.before;
 }
 
 function clamp(value: number, minimum: number, maximum: number) {

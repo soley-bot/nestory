@@ -41,6 +41,7 @@ describe("buildOverviewPropertyPerformance", () => {
       cashExpensesAmount: 572.6,
       cashIncomeAmount: 1_400,
       managementFeeEarnedAmount: 112,
+      managementFeeReceivedAmount: 112,
       managementFeeOutstandingAmount: 0,
       netCashAmount: 827.4,
       securityDepositHeldAmount: 1_400,
@@ -59,6 +60,95 @@ describe("buildOverviewPropertyPerformance", () => {
     expect(result.rows[0]?.collectionRate).toBe(64);
     expect(result.rows[0]?.arrearsAmount).toBe(500);
     expect(result.rows[0]?.status).toBe("arrears");
+  });
+
+  it("separates charge month collection from settlement month cash", () => {
+    const result = buildOverviewPropertyPerformance(
+      fixture({
+        incomeItems: [
+          income("june-rent", 100, "rent", propertyId, "2026-06-15"),
+          income("july-rent", 200, "rent", propertyId, "2026-07-15"),
+        ],
+        receiptAllocations: [
+          receipt("june-rent", 100, false, "2026-07-03"),
+          receipt("july-rent", 200, false, "2026-08-03"),
+        ],
+      }),
+    );
+
+    expect(result.rows[0]).toMatchObject({
+      arrearsAmount: 0,
+      cashIncomeAmount: 100,
+      collectionRate: 100,
+    });
+  });
+
+  it("recognizes receipt and payment reversals in the reversal month", () => {
+    const result = buildOverviewPropertyPerformance(
+      fixture({
+        monthScope: { before: "2026-09-01", from: "2026-08-01" },
+        expenseItems: [expense("repair")],
+        incomeItems: [income("june-rent", 100, "rent", propertyId, "2026-06-15")],
+        paymentAllocations: [
+          payment("repair", 50, false, "2026-07-04"),
+          payment("repair", 50, true, "2026-08-04"),
+        ],
+        receiptAllocations: [
+          receipt("june-rent", 100, false, "2026-07-03"),
+          receipt("june-rent", 100, true, "2026-08-03"),
+        ],
+      }),
+    );
+
+    expect(result.rows[0]).toMatchObject({
+      cashExpensesAmount: -50,
+      cashIncomeAmount: -100,
+      collectionRate: 0,
+      netCashAmount: -50,
+    });
+  });
+
+  it.each([
+    "management_fee",
+    "leasing_commission",
+    "service_fee",
+    "maintenance_markup",
+  ])("treats %s as a management-company fee", (feeType) => {
+    const result = buildOverviewPropertyPerformance(
+      fixture({
+        incomeItems: [income(feeType, 25, feeType)],
+        receiptAllocations: [receipt(feeType, 25)],
+      }),
+    );
+
+    expect(result.rows[0]).toMatchObject({
+      cashExpensesAmount: 25,
+      cashIncomeAmount: 0,
+      managementFeeEarnedAmount: 25,
+      managementFeeReceivedAmount: 25,
+      managementFeeOutstandingAmount: 0,
+    });
+  });
+
+  it("separates earned, received, and outstanding management fees", () => {
+    const result = buildOverviewPropertyPerformance(
+      fixture({
+        incomeItems: [income("fee", 100, "management_fee")],
+        receiptAllocations: [receipt("fee", 40)],
+      }),
+    );
+
+    expect(result.rows[0]).toMatchObject({
+      managementFeeEarnedAmount: 100,
+      managementFeeReceived: { primary: "USD 40.00" },
+      managementFeeReceivedAmount: 40,
+      managementFeeOutstandingAmount: 60,
+    });
+    expect(result.summary).toMatchObject({
+      managementFeeEarnedAmount: 100,
+      managementFeeReceivedAmount: 40,
+      managementFeeOutstandingAmount: 60,
+    });
   });
 
   it("subtracts traceable reversals from cash, fees, and deposits", () => {
@@ -91,11 +181,26 @@ describe("buildOverviewPropertyPerformance", () => {
       arrearsAmount: 250,
       cashExpensesAmount: 60,
       cashIncomeAmount: 750,
-      managementFeeEarnedAmount: 60,
+      managementFeeEarnedAmount: 80,
+      managementFeeReceivedAmount: 60,
       managementFeeOutstandingAmount: 20,
       netCashAmount: 690,
       securityDepositHeldAmount: 0,
     });
+  });
+
+  it("rejects a malformed deposit reversal instead of increasing held cash", () => {
+    const malformedEvent = {
+      amount: 700,
+      event_date: "2026-07-10",
+      event_type: "reversed",
+      property_id: propertyId,
+      reversed_event_type: null,
+    } as unknown as OverviewPropertyPerformanceInput["depositEvents"][number];
+
+    expect(() =>
+      buildOverviewPropertyPerformance(fixture({ depositEvents: [malformedEvent] })),
+    ).toThrow("Deposit reversal must identify the reversed event type");
   });
 
   it("filters every review and ranks weak properties deterministically", () => {
@@ -198,6 +303,7 @@ function fixture(
     depositEvents: [],
     expenseItems: [],
     incomeItems: [],
+    monthScope: { before: "2026-08-01", from: "2026-07-01" },
     openBills: [],
     paymentAllocations: [],
     properties: [{ code: "P1", id: propertyId, name: "Property One" }],
@@ -213,19 +319,27 @@ function income(
   amountDue: number,
   incomeType = "rent",
   targetPropertyId = propertyId,
+  dueDate = "2026-07-15",
 ) {
   return {
     amount_due: amountDue,
+    due_date: dueDate,
     id,
     income_type: incomeType,
     property_id: targetPropertyId,
   };
 }
 
-function receipt(incomeItemId: string, amount: number, isReversal = false) {
+function receipt(
+  incomeItemId: string,
+  amount: number,
+  isReversal = false,
+  receivedDate = "2026-07-20",
+) {
   return {
     amount,
     income_item_id: incomeItemId,
+    received_date: receivedDate,
     reversal_of_id: isReversal ? `original-${incomeItemId}` : null,
   };
 }
@@ -243,10 +357,16 @@ function expense(
   };
 }
 
-function payment(expenseItemId: string, amount: number, isReversal = false) {
+function payment(
+  expenseItemId: string,
+  amount: number,
+  isReversal = false,
+  paidDate = "2026-07-21",
+) {
   return {
     amount,
     expense_item_id: expenseItemId,
+    paid_date: paidDate,
     reversal_of_id: isReversal ? `original-${expenseItemId}` : null,
   };
 }
@@ -256,11 +376,27 @@ function depositEvent(
   eventType: OverviewPropertyPerformanceInput["depositEvents"][number]["event_type"] =
     "received",
   reversedEventType: "applied" | "received" | "refunded" | "retained" | null = null,
+  eventDate = "2026-07-10",
 ): OverviewPropertyPerformanceInput["depositEvents"][number] {
+  if (eventType === "reversed") {
+    if (!reversedEventType) {
+      throw new Error("Reversed test deposits require an original event type");
+    }
+
+    return {
+      amount,
+      event_date: eventDate,
+      event_type: "reversed",
+      property_id: propertyId,
+      reversed_event_type: reversedEventType,
+    };
+  }
+
   return {
     amount,
+    event_date: eventDate,
     event_type: eventType,
     property_id: propertyId,
-    reversed_event_type: reversedEventType,
+    reversed_event_type: null,
   };
 }

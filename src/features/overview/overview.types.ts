@@ -130,6 +130,8 @@ export type OverviewPropertyPerformanceRow = {
   managementFeeEarned: MoneyDisplayValue;
   managementFeeEarnedAmount: number;
   managementFeeOutstandingAmount: number;
+  managementFeeReceived: MoneyDisplayValue;
+  managementFeeReceivedAmount: number;
   netCash: MoneyDisplayValue;
   netCashAmount: number;
   propertyId: string;
@@ -152,6 +154,7 @@ export type OverviewPortfolioSummary = {
   collectionRate: number;
   managementFeeEarnedAmount: number;
   managementFeeOutstandingAmount: number;
+  managementFeeReceivedAmount: number;
   netCashAmount: number;
   statementReadiness: OverviewStatementReadiness;
 };
