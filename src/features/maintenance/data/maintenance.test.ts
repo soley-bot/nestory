@@ -166,6 +166,9 @@ describe("maintenance route contracts", () => {
     expect(buildMaintenanceHrefs(task).task).toBe(
       "/maintenance?archiveState=all&taskId=task-1",
     );
+    expect(buildMaintenanceHrefs(task).unit).toBe(
+      "/units/unit-1?section=maintenance&sourceTaskId=task-1",
+    );
   });
 });
 

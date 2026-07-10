@@ -11,6 +11,7 @@ import {
 } from "@/features/units/components/unit-drawer-panels";
 import { UnitDetailView } from "@/features/units/components/unit-detail-view";
 import { UnitForm } from "@/features/units/components/unit-form";
+import type { UnitRecordSection } from "@/features/units/unit-detail-route";
 import type {
   UnitDetail,
   UnitPropertyOption,
@@ -22,12 +23,16 @@ type DrawerState =
   | { mode: "restore"; unit: UnitDetail };
 
 type UnitDetailScreenProps = {
+  activeSection: UnitRecordSection;
   propertyOptions: UnitPropertyOption[];
+  sourceTaskId?: string;
   unit: UnitDetail;
 };
 
 export function UnitDetailScreen({
+  activeSection,
   propertyOptions,
+  sourceTaskId,
   unit,
 }: UnitDetailScreenProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
@@ -88,7 +93,11 @@ export function UnitDetailScreen({
         </div>
       ) : null}
 
-      <UnitDetailView unit={unit} />
+      <UnitDetailView
+        activeSection={activeSection}
+        sourceTaskId={sourceTaskId}
+        unit={unit}
+      />
 
       {drawer ? (
         <SideDrawer

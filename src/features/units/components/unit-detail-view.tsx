@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import type { ReactNode } from "react";
 import {
   ArrowLeft,
@@ -22,6 +21,11 @@ import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { PhotoGallery } from "@/features/photos/components/photo-gallery";
 import { formatUnitTimelineContext } from "@/features/units/data/unit-summary";
+import {
+  buildUnitRecordHref,
+  getUnitRecordReturnLink,
+  type UnitRecordSection,
+} from "@/features/units/unit-detail-route";
 import type {
   UnitDetail,
   UnitDocumentContext,
@@ -35,16 +39,6 @@ import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
-
-type UnitRecordSection =
-  | "overview"
-  | "photos"
-  | "lease"
-  | "finance"
-  | "maintenance"
-  | "documents"
-  | "reports"
-  | "timeline";
 
 const unitRecordSections: Array<{
   id: UnitRecordSection;
@@ -110,23 +104,32 @@ const unitReportTemplates: Array<{
   },
 ];
 
-export function UnitDetailView({ unit }: { unit: UnitDetail }) {
-  const [activeSection, setActiveSection] =
-    useState<UnitRecordSection>("overview");
+export function UnitDetailView({
+  activeSection,
+  sourceTaskId,
+  unit,
+}: {
+  activeSection: UnitRecordSection;
+  sourceTaskId?: string;
+  unit: UnitDetail;
+}) {
   const reportMonth = getBusinessMonthValue();
+  const returnLink = getUnitRecordReturnLink(sourceTaskId);
 
   return (
     <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
       <Link
         className="inline-flex w-fit items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-accent"
-        href="/units"
+        href={returnLink.href}
+        prefetch={false}
       >
         <ArrowLeft size={15} />
-        Units
+        {returnLink.label}
       </Link>
       <UnitRecordNav
         activeSection={activeSection}
-        onSectionChange={setActiveSection}
+        sourceTaskId={sourceTaskId}
+        unitId={unit.id}
       />
 
       <div className="min-h-0 flex-1 overflow-auto pr-1">
@@ -512,10 +515,12 @@ export function UnitDetailView({ unit }: { unit: UnitDetail }) {
 
 function UnitRecordNav({
   activeSection,
-  onSectionChange,
+  sourceTaskId,
+  unitId,
 }: {
   activeSection: UnitRecordSection;
-  onSectionChange: (section: UnitRecordSection) => void;
+  sourceTaskId?: string;
+  unitId: string;
 }) {
   return (
     <nav
@@ -524,19 +529,25 @@ function UnitRecordNav({
     >
       <div className="flex min-w-max items-center gap-1.5" role="tablist">
         {unitRecordSections.map((item) => (
-          <button
+          <Link
             aria-selected={activeSection === item.id}
             className={cn(
               "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
               activeSection === item.id && "bg-accent-soft text-foreground",
             )}
+            href={buildUnitRecordHref({
+              section: item.id,
+              sourceTaskId,
+              unitId,
+            })}
             key={item.id}
-            onClick={() => onSectionChange(item.id)}
+            prefetch={false}
+            replace
             role="tab"
-            type="button"
+            scroll={false}
           >
             {item.label}
-          </button>
+          </Link>
         ))}
       </div>
     </nav>

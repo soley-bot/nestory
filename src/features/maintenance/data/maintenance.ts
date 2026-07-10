@@ -33,6 +33,7 @@ import type {
   MaintenanceUnitOption,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
+import { buildUnitRecordHref } from "@/features/units/unit-detail-route";
 import type { Json } from "@/types/database";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { formatDate } from "@/lib/dates/format";
@@ -1070,7 +1071,13 @@ export function buildMaintenanceHrefs(task: MaintenanceTaskRow) {
           eventId: task.timeline_event_id,
         })
       : undefined,
-    unit: task.unit_id ? `/units/${task.unit_id}` : undefined,
+    unit: task.unit_id
+      ? buildUnitRecordHref({
+          section: "maintenance",
+          sourceTaskId: task.id,
+          unitId: task.unit_id,
+        })
+      : undefined,
     vendor: task.vendor_person_id
       ? buildHref("/people", {
           archiveState: "all",

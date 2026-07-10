@@ -2,15 +2,18 @@ import { notFound } from "next/navigation";
 import { UnitDetailScreen } from "@/features/units/components/unit-detail-screen";
 import { getPropertySummaries } from "@/features/properties/data/properties";
 import { getUnitDetail } from "@/features/units/data/units";
+import { parseUnitDetailQuery } from "@/features/units/unit-detail-route";
 import type { UnitPropertyOption } from "@/features/units/unit.types";
 import { requireAdminContext } from "@/lib/auth/context";
 
 type UnitPageProps = {
   params: Promise<{ unitId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function UnitPage({ params }: UnitPageProps) {
-  const { unitId } = await params;
+export default async function UnitPage({ params, searchParams }: UnitPageProps) {
+  const [{ unitId }, rawSearchParams] = await Promise.all([params, searchParams]);
+  const { section, sourceTaskId } = parseUnitDetailQuery(rawSearchParams);
   const context = await requireAdminContext();
   const [unit, properties] = await Promise.all([
     getUnitDetail(context.organizationId, unitId),
@@ -23,7 +26,9 @@ export default async function UnitPage({ params }: UnitPageProps) {
 
   return (
     <UnitDetailScreen
+      activeSection={section}
       propertyOptions={toPropertyOptions(properties)}
+      sourceTaskId={sourceTaskId}
       unit={unit}
     />
   );
