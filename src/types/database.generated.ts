@@ -907,6 +907,238 @@ export type Database = {
           },
         ]
       }
+      finance_payment_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          expense_item_id: string
+          id: string
+          organization_id: string
+          payment_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          expense_item_id: string
+          id?: string
+          organization_id: string
+          payment_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          expense_item_id?: string
+          id?: string
+          organization_id?: string
+          payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_payment_allocations_expense_item_id_fkey"
+            columns: ["expense_item_id"]
+            isOneToOne: false
+            referencedRelation: "finance_expense_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_payment_allocations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_payment_allocations_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "finance_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      finance_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          id: string
+          organization_id: string
+          paid_date: string
+          payee_label: string
+          property_id: string
+          reference: string | null
+          reversal_of_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          organization_id: string
+          paid_date: string
+          payee_label: string
+          property_id: string
+          reference?: string | null
+          reversal_of_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          organization_id?: string
+          paid_date?: string
+          payee_label?: string
+          property_id?: string
+          reference?: string | null
+          reversal_of_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_payments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_payments_reversal_of_id_fkey"
+            columns: ["reversal_of_id"]
+            isOneToOne: true
+            referencedRelation: "finance_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      finance_receipt_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          id: string
+          income_item_id: string
+          organization_id: string
+          receipt_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          income_item_id: string
+          organization_id: string
+          receipt_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          income_item_id?: string
+          organization_id?: string
+          receipt_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_receipt_allocations_income_item_id_fkey"
+            columns: ["income_item_id"]
+            isOneToOne: false
+            referencedRelation: "finance_income_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_receipt_allocations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_receipt_allocations_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "finance_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      finance_receipts: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          id: string
+          organization_id: string
+          payer_label: string
+          property_id: string
+          received_date: string
+          reference: string | null
+          reversal_of_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          organization_id: string
+          payer_label: string
+          property_id: string
+          received_date: string
+          reference?: string | null
+          reversal_of_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          organization_id?: string
+          payer_label?: string
+          property_id?: string
+          received_date?: string
+          reference?: string | null
+          reversal_of_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_receipts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_receipts_reversal_of_id_fkey"
+            columns: ["reversal_of_id"]
+            isOneToOne: true
+            referencedRelation: "finance_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_mappings: {
         Row: {
           created_at: string
@@ -1109,6 +1341,80 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lease_deposit_events: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          event_date: string
+          event_type: string
+          id: string
+          lease_deposit_id: string
+          organization_id: string
+          property_id: string
+          reference: string | null
+          reversal_of_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          event_date: string
+          event_type: string
+          id?: string
+          lease_deposit_id: string
+          organization_id: string
+          property_id: string
+          reference?: string | null
+          reversal_of_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          event_date?: string
+          event_type?: string
+          id?: string
+          lease_deposit_id?: string
+          organization_id?: string
+          property_id?: string
+          reference?: string | null
+          reversal_of_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_deposit_events_lease_deposit_id_fkey"
+            columns: ["lease_deposit_id"]
+            isOneToOne: false
+            referencedRelation: "lease_deposits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_deposit_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_deposit_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_deposit_events_reversal_of_id_fkey"
+            columns: ["reversal_of_id"]
+            isOneToOne: true
+            referencedRelation: "lease_deposit_events"
             referencedColumns: ["id"]
           },
         ]
@@ -3386,6 +3692,26 @@ export type Database = {
           p_reference: string
         }
         Returns: undefined
+      }
+      record_finance_payment: {
+        Args: {
+          p_amount: number
+          p_expense_item_id: string
+          p_organization_id: string
+          p_paid_date: string
+          p_reference?: string
+        }
+        Returns: string
+      }
+      record_finance_receipt: {
+        Args: {
+          p_amount: number
+          p_income_item_id: string
+          p_organization_id: string
+          p_received_date: string
+          p_reference?: string
+        }
+        Returns: string
       }
       restore_document: {
         Args: { p_document_id: string; p_organization_id: string }

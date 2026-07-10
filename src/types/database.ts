@@ -333,6 +333,26 @@ type RpcFunctionOverrides = {
       p_reference: string | null;
     }
   >;
+  record_finance_payment: WithArgs<
+    "record_finance_payment",
+    {
+      p_amount: number;
+      p_expense_item_id: string;
+      p_organization_id: string;
+      p_paid_date: string;
+      p_reference?: string | null;
+    }
+  >;
+  record_finance_receipt: WithArgs<
+    "record_finance_receipt",
+    {
+      p_amount: number;
+      p_income_item_id: string;
+      p_organization_id: string;
+      p_received_date: string;
+      p_reference?: string | null;
+    }
+  >;
   update_document: WithArgs<
     "update_document",
     {
