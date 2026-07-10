@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(53);
+SELECT plan(57);
 
 SELECT has_table('public', 'finance_receipts', 'finance_receipts exists');
 SELECT has_table('public', 'finance_receipt_allocations', 'receipt allocations exist');
@@ -315,6 +315,78 @@ CREATE TEMP TABLE property_cash_event_state (
 GRANT SELECT, INSERT ON property_cash_event_state TO authenticated;
 
 SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$INSERT INTO public.finance_income_items (
+    id, organization_id, property_id, income_type, payer_label, due_date,
+    received_date, amount_due, amount_received, currency, status, created_by, updated_by
+  ) VALUES (
+    'a3000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'rent', 'Direct settled tenant', '2026-07-01', '2026-07-01',
+    100, 100, 'USD', 'received',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  )$$,
+  '55000',
+  'Income settlement fields are event-derived',
+  'direct settled income inserts are rejected'
+);
+
+SELECT lives_ok(
+  $$INSERT INTO public.finance_income_items (
+    id, organization_id, property_id, income_type, payer_label, due_date,
+    amount_due, amount_received, currency, status, created_by, updated_by
+  ) VALUES (
+    'a3000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'rent', 'Direct open tenant', '2026-07-01',
+    100, 0, 'USD', 'open',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  )$$,
+  'ordinary zero-cash income inserts remain valid'
+);
+
+SELECT throws_ok(
+  $$INSERT INTO public.finance_expense_items (
+    id, organization_id, property_id, expense_type, vendor_label, invoice_date,
+    paid_date, amount, currency, category, status, economic_scope,
+    owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount,
+    company_loss_amount, created_by, updated_by
+  ) VALUES (
+    'b3000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'maintenance', 'Direct paid vendor', '2026-07-01', '2026-07-01',
+    100, 'USD', 'Repair', 'paid', 'property_expense', 'not_billable', 0, 0, 0,
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  )$$,
+  '55000',
+  'Expense settlement fields are event-derived',
+  'direct paid expense inserts are rejected'
+);
+
+SELECT lives_ok(
+  $$INSERT INTO public.finance_expense_items (
+    id, organization_id, property_id, expense_type, vendor_label, invoice_date,
+    amount, currency, category, status, economic_scope, owner_bill_status,
+    owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount,
+    created_by, updated_by
+  ) VALUES (
+    'b3000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'maintenance', 'Direct draft vendor', '2026-07-01',
+    100, 'USD', 'Repair', 'draft', 'property_expense', 'not_billable', 0, 0, 0,
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  )$$,
+  'ordinary unpaid expense inserts remain valid'
+);
 
 SELECT lives_ok(
   $$INSERT INTO property_cash_event_state (initial_income_id)

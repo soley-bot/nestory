@@ -238,6 +238,19 @@ BEGIN
   WHERE table_record.oid = TG_RELID;
 
   IF TG_TABLE_NAME = 'finance_income_items' THEN
+    IF TG_OP = 'INSERT' THEN
+      IF (
+        NEW.amount_received <> 0
+        OR NEW.received_date IS NOT NULL
+        OR NEW.status IN ('partially_received', 'received', 'posted')
+      ) AND current_user <> table_owner THEN
+        RAISE EXCEPTION 'Income settlement fields are event-derived'
+          USING ERRCODE = '55000';
+      END IF;
+
+      RETURN NEW;
+    END IF;
+
     IF (
       NEW.amount_received IS DISTINCT FROM OLD.amount_received
       OR NEW.received_date IS DISTINCT FROM OLD.received_date
@@ -250,6 +263,18 @@ BEGIN
         USING ERRCODE = '55000';
     END IF;
   ELSIF TG_TABLE_NAME = 'finance_expense_items' THEN
+    IF TG_OP = 'INSERT' THEN
+      IF (
+        NEW.paid_date IS NOT NULL
+        OR NEW.status = 'paid'
+      ) AND current_user <> table_owner THEN
+        RAISE EXCEPTION 'Expense settlement fields are event-derived'
+          USING ERRCODE = '55000';
+      END IF;
+
+      RETURN NEW;
+    END IF;
+
     IF (
       NEW.paid_date IS DISTINCT FROM OLD.paid_date
       OR (
@@ -267,13 +292,13 @@ END;
 $$;
 
 CREATE TRIGGER enforce_finance_income_settlement_derived_fields
-BEFORE UPDATE OF amount_received, received_date, status
+BEFORE INSERT OR UPDATE OF amount_received, received_date, status
 ON public.finance_income_items
 FOR EACH ROW
 EXECUTE FUNCTION app_private.enforce_finance_settlement_derived_fields();
 
 CREATE TRIGGER enforce_finance_expense_settlement_derived_fields
-BEFORE UPDATE OF paid_date, status
+BEFORE INSERT OR UPDATE OF paid_date, status
 ON public.finance_expense_items
 FOR EACH ROW
 EXECUTE FUNCTION app_private.enforce_finance_settlement_derived_fields();
