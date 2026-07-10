@@ -26,6 +26,7 @@
 *.pem
 /.codex/
 /.codex-artifacts/
+/.superpowers/
 /.temp/
 /.worktrees/
 
