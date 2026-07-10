@@ -18,13 +18,6 @@ const overviewLenses: OverviewLens[] = [
   "maintenance",
   "records",
 ];
-const overviewFinanceViews: OverviewFinanceView[] = [
-  "collections",
-  "expenses",
-  "management-fees",
-  "owner-statements",
-  "transactions",
-];
 const overviewReviews: OverviewReview[] = [
   "all",
   "negative",
@@ -32,13 +25,6 @@ const overviewReviews: OverviewReview[] = [
   "bills",
   "statement-blocked",
 ];
-const legacyFinanceViews: Record<string, OverviewFinanceView> = {
-  "company-pnl": "collections",
-  ledger: "transactions",
-  "owner-receivables": "management-fees",
-  "property-ranking": "collections",
-};
-
 export function parseOverviewSearchParams(
   params: Record<string, SearchParamValue>,
   currentDate = new Date(),
@@ -77,13 +63,23 @@ export function getOverviewMonthScope(month: string) {
 }
 
 function normalizeFinanceView(value: string | undefined): OverviewFinanceView {
-  if (value && legacyFinanceViews[value]) {
-    return legacyFinanceViews[value];
+  switch (value) {
+    case "collections":
+    case "expenses":
+    case "management-fees":
+    case "owner-statements":
+    case "transactions":
+      return value;
+    case "company-pnl":
+    case "property-ranking":
+      return "collections";
+    case "owner-receivables":
+      return "management-fees";
+    case "ledger":
+      return "transactions";
+    default:
+      return "collections";
   }
-
-  return overviewFinanceViews.includes(value as OverviewFinanceView)
-    ? (value as OverviewFinanceView)
-    : "collections";
 }
 
 function normalizeOverviewLens(value: SearchParamValue): OverviewLens {

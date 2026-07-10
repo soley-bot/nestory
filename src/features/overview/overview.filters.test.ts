@@ -37,6 +37,15 @@ describe("parseOverviewSearchParams", () => {
     });
   });
 
+  it.each(["constructor", "__proto__"])(
+    "rejects inherited object key %s as a finance view",
+    (financeView) => {
+      expect(
+        parseOverviewSearchParams({ financeView }, new Date("2026-07-10")),
+      ).toMatchObject({ financeView: "collections" });
+    },
+  );
+
   it("normalizes invalid values and builds an exclusive month range", () => {
     expect(
       parseOverviewSearchParams(
