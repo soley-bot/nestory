@@ -117,6 +117,50 @@ export type OverviewCompanyFinanceSummary = {
   properties: OverviewCompanyFinanceProperty[];
 };
 
+export type OverviewPropertyPerformanceRow = {
+  arrears: MoneyDisplayValue;
+  arrearsAmount: number;
+  cashExpenses: MoneyDisplayValue;
+  cashExpensesAmount: number;
+  cashIncome: MoneyDisplayValue;
+  cashIncomeAmount: number;
+  collectionRate: number;
+  href: string;
+  label: string;
+  managementFeeEarned: MoneyDisplayValue;
+  managementFeeEarnedAmount: number;
+  managementFeeOutstandingAmount: number;
+  netCash: MoneyDisplayValue;
+  netCashAmount: number;
+  propertyId: string;
+  securityDepositHeldAmount: number;
+  statementBlockers: number;
+  status: "healthy" | "attention" | "arrears" | "loss";
+  unitCount: number;
+};
+
+export type OverviewStatementReadiness = {
+  blockedCount: number;
+  readyCount: number;
+  totalCount: number;
+};
+
+export type OverviewPortfolioSummary = {
+  arrearsAmount: number;
+  cashExpensesAmount: number;
+  cashIncomeAmount: number;
+  collectionRate: number;
+  managementFeeEarnedAmount: number;
+  managementFeeOutstandingAmount: number;
+  netCashAmount: number;
+  statementReadiness: OverviewStatementReadiness;
+};
+
+export type OverviewPropertyPerformance = {
+  rows: OverviewPropertyPerformanceRow[];
+  summary: OverviewPortfolioSummary;
+};
+
 export type OverviewLeaseEndingPoint = {
   count: number;
   href: string;
