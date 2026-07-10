@@ -526,7 +526,8 @@ CREATE OR REPLACE FUNCTION app_private.post_accounting_journal_internal(
   p_description text,
   p_reference text,
   p_lines jsonb,
-  p_actor_id uuid
+  p_actor_id uuid,
+  p_legacy_ledger_entry_id uuid DEFAULT NULL
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -608,8 +609,10 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
-  IF app_private.is_ledger_period_locked(p_organization_id, p_entry_date)
-    OR EXISTS (
+  IF (
+      coalesce(current_setting('app.accounting_backfill', true), 'off') <> 'on'
+      AND app_private.is_ledger_period_locked(p_organization_id, p_entry_date)
+    ) OR EXISTS (
       SELECT 1
       FROM public.accounting_periods
       WHERE book_id = p_book_id
@@ -653,6 +656,7 @@ BEGIN
         'currency', p_currency,
         'description', normalized_description,
         'reference', normalized_reference,
+        'legacy_ledger_entry_id', p_legacy_ledger_entry_id,
         'lines', normalized_lines
       )::text,
       'sha256'
@@ -801,6 +805,17 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  IF p_legacy_ledger_entry_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.ledger_entries
+      WHERE id = p_legacy_ledger_entry_id
+        AND organization_id = p_organization_id
+    ) THEN
+    RAISE EXCEPTION 'Legacy ledger entry does not belong to the organization'
+      USING ERRCODE = '42501';
+  END IF;
+
   INSERT INTO public.accounting_journal_entries (
     organization_id,
     book_id,
@@ -813,6 +828,7 @@ BEGIN
     posting_key,
     payload_hash,
     status,
+    legacy_ledger_entry_id,
     posted_by
   )
   VALUES (
@@ -827,6 +843,7 @@ BEGIN
     normalized_posting_key,
     calculated_payload_hash,
     'posted',
+    p_legacy_ledger_entry_id,
     p_actor_id
   )
   RETURNING id INTO new_journal_id;
@@ -963,6 +980,7 @@ REVOKE ALL ON FUNCTION app_private.post_accounting_journal_internal(
   text,
   text,
   jsonb,
+  uuid,
   uuid
 ) FROM PUBLIC, anon, authenticated, service_role;
 
@@ -1364,3 +1382,315 @@ GRANT EXECUTE ON FUNCTION public.reverse_accounting_journal(
   date,
   text
 ) TO authenticated;
+
+CREATE OR REPLACE FUNCTION app_private.resolve_legacy_accounting_mapping(
+  p_source_type text,
+  p_direction text,
+  p_category text,
+  p_income_type text,
+  p_expense_type text,
+  p_economic_scope text
+)
+RETURNS TABLE (
+  book_type text,
+  debit_system_code text,
+  credit_system_code text
+)
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = public, app_private
+AS $$
+DECLARE
+  normalized_source_type text := lower(trim(coalesce(p_source_type, 'manual')));
+  normalized_direction text := lower(trim(coalesce(p_direction, '')));
+  normalized_category text := lower(trim(coalesce(p_category, '')));
+  normalized_income_type text := lower(trim(coalesce(p_income_type, '')));
+  normalized_expense_type text := lower(trim(coalesce(p_expense_type, '')));
+  normalized_economic_scope text := lower(trim(coalesce(p_economic_scope, '')));
+BEGIN
+  IF normalized_source_type = 'finance_income' THEN
+    IF normalized_income_type = 'security_deposit' THEN
+      RETURN QUERY SELECT
+        'client'::text,
+        'security_deposit_cash_clearing'::text,
+        'refundable_security_deposits'::text;
+      RETURN;
+    END IF;
+
+    IF normalized_income_type = 'owner_contribution' THEN
+      RETURN QUERY SELECT
+        'client'::text,
+        'client_cash_clearing'::text,
+        'owner_funds_held'::text;
+      RETURN;
+    END IF;
+
+    IF normalized_income_type IN (
+      'management_fee',
+      'leasing_commission',
+      'service_fee',
+      'maintenance_markup'
+    ) THEN
+      RETURN QUERY SELECT
+        'management_company'::text,
+        'due_from_client_books'::text,
+        CASE normalized_income_type
+          WHEN 'management_fee' THEN 'management_fee_revenue'
+          WHEN 'leasing_commission' THEN 'leasing_commission_revenue'
+          WHEN 'service_fee' THEN 'service_fee_revenue'
+          ELSE 'maintenance_markup_revenue'
+        END::text;
+      RETURN;
+    END IF;
+
+    RETURN QUERY SELECT
+      'client'::text,
+      'client_cash_clearing'::text,
+      CASE WHEN normalized_income_type = 'rent' THEN 'rental_income'
+        ELSE 'other_property_income' END::text;
+    RETURN;
+  END IF;
+
+  IF normalized_source_type IN ('finance_expense', 'petty_cash') THEN
+    IF normalized_expense_type = 'owner_payout' THEN
+      RETURN QUERY SELECT
+        'client'::text,
+        'legacy_balance_offset'::text,
+        'client_cash_clearing'::text;
+      RETURN;
+    END IF;
+
+    IF normalized_economic_scope = 'company_cost' THEN
+      RETURN QUERY SELECT
+        'management_company'::text,
+        'company_operating_expense'::text,
+        'company_cash_clearing'::text;
+      RETURN;
+    END IF;
+
+    IF normalized_economic_scope = 'company_advance' THEN
+      RETURN QUERY SELECT
+        'management_company'::text,
+        'company_advance_expense'::text,
+        'company_cash_clearing'::text;
+      RETURN;
+    END IF;
+
+    RETURN QUERY SELECT
+      'client'::text,
+      'property_operating_expense'::text,
+      'client_cash_clearing'::text;
+    RETURN;
+  END IF;
+
+  IF normalized_direction = 'income' THEN
+    RETURN QUERY SELECT
+      'client'::text,
+      'client_cash_clearing'::text,
+      CASE WHEN normalized_category LIKE '%rent%' THEN 'rental_income'
+        ELSE 'other_property_income' END::text;
+    RETURN;
+  END IF;
+
+  RETURN QUERY SELECT
+    'client'::text,
+    'property_operating_expense'::text,
+    'client_cash_clearing'::text;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION app_private.resolve_legacy_accounting_mapping(
+  text,
+  text,
+  text,
+  text,
+  text,
+  text
+) FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION app_private.enforce_ledger_entry_period_open()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, app_private
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF app_private.is_ledger_period_locked(NEW.organization_id, NEW.transaction_date) THEN
+      RAISE EXCEPTION 'Accounting period is locked' USING ERRCODE = '22023';
+    END IF;
+
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF coalesce(current_setting('app.accounting_backfill', true), 'off') = 'on'
+      AND NEW.accounting_journal_entry_id IS DISTINCT FROM OLD.accounting_journal_entry_id
+      AND (
+        to_jsonb(NEW) - 'accounting_journal_entry_id' - 'updated_at'
+      ) = (
+        to_jsonb(OLD) - 'accounting_journal_entry_id' - 'updated_at'
+      ) THEN
+      RETURN NEW;
+    END IF;
+
+    IF app_private.is_ledger_period_locked(OLD.organization_id, OLD.transaction_date)
+      OR app_private.is_ledger_period_locked(NEW.organization_id, NEW.transaction_date) THEN
+      RAISE EXCEPTION 'Accounting period is locked' USING ERRCODE = '22023';
+    END IF;
+
+    RETURN NEW;
+  END IF;
+
+  RETURN OLD;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.backfill_accounting_journals()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, app_private
+AS $$
+DECLARE
+  ledger_record record;
+  mapping_record record;
+  target_book_id uuid;
+  target_journal_id uuid;
+  target_lines jsonb;
+  backfilled_count integer := 0;
+BEGIN
+  FOR ledger_record IN
+    SELECT
+      ledger.*,
+      income.income_type,
+      expense.expense_type,
+      expense.economic_scope AS expense_economic_scope,
+      petty.economic_scope AS petty_economic_scope
+    FROM public.ledger_entries AS ledger
+    LEFT JOIN public.finance_income_items AS income
+      ON ledger.source_type = 'finance_income'
+      AND income.id = ledger.source_id
+      AND income.organization_id = ledger.organization_id
+    LEFT JOIN public.finance_expense_items AS expense
+      ON ledger.source_type = 'finance_expense'
+      AND expense.id = ledger.source_id
+      AND expense.organization_id = ledger.organization_id
+    LEFT JOIN public.petty_cash_entries AS petty
+      ON ledger.source_type = 'petty_cash'
+      AND petty.id = ledger.source_id
+      AND petty.organization_id = ledger.organization_id
+    WHERE ledger.archived_at IS NULL
+      AND ledger.accounting_journal_entry_id IS NULL
+    ORDER BY ledger.created_at, ledger.id
+    FOR UPDATE OF ledger
+  LOOP
+    IF ledger_record.amount <= 0 THEN
+      RAISE EXCEPTION 'Cannot backfill zero-amount ledger entry %', ledger_record.id
+        USING ERRCODE = '22023';
+    END IF;
+
+    PERFORM app_private.ensure_accounting_books_and_accounts(
+      ledger_record.organization_id,
+      ledger_record.currency
+    );
+
+    SELECT *
+    INTO STRICT mapping_record
+    FROM app_private.resolve_legacy_accounting_mapping(
+      ledger_record.source_type,
+      ledger_record.direction,
+      ledger_record.category,
+      ledger_record.income_type,
+      ledger_record.expense_type,
+      coalesce(
+        ledger_record.expense_economic_scope,
+        ledger_record.petty_economic_scope
+      )
+    );
+
+    SELECT id
+    INTO STRICT target_book_id
+    FROM public.accounting_books
+    WHERE organization_id = ledger_record.organization_id
+      AND book_type = mapping_record.book_type
+      AND currency = ledger_record.currency
+      AND is_default
+      AND archived_at IS NULL;
+
+    target_lines := jsonb_build_array(
+      jsonb_strip_nulls(
+        jsonb_build_object(
+          'account_system_code', mapping_record.debit_system_code,
+          'description', ledger_record.description,
+          'debit_amount', ledger_record.amount,
+          'credit_amount', 0,
+          'property_id', ledger_record.property_id,
+          'unit_id', ledger_record.unit_id
+        )
+      ),
+      jsonb_strip_nulls(
+        jsonb_build_object(
+          'account_system_code', mapping_record.credit_system_code,
+          'description', ledger_record.description,
+          'debit_amount', 0,
+          'credit_amount', ledger_record.amount,
+          'property_id', ledger_record.property_id,
+          'unit_id', ledger_record.unit_id
+        )
+      )
+    );
+
+    PERFORM set_config('app.accounting_backfill', 'on', true);
+
+    target_journal_id := app_private.post_accounting_journal_internal(
+      ledger_record.organization_id,
+      target_book_id,
+      'legacy_ledger',
+      ledger_record.id,
+      'legacy_backfill',
+      ledger_record.transaction_date,
+      ledger_record.currency,
+      coalesce(
+        NULLIF(trim(ledger_record.description), ''),
+        concat(initcap(ledger_record.direction), ': ', ledger_record.category)
+      ),
+      ledger_record.category,
+      target_lines,
+      ledger_record.created_by,
+      ledger_record.id
+    );
+
+    UPDATE public.ledger_entries
+    SET accounting_journal_entry_id = target_journal_id
+    WHERE id = ledger_record.id;
+
+    PERFORM set_config('app.accounting_backfill', 'off', true);
+
+    backfilled_count := backfilled_count + 1;
+  END LOOP;
+
+  RETURN backfilled_count;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION app_private.backfill_accounting_journals()
+FROM PUBLIC, anon, authenticated, service_role;
+
+DO $$
+DECLARE
+  organization_record record;
+BEGIN
+  FOR organization_record IN
+    SELECT id, preferred_currency
+    FROM public.organizations
+  LOOP
+    PERFORM app_private.ensure_accounting_books_and_accounts(
+      organization_record.id,
+      organization_record.preferred_currency
+    );
+  END LOOP;
+END;
+$$;
+
+SELECT app_private.backfill_accounting_journals();

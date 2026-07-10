@@ -933,3 +933,4 @@ VALUES
 ('60000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '2026-05-01', '2026-06-05 09:30:00+07', '00000000-0000-0000-0000-000000000101', 'May rent, maintenance, and service invoices reconciled.');
 
 SELECT set_config('app.people_leases_skip_sync', 'off', false);
+SELECT app_private.backfill_accounting_journals();

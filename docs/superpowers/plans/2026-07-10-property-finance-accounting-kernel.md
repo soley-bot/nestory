@@ -33,6 +33,7 @@
 - `supabase/tests/accounting_kernel_test.sql`: pgTAP contract for schema, balanced posting, idempotency, period locks, and reversals.
 - `supabase/tests/accounting_security_test.sql`: pgTAP contract for RLS, cross-organization rejection, grants, and immutability.
 - `supabase/tests/accounting_compatibility_test.sql`: pgTAP contract for domain mappings and legacy dual-posting.
+- `supabase/seed.sql`: invoke the idempotent historical backfill after local demo finance rows are inserted.
 - `supabase/migrations/20260710005932_property_finance_accounting_kernel.sql`: CLI-generated migration containing tables, indexes, RLS, bootstrap helpers, journal posting, reversal, and historical backfill.
 - `supabase/migrations/*_property_finance_accounting_compatibility.sql`: CLI-generated migration replacing existing finance, petty-cash, and manual-ledger posting RPCs with atomic dual-posting.
 - `src/types/database.generated.ts`: regenerated local Supabase types.
