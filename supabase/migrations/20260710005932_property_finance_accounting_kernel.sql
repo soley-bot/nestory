@@ -991,3 +991,376 @@ GRANT EXECUTE ON FUNCTION public.post_accounting_journal(
   text,
   jsonb
 ) TO authenticated;
+
+CREATE OR REPLACE FUNCTION app_private.prevent_accounting_journal_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, app_private
+AS $$
+BEGIN
+  IF TG_OP = 'UPDATE'
+    AND current_setting('app.accounting_reversal', true) = 'on' THEN
+    RETURN NEW;
+  END IF;
+
+  RAISE EXCEPTION 'Posted accounting journals are immutable'
+    USING ERRCODE = '55000';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.prevent_accounting_journal_line_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, app_private
+AS $$
+BEGIN
+  RAISE EXCEPTION 'Posted accounting journal lines are immutable'
+    USING ERRCODE = '55000';
+END;
+$$;
+
+CREATE TRIGGER prevent_accounting_journal_mutation
+BEFORE UPDATE OR DELETE ON public.accounting_journal_entries
+FOR EACH ROW
+EXECUTE FUNCTION app_private.prevent_accounting_journal_mutation();
+
+CREATE TRIGGER prevent_accounting_journal_line_mutation
+BEFORE UPDATE OR DELETE ON public.accounting_journal_lines
+FOR EACH ROW
+EXECUTE FUNCTION app_private.prevent_accounting_journal_line_mutation();
+
+REVOKE ALL ON FUNCTION app_private.prevent_accounting_journal_mutation()
+FROM PUBLIC, anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION app_private.prevent_accounting_journal_line_mutation()
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION app_private.set_accounting_period_lock_internal(
+  p_organization_id uuid,
+  p_book_id uuid,
+  p_period_start date,
+  p_locked boolean,
+  p_reason text,
+  p_actor_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, app_private
+AS $$
+DECLARE
+  normalized_period_start date;
+  target_period_id uuid;
+BEGIN
+  IF p_organization_id IS NULL
+    OR p_book_id IS NULL
+    OR p_period_start IS NULL
+    OR p_locked IS NULL THEN
+    RAISE EXCEPTION 'Accounting period lock details are required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.accounting_books
+    WHERE id = p_book_id
+      AND organization_id = p_organization_id
+      AND archived_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Accounting book not found'
+      USING ERRCODE = '23503';
+  END IF;
+
+  normalized_period_start := date_trunc('month', p_period_start)::date;
+
+  INSERT INTO public.accounting_periods (
+    organization_id,
+    book_id,
+    period_start,
+    status,
+    locked_at,
+    locked_by,
+    lock_reason,
+    created_by,
+    updated_by
+  )
+  VALUES (
+    p_organization_id,
+    p_book_id,
+    normalized_period_start,
+    CASE WHEN p_locked THEN 'locked' ELSE 'open' END,
+    CASE WHEN p_locked THEN now() ELSE NULL END,
+    CASE WHEN p_locked THEN p_actor_id ELSE NULL END,
+    CASE WHEN p_locked THEN NULLIF(trim(coalesce(p_reason, '')), '') ELSE NULL END,
+    p_actor_id,
+    p_actor_id
+  )
+  ON CONFLICT (book_id, period_start)
+  DO UPDATE SET
+    status = excluded.status,
+    locked_at = excluded.locked_at,
+    locked_by = excluded.locked_by,
+    lock_reason = excluded.lock_reason,
+    updated_by = excluded.updated_by
+  RETURNING id INTO target_period_id;
+
+  INSERT INTO public.activity_logs (
+    organization_id,
+    actor_id,
+    entity_type,
+    entity_id,
+    action,
+    new_values
+  )
+  VALUES (
+    p_organization_id,
+    p_actor_id,
+    'accounting_period',
+    target_period_id,
+    CASE WHEN p_locked THEN 'accounting_period_locked'
+      ELSE 'accounting_period_reopened' END,
+    jsonb_build_object(
+      'book_id', p_book_id,
+      'period_start', normalized_period_start,
+      'status', CASE WHEN p_locked THEN 'locked' ELSE 'open' END,
+      'reason', CASE WHEN p_locked THEN NULLIF(trim(coalesce(p_reason, '')), '')
+        ELSE NULL END
+    )
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.set_accounting_period_lock(
+  p_organization_id uuid,
+  p_book_id uuid,
+  p_period_start date,
+  p_locked boolean,
+  p_reason text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, app_private
+AS $$
+DECLARE
+  actor_id uuid := (SELECT auth.uid());
+BEGIN
+  IF actor_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
+  END IF;
+
+  IF NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM app_private.set_accounting_period_lock_internal(
+    p_organization_id,
+    p_book_id,
+    p_period_start,
+    p_locked,
+    p_reason,
+    actor_id
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION app_private.set_accounting_period_lock_internal(
+  uuid,
+  uuid,
+  date,
+  boolean,
+  text,
+  uuid
+) FROM PUBLIC, anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.set_accounting_period_lock(
+  uuid,
+  uuid,
+  date,
+  boolean,
+  text
+) FROM PUBLIC, anon;
+
+GRANT EXECUTE ON FUNCTION public.set_accounting_period_lock(
+  uuid,
+  uuid,
+  date,
+  boolean,
+  text
+) TO authenticated;
+
+CREATE OR REPLACE FUNCTION app_private.reverse_accounting_journal_internal(
+  p_organization_id uuid,
+  p_journal_id uuid,
+  p_reversal_date date,
+  p_reason text,
+  p_actor_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, app_private
+AS $$
+DECLARE
+  original_journal public.accounting_journal_entries%ROWTYPE;
+  reversal_lines jsonb;
+  reversal_journal_id uuid;
+  normalized_reason text := NULLIF(trim(coalesce(p_reason, '')), '');
+BEGIN
+  IF p_organization_id IS NULL
+    OR p_journal_id IS NULL
+    OR p_reversal_date IS NULL
+    OR normalized_reason IS NULL THEN
+    RAISE EXCEPTION 'Journal, reversal date, and reason are required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT *
+  INTO original_journal
+  FROM public.accounting_journal_entries
+  WHERE id = p_journal_id
+    AND organization_id = p_organization_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Accounting journal not found'
+      USING ERRCODE = '23503';
+  END IF;
+
+  IF original_journal.status = 'reversed'
+    OR original_journal.reversed_by_id IS NOT NULL THEN
+    RAISE EXCEPTION 'Accounting journal is already reversed'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT jsonb_agg(
+    jsonb_strip_nulls(
+      jsonb_build_object(
+        'account_system_code', account.system_code,
+        'description', concat('Reversal: ', coalesce(line.description, original_journal.description)),
+        'debit_amount', line.credit_amount,
+        'credit_amount', line.debit_amount,
+        'property_id', line.property_id,
+        'unit_id', line.unit_id,
+        'lease_id', line.lease_id,
+        'owner_person_id', line.owner_person_id,
+        'tenant_person_id', line.tenant_person_id,
+        'vendor_person_id', line.vendor_person_id
+      )
+    )
+    ORDER BY line.line_number
+  )
+  INTO reversal_lines
+  FROM public.accounting_journal_lines AS line
+  JOIN public.accounting_accounts AS account
+    ON account.id = line.account_id
+  WHERE line.journal_entry_id = original_journal.id;
+
+  reversal_journal_id := app_private.post_accounting_journal_internal(
+    p_organization_id,
+    original_journal.book_id,
+    'accounting_reversal',
+    original_journal.id,
+    'reversal',
+    p_reversal_date,
+    original_journal.currency,
+    concat('Reversal: ', original_journal.description),
+    normalized_reason,
+    reversal_lines,
+    p_actor_id
+  );
+
+  PERFORM set_config('app.accounting_reversal', 'on', true);
+
+  UPDATE public.accounting_journal_entries
+  SET reversal_of_id = original_journal.id
+  WHERE id = reversal_journal_id;
+
+  UPDATE public.accounting_journal_entries
+  SET status = 'reversed',
+      reversed_by_id = reversal_journal_id
+  WHERE id = original_journal.id;
+
+  PERFORM set_config('app.accounting_reversal', 'off', true);
+
+  INSERT INTO public.activity_logs (
+    organization_id,
+    actor_id,
+    entity_type,
+    entity_id,
+    action,
+    previous_values,
+    new_values
+  )
+  VALUES (
+    p_organization_id,
+    p_actor_id,
+    'accounting_journal_entry',
+    original_journal.id,
+    'accounting_journal_reversed',
+    jsonb_build_object('status', 'posted'),
+    jsonb_build_object(
+      'status', 'reversed',
+      'reversal_journal_id', reversal_journal_id,
+      'reversal_date', p_reversal_date,
+      'reason', normalized_reason
+    )
+  );
+
+  RETURN reversal_journal_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.reverse_accounting_journal(
+  p_organization_id uuid,
+  p_journal_id uuid,
+  p_reversal_date date,
+  p_reason text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, app_private
+AS $$
+DECLARE
+  actor_id uuid := (SELECT auth.uid());
+BEGIN
+  IF actor_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
+  END IF;
+
+  IF NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  RETURN app_private.reverse_accounting_journal_internal(
+    p_organization_id,
+    p_journal_id,
+    p_reversal_date,
+    p_reason,
+    actor_id
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION app_private.reverse_accounting_journal_internal(
+  uuid,
+  uuid,
+  date,
+  text,
+  uuid
+) FROM PUBLIC, anon, authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.reverse_accounting_journal(
+  uuid,
+  uuid,
+  date,
+  text
+) FROM PUBLIC, anon;
+
+GRANT EXECUTE ON FUNCTION public.reverse_accounting_journal(
+  uuid,
+  uuid,
+  date,
+  text
+) TO authenticated;
