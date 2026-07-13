@@ -229,9 +229,7 @@ export async function getOverviewScreenData(
     .lt("finance_payments.paid_date", monthScope.before);
   let depositEventsQuery = supabase
     .from("lease_deposit_events")
-    .select(
-      "id, property_id, event_date, event_type, amount, reversal_of_id, reversed_event:lease_deposit_events!lease_deposit_events_reversal_of_id_fkey(event_type)",
-    )
+    .select("id, property_id, event_date, event_type, amount, reversal_of_id")
     .eq("organization_id", organizationId)
     .lt("event_date", monthScope.before);
   let openMaintenanceQuery = supabase
@@ -411,8 +409,17 @@ export async function getOverviewScreenData(
       row.finance_expense_items ? [row.finance_expense_items] : [],
     ),
   );
-  const depositEvents = ((depositEventsResult.data ?? []) as unknown as DepositEventRow[]).map(
-    toDepositEvent,
+  const depositEventRows = (depositEventsResult.data ?? []) as unknown as DepositEventRow[];
+  const depositEventTypeById = new Map(
+    depositEventRows.map((event) => [event.id, event.event_type]),
+  );
+  const depositEvents = depositEventRows.map((event) =>
+    toDepositEvent({
+      ...event,
+      reversed_event: event.reversal_of_id
+        ? { event_type: depositEventTypeById.get(event.reversal_of_id) ?? "" }
+        : null,
+    }),
   );
   const documents = (documentsResult.data ?? []) as Array<{
     ledger_entry_id: string | null;
