@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(84);
+SELECT plan(85);
 
 CREATE TEMP TABLE maintenance_role_workflow_state (
   created_task_id uuid
@@ -140,6 +140,20 @@ SELECT ok(
     'EXECUTE'
   ),
   'only authenticated clients can execute the member workflow RPC'
+);
+
+SELECT ok(
+  has_function_privilege(
+    'authenticated',
+    'public.review_maintenance_task_completion(uuid,uuid,text,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'anon',
+    'public.review_maintenance_task_completion(uuid,uuid,text,text)',
+    'EXECUTE'
+  ),
+  'only authenticated clients can execute the completion review RPC'
 );
 
 SELECT ok(
