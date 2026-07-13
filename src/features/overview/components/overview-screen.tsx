@@ -71,8 +71,6 @@ type OverviewChartConfig = {
 function getLegacyCompanyFinance(
   data: OverviewScreenData,
 ): OverviewCompanyFinanceSummary {
-  if ("companyFinance" in data) return data.companyFinance;
-
   const summary = data.propertyPerformance.summary;
   return {
     companyCost: formatMoneyDisplay(summary.cashExpensesAmount),

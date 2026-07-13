@@ -184,7 +184,7 @@ export type OverviewWorkspaceSetup = {
   unitCount: number;
 };
 
-type OverviewScreenDataCommon = {
+export type OverviewScreenData = {
   attentionItems: OverviewAttentionItem[];
   attentionTotal: number;
   dashboardSummary: OverviewDashboardSummary;
@@ -194,19 +194,8 @@ type OverviewScreenDataCommon = {
   ledgerFlow: OverviewLedgerPoint[];
   metrics: OverviewMetric[];
   occupancyByProperty: OverviewOccupancyPoint[];
+  propertyPerformance: OverviewPropertyPerformance;
   quickActions: OverviewQuickAction[];
   recentChanges: RecentChange[];
   workspaceSetup: OverviewWorkspaceSetup;
 };
-
-export type OverviewPropertyPerformanceScreenData = OverviewScreenDataCommon & {
-  propertyPerformance: OverviewPropertyPerformance;
-};
-
-export type OverviewLegacyScreenData = OverviewScreenDataCommon & {
-  companyFinance: OverviewCompanyFinanceSummary;
-};
-
-export type OverviewScreenData =
-  | OverviewPropertyPerformanceScreenData
-  | OverviewLegacyScreenData;

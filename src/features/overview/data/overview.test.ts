@@ -239,11 +239,55 @@ describe("getOverviewScreenData", () => {
       expect.arrayContaining([
         expect.objectContaining({ args: ["id", "prop-1"], method: "eq", table: "properties" }),
         expect.objectContaining({ args: ["finance_receipts.property_id", "prop-1"], method: "eq", table: "finance_receipt_allocations" }),
+        expect.objectContaining({ args: ["finance_income_items.property_id", "prop-1"], method: "eq", table: "finance_receipt_allocations" }),
         expect.objectContaining({ args: ["finance_payments.property_id", "prop-1"], method: "eq", table: "finance_payment_allocations" }),
+        expect.objectContaining({ args: ["finance_expense_items.property_id", "prop-1"], method: "eq", table: "finance_payment_allocations" }),
         expect.objectContaining({ args: ["property_id", "prop-1"], method: "eq", table: "lease_deposit_events" }),
         expect.objectContaining({ args: ["income_item_id", ["income-rent", "income-fee"]], method: "in", table: "finance_receipt_allocations" }),
         expect.objectContaining({ args: ["finance_receipts.received_date", "2026-08-01"], method: "lt", table: "finance_receipt_allocations" }),
       ]),
+    );
+  });
+
+  it("loads every page of due obligations and open-bill blockers", async () => {
+    const dueItems = Array.from({ length: 1_001 }, (_, index) => ({
+      amount_due: 1,
+      due_date: "2026-07-01",
+      id: `income-${index}`,
+      income_type: "rent",
+      property_id: "prop-1",
+    }));
+    const openBills = Array.from({ length: 1_001 }, (_, index) => ({
+      economic_scope: "property_expense",
+      expense_type: "maintenance",
+      id: `bill-${index}`,
+      property_id: "prop-1",
+    }));
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        finance_expense_items: { data: openBills },
+        finance_income_items: { data: dueItems },
+        properties: {
+          data: [{ code: "CTR", id: "prop-1", name: "Central Residence" }],
+        },
+        tasks: { count: 0, data: [] },
+      }),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+      {
+        financeView: "collections",
+        lens: "all",
+        month: "2026-07",
+        propertyId: "all",
+        review: "all",
+      },
+    );
+
+    expect(data.propertyPerformance.rows[0].arrearsAmount).toBe(1_001);
+    expect(data.attentionItems).toContainEqual(
+      expect.objectContaining({ count: 1_001, label: "Open property bills" }),
     );
   });
 });
@@ -319,7 +363,14 @@ function createQuery(result: SupabaseResult, table = "", calls?: QueryCall[]) {
     neq: chain("neq"),
     or: chain("or"),
     order: chain("order"),
-    range: chain("range"),
+    range: (from: number, to: number) => {
+      calls?.push({ args: [from, to], method: "range", table });
+      return Promise.resolve({
+        count: result.count ?? null,
+        data: (result.data ?? []).slice(from, to + 1),
+        error: result.error ?? null,
+      });
+    },
     select: chain("select"),
     then: (
       onFulfilled: (value: SupabaseResult) => unknown,
@@ -327,7 +378,7 @@ function createQuery(result: SupabaseResult, table = "", calls?: QueryCall[]) {
     ) =>
       Promise.resolve({
         count: result.count ?? null,
-        data: result.data ?? [],
+        data: (result.data ?? []).slice(0, 1_000),
         error: result.error ?? null,
       }).then(onFulfilled, onRejected),
   };

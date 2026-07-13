@@ -4,7 +4,7 @@ import type {
   OverviewLedgerPoint,
   OverviewMetric,
   OverviewOccupancyPoint,
-  OverviewPropertyPerformanceScreenData,
+  OverviewScreenData,
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
 import { getOverviewMonthScope } from "@/features/overview/overview.filters";
@@ -110,6 +110,8 @@ type PagedQuery<T> = {
   }>;
 };
 
+type PageQueryFactory<T> = (from: number, to: number) => ReturnType<PagedQuery<T>["range"]>;
+
 type PersonRow = {
   id: string;
   primary_email: string | null;
@@ -135,7 +137,7 @@ type PropertyOwnerRow = {
 export async function getOverviewScreenData(
   organizationId: string,
   query?: OverviewViewQuery,
-): Promise<OverviewPropertyPerformanceScreenData> {
+): Promise<OverviewScreenData> {
   const supabase = await createSupabaseServerClient();
   const now = new Date();
   const businessToday = getBusinessDateString(now);
@@ -243,6 +245,23 @@ export async function getOverviewScreenData(
     .select("property_id, ledger_entry_id")
     .eq("organization_id", organizationId)
     .is("archived_at", null);
+  const peopleQuery = supabase
+    .from("people")
+    .select("id, primary_email, primary_phone")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null);
+  const rolesQuery = supabase
+    .from("person_roles")
+    .select("person_id, role")
+    .eq("organization_id", organizationId)
+    .eq("status", "active")
+    .is("archived_at", null);
+  const contactsQuery = supabase
+    .from("person_contacts")
+    .select("person_id, contact_name, email, phone")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .or("contact_name.not.is.null,email.not.is.null,phone.not.is.null");
 
   if (effectiveQuery.propertyId !== "all") {
     const propertyId = effectiveQuery.propertyId;
@@ -258,8 +277,16 @@ export async function getOverviewScreenData(
       "finance_receipts.property_id",
       propertyId,
     );
+    cashReceiptAllocationsQuery = cashReceiptAllocationsQuery.eq(
+      "finance_income_items.property_id",
+      propertyId,
+    );
     cashPaymentAllocationsQuery = cashPaymentAllocationsQuery.eq(
       "finance_payments.property_id",
+      propertyId,
+    );
+    cashPaymentAllocationsQuery = cashPaymentAllocationsQuery.eq(
+      "finance_expense_items.property_id",
       propertyId,
     );
     depositEventsQuery = depositEventsQuery.eq("property_id", propertyId);
@@ -286,45 +313,31 @@ export async function getOverviewScreenData(
     documentsResult,
     recentActivityResult,
   ] = await Promise.all([
-    propertiesQuery,
-    unitsQuery,
-    leasesQuery,
-    ledgerWindowQuery,
-    ledgerNetQuery,
-    supabase
-      .from("people")
-      .select("id, primary_email, primary_phone")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null),
-    supabase
-      .from("person_roles")
-      .select("person_id, role")
-      .eq("organization_id", organizationId)
-      .eq("status", "active")
-      .is("archived_at", null),
-    supabase
-      .from("person_contacts")
-      .select("person_id, contact_name, email, phone")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .or("contact_name.not.is.null,email.not.is.null,phone.not.is.null"),
-    propertyOwnersQuery,
-    incomeItemsQuery,
-    openBillsQuery,
+    loadAllRows(pageFactory(propertiesQuery), "overview properties"),
+    loadAllRows(pageFactory(unitsQuery), "overview units"),
+    loadAllRows(pageFactory(leasesQuery), "overview leases"),
+    loadAllRows(pageFactory(ledgerWindowQuery), "overview ledger window"),
+    loadAllRows(pageFactory(ledgerNetQuery), "overview property ledger net"),
+    loadAllRows(pageFactory(peopleQuery), "overview people"),
+    loadAllRows(pageFactory(rolesQuery), "overview person roles"),
+    loadAllRows(pageFactory(contactsQuery), "overview person contacts"),
+    loadAllRows(pageFactory(propertyOwnersQuery), "overview property owners"),
+    loadAllRows(pageFactory(incomeItemsQuery), "overview income obligations"),
+    loadAllRows(pageFactory(openBillsQuery), "overview open bills"),
     loadAllRows(
-      cashReceiptAllocationsQuery as unknown as PagedQuery<ReceiptAllocationRow>,
+      pageFactory<ReceiptAllocationRow>(cashReceiptAllocationsQuery),
       "overview cash receipt allocations",
     ),
     loadAllRows(
-      cashPaymentAllocationsQuery as unknown as PagedQuery<PaymentAllocationRow>,
+      pageFactory<PaymentAllocationRow>(cashPaymentAllocationsQuery),
       "overview cash payment allocations",
     ),
     loadAllRows(
-      depositEventsQuery as unknown as PagedQuery<DepositEventRow>,
+      pageFactory<DepositEventRow>(depositEventsQuery),
       "overview deposit events",
     ),
     openMaintenanceQuery,
-    documentsQuery,
+    loadAllRows(pageFactory(documentsQuery), "overview documents"),
     supabase
       .from("activity_logs")
       .select(
@@ -376,29 +389,18 @@ export async function getOverviewScreenData(
   const historicalReceiptRows: ReceiptAllocationRow[] = [];
 
   for (const incomeItemIds of chunk(dueIncomeItemIds, 100)) {
-    let pageStart = 0;
-    const pageSize = 1_000;
-
-    while (true) {
-      const historicalReceiptAllocationsResult = await supabase
+    const historicalReceiptAllocationsResult = await loadAllRows(
+      pageFactory<ReceiptAllocationRow>(supabase
         .from("finance_receipt_allocations")
         .select(
           "id, amount, income_item_id, finance_receipts!finance_receipt_allocations_receipt_id_fkey(received_date, reversal_of_id, reference)",
         )
         .eq("organization_id", organizationId)
         .in("income_item_id", incomeItemIds)
-        .lt("finance_receipts.received_date", monthScope.before)
-        .range(pageStart, pageStart + pageSize - 1);
-      assertNoError(
-        historicalReceiptAllocationsResult.error,
-        "overview due-obligation receipt allocation history",
-      );
-      const pageRows = (historicalReceiptAllocationsResult.data ?? []) as unknown as ReceiptAllocationRow[];
-      historicalReceiptRows.push(...pageRows);
-
-      if (pageRows.length < pageSize) break;
-      pageStart += pageSize;
-    }
+        .lt("finance_receipts.received_date", monthScope.before)),
+      "overview due-obligation receipt allocation history",
+    );
+    historicalReceiptRows.push(...historicalReceiptAllocationsResult.data);
   }
 
   const receiptRows = uniqueById([...cashReceiptRows, ...historicalReceiptRows]);
@@ -677,12 +679,17 @@ function chunk<T>(rows: T[], size: number) {
   );
 }
 
-async function loadAllRows<T>(query: PagedQuery<T>, label: string) {
+function pageFactory<T>(query: unknown): PageQueryFactory<T> {
+  const pagedQuery = query as PagedQuery<T>;
+  return (from, to) => pagedQuery.range(from, to);
+}
+
+async function loadAllRows<T>(queryPage: PageQueryFactory<T>, label: string) {
   const rows: T[] = [];
   const pageSize = 1_000;
 
   while (true) {
-    const result = await query.range(rows.length, rows.length + pageSize - 1);
+    const result = await queryPage(rows.length, rows.length + pageSize - 1);
     assertNoError(result.error, label);
     const pageRows = result.data ?? [];
     rows.push(...pageRows);
