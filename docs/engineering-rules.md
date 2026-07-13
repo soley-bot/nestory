@@ -56,6 +56,13 @@ These rules are grounded in the current implementation.
 - Private documents live in Supabase Storage with database metadata.
 - New schema work must be append-only migrations unless the user explicitly
   asks for a reset or destructive local cleanup.
+- Keep property obligations separate from settlement events. Cash reporting
+  uses receipt and payment dates; future accrual reporting uses charge and
+  invoice dates.
+- Security deposits and owner contributions do not count as property operating
+  income.
+- Do not add management-company payroll, overhead, P&L, general-ledger, tax, or
+  ERP UI.
 
 ## UI
 

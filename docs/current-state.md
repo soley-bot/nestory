@@ -19,9 +19,9 @@ Nestory is a multi-module property operations app. The implemented core covers:
   confirmed rows post into the ledger.
 - Bills & Expenses operations for outgoing bills and expense approvals before
   approved rows post into the ledger.
-- A balanced double-entry accounting kernel behind the operational finance
-  workflows, with separate client-money and management-company books,
-  accounting periods, immutable journals, and explicit reversals.
+- A compatibility accounting kernel retained behind existing operational
+  finance workflows pending a separate retirement decision. It is not exposed
+  as management-company accounting, general-ledger, or ERP product UI.
 - Maintenance cases with request intake, work orders, calendar scheduling,
   inspections, recurring templates, reminders, assignment, and status changes.
 - Dedicated property/unit photo records with private photo storage and cover
@@ -42,10 +42,11 @@ Public and auth:
 
 Core dashboard shell:
 
-- `/overview` loads dashboard attention, portfolio context, and URL-backed
-  lenses for all, finance, leasing, maintenance, and records. The finance lens
-  includes nested Company P&L, Property Ranking, Owner Receivables, and Ledger
-  views.
+- `/overview` provides cash-basis property performance with Portfolio,
+  Property finance, Leasing, Maintenance, and Records lenses. Portfolio ranks
+  properties by cash income, paid property expenses, net cash, collection
+  rate, arrears, management fees, and reporting readiness. Period, property,
+  review, and Property finance subview state is URL-backed.
 - `/property-dashboard`, `/finance-dashboard`, and `/maintenance-dashboard`
   redirect to the consolidated Overview lenses for legacy links.
 
@@ -77,23 +78,23 @@ Finance and history:
 
 - `/rent-income` supports expected and received incoming money across rent,
   deposits, reimbursements, parking, late fees, owner contributions, company
-  revenue categories, and other income. Leases can generate idempotent monthly
-  rent charge rows for active/notice leases. Confirmed receipts post into the
-  official ledger.
+  revenue compatibility categories, and other income. Leases can generate
+  idempotent monthly rent charge rows for active/notice leases. Confirmed
+  receipts post into the official ledger; property reporting excludes deposits
+  and owner contributions from operating income.
 - `/bills-expenses` supports outgoing vendor bills, maintenance, utilities,
-  supplies, owner payouts, refunds, and other expenses. Rows can classify
-  company advances, company costs, and owner reimbursement status for Company
-  P&L reporting. Approved rows post into the official ledger.
+  supplies, owner payouts, refunds, and other property expenses. Approved
+  obligations can be settled through dated payments and allocations.
 - `/ledger` supports income/expense records, filters, create/update/archive,
   restore, period locks, receipt attachment, month-close workflow queues, and
-  linked timeline/document context. Posted rows carry source metadata for manual,
-  rent/income, bills/expenses, petty cash, and maintenance origins. Active rows
-  are linked to balanced accounting journals, the inspector shows journal-link
-  health, and month close reports any missing journal links.
+  linked timeline/document context. Posted rows carry source metadata for
+  manual, rent/income, bills/expenses, petty cash, and maintenance origins.
+  Journal linkage remains an internal compatibility concern rather than an
+  operator-facing general-ledger product.
 - `/petty-cash` supports the IPS-style PM petty cash workflow: cash accounts,
   monthly register periods, advances, cash-in rows, expense rows, running
-  balance, receipt references, owner-reimbursable/company-cost handling, month
-  rollover, and posting cleared cash expenses into the official ledger.
+  balance, receipt references, owner-reimbursable handling, month rollover, and
+  posting cleared cash expenses into the official ledger.
 - `/timeline`, `/property-timeline`, `/maintenance-timeline`, and
   `/financial-timeline` support scoped event filters, date and unit filtering,
   create/update/archive/restore, document attachment, linked ledger context,
@@ -148,14 +149,18 @@ RPC write boundaries. Current table families include:
   `property_owners`, `vendor_profiles`, `leases`, `lease_parties`,
   `lease_terms`, `lease_occupancies`, `lease_deposits`.
 - Finance and history: `finance_income_items`, `finance_expense_items`,
-  `ledger_entries`, `ledger_period_locks`, `petty_cash_accounts`,
-  `petty_cash_periods`, `petty_cash_entries`, `timeline_events`,
-  `activity_logs`.
-- Accounting: `accounting_books`, `accounting_accounts`,
+  `finance_receipts`, `finance_receipt_allocations`, `finance_payments`,
+  `finance_payment_allocations`, `lease_deposit_events`, `ledger_entries`,
+  `ledger_period_locks`, `petty_cash_accounts`, `petty_cash_periods`,
+  `petty_cash_entries`, `timeline_events`, `activity_logs`. Income and expense
+  items represent obligations; receipt, payment, allocation, and deposit-event
+  rows represent dated settlement activity used by cash reporting.
+- Accounting compatibility: `accounting_books`, `accounting_accounts`,
   `accounting_periods`, `accounting_journal_entries`, and
-  `accounting_journal_lines`. Each organization receives separate default
-  client-money and management-company books for each supported currency. The
-  current currency enum supports USD.
+  `accounting_journal_lines`. Existing workflows still maintain these records
+  for compatibility pending a separate retirement decision; they do not define
+  a product-facing company-accounting feature. The current currency enum
+  supports USD.
 - Media and documents: `asset_photos` plus private `nestory-photos`, and
   `documents` plus private `nestory-documents`.
 - Maintenance: `tenant_requests`, `tasks`.
@@ -165,10 +170,10 @@ Implemented RPC families include:
 - Workspace bootstrap and access-member lookup/invites.
 - Property, unit, person, lease, document, ledger, timeline, and maintenance
   create/update/archive/restore.
-- Finance income and expense workflow creation, status changes, and posting
-  into the ledger and balanced accounting journals in one transaction.
-- Idempotent balanced journal posting, accounting period locking, immutable
-  posted journals, reversal creation, and historical ledger backfill.
+- Finance income and expense workflow creation, status changes, dated receipt
+  and payment settlement, allocation, reversal, and deposit events.
+- Compatibility journal posting, accounting period locking, reversals, and
+  historical ledger backfill retained behind existing workflows.
 - Ledger period locking.
 - Petty cash account creation, register row creation, month rollover, and
   posting expense rows into the ledger.
@@ -188,7 +193,7 @@ Implemented RPC families include:
 - Rent & Income: `src/features/rent-income`.
 - Bills & Expenses: `src/features/bills-expenses`.
 - Finance close summaries: `src/features/finance`.
-- Accounting journal health: `src/features/accounting`.
+- Accounting compatibility helpers: `src/features/accounting`.
 - Ledger: `src/features/ledger`.
 - Timeline: `src/features/timeline`.
 - Maintenance: `src/features/maintenance`.
@@ -205,6 +210,7 @@ totals, record selection, property/unit summary and detail, people filters,
 lease summaries, ledger summaries/filters, timeline filters, maintenance
 filters/checklists/summary/notifications, imports, reports/export, auth tenant
 host parsing, and schema-error helpers. Database tests additionally cover the
-accounting schema and security boundary, balanced/idempotent posting, period
-locks and reversals, historical backfill, dual posting from existing finance
-workflows, transaction rollback, and seeded ledger-to-journal parity.
+settlement-event allocation, reversal, RLS, backfill, and pagination behavior.
+Compatibility database tests still cover the accounting schema and security
+boundary, balanced/idempotent posting, period locks and reversals, historical
+backfill, transaction rollback, and seeded ledger-to-journal parity.
