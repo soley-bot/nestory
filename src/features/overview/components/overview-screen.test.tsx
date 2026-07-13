@@ -52,6 +52,9 @@ describe("OverviewScreen", () => {
     const cards = screen.getByLabelText("Leasing priority cards");
     expect(cards.textContent).toContain("Central Residence");
     expect(cards.textContent).toContain("90%");
+    expect(within(cards).getByRole("link", { name: /Central Residence/ }).getAttribute("href")).toBe("/properties/prop-1");
+    expect(screen.getByRole("link", { name: /Active leases/ }).getAttribute("href")).toBe("/leases?status=current&propertyId=prop-1");
+    expect(screen.getByRole("link", { name: /Properties ranked/ }).getAttribute("href")).toBe("/overview?lens=leasing&month=2026-07&propertyId=prop-1");
   });
 
   it("keeps records blockers separate and preserves internal review state", () => {
@@ -73,6 +76,12 @@ describe("OverviewScreen", () => {
     expect(rankFinanceRows(rows, "management-fees")[0].propertyId).toBe("prop-2");
     expect(rankFinanceRows(rows, "owner-statements")[0].propertyId).toBe("prop-2");
     expect(rankFinanceRows(rows, "transactions")[0].propertyId).toBe("prop-1");
+  });
+
+  it("uses label then property id for stable finance ranking ties", () => {
+    const base = operatingWorkspaceData.propertyPerformance.rows[0];
+    const rows = [{ ...base, label: "Zulu", propertyId: "prop-z" }, { ...base, label: "Alpha", propertyId: "prop-b" }, { ...base, label: "Alpha", propertyId: "prop-a" }];
+    expect(rankFinanceRows(rows, "expenses").map((row) => row.propertyId)).toEqual(["prop-a", "prop-b", "prop-z"]);
   });
 
   it("shows a setup path instead of a clear dashboard for a new workspace", () => {

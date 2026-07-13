@@ -8,6 +8,14 @@ import type { RentIncomeItem } from "../rent-income.types";
 afterEach(cleanup);
 
 describe("RentIncomeScreen", () => {
+  it("shows a truthful filtered count instead of global money summaries for management fees", () => {
+    renderIncome("management-fees");
+    expect(screen.getAllByText("Management fees").length).toBeGreaterThan(0);
+    expect(screen.getByText("1 filtered row")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Global income summary" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Scoped income summary" })).toBeTruthy();
+  });
+
   it("defaults the next receipt to the remaining balance", () => {
     render(
       <RentIncomeScreen
@@ -44,6 +52,10 @@ describe("RentIncomeScreen", () => {
     ).toBe("400");
   });
 });
+
+function renderIncome(incomeScope: "all" | "management-fees") {
+  render(<RentIncomeScreen incomeItems={[partialIncome]} leaseOptions={[]} pagination={{ from: 1, page: 1, pageSize: 25, to: 1, totalCount: 1, totalPages: 1 }} propertyOptions={[]} summary={{ openCount: "1", overdueCount: "0", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" }, unpostedCount: "1" }} unitOptions={[]} viewQuery={{ incomeScope, month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all" }} />);
+}
 
 const partialIncome: RentIncomeItem = {
   amountDue: 500,

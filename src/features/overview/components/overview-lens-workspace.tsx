@@ -54,7 +54,7 @@ export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenDat
             ))}
           </div>
           <dl aria-label={`${config.title} priority cards`} className="divide-y divide-border sm:hidden">
-            {config.queue.map((item) => <div className="px-3 py-3" key={item.label}><dt className="text-sm font-medium">{item.label}</dt><dd className="mt-1 text-xs text-foreground-muted">{item.detail}</dd><dd className="mt-1 text-xs font-semibold tabular-nums">{item.value}</dd></div>)}
+            {config.queue.map((item) => <div key={item.label}><Link className="block px-3 py-3" href={item.href}><dt className="text-sm font-medium">{item.label}</dt><dd className="mt-1 text-xs text-foreground-muted">{item.detail}</dd><dd className="mt-1 text-xs font-semibold tabular-nums">{item.value}</dd></Link></div>)}
           </dl>
         </section>
 
@@ -92,8 +92,8 @@ function getLensConfig(data: OverviewScreenData, query: OverviewViewQuery, lens:
     metrics: [
       { href: destinationHref("/units?occupancy=unoccupied", query, false), label: "Vacancy and lease gaps", value: String(vacant) },
       { href: destinationHref("/leases?status=current&endsWithin=60d&sort=end_asc", query, false), label: "Lease expiries", value: String(expiring) },
-      { href: "/leases?status=current", label: "Active leases", value: String(data.workspaceSetup.activeLeaseCount) },
-      { href: "/properties", label: "Properties ranked", value: String(data.occupancyByProperty.length) },
+      { href: destinationHref("/leases?status=current", query, false), label: "Active leases", value: String(data.workspaceSetup.activeLeaseCount) },
+      { href: buildOverviewHref(query, { lens: "leasing" }), label: "Properties ranked", value: String(data.occupancyByProperty.length) },
     ],
     queue: data.occupancyByProperty.map((row) => ({ detail: `${row.occupiedUnits}/${row.totalUnits} occupied`, href: row.href, label: row.label, value: `${row.percent}%` })),
     readiness: vacant > 0 ? `${vacant} units need occupancy or lease follow-up.` : "No vacancy or lease gaps are visible in current data.", title: "Leasing",

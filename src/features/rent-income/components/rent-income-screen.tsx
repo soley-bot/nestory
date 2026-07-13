@@ -107,7 +107,7 @@ export function RentIncomeScreen({
         unitOptions={unitOptions}
         viewQuery={viewQuery}
       />
-      <RentIncomeSummaryStrip summary={summary} />
+      {viewQuery.incomeScope === "all" ? <RentIncomeSummaryStrip summary={summary} /> : <ScopedSummary label="Management fees" totalCount={pagination.totalCount} />}
 
       <main className="grid min-h-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="min-w-0 space-y-3">
@@ -229,7 +229,7 @@ function RentIncomeFilters({
 
 function RentIncomeSummaryStrip({ summary }: { summary: RentIncomeSummary }) {
   return (
-    <section className="grid gap-3 border-b border-border px-4 py-3 sm:px-6 lg:grid-cols-5">
+    <section aria-label="Global income summary" className="grid gap-3 border-b border-border px-4 py-3 sm:px-6 lg:grid-cols-5">
       <SummaryCard label="Expected" value={<MoneyDisplay value={summary.receivableTotal} />} />
       <SummaryCard label="Received" value={<MoneyDisplay value={summary.receivedTotal} />} />
       <SummaryCard label="Open rows" value={summary.openCount} />
@@ -237,6 +237,10 @@ function RentIncomeSummaryStrip({ summary }: { summary: RentIncomeSummary }) {
       <SummaryCard label="Ready to post" value={summary.unpostedCount} />
     </section>
   );
+}
+
+function ScopedSummary({ label, totalCount }: { label: string; totalCount: number }) {
+  return <section aria-label="Scoped income summary" className="border-b border-border px-4 py-3 sm:px-6"><p className="text-sm font-semibold">{label}</p><p className="mt-1 text-xs text-muted">{totalCount} filtered {totalCount === 1 ? "row" : "rows"}</p></section>;
 }
 
 function SummaryCard({ label, value }: { label: string; value: ReactNode }) {

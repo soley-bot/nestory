@@ -108,7 +108,7 @@ export function BillsExpensesScreen({
         unitOptions={unitOptions}
         viewQuery={viewQuery}
       />
-      <BillsExpensesSummaryStrip summary={summary} />
+      {viewQuery.expenseType === "all" ? <BillsExpensesSummaryStrip summary={summary} /> : <ScopedSummary label={`${expenseTypeOptions.find((option) => option.value === viewQuery.expenseType)?.label ?? "Filtered"} expenses`} totalCount={pagination.totalCount} />}
 
       <main className="grid min-h-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="min-w-0 space-y-3">
@@ -242,7 +242,7 @@ function BillsExpensesSummaryStrip({
   summary: BillsExpensesSummary;
 }) {
   return (
-    <section className="grid gap-3 border-b border-border px-4 py-3 sm:px-6 lg:grid-cols-5">
+    <section aria-label="Global expense summary" className="grid gap-3 border-b border-border px-4 py-3 sm:px-6 lg:grid-cols-5">
       <SummaryCard label="Approved" value={summary.approvedCount} />
       <SummaryCard label="Draft" value={summary.draftCount} />
       <SummaryCard label="Overdue" value={summary.overdueCount} />
@@ -250,6 +250,10 @@ function BillsExpensesSummaryStrip({
       <SummaryCard label="Posted" value={<MoneyDisplay value={summary.postedTotal} />} />
     </section>
   );
+}
+
+function ScopedSummary({ label, totalCount }: { label: string; totalCount: number }) {
+  return <section aria-label="Scoped expense summary" className="border-b border-border px-4 py-3 sm:px-6"><p className="text-sm font-semibold">{label}</p><p className="mt-1 text-xs text-muted">{totalCount} filtered {totalCount === 1 ? "row" : "rows"}</p></section>;
 }
 
 function SummaryCard({ label, value }: { label: string; value: ReactNode }) {

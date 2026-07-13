@@ -52,3 +52,11 @@
 - Rent & Income now parses `incomeScope=management-fees` and applies the four supported fee types server-side. Bills & Expenses parses `expenseType` and applies it server-side. Both filter surfaces preserve the selected scope.
 - Added mobile semantic priority-card markup equivalent to the desktop ranked queue.
 - Follow-up verification: 10 focused files / 54 tests passed, then Overview focused tests passed 17/17; TypeScript and targeted lint passed.
+
+## Final review closeout
+
+- Scoped Rent & Income and Bills & Expenses routes no longer render unfiltered monetary workflow summaries. They show an explicitly labeled scoped summary with the truthful server-filtered row count.
+- Mobile priority cards now keep `dt`/`dd` semantics inside a real `Link` using the same row destination as desktop.
+- Leasing Active leases preserves the selected property only; Properties ranked is now an Overview-internal URL that preserves lens, month, and property state.
+- Added deterministic equal-primary-value ranking coverage proving label and then property ID tie-breaking.
+- Final verification: 10 test files / 59 tests passed; TypeScript, targeted lint, and `git diff --check` passed.

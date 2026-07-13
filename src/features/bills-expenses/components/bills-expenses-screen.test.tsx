@@ -8,6 +8,13 @@ import type { BillsExpenseItem } from "../bills-expenses.types";
 afterEach(cleanup);
 
 describe("BillsExpensesScreen", () => {
+  it("shows a truthful filtered count instead of global totals for maintenance", () => {
+    renderScreen(partialExpense, "maintenance");
+    expect(screen.getByText("Maintenance expenses")).toBeTruthy();
+    expect(screen.getByText("1 filtered row")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Global expense summary" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Scoped expense summary" })).toBeTruthy();
+  });
   it("submits and describes only the outstanding expense amount", () => {
     renderScreen(partialExpense);
 
@@ -75,7 +82,7 @@ const partialExpense = {
   vendorPersonId: null,
 } as BillsExpenseItem;
 
-function renderScreen(item: BillsExpenseItem) {
+function renderScreen(item: BillsExpenseItem, expenseType: "all" | "maintenance" = "all") {
   render(
     <BillsExpensesScreen
       expenseItems={[item]}
@@ -91,7 +98,7 @@ function renderScreen(item: BillsExpenseItem) {
       unitOptions={[]}
       vendorOptions={[]}
     viewQuery={{
-      expenseType: "all",
+      expenseType,
         month: "2026-07",
         page: 1,
         pageSize: 25,
