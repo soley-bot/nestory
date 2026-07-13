@@ -1,9 +1,14 @@
 /* @vitest-environment jsdom */
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { OverviewScreen } from "@/features/overview/components/overview-screen";
-import type { OverviewScreenData } from "@/features/overview/overview.types";
+import type {
+  OverviewScreenData,
+  OverviewViewQuery,
+} from "@/features/overview/overview.types";
+
+afterEach(cleanup);
 
 describe("OverviewScreen", () => {
   it("shows a setup path instead of a clear dashboard for a new workspace", () => {
@@ -20,8 +25,7 @@ describe("OverviewScreen", () => {
       screen
         .getAllByRole("link", { name: /add first property/i })
         .every(
-          (link) =>
-            link.getAttribute("href") === "/properties?action=create",
+          (link) => link.getAttribute("href") === "/properties?action=create",
         ),
     ).toBe(true);
     expect(
@@ -41,14 +45,16 @@ describe("OverviewScreen", () => {
 
     expect(financeTab.getAttribute("href")).toBe("/overview?lens=finance");
     expect(financeTab.getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("link", { name: "Company P&L" }).getAttribute("aria-current")).toBe(
-      "page",
-    );
+    expect(
+      screen
+        .getByRole("link", { name: "Company P&L" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
     expect(screen.getByText("Company P&L trend")).toBeTruthy();
     expect(screen.getByText("Company net P&L")).toBeTruthy();
-    expect(screen.getByTitle("Open cases and repair pressure").getAttribute("href")).toBe(
-      "/overview?lens=maintenance",
-    );
+    expect(
+      screen.getByTitle("Open cases and repair pressure").getAttribute("href"),
+    ).toBe("/overview?lens=maintenance");
   });
 
   it("preserves finance subtab URL state", () => {
@@ -65,9 +71,55 @@ describe("OverviewScreen", () => {
       .find((link) => link.getAttribute("aria-current") === "page");
 
     expect(propertyRankingTab).toBeTruthy();
-    expect(screen.getByText("CTR / Central Residence")).toBeTruthy();
+    expect(screen.getByText("CTR / Satomi Dimitroff-Guorguieff")).toBeTruthy();
+  });
+
+  it("shows a cash-basis property scorecard with URL-backed selection", () => {
+    render(
+      <OverviewScreen data={operatingWorkspaceData} query={portfolioQuery} />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Property performance" }),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getAllByRole("link", { name: /Satomi Dimitroff-Guorguieff/ })
+        .some(
+          (link) =>
+            link.getAttribute("href") ===
+            "/overview?month=2026-07&propertyId=prop-1",
+        ),
+    ).toBe(true);
+    expect(screen.getAllByText("USD 827.40").length).toBeGreaterThan(0);
+    expect(screen.getByText("Cash basis")).toBeTruthy();
+    expect(screen.queryByText("Company P&L")).toBeNull();
+  });
+
+  it("exposes scorecard facts in labeled mobile card markup", () => {
+    render(
+      <OverviewScreen data={operatingWorkspaceData} query={portfolioQuery} />,
+    );
+
+    const mobileCards = screen.getByRole("region", {
+      name: "Property performance cards",
+    });
+    expect(mobileCards.querySelector("dt")?.textContent).toBe("Collected");
+    expect(mobileCards.textContent).toContain("87%");
+    expect(mobileCards.textContent).toContain("USD 1,400.00");
+    expect(mobileCards.textContent).toContain("USD 572.60");
+    expect(mobileCards.textContent).toContain("USD 827.40");
+    expect(mobileCards.textContent).toContain("Not set");
   });
 });
+
+const portfolioQuery: OverviewViewQuery = {
+  financeView: "collections",
+  lens: "all",
+  month: "2026-07",
+  propertyId: "all",
+  review: "all",
+};
 
 const emptyWorkspaceData: OverviewScreenData = {
   attentionItems: [],
@@ -143,38 +195,38 @@ const operatingWorkspaceData: OverviewScreenData = {
   propertyPerformance: {
     rows: [
       {
-        arrears: { primary: "USD 90.00" },
-        arrearsAmount: 90,
-        cashExpenses: { primary: "USD 120.00" },
-        cashExpensesAmount: 120,
-        cashIncome: { primary: "USD 500.00" },
-        cashIncomeAmount: 500,
-        collectionRate: 82,
+        arrears: { primary: "USD 200.00" },
+        arrearsAmount: 200,
+        cashExpenses: { primary: "USD 572.60" },
+        cashExpensesAmount: 572.6,
+        cashIncome: { primary: "USD 1,400.00" },
+        cashIncomeAmount: 1400,
+        collectionRate: 87,
         href: "/properties/prop-1",
-        label: "CTR / Central Residence",
-        managementFeeEarned: { primary: "USD 0.00" },
-        managementFeeEarnedAmount: 0,
+        label: "CTR / Satomi Dimitroff-Guorguieff",
+        managementFeeEarned: { primary: "USD 112.00" },
+        managementFeeEarnedAmount: 112,
         managementFeeOutstandingAmount: 0,
-        managementFeeReceived: { primary: "USD 0.00" },
-        managementFeeReceivedAmount: 0,
-        netCash: { primary: "USD 380.00" },
-        netCashAmount: 380,
+        managementFeeReceived: { primary: "USD 112.00" },
+        managementFeeReceivedAmount: 112,
+        netCash: { primary: "USD 827.40" },
+        netCashAmount: 827.4,
         propertyId: "prop-1",
-        securityDepositHeldAmount: 0,
+        securityDepositHeldAmount: 1400,
         statementBlockers: 0,
         status: "arrears",
         unitCount: 10,
       },
     ],
     summary: {
-      arrearsAmount: 90,
-      cashExpensesAmount: 120,
-      cashIncomeAmount: 500,
-      collectionRate: 82,
-      managementFeeEarnedAmount: 0,
+      arrearsAmount: 200,
+      cashExpensesAmount: 572.6,
+      cashIncomeAmount: 1400,
+      collectionRate: 87,
+      managementFeeEarnedAmount: 112,
       managementFeeOutstandingAmount: 0,
-      managementFeeReceivedAmount: 0,
-      netCashAmount: 380,
+      managementFeeReceivedAmount: 112,
+      netCashAmount: 827.4,
       statementReadiness: { blockedCount: 0, readyCount: 1, totalCount: 1 },
     },
   },

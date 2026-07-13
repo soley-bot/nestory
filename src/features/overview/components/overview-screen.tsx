@@ -29,6 +29,8 @@ import {
   OverviewLeaseEndingDonut,
   OverviewOccupancyBars,
 } from "@/features/overview/components/overview-charts";
+import { OverviewHeader } from "@/features/overview/components/overview-header";
+import { PortfolioWorkspace } from "@/features/overview/components/portfolio-workspace";
 import type {
   OverviewAttentionItem,
   OverviewCompanyFinanceSummary,
@@ -192,6 +194,20 @@ export function OverviewScreen({
     return <EmptyWorkspaceOnboarding data={data} />;
   }
 
+  if (query?.lens === "all") {
+    return (
+      <main className="min-h-screen bg-background px-4 py-3 sm:px-5 lg:px-5">
+        <div className="space-y-3">
+          <OverviewHeader query={query} />
+          {showSetupProgressForPortfolio(data) ? (
+            <SetupProgressPanel setup={data.workspaceSetup} />
+          ) : null}
+          <PortfolioWorkspace data={data} query={query} />
+        </div>
+      </main>
+    );
+  }
+
   const lensAttentionItems = getLensAttentionItems(data.attentionItems, lens);
   const lensAttentionTotal = countAttention(lensAttentionItems);
   const lensSummary = getLensSummary(
@@ -288,6 +304,10 @@ export function OverviewScreen({
   );
 }
 
+function showSetupProgressForPortfolio(data: OverviewScreenData) {
+  return !isBaseSetupComplete(data.workspaceSetup);
+}
+
 function toLegacyFinanceView(
   financeView: OverviewViewQuery["financeView"],
 ): OverviewLegacyFinanceView {
@@ -295,10 +315,7 @@ function toLegacyFinanceView(
     return "ledger";
   }
 
-  if (
-    financeView === "management-fees" ||
-    financeView === "owner-statements"
-  ) {
+  if (financeView === "management-fees" || financeView === "owner-statements") {
     return "owner-receivables";
   }
 
@@ -327,7 +344,9 @@ function OverviewLensHeader({
             const count =
               tab.key === "all"
                 ? countAttention(attentionItems)
-                : countAttention(getLensAttentionItems(attentionItems, tab.key));
+                : countAttention(
+                    getLensAttentionItems(attentionItems, tab.key),
+                  );
 
             return (
               <Link
@@ -348,7 +367,10 @@ function OverviewLensHeader({
                 <Icon size={14} />
                 <span>{tab.label}</span>
                 {count > 0 ? (
-                  <Badge className="ml-0.5" tone={isActive ? "accent" : "neutral"}>
+                  <Badge
+                    className="ml-0.5"
+                    tone={isActive ? "accent" : "neutral"}
+                  >
                     {count}
                   </Badge>
                 ) : null}
@@ -429,7 +451,10 @@ function EmptyWorkspaceOnboarding({ data }: { data: OverviewScreenData }) {
                 </Link>
               </div>
               <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
-                <ImportFact label="Files" value="Properties, units, people, leases" />
+                <ImportFact
+                  label="Files"
+                  value="Properties, units, people, leases"
+                />
                 <ImportFact label="Limit" value="500 valid rows per commit" />
                 <ImportFact label="Needs" value="Matched record anchors" />
                 <ImportFact label="Result" value="Staged create or update" />
@@ -490,7 +515,9 @@ function SetupProgressPanel({
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="warning">Setup {completedCount}/{steps.length}</Badge>
+            <Badge tone="warning">
+              Setup {completedCount}/{steps.length}
+            </Badge>
             <p className="text-sm font-semibold text-foreground">
               Finish the records that make Overview reliable.
             </p>
@@ -524,13 +551,7 @@ function SetupProgressPanel({
   );
 }
 
-function SetupStepRow({
-  index,
-  step,
-}: {
-  index: number;
-  step: SetupStep;
-}) {
+function SetupStepRow({ index, step }: { index: number; step: SetupStep }) {
   return (
     <div className="grid min-w-0 gap-3 px-3 py-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-center">
       <span
@@ -767,7 +788,9 @@ function FinanceLensWorkspace({
           actionLabel="Open report"
           title="Property Ranking"
         >
-          <PropertyRankingTable properties={getLegacyCompanyFinance(data).properties} />
+          <PropertyRankingTable
+            properties={getLegacyCompanyFinance(data).properties}
+          />
         </ChartPanel>
       ) : null}
       {financeView === "owner-receivables" ? (
@@ -776,7 +799,9 @@ function FinanceLensWorkspace({
           actionLabel="Open bills"
           title="Owner Receivables"
         >
-          <OwnerReceivablesTable receivables={getLegacyCompanyFinance(data).ownerReceivables} />
+          <OwnerReceivablesTable
+            receivables={getLegacyCompanyFinance(data).ownerReceivables}
+          />
         </ChartPanel>
       ) : null}
       {financeView === "ledger" ? (
@@ -903,7 +928,9 @@ function CompanyPnlBreakdown({ data }: { data: OverviewScreenData }) {
             key={row.label}
           >
             <Icon className="text-foreground-subtle" size={14} />
-            <span className="truncate text-[13px] font-medium">{row.label}</span>
+            <span className="truncate text-[13px] font-medium">
+              {row.label}
+            </span>
             <span className="text-right text-[13px] font-semibold tabular-nums">
               <MoneyDisplay value={row.value} />
             </span>
@@ -926,7 +953,11 @@ function PropertyRankingTable({
   properties: OverviewCompanyFinanceSummary["properties"];
 }) {
   if (properties.length === 0) {
-    return <EmptyPanelText>No company P&L rows exist for this period.</EmptyPanelText>;
+    return (
+      <EmptyPanelText>
+        No company P&L rows exist for this period.
+      </EmptyPanelText>
+    );
   }
 
   return (
@@ -959,7 +990,9 @@ function PropertyRankingTable({
             <span
               className={cn(
                 "text-right font-semibold tabular-nums",
-                property.netContributionAmount < 0 ? "text-danger" : "text-success",
+                property.netContributionAmount < 0
+                  ? "text-danger"
+                  : "text-success",
               )}
             >
               <MoneyDisplay value={property.netContribution} />
@@ -980,7 +1013,11 @@ function OwnerReceivablesTable({
   receivables: OverviewCompanyFinanceSummary["ownerReceivables"];
 }) {
   if (receivables.length === 0) {
-    return <EmptyPanelText>No open owner receivables for company advances.</EmptyPanelText>;
+    return (
+      <EmptyPanelText>
+        No open owner receivables for company advances.
+      </EmptyPanelText>
+    );
   }
 
   return (
@@ -1000,15 +1037,21 @@ function OwnerReceivablesTable({
             href={row.href}
             key={`${row.href}-${row.invoiceDate}-${row.vendorLabel}`}
           >
-            <span className="text-foreground-muted">{formatDate(row.invoiceDate)}</span>
+            <span className="text-foreground-muted">
+              {formatDate(row.invoiceDate)}
+            </span>
             <span className="truncate font-medium">{row.propertyLabel}</span>
             <span className="min-w-0">
-              <span className="block truncate font-medium">{row.vendorLabel}</span>
+              <span className="block truncate font-medium">
+                {row.vendorLabel}
+              </span>
               <span className="block truncate text-xs text-foreground-subtle">
                 {row.label}
               </span>
             </span>
-            <span className="truncate text-foreground-muted">{row.billStatus}</span>
+            <span className="truncate text-foreground-muted">
+              {row.billStatus}
+            </span>
             <span className="text-right tabular-nums">
               <MoneyDisplay value={row.reimbursed} />
             </span>
@@ -1046,15 +1089,13 @@ function ChartPanel({
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2
-            className={cn(
-              "text-sm font-semibold leading-5 tracking-normal",
-            )}
-          >
+          <h2 className={cn("text-sm font-semibold leading-5 tracking-normal")}>
             {title}
           </h2>
           {description ? (
-            <p className="mt-0.5 text-xs text-foreground-muted">{description}</p>
+            <p className="mt-0.5 text-xs text-foreground-muted">
+              {description}
+            </p>
           ) : null}
         </div>
         <Link
@@ -1065,9 +1106,7 @@ function ChartPanel({
           <ArrowRight size={12} />
         </Link>
       </div>
-      <div className="pt-3">
-        {children}
-      </div>
+      <div className="pt-3">{children}</div>
     </section>
   );
 }
@@ -1213,7 +1252,9 @@ function EmptyPanelText({
   children: ReactNode;
   className?: string;
 }) {
-  return <p className={cn("text-sm text-foreground-muted", className)}>{children}</p>;
+  return (
+    <p className={cn("text-sm text-foreground-muted", className)}>{children}</p>
+  );
 }
 
 function getLensMetrics(
@@ -1227,11 +1268,23 @@ function getLensMetrics(
   const activeLeasesMetric = getMetric(data.metrics, "Active leases");
   const leaseGapsMetric = getMetric(data.metrics, "Lease gaps");
   const attentionMetric = getMetric(data.metrics, "Attention");
-  const openMaintenance = getAttentionCount(data.attentionItems, "Open maintenance");
+  const openMaintenance = getAttentionCount(
+    data.attentionItems,
+    "Open maintenance",
+  );
   const vacantUnits = getAttentionCount(data.attentionItems, "Vacant units");
-  const ownerGaps = getAttentionCount(data.attentionItems, "Properties without owner link");
-  const missingContacts = getAttentionCount(data.attentionItems, "People missing contact");
-  const missingRoles = getAttentionCount(data.attentionItems, "People without role");
+  const ownerGaps = getAttentionCount(
+    data.attentionItems,
+    "Properties without owner link",
+  );
+  const missingContacts = getAttentionCount(
+    data.attentionItems,
+    "People missing contact",
+  );
+  const missingRoles = getAttentionCount(
+    data.attentionItems,
+    "People without role",
+  );
 
   if (lens === "finance") {
     return [
@@ -1241,10 +1294,16 @@ function getLensMetrics(
         metric: {
           helper: "Company revenue minus company costs",
           label: "Company net P&L",
-          tone: getLegacyCompanyFinance(data).companyNetAmount < 0 ? "danger" : "success",
+          tone:
+            getLegacyCompanyFinance(data).companyNetAmount < 0
+              ? "danger"
+              : "success",
           value: getLegacyCompanyFinance(data).companyNet,
         },
-        visualTone: getLegacyCompanyFinance(data).companyNetAmount < 0 ? "danger" : "success",
+        visualTone:
+          getLegacyCompanyFinance(data).companyNetAmount < 0
+            ? "danger"
+            : "success",
       },
       {
         href: "/rent-income?query=management",
@@ -1262,7 +1321,10 @@ function getLensMetrics(
         metric: {
           helper: "Company-only costs and unrecovered advances",
           label: "Company costs",
-          tone: getLegacyCompanyFinance(data).companyCostAmount > 0 ? "warning" : "success",
+          tone:
+            getLegacyCompanyFinance(data).companyCostAmount > 0
+              ? "warning"
+              : "success",
           value: getLegacyCompanyFinance(data).companyCost,
         },
       },
@@ -1273,7 +1335,9 @@ function getLensMetrics(
           helper: "Company advances still owed by owners",
           label: "Owner receivables",
           tone:
-            getLegacyCompanyFinance(data).ownerReceivableAmount > 0 ? "warning" : "success",
+            getLegacyCompanyFinance(data).ownerReceivableAmount > 0
+              ? "warning"
+              : "success",
           value: getLegacyCompanyFinance(data).ownerReceivable,
         },
       },
@@ -1446,7 +1510,8 @@ function getLensSummary(
         ? `${attentionTotal} finance checks need review alongside ${getLegacyCompanyFinance(data).ownerReceivable.primary} in owner receivables.`
         : `Company net P&L is ${getLegacyCompanyFinance(data).companyNet.primary} from current company-classified rows.`,
       headline: "Finance lens is focused on company-wide P&L.",
-      tone: getLegacyCompanyFinance(data).companyNetAmount < 0 ? "danger" : tone,
+      tone:
+        getLegacyCompanyFinance(data).companyNetAmount < 0 ? "danger" : tone,
     };
   }
 
@@ -1480,7 +1545,8 @@ function getLensSummary(
     detail: needsReview
       ? `${attentionTotal} record readiness checks need cleanup.`
       : "Core property, people, and lease records are clear from current checks.",
-    headline: "Records lens surfaces missing links and incomplete operating data.",
+    headline:
+      "Records lens surfaces missing links and incomplete operating data.",
     tone,
   };
 }
@@ -1704,7 +1770,9 @@ function getMetric(metrics: OverviewMetric[], label: string): OverviewMetric {
   );
 }
 
-function isMoneyDisplayValue(value: OverviewMetric["value"]): value is MoneyDisplayValue {
+function isMoneyDisplayValue(
+  value: OverviewMetric["value"],
+): value is MoneyDisplayValue {
   return typeof value === "object" && value !== null && "primary" in value;
 }
 
