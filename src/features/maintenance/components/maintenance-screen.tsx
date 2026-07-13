@@ -2356,5 +2356,6 @@ function formatActivityDate(value: string) {
   return new Intl.DateTimeFormat("en", {
     day: "2-digit",
     month: "short",
+    timeZone: "UTC",
   }).format(date);
 }

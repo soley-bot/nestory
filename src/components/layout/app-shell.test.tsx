@@ -48,4 +48,15 @@ describe("AppShell workspace logo", () => {
         .getAttribute("href"),
     ).toBe("/maintenance");
   });
+
+  it("keeps managers out of admin-only settings navigation", () => {
+    render(
+      <AppShell role="manager">
+        <div>Workspace</div>
+      </AppShell>,
+    );
+
+    expect(screen.queryByRole("link", { name: "Organization" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Settings" })).toBeNull();
+  });
 });

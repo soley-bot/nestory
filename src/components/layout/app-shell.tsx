@@ -226,17 +226,6 @@ function getDesktopNavGroups(role: WorkspaceRole) {
           { href: "/tasks", label: "Tasks", icon: CheckSquare },
         ],
       },
-      {
-        ...settingsGroup,
-        items: [
-          {
-            href: "/settings",
-            label: "Organization",
-            icon: Building2,
-            section: "Organization",
-          },
-        ],
-      },
     ];
   }
 
@@ -257,7 +246,6 @@ function getMobilePrimaryNavItems(role: WorkspaceRole) {
     return [
       { href: "/maintenance", label: "Cases", icon: ClipboardList },
       { href: "/tasks", label: "Tasks", icon: CheckSquare },
-      { href: "/settings", label: "Settings", icon: Settings },
     ] satisfies NavItem[];
   }
 

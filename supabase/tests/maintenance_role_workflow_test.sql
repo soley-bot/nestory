@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(85);
+SELECT plan(87);
 
 CREATE TEMP TABLE maintenance_role_workflow_state (
   created_task_id uuid
@@ -321,11 +321,47 @@ SELECT is(
 );
 
 UPDATE public.organization_members
+SET branch_id = '00000000-0000-0000-0000-000000000212'
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND user_id = '00000000-0000-0000-0000-000000000601';
+
+SET LOCAL ROLE authenticated;
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_maintenance_execution_members(
+      '00000000-0000-0000-0000-000000000001'
+    )
+  ),
+  0::bigint,
+  'branch-scoped manager cannot enumerate members from another branch'
+);
+
+RESET ROLE;
+
+UPDATE public.organization_members
+SET branch_id = '00000000-0000-0000-0000-000000000211'
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND user_id = '00000000-0000-0000-0000-000000000601';
+
+UPDATE public.organization_members
 SET branch_id = NULL
 WHERE organization_id = '00000000-0000-0000-0000-000000000001'
   AND user_id = '00000000-0000-0000-0000-000000000501';
 
 SET LOCAL ROLE authenticated;
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_maintenance_execution_members(
+      '00000000-0000-0000-0000-000000000001'
+    )
+  ),
+  1::bigint,
+  'organization-scoped manager can enumerate executable members across branches'
+);
 
 SELECT lives_ok(
   $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000008', NULL, 77, 'USD', false)$$,

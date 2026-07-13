@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { PageHeader } from "@/components/layout/page-header";
 import { MaintenanceScreen } from "@/features/maintenance/components/maintenance-screen";
 import type { MaintenanceSurfaceVariant } from "@/features/maintenance/components/maintenance-work-surfaces";
 import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
@@ -15,6 +17,11 @@ export default async function MaintenancePage({
 }: MaintenancePageProps) {
   const context = await requireWorkspaceContext();
   const capabilities = getMaintenanceCapabilities(context.role);
+
+  if (context.role === "member" && !context.personId) {
+    return <UnlinkedMemberMaintenanceState />;
+  }
+
   const params = await searchParams;
   const viewQuery = normalizeCasesViewQuery(parseMaintenanceSearchParams(params));
   const routeConfig = getCasesRouteConfig(viewQuery);
@@ -56,6 +63,32 @@ export default async function MaintenancePage({
       unitOptions={data.unitOptions}
       viewQuery={viewQuery}
     />
+  );
+}
+
+function UnlinkedMemberMaintenanceState() {
+  return (
+    <div className="min-h-screen">
+      <PageHeader
+        description="Your login is active, but it is not connected to a staff record yet."
+        title="Maintenance"
+      />
+      <main className="px-4 py-4 sm:px-6 lg:px-6">
+        <section className="max-w-2xl rounded-md border border-border bg-surface p-5">
+          <h2 className="text-base font-semibold">Staff profile link required</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Ask an administrator to link your login to your staff profile before
+            assigned maintenance work can appear here.
+          </p>
+          <Link
+            className="mt-4 inline-flex h-8 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-surface-muted"
+            href="/account"
+          >
+            View account
+          </Link>
+        </section>
+      </main>
+    </div>
   );
 }
 

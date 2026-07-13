@@ -34,6 +34,44 @@ describe("MaintenanceInspector role-safe workflow", () => {
     expect(screen.queryByRole("link", { name: "Property" })).toBeNull();
     expect(screen.getByText(/HOME - Home/)).toBeTruthy();
   });
+
+  it("formats activity dates in a deterministic timezone", () => {
+    const originalTimeZone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+
+    try {
+      render(
+        <MaintenanceInspector
+          actor={{ branchId: "branch-1", role: "manager" }}
+          capabilities={getMaintenanceCapabilities("manager")}
+          maintenanceCase={{
+            ...makeCase(),
+            activity: [
+              {
+                action: "maintenance_task_created",
+                actionLabel: "Created",
+                createdAt: "2026-07-13T00:30:00Z",
+                details: [],
+                entityLabel: "Maintenance",
+                href: "/maintenance?taskId=task-1",
+                id: "activity-1",
+                recordLabel: "Repair leak",
+                tone: "neutral",
+              },
+            ],
+          }}
+          onArchive={vi.fn()}
+          onEdit={vi.fn()}
+          onRestore={vi.fn()}
+          onStatusMessage={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText("Jul 13")).toBeTruthy();
+    } finally {
+      process.env.TZ = originalTimeZone;
+    }
+  });
 });
 
 function makeCase(): MaintenanceCase {
