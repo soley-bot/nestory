@@ -1558,6 +1558,7 @@ DECLARE
   target_book_id uuid;
   target_journal_id uuid;
   target_lines jsonb;
+  valid_unit_id uuid;
   backfilled_count integer := 0;
 BEGIN
   FOR ledger_record IN
@@ -1618,6 +1619,16 @@ BEGIN
       AND is_default
       AND archived_at IS NULL;
 
+    valid_unit_id := NULL;
+
+    SELECT unit.id
+    INTO valid_unit_id
+    FROM public.units AS unit
+    WHERE unit.id = ledger_record.unit_id
+      AND unit.organization_id = ledger_record.organization_id
+      AND unit.property_id = ledger_record.property_id
+      AND unit.archived_at IS NULL;
+
     target_lines := jsonb_build_array(
       jsonb_strip_nulls(
         jsonb_build_object(
@@ -1626,7 +1637,7 @@ BEGIN
           'debit_amount', ledger_record.amount,
           'credit_amount', 0,
           'property_id', ledger_record.property_id,
-          'unit_id', ledger_record.unit_id
+          'unit_id', valid_unit_id
         )
       ),
       jsonb_strip_nulls(
@@ -1636,7 +1647,7 @@ BEGIN
           'debit_amount', 0,
           'credit_amount', ledger_record.amount,
           'property_id', ledger_record.property_id,
-          'unit_id', ledger_record.unit_id
+          'unit_id', valid_unit_id
         )
       )
     );
