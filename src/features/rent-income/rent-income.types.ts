@@ -34,8 +34,10 @@ export type RentIncomeStatusFilter =
   | Exclude<RentIncomeStatus, "void">;
 
 export type RentIncomeType = (typeof incomeTypeOptions)[number]["value"];
+export type RentIncomeScope = "all" | "management-fees";
 
 export type RentIncomeViewQuery = {
+  incomeScope: RentIncomeScope;
   month: string;
   page: number;
   pageSize: number;

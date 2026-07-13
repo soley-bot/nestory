@@ -112,6 +112,10 @@ export async function getBillsExpensesScreenData(
       query = query.eq("status", viewQuery.status);
     }
 
+    if (viewQuery.expenseType !== "all") {
+      query = query.eq("expense_type", viewQuery.expenseType);
+    }
+
     if (viewQuery.propertyId !== "all") {
       query = query.eq("property_id", viewQuery.propertyId);
     }

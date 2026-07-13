@@ -179,13 +179,14 @@ function RentIncomeFilters({
   return (
     <form
       action="/rent-income"
-      className="grid gap-2 border-b border-border bg-surface-muted/35 px-4 py-3 sm:px-6 lg:grid-cols-[150px_180px_minmax(160px,1fr)_minmax(160px,1fr)_minmax(180px,1.2fr)_auto]"
+      className="grid gap-2 border-b border-border bg-surface-muted/35 px-4 py-3 sm:px-6 lg:grid-cols-[150px_160px_180px_minmax(160px,1fr)_minmax(160px,1fr)_minmax(180px,1.2fr)_auto]"
     >
       <MonthPickerField
         ariaLabel="Income month"
         defaultValue={viewQuery.month}
         name="month"
       />
+      <SelectControl defaultValue={viewQuery.incomeScope} name="incomeScope" options={[{ label: "All income", value: "all" }, { label: "Management fees", value: "management-fees" }]} />
       <SelectControl
         defaultValue={viewQuery.status}
         name="status"

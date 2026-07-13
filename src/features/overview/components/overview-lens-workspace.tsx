@@ -10,6 +10,7 @@ import type {
   OverviewScreenData,
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
+import { buildOverviewHref } from "@/features/overview/components/overview-header";
 
 type OperatingLens = Exclude<OverviewLens, "all" | "finance">;
 
@@ -22,7 +23,7 @@ type QueueItem = {
 
 export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenData; query: OverviewViewQuery }) {
   const lens = query.lens as OperatingLens;
-  const config = getLensConfig(data, lens);
+  const config = getLensConfig(data, query, lens);
 
   return (
     <div className="space-y-3">
@@ -41,7 +42,7 @@ export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenDat
             <h2 className="text-sm font-semibold text-foreground">{config.title} priorities</h2>
             <p className="mt-0.5 text-xs text-foreground-muted">Ranked operating work from current portfolio data.</p>
           </div>
-          <div className="divide-y divide-border">
+          <div className="hidden divide-y divide-border sm:block">
             {config.queue.map((item) => (
               <Link className="grid gap-1 px-3 py-3 hover:bg-surface-muted sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" href={item.href} key={item.label}>
                 <div className="min-w-0">
@@ -52,6 +53,9 @@ export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenDat
               </Link>
             ))}
           </div>
+          <dl aria-label={`${config.title} priority cards`} className="divide-y divide-border sm:hidden">
+            {config.queue.map((item) => <div className="px-3 py-3" key={item.label}><dt className="text-sm font-medium">{item.label}</dt><dd className="mt-1 text-xs text-foreground-muted">{item.detail}</dd><dd className="mt-1 text-xs font-semibold tabular-nums">{item.value}</dd></div>)}
+          </dl>
         </section>
 
         <aside className="rounded-lg border border-border bg-surface p-3">
@@ -75,18 +79,19 @@ export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenDat
   );
 }
 
-function getLensConfig(data: OverviewScreenData, lens: OperatingLens) {
-  const maintenanceItems = matchingAttention(data.attentionItems, /maintenance|repair|bill|expense/i);
-  const recordsItems = matchingAttention(data.attentionItems, /record|missing|owner|document|statement/i);
+function getLensConfig(data: OverviewScreenData, query: OverviewViewQuery, lens: OperatingLens) {
+  const maintenanceItem = attentionByLabel(data.attentionItems, "Open maintenance");
+  const missingOwners = attentionByLabel(data.attentionItems, "Properties without owner link");
+  const missingLeaseLinks = attentionByLabel(data.attentionItems, "Leases missing tenant link");
   const statementBlockers = data.propertyPerformance.summary.statementReadiness.blockedCount;
   const vacant = data.occupancyByProperty.reduce((sum, row) => sum + row.unoccupiedUnits, 0);
-  const expiring = data.leaseEndings.reduce((sum, row) => sum + row.count, 0);
+  const expiring = data.leaseRiskCount;
 
   if (lens === "leasing") return {
-    actionHref: "/leases?status=current&sort=end_asc", actionLabel: "Open leasing work", attentionCount: vacant + expiring,
+    actionHref: destinationHref("/leases?status=current&sort=end_asc", query, false), actionLabel: "Open leasing work", attentionCount: vacant + expiring,
     metrics: [
-      { href: "/units?occupancy=unoccupied", label: "Vacancy and lease gaps", value: String(vacant) },
-      { href: "/leases?status=current&endsWithin=60d&sort=end_asc", label: "Lease expiries", value: String(expiring) },
+      { href: destinationHref("/units?occupancy=unoccupied", query, false), label: "Vacancy and lease gaps", value: String(vacant) },
+      { href: destinationHref("/leases?status=current&endsWithin=60d&sort=end_asc", query, false), label: "Lease expiries", value: String(expiring) },
       { href: "/leases?status=current", label: "Active leases", value: String(data.workspaceSetup.activeLeaseCount) },
       { href: "/properties", label: "Properties ranked", value: String(data.occupancyByProperty.length) },
     ],
@@ -95,36 +100,44 @@ function getLensConfig(data: OverviewScreenData, lens: OperatingLens) {
   };
 
   if (lens === "maintenance") return {
-    actionHref: "/maintenance?review=open", actionLabel: "Open maintenance work", attentionCount: countItems(maintenanceItems),
+    actionHref: destinationHref("/maintenance?review=open", query, true), actionLabel: "Open maintenance work", attentionCount: maintenanceItem?.count ?? 0,
     metrics: [
-      { href: "/maintenance?review=open", label: "Open work", value: String(countItems(maintenanceItems)) },
-      { href: "/bills-expenses?status=paid", label: "Paid maintenance cost", value: "Unavailable" },
-      { href: "/bills-expenses?status=open", label: "Unpaid bills", value: String(countMatching(maintenanceItems, /bill/i)) },
+      { href: destinationHref("/maintenance?review=open", query, true), label: "Open work", value: String(maintenanceItem?.count ?? 0) },
+      { href: destinationHref("/bills-expenses?expenseType=maintenance&status=paid", query, true), label: "Paid maintenance cost", value: "Not calculated" },
+      { href: destinationHref("/bills-expenses?expenseType=maintenance", query, true), label: "Maintenance expenses", value: "Open module" },
       { href: "/maintenance", label: "Properties with work", value: "Open module" },
     ],
-    queue: attentionQueue(maintenanceItems, { detail: "No open work is visible in Overview data.", href: "/maintenance?review=open", label: "Open work", value: "0" }),
+    queue: maintenanceItem ? attentionQueue([maintenanceItem], { detail: "", href: "", label: "", value: "" }) : [{ detail: "No open work is visible in Overview data.", href: destinationHref("/maintenance?review=open", query, true), label: "Open work", value: "0" }],
     readiness: "Maintenance cost is not separated from other paid property expenses in Overview data; open the real expense module for exact records.", title: "Maintenance",
   };
 
   return {
-    actionHref: "/reports/owner-statement", actionLabel: "Open reporting work", attentionCount: countItems(recordsItems) + statementBlockers,
+    actionHref: destinationHref("/reports/owner-statement", query, true), actionLabel: "Open reporting work", attentionCount: (missingOwners?.count ?? 0) + (missingLeaseLinks?.count ?? 0),
     metrics: [
-      { href: "/overview?lens=records&review=statement-blocked", label: "Statement blockers", value: String(statementBlockers) },
-      { href: "/properties?ownerStatus=missing", label: "Missing record links", value: String(countItems(recordsItems)) },
+      { href: buildOverviewHref(query, { lens: "records", review: "statement-blocked" }), label: "Statement blockers", value: String(statementBlockers) },
+      { href: destinationHref("/properties?ownerStatus=missing", query, false), label: "Missing owner links", value: missingOwners ? String(missingOwners.count) : "Not calculated" },
       { href: "/reports", label: "Statements ready", value: String(data.propertyPerformance.summary.statementReadiness.readyCount) },
-      { href: "/people?status=missing_contact", label: "Owner and contact review", value: "Open queue" },
+      { href: destinationHref("/leases?status=current&tenantStatus=missing", query, false), label: "Missing lease links", value: missingLeaseLinks ? String(missingLeaseLinks.count) : "Not calculated" },
     ],
     queue: [
-      { detail: "Properties not ready for owner reporting", href: "/overview?lens=records&review=statement-blocked", label: "Statement blockers", value: String(statementBlockers) },
-      { detail: "Open the property owner-link review", href: "/properties?ownerStatus=missing", label: "Missing record links", value: String(countItems(recordsItems)) },
+      { detail: "Properties not ready for owner reporting", href: buildOverviewHref(query, { lens: "records", review: "statement-blocked" }), label: "Statement blockers", value: String(statementBlockers) },
+      { detail: "Open the property owner-link review", href: destinationHref("/properties?ownerStatus=missing", query, false), label: "Missing owner links", value: missingOwners ? String(missingOwners.count) : "Not calculated" },
+      { detail: "Leases without a linked tenant record", href: destinationHref("/leases?status=current&tenantStatus=missing", query, false), label: "Missing lease links", value: missingLeaseLinks ? String(missingLeaseLinks.count) : "Not calculated" },
     ],
     readiness: statementBlockers > 0 ? `${statementBlockers} properties need reporting review.` : "Visible properties pass current statement readiness checks.", title: "Records",
   };
 }
 
-function matchingAttention(items: OverviewAttentionItem[], pattern: RegExp) { return items.filter((item) => pattern.test(`${item.label} ${item.helper}`)); }
-function countItems(items: OverviewAttentionItem[]) { return items.reduce((sum, item) => sum + item.count, 0); }
-function countMatching(items: OverviewAttentionItem[], pattern: RegExp) { return countItems(matchingAttention(items, pattern)); }
+function attentionByLabel(items: OverviewAttentionItem[], label: string) { return items.find((item) => item.label === label); }
 function attentionQueue(items: OverviewAttentionItem[], fallback: QueueItem): QueueItem[] {
   return items.length ? items.map((item) => ({ detail: item.helper, href: item.href, label: item.label, value: String(item.count) })) : [fallback];
+}
+
+function destinationHref(base: string, query: OverviewViewQuery, supportsMonth: boolean) {
+  const [path, search = ""] = base.split("?");
+  const params = new URLSearchParams(search);
+  if (supportsMonth) params.set("month", query.month);
+  if (query.propertyId !== "all") params.set("propertyId", query.propertyId);
+  const serialized = params.toString();
+  return serialized ? `${path}?${serialized}` : path;
 }

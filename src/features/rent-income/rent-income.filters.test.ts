@@ -11,6 +11,7 @@ describe("parseRentIncomeSearchParams", () => {
       parseRentIncomeSearchParams(
         {
           month: "2026-07",
+          incomeScope: "management-fees",
           page: "2",
           pageSize: "100",
           propertyId: "9f4b27bd-5bb5-4d80-a10b-26b5d7b2bd21",
@@ -21,6 +22,7 @@ describe("parseRentIncomeSearchParams", () => {
         new Date("2026-01-15T00:00:00.000Z"),
       ),
     ).toEqual({
+      incomeScope: "management-fees",
       month: "2026-07",
       page: 2,
       pageSize: 100,
@@ -43,6 +45,7 @@ describe("parseRentIncomeSearchParams", () => {
         new Date("2026-07-06T00:00:00.000Z"),
       ),
     ).toMatchObject({
+      incomeScope: "all",
       month: "2026-07",
       page: 1,
       pageSize: 50,

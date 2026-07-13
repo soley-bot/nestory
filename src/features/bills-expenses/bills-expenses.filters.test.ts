@@ -11,6 +11,7 @@ describe("parseBillsExpensesSearchParams", () => {
       parseBillsExpensesSearchParams(
         {
           month: "2026-07",
+          expenseType: "maintenance",
           page: "3",
           pageSize: "25",
           propertyId: "9f4b27bd-5bb5-4d80-a10b-26b5d7b2bd21",
@@ -21,6 +22,7 @@ describe("parseBillsExpensesSearchParams", () => {
         new Date("2026-01-15T00:00:00.000Z"),
       ),
     ).toEqual({
+      expenseType: "maintenance",
       month: "2026-07",
       page: 3,
       pageSize: 25,
@@ -43,6 +45,7 @@ describe("parseBillsExpensesSearchParams", () => {
         new Date("2026-07-06T00:00:00.000Z"),
       ),
     ).toMatchObject({
+      expenseType: "all",
       month: "2026-07",
       page: 1,
       pageSize: 50,

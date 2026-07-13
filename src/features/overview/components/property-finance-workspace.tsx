@@ -52,7 +52,7 @@ export function PropertyFinanceWorkspace({
       <FinanceMetricStrip data={data} />
       {query.financeView === "collections" ? (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
-          <PropertyScorecard query={query} rows={data.propertyPerformance.rows} />
+          <PropertyScorecard query={query} rows={rankFinanceRows(data.propertyPerformance.rows, "collections")} />
           <aside className="rounded-lg border border-border bg-surface p-3">
             <h2 className="text-sm font-semibold">Attention and readiness</h2>
             <p className="mt-3 text-xs leading-5 text-foreground-muted">{formatMoneyDisplay(data.propertyPerformance.summary.arrearsAmount, data.ledgerCurrency).primary} remains uncollected across visible properties.</p>
@@ -87,7 +87,7 @@ function FinanceQueue({ data, query }: { data: OverviewScreenData; query: Overvi
     "management-fees": {
       description:
         "Track earned, received, and outstanding management fees as property operating costs.",
-      href: "/rent-income?query=management",
+      href: "/rent-income?incomeScope=management-fees",
       label: "Open management fees",
     },
     "owner-statements": {
@@ -108,11 +108,32 @@ function FinanceQueue({ data, query }: { data: OverviewScreenData; query: Overvi
   const params = new URLSearchParams({ month: query.month });
   if (query.propertyId !== "all") params.set("propertyId", query.propertyId);
   const valueForRow = (row: OverviewScreenData["propertyPerformance"]["rows"][number]) => query.financeView === "expenses" ? row.cashExpenses.primary : query.financeView === "management-fees" ? row.managementFeeEarned.primary : query.financeView === "owner-statements" ? `${row.statementBlockers} blockers` : row.netCash.primary;
+  const rows = rankFinanceRows(data.propertyPerformance.rows, query.financeView);
   return <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
     <section className="overflow-hidden rounded-lg border border-border bg-surface">
       <div className="border-b border-border px-3 py-2.5"><h2 className="text-sm font-semibold">{views.find((view) => view.value === query.financeView)?.label} by property</h2><p className="mt-0.5 text-xs text-foreground-muted">{item.description}</p></div>
-      <div className="divide-y divide-border">{data.propertyPerformance.rows.map((row) => <Link className="flex items-center justify-between gap-3 px-3 py-3 hover:bg-surface-muted" href={`${item.href}${item.href.includes("?") ? "&" : "?"}${new URLSearchParams({ month: query.month, propertyId: row.propertyId }).toString()}`} key={row.propertyId}><span className="truncate text-sm font-medium">{row.label}</span><span className="shrink-0 text-xs font-semibold tabular-nums">{valueForRow(row)}</span></Link>)}</div>
+      <div className="divide-y divide-border">{rows.map((row) => <Link className="flex items-center justify-between gap-3 px-3 py-3 hover:bg-surface-muted" href={financeDestinationHref(item.href, query.month, row.propertyId)} key={row.propertyId}><span className="truncate text-sm font-medium">{row.label}</span><span className="shrink-0 text-xs font-semibold tabular-nums">{valueForRow(row)}</span></Link>)}</div>
     </section>
     <aside className="rounded-lg border border-border bg-surface p-3"><h2 className="text-sm font-semibold">Attention and readiness</h2><p className="mt-3 text-xs leading-5 text-foreground-muted">{data.propertyPerformance.summary.statementReadiness.blockedCount} statement blockers and {formatMoneyDisplay(data.propertyPerformance.summary.arrearsAmount, data.ledgerCurrency).primary} in arrears need review.</p><Link className="mt-3 inline-block text-xs font-medium underline-offset-2 hover:underline" href={`${item.href}${item.href.includes("?") ? "&" : "?"}${params.toString()}`}>{item.label}</Link></aside>
   </div>;
+}
+
+export function rankFinanceRows(rows: OverviewScreenData["propertyPerformance"]["rows"], view: OverviewFinanceView) {
+  const ranked = [...rows];
+  const tie = (a: (typeof rows)[number], b: (typeof rows)[number]) => a.label.localeCompare(b.label) || a.propertyId.localeCompare(b.propertyId);
+  return ranked.sort((a, b) => {
+    if (view === "collections") return b.arrearsAmount - a.arrearsAmount || a.collectionRate - b.collectionRate || tie(a, b);
+    if (view === "expenses") return b.cashExpensesAmount - a.cashExpensesAmount || tie(a, b);
+    if (view === "management-fees") return b.managementFeeOutstandingAmount - a.managementFeeOutstandingAmount || (b.managementFeeReceivedAmount / Math.max(b.managementFeeEarnedAmount, 1)) - (a.managementFeeReceivedAmount / Math.max(a.managementFeeEarnedAmount, 1)) || tie(a, b);
+    if (view === "owner-statements") return b.statementBlockers - a.statementBlockers || tie(a, b);
+    return Math.abs(b.cashIncomeAmount) + Math.abs(b.cashExpensesAmount) - Math.abs(a.cashIncomeAmount) - Math.abs(a.cashExpensesAmount) || tie(a, b);
+  });
+}
+
+function financeDestinationHref(base: string, month: string, propertyId: string) {
+  const [path, search = ""] = base.split("?");
+  const params = new URLSearchParams(search);
+  params.set("month", month);
+  params.set("propertyId", propertyId);
+  return `${path}?${params.toString()}`;
 }

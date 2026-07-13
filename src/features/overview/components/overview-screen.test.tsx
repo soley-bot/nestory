@@ -3,7 +3,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { OverviewScreen } from "@/features/overview/components/overview-screen";
-import { PropertyFinanceWorkspace } from "@/features/overview/components/property-finance-workspace";
+import { PropertyFinanceWorkspace, rankFinanceRows } from "@/features/overview/components/property-finance-workspace";
 import type {
   OverviewScreenData,
   OverviewViewQuery,
@@ -15,7 +15,7 @@ describe("OverviewScreen", () => {
   it.each([
     ["leasing", "Leasing priorities", "Vacancy and lease gaps", "Lease expiries"],
     ["maintenance", "Maintenance priorities", "Open work", "Paid maintenance cost"],
-    ["records", "Records priorities", "Statement blockers", "Missing record links"],
+    ["records", "Records priorities", "Statement blockers", "Missing owner links"],
   ] as const)("renders the %s lens with the shared operating grammar", (lens, queue, first, second) => {
     render(
       <OverviewScreen
@@ -33,6 +33,46 @@ describe("OverviewScreen", () => {
     expect(screen.queryByText("Company P&L")).toBeNull();
     expect(screen.queryByText("Company costs")).toBeNull();
     expect(screen.queryByText("Journal health")).toBeNull();
+  });
+
+  it("uses exact lens counts and preserves supported destination state", () => {
+    const query = { ...selectedPortfolioQuery, lens: "maintenance" as const };
+    render(<OverviewScreen data={operatingWorkspaceData} query={query} />);
+    expect(screen.getAllByText("1").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: /Paid maintenance cost/ }).getAttribute("href")).toBe("/bills-expenses?expenseType=maintenance&status=paid&month=2026-07&propertyId=prop-1");
+    expect(screen.getByRole("link", { name: /Maintenance expenses/ }).getAttribute("href")).toBe("/bills-expenses?expenseType=maintenance&month=2026-07&propertyId=prop-1");
+    expect(screen.getAllByText("Not calculated").length).toBeGreaterThan(0);
+  });
+
+  it("uses the actual 60-day lease risk count and keeps mobile queue facts equivalent", () => {
+    render(<OverviewScreen data={operatingWorkspaceData} query={{ ...selectedPortfolioQuery, lens: "leasing" }} />);
+    const expiry = screen.getByRole("link", { name: /Lease expiries/ });
+    expect(expiry.textContent).toContain("2");
+    expect(expiry.getAttribute("href")).toContain("propertyId=prop-1");
+    const cards = screen.getByLabelText("Leasing priority cards");
+    expect(cards.textContent).toContain("Central Residence");
+    expect(cards.textContent).toContain("90%");
+  });
+
+  it("keeps records blockers separate and preserves internal review state", () => {
+    render(<OverviewScreen data={operatingWorkspaceData} query={{ ...selectedPortfolioQuery, lens: "records" }} />);
+    expect(screen.getAllByRole("link", { name: /Statement blockers/ })[0].getAttribute("href")).toBe("/overview?lens=records&month=2026-07&propertyId=prop-1&review=statement-blocked");
+    expect(screen.getAllByText("Not calculated").length).toBeGreaterThan(0);
+  });
+
+  it("opens the parser-backed management fee family with month and property state", () => {
+    render(<PropertyFinanceWorkspace data={operatingWorkspaceData} query={{ ...selectedPortfolioQuery, lens: "finance", financeView: "management-fees" }} />);
+    expect(screen.getAllByRole("link", { name: /Satomi/ })[0].getAttribute("href")).toBe("/rent-income?incomeScope=management-fees&month=2026-07&propertyId=prop-1");
+  });
+
+  it("ranks finance rows according to each subview", () => {
+    const second = { ...operatingWorkspaceData.propertyPerformance.rows[0], propertyId: "prop-2", label: "Alpha", arrearsAmount: 500, collectionRate: 60, cashExpensesAmount: 10, managementFeeOutstandingAmount: 200, statementBlockers: 3, cashIncomeAmount: 100 };
+    const rows = [operatingWorkspaceData.propertyPerformance.rows[0], second];
+    expect(rankFinanceRows(rows, "collections")[0].propertyId).toBe("prop-2");
+    expect(rankFinanceRows(rows, "expenses")[0].propertyId).toBe("prop-1");
+    expect(rankFinanceRows(rows, "management-fees")[0].propertyId).toBe("prop-2");
+    expect(rankFinanceRows(rows, "owner-statements")[0].propertyId).toBe("prop-2");
+    expect(rankFinanceRows(rows, "transactions")[0].propertyId).toBe("prop-1");
   });
 
   it("shows a setup path instead of a clear dashboard for a new workspace", () => {
@@ -293,6 +333,8 @@ const operatingWorkspaceData: OverviewScreenData = {
     },
   ],
   attentionTotal: 3,
+  leaseRiskCount: 2,
+  leaseEndings: [{ count: 5, href: "/leases?endsWithin=180d", label: "Next 6 months" }],
   dashboardSummary: {
     actionHref: "#focus-now",
     actionLabel: "Review records",

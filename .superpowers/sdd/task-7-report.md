@@ -40,4 +40,15 @@
 ## Concerns
 
 - Current Overview data has no maintenance-only paid-cost aggregation or per-property maintenance case counts. The UI reports this honestly and links to the source modules rather than deriving a false value.
-- Records attention counts can only use the current generic attention items plus statement readiness; missing owner-link totals are not separately loaded by Overview.
+- Records uses exact known attention contracts and shows `Not calculated` when a dedicated owner/lease-link total is absent.
+
+## Review follow-up
+
+- Leasing expiry now uses the loader's exact `leaseRiskCount` 60-day contract rather than summing six-month chart buckets.
+- Maintenance open work now matches only the exact `Open maintenance` attention item. Paid maintenance cost remains honestly `Not calculated`; its exact source action is `expenseType=maintenance&status=paid`. The all-status source action is labeled `Maintenance expenses`, not unpaid bills.
+- Records now recognizes only exact `Properties without owner link` and `Leases missing tenant link` attention contracts. Statement blockers remain a separate property-performance readiness value. Missing dedicated totals render `Not calculated`.
+- Nonfinance destination helpers preserve selected property and month where supported; Overview-internal review links use `buildOverviewHref` and retain month/property state.
+- Property-finance rankings are view-specific and deterministic: arrears/collection rate, paid expenses, fee outstanding/receipt ratio, statement blockers, or absolute cash movement.
+- Rent & Income now parses `incomeScope=management-fees` and applies the four supported fee types server-side. Bills & Expenses parses `expenseType` and applies it server-side. Both filter surfaces preserve the selected scope.
+- Added mobile semantic priority-card markup equivalent to the desktop ranked queue.
+- Follow-up verification: 10 focused files / 54 tests passed, then Overview focused tests passed 17/17; TypeScript and targeted lint passed.

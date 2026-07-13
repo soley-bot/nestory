@@ -23,7 +23,8 @@ describe("RentIncomeScreen", () => {
           unpostedCount: "1",
         }}
         unitOptions={[]}
-        viewQuery={{
+      viewQuery={{
+        incomeScope: "all",
           month: "2026-07",
           page: 1,
           pageSize: 25,

@@ -21,6 +21,7 @@ export function parseRentIncomeSearchParams(
   currentDate = new Date(),
 ): RentIncomeViewQuery {
   return {
+    incomeScope: getFirstSearchParam(params.incomeScope) === "management-fees" ? "management-fees" : "all",
     month: parseMonth(params.month, currentDate),
     page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),

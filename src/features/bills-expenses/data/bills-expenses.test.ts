@@ -64,6 +64,7 @@ describe("getBillsExpensesScreenData", () => {
     );
 
     const result = await getBillsExpensesScreenData("org-1", {
+      expenseType: "maintenance",
       month: "2026-07",
       page: 1,
       pageSize: 25,
@@ -80,8 +81,11 @@ describe("getBillsExpensesScreenData", () => {
       outstandingAmount: 150,
       outstandingAmountDisplay: { primary: "USD 150.00" },
     });
+    expect(queryFilters).toContainEqual(["expense_type", "maintenance"]);
   });
 });
+
+const queryFilters: Array<[string, unknown]> = [];
 
 type SupabaseResult = {
   count?: number | null;
@@ -104,7 +108,7 @@ function createSupabaseStub(results: Record<string, SupabaseResult[]>) {
 
 function createQuery(result: SupabaseResult) {
   const query = {
-    eq: () => query,
+    eq: (column: string, value: unknown) => { queryFilters.push([column, value]); return query; },
     gte: () => query,
     in: () => query,
     is: () => query,

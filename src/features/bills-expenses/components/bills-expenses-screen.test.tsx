@@ -90,7 +90,8 @@ function renderScreen(item: BillsExpenseItem) {
       }}
       unitOptions={[]}
       vendorOptions={[]}
-      viewQuery={{
+    viewQuery={{
+      expenseType: "all",
         month: "2026-07",
         page: 1,
         pageSize: 25,

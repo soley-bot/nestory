@@ -188,13 +188,14 @@ function BillsExpensesFilters({
   return (
     <form
       action="/bills-expenses"
-      className="grid gap-2 border-b border-border bg-surface-muted/35 px-4 py-3 sm:px-6 lg:grid-cols-[150px_180px_minmax(160px,1fr)_minmax(160px,1fr)_minmax(180px,1.2fr)_auto]"
+      className="grid gap-2 border-b border-border bg-surface-muted/35 px-4 py-3 sm:px-6 lg:grid-cols-[150px_160px_180px_minmax(160px,1fr)_minmax(160px,1fr)_minmax(180px,1.2fr)_auto]"
     >
       <MonthPickerField
         ariaLabel="Expense month"
         defaultValue={viewQuery.month}
         name="month"
       />
+      <SelectControl defaultValue={viewQuery.expenseType} name="expenseType" options={[{ label: "All expense types", value: "all" }, ...expenseTypeOptions.map((option) => ({ label: option.label, value: option.value }))]} />
       <SelectControl
         defaultValue={viewQuery.status}
         name="status"

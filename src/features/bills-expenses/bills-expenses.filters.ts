@@ -6,6 +6,7 @@ import {
   type SearchParamValue,
 } from "@/lib/validation/search-params";
 import type {
+  BillsExpenseTypeFilter,
   BillsExpensesPagination,
   BillsExpenseStatusFilter,
   BillsExpensesViewQuery,
@@ -21,6 +22,7 @@ export function parseBillsExpensesSearchParams(
   currentDate = new Date(),
 ): BillsExpensesViewQuery {
   return {
+    expenseType: parseExpenseType(params.expenseType),
     month: parseMonth(params.month, currentDate),
     page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
@@ -99,4 +101,9 @@ function parseStatus(value: SearchParamValue): BillsExpenseStatusFilter {
     candidate === "paid"
     ? candidate
     : "all";
+}
+
+function parseExpenseType(value: SearchParamValue): BillsExpenseTypeFilter {
+  const candidate = getFirstSearchParam(value);
+  return candidate === "vendor_bill" || candidate === "maintenance" || candidate === "utilities" || candidate === "supplies" || candidate === "owner_payout" || candidate === "refund" || candidate === "other" ? candidate : "all";
 }

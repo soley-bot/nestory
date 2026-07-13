@@ -98,6 +98,15 @@ export async function getRentIncomeScreenData(
       query = query.eq("status", viewQuery.status);
     }
 
+    if (viewQuery.incomeScope === "management-fees") {
+      query = query.in("income_type", [
+        "management_fee",
+        "leasing_commission",
+        "service_fee",
+        "maintenance_markup",
+      ]);
+    }
+
     if (viewQuery.propertyId !== "all") {
       query = query.eq("property_id", viewQuery.propertyId);
     }
