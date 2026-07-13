@@ -1,5 +1,7 @@
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
+  OPERATIONAL_OPEN_MAINTENANCE_STATUSES,
+  REMINDER_ACTIONABLE_MAINTENANCE_STATUSES,
   HIGH_COST_AMOUNT,
   MAINTENANCE_UPCOMING_WINDOW_DAYS,
 } from "@/features/maintenance/maintenance.constants";
@@ -11,6 +13,13 @@ import {
   buildMaintenancePagination,
   parseMaintenanceSearchParams,
 } from "@/features/maintenance/maintenance.filters";
+import {
+  getExecutableMaintenanceAssigneeOptions,
+  getMaintenanceExecutionMode,
+  type MaintenanceMemberIdentity,
+} from "@/features/maintenance/maintenance.execution";
+import { buildMaintenanceHrefs } from "@/features/maintenance/maintenance.hrefs";
+import { getLatestMaintenanceReviewInstruction } from "@/features/maintenance/maintenance.workflow";
 import type {
   MaintenanceBadgeTone,
   MaintenanceBranchOption,
@@ -33,19 +42,18 @@ import type {
   MaintenanceUnitOption,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
-import { buildUnitRecordHref } from "@/features/units/unit-detail-route";
 import type { Json } from "@/types/database";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { formatDate } from "@/lib/dates/format";
+import { buildHref } from "@/lib/url/href";
 import {
   formatMoney,
   formatMoneyDisplay,
   type CurrencyCode,
 } from "@/lib/money/format";
-import { buildHref } from "@/lib/url/href";
 
 const taskSelect =
-  "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
+  "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, blocked_reason, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
 const propertySelect = "id, code, name";
 const unitSelect = "id, property_id, unit_number";
 const personSelect = "id, display_name";
@@ -54,7 +62,6 @@ const staffRoleSelect = "person_id";
 const documentSelect =
   "id, task_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
 const MAINTENANCE_QUERY_BATCH_SIZE = 1_000;
-const OPEN_TASK_STATUSES = ["pending", "scheduled", "in_progress", "blocked"];
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type MaintenanceTaskQuery = ReturnType<typeof createBaseTaskQuery>;
@@ -65,6 +72,7 @@ type MaintenanceTaskRow = {
   assignee_person_id: string | null;
   archived_at: string | null;
   branch_id: string | null;
+  blocked_reason: string | null;
   category: string;
   checklist: Json;
   completed_at: string | null;
@@ -116,6 +124,11 @@ type StaffRoleRow = {
   person_id: string;
 };
 
+type MaintenanceMemberIdentityRow = {
+  branch_id: string | null;
+  person_id: string;
+};
+
 type DocumentRow = {
   category: string;
   file_name: string;
@@ -139,81 +152,6 @@ export async function getMaintenanceScreenData(
   const now = new Date();
   const today = toIsoDate(now);
   const currentTime = toIsoTime(now);
-  const [
-    branchesResult,
-    propertiesResult,
-    unitsResult,
-    peopleResult,
-    staffRolesResult,
-  ] = await Promise.all([
-    supabase
-      .from("organization_branches")
-      .select(branchSelect)
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .eq("status", "active")
-      .order("name", { ascending: true }),
-    supabase
-      .from("properties")
-      .select(propertySelect)
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .order("code", { ascending: true }),
-    supabase
-      .from("units")
-      .select(unitSelect)
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .order("unit_number", { ascending: true }),
-    supabase
-      .from("people")
-      .select(personSelect)
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .order("display_name", { ascending: true }),
-    supabase
-      .from("person_roles")
-      .select(staffRoleSelect)
-      .eq("organization_id", organizationId)
-      .eq("role", "staff")
-      .eq("status", "active")
-      .is("archived_at", null),
-  ]);
-
-  if (branchesResult.error) {
-    throw new Error(
-      `Could not load maintenance branches: ${branchesResult.error.message}`,
-    );
-  }
-
-  if (propertiesResult.error) {
-    throw new Error(
-      `Could not load maintenance properties: ${propertiesResult.error.message}`,
-    );
-  }
-
-  if (unitsResult.error) {
-    throw new Error(`Could not load maintenance units: ${unitsResult.error.message}`);
-  }
-
-  if (peopleResult.error) {
-    throw new Error(`Could not load maintenance people: ${peopleResult.error.message}`);
-  }
-
-  if (staffRolesResult.error) {
-    throw new Error(
-      `Could not load maintenance staff roles: ${staffRolesResult.error.message}`,
-    );
-  }
-
-  const branchesById = indexById(branchesResult.data ?? []);
-  const propertiesById = indexById(propertiesResult.data ?? []);
-  const unitsById = indexById(unitsResult.data ?? []);
-  const peopleById = indexById(peopleResult.data ?? []);
-  const staffPersonIds = new Set(
-    ((staffRolesResult.data ?? []) as StaffRoleRow[]).map((role) => role.person_id),
-  );
-
   const [pagedTasks, summaryTaskRows] = await Promise.all([
     getPagedTaskRows(supabase, organizationId, viewQuery, today, currentTime, actor),
     getSummaryTaskRows(
@@ -225,11 +163,34 @@ export async function getMaintenanceScreenData(
       actor,
     ),
   ]);
+  const referenceTaskRows = uniqueTaskRows([
+    ...pagedTasks.rows,
+    ...summaryTaskRows,
+  ]);
+  const isMember = actor?.role === "member";
+  const references = await getMaintenanceReferenceRows(
+    supabase,
+    organizationId,
+    referenceTaskRows,
+    Boolean(isMember),
+  );
+  const memberIdentities = isMember
+    ? actor?.personId
+      ? [{ branchId: actor.branchId, personId: actor.personId }]
+      : []
+    : await getMaintenanceMemberIdentities(supabase, organizationId);
+  const branchesById = indexById(references.branches);
+  const propertiesById = indexById(references.properties);
+  const unitsById = indexById(references.units);
+  const peopleById = indexById(references.people);
+  const resolvedActor = actor ?? { role: "admin" as const };
   const pageCases = pagedTasks.rows.map((task) =>
     toMaintenanceCase({
+      actor: resolvedActor,
       activity: [],
       branchesById,
       documents: [],
+      memberIdentities,
       peopleById,
       propertiesById,
       currentTime,
@@ -240,9 +201,11 @@ export async function getMaintenanceScreenData(
   );
   const summaryCases = summaryTaskRows.map((task) =>
     toMaintenanceCase({
+      actor: resolvedActor,
       activity: [],
       branchesById,
       documents: [],
+      memberIdentities,
       peopleById,
       propertiesById,
       currentTime,
@@ -252,12 +215,40 @@ export async function getMaintenanceScreenData(
     }),
   );
   const pageTaskIds = pageCases.map((maintenanceCase) => maintenanceCase.id);
-  const [documentRows, activityRows] = await Promise.all([
-    getTaskDocuments(supabase, organizationId, pageTaskIds),
+  const [documentRows, activityRows, reopenRows] = await Promise.all([
+    isMember
+      ? Promise.resolve([])
+      : getTaskDocuments(supabase, organizationId, pageTaskIds),
     getTaskActivity(supabase, organizationId, pageTaskIds),
+    getTaskReopenActivity(supabase, organizationId, pageTaskIds),
   ]);
   const documentsByTaskId = groupDocumentsByTaskId(documentRows);
   const activityByTaskId = groupActivityByTaskId(activityRows);
+  const reopenInstructionByTaskId = getLatestReviewInstructionByTaskId(reopenRows);
+  const peopleOptions = references.people.map((person) => ({
+    id: person.id,
+    label: person.display_name,
+  }));
+  const staffPersonIds = new Set(
+    references.staffRoles.map((role) => role.person_id),
+  );
+  const staffOptions = isMember
+    ? []
+    : memberIdentities.flatMap((identity) =>
+        getExecutableMaintenanceAssigneeOptions({
+          branchId: identity.branchId,
+          memberIdentities,
+          people: peopleOptions,
+          staffPersonIds,
+        }).filter((option) => option.id === identity.personId),
+      );
+  const mutableOptions = scopeMaintenanceMutableOptions(resolvedActor, {
+    branchOptions: toBranchOptions(references.branches),
+    peopleOptions,
+    propertyOptions: toPropertyOptions(references.properties),
+    staffOptions,
+    unitOptions: toUnitOptions(references.units, propertiesById),
+  });
 
   return {
     cases: pageCases.map((maintenanceCase) => ({
@@ -266,22 +257,31 @@ export async function getMaintenanceScreenData(
       documents: (documentsByTaskId.get(maintenanceCase.id) ?? []).map(
         toLinkedDocument,
       ),
+      latestReviewInstruction: reopenInstructionByTaskId.get(maintenanceCase.id),
     })),
     pagination: pagedTasks.pagination,
-    branchOptions: toBranchOptions(branchesResult.data ?? []),
-    peopleOptions: (peopleResult.data ?? []).map((person) => ({
-      id: person.id,
-      label: person.display_name,
-    })),
-    propertyOptions: toPropertyOptions(propertiesResult.data ?? []),
+    ...mutableOptions,
     summary: buildMaintenanceSummary(summaryCases, today, viewQuery.month),
-    staffOptions: (peopleResult.data ?? [])
-      .filter((person) => staffPersonIds.has(person.id))
-      .map((person) => ({
-        id: person.id,
-        label: person.display_name,
-      })),
-    unitOptions: toUnitOptions(unitsResult.data ?? [], propertiesById),
+  };
+}
+
+export function scopeMaintenanceMutableOptions(
+  actor: MaintenanceActor,
+  options: Pick<
+    MaintenanceScreenData,
+    "branchOptions" | "peopleOptions" | "propertyOptions" | "staffOptions" | "unitOptions"
+  >,
+) {
+  if (actor.role !== "member") {
+    return options;
+  }
+
+  return {
+    branchOptions: [],
+    peopleOptions: [],
+    propertyOptions: [],
+    staffOptions: [],
+    unitOptions: [],
   };
 }
 
@@ -298,7 +298,7 @@ export async function getMaintenanceReminderNotifications(
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .not("reminder_date", "is", null)
-    .in("status", ["pending", "scheduled", "in_progress", "blocked"]);
+    .in("status", [...REMINDER_ACTIONABLE_MAINTENANCE_STATUSES]);
 
   query = applyActorTaskScope(query, actor);
 
@@ -389,7 +389,9 @@ export async function getMaintenanceReminderNotifications(
 }
 
 export function isOpenMaintenanceStatus(status: MaintenanceStatus) {
-  return status !== "completed" && status !== "cancelled";
+  return OPERATIONAL_OPEN_MAINTENANCE_STATUSES.includes(
+    status as (typeof OPERATIONAL_OPEN_MAINTENANCE_STATUSES)[number],
+  );
 }
 
 export function getMaintenanceProgressState(
@@ -476,6 +478,10 @@ export function maintenanceMatchesReview(
     return maintenanceCase.recurrenceFrequency !== "none";
   }
 
+  if (review === "review_completion") {
+    return maintenanceCase.status === "ready_for_review";
+  }
+
   if (review === "completed") {
     return maintenanceCase.status === "completed";
   }
@@ -517,6 +523,9 @@ export function buildMaintenanceSummary(
     pending: cases.filter((maintenanceCase) => maintenanceCase.status === "pending").length,
     propertyStats: buildPropertyStats(cases),
     recurring: cases.filter((maintenanceCase) => maintenanceCase.recurrenceFrequency !== "none").length,
+    readyForReview: cases.filter(
+      (maintenanceCase) => maintenanceCase.status === "ready_for_review",
+    ).length,
     reminderDue: cases.filter((maintenanceCase) => maintenanceCase.isReminderDue).length,
     repeatedIssues: buildRepeatedIssues(cases),
     scheduled: cases.filter((maintenanceCase) => maintenanceCase.status === "scheduled").length,
@@ -689,29 +698,29 @@ function applyReviewFilter(
   }
 
   if (viewQuery.review === "open") {
-    return query.in("status", OPEN_TASK_STATUSES);
+    return query.in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES]);
   }
 
   if (viewQuery.review === "overdue") {
-    return query.in("status", OPEN_TASK_STATUSES).lt("due_date", today);
+    return query.in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES]).lt("due_date", today);
   }
 
   if (viewQuery.review === "scheduled") {
     return query
-      .in("status", OPEN_TASK_STATUSES)
+      .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES])
       .or("due_date.not.is.null,reminder_date.not.is.null");
   }
 
   if (viewQuery.review === "upcoming") {
     return query
-      .in("status", OPEN_TASK_STATUSES)
+      .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES])
       .gte("due_date", today)
       .lte("due_date", addDaysIso(today, MAINTENANCE_UPCOMING_WINDOW_DAYS));
   }
 
   if (viewQuery.review === "reminders") {
     return query
-      .in("status", OPEN_TASK_STATUSES)
+      .in("status", [...REMINDER_ACTIONABLE_MAINTENANCE_STATUSES])
       .not("reminder_date", "is", null)
       .or(
         `reminder_date.lt.${today},and(reminder_date.eq.${today},or(reminder_time.is.null,reminder_time.lte.${currentTime}))`,
@@ -736,6 +745,10 @@ function applyReviewFilter(
 
   if (viewQuery.review === "recurring") {
     return query.neq("recurrence_frequency", "none");
+  }
+
+  if (viewQuery.review === "review_completion") {
+    return query.eq("status", "ready_for_review");
   }
 
   if (viewQuery.review === "completed") {
@@ -831,6 +844,129 @@ function applyActorTaskScope<T extends { eq: (column: string, value: string) => 
   return query;
 }
 
+async function getMaintenanceReferenceRows(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  tasks: MaintenanceTaskRow[],
+  referencedOnly: boolean,
+) {
+  const branchIds = uniqueDefined(tasks.map((task) => task.branch_id));
+  const propertyIds = uniqueDefined(tasks.map((task) => task.property_id));
+  const unitIds = uniqueDefined(tasks.map((task) => task.unit_id));
+  const personIds = uniqueDefined(
+    tasks.flatMap((task) => [task.assignee_person_id, task.vendor_person_id]),
+  );
+
+  const branchesPromise = referencedOnly && branchIds.length === 0
+    ? Promise.resolve({ data: [] as BranchRow[], error: null })
+    : (() => {
+        let query = supabase
+          .from("organization_branches")
+          .select(branchSelect)
+          .eq("organization_id", organizationId)
+          .is("archived_at", null)
+          .eq("status", "active")
+          .order("name", { ascending: true });
+        if (referencedOnly) query = query.in("id", branchIds);
+        return query;
+      })();
+  const propertiesPromise = referencedOnly && propertyIds.length === 0
+    ? Promise.resolve({ data: [] as PropertyRow[], error: null })
+    : (() => {
+        let query = supabase
+          .from("properties")
+          .select(propertySelect)
+          .eq("organization_id", organizationId)
+          .is("archived_at", null)
+          .order("code", { ascending: true });
+        if (referencedOnly) query = query.in("id", propertyIds);
+        return query;
+      })();
+  const unitsPromise = referencedOnly && unitIds.length === 0
+    ? Promise.resolve({ data: [] as UnitRow[], error: null })
+    : (() => {
+        let query = supabase
+          .from("units")
+          .select(unitSelect)
+          .eq("organization_id", organizationId)
+          .is("archived_at", null)
+          .order("unit_number", { ascending: true });
+        if (referencedOnly) query = query.in("id", unitIds);
+        return query;
+      })();
+  const peoplePromise = referencedOnly && personIds.length === 0
+    ? Promise.resolve({ data: [] as PersonRow[], error: null })
+    : (() => {
+        let query = supabase
+          .from("people")
+          .select(personSelect)
+          .eq("organization_id", organizationId)
+          .is("archived_at", null)
+          .order("display_name", { ascending: true });
+        if (referencedOnly) query = query.in("id", personIds);
+        return query;
+      })();
+  const staffRolesPromise = referencedOnly
+    ? Promise.resolve({ data: [] as StaffRoleRow[], error: null })
+    : supabase
+        .from("person_roles")
+        .select(staffRoleSelect)
+        .eq("organization_id", organizationId)
+        .eq("role", "staff")
+        .eq("status", "active")
+        .is("archived_at", null);
+  const [branchesResult, propertiesResult, unitsResult, peopleResult, staffRolesResult] =
+    await Promise.all([
+      branchesPromise,
+      propertiesPromise,
+      unitsPromise,
+      peoplePromise,
+      staffRolesPromise,
+    ]);
+
+  if (branchesResult.error) {
+    throw new Error(`Could not load maintenance branches: ${branchesResult.error.message}`);
+  }
+  if (propertiesResult.error) {
+    throw new Error(`Could not load maintenance properties: ${propertiesResult.error.message}`);
+  }
+  if (unitsResult.error) {
+    throw new Error(`Could not load maintenance units: ${unitsResult.error.message}`);
+  }
+  if (peopleResult.error) {
+    throw new Error(`Could not load maintenance people: ${peopleResult.error.message}`);
+  }
+  if (staffRolesResult.error) {
+    throw new Error(`Could not load maintenance staff roles: ${staffRolesResult.error.message}`);
+  }
+
+  return {
+    branches: (branchesResult.data ?? []) as BranchRow[],
+    people: (peopleResult.data ?? []) as PersonRow[],
+    properties: (propertiesResult.data ?? []) as PropertyRow[],
+    staffRoles: (staffRolesResult.data ?? []) as StaffRoleRow[],
+    units: (unitsResult.data ?? []) as UnitRow[],
+  };
+}
+
+async function getMaintenanceMemberIdentities(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+): Promise<MaintenanceMemberIdentity[]> {
+  const result = await supabase.rpc("get_maintenance_execution_members", {
+    p_organization_id: organizationId,
+  });
+
+  if (result.error) {
+    throw new Error(`Could not load executable maintenance members: ${result.error.message}`);
+  }
+
+  return ((result.data ?? []) as MaintenanceMemberIdentityRow[]).map((identity) => ({
+    branchId: identity.branch_id ?? undefined,
+    personId: identity.person_id,
+  }));
+}
+
 async function getTaskDocuments(
   supabase: SupabaseServerClient,
   organizationId: string,
@@ -880,6 +1016,31 @@ async function getTaskActivity(
   return result.data ?? [];
 }
 
+async function getTaskReopenActivity(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  taskIds: string[],
+): Promise<ActivityRow[]> {
+  if (taskIds.length === 0) {
+    return [];
+  }
+
+  const result = await supabase
+    .from("activity_logs")
+    .select("id, entity_type, entity_id, action, previous_values, new_values, created_at")
+    .eq("organization_id", organizationId)
+    .eq("entity_type", "task")
+    .eq("action", "maintenance_task_completion_reopened")
+    .in("entity_id", taskIds)
+    .order("created_at", { ascending: false });
+
+  if (result.error) {
+    throw new Error(`Could not load maintenance reopen instructions: ${result.error.message}`);
+  }
+
+  return result.data ?? [];
+}
+
 async function addSignedDocumentUrls(
   rows: DocumentRow[],
   supabase: SupabaseServerClient,
@@ -900,20 +1061,24 @@ async function addSignedDocumentUrls(
 }
 
 function toMaintenanceCase({
+  actor,
   activity,
   branchesById,
   currentTime,
   documents,
+  memberIdentities,
   peopleById,
   propertiesById,
   task,
   today,
   unitsById,
 }: {
+  actor: MaintenanceActor;
   activity: ReturnType<typeof toRecentChange>[];
   branchesById: Map<string, BranchRow>;
   currentTime: string;
   documents: DocumentRow[];
+  memberIdentities: MaintenanceMemberIdentity[];
   peopleById: Map<string, PersonRow>;
   propertiesById: Map<string, PropertyRow>;
   task: MaintenanceTaskRow;
@@ -959,6 +1124,7 @@ function toMaintenanceCase({
     assigneePersonId: task.assignee_person_id ?? undefined,
     branchId: task.branch_id ?? undefined,
     branchLabel: branch ? `${branch.code} - ${branch.name}` : "No branch",
+    blockedReason: task.blocked_reason ?? undefined,
     category: task.category,
     checklist,
     checklistDoneCount: checklist.filter((item) => item.completed).length,
@@ -975,6 +1141,13 @@ function toMaintenanceCase({
     dueDate: task.due_date ?? undefined,
     dueLabel: formatDateTimeLabel(task.due_date, task.due_time, "No due date"),
     dueTime: normalizeTime(task.due_time),
+    executionMode: getMaintenanceExecutionMode(
+      {
+        assigneePersonId: task.assignee_person_id ?? undefined,
+        branchId: task.branch_id ?? undefined,
+      },
+      memberIdentities,
+    ),
     formValues: {
       actualCostAmount: task.actual_cost_amount,
       assigneePersonId: task.assignee_person_id,
@@ -995,7 +1168,7 @@ function toMaintenanceCase({
       unitId: task.unit_id,
       vendorPersonId: task.vendor_person_id,
     },
-    hrefs: buildMaintenanceHrefs(task),
+    hrefs: buildMaintenanceHrefs(task, actor),
     id: task.id,
     isArchived: Boolean(task.archived_at),
     isHighCost: getRawCaseCost(task) >= HIGH_COST_AMOUNT,
@@ -1025,7 +1198,7 @@ function toMaintenanceCase({
     reminderTime: normalizeTime(task.reminder_time),
     requestId: task.tenant_request_id,
     status,
-    statusLabel: formatStoredLabel(status),
+    statusLabel: status === "ready_for_review" ? "Ready for review" : formatStoredLabel(status),
     statusTone: getStatusTone(status),
     timelineEventId: task.timeline_event_id ?? undefined,
     title: task.title,
@@ -1036,55 +1209,6 @@ function toMaintenanceCase({
   } satisfies MaintenanceCase;
 
   return maintenanceCase;
-}
-
-export function buildMaintenanceHrefs(task: MaintenanceTaskRow) {
-  return {
-    assignee: task.assignee_person_id
-      ? buildHref("/people", {
-          archiveState: "all",
-          personId: task.assignee_person_id,
-        })
-      : undefined,
-    documents: `/documents?archiveState=all&taskId=${task.id}`,
-    documentUpload: buildHref("/documents", {
-      action: "create",
-      category: "Maintenance",
-      propertyId: task.property_id,
-      taskId: task.id,
-      unitId: task.unit_id ?? undefined,
-    }),
-    ledger: task.ledger_entry_id
-      ? buildHref("/ledger", {
-          archiveState: "all",
-          entryId: task.ledger_entry_id,
-        })
-      : undefined,
-    property: `/properties/${task.property_id}`,
-    task: buildHref("/maintenance", {
-      archiveState: "all",
-      taskId: task.id,
-    }),
-    timeline: task.timeline_event_id
-      ? buildHref("/timeline", {
-          archiveState: "all",
-          eventId: task.timeline_event_id,
-        })
-      : undefined,
-    unit: task.unit_id
-      ? buildUnitRecordHref({
-          section: "maintenance",
-          sourceTaskId: task.id,
-          unitId: task.unit_id,
-        })
-      : undefined,
-    vendor: task.vendor_person_id
-      ? buildHref("/people", {
-          archiveState: "all",
-          personId: task.vendor_person_id,
-        })
-      : undefined,
-  };
 }
 
 function toLinkedDocument(document: DocumentRow): MaintenanceLinkedDocument {
@@ -1352,7 +1476,12 @@ function getRawCaseCost(task: MaintenanceTaskRow) {
 function isReminderDue(task: MaintenanceTaskRow, today: string, currentTime: string) {
   const status = normalizeMaintenanceStatus(task.status);
 
-  if (!isOpenMaintenanceStatus(status) || !task.reminder_date) {
+  if (
+    !REMINDER_ACTIONABLE_MAINTENANCE_STATUSES.includes(
+      status as (typeof REMINDER_ACTIONABLE_MAINTENANCE_STATUSES)[number],
+    ) ||
+    !task.reminder_date
+  ) {
     return false;
   }
 
@@ -1374,6 +1503,7 @@ function normalizeMaintenanceStatus(status: string): MaintenanceStatus {
     normalized === "scheduled" ||
     normalized === "in_progress" ||
     normalized === "blocked" ||
+    normalized === "ready_for_review" ||
     normalized === "completed" ||
     normalized === "cancelled"
   ) {
@@ -1431,6 +1561,10 @@ function getStatusTone(status: MaintenanceStatus): MaintenanceBadgeTone {
   }
 
   if (status === "blocked" || status === "cancelled") {
+    return "warning";
+  }
+
+  if (status === "ready_for_review") {
     return "warning";
   }
 
@@ -1575,6 +1709,31 @@ function groupActivityByTaskId(rows: ActivityRow[]) {
   }
 
   return grouped;
+}
+
+export function getLatestReviewInstructionByTaskId(rows: ActivityRow[]) {
+  const instructions = new Map<string, string>();
+
+  for (const row of rows) {
+    if (instructions.has(row.entity_id)) {
+      continue;
+    }
+
+    const instruction = getLatestMaintenanceReviewInstruction([toRecentChange(row)]);
+    if (instruction) {
+      instructions.set(row.entity_id, instruction);
+    }
+  }
+
+  return instructions;
+}
+
+function uniqueTaskRows(rows: MaintenanceTaskRow[]) {
+  return [...new Map(rows.map((row) => [row.id, row])).values()];
+}
+
+function uniqueDefined(values: Array<string | null | undefined>) {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
 
 function indexById<T extends { id: string }>(rows: T[]) {

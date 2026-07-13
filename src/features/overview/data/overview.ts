@@ -8,6 +8,7 @@ import type {
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
 import { getOverviewMonthScope } from "@/features/overview/overview.filters";
+import { OPERATIONAL_OPEN_MAINTENANCE_STATUSES } from "@/features/maintenance/maintenance.constants";
 import {
   buildOverviewPropertyPerformance,
   type OverviewDepositEventInputRow,
@@ -21,12 +22,6 @@ import type { CurrencyCode } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
 const activeLeaseStatuses = ["active", "notice_given"] as const;
-const openMaintenanceStatuses = [
-  "pending",
-  "scheduled",
-  "in_progress",
-  "blocked",
-] as const;
 const largeExpenseReviewThreshold = 1000;
 const largeExpenseReviewHref = `/ledger?direction=expense&sort=amount_desc&period=last_30_days&minAmount=${largeExpenseReviewThreshold}`;
 const monthLabelFormatter = new Intl.DateTimeFormat("en-US", {
@@ -237,7 +232,7 @@ export async function getOverviewScreenData(
     .select("id", { count: "exact", head: true })
     .eq("organization_id", organizationId)
     .is("archived_at", null)
-    .in("status", [...openMaintenanceStatuses]);
+    .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES]);
   let documentsQuery = supabase
     .from("documents")
     .select("property_id, ledger_entry_id")

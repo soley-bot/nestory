@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { NestoryLogo } from "@/components/brand/nestory-logo";
 import { signOutAction } from "@/features/auth/actions";
 import type { WorkspaceRole } from "@/lib/auth/context";
+import { getWorkspaceEntryPath } from "@/lib/auth/workspace-entry";
 
 type NavItem = {
   href: string;
@@ -225,17 +226,6 @@ function getDesktopNavGroups(role: WorkspaceRole) {
           { href: "/tasks", label: "Tasks", icon: CheckSquare },
         ],
       },
-      {
-        ...settingsGroup,
-        items: [
-          {
-            href: "/settings",
-            label: "Organization",
-            icon: Building2,
-            section: "Organization",
-          },
-        ],
-      },
     ];
   }
 
@@ -256,7 +246,6 @@ function getMobilePrimaryNavItems(role: WorkspaceRole) {
     return [
       { href: "/maintenance", label: "Cases", icon: ClipboardList },
       { href: "/tasks", label: "Tasks", icon: CheckSquare },
-      { href: "/settings", label: "Settings", icon: Settings },
     ] satisfies NavItem[];
   }
 
@@ -556,7 +545,7 @@ function ExpandedDesktopSidebar({
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-3">
         <Link
           className="flex min-w-0 flex-1 items-center gap-3 text-foreground"
-          href="/overview"
+          href={getWorkspaceEntryPath(role)}
           prefetch={false}
         >
           <NestoryLogo
@@ -641,7 +630,7 @@ function CollapsedDesktopSidebar({
         <Link
           aria-label="Nestory dashboard"
           className="grid h-8 w-8 place-items-center overflow-hidden"
-          href="/overview"
+          href={getWorkspaceEntryPath(role)}
           prefetch={false}
           title="Nestory"
         >

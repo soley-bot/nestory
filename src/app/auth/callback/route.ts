@@ -1,11 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getWorkspaceMembershipForUser } from "@/lib/auth/context";
-import { getOrganizationSlugFromHost } from "@/lib/auth/tenant";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 
 function redirectTo(
   request: NextRequest,
-  pathname: "/login" | "/setup" | "/overview" | "/no-access",
+  pathname: "/login" | typeof WORKSPACE_ENTRY_PATH,
 ) {
   const url = request.nextUrl.clone();
   url.pathname = pathname;
@@ -27,13 +26,5 @@ export async function GET(request: NextRequest) {
     return redirectTo(request, "/login");
   }
 
-  const organizationSlug = getOrganizationSlugFromHost(request.nextUrl.host);
-  const membership = await getWorkspaceMembershipForUser(data.user.id, supabase, {
-    organizationSlug,
-  });
-
-  return redirectTo(
-    request,
-    membership ? "/overview" : organizationSlug ? "/no-access" : "/setup",
-  );
+  return redirectTo(request, WORKSPACE_ENTRY_PATH);
 }

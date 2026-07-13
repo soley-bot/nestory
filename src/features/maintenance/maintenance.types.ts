@@ -11,8 +11,13 @@ export type MaintenanceStatus =
   | "scheduled"
   | "in_progress"
   | "blocked"
+  | "ready_for_review"
   | "completed"
   | "cancelled";
+
+export type MaintenanceExecutionMode =
+  | "manager_coordinated"
+  | "member_assigned";
 
 export type MaintenanceReviewFilter =
   | "all"
@@ -26,6 +31,7 @@ export type MaintenanceReviewFilter =
   | "high_priority"
   | "high_cost"
   | "recurring"
+  | "review_completion"
   | "completed";
 
 export type MaintenanceCasesView =
@@ -113,10 +119,10 @@ export type MaintenanceFormValues = {
 
 export type MaintenanceCaseHrefs = {
   assignee?: string;
-  documents: string;
-  documentUpload: string;
+  documents?: string;
+  documentUpload?: string;
   ledger?: string;
-  property: string;
+  property?: string;
   task: string;
   timeline?: string;
   unit?: string;
@@ -133,6 +139,7 @@ export type MaintenanceCase = {
   assigneePersonId?: string;
   branchId?: string;
   branchLabel: string;
+  blockedReason?: string;
   category: string;
   checklist: MaintenanceChecklistItem[];
   checklistDoneCount: number;
@@ -146,6 +153,7 @@ export type MaintenanceCase = {
   dueDate?: string;
   dueLabel: string;
   dueTime?: string;
+  executionMode: MaintenanceExecutionMode;
   formValues: MaintenanceFormValues;
   hrefs: MaintenanceCaseHrefs;
   id: string;
@@ -156,6 +164,7 @@ export type MaintenanceCase = {
   isReminderDue: boolean;
   isUpcoming: boolean;
   ledgerEntryId?: string;
+  latestReviewInstruction?: string;
   priority: MaintenancePriority;
   priorityLabel: string;
   priorityTone: MaintenanceBadgeTone;
@@ -204,6 +213,10 @@ export type MaintenanceUnitOption = {
 export type MaintenancePersonOption = {
   id: string;
   label: string;
+};
+
+export type MaintenanceAssigneeOption = MaintenancePersonOption & {
+  branchId?: string;
 };
 
 export type MaintenanceBranchOption = {
@@ -279,6 +292,7 @@ export type MaintenanceSummary = {
   pending: number;
   propertyStats: MaintenancePropertyStat[];
   recurring: number;
+  readyForReview: number;
   reminderDue: number;
   repeatedIssues: MaintenanceRepeatedIssue[];
   scheduled: number;
@@ -293,7 +307,7 @@ export type MaintenanceScreenData = {
   pagination: MaintenancePagination;
   peopleOptions: MaintenancePersonOption[];
   propertyOptions: MaintenancePropertyOption[];
-  staffOptions: MaintenancePersonOption[];
+  staffOptions: MaintenanceAssigneeOption[];
   summary: MaintenanceSummary;
   unitOptions: MaintenanceUnitOption[];
 };

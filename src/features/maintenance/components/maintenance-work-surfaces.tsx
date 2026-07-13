@@ -18,6 +18,7 @@ import { PaginationControls } from "@/components/data/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import type { BoardSurfaceProps } from "@/features/maintenance/components/maintenance-board-surface";
 import type {
+  MaintenanceActor,
   MaintenanceCase,
   MaintenancePagination,
   MaintenanceStatus,
@@ -40,6 +41,7 @@ export type MaintenanceSurfaceVariant =
   | "workload";
 
 type MaintenanceWorkflowSurfaceProps = {
+  actorRole: MaintenanceActor["role"];
   cases: MaintenanceCase[];
   emptyLabel: string;
   month: string;
@@ -53,9 +55,11 @@ type MaintenanceWorkflowSurfaceProps = {
   selectedTaskId: string;
   statusChangePending?: boolean;
   variant: Exclude<MaintenanceSurfaceVariant, "table">;
+  waitingForReviewLabel?: boolean;
 };
 
 export function MaintenanceWorkflowSurface({
+  actorRole,
   cases,
   emptyLabel,
   month,
@@ -66,6 +70,7 @@ export function MaintenanceWorkflowSurface({
   selectedTaskId,
   statusChangePending = false,
   variant,
+  waitingForReviewLabel = false,
 }: MaintenanceWorkflowSurfaceProps) {
   return (
     <div className={variant === "agenda" ? "h-full min-h-0" : "space-y-3"}>
@@ -78,12 +83,14 @@ export function MaintenanceWorkflowSurface({
         />
       ) : variant === "board" ? (
         <BoardSurface
+          actorRole={actorRole}
           cases={cases}
           emptyLabel={emptyLabel}
           onStatusChange={onStatusChange}
           onSelect={onSelect}
           selectedTaskId={selectedTaskId}
           statusChangePending={statusChangePending}
+          waitingForReviewLabel={waitingForReviewLabel}
         />
       ) : variant === "agenda" ? (
         <AgendaSurface

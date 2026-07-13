@@ -30,8 +30,15 @@ const actionLabels: Record<string, string> = {
   locked: "Period locked",
   maintenance_request_created: "Maintenance request created",
   maintenance_task_created: "Maintenance case created",
+  maintenance_task_checklist_item_updated: "Checklist updated",
+  maintenance_task_completion_approved: "Completion approved",
+  maintenance_task_completion_reopened: "Completion returned",
+  maintenance_task_submitted_for_review: "Submitted for review",
   maintenance_task_status_changed: "Maintenance status changed",
   maintenance_task_updated: "Maintenance case updated",
+  maintenance_task_work_blocked: "Work blocked",
+  maintenance_task_work_resumed: "Work resumed",
+  maintenance_task_work_started: "Work started",
   payment_recorded: "Payment recorded",
   posted: "Posted to ledger",
   posted_to_ledger: "Posted to ledger",
@@ -53,6 +60,7 @@ const hiddenDetailFields = new Set([
   "archived_by",
   "created_by",
   "id",
+  "checklist_item_id",
   "organization_id",
   "updated_by",
 ]);
@@ -64,6 +72,8 @@ const fieldLabels: Record<string, string> = {
   amount_received: "Amount received",
   archived_at: "Archived",
   category: "Category",
+  checklist_completed: "Checklist completed",
+  blocked_reason: "Blocker",
   cost_amount: "Cost",
   cost_currency: "Currency",
   current_rent_amount: "Current rent",
@@ -93,6 +103,7 @@ const fieldLabels: Record<string, string> = {
   priority: "Priority",
   property_id: "Property",
   recurrence_frequency: "Recurrence",
+  review_note: "Review note",
   reminder_date: "Reminder date",
   reminder_time: "Reminder time",
   row_count: "Rows",
@@ -429,6 +440,13 @@ function getLedgerPeriodHref(periodStart: string) {
 }
 
 function getTone(action: string): RecentChangeTone {
+  if (action === "maintenance_task_completion_reopened" || action === "maintenance_task_work_blocked") {
+    return "warning";
+  }
+
+  if (action === "maintenance_task_completion_approved") {
+    return "success";
+  }
   if (action.includes("archive")) {
     return "warning";
   }

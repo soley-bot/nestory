@@ -38,6 +38,9 @@ Public and auth:
 
 - `/` renders the marketing/public entry.
 - `/login`, `/signup`, `/setup`, `/no-access` handle auth and workspace access.
+- `/workspace` resolves the signed-in member's role to `/overview` for admins,
+  `/maintenance` for managers, and `/tasks` for members while preserving setup
+  and no-access handling for users without a workspace membership.
 - `/auth/callback`, `/auth/confirm` handle Supabase auth callbacks.
 
 Core dashboard shell:
@@ -108,12 +111,41 @@ Maintenance operations:
   templates, and report links over the existing maintenance records.
 - `/work-orders` remains a legacy board route.
 - `/schedule` redirects to `/maintenance?view=calendar` for legacy links.
-- `/tasks` uses the board/task surface with role-aware assignment controls.
+- `/tasks` uses a compact My Work list for members and role-aware assignment
+  controls for administrative workspaces.
+  Members without a linked staff profile see a setup-required state instead of
+  an ambiguous empty queue.
+- Maintenance cases expose a role-aware workflow header over the existing task
+  record. Executable linked-member assignments use member start, checklist,
+  block/resume, submission, and manager review. Unassigned, vendor, and legacy
+  offline assignments use explicit manager-coordinated start, block/resume, and
+  completion controls without imitating member submission or posting finance.
+  Submitted member work remains operationally open in a dedicated
+  completion-review queue and no longer generates member execution reminders.
+- Actual-cost capture is separate from official financial posting: managers can
+  record actual cost, while only administrators can link or post the ledger
+  effect. Checklist and current-blocker gaps are advisory at completion review;
+  missing actual cost is warned only when a positive estimate exists, and
+  evidence/document warnings are outside this phase.
 - `/inspections` uses the checklist surface.
 - `/recurring-tasks` uses the routine surface and is labeled Recurring Work in
   nav.
 - Maintenance also has workload, reminder, drawer, document, ledger, and
   timeline linkage behavior in feature components and actions.
+- Admins retain full linked-record and evidence-upload navigation. Managers and
+  members receive the same operational labels without predictable links to
+  admin-only destinations. Member task payloads omit mutable organization-wide
+  option collections, documents, and signed document URLs.
+- Maintenance capabilities distinguish operational actual-cost capture from
+  official finance posting: admins can do both, managers can record actual cost
+  without linking or posting a ledger effect, and members can do neither.
+- Maintenance tasks support `ready_for_review` and a nullable, validated
+  `blocked_reason`. Checked RPCs make create/update plus assignment atomic,
+  restrict member execution to the linked assignee and exact branch, and reserve
+  completion approval or noted reopening for scoped managers and admins.
+- A submitted task remains incomplete with its tenant request open. Approval
+  sets `completed_at` and closes the request; reopening requires a trimmed
+  3-500 character note recorded in task activity history.
 
 Documents, imports, and reports:
 
@@ -186,7 +218,11 @@ Implemented RPC families include:
 - Ledger period locking.
 - Petty cash account creation, register row creation, month rollover, and
   posting expense rows into the ledger.
-- Maintenance assignment and task status/update.
+- Maintenance atomic create/update/assignment, assigned-member execution,
+  manager-coordinated execution, and manager/admin completion review. New
+  assignees require an active staff record plus an exact-branch linked member
+  identity. Managers may record operational actual cost but checked SQL rejects
+  manager ledger creation, mutation, linking, or posting.
 - Branch and team creation.
 - Document link validation and property primary-owner sync.
 
@@ -219,7 +255,8 @@ totals, record selection, property/unit summary and detail, people filters,
 lease summaries, ledger summaries/filters, timeline filters, maintenance
 filters/checklists/summary/notifications, imports, reports/export, auth tenant
 host parsing, and schema-error helpers. Database tests additionally cover the
-settlement-event allocation, reversal, RLS, backfill, and pagination behavior.
+settlement-event allocation, reversal, RLS, backfill, pagination behavior, and
+the maintenance manager/member/reviewer workflow boundary.
 Compatibility database tests still cover the accounting schema and security
 boundary, balanced/idempotent posting, period locks and reversals, historical
 backfill, transaction rollback, and seeded ledger-to-journal parity.

@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { parseMaintenanceChecklistText } from "@/features/maintenance/maintenance.checklist";
+import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
+import { getMaintenanceExecutionMode } from "@/features/maintenance/maintenance.execution";
+import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
 import type { MaintenanceStatus } from "@/features/maintenance/maintenance.types";
 import type { Json } from "@/types/database";
 import { requireWorkspaceContext } from "@/lib/auth/context";
@@ -12,8 +15,10 @@ type MaintenanceFieldErrors = {
   actualCostAmount?: string[];
   assigneePersonId?: string[];
   branchId?: string[];
+  blockedReason?: string[];
   category?: string[];
   checklistText?: string[];
+  coordinatedNote?: string[];
   costEstimateAmount?: string[];
   description?: string[];
   dueDate?: string[];
@@ -23,6 +28,7 @@ type MaintenanceFieldErrors = {
   recurrenceFrequency?: string[];
   reminderDate?: string[];
   reminderTime?: string[];
+  reviewNote?: string[];
   status?: string[];
   taskId?: string[];
   title?: string[];
@@ -74,9 +80,20 @@ const maintenanceStatusSchema = z.enum([
   "scheduled",
   "in_progress",
   "blocked",
+  "ready_for_review",
   "completed",
   "cancelled",
 ]);
+const executionActionSchema = z.enum([
+  "start",
+  "resume",
+  "set_checklist_item",
+  "block",
+  "submit_for_review",
+]);
+const reviewActionSchema = z.enum(["approve", "reopen"]);
+const coordinatedActionSchema = z.enum(["start", "block", "resume", "complete"]);
+const optionalReviewNoteSchema = z.string().trim().max(500, "Keep the note under 500 characters.");
 const maintenanceSchema = z
   .object({
     actualCostAmount: optionalMoneySchema,
@@ -148,17 +165,34 @@ export async function createMaintenanceCaseAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireTaskManagerContext();
+  const context = await requireWorkspaceContext();
+  const capabilities = getMaintenanceCapabilities(context.role);
+
+  if (!capabilities.canCreateCase) {
+    return { message: "You do not have access to create maintenance cases.", status: "error" };
+  }
+
   const parsed = maintenanceSchema.safeParse(readMaintenanceForm(formData));
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
   }
 
+  if (parsed.data.status !== "pending" && parsed.data.status !== "scheduled") {
+    return {
+      fieldErrors: {
+        status: ["New maintenance cases must be pending or scheduled."],
+      },
+      status: "error",
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
   const checklist = parseMaintenanceChecklistText(parsed.data.checklistText);
-  const { data: taskId, error } = await supabase.rpc("create_maintenance_task", {
+  const { error } = await supabase.rpc("create_maintenance_task", {
     p_category: parsed.data.category,
+    p_assignee_person_id: parsed.data.assigneePersonId,
+    p_branch_id: parsed.data.branchId,
     p_checklist: checklist as Json,
     p_cost_estimate_amount: parsed.data.costEstimateAmount,
     p_cost_estimate_currency:
@@ -185,20 +219,6 @@ export async function createMaintenanceCaseAction(
     };
   }
 
-  if ((parsed.data.branchId || parsed.data.assigneePersonId) && taskId) {
-    const assignmentError = await assignMaintenanceTask({
-      assigneePersonId: parsed.data.assigneePersonId,
-      branchId: parsed.data.branchId,
-      organizationId: context.organizationId,
-      supabase,
-      taskId,
-    });
-
-    if (assignmentError) {
-      return assignmentError;
-    }
-  }
-
   revalidateMaintenancePaths({
     propertyIds: [parsed.data.propertyId],
     unitIds: [parsed.data.unitId],
@@ -214,7 +234,13 @@ export async function updateMaintenanceCaseAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireTaskManagerContext();
+  const context = await requireWorkspaceContext();
+  const capabilities = getMaintenanceCapabilities(context.role);
+
+  if (!capabilities.canEditCaseStructure) {
+    return { message: "You do not have access to edit maintenance case details.", status: "error" };
+  }
+
   const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
   const parsed = maintenanceSchema.safeParse(readMaintenanceForm(formData));
 
@@ -235,6 +261,8 @@ export async function updateMaintenanceCaseAction(
     p_actual_cost_amount: parsed.data.actualCostAmount,
     p_actual_cost_currency:
       parsed.data.actualCostAmount === null ? null : "USD",
+    p_assignee_person_id: parsed.data.assigneePersonId,
+    p_branch_id: parsed.data.branchId,
     p_category: parsed.data.category,
     p_checklist: checklist as Json,
     p_cost_estimate_amount: parsed.data.costEstimateAmount,
@@ -243,7 +271,9 @@ export async function updateMaintenanceCaseAction(
     p_description: parsed.data.description || null,
     p_due_date: parsed.data.dueDate,
     p_due_time: parsed.data.dueTime,
-    p_link_actual_cost_to_ledger: formData.get("linkActualCostToLedger") === "on",
+    p_link_actual_cost_to_ledger:
+      capabilities.canPostMaintenanceCost &&
+      formData.get("linkActualCostToLedger") === "on",
     p_organization_id: context.organizationId,
     p_priority: parsed.data.priority,
     p_property_id: parsed.data.propertyId,
@@ -264,18 +294,6 @@ export async function updateMaintenanceCaseAction(
     };
   }
 
-  const assignmentError = await assignMaintenanceTask({
-    assigneePersonId: parsed.data.assigneePersonId,
-    branchId: parsed.data.branchId,
-    organizationId: context.organizationId,
-    supabase,
-    taskId: parsedTaskId.data,
-  });
-
-  if (assignmentError) {
-    return assignmentError;
-  }
-
   revalidateMaintenancePaths({
     propertyIds: [parsed.data.propertyId],
     unitIds: [parsed.data.unitId],
@@ -291,7 +309,13 @@ export async function updateMaintenanceStatusAction(
   taskId: string,
   status: MaintenanceStatus,
 ): Promise<MaintenanceActionState> {
-  const context = await requireTaskManagerContext();
+  const context = await requireWorkspaceContext();
+  const capabilities = getMaintenanceCapabilities(context.role);
+
+  if (!capabilities.canManageCaseState) {
+    return { message: "You do not have access to manage maintenance status.", status: "error" };
+  }
+
   const parsedTaskId = uuidShapeSchema.safeParse(taskId);
   const parsedStatus = maintenanceStatusSchema.safeParse(status);
 
@@ -309,7 +333,7 @@ export async function updateMaintenanceStatusAction(
   const { data: task, error: taskError } = await supabase
     .from("tasks")
     .select(
-      "id, property_id, unit_id, title, description, category, priority, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency",
+      "id, property_id, unit_id, title, description, category, priority, status, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency, branch_id, assignee_person_id",
     )
     .eq("organization_id", context.organizationId)
     .eq("id", parsedTaskId.data)
@@ -330,9 +354,44 @@ export async function updateMaintenanceStatusAction(
     };
   }
 
+  const memberIdentityResult = await supabase.rpc("get_maintenance_execution_members", {
+    p_organization_id: context.organizationId,
+  });
+
+  if (memberIdentityResult.error) {
+    return {
+      message: maintenanceActionErrorMessage(memberIdentityResult.error.message),
+      status: "error",
+    };
+  }
+
+  const executionMode = getMaintenanceExecutionMode(
+    {
+      assigneePersonId: task.assignee_person_id ?? undefined,
+      branchId: task.branch_id ?? undefined,
+    },
+    (memberIdentityResult.data ?? []).map((identity) => ({
+      branchId: identity.branch_id ?? undefined,
+      personId: identity.person_id,
+    })),
+  );
+
+  if (!canTransitionMaintenanceStatus(
+    task.status as MaintenanceStatus,
+    parsedStatus.data,
+    { actorRole: context.role, executionMode },
+  )) {
+    return {
+      message: "Use the assigned-member, coordinated-work, or review controls for execution transitions.",
+      status: "error",
+    };
+  }
+
   const { error } = await supabase.rpc("update_maintenance_task", {
     p_actual_cost_amount: task.actual_cost_amount,
     p_actual_cost_currency: task.actual_cost_currency,
+    p_assignee_person_id: task.assignee_person_id,
+    p_branch_id: task.branch_id,
     p_category: task.category,
     p_checklist: task.checklist,
     p_cost_estimate_amount: task.cost_estimate_amount,
@@ -403,7 +462,16 @@ async function updateMaintenanceArchiveState({
   fallbackMessage: string;
   formData: FormData;
 }): Promise<MaintenanceActionState> {
-  const context = await requireTaskManagerContext();
+  const context = await requireWorkspaceContext();
+  const capabilities = getMaintenanceCapabilities(context.role);
+
+  if (!capabilities.canArchiveCase) {
+    return {
+      message: "Only administrators can archive maintenance cases.",
+      status: "error",
+    };
+  }
+
   const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
 
   if (!parsedTaskId.success) {
@@ -445,6 +513,202 @@ async function updateMaintenanceArchiveState({
   };
 }
 
+export async function executeAssignedMaintenanceTaskAction(
+  _state: MaintenanceActionState,
+  formData: FormData,
+): Promise<MaintenanceActionState> {
+  const context = await requireWorkspaceContext();
+  const capabilities = getMaintenanceCapabilities(context.role);
+  const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
+  const parsedAction = executionActionSchema.safeParse(readString(formData, "executionAction"));
+  const blockedReason = readString(formData, "blockedReason").trim();
+  const checklistItemId = readString(formData, "checklistItemId").trim();
+
+  if (!capabilities.canExecuteAssignedCase) {
+    return { message: "Only the assigned member can perform this work.", status: "error" };
+  }
+
+  if (!parsedTaskId.success || !parsedAction.success) {
+    return { message: "Choose a supported maintenance action.", status: "error" };
+  }
+
+  if (parsedAction.data === "block" && (blockedReason.length < 3 || blockedReason.length > 500)) {
+    return {
+      fieldErrors: { blockedReason: ["Enter a blocker between 3 and 500 characters."] },
+      status: "error",
+    };
+  }
+
+  if (parsedAction.data === "set_checklist_item" && !checklistItemId) {
+    return { message: "Choose a checklist item.", status: "error" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const pathContext = await getMaintenancePathContext(
+    supabase,
+    context.organizationId,
+    parsedTaskId.data,
+  );
+  const { error } = await supabase.rpc("execute_assigned_maintenance_task", {
+    p_action: parsedAction.data,
+    p_blocked_reason: blockedReason || undefined,
+    p_checklist_completed:
+      parsedAction.data === "set_checklist_item"
+        ? formData.get("checklistCompleted") === "true"
+        : undefined,
+    p_checklist_item_id: checklistItemId || undefined,
+    p_organization_id: context.organizationId,
+    p_task_id: parsedTaskId.data,
+  });
+
+  if (error) {
+    return { message: maintenanceActionErrorMessage(error.message), status: "error" };
+  }
+
+  revalidateMaintenancePaths({
+    propertyIds: [pathContext?.property_id],
+    unitIds: [pathContext?.unit_id],
+  });
+
+  return {
+    message:
+      parsedAction.data === "submit_for_review"
+        ? "Work submitted for manager review. Your execution responsibility is paused."
+        : "Maintenance work updated.",
+    status: "success",
+  };
+}
+
+export async function executeCoordinatedMaintenanceTaskAction(
+  _state: MaintenanceActionState,
+  formData: FormData,
+): Promise<MaintenanceActionState> {
+  const context = await requireWorkspaceContext();
+  const capabilities = getMaintenanceCapabilities(context.role);
+  const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
+  const parsedAction = coordinatedActionSchema.safeParse(
+    readString(formData, "coordinatedAction"),
+  );
+  const parsedNote = optionalReviewNoteSchema.safeParse(
+    readString(formData, "coordinatedNote"),
+  );
+
+  if (!capabilities.canManageCaseState) {
+    return {
+      message: "Only an administrator or scoped manager can coordinate this work.",
+      status: "error",
+    };
+  }
+
+  if (!parsedTaskId.success || !parsedAction.success || !parsedNote.success) {
+    return { message: "Choose a supported coordinated action and note.", status: "error" };
+  }
+
+  if (
+    (parsedAction.data === "block" || parsedAction.data === "complete") &&
+    (parsedNote.data.length < 3 || parsedNote.data.length > 500)
+  ) {
+    return {
+      fieldErrors: {
+        coordinatedNote: [
+          parsedAction.data === "block"
+            ? "Enter a blocker between 3 and 500 characters."
+            : "Enter a completion note between 3 and 500 characters.",
+        ],
+      },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const pathContext = await getMaintenancePathContext(
+    supabase,
+    context.organizationId,
+    parsedTaskId.data,
+  );
+  const { error } = await supabase.rpc("execute_coordinated_maintenance_task", {
+    p_action: parsedAction.data,
+    p_note: parsedNote.data || undefined,
+    p_organization_id: context.organizationId,
+    p_task_id: parsedTaskId.data,
+  });
+
+  if (error) {
+    return { message: maintenanceActionErrorMessage(error.message), status: "error" };
+  }
+
+  revalidateMaintenancePaths({
+    propertyIds: [pathContext?.property_id],
+    unitIds: [pathContext?.unit_id],
+  });
+
+  return {
+    message: parsedAction.data === "complete"
+      ? "Coordinated work completed. The linked request is closed."
+      : "Coordinated maintenance work updated.",
+    status: "success",
+  };
+}
+
+export async function reviewMaintenanceCompletionAction(
+  _state: MaintenanceActionState,
+  formData: FormData,
+): Promise<MaintenanceActionState> {
+  const context = await requireWorkspaceContext();
+  const capabilities = getMaintenanceCapabilities(context.role);
+  const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
+  const parsedAction = reviewActionSchema.safeParse(readString(formData, "reviewAction"));
+  const parsedNote = optionalReviewNoteSchema.safeParse(readString(formData, "reviewNote"));
+
+  if (!capabilities.canReviewCompletion) {
+    return { message: "You do not have access to review completion.", status: "error" };
+  }
+
+  if (!parsedTaskId.success || !parsedAction.success || !parsedNote.success) {
+    return { message: "Choose a supported review action and note.", status: "error" };
+  }
+
+  if (
+    parsedAction.data === "reopen" &&
+    (parsedNote.data.length < 3 || parsedNote.data.length > 500)
+  ) {
+    return {
+      fieldErrors: { reviewNote: ["A reopen note between 3 and 500 characters is required."] },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const pathContext = await getMaintenancePathContext(
+    supabase,
+    context.organizationId,
+    parsedTaskId.data,
+  );
+  const { error } = await supabase.rpc("review_maintenance_task_completion", {
+    p_action: parsedAction.data,
+    p_organization_id: context.organizationId,
+    p_review_note: parsedNote.data || undefined,
+    p_task_id: parsedTaskId.data,
+  });
+
+  if (error) {
+    return { message: maintenanceActionErrorMessage(error.message), status: "error" };
+  }
+
+  revalidateMaintenancePaths({
+    propertyIds: [pathContext?.property_id],
+    unitIds: [pathContext?.unit_id],
+  });
+
+  return {
+    message:
+      parsedAction.data === "approve"
+        ? "Completion approved. The maintenance case is complete."
+        : "Work returned to the assignee with your review note.",
+    status: "success",
+  };
+}
+
 function readMaintenanceForm(formData: FormData) {
   return {
     actualCostAmount: readString(formData, "actualCostAmount"),
@@ -465,46 +729,6 @@ function readMaintenanceForm(formData: FormData) {
     title: readString(formData, "title"),
     unitId: readString(formData, "unitId"),
     vendorPersonId: readString(formData, "vendorPersonId"),
-  };
-}
-
-async function requireTaskManagerContext() {
-  const context = await requireWorkspaceContext();
-
-  if (context.role === "member") {
-    throw new Error("Not authorized");
-  }
-
-  return context;
-}
-
-async function assignMaintenanceTask({
-  assigneePersonId,
-  branchId,
-  organizationId,
-  supabase,
-  taskId,
-}: {
-  assigneePersonId: string | null;
-  branchId: string | null;
-  organizationId: string;
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-  taskId: string;
-}): Promise<MaintenanceActionState | null> {
-  const { error } = await supabase.rpc("assign_maintenance_task", {
-    p_assignee_person_id: assigneePersonId,
-    p_branch_id: branchId,
-    p_organization_id: organizationId,
-    p_task_id: taskId,
-  });
-
-  if (!error) {
-    return null;
-  }
-
-  return {
-    message: maintenanceActionErrorMessage(error.message),
-    status: "error",
   };
 }
 
@@ -574,7 +798,7 @@ function maintenanceActionErrorMessage(message: string) {
     return "We could not find that maintenance case.";
   }
 
-  if (message.includes("Vendor/person not found")) {
+  if (message.includes("Vendor not found") || message.includes("Vendor/person not found")) {
     return "Choose an active vendor or person.";
   }
 
@@ -586,8 +810,27 @@ function maintenanceActionErrorMessage(message: string) {
     return "Choose an active branch.";
   }
 
-  if (message.includes("Manager can only assign tasks in their branch")) {
-    return "Managers can only assign tasks inside their branch.";
+  if (
+    message.includes("Manager can only assign tasks in their branch") ||
+    message.includes("Manager can only manage tasks in their branch")
+  ) {
+    return "Managers can only manage maintenance cases inside their branch.";
+  }
+
+  if (message.includes("Not authorized for this maintenance task")) {
+    return "Only the assigned member can perform this maintenance work.";
+  }
+
+  if (message.includes("Only submitted maintenance work can be reviewed")) {
+    return "This work is no longer waiting for completion review.";
+  }
+
+  if (message.includes("Reopen note must be between")) {
+    return "A reopen note between 3 and 500 characters is required.";
+  }
+
+  if (message.includes("Managers cannot create, update, link, or post maintenance ledger entries")) {
+    return "Managers can record actual cost, but only administrators can post it to the ledger.";
   }
 
   return "We could not save the maintenance case. Please check the fields and try again.";

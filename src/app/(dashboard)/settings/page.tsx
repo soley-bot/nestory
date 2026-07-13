@@ -2,10 +2,10 @@ import { PageHeader } from "@/components/layout/page-header";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { OrganizationSettingsScreen } from "@/features/organization/components/organization-settings-screen";
 import { getOrganizationSettingsData } from "@/features/organization/data";
-import { requireWorkspaceContext } from "@/lib/auth/context";
+import { requireAdminContext } from "@/lib/auth/context";
 
 export default async function SettingsPage() {
-  const context = await requireWorkspaceContext();
+  const context = await requireAdminContext();
   const data = await getOrganizationSettingsData(context.organizationId);
 
   return (

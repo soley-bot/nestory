@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildMaintenanceHrefs,
   buildMaintenanceSummary,
   filterMaintenanceCases,
   getMaintenanceProgressState,
+  getLatestReviewInstructionByTaskId,
   maintenanceMatchesReview,
+  scopeMaintenanceMutableOptions,
 } from "@/features/maintenance/data/maintenance";
+import { buildMaintenanceHrefs } from "@/features/maintenance/maintenance.hrefs";
 import type {
   MaintenanceCase,
   MaintenanceViewQuery,
@@ -48,6 +50,7 @@ function makeCase(
       property: "/properties/property-1",
       task: "/maintenance?taskId=task-1",
     },
+    executionMode: "manager_coordinated",
     id: "task-1",
     isArchived: false,
     isHighCost: false,
@@ -147,6 +150,20 @@ describe("maintenance progress helpers", () => {
       ),
     ).toEqual([completedCase]);
   });
+
+  it("keeps submitted work open and exposes it only in the completion review queue", () => {
+    const submitted = makeCase({
+      isOpen: true,
+      isReminderDue: false,
+      status: "ready_for_review",
+      statusLabel: "Ready for review",
+    });
+
+    expect(maintenanceMatchesReview(submitted, "open")).toBe(true);
+    expect(maintenanceMatchesReview(submitted, "review_completion")).toBe(true);
+    expect(maintenanceMatchesReview(submitted, "reminders")).toBe(false);
+    expect(maintenanceMatchesReview(submitted, "completed")).toBe(false);
+  });
 });
 
 describe("maintenance route contracts", () => {
@@ -160,15 +177,77 @@ describe("maintenance route contracts", () => {
       vendor_person_id: null,
     } as Parameters<typeof buildMaintenanceHrefs>[0];
 
-    expect(buildMaintenanceHrefs(task).documentUpload).toBe(
+    expect(buildMaintenanceHrefs(task, { role: "admin" }).documentUpload).toBe(
       "/documents?action=create&category=Maintenance&propertyId=property-1&taskId=task-1&unitId=unit-1",
     );
-    expect(buildMaintenanceHrefs(task).task).toBe(
+    expect(buildMaintenanceHrefs(task, { role: "admin" }).task).toBe(
       "/maintenance?archiveState=all&taskId=task-1",
     );
-    expect(buildMaintenanceHrefs(task).unit).toBe(
+    expect(buildMaintenanceHrefs(task, { role: "admin" }).unit).toBe(
       "/units/unit-1?section=maintenance&sourceTaskId=task-1",
     );
+  });
+
+  it.each(["manager", "member"] as const)("omits no-access record hrefs for %s", (role) => {
+    const task = {
+      assignee_person_id: "assignee-1",
+      id: "task-1",
+      ledger_entry_id: "ledger-1",
+      property_id: "property-1",
+      timeline_event_id: "timeline-1",
+      unit_id: "unit-1",
+      vendor_person_id: "vendor-1",
+    };
+
+    expect(buildMaintenanceHrefs(task, { role })).toEqual({
+      task: "/maintenance?archiveState=all&taskId=task-1",
+    });
+  });
+});
+
+describe("maintenance role-safe loading", () => {
+  it("returns no mutable option collections for members", () => {
+    const options = {
+      branchOptions: [{ id: "branch-1", label: "Branch" }],
+      peopleOptions: [{ id: "person-1", label: "Person" }],
+      propertyOptions: [{ id: "property-1", label: "Property" }],
+      staffOptions: [{ branchId: "branch-1", id: "person-1", label: "Person" }],
+      unitOptions: [{ id: "unit-1", label: "Unit", propertyId: "property-1" }],
+    };
+
+    expect(scopeMaintenanceMutableOptions({ role: "member" }, options)).toEqual({
+      branchOptions: [],
+      peopleOptions: [],
+      propertyOptions: [],
+      staffOptions: [],
+      unitOptions: [],
+    });
+    expect(scopeMaintenanceMutableOptions({ role: "manager" }, options)).toBe(options);
+  });
+
+  it("maps the newest dedicated reopen instruction independently of general activity", () => {
+    const rows = [
+      {
+        action: "maintenance_task_completion_reopened",
+        created_at: "2026-07-13T02:00:00Z",
+        entity_id: "task-1",
+        entity_type: "task",
+        id: "new",
+        new_values: { review_note: "Use the new valve" },
+        previous_values: null,
+      },
+      {
+        action: "maintenance_task_completion_reopened",
+        created_at: "2026-07-13T01:00:00Z",
+        entity_id: "task-1",
+        entity_type: "task",
+        id: "old",
+        new_values: { review_note: "Old instruction" },
+        previous_values: null,
+      },
+    ] as Parameters<typeof getLatestReviewInstructionByTaskId>[0];
+
+    expect(getLatestReviewInstructionByTaskId(rows).get("task-1")).toBe("Use the new valve");
   });
 });
 
@@ -210,16 +289,23 @@ describe("buildMaintenanceSummary", () => {
         unitId: "unit-2",
         unitLabel: "Unit A2",
       }),
+      makeCase({
+        category: "Electrical",
+        createdAt: "2026-07-01T00:00:00.000Z",
+        id: "task-5",
+        status: "ready_for_review",
+      }),
     ];
     const summary = buildMaintenanceSummary(cases, "2026-06-28", "2026-06");
 
     expect(summary).toMatchObject({
       actualCostDisplay: { primary: "USD 250.00" },
       highCost: 1,
-      open: 3,
+      open: 4,
       overdue: 1,
       pending: 3,
-      total: 4,
+      readyForReview: 1,
+      total: 5,
     });
     expect(summary.categoryStats[0]).toMatchObject({
       caseCount: 3,

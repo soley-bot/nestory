@@ -4,6 +4,8 @@
 -- vendors, staff, ledger/timeline records, and actionable maintenance work.
 -- Logins for local Supabase:
 -- - nestory@gmail.com / 123456789 -> seeded sample portfolio
+-- - manager@nestory.com / 123456789 -> Central Operations maintenance manager
+-- - member@nestory.com / 123456789 -> Central Operations field technician
 -- - demo@nestory.com / 123456789 -> empty demo workspace
 
 SELECT set_config('app.people_leases_skip_sync', 'on', false);
@@ -33,7 +35,7 @@ VALUES (
   'authenticated',
   'authenticated',
   'nestory@gmail.com',
-  crypt('123456789', gen_salt('bf')),
+  extensions.crypt('123456789', extensions.gen_salt('bf')),
   now(),
   '',
   '',
@@ -117,7 +119,7 @@ VALUES (
   'authenticated',
   'authenticated',
   'demo@nestory.com',
-  crypt('123456789', gen_salt('bf')),
+  extensions.crypt('123456789', extensions.gen_salt('bf')),
   now(),
   '',
   '',
@@ -162,6 +164,126 @@ VALUES (
   jsonb_build_object(
     'sub', '00000000-0000-0000-0000-000000000301',
     'email', 'demo@nestory.com',
+    'email_verified', true,
+    'phone_verified', false
+  ),
+  'email',
+  now(),
+  now(),
+  now()
+)
+ON CONFLICT (provider_id, provider) DO UPDATE
+SET
+  user_id = EXCLUDED.user_id,
+  identity_data = EXCLUDED.identity_data,
+  updated_at = now();
+
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  confirmation_token,
+  recovery_token,
+  email_change_token_new,
+  email_change,
+  email_change_token_current,
+  reauthentication_token,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+VALUES
+(
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-000000000501',
+  'authenticated',
+  'authenticated',
+  'manager@nestory.com',
+  extensions.crypt('123456789', extensions.gen_salt('bf')),
+  now(),
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '{"provider": "email", "providers": ["email"]}'::jsonb,
+  '{"name": "Sophal Touch"}'::jsonb,
+  now(),
+  now()
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-000000000601',
+  'authenticated',
+  'authenticated',
+  'member@nestory.com',
+  extensions.crypt('123456789', extensions.gen_salt('bf')),
+  now(),
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '{"provider": "email", "providers": ["email"]}'::jsonb,
+  '{"name": "Pich Dara"}'::jsonb,
+  now(),
+  now()
+)
+ON CONFLICT (id) DO UPDATE
+SET
+  email = EXCLUDED.email,
+  encrypted_password = EXCLUDED.encrypted_password,
+  email_confirmed_at = EXCLUDED.email_confirmed_at,
+  confirmation_token = EXCLUDED.confirmation_token,
+  recovery_token = EXCLUDED.recovery_token,
+  email_change_token_new = EXCLUDED.email_change_token_new,
+  email_change = EXCLUDED.email_change,
+  email_change_token_current = EXCLUDED.email_change_token_current,
+  reauthentication_token = EXCLUDED.reauthentication_token,
+  raw_app_meta_data = EXCLUDED.raw_app_meta_data,
+  raw_user_meta_data = EXCLUDED.raw_user_meta_data,
+  updated_at = now();
+
+INSERT INTO auth.identities (
+  id,
+  provider_id,
+  user_id,
+  identity_data,
+  provider,
+  last_sign_in_at,
+  created_at,
+  updated_at
+)
+VALUES
+(
+  '00000000-0000-0000-0000-000000000502',
+  '00000000-0000-0000-0000-000000000501',
+  '00000000-0000-0000-0000-000000000501',
+  jsonb_build_object(
+    'sub', '00000000-0000-0000-0000-000000000501',
+    'email', 'manager@nestory.com',
+    'email_verified', true,
+    'phone_verified', false
+  ),
+  'email',
+  now(),
+  now(),
+  now()
+),
+(
+  '00000000-0000-0000-0000-000000000602',
+  '00000000-0000-0000-0000-000000000601',
+  '00000000-0000-0000-0000-000000000601',
+  jsonb_build_object(
+    'sub', '00000000-0000-0000-0000-000000000601',
+    'email', 'member@nestory.com',
     'email_verified', true,
     'phone_verified', false
   ),
@@ -481,6 +603,22 @@ VALUES
   'admin',
   null,
   null
+),
+(
+  '00000000-0000-0000-0000-000000000503',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000501',
+  'manager',
+  '80300000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-000000000211'
+),
+(
+  '00000000-0000-0000-0000-000000000603',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000601',
+  'member',
+  '80300000-0000-0000-0000-000000000003',
+  '00000000-0000-0000-0000-000000000211'
 );
 
 INSERT INTO public.person_roles (

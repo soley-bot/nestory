@@ -2883,6 +2883,7 @@ export type Database = {
           archived_at: string | null
           archived_by: string | null
           assignee_person_id: string | null
+          blocked_reason: string | null
           branch_id: string | null
           category: string
           checklist: Json
@@ -2921,6 +2922,7 @@ export type Database = {
           archived_at?: string | null
           archived_by?: string | null
           assignee_person_id?: string | null
+          blocked_reason?: string | null
           branch_id?: string | null
           category?: string
           checklist?: Json
@@ -2959,6 +2961,7 @@ export type Database = {
           archived_at?: string | null
           archived_by?: string | null
           assignee_person_id?: string | null
+          blocked_reason?: string | null
           branch_id?: string | null
           category?: string
           checklist?: Json
@@ -3568,6 +3571,8 @@ export type Database = {
       }
       create_maintenance_task: {
         Args: {
+          p_assignee_person_id?: string
+          p_branch_id?: string
           p_category: string
           p_checklist: Json
           p_cost_estimate_amount: number
@@ -3697,6 +3702,26 @@ export type Database = {
         }
         Returns: string
       }
+      execute_assigned_maintenance_task: {
+        Args: {
+          p_action: string
+          p_blocked_reason?: string
+          p_checklist_completed?: boolean
+          p_checklist_item_id?: string
+          p_organization_id: string
+          p_task_id: string
+        }
+        Returns: string
+      }
+      execute_coordinated_maintenance_task: {
+        Args: {
+          p_action: string
+          p_note?: string
+          p_organization_id: string
+          p_task_id: string
+        }
+        Returns: string
+      }
       generate_monthly_rent_income_items: {
         Args: { p_month?: string; p_organization_id: string }
         Returns: number
@@ -3781,6 +3806,13 @@ export type Database = {
           reversal_of_id: string
           scoped_amount: number
           total_count: number
+        }[]
+      }
+      get_maintenance_execution_members: {
+        Args: { p_organization_id: string }
+        Returns: {
+          branch_id: string
+          person_id: string
         }[]
       }
       get_organization_access_members: {
@@ -3943,6 +3975,15 @@ export type Database = {
         }
         Returns: string
       }
+      review_maintenance_task_completion: {
+        Args: {
+          p_action: string
+          p_organization_id: string
+          p_review_note?: string
+          p_task_id: string
+        }
+        Returns: string
+      }
       set_accounting_period_lock: {
         Args: {
           p_book_id: string
@@ -4026,6 +4067,8 @@ export type Database = {
         Args: {
           p_actual_cost_amount: number
           p_actual_cost_currency: Database["public"]["Enums"]["currency_code"]
+          p_assignee_person_id?: string
+          p_branch_id?: string
           p_category: string
           p_checklist: Json
           p_cost_estimate_amount: number

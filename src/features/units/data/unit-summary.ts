@@ -873,11 +873,14 @@ function toMaintenanceContext(
     }),
     id: maintenanceCase.id,
     priorityLabel: formatStoredLabel(maintenanceCase.priority),
-    statusLabel: formatStoredLabel(maintenanceCase.status),
+    statusLabel:
+      status === "ready_for_review"
+        ? "Ready for review"
+        : formatStoredLabel(maintenanceCase.status),
     statusTone:
       status === "completed"
         ? "success"
-        : status === "blocked" || status === "cancelled"
+        : status === "blocked" || status === "cancelled" || status === "ready_for_review"
           ? "warning"
           : status === "in_progress"
             ? "accent"

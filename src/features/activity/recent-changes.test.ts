@@ -2,6 +2,29 @@ import { describe, expect, it } from "vitest";
 import { toRecentChange } from "@/features/activity/recent-changes";
 
 describe("toRecentChange", () => {
+  it("shows maintenance reopen instructions in activity history", () => {
+    const change = toRecentChange({
+      action: "maintenance_task_completion_reopened",
+      created_at: "2026-07-13T00:00:00.000Z",
+      entity_id: "task-1",
+      entity_type: "task",
+      id: "activity-1",
+      new_values: {
+        review_note: "Tighten the fitting before resubmitting.",
+        status: "in_progress",
+      },
+      previous_values: { status: "ready_for_review" },
+    });
+
+    expect(change.actionLabel).toBe("Completion returned");
+    expect(change.tone).toBe("warning");
+    expect(change.details).toContainEqual({
+      after: "Tighten the fitting before resubmitting.",
+      before: "-",
+      field: "Review note",
+    });
+  });
+
   it("labels ledger-driven timeline syncs clearly", () => {
     expect(
       toRecentChange({
