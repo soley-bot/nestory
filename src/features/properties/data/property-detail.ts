@@ -611,11 +611,14 @@ function toMaintenanceContext(
       taskId: maintenanceCase.id,
     }),
     id: maintenanceCase.id,
-    statusLabel: formatStatusLabel(maintenanceCase.status),
+    statusLabel:
+      status === "ready_for_review"
+        ? "Ready for review"
+        : formatStatusLabel(maintenanceCase.status),
     statusTone:
       status === "completed"
         ? "success"
-        : status === "blocked" || status === "cancelled"
+        : status === "blocked" || status === "cancelled" || status === "ready_for_review"
           ? "warning"
           : status === "in_progress"
             ? "accent"

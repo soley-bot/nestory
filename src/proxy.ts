@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnv } from "@/lib/db/env";
+import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import type { Database } from "@/types/database";
 
 const AUTH_ROUTES = new Set(["/login", "/signup"]);
@@ -21,9 +22,9 @@ function redirectToLogin(request: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-function redirectToOverview(request: NextRequest) {
+function redirectToWorkspace(request: NextRequest) {
   const url = request.nextUrl.clone();
-  url.pathname = "/overview";
+  url.pathname = WORKSPACE_ENTRY_PATH;
   url.search = "";
   return NextResponse.redirect(url);
 }
@@ -71,7 +72,7 @@ export async function proxy(request: NextRequest) {
     isAuthenticated &&
     REDIRECT_AUTHENTICATED_ROUTES.has(request.nextUrl.pathname)
   ) {
-    return redirectToOverview(request);
+    return redirectToWorkspace(request);
   }
 
   return response;

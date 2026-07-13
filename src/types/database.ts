@@ -222,6 +222,8 @@ type RpcFunctionOverrides = {
   create_maintenance_task: WithArgs<
     "create_maintenance_task",
     {
+      p_assignee_person_id?: string | null;
+      p_branch_id?: string | null;
       p_category: string;
       p_checklist: Json;
       p_cost_estimate_amount: number | null;
@@ -239,6 +241,17 @@ type RpcFunctionOverrides = {
       p_title: string;
       p_unit_id: string | null;
       p_vendor_person_id: string | null;
+    }
+  >;
+  execute_assigned_maintenance_task: WithArgs<
+    "execute_assigned_maintenance_task",
+    {
+      p_action: string;
+      p_blocked_reason?: string | null;
+      p_checklist_completed?: boolean | null;
+      p_checklist_item_id?: string | null;
+      p_organization_id: string;
+      p_task_id: string;
     }
   >;
   create_organization_branch: WithArgs<
@@ -353,6 +366,15 @@ type RpcFunctionOverrides = {
       p_reference?: string | null;
     }
   >;
+  review_maintenance_task_completion: WithArgs<
+    "review_maintenance_task_completion",
+    {
+      p_action: string;
+      p_organization_id: string;
+      p_review_note?: string | null;
+      p_task_id: string;
+    }
+  >;
   reverse_finance_payment: WithArgs<
     "reverse_finance_payment",
     {
@@ -424,6 +446,8 @@ type RpcFunctionOverrides = {
     {
       p_actual_cost_amount: number | null;
       p_actual_cost_currency: CurrencyCode | null;
+      p_assignee_person_id?: string | null;
+      p_branch_id?: string | null;
       p_category: string;
       p_checklist: Json;
       p_cost_estimate_amount: number | null;

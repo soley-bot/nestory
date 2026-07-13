@@ -1,5 +1,7 @@
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
+  OPERATIONAL_OPEN_MAINTENANCE_STATUSES,
+  REMINDER_ACTIONABLE_MAINTENANCE_STATUSES,
   HIGH_COST_AMOUNT,
   MAINTENANCE_UPCOMING_WINDOW_DAYS,
 } from "@/features/maintenance/maintenance.constants";
@@ -45,7 +47,7 @@ import {
 import { buildHref } from "@/lib/url/href";
 
 const taskSelect =
-  "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
+  "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, blocked_reason, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
 const propertySelect = "id, code, name";
 const unitSelect = "id, property_id, unit_number";
 const personSelect = "id, display_name";
@@ -54,7 +56,6 @@ const staffRoleSelect = "person_id";
 const documentSelect =
   "id, task_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
 const MAINTENANCE_QUERY_BATCH_SIZE = 1_000;
-const OPEN_TASK_STATUSES = ["pending", "scheduled", "in_progress", "blocked"];
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type MaintenanceTaskQuery = ReturnType<typeof createBaseTaskQuery>;
@@ -65,6 +66,7 @@ type MaintenanceTaskRow = {
   assignee_person_id: string | null;
   archived_at: string | null;
   branch_id: string | null;
+  blocked_reason: string | null;
   category: string;
   checklist: Json;
   completed_at: string | null;
@@ -298,7 +300,7 @@ export async function getMaintenanceReminderNotifications(
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .not("reminder_date", "is", null)
-    .in("status", ["pending", "scheduled", "in_progress", "blocked"]);
+    .in("status", [...REMINDER_ACTIONABLE_MAINTENANCE_STATUSES]);
 
   query = applyActorTaskScope(query, actor);
 
@@ -389,7 +391,9 @@ export async function getMaintenanceReminderNotifications(
 }
 
 export function isOpenMaintenanceStatus(status: MaintenanceStatus) {
-  return status !== "completed" && status !== "cancelled";
+  return OPERATIONAL_OPEN_MAINTENANCE_STATUSES.includes(
+    status as (typeof OPERATIONAL_OPEN_MAINTENANCE_STATUSES)[number],
+  );
 }
 
 export function getMaintenanceProgressState(
@@ -476,6 +480,10 @@ export function maintenanceMatchesReview(
     return maintenanceCase.recurrenceFrequency !== "none";
   }
 
+  if (review === "review_completion") {
+    return maintenanceCase.status === "ready_for_review";
+  }
+
   if (review === "completed") {
     return maintenanceCase.status === "completed";
   }
@@ -517,6 +525,9 @@ export function buildMaintenanceSummary(
     pending: cases.filter((maintenanceCase) => maintenanceCase.status === "pending").length,
     propertyStats: buildPropertyStats(cases),
     recurring: cases.filter((maintenanceCase) => maintenanceCase.recurrenceFrequency !== "none").length,
+    readyForReview: cases.filter(
+      (maintenanceCase) => maintenanceCase.status === "ready_for_review",
+    ).length,
     reminderDue: cases.filter((maintenanceCase) => maintenanceCase.isReminderDue).length,
     repeatedIssues: buildRepeatedIssues(cases),
     scheduled: cases.filter((maintenanceCase) => maintenanceCase.status === "scheduled").length,
@@ -689,29 +700,29 @@ function applyReviewFilter(
   }
 
   if (viewQuery.review === "open") {
-    return query.in("status", OPEN_TASK_STATUSES);
+    return query.in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES]);
   }
 
   if (viewQuery.review === "overdue") {
-    return query.in("status", OPEN_TASK_STATUSES).lt("due_date", today);
+    return query.in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES]).lt("due_date", today);
   }
 
   if (viewQuery.review === "scheduled") {
     return query
-      .in("status", OPEN_TASK_STATUSES)
+      .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES])
       .or("due_date.not.is.null,reminder_date.not.is.null");
   }
 
   if (viewQuery.review === "upcoming") {
     return query
-      .in("status", OPEN_TASK_STATUSES)
+      .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES])
       .gte("due_date", today)
       .lte("due_date", addDaysIso(today, MAINTENANCE_UPCOMING_WINDOW_DAYS));
   }
 
   if (viewQuery.review === "reminders") {
     return query
-      .in("status", OPEN_TASK_STATUSES)
+      .in("status", [...REMINDER_ACTIONABLE_MAINTENANCE_STATUSES])
       .not("reminder_date", "is", null)
       .or(
         `reminder_date.lt.${today},and(reminder_date.eq.${today},or(reminder_time.is.null,reminder_time.lte.${currentTime}))`,
@@ -736,6 +747,10 @@ function applyReviewFilter(
 
   if (viewQuery.review === "recurring") {
     return query.neq("recurrence_frequency", "none");
+  }
+
+  if (viewQuery.review === "review_completion") {
+    return query.eq("status", "ready_for_review");
   }
 
   if (viewQuery.review === "completed") {
@@ -959,6 +974,7 @@ function toMaintenanceCase({
     assigneePersonId: task.assignee_person_id ?? undefined,
     branchId: task.branch_id ?? undefined,
     branchLabel: branch ? `${branch.code} - ${branch.name}` : "No branch",
+    blockedReason: task.blocked_reason ?? undefined,
     category: task.category,
     checklist,
     checklistDoneCount: checklist.filter((item) => item.completed).length,
@@ -1025,7 +1041,7 @@ function toMaintenanceCase({
     reminderTime: normalizeTime(task.reminder_time),
     requestId: task.tenant_request_id,
     status,
-    statusLabel: formatStoredLabel(status),
+    statusLabel: status === "ready_for_review" ? "Ready for review" : formatStoredLabel(status),
     statusTone: getStatusTone(status),
     timelineEventId: task.timeline_event_id ?? undefined,
     title: task.title,
@@ -1352,7 +1368,12 @@ function getRawCaseCost(task: MaintenanceTaskRow) {
 function isReminderDue(task: MaintenanceTaskRow, today: string, currentTime: string) {
   const status = normalizeMaintenanceStatus(task.status);
 
-  if (!isOpenMaintenanceStatus(status) || !task.reminder_date) {
+  if (
+    !REMINDER_ACTIONABLE_MAINTENANCE_STATUSES.includes(
+      status as (typeof REMINDER_ACTIONABLE_MAINTENANCE_STATUSES)[number],
+    ) ||
+    !task.reminder_date
+  ) {
     return false;
   }
 
@@ -1374,6 +1395,7 @@ function normalizeMaintenanceStatus(status: string): MaintenanceStatus {
     normalized === "scheduled" ||
     normalized === "in_progress" ||
     normalized === "blocked" ||
+    normalized === "ready_for_review" ||
     normalized === "completed" ||
     normalized === "cancelled"
   ) {
@@ -1431,6 +1453,10 @@ function getStatusTone(status: MaintenanceStatus): MaintenanceBadgeTone {
   }
 
   if (status === "blocked" || status === "cancelled") {
+    return "warning";
+  }
+
+  if (status === "ready_for_review") {
     return "warning";
   }
 

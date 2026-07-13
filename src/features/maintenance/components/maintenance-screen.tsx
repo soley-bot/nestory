@@ -56,6 +56,7 @@ import {
   updateMaintenanceCaseAction,
   updateMaintenanceStatusAction,
 } from "@/features/maintenance/actions";
+import type { MaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import {
   formatMaintenanceChecklistText,
   parseMaintenanceChecklistText,
@@ -65,6 +66,7 @@ import {
   RestoreMaintenancePanel,
 } from "@/features/maintenance/components/maintenance-drawer-panels";
 import { MaintenanceReminderNotifications } from "@/features/maintenance/components/maintenance-reminder-notifications";
+import { MaintenanceWorkflowPanel } from "@/features/maintenance/components/maintenance-workflow-panel";
 import {
   MaintenanceWorkflowSurface,
   type MaintenanceSurfaceVariant,
@@ -78,6 +80,7 @@ import {
 } from "@/features/maintenance/maintenance.hrefs";
 import type {
   MaintenanceBadgeTone,
+  MaintenanceActor,
   MaintenanceCase,
   MaintenanceBranchOption,
   MaintenancePagination,
@@ -90,6 +93,7 @@ import type {
   MaintenanceUnitOption,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
+import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
 import { cn } from "@/lib/utils";
 
 const initialState: MaintenanceActionState = {};
@@ -118,9 +122,10 @@ type DrawerState =
     };
 
 type MaintenanceScreenProps = {
+  actor: MaintenanceActor;
   baseReview?: MaintenanceViewQuery["review"];
   branchOptions: MaintenanceBranchOption[];
-  canManageTasks?: boolean;
+  capabilities: MaintenanceCapabilities;
   cases: MaintenanceCase[];
   createButtonLabel?: string;
   description?: string;
@@ -147,9 +152,10 @@ type MaintenanceScreenProps = {
 };
 
 export function MaintenanceScreen({
+  actor,
   baseReview = "open",
   branchOptions,
-  canManageTasks = true,
+  capabilities,
   cases,
   createButtonLabel = "New case",
   description = "Open work orders, scheduled repairs, and unit/property maintenance history.",
@@ -184,7 +190,7 @@ export function MaintenanceScreen({
     [propertyOptions, unitOptions, viewQuery],
   );
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    searchParams.get("action") === "create"
+    capabilities.canCreateCase && searchParams.get("action") === "create"
       ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
@@ -225,7 +231,7 @@ export function MaintenanceScreen({
   }, [balancedCasesWorkspace, focusedTaskId]);
 
   useEffect(() => {
-    if (searchParams.get("action") !== "create") {
+    if (!capabilities.canCreateCase || searchParams.get("action") !== "create") {
       return;
     }
 
@@ -236,7 +242,7 @@ export function MaintenanceScreen({
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [createInitialValues, pathname, router, searchParams]);
+  }, [capabilities.canCreateCase, createInitialValues, pathname, router, searchParams]);
 
   function openDrawer(nextDrawer: DrawerState) {
     setPreviewOpen(false);
@@ -267,7 +273,10 @@ export function MaintenanceScreen({
     maintenanceCase: MaintenanceCase,
     status: MaintenanceStatus,
   ) {
-    if (maintenanceCase.status === status) {
+    if (
+      maintenanceCase.status === status ||
+      !canTransitionMaintenanceStatus(maintenanceCase.status, status)
+    ) {
       return;
     }
 
@@ -306,7 +315,7 @@ export function MaintenanceScreen({
                 Make report
               </LinkButton>
             ) : null}
-            {canManageTasks ? (
+            {capabilities.canCreateCase ? (
               <Button
                 onClick={() =>
                   openDrawer({ initialValues: createInitialValues, mode: "create" })
@@ -396,8 +405,10 @@ export function MaintenanceScreen({
               <div className="hidden min-h-0 overflow-hidden rounded-md border border-border bg-surface xl:block">
                 <div className="h-full overflow-auto">
                   <MaintenanceInspector
+                    actor={actor}
+                    capabilities={capabilities}
                     maintenanceCase={selectedCase}
-                    canManageTasks={canManageTasks}
+                    onStatusMessage={setStatusMessage}
                     onArchive={(maintenanceCase) =>
                       openDrawer({ maintenanceCase, mode: "archive" })
                     }
@@ -428,13 +439,14 @@ export function MaintenanceScreen({
             cases={visibleCases}
             emptyLabel={emptyLabel}
             month={viewQuery.month}
-            onCreateDate={canManageTasks ? createCaseOnDate : undefined}
-            onStatusChange={canManageTasks ? moveMaintenanceStatus : undefined}
+            onCreateDate={capabilities.canCreateCase ? createCaseOnDate : undefined}
+            onStatusChange={capabilities.canManageCaseState ? moveMaintenanceStatus : undefined}
             onSelect={previewCase}
             pagination={pagination}
             selectedTaskId={selectedCase?.id ?? ""}
             statusChangePending={statusChangePending}
             variant={surfaceVariant}
+            waitingForReviewLabel={actor.role === "member"}
           />
         )}
       </main>
@@ -445,8 +457,10 @@ export function MaintenanceScreen({
         title={capitalizeLabel(recordLabel)}
       >
         <MaintenanceInspector
+          actor={actor}
+          capabilities={capabilities}
           maintenanceCase={selectedCase}
-          canManageTasks={canManageTasks}
+          onStatusMessage={setStatusMessage}
           onArchive={(maintenanceCase) =>
             openDrawer({ maintenanceCase, mode: "archive" })
           }
@@ -480,6 +494,8 @@ export function MaintenanceScreen({
             />
           ) : (
             <MaintenanceForm
+              canPostMaintenanceCost={capabilities.canPostMaintenanceCost}
+              canRecordActualCost={capabilities.canRecordActualCost}
               initialValues={
                 drawer.mode === "create" ? drawer.initialValues : undefined
               }
@@ -687,6 +703,7 @@ function MaintenanceCasesCommandBar({
               { label: "Scheduled", value: "scheduled" },
               { label: "In progress", value: "in_progress" },
               { label: "Blocked", value: "blocked" },
+              { label: "Ready for review", value: "ready_for_review" },
               { label: "Completed", value: "completed" },
               { label: "Cancelled", value: "cancelled" },
             ]}
@@ -704,6 +721,7 @@ function MaintenanceCasesCommandBar({
               { label: "High priority", value: "high_priority" },
               { label: "High cost", value: "high_cost" },
               { label: "Recurring", value: "recurring" },
+              { label: "Review completion", value: "review_completion" },
               { label: "All attention", value: "all" },
             ]}
             value={viewQuery.review}
@@ -883,6 +901,7 @@ function MaintenanceFilters({
               { label: "Scheduled", value: "scheduled" },
               { label: "In progress", value: "in_progress" },
               { label: "Blocked", value: "blocked" },
+              { label: "Ready for review", value: "ready_for_review" },
               { label: "Completed", value: "completed" },
               { label: "Cancelled", value: "cancelled" },
             ]}
@@ -900,6 +919,7 @@ function MaintenanceFilters({
               { label: "High priority", value: "high_priority" },
               { label: "High cost", value: "high_cost" },
               { label: "Recurring", value: "recurring" },
+              { label: "Review completion", value: "review_completion" },
               { label: "All attention", value: "all" },
             ]}
             value={viewQuery.review}
@@ -1090,17 +1110,21 @@ function MaintenanceTable({
 }
 
 function MaintenanceInspector({
-  canManageTasks,
+  actor,
+  capabilities,
   maintenanceCase,
   onArchive,
   onEdit,
   onRestore,
+  onStatusMessage,
 }: {
-  canManageTasks: boolean;
+  actor: MaintenanceActor;
+  capabilities: MaintenanceCapabilities;
   maintenanceCase: MaintenanceCase | null;
   onArchive: (maintenanceCase: MaintenanceCase) => void;
   onEdit: (maintenanceCase: MaintenanceCase) => void;
   onRestore: (maintenanceCase: MaintenanceCase) => void;
+  onStatusMessage: (message: string) => void;
 }) {
   if (!maintenanceCase) {
     return (
@@ -1141,6 +1165,12 @@ function MaintenanceInspector({
       </div>
 
       <div className="space-y-4 p-4 text-sm">
+        <MaintenanceWorkflowPanel
+          actor={actor}
+          capabilities={capabilities}
+          maintenanceCase={maintenanceCase}
+          onStatusMessage={onStatusMessage}
+        />
         <div className="grid grid-cols-2 gap-3">
           <CompactFact label="Status">
             {maintenanceCase.statusLabel}
@@ -1202,30 +1232,71 @@ function MaintenanceInspector({
           </div>
         ) : null}
 
-        {!canManageTasks ? null : maintenanceCase.isArchived ? (
-          <Button onClick={() => onRestore(maintenanceCase)} type="button">
-            <RotateCcw size={15} />
-            Restore
-          </Button>
+        {maintenanceCase.activity.length > 0 ? (
+          <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+            <p className="font-semibold">Activity</p>
+            <div className="mt-2 divide-y divide-border">
+              {maintenanceCase.activity.slice(0, 6).map((change) => (
+                <div className="py-2 first:pt-0 last:pb-0" key={change.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-medium">{change.actionLabel}</p>
+                    <span className="shrink-0 text-xs text-muted">
+                      {formatActivityDate(change.createdAt)}
+                    </span>
+                  </div>
+                  {change.details.length > 0 ? (
+                    <div className="mt-1 space-y-1 text-xs text-muted">
+                      {change.details.map((detail) => (
+                        <p key={`${change.id}-${detail.field}`}>
+                          <span className="font-medium text-foreground">{detail.field}:</span>{" "}
+                          {detail.after}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {!capabilities.canEditCaseStructure && !capabilities.canArchiveCase ? null : maintenanceCase.isArchived ? (
+          capabilities.canArchiveCase ? (
+            <Button onClick={() => onRestore(maintenanceCase)} type="button">
+              <RotateCcw size={15} />
+              Restore
+            </Button>
+          ) : null
         ) : (
-          <div className="grid grid-cols-3 gap-2">
-            <Button onClick={() => onEdit(maintenanceCase)} type="button">
-              <Pencil size={15} />
-              Edit
-            </Button>
-            <LinkButton href={maintenanceCase.hrefs.documentUpload}>
-              <FileText size={15} />
-              Upload doc
-            </LinkButton>
-            <Button
-              className="text-danger hover:text-danger"
-              onClick={() => onArchive(maintenanceCase)}
-              type="button"
-              variant="ghost"
-            >
-              <Archive size={15} />
-              Archive
-            </Button>
+          <div
+            className={cn(
+              "grid gap-2",
+              capabilities.canArchiveCase ? "grid-cols-3" : "grid-cols-2",
+            )}
+          >
+            {capabilities.canEditCaseStructure ? (
+              <>
+                <Button onClick={() => onEdit(maintenanceCase)} type="button">
+                  <Pencil size={15} />
+                  Edit
+                </Button>
+                <LinkButton href={maintenanceCase.hrefs.documentUpload}>
+                  <FileText size={15} />
+                  Upload doc
+                </LinkButton>
+              </>
+            ) : null}
+            {capabilities.canArchiveCase ? (
+              <Button
+                className="text-danger hover:text-danger"
+                onClick={() => onArchive(maintenanceCase)}
+                type="button"
+                variant="ghost"
+              >
+                <Archive size={15} />
+                Archive
+              </Button>
+            ) : null}
           </div>
         )}
       </div>
@@ -1324,6 +1395,8 @@ function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
 
 function MaintenanceForm({
   branches,
+  canPostMaintenanceCost,
+  canRecordActualCost,
   initialValues,
   maintenanceCase,
   mode,
@@ -1335,6 +1408,8 @@ function MaintenanceForm({
   units,
 }: {
   branches: MaintenanceBranchOption[];
+  canPostMaintenanceCost: boolean;
+  canRecordActualCost: boolean;
   initialValues?: Partial<MaintenanceCase["formValues"]>;
   maintenanceCase?: MaintenanceCase;
   mode: "create" | "edit";
@@ -1498,19 +1573,30 @@ function MaintenanceForm({
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Status" error={state.fieldErrors?.status?.[0]}>
-            <SelectControl
-              ariaLabel="Status"
-              defaultValue={defaults.status}
-              name="status"
-              options={[
-                { label: "Pending", value: "pending" },
-                { label: "Scheduled", value: "scheduled" },
-                { label: "In progress", value: "in_progress" },
-                { label: "Blocked", value: "blocked" },
-                { label: "Completed", value: "completed" },
-                { label: "Cancelled", value: "cancelled" },
-              ]}
-            />
+            {defaults.status === "ready_for_review" || defaults.status === "completed" ? (
+              <>
+                <input name="status" type="hidden" value={defaults.status} />
+                <div className="flex h-8 items-center rounded-md border border-border bg-surface-muted px-2.5 text-[13px]">
+                  {defaults.status === "ready_for_review" ? "Ready for review" : "Completed"}
+                </div>
+              </>
+            ) : (
+              <SelectControl
+                ariaLabel="Status"
+                defaultValue={defaults.status}
+                name="status"
+                options={mode === "create" ? [
+                  { label: "Pending", value: "pending" },
+                  { label: "Scheduled", value: "scheduled" },
+                ] : [
+                  { label: "Pending", value: "pending" },
+                  { label: "Scheduled", value: "scheduled" },
+                  { label: "In progress", value: "in_progress" },
+                  { label: "Blocked", value: "blocked" },
+                  { label: "Cancelled", value: "cancelled" },
+                ]}
+              />
+            )}
           </Field>
           <Field label="Priority" error={state.fieldErrors?.priority?.[0]}>
             <SelectControl
@@ -1582,7 +1668,7 @@ function MaintenanceForm({
               step="0.01"
             />
           </Field>
-          {mode === "edit" ? (
+          {mode === "edit" && canRecordActualCost ? (
             <Field label="Actual cost" error={state.fieldErrors?.actualCostAmount?.[0]}>
               <NumberInput
                 defaultValue={defaults.actualCostAmount ?? ""}
@@ -1594,7 +1680,7 @@ function MaintenanceForm({
           ) : null}
         </div>
 
-        {mode === "edit" ? (
+        {mode === "edit" && canPostMaintenanceCost ? (
           <label className="flex items-start gap-2 rounded-md border border-border bg-surface-muted/70 px-3 py-2 text-sm">
             <CheckboxControl
               className="mt-1"
@@ -1857,6 +1943,10 @@ function getOptimisticStatusLabel(status: MaintenanceStatus) {
     return "In Progress";
   }
 
+  if (status === "ready_for_review") {
+    return "Ready for review";
+  }
+
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
@@ -1865,7 +1955,7 @@ function getOptimisticStatusTone(status: MaintenanceStatus): MaintenanceBadgeTon
     return "success";
   }
 
-  if (status === "blocked" || status === "cancelled") {
+  if (status === "blocked" || status === "cancelled" || status === "ready_for_review") {
     return "warning";
   }
 
@@ -1895,6 +1985,7 @@ function formatMaintenanceTableDueDate(maintenanceCase: MaintenanceCase) {
 
 const MAINTENANCE_TABS = [
   { label: "Open", review: "open" },
+  { label: "Review completion", review: "review_completion" },
   { label: "Overdue", review: "overdue" },
   { label: "Upcoming", review: "upcoming" },
   { label: "Completed", review: "completed" },
@@ -1916,6 +2007,7 @@ const MAINTENANCE_CASE_VIEW_TABS = [
 
 const MAINTENANCE_SAVED_VIEW_TABS = [
   { label: "Inbox", review: "open", summaryKey: "open" },
+  { label: "Review", review: "review_completion", summaryKey: "readyForReview" },
   { label: "Overdue", review: "overdue", summaryKey: "overdue" },
   { label: "Upcoming", review: "upcoming", summaryKey: "upcoming" },
   { label: "Completed", review: "completed", summaryKey: "completed" },
@@ -1925,7 +2017,7 @@ const MAINTENANCE_SAVED_VIEW_TABS = [
   review: MaintenanceViewQuery["review"];
   summaryKey: keyof Pick<
     MaintenanceSummary,
-    "completed" | "open" | "overdue" | "total" | "upcoming"
+    "completed" | "open" | "overdue" | "readyForReview" | "total" | "upcoming"
   >;
 }>;
 
@@ -2094,6 +2186,11 @@ function getMaintenanceScopeFacts(
       tone: summary.reminderDue > 0 ? "danger" : "neutral",
       value: summary.reminderDue,
     },
+    reviewCompletion: {
+      label: "Ready for review",
+      tone: summary.readyForReview > 0 ? "warning" : "neutral",
+      value: summary.readyForReview,
+    },
     scheduled: {
       label: "Scheduled",
       tone: summary.scheduled > 0 ? "accent" : "neutral",
@@ -2147,10 +2244,20 @@ function getMaintenanceScopeFacts(
     ];
   }
 
+  if (review === "review_completion") {
+    return [
+      common.reviewCompletion,
+      common.total,
+      common.highCost,
+      common.completed,
+    ];
+  }
+
   return [
     common.total,
     common.pending,
     common.inProgress,
+    common.reviewCompletion,
     common.overdue,
     common.upcoming,
     common.completed,
@@ -2160,4 +2267,17 @@ function getMaintenanceScopeFacts(
 
 function capitalizeLabel(label: string) {
   return label ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : label;
+}
+
+function formatActivityDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    day: "2-digit",
+    month: "short",
+  }).format(date);
 }

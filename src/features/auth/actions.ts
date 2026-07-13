@@ -8,6 +8,7 @@ import {
   getCurrentOrganizationSlug,
   getWorkspaceMembershipForUser,
 } from "@/lib/auth/context";
+import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -147,12 +148,7 @@ export async function loginAction(
     };
   }
 
-  const organizationSlug = await getCurrentOrganizationSlug();
-  const membership = await getWorkspaceMembershipForUser(data.user.id, supabase, {
-    organizationSlug,
-  });
-
-  redirect(membership ? "/overview" : organizationSlug ? "/no-access" : "/setup");
+  redirect(WORKSPACE_ENTRY_PATH);
 }
 
 export async function signupAction(
@@ -223,7 +219,7 @@ export async function setupOrganizationAction(
   const existingMembership = await getWorkspaceMembershipForUser(user.id);
 
   if (existingMembership) {
-    redirect("/overview");
+    redirect(WORKSPACE_ENTRY_PATH);
   }
 
   const bootstrapError = await bootstrapAdminOrganization(
@@ -235,7 +231,7 @@ export async function setupOrganizationAction(
     return bootstrapError;
   }
 
-  redirect("/overview");
+  redirect(WORKSPACE_ENTRY_PATH);
 }
 
 export async function signOutAction() {

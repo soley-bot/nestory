@@ -6,6 +6,18 @@ const taskId = "33333333-3333-4333-8333-333333333333";
 const unitId = "22222222-2222-4222-8222-222222222222";
 
 describe("parseMaintenanceSearchParams", () => {
+  it("preserves the completion review queue and submitted status", () => {
+    expect(
+      parseMaintenanceSearchParams({
+        review: "review_completion",
+        status: "ready_for_review",
+      }),
+    ).toMatchObject({
+      review: "review_completion",
+      status: "ready_for_review",
+    });
+  });
+
   it("parses operational review filters and linked property/unit ids", () => {
     expect(
       parseMaintenanceSearchParams({

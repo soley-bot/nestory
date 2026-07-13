@@ -105,6 +105,7 @@ function parseReview(
     candidate === "high_priority" ||
     candidate === "high_cost" ||
     candidate === "recurring" ||
+    candidate === "review_completion" ||
     candidate === "completed"
     ? candidate
     : "open";
@@ -144,6 +145,7 @@ function parseStatus(
     candidate === "scheduled" ||
     candidate === "in_progress" ||
     candidate === "blocked" ||
+    candidate === "ready_for_review" ||
     candidate === "completed" ||
     candidate === "cancelled"
     ? candidate

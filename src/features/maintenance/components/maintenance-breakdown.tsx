@@ -52,6 +52,13 @@ export function MaintenanceBreakdown({ summary, viewQuery }: MaintenanceBreakdow
     .slice(0, 4);
   const attentionItems = [
     {
+      helper: "Awaiting manager decision",
+      href: getMaintenanceListHref(viewQuery, { review: "review_completion" }),
+      label: "Ready for review",
+      tone: summary.readyForReview > 0 ? "warning" : "success",
+      value: summary.readyForReview,
+    },
+    {
       helper: "Past target",
       href: getMaintenanceListHref(viewQuery, { review: "overdue" }),
       label: "Overdue cases",
@@ -240,7 +247,9 @@ export function MaintenanceBreakdown({ summary, viewQuery }: MaintenanceBreakdow
 
       <DashboardWidget
         actionLabel="Review"
-        href={getMaintenanceListHref(viewQuery, { review: "overdue" })}
+        href={getMaintenanceListHref(viewQuery, {
+          review: summary.readyForReview > 0 ? "review_completion" : "overdue",
+        })}
         title="Attention"
       >
         <div className="space-y-2">

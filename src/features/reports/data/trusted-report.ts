@@ -1552,6 +1552,10 @@ function getMaintenanceTaskTone(
   task: MaintenanceTaskRow,
   periodEnd: string,
 ): TrustedReportRow["tone"] {
+  if (normalizeValue(task.status) === "ready_for_review") {
+    return "warning";
+  }
+
   if (isOpenMaintenanceTask(task.status) && task.due_date && task.due_date < periodEnd) {
     return "danger";
   }

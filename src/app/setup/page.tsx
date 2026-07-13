@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import {
-  getAdminMembershipForUser,
   getCurrentOrganizationSlug,
+  getWorkspaceMembershipForUser,
   requireUser,
 } from "@/lib/auth/context";
+import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { signOutAction } from "@/features/auth/actions";
 import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
 import { SetupOrganizationForm } from "@/features/auth/components/setup-organization-form";
@@ -14,12 +15,12 @@ export default async function SetupPage() {
   const user = await requireUser();
   const rootDomain = process.env.APP_ROOT_DOMAIN ?? "nestory-kh.com";
   const organizationSlug = await getCurrentOrganizationSlug();
-  const membership = await getAdminMembershipForUser(user.id, undefined, {
+  const membership = await getWorkspaceMembershipForUser(user.id, undefined, {
     organizationSlug,
   });
 
   if (membership) {
-    redirect("/overview");
+    redirect(WORKSPACE_ENTRY_PATH);
   }
 
   if (organizationSlug) {

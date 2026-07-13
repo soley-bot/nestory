@@ -2,6 +2,7 @@ import { MaintenanceScreen } from "@/features/maintenance/components/maintenance
 import type { MaintenanceSurfaceVariant } from "@/features/maintenance/components/maintenance-work-surfaces";
 import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
+import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 
@@ -13,6 +14,7 @@ export default async function MaintenancePage({
   searchParams,
 }: MaintenancePageProps) {
   const context = await requireWorkspaceContext();
+  const capabilities = getMaintenanceCapabilities(context.role);
   const params = await searchParams;
   const viewQuery = normalizeCasesViewQuery(parseMaintenanceSearchParams(params));
   const routeConfig = getCasesRouteConfig(viewQuery);
@@ -25,8 +27,13 @@ export default async function MaintenancePage({
 
   return (
     <MaintenanceScreen
+      actor={{
+        branchId: context.branchId,
+        personId: context.personId,
+        role: context.role,
+      }}
       branchOptions={data.branchOptions}
-      canManageTasks={context.role !== "member"}
+      capabilities={capabilities}
       cases={data.cases}
       createButtonLabel="New case"
       description="Maintenance intake, work orders, scheduling, templates, costs, and closeout in one operating queue."
@@ -40,7 +47,7 @@ export default async function MaintenancePage({
       recordLabel="case"
       staffOptions={data.staffOptions}
       showCaseViewTabs
-      showReportAction
+      showReportAction={context.role === "admin"}
       showReviewTabs={routeConfig.showReviewTabs}
       showScopeSummary={routeConfig.showScopeSummary}
       summary={data.summary}

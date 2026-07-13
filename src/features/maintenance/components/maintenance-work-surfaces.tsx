@@ -53,6 +53,7 @@ type MaintenanceWorkflowSurfaceProps = {
   selectedTaskId: string;
   statusChangePending?: boolean;
   variant: Exclude<MaintenanceSurfaceVariant, "table">;
+  waitingForReviewLabel?: boolean;
 };
 
 export function MaintenanceWorkflowSurface({
@@ -66,6 +67,7 @@ export function MaintenanceWorkflowSurface({
   selectedTaskId,
   statusChangePending = false,
   variant,
+  waitingForReviewLabel = false,
 }: MaintenanceWorkflowSurfaceProps) {
   return (
     <div className={variant === "agenda" ? "h-full min-h-0" : "space-y-3"}>
@@ -84,6 +86,7 @@ export function MaintenanceWorkflowSurface({
           onSelect={onSelect}
           selectedTaskId={selectedTaskId}
           statusChangePending={statusChangePending}
+          waitingForReviewLabel={waitingForReviewLabel}
         />
       ) : variant === "agenda" ? (
         <AgendaSurface

@@ -5,6 +5,7 @@ import {
   getMaintenanceScreenData,
 } from "@/features/maintenance/data/maintenance";
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
+import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 
@@ -49,6 +50,7 @@ export async function renderMaintenanceRoute({
   title,
 }: MaintenanceRouteOptions) {
   const context = await requireWorkspaceContext();
+  const capabilities = getMaintenanceCapabilities(context.role);
   const params = applyMaintenanceRouteDefaults(await searchParams, defaults);
   const viewQuery = parseMaintenanceSearchParams(params);
   const actor = {
@@ -64,9 +66,10 @@ export async function renderMaintenanceRoute({
 
   return (
     <MaintenanceScreen
+      actor={actor}
       baseReview={baseReview}
       branchOptions={data.branchOptions}
-      canManageTasks={context.role !== "member"}
+      capabilities={capabilities}
       cases={data.cases}
       createButtonLabel={createButtonLabel}
       description={description}

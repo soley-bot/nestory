@@ -147,6 +147,20 @@ describe("maintenance progress helpers", () => {
       ),
     ).toEqual([completedCase]);
   });
+
+  it("keeps submitted work open and exposes it only in the completion review queue", () => {
+    const submitted = makeCase({
+      isOpen: true,
+      isReminderDue: false,
+      status: "ready_for_review",
+      statusLabel: "Ready for review",
+    });
+
+    expect(maintenanceMatchesReview(submitted, "open")).toBe(true);
+    expect(maintenanceMatchesReview(submitted, "review_completion")).toBe(true);
+    expect(maintenanceMatchesReview(submitted, "reminders")).toBe(false);
+    expect(maintenanceMatchesReview(submitted, "completed")).toBe(false);
+  });
 });
 
 describe("maintenance route contracts", () => {
@@ -210,16 +224,23 @@ describe("buildMaintenanceSummary", () => {
         unitId: "unit-2",
         unitLabel: "Unit A2",
       }),
+      makeCase({
+        category: "Electrical",
+        createdAt: "2026-07-01T00:00:00.000Z",
+        id: "task-5",
+        status: "ready_for_review",
+      }),
     ];
     const summary = buildMaintenanceSummary(cases, "2026-06-28", "2026-06");
 
     expect(summary).toMatchObject({
       actualCostDisplay: { primary: "USD 250.00" },
       highCost: 1,
-      open: 3,
+      open: 4,
       overdue: 1,
       pending: 3,
-      total: 4,
+      readyForReview: 1,
+      total: 5,
     });
     expect(summary.categoryStats[0]).toMatchObject({
       caseCount: 3,

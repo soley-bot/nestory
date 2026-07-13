@@ -16,6 +16,7 @@ import type {
   MaintenanceCase,
   MaintenanceStatus,
 } from "@/features/maintenance/maintenance.types";
+import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
 import { cn } from "@/lib/utils";
 
 export type BoardSurfaceProps = {
@@ -28,6 +29,7 @@ export type BoardSurfaceProps = {
   onSelect: (taskId: string) => void;
   selectedTaskId: string;
   statusChangePending?: boolean;
+  waitingForReviewLabel?: boolean;
 };
 
 const BOARD_COLUMNS: Array<{
@@ -39,6 +41,7 @@ const BOARD_COLUMNS: Array<{
   { detail: "Ready for a visit", status: "scheduled", title: "Scheduled" },
   { detail: "Work is moving", status: "in_progress", title: "In progress" },
   { detail: "Waiting on a blocker", status: "blocked", title: "Blocked" },
+  { detail: "Manager completion review", status: "ready_for_review", title: "Ready for review" },
   { detail: "Closed out", status: "completed", title: "Completed" },
   { detail: "Stopped or voided", status: "cancelled", title: "Cancelled" },
 ];
@@ -50,6 +53,7 @@ export function BoardSurface({
   onSelect,
   selectedTaskId,
   statusChangePending = false,
+  waitingForReviewLabel = false,
 }: BoardSurfaceProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -90,11 +94,21 @@ export function BoardSurface({
       sensors={sensors}
     >
       <div className="overflow-x-auto pb-1">
-        <div className="grid min-h-[calc(100vh-310px)] min-w-[1320px] grid-cols-6 gap-3">
+        <div className="grid min-h-[calc(100vh-310px)] min-w-[1540px] grid-cols-7 gap-3">
           {BOARD_COLUMNS.map((column) => (
             <BoardColumn
-              canMove={Boolean(onStatusChange) && !statusChangePending}
-              column={column}
+              canDrop={
+                Boolean(onStatusChange) &&
+                !statusChangePending &&
+                column.status !== "ready_for_review" &&
+                column.status !== "completed"
+              }
+              canManageState={Boolean(onStatusChange) && !statusChangePending}
+              column={
+                waitingForReviewLabel && column.status === "ready_for_review"
+                  ? { ...column, title: "Waiting for review" }
+                  : column
+              }
               key={column.status}
               onSelect={onSelect}
               selectedTaskId={selectedTaskId}
@@ -110,20 +124,22 @@ export function BoardSurface({
 }
 
 function BoardColumn({
-  canMove,
+  canDrop,
+  canManageState,
   column,
   onSelect,
   selectedTaskId,
   tasks,
 }: {
-  canMove: boolean;
+  canDrop: boolean;
+  canManageState: boolean;
   column: (typeof BOARD_COLUMNS)[number];
   onSelect: (taskId: string) => void;
   selectedTaskId: string;
   tasks: MaintenanceCase[];
 }) {
   const { isOver, setNodeRef } = useDroppable({
-    disabled: !canMove,
+    disabled: !canDrop,
     id: column.status,
   });
 
@@ -151,7 +167,13 @@ function BoardColumn({
         ) : (
           tasks.map((maintenanceCase) => (
             <DraggableMaintenanceCard
-              canMove={canMove}
+              canMove={
+                canManageState &&
+                canTransitionMaintenanceStatus(
+                  maintenanceCase.status,
+                  maintenanceCase.status === "cancelled" ? "pending" : "cancelled",
+                )
+              }
               key={maintenanceCase.id}
               maintenanceCase={maintenanceCase}
               onSelect={onSelect}
@@ -266,6 +288,7 @@ function isMaintenanceStatus(value: string): value is MaintenanceStatus {
     value === "scheduled" ||
     value === "in_progress" ||
     value === "blocked" ||
+    value === "ready_for_review" ||
     value === "completed" ||
     value === "cancelled"
   );

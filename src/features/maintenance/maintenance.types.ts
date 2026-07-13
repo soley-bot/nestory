@@ -11,6 +11,7 @@ export type MaintenanceStatus =
   | "scheduled"
   | "in_progress"
   | "blocked"
+  | "ready_for_review"
   | "completed"
   | "cancelled";
 
@@ -26,6 +27,7 @@ export type MaintenanceReviewFilter =
   | "high_priority"
   | "high_cost"
   | "recurring"
+  | "review_completion"
   | "completed";
 
 export type MaintenanceCasesView =
@@ -133,6 +135,7 @@ export type MaintenanceCase = {
   assigneePersonId?: string;
   branchId?: string;
   branchLabel: string;
+  blockedReason?: string;
   category: string;
   checklist: MaintenanceChecklistItem[];
   checklistDoneCount: number;
@@ -279,6 +282,7 @@ export type MaintenanceSummary = {
   pending: number;
   propertyStats: MaintenancePropertyStat[];
   recurring: number;
+  readyForReview: number;
   reminderDue: number;
   repeatedIssues: MaintenanceRepeatedIssue[];
   scheduled: number;
