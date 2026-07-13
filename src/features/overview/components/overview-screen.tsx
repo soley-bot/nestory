@@ -31,6 +31,7 @@ import {
 } from "@/features/overview/components/overview-charts";
 import type {
   OverviewAttentionItem,
+  OverviewCompanyFinanceSummary,
   OverviewDashboardSummary,
   OverviewLegacyFinanceView,
   OverviewLens,
@@ -41,7 +42,7 @@ import type {
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
 import { formatDate } from "@/lib/dates/format";
-import type { MoneyDisplayValue } from "@/lib/money/format";
+import { formatMoneyDisplay, type MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 type OverviewScreenProps = {
@@ -66,6 +67,47 @@ type OverviewChartConfig = {
   key: OverviewChartKey;
   title: string;
 };
+
+function getLegacyCompanyFinance(
+  data: OverviewScreenData,
+): OverviewCompanyFinanceSummary {
+  if ("companyFinance" in data) return data.companyFinance;
+
+  const summary = data.propertyPerformance.summary;
+  return {
+    companyCost: formatMoneyDisplay(summary.cashExpensesAmount),
+    companyCostAmount: summary.cashExpensesAmount,
+    companyNet: formatMoneyDisplay(summary.netCashAmount),
+    companyNetAmount: summary.netCashAmount,
+    companyRevenue: formatMoneyDisplay(summary.cashIncomeAmount),
+    companyRevenueAmount: summary.cashIncomeAmount,
+    marginLabel:
+      summary.cashIncomeAmount > 0
+        ? `${Math.round((summary.netCashAmount / summary.cashIncomeAmount) * 100)}%`
+        : "No cash income",
+    monthlyPnl: [],
+    ownerReceivable: formatMoneyDisplay(summary.arrearsAmount),
+    ownerReceivableAmount: summary.arrearsAmount,
+    ownerReceivables: [],
+    properties: data.propertyPerformance.rows.map((row) => ({
+      companyCost: row.cashExpenses,
+      companyCostAmount: row.cashExpensesAmount,
+      companyRevenue: row.cashIncome,
+      companyRevenueAmount: row.cashIncomeAmount,
+      href: row.href,
+      label: row.label,
+      marginLabel:
+        row.cashIncomeAmount > 0
+          ? `${Math.round((row.netCashAmount / row.cashIncomeAmount) * 100)}%`
+          : "No cash income",
+      netContribution: row.netCash,
+      netContributionAmount: row.netCashAmount,
+      ownerReceivable: row.arrears,
+      ownerReceivableAmount: row.arrearsAmount,
+      tone: row.netCashAmount < 0 ? "danger" : "success",
+    })),
+  };
+}
 
 const financeViewTabs: Array<{
   href: string;
@@ -727,7 +769,7 @@ function FinanceLensWorkspace({
           actionLabel="Open report"
           title="Property Ranking"
         >
-          <PropertyRankingTable properties={data.companyFinance.properties} />
+          <PropertyRankingTable properties={getLegacyCompanyFinance(data).properties} />
         </ChartPanel>
       ) : null}
       {financeView === "owner-receivables" ? (
@@ -736,7 +778,7 @@ function FinanceLensWorkspace({
           actionLabel="Open bills"
           title="Owner Receivables"
         >
-          <OwnerReceivablesTable receivables={data.companyFinance.ownerReceivables} />
+          <OwnerReceivablesTable receivables={getLegacyCompanyFinance(data).ownerReceivables} />
         </ChartPanel>
       ) : null}
       {financeView === "ledger" ? (
@@ -770,7 +812,7 @@ function FinanceLensWorkspace({
             <LedgerFlowChart
               className="h-60 xl:h-64"
               currency={data.ledgerCurrency}
-              points={data.companyFinance.monthlyPnl}
+              points={getLegacyCompanyFinance(data).monthlyPnl}
             />
           </ChartPanel>
           <ChartPanel
@@ -829,25 +871,25 @@ function CompanyPnlBreakdown({ data }: { data: OverviewScreenData }) {
       href: "/rent-income?query=management",
       icon: TrendingUp,
       label: "Company revenue",
-      value: data.companyFinance.companyRevenue,
+      value: getLegacyCompanyFinance(data).companyRevenue,
     },
     {
       href: "/bills-expenses?query=company",
       icon: ReceiptText,
       label: "Company costs",
-      value: data.companyFinance.companyCost,
+      value: getLegacyCompanyFinance(data).companyCost,
     },
     {
       href: "/overview?lens=finance&financeView=owner-receivables",
       icon: Landmark,
       label: "Owner receivable",
-      value: data.companyFinance.ownerReceivable,
+      value: getLegacyCompanyFinance(data).ownerReceivable,
     },
     {
       href: "/overview?lens=finance&financeView=company-pnl",
       icon: DollarSign,
       label: "Net P&L",
-      value: data.companyFinance.companyNet,
+      value: getLegacyCompanyFinance(data).companyNet,
     },
   ];
 
@@ -873,7 +915,7 @@ function CompanyPnlBreakdown({ data }: { data: OverviewScreenData }) {
       <div className="rounded-md border border-border bg-background/40 px-3 py-2 text-xs text-foreground-muted">
         Margin:{" "}
         <span className="font-semibold text-foreground">
-          {data.companyFinance.marginLabel}
+          {getLegacyCompanyFinance(data).marginLabel}
         </span>
       </div>
     </div>
@@ -883,7 +925,7 @@ function CompanyPnlBreakdown({ data }: { data: OverviewScreenData }) {
 function PropertyRankingTable({
   properties,
 }: {
-  properties: OverviewScreenData["companyFinance"]["properties"];
+  properties: OverviewCompanyFinanceSummary["properties"];
 }) {
   if (properties.length === 0) {
     return <EmptyPanelText>No company P&L rows exist for this period.</EmptyPanelText>;
@@ -937,7 +979,7 @@ function PropertyRankingTable({
 function OwnerReceivablesTable({
   receivables,
 }: {
-  receivables: OverviewScreenData["companyFinance"]["ownerReceivables"];
+  receivables: OverviewCompanyFinanceSummary["ownerReceivables"];
 }) {
   if (receivables.length === 0) {
     return <EmptyPanelText>No open owner receivables for company advances.</EmptyPanelText>;
@@ -1201,10 +1243,10 @@ function getLensMetrics(
         metric: {
           helper: "Company revenue minus company costs",
           label: "Company net P&L",
-          tone: data.companyFinance.companyNetAmount < 0 ? "danger" : "success",
-          value: data.companyFinance.companyNet,
+          tone: getLegacyCompanyFinance(data).companyNetAmount < 0 ? "danger" : "success",
+          value: getLegacyCompanyFinance(data).companyNet,
         },
-        visualTone: data.companyFinance.companyNetAmount < 0 ? "danger" : "success",
+        visualTone: getLegacyCompanyFinance(data).companyNetAmount < 0 ? "danger" : "success",
       },
       {
         href: "/rent-income?query=management",
@@ -1213,7 +1255,7 @@ function getLensMetrics(
           helper: "Management fees, commissions, service fees, and markup",
           label: "Company revenue",
           tone: "neutral",
-          value: data.companyFinance.companyRevenue,
+          value: getLegacyCompanyFinance(data).companyRevenue,
         },
       },
       {
@@ -1222,8 +1264,8 @@ function getLensMetrics(
         metric: {
           helper: "Company-only costs and unrecovered advances",
           label: "Company costs",
-          tone: data.companyFinance.companyCostAmount > 0 ? "warning" : "success",
-          value: data.companyFinance.companyCost,
+          tone: getLegacyCompanyFinance(data).companyCostAmount > 0 ? "warning" : "success",
+          value: getLegacyCompanyFinance(data).companyCost,
         },
       },
       {
@@ -1233,8 +1275,8 @@ function getLensMetrics(
           helper: "Company advances still owed by owners",
           label: "Owner receivables",
           tone:
-            data.companyFinance.ownerReceivableAmount > 0 ? "warning" : "success",
-          value: data.companyFinance.ownerReceivable,
+            getLegacyCompanyFinance(data).ownerReceivableAmount > 0 ? "warning" : "success",
+          value: getLegacyCompanyFinance(data).ownerReceivable,
         },
       },
     ];
@@ -1403,10 +1445,10 @@ function getLensSummary(
       actionHref: "/overview?lens=finance&financeView=company-pnl",
       actionLabel: "Open Company P&L",
       detail: needsReview
-        ? `${attentionTotal} finance checks need review alongside ${data.companyFinance.ownerReceivable.primary} in owner receivables.`
-        : `Company net P&L is ${data.companyFinance.companyNet.primary} from current company-classified rows.`,
+        ? `${attentionTotal} finance checks need review alongside ${getLegacyCompanyFinance(data).ownerReceivable.primary} in owner receivables.`
+        : `Company net P&L is ${getLegacyCompanyFinance(data).companyNet.primary} from current company-classified rows.`,
       headline: "Finance lens is focused on company-wide P&L.",
-      tone: data.companyFinance.companyNetAmount < 0 ? "danger" : tone,
+      tone: getLegacyCompanyFinance(data).companyNetAmount < 0 ? "danger" : tone,
     };
   }
 

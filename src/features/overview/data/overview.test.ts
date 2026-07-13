@@ -9,22 +9,7 @@ vi.mock("@/lib/db/server", () => ({
 describe("getOverviewScreenData", () => {
   it("marks a brand new workspace as not yet set up", async () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(
-      createSupabaseStub([
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { count: 0, data: [] },
-        { data: [] },
-      ]),
+      createSupabaseStub({ tasks: { count: 0, data: [] } }),
     );
 
     const data = await getOverviewScreenData(
@@ -47,22 +32,7 @@ describe("getOverviewScreenData", () => {
 
   it("surfaces open maintenance work as a dashboard attention item", async () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(
-      createSupabaseStub([
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { count: 2, data: [] },
-        { data: [] },
-      ]),
+      createSupabaseStub({ tasks: { count: 2, data: [] } }),
     );
 
     const data = await getOverviewScreenData(
@@ -83,10 +53,8 @@ describe("getOverviewScreenData", () => {
 
   it("links missing lease tenant records to the lease repair view", async () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(
-      createSupabaseStub([
-        { data: [] },
-        { data: [] },
-        {
+      createSupabaseStub({
+        leases: {
           data: [
             {
               lease_end_date: "2099-01-01",
@@ -95,18 +63,8 @@ describe("getOverviewScreenData", () => {
             },
           ],
         },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { count: 0, data: [] },
-        { data: [] },
-      ]),
+        tasks: { count: 0, data: [] },
+      }),
     );
 
     const data = await getOverviewScreenData(
@@ -125,100 +83,168 @@ describe("getOverviewScreenData", () => {
     );
   });
 
-  it("calculates company P&L separately from owner receivables", async () => {
+  it("loads selected-month property cash performance from settlement events", async () => {
+    const queryCalls: QueryCall[] = [];
     vi.mocked(createSupabaseServerClient).mockResolvedValue(
-      createSupabaseStub([
-        { data: [{ code: "CTR", id: "prop-1", name: "Central Residence" }] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        { data: [] },
-        {
+      createSupabaseStub({
+        finance_expense_items: {
           data: [
             {
-              amount_received: 500,
-              currency: "USD",
-              due_date: "2026-07-01",
-              income_type: "management_fee",
-              property_id: "prop-1",
-              status: "posted",
-            },
-          ],
-        },
-        {
-          data: [
-            {
-              amount: 100,
-              category: "AC repair",
+              amount: 300,
+              category: "Maintenance",
               company_loss_amount: 0,
               currency: "USD",
-              economic_scope: "company_advance",
+              economic_scope: "property_expense",
+              expense_type: "maintenance",
               id: "expense-1",
-              invoice_date: "2026-07-03",
-              owner_bill_status: "billable",
-              owner_reimbursable_amount: 100,
-              owner_reimbursed_amount: 40,
-              property_id: "prop-1",
-              vendor_label: "AC Vendor",
-            },
-            {
-              amount: 80,
-              category: "Admin supplies",
-              company_loss_amount: 80,
-              currency: "USD",
-              economic_scope: "company_cost",
-              id: "expense-2",
               invoice_date: "2026-07-04",
               owner_bill_status: "not_billable",
               owner_reimbursable_amount: 0,
               owner_reimbursed_amount: 0,
               property_id: "prop-1",
-              vendor_label: "Office Vendor",
+              status: "paid",
+              vendor_label: "Vendor 1",
             },
-          ],
-        },
-        {
-          data: [
             {
-              category: "Cash repair",
+              amount: 100,
+              category: "Utilities",
               company_loss_amount: 0,
               currency: "USD",
-              description: "Emergency cash repair",
-              economic_scope: "company_advance",
-              id: "petty-1",
+              economic_scope: "property_expense",
+              expense_type: "utilities",
+              id: "expense-2",
               invoice_date: "2026-07-05",
-              out_amount: 50,
-              owner_bill_status: "billable",
-              owner_reimbursable_amount: 50,
-              owner_reimbursed_amount: 10,
+              owner_bill_status: "not_billable",
+              owner_reimbursable_amount: 0,
+              owner_reimbursed_amount: 0,
               property_id: "prop-1",
-              supplier: "Cash Supplier",
+              status: "paid",
+              vendor_label: "Vendor 2",
+            },
+            {
+              amount: 60.6,
+              category: "Tax",
+              company_loss_amount: 0,
+              currency: "USD",
+              economic_scope: "property_expense",
+              expense_type: "tax",
+              id: "expense-3",
+              invoice_date: "2026-07-06",
+              owner_bill_status: "not_billable",
+              owner_reimbursable_amount: 0,
+              owner_reimbursed_amount: 0,
+              property_id: "prop-1",
+              status: "paid",
+              vendor_label: "Vendor 3",
             },
           ],
         },
-        { count: 0, data: [] },
-        { data: [] },
-      ]),
+        finance_income_items: {
+          data: [
+            {
+              amount_due: 1400,
+              amount_received: 1400,
+              currency: "USD",
+              due_date: "2026-07-01",
+              id: "income-rent",
+              income_type: "rent",
+              property_id: "prop-1",
+              status: "paid",
+            },
+            {
+              amount_due: 112,
+              amount_received: 112,
+              currency: "USD",
+              due_date: "2026-07-01",
+              id: "income-fee",
+              income_type: "management_fee",
+              property_id: "prop-1",
+              status: "paid",
+            },
+          ],
+        },
+        finance_payment_allocations: {
+          data: [
+            paymentAllocation("payment-allocation-1", "expense-1", 300, "2026-07-04"),
+            paymentAllocation("payment-allocation-2", "expense-2", 100, "2026-07-05"),
+            paymentAllocation("payment-allocation-3", "expense-3", 60.6, "2026-07-06"),
+          ],
+        },
+        finance_receipt_allocations: {
+          data: [
+            receiptAllocation("receipt-allocation-1", "income-rent", 1400),
+            receiptAllocation("receipt-allocation-2", "income-fee", 112),
+          ],
+        },
+        lease_deposit_events: {
+          data: [
+            {
+              amount: 1400,
+              event_date: "2026-06-20",
+              event_type: "received",
+              id: "deposit-event-1",
+              property_id: "prop-1",
+              reversal_of_id: null,
+            },
+            {
+              amount: 200,
+              event_date: "2026-06-21",
+              event_type: "refunded",
+              id: "deposit-event-2",
+              property_id: "prop-1",
+              reversal_of_id: null,
+            },
+            {
+              amount: 200,
+              event_date: "2026-06-22",
+              event_type: "reversed",
+              id: "deposit-event-3",
+              property_id: "prop-1",
+              reversal_of_id: "deposit-event-2",
+              reversed_event: { event_type: "refunded" },
+            },
+          ],
+        },
+        properties: {
+          data: [{ code: "CTR", id: "prop-1", name: "Central Residence" }],
+        },
+        tasks: { count: 0, data: [] },
+        units: {
+          data: [{ id: "unit-1", property_id: "prop-1", status: "occupied" }],
+        },
+      }, queryCalls),
     );
 
     const data = await getOverviewScreenData(
       "11111111-1111-4111-8111-111111111111",
+      {
+        financeView: "collections",
+        lens: "all",
+        month: "2026-07",
+        propertyId: "prop-1",
+        review: "all",
+      },
     );
 
-    expect(data.companyFinance.companyRevenue.primary).toBe("USD 500.00");
-    expect(data.companyFinance.companyCost.primary).toBe("USD 80.00");
-    expect(data.companyFinance.companyNet.primary).toBe("USD 420.00");
-    expect(data.companyFinance.ownerReceivable.primary).toBe("USD 100.00");
-    expect(data.companyFinance.properties[0]).toMatchObject({
-      label: "CTR / Central Residence",
-      marginLabel: "84%",
-      netContributionAmount: 420,
-      ownerReceivableAmount: 100,
+    expect(data.propertyPerformance.rows[0]).toMatchObject({
+      cashExpensesAmount: 572.6,
+      cashIncomeAmount: 1400,
+      netCashAmount: 827.4,
+      propertyId: "prop-1",
+      securityDepositHeldAmount: 1400,
     });
+    expect(data.propertyPerformance.summary.managementFeeEarnedAmount).toBe(112);
+    expect(data).not.toHaveProperty("companyFinance");
+    expect(queryCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ args: ["id", "prop-1"], method: "eq", table: "properties" }),
+        expect.objectContaining({ args: ["finance_receipts.property_id", "prop-1"], method: "eq", table: "finance_receipt_allocations" }),
+        expect.objectContaining({ args: ["finance_payments.property_id", "prop-1"], method: "eq", table: "finance_payment_allocations" }),
+        expect.objectContaining({ args: ["property_id", "prop-1"], method: "eq", table: "lease_deposit_events" }),
+        expect.objectContaining({ args: ["income_item_id", ["income-rent", "income-fee"]], method: "in", table: "finance_receipt_allocations" }),
+        expect.objectContaining({ args: ["finance_receipts.received_date", "2026-08-01"], method: "lt", table: "finance_receipt_allocations" }),
+      ]),
+    );
   });
 });
 
@@ -228,26 +254,73 @@ type SupabaseResult = {
   error?: { message: string } | null;
 };
 
-function createSupabaseStub(results: SupabaseResult[]) {
-  const queue = [...results];
+type QueryCall = {
+  args: unknown[];
+  method: string;
+  table: string;
+};
 
+function createSupabaseStub(
+  results: Record<string, SupabaseResult>,
+  calls?: QueryCall[],
+) {
   return {
-    from: vi.fn(() => createQuery(queue.shift() ?? { data: [] })),
+    from: vi.fn((table: string) =>
+      createQuery(results[table] ?? { data: [] }, table, calls),
+    ),
   } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>;
 }
 
-function createQuery(result: SupabaseResult) {
+function receiptAllocation(id: string, incomeItemId: string, amount: number) {
+  return {
+    amount,
+    finance_receipts: {
+      received_date: "2026-07-03",
+      reversal_of_id: null,
+    },
+    id,
+    income_item_id: incomeItemId,
+  };
+}
+
+function paymentAllocation(
+  id: string,
+  expenseItemId: string,
+  amount: number,
+  paidDate: string,
+) {
+  return {
+    amount,
+    expense_item_id: expenseItemId,
+    finance_expense_items: {
+      economic_scope: "property_expense",
+      expense_type: "property_cost",
+      id: expenseItemId,
+      ledger_entry_id: null,
+      property_id: "prop-1",
+    },
+    finance_payments: { paid_date: paidDate, reversal_of_id: null },
+    id,
+  };
+}
+
+function createQuery(result: SupabaseResult, table = "", calls?: QueryCall[]) {
+  const chain = (method: string) => (...args: unknown[]) => {
+    calls?.push({ args, method, table });
+    return query;
+  };
   const query = {
-    eq: () => query,
-    gte: () => query,
-    in: () => query,
-    is: () => query,
-    limit: () => query,
-    lt: () => query,
-    neq: () => query,
-    or: () => query,
-    order: () => query,
-    select: () => query,
+    eq: chain("eq"),
+    gte: chain("gte"),
+    in: chain("in"),
+    is: chain("is"),
+    limit: chain("limit"),
+    lt: chain("lt"),
+    neq: chain("neq"),
+    or: chain("or"),
+    order: chain("order"),
+    range: chain("range"),
+    select: chain("select"),
     then: (
       onFulfilled: (value: SupabaseResult) => unknown,
       onRejected?: (reason: unknown) => unknown,

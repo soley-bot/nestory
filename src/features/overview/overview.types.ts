@@ -184,11 +184,10 @@ export type OverviewWorkspaceSetup = {
   unitCount: number;
 };
 
-export type OverviewScreenData = {
+type OverviewScreenDataCommon = {
   attentionItems: OverviewAttentionItem[];
   attentionTotal: number;
   dashboardSummary: OverviewDashboardSummary;
-  companyFinance: OverviewCompanyFinanceSummary;
   leaseEndings: OverviewLeaseEndingPoint[];
   leaseRiskCount: number;
   ledgerCurrency: CurrencyCode;
@@ -199,3 +198,15 @@ export type OverviewScreenData = {
   recentChanges: RecentChange[];
   workspaceSetup: OverviewWorkspaceSetup;
 };
+
+export type OverviewPropertyPerformanceScreenData = OverviewScreenDataCommon & {
+  propertyPerformance: OverviewPropertyPerformance;
+};
+
+export type OverviewLegacyScreenData = OverviewScreenDataCommon & {
+  companyFinance: OverviewCompanyFinanceSummary;
+};
+
+export type OverviewScreenData =
+  | OverviewPropertyPerformanceScreenData
+  | OverviewLegacyScreenData;
