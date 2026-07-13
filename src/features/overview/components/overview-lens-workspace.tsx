@@ -103,7 +103,7 @@ function getLensConfig(data: OverviewScreenData, query: OverviewViewQuery, lens:
     actionHref: destinationHref("/maintenance?review=open", query, true), actionLabel: "Open maintenance work", attentionCount: maintenanceItem?.count ?? 0,
     metrics: [
       { href: destinationHref("/maintenance?review=open", query, true), label: "Open work", value: String(maintenanceItem?.count ?? 0) },
-      { href: destinationHref("/bills-expenses?expenseType=maintenance&status=paid", query, true), label: "Paid maintenance cost", value: "Not calculated" },
+      { href: destinationHref("/bills-expenses?expenseType=maintenance&status=paid&dateBasis=paid", query, true), label: "Paid maintenance cost", value: "Not calculated" },
       { href: destinationHref("/bills-expenses?expenseType=maintenance", query, true), label: "Maintenance expenses", value: "Open module" },
       { href: "/maintenance", label: "Properties with work", value: "Open module" },
     ],

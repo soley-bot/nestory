@@ -155,6 +155,12 @@ RPC write boundaries. Current table families include:
   `petty_cash_entries`, `timeline_events`, `activity_logs`. Income and expense
   items represent obligations; receipt, payment, allocation, and deposit-event
   rows represent dated settlement activity used by cash reporting.
+  Checked public RPCs record and reverse deposit events while private
+  implementations and direct event-table writes remain unavailable to API
+  callers. The lease inspector shows held balance and immutable event history.
+- Bills & Expenses supports `dateBasis=invoice` (default) and
+  `dateBasis=paid`; paid basis scopes the month by `paid_date` and composes
+  with its status, expense type, property, unit, and search filters.
 - Accounting compatibility: `accounting_books`, `accounting_accounts`,
   `accounting_periods`, `accounting_journal_entries`, and
   `accounting_journal_lines`. Existing workflows still maintain these records

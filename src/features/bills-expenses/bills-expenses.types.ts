@@ -29,6 +29,7 @@ export type BillsExpenseStatusFilter =
   | Exclude<BillsExpenseStatus, "void">;
 export type BillsExpenseType = (typeof expenseTypeOptions)[number]["value"];
 export type BillsExpenseTypeFilter = "all" | BillsExpenseType;
+export type BillsExpenseDateBasis = "invoice" | "paid";
 export type BillsExpenseEconomicScope =
   | "company_advance"
   | "company_cost"
@@ -57,6 +58,7 @@ export const ownerBillStatusOptions = [
 ] as const;
 
 export type BillsExpensesViewQuery = {
+  dateBasis: BillsExpenseDateBasis;
   expenseType: BillsExpenseTypeFilter;
   month: string;
   page: number;

@@ -100,13 +100,14 @@ export async function getBillsExpensesScreenData(
     "reference",
   ];
   const baseQuery = () => {
+    const dateColumn = viewQuery.dateBasis === "paid" ? "paid_date" : "invoice_date";
     let query = supabase
       .from("finance_expense_items")
       .select("*", { count: "exact" })
       .eq("organization_id", organizationId)
       .is("archived_at", null)
-      .gte("invoice_date", monthScope.from)
-      .lt("invoice_date", monthScope.before);
+      .gte(dateColumn, monthScope.from)
+      .lt(dateColumn, monthScope.before);
 
     if (viewQuery.status !== "all") {
       query = query.eq("status", viewQuery.status);
@@ -136,7 +137,8 @@ export async function getBillsExpensesScreenData(
   const today = getBusinessDateValue();
   const [countResult, summaryResult] = await Promise.all([
     baseQuery().limit(0),
-    supabase.rpc("get_finance_expense_workflow_summary", {
+    viewQuery.dateBasis === "invoice" && viewQuery.expenseType === "all"
+    ? supabase.rpc("get_finance_expense_workflow_summary", {
       p_invoice_before: monthScope.before,
       p_invoice_from: monthScope.from,
       p_organization_id: organizationId,
@@ -146,7 +148,8 @@ export async function getBillsExpensesScreenData(
       p_status: viewQuery.status === "all" ? null : viewQuery.status,
       p_today: today,
       p_unit_id: viewQuery.unitId === "all" ? null : viewQuery.unitId,
-    }),
+    })
+    : baseQuery(),
   ]);
 
   if (countResult.error) {
@@ -200,7 +203,9 @@ export async function getBillsExpensesScreenData(
   const amountPaidByExpenseId = buildAmountPaidByExpenseId(
     (paymentAllocationsResult.data ?? []) as PaymentAllocationRow[],
   );
-  const summaryRow = summaryResult.data?.[0] ?? null;
+  const summaryRow: ExpenseSummaryRow | null = viewQuery.dateBasis === "invoice" && viewQuery.expenseType === "all"
+    ? (summaryResult.data?.[0] as ExpenseSummaryRow | undefined) ?? null
+    : buildScopedSummaryRow((summaryResult.data ?? []) as ExpenseRow[], today);
 
   return {
     expenseItems: rows.map((row) =>
@@ -291,6 +296,18 @@ function toBillsExpenseItem({
     vendorLabel: row.vendor_label,
     vendorPersonId: row.vendor_person_id,
   };
+}
+
+function buildScopedSummaryRow(rows: ExpenseRow[], today: string): ExpenseSummaryRow {
+  return rows.reduce<ExpenseSummaryRow>((summary, row) => {
+    const amount = Number(row.amount);
+    if (row.status === "approved") summary.approved_count += 1;
+    if (row.status === "draft") summary.draft_count += 1;
+    if (row.due_date && row.due_date < today && (row.status === "draft" || row.status === "approved")) summary.overdue_count += 1;
+    if (row.status === "posted" || row.status === "paid") summary.posted_total += amount;
+    else summary.unposted_total += amount;
+    return summary;
+  }, { approved_count: 0, draft_count: 0, overdue_count: 0, posted_total: 0, unposted_total: 0 });
 }
 
 function buildAmountPaidByExpenseId(rows: PaymentAllocationRow[]) {

@@ -195,6 +195,14 @@ function BillsExpensesFilters({
         defaultValue={viewQuery.month}
         name="month"
       />
+      <SelectControl
+        defaultValue={viewQuery.dateBasis}
+        name="dateBasis"
+        options={[
+          { label: "Invoice date", value: "invoice" },
+          { label: "Paid date", value: "paid" },
+        ]}
+      />
       <SelectControl defaultValue={viewQuery.expenseType} name="expenseType" options={[{ label: "All expense types", value: "all" }, ...expenseTypeOptions.map((option) => ({ label: option.label, value: option.value }))]} />
       <SelectControl
         defaultValue={viewQuery.status}

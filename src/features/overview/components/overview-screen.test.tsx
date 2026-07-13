@@ -39,7 +39,7 @@ describe("OverviewScreen", () => {
     const query = { ...selectedPortfolioQuery, lens: "maintenance" as const };
     render(<OverviewScreen data={operatingWorkspaceData} query={query} />);
     expect(screen.getAllByText("1").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: /Paid maintenance cost/ }).getAttribute("href")).toBe("/bills-expenses?expenseType=maintenance&status=paid&month=2026-07&propertyId=prop-1");
+    expect(screen.getByRole("link", { name: /Paid maintenance cost/ }).getAttribute("href")).toBe("/bills-expenses?expenseType=maintenance&status=paid&dateBasis=paid&month=2026-07&propertyId=prop-1");
     expect(screen.getByRole("link", { name: /Maintenance expenses/ }).getAttribute("href")).toBe("/bills-expenses?expenseType=maintenance&month=2026-07&propertyId=prop-1");
     expect(screen.getAllByText("Not calculated").length).toBeGreaterThan(0);
   });

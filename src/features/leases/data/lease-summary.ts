@@ -95,6 +95,7 @@ export type LeaseDepositRow = {
   id: string;
   lease_id: string;
   status: string;
+  events?: Array<{ id: string; event_type: string; event_date: string; amount: number; currency: LeaseRow["monthly_rent_currency"]; reference: string | null; reversal_of_id: string | null }>;
 };
 
 export type LeaseDocumentRow = {
@@ -398,10 +399,16 @@ function toOccupancyContext(
 }
 
 function toDepositContext(deposit: LeaseDepositRow): LeaseDepositContext {
+  const reversedIds = new Set((deposit.events ?? []).filter((event) => event.reversal_of_id).map((event) => event.reversal_of_id!));
+  const held = (deposit.events ?? []).filter((event) => !event.reversal_of_id && !reversedIds.has(event.id)).reduce((sum, event) => sum + (event.event_type === "received" ? Number(event.amount) : -Number(event.amount)), 0);
   return {
+    amount: Number(deposit.amount),
     amountDisplay: formatMoneyDisplay(deposit.amount, deposit.currency),
     amountLabel: formatMoney(deposit.amount, deposit.currency),
     id: deposit.id,
+    currency: deposit.currency,
+    heldBalanceDisplay: formatMoneyDisplay(held, deposit.currency),
+    events: (deposit.events ?? []).map((event) => ({ id: event.id, eventDate: event.event_date, eventType: event.event_type, amountDisplay: formatMoneyDisplay(event.amount, event.currency), reference: event.reference ?? "", reversible: !event.reversal_of_id && !reversedIds.has(event.id) })),
     statusLabel: formatStoredLabel(deposit.status),
     typeLabel: formatStoredLabel(deposit.deposit_type),
   };

@@ -98,6 +98,7 @@ function renderScreen(item: BillsExpenseItem, expenseType: "all" | "maintenance"
       unitOptions={[]}
       vendorOptions={[]}
     viewQuery={{
+      dateBasis: "invoice",
       expenseType,
         month: "2026-07",
         page: 1,

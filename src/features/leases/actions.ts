@@ -6,6 +6,10 @@ import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type LeaseFieldErrors = {
+  amount?: string[];
+  eventDate?: string[];
+  eventType?: string[];
+  leaseDepositId?: string[];
   depositAmount?: string[];
   leaseEndDate?: string[];
   leaseId?: string[];
@@ -33,6 +37,7 @@ const leaseStatusSchema = z.enum([
 ]);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date.");
 const leaseIdSchema = z.uuid("Choose a lease.");
+const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "applied", "retained", "refunded"]), leaseDepositId: z.uuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
 
 const leaseMutationSchema = z
   .object({
@@ -429,4 +434,27 @@ function leaseActionErrorMessage(message: string) {
   }
 
   return "We could not save the lease. Please check the fields and try again.";
+}
+
+export async function recordLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
+  const context = await requireAdminContext();
+  const parsed = depositEventSchema.safeParse({ amount: readString(formData, "amount"), eventDate: readString(formData, "eventDate"), eventType: readString(formData, "eventType"), leaseDepositId: readString(formData, "leaseDepositId"), reference: readString(formData, "reference") });
+  if (!parsed.success) return invalidFormState(parsed.error);
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("record_lease_deposit_event", { p_organization_id: context.organizationId, p_lease_deposit_id: parsed.data.leaseDepositId, p_event_type: parsed.data.eventType, p_event_date: parsed.data.eventDate, p_amount: parsed.data.amount, p_reference: parsed.data.reference });
+  if (error) return { message: leaseActionErrorMessage(error.message), status: "error" };
+  revalidatePath("/leases"); revalidatePath("/overview");
+  return { message: "Deposit event recorded.", status: "success" };
+}
+
+export async function reverseLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
+  const context = await requireAdminContext();
+  const eventId = z.uuid().safeParse(readString(formData, "eventId"));
+  const eventDate = dateSchema.safeParse(readString(formData, "eventDate"));
+  if (!eventId.success || !eventDate.success) return { message: "Choose a valid event and date.", status: "error" };
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("reverse_lease_deposit_event", { p_organization_id: context.organizationId, p_event_id: eventId.data, p_event_date: eventDate.data, p_reference: readString(formData, "reference") });
+  if (error) return { message: leaseActionErrorMessage(error.message), status: "error" };
+  revalidatePath("/leases"); revalidatePath("/overview");
+  return { message: "Deposit event reversed.", status: "success" };
 }

@@ -1,4 +1,6 @@
+"use client";
 import Link from "next/link";
+import { useActionState } from "react";
 import {
   Archive,
   ExternalLink,
@@ -10,6 +12,13 @@ import {
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/ui/date-picker-field";
+import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
+import { SelectControl } from "@/components/ui/select-control";
+import { recordLeaseDepositEventAction, reverseLeaseDepositEventAction } from "@/features/leases/actions";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 import type { LeaseSummary } from "@/features/leases/lease.types";
 
 type LeaseInspectorProps = {
@@ -27,6 +36,8 @@ export function LeaseInspector({
   onEditLease,
   onRestoreLease,
 }: LeaseInspectorProps) {
+  const [depositState, recordDepositEvent, depositPending] = useActionState(recordLeaseDepositEventAction, {});
+  const [reversalState, reverseDepositEvent, reversalPending] = useActionState(reverseLeaseDepositEventAction, {});
   if (!lease) {
     return (
       <aside className="bg-surface p-4">
@@ -79,6 +90,26 @@ export function LeaseInspector({
             <MoneyDisplay value={lease.rentDisplay} />
           </Detail>
         </dl>
+
+        {lease.deposits.length ? (
+          <section className="space-y-3 border-t border-border pt-4" aria-label="Security deposit events">
+            <div><h3 className="text-sm font-semibold">Security deposit</h3><p className="text-xs text-muted">Held tenant funds are separate from property income.</p></div>
+            {lease.deposits.map((deposit) => <div className="space-y-2 rounded-md border border-border p-3" key={deposit.id}>
+              <div className="flex justify-between gap-3 text-sm"><span>{deposit.typeLabel}</span><span>Held <MoneyDisplay value={deposit.heldBalanceDisplay} /></span></div>
+              <form action={recordDepositEvent} className="grid grid-cols-2 gap-2">
+                <input name="leaseDepositId" type="hidden" value={deposit.id} />
+                <SelectControl name="eventType" options={[{label:"Receipt",value:"received"},{label:"Application",value:"applied"},{label:"Retention",value:"retained"},{label:"Refund",value:"refunded"}]} />
+                <DatePickerField name="eventDate" defaultValue={getBusinessDateValue()} />
+                <NumberInput name="amount" placeholder="Amount" required />
+                <Input name="reference" placeholder="Reference" />
+                <Button disabled={depositPending} type="submit">{depositPending ? "Saving..." : "Record event"}</Button>
+              </form>
+              {depositState.message ? <p className="text-xs" role="status">{depositState.message}</p> : null}
+              <div className="space-y-1">{deposit.events.map((event) => <div className="flex items-center justify-between gap-2 text-xs" key={event.id}><span>{event.eventDate} · {event.eventType} · <MoneyDisplay value={event.amountDisplay} /> {event.reference}</span>{event.reversible ? <form action={reverseDepositEvent}><input name="eventId" type="hidden" value={event.id}/><input name="eventDate" type="hidden" value={getBusinessDateValue()}/><Button disabled={reversalPending} type="submit">Reverse</Button></form> : null}</div>)}</div>
+              {reversalState.message ? <p className="text-xs" role="status">{reversalState.message}</p> : null}
+            </div>)}
+          </section>
+        ) : null}
 
         <AttentionNote
           href={lease.nextAction.href}

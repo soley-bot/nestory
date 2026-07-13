@@ -108,12 +108,18 @@ export type LeaseOccupancyContext = {
 };
 
 export type LeaseDepositContext = {
+  amount: number;
   amountDisplay: MoneyDisplayValue;
   amountLabel: string;
   id: string;
+  currency: CurrencyCode;
+  events: LeaseDepositEventContext[];
+  heldBalanceDisplay: MoneyDisplayValue;
   statusLabel: string;
   typeLabel: string;
 };
+
+export type LeaseDepositEventContext = { id: string; eventDate: string; eventType: string; amountDisplay: MoneyDisplayValue; reference: string; reversible: boolean };
 
 export type LeaseDocumentContext = LinkedDocument & {
   linkedRecordLabel: string;

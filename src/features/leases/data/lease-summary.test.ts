@@ -90,6 +90,10 @@ describe("buildLeaseSummary", () => {
           id: "deposit-1",
           lease_id: "lease-1",
           status: "held",
+          events: [
+            { id: "deposit-event-1", event_type: "received", event_date: "2026-07-01", amount: 500, currency: "USD", reference: "RCPT-1", reversal_of_id: null },
+            { id: "deposit-event-2", event_type: "refunded", event_date: "2026-07-02", amount: 100, currency: "USD", reference: "REF-1", reversal_of_id: null },
+          ],
         },
       ],
       documents: [
@@ -193,6 +197,7 @@ describe("buildLeaseSummary", () => {
       amountLabel: "USD 1,200.00",
       statusLabel: "Held",
       typeLabel: "Security",
+      heldBalanceDisplay: { primary: "USD 400.00" },
     });
     expect(summary.documents[0]).toMatchObject({
       fileName: "lease-agreement.pdf",

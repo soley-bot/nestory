@@ -8,10 +8,12 @@ vi.mock("@/lib/db/server", () => ({
 
 describe("getBillsExpensesScreenData", () => {
   it("derives the remaining payment from existing settlement allocations", async () => {
+    queryDateFilters.length = 0;
     vi.mocked(createSupabaseServerClient).mockResolvedValue(
       createSupabaseStub({
         finance_expense_items: [
           { count: 1, data: [] },
+          { data: [] },
           {
             data: [
               {
@@ -64,6 +66,7 @@ describe("getBillsExpensesScreenData", () => {
     );
 
     const result = await getBillsExpensesScreenData("org-1", {
+      dateBasis: "invoice",
       expenseType: "maintenance",
       month: "2026-07",
       page: 1,
@@ -83,9 +86,32 @@ describe("getBillsExpensesScreenData", () => {
     });
     expect(queryFilters).toContainEqual(["expense_type", "maintenance"]);
   });
+
+  it("scopes paid-basis results by paid date while combining filters", async () => {
+    queryFilters.length = 0;
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        finance_expense_items: [{ count: 0, data: [] }, { data: [] }],
+        people: [{ data: [] }], properties: [{ data: [] }], units: [{ data: [] }],
+      }),
+    );
+
+    await getBillsExpensesScreenData("org-1", {
+      dateBasis: "paid", expenseType: "maintenance", month: "2026-07", page: 1,
+      pageSize: 25, propertyId: "property-1", query: "", status: "paid", unitId: "all",
+    });
+
+    expect(queryFilters).toContainEqual(["status", "paid"]);
+    expect(queryFilters).toContainEqual(["expense_type", "maintenance"]);
+    expect(queryFilters).toContainEqual(["property_id", "property-1"]);
+    expect(queryDateFilters).toContainEqual(["gte", "paid_date", "2026-07-01"]);
+    expect(queryDateFilters).toContainEqual(["lt", "paid_date", "2026-08-01"]);
+    expect(queryDateFilters.filter(([, column]) => column === "paid_date").length).toBeGreaterThan(0);
+  });
 });
 
 const queryFilters: Array<[string, unknown]> = [];
+const queryDateFilters: Array<[string, string, unknown]> = [];
 
 type SupabaseResult = {
   count?: number | null;
@@ -109,11 +135,11 @@ function createSupabaseStub(results: Record<string, SupabaseResult[]>) {
 function createQuery(result: SupabaseResult) {
   const query = {
     eq: (column: string, value: unknown) => { queryFilters.push([column, value]); return query; },
-    gte: () => query,
+    gte: (column: string, value: unknown) => { queryDateFilters.push(["gte", column, value]); return query; },
     in: () => query,
     is: () => query,
     limit: () => query,
-    lt: () => query,
+    lt: (column: string, value: unknown) => { queryDateFilters.push(["lt", column, value]); return query; },
     or: () => query,
     order: () => query,
     range: () => query,
