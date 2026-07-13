@@ -1,8 +1,9 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { OverviewScreen } from "@/features/overview/components/overview-screen";
+import { PropertyFinanceWorkspace } from "@/features/overview/components/property-finance-workspace";
 import type {
   OverviewScreenData,
   OverviewViewQuery,
@@ -111,6 +112,110 @@ describe("OverviewScreen", () => {
     expect(mobileCards.textContent).toContain("USD 827.40");
     expect(mobileCards.textContent).toContain("Not set");
   });
+
+  it("requires explicit property selection before showing cash detail", () => {
+    render(
+      <OverviewScreen data={operatingWorkspaceData} query={portfolioQuery} />,
+    );
+
+    expect(
+      screen.getByText("Select a property to explain its cash result."),
+    ).toBeTruthy();
+    expect(screen.queryByText("Selected property cash detail")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Open owner statement" })).toBeNull();
+  });
+
+  it("shows supported property-finance detail links for an explicit selection", () => {
+    render(
+      <OverviewScreen
+        data={operatingWorkspaceData}
+        query={selectedPortfolioQuery}
+      />,
+    );
+
+    expect(screen.getByText("Selected property cash detail")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Cash income" }).getAttribute("href")).toBe(
+      "/overview?lens=finance&financeView=collections&month=2026-07&propertyId=prop-1",
+    );
+    expect(
+      screen.getByRole("link", { name: "Property expenses paid" }).getAttribute("href"),
+    ).toBe(
+      "/overview?lens=finance&financeView=expenses&month=2026-07&propertyId=prop-1",
+    );
+    expect(screen.getByRole("link", { name: "Management fee" }).getAttribute("href")).toBe(
+      "/overview?lens=finance&financeView=management-fees&month=2026-07&propertyId=prop-1",
+    );
+    expect(screen.getByRole("link", { name: "Arrears" }).getAttribute("href")).toBe(
+      "/overview?lens=finance&financeView=collections&month=2026-07&propertyId=prop-1&review=arrears",
+    );
+    expect(
+      screen.getByRole("link", { name: "Open owner statement" }).getAttribute("href"),
+    ).toBe("/reports/owner-statement?month=2026-07&propertyId=prop-1");
+    expect(screen.getByText("Security deposit held")).toBeTruthy();
+    expect(screen.getByText("Held tenant funds are separate from income and net cash.")).toBeTruthy();
+  });
+
+  it("preserves selected property state when opening statement blockers", () => {
+    render(
+      <OverviewScreen
+        data={operatingWorkspaceData}
+        query={selectedPortfolioQuery}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Review blockers" }).getAttribute("href")).toBe(
+      "/overview?month=2026-07&propertyId=prop-1&review=statement-blocked",
+    );
+  });
+
+  it("keeps desktop and mobile scorecard facts and status equivalent", () => {
+    render(
+      <OverviewScreen
+        data={operatingWorkspaceData}
+        query={selectedPortfolioQuery}
+      />,
+    );
+
+    const table = screen.getByRole("table");
+    const cards = screen.getByRole("region", { name: "Property performance cards" });
+    for (const fact of [
+      "87%",
+      "USD 1,400.00",
+      "USD 572.60",
+      "USD 827.40",
+      "USD 112.00",
+      "Not set",
+      "Arrears",
+    ]) {
+      expect(within(table).getAllByText(fact).length).toBeGreaterThan(0);
+      expect(within(cards).getAllByText(fact).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("preserves finance query state across every property-finance subview", () => {
+    const financeQuery: OverviewViewQuery = {
+      ...selectedPortfolioQuery,
+      financeView: "expenses",
+      lens: "finance",
+      review: "arrears",
+    };
+    render(
+      <PropertyFinanceWorkspace data={operatingWorkspaceData} query={financeQuery} />,
+    );
+
+    const expectedViews = {
+      Collections: "collections",
+      Expenses: "expenses",
+      "Management fees": "management-fees",
+      "Owner statements": "owner-statements",
+      "Property transactions": "transactions",
+    };
+    for (const [label, financeView] of Object.entries(expectedViews)) {
+      expect(screen.getByRole("link", { name: label }).getAttribute("href")).toBe(
+        `/overview?lens=finance&financeView=${financeView}&month=2026-07&propertyId=prop-1&review=arrears`,
+      );
+    }
+  });
 });
 
 const portfolioQuery: OverviewViewQuery = {
@@ -119,6 +224,11 @@ const portfolioQuery: OverviewViewQuery = {
   month: "2026-07",
   propertyId: "all",
   review: "all",
+};
+
+const selectedPortfolioQuery: OverviewViewQuery = {
+  ...portfolioQuery,
+  propertyId: "prop-1",
 };
 
 const emptyWorkspaceData: OverviewScreenData = {

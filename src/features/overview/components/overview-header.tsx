@@ -58,11 +58,16 @@ export function buildOverviewHref(
   updates: Partial<OverviewViewQuery>,
 ) {
   const next = { ...query, ...updates };
-  const params = new URLSearchParams({ month: next.month });
-  if (next.lens !== "all") params.set("lens", next.lens);
+  const params = new URLSearchParams();
+  if (next.lens === "finance") {
+    params.set("lens", next.lens);
+    params.set("financeView", next.financeView);
+  } else if (next.lens !== "all") {
+    params.set("lens", next.lens);
+  }
+  params.set("month", next.month);
   if (next.propertyId !== "all") params.set("propertyId", next.propertyId);
   if (next.review !== "all") params.set("review", next.review);
-  if (next.lens === "finance") params.set("financeView", next.financeView);
   return `/overview?${params.toString()}`;
 }
 

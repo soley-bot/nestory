@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { buildOverviewHref } from "@/features/overview/components/overview-header";
 import { PropertyPerformanceDetail } from "@/features/overview/components/property-performance-detail";
 import { PropertyScorecard } from "@/features/overview/components/property-scorecard";
 import type {
@@ -15,10 +16,9 @@ export function PortfolioWorkspace({
   data: OverviewScreenData;
   query: OverviewViewQuery;
 }) {
-  const selected =
-    data.propertyPerformance.rows.find(
-      (row) => row.propertyId === query.propertyId,
-    ) ?? data.propertyPerformance.rows[0];
+  const selected = data.propertyPerformance.rows.find(
+    (row) => row.propertyId === query.propertyId,
+  );
   const summary = data.propertyPerformance.summary;
   const metrics = [
     [
@@ -85,7 +85,7 @@ export function PortfolioWorkspace({
           </p>
           <Link
             className="mt-3 inline-block text-xs font-medium text-foreground underline-offset-2 hover:underline"
-            href={`/overview?month=${query.month}&review=statement-blocked`}
+            href={buildOverviewHref(query, { review: "statement-blocked" })}
           >
             Review blockers
           </Link>
@@ -97,7 +97,13 @@ export function PortfolioWorkspace({
           query={query}
           row={selected}
         />
-      ) : null}
+      ) : (
+        <section className="rounded-lg border border-border bg-surface px-3 py-5 text-center">
+          <p className="text-sm text-foreground-muted">
+            Select a property to explain its cash result.
+          </p>
+        </section>
+      )}
     </div>
   );
 }

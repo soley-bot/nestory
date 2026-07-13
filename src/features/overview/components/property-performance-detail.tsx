@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
+import { buildOverviewHref } from "@/features/overview/components/overview-header";
 import type {
   OverviewPropertyPerformanceRow,
   OverviewViewQuery,
@@ -16,10 +17,6 @@ export function PropertyPerformanceDetail({
   query: OverviewViewQuery;
   row: OverviewPropertyPerformanceRow;
 }) {
-  const sourceParams = new URLSearchParams({
-    month: query.month,
-    propertyId: row.propertyId,
-  });
   const reportParams = new URLSearchParams({
     month: query.month,
     propertyId: row.propertyId,
@@ -51,22 +48,42 @@ export function PropertyPerformanceDetail({
       <div className="grid gap-3 p-3 md:grid-cols-2">
         <dl className="divide-y divide-border rounded-md border border-border">
           <DetailRow
-            href={`/rent-income?${sourceParams.toString()}`}
+            href={buildOverviewHref(query, {
+              financeView: "collections",
+              lens: "finance",
+              propertyId: row.propertyId,
+              review: "all",
+            })}
             label="Cash income"
             value={row.cashIncome}
           />
           <DetailRow
-            href={`/bills-expenses?${sourceParams.toString()}`}
+            href={buildOverviewHref(query, {
+              financeView: "expenses",
+              lens: "finance",
+              propertyId: row.propertyId,
+              review: "all",
+            })}
             label="Property expenses paid"
             value={row.cashExpenses}
           />
           <DetailRow
-            href={`/rent-income?${sourceParams.toString()}&category=management-fee`}
+            href={buildOverviewHref(query, {
+              financeView: "management-fees",
+              lens: "finance",
+              propertyId: row.propertyId,
+              review: "all",
+            })}
             label="Management fee"
             value={row.managementFeeEarned}
           />
           <DetailRow
-            href={`/rent-income?${sourceParams.toString()}&review=arrears`}
+            href={buildOverviewHref(query, {
+              financeView: "collections",
+              lens: "finance",
+              propertyId: row.propertyId,
+              review: "arrears",
+            })}
             label="Arrears"
             value={row.arrears}
           />
