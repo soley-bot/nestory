@@ -3820,6 +3820,17 @@ export type Database = {
         }
         Returns: string
       }
+      record_lease_deposit_event: {
+        Args: {
+          p_amount: number
+          p_event_date: string
+          p_event_type: string
+          p_lease_deposit_id: string
+          p_organization_id: string
+          p_reference?: string
+        }
+        Returns: string
+      }
       restore_document: {
         Args: { p_document_id: string; p_organization_id: string }
         Returns: string
@@ -3876,6 +3887,15 @@ export type Database = {
           p_receipt_id: string
           p_reference?: string
           p_reversal_date: string
+        }
+        Returns: string
+      }
+      reverse_lease_deposit_event: {
+        Args: {
+          p_event_date: string
+          p_event_id: string
+          p_organization_id: string
+          p_reference?: string
         }
         Returns: string
       }
