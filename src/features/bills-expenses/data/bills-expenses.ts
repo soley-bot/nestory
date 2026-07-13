@@ -305,7 +305,7 @@ async function getPaidBillsExpensesData({ organizationId, properties, properties
 }) {
   const scope = getBillsExpensesMonthScope(viewQuery.month);
   const offset = (viewQuery.page - 1) * viewQuery.pageSize;
-  const { data, error } = await supabase.rpc("get_finance_payment_drilldown", {
+  const rpcInput = {
     p_expense_type: viewQuery.expenseType === "all" ? undefined : viewQuery.expenseType,
     p_limit: viewQuery.pageSize, p_offset: offset, p_organization_id: organizationId,
     p_paid_before: scope.before, p_paid_from: scope.from,
@@ -313,10 +313,24 @@ async function getPaidBillsExpensesData({ organizationId, properties, properties
     p_query: viewQuery.query || undefined,
     p_status: viewQuery.status === "all" ? undefined : viewQuery.status,
     p_unit_id: viewQuery.unitId === "all" ? undefined : viewQuery.unitId,
-  });
-  if (error) throw new Error(`Could not load paid expense events: ${error.message}`);
-  const rows = data ?? [];
-  const totalCount = Number(rows[0]?.total_count ?? 0);
+  };
+  const initialResult = await supabase.rpc("get_finance_payment_drilldown", rpcInput);
+  if (initialResult.error) throw new Error(`Could not load paid expense events: ${initialResult.error.message}`);
+  let rows = initialResult.data ?? [];
+  let metadata = rows[0];
+  if (!metadata && viewQuery.page > 1) {
+    const metadataResult = await supabase.rpc("get_finance_payment_drilldown", { ...rpcInput, p_limit: 1, p_offset: 0 });
+    if (metadataResult.error) throw new Error(`Could not load paid expense summary: ${metadataResult.error.message}`);
+    metadata = metadataResult.data?.[0];
+    const exactCount = Number(metadata?.total_count ?? 0);
+    const clamped = buildBillsExpensesPagination({ page: viewQuery.page, pageSize: viewQuery.pageSize, totalCount: exactCount });
+    if (exactCount > 0) {
+      const pageResult = await supabase.rpc("get_finance_payment_drilldown", { ...rpcInput, p_offset: (clamped.page - 1) * viewQuery.pageSize });
+      if (pageResult.error) throw new Error(`Could not load paid expense events: ${pageResult.error.message}`);
+      rows = pageResult.data ?? [];
+    }
+  }
+  const totalCount = Number(metadata?.total_count ?? 0);
   const pagination = buildBillsExpensesPagination({ page: viewQuery.page, pageSize: viewQuery.pageSize, totalCount });
   const today = getBusinessDateValue();
   const expenseItems = rows.map((event) => {
@@ -331,7 +345,7 @@ async function getPaidBillsExpensesData({ organizationId, properties, properties
       nextAction: event.reversal_of_id ? "Payment reversal" : "Payment event",
     };
   });
-  const scopedAmount = Number(rows[0]?.scoped_amount ?? 0);
+  const scopedAmount = Number(metadata?.scoped_amount ?? 0);
   return { expenseItems, pagination, propertyOptions: toPropertyOptions(properties),
     summary: { approvedCount: "0", draftCount: "0", overdueCount: "0", postedTotal: formatMoneyDisplay(scopedAmount), unpostedTotal: formatMoneyDisplay(0) },
     unitOptions: toUnitOptions(units, propertiesById), vendorOptions: toVendorOptions(vendors), viewQuery };

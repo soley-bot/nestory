@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(12);
+SELECT plan(13);
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SET LOCAL ROLE authenticated;
@@ -41,6 +41,7 @@ SELECT throws_matching(
 );
 SELECT ok(NOT has_function_privilege('authenticated','app_private.record_lease_deposit_event(uuid,uuid,text,date,numeric,text)','EXECUTE') AND NOT has_function_privilege('authenticated','app_private.record_finance_receipt(uuid,uuid,numeric,date,text)','EXECUTE'),'authenticated cannot execute private implementations');
 SELECT ok(has_function_privilege('authenticated','public.record_lease_deposit_event(uuid,uuid,text,date,numeric,text)','EXECUTE') AND has_function_privilege('authenticated','public.reverse_lease_deposit_event(uuid,uuid,date,text)','EXECUTE'),'authenticated can execute checked public wrappers');
+SELECT ok(strpos(pg_get_functiondef('app_private.reverse_lease_deposit_event(uuid,uuid,date,text)'::regprocedure),'FROM public.lease_deposits deposit') < strpos(pg_get_functiondef('app_private.reverse_lease_deposit_event(uuid,uuid,date,text)'::regprocedure),'SELECT * INTO target FROM public.lease_deposit_events'),'reversal locks the shared lease deposit parent before the target event');
 
 SELECT * FROM finish();
 ROLLBACK;

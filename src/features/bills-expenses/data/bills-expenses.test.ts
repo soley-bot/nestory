@@ -103,6 +103,17 @@ describe("getBillsExpensesScreenData", () => {
     expect(result.pagination.totalCount).toBe(1);
     expect(result.summary.postedTotal).toEqual({ primary: "USD 50.00" });
   });
+
+  it("clamps an out-of-range paid page without losing exact count or summary", async () => {
+    const expense = { amount: 200, archived_at: null, category: "Repair", company_loss_amount: 0, currency: "USD", description: null, due_date: null, economic_scope: "property_expense", expense_type: "maintenance", id: "expense-1", invoice_date: "2026-06-01", ledger_entry_id: null, organization_id: "org-1", owner_bill_status: "not_billable", owner_reimbursable_amount: 0, owner_reimbursed_amount: 0, paid_date: null, property_id: "property-1", reference: "INV-1", status: "approved", unit_id: null, vendor_label: "Vendor", vendor_person_id: null };
+    const event = { expense, payment_id: "payment-1", paid_date: "2026-07-10", allocation_amount: 50, payment_reference: "PAY-1", reversal_of_id: null, total_count: 1, scoped_amount: 50 };
+    const supabase = createSupabaseStub({ people: [{ data: [] }], properties: [{ data: [{ code: "HOME", id: "property-1", name: "Home" }] }], units: [{ data: [] }] }, { get_finance_payment_drilldown: [{ data: [] }, { data: [event] }, { data: [event] }] });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase);
+    const result = await getBillsExpensesScreenData("org-1", { dateBasis: "paid", expenseType: "all", month: "2026-07", page: 9, pageSize: 25, propertyId: "all", query: "", status: "paid", unitId: "all" });
+    expect(result.pagination).toMatchObject({ page: 1, totalCount: 1 });
+    expect(result.expenseItems).toHaveLength(1);
+    expect(result.summary.postedTotal).toEqual({ primary: "USD 50.00" });
+  });
 });
 
 const queryFilters: Array<[string, unknown]> = [];
@@ -114,7 +125,7 @@ type SupabaseResult = {
   error?: { message: string } | null;
 };
 
-function createSupabaseStub(results: Record<string, SupabaseResult[]>, rpcResults: Record<string, SupabaseResult> = {}) {
+function createSupabaseStub(results: Record<string, SupabaseResult[]>, rpcResults: Record<string, SupabaseResult | SupabaseResult[]> = {}) {
   const queues = Object.fromEntries(
     Object.entries(results).map(([table, tableResults]) => [table, [...tableResults]]),
   );
@@ -123,7 +134,10 @@ function createSupabaseStub(results: Record<string, SupabaseResult[]>, rpcResult
     from: vi.fn((table: string) =>
       createQuery(queues[table]?.shift() ?? { data: [] }),
     ),
-    rpc: vi.fn(async (name: string) => rpcResults[name] ?? { data: [], error: null }),
+    rpc: vi.fn(async (name: string) => {
+      const result = rpcResults[name];
+      return Array.isArray(result) ? result.shift() ?? { data: [], error: null } : result ?? { data: [], error: null };
+    }),
   } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>;
 }
 
