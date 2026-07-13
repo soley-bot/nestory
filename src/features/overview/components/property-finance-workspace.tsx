@@ -7,6 +7,7 @@ import type {
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
 import { cn } from "@/lib/utils";
+import { formatMoneyDisplay } from "@/lib/money/format";
 
 const views: Array<{ label: string; value: OverviewFinanceView }> = [
   { label: "Collections", value: "collections" },
@@ -48,16 +49,31 @@ export function PropertyFinanceWorkspace({
           </Link>
         ))}
       </nav>
+      <FinanceMetricStrip data={data} />
       {query.financeView === "collections" ? (
-        <PropertyScorecard query={query} rows={data.propertyPerformance.rows} />
-      ) : (
-        <FinanceQueue query={query} />
-      )}
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
+          <PropertyScorecard query={query} rows={data.propertyPerformance.rows} />
+          <aside className="rounded-lg border border-border bg-surface p-3">
+            <h2 className="text-sm font-semibold">Attention and readiness</h2>
+            <p className="mt-3 text-xs leading-5 text-foreground-muted">{formatMoneyDisplay(data.propertyPerformance.summary.arrearsAmount, data.ledgerCurrency).primary} remains uncollected across visible properties.</p>
+            <Link className="mt-3 inline-block text-xs font-medium underline-offset-2 hover:underline" href={buildOverviewHref(query, { review: "arrears" })}>Review arrears</Link>
+          </aside>
+        </div>
+      ) : <FinanceQueue data={data} query={query} />}
     </div>
   );
 }
 
-function FinanceQueue({ query }: { query: OverviewViewQuery }) {
+function FinanceMetricStrip({ data }: { data: OverviewScreenData }) {
+  const summary = data.propertyPerformance.summary;
+  const metrics = [
+    ["Cash income", summary.cashIncomeAmount], ["Expenses paid", summary.cashExpensesAmount],
+    ["Management fees earned", summary.managementFeeEarnedAmount], ["Arrears", summary.arrearsAmount],
+  ] as const;
+  return <section aria-label="Property finance metrics" className="grid overflow-hidden rounded-lg border border-border bg-surface sm:grid-cols-2 xl:grid-cols-4">{metrics.map(([label, value]) => <div className="border-b border-border px-3 py-2.5 sm:border-r xl:border-b-0" key={label}><p className="text-xs text-foreground-muted">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums">{formatMoneyDisplay(value, data.ledgerCurrency).primary}</p></div>)}</section>;
+}
+
+function FinanceQueue({ data, query }: { data: OverviewScreenData; query: OverviewViewQuery }) {
   const content: Record<
     Exclude<OverviewFinanceView, "collections">,
     { description: string; href: string; label: string }
@@ -91,20 +107,12 @@ function FinanceQueue({ query }: { query: OverviewViewQuery }) {
   const item = content[query.financeView];
   const params = new URLSearchParams({ month: query.month });
   if (query.propertyId !== "all") params.set("propertyId", query.propertyId);
-  return (
-    <section className="rounded-lg border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-foreground">
-        {views.find((view) => view.value === query.financeView)?.label}
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm text-foreground-muted">
-        {item.description}
-      </p>
-      <Link
-        className="mt-3 inline-block rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground"
-        href={`${item.href}${item.href.includes("?") ? "&" : "?"}${params.toString()}`}
-      >
-        {item.label}
-      </Link>
+  const valueForRow = (row: OverviewScreenData["propertyPerformance"]["rows"][number]) => query.financeView === "expenses" ? row.cashExpenses.primary : query.financeView === "management-fees" ? row.managementFeeEarned.primary : query.financeView === "owner-statements" ? `${row.statementBlockers} blockers` : row.netCash.primary;
+  return <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
+    <section className="overflow-hidden rounded-lg border border-border bg-surface">
+      <div className="border-b border-border px-3 py-2.5"><h2 className="text-sm font-semibold">{views.find((view) => view.value === query.financeView)?.label} by property</h2><p className="mt-0.5 text-xs text-foreground-muted">{item.description}</p></div>
+      <div className="divide-y divide-border">{data.propertyPerformance.rows.map((row) => <Link className="flex items-center justify-between gap-3 px-3 py-3 hover:bg-surface-muted" href={`${item.href}${item.href.includes("?") ? "&" : "?"}${new URLSearchParams({ month: query.month, propertyId: row.propertyId }).toString()}`} key={row.propertyId}><span className="truncate text-sm font-medium">{row.label}</span><span className="shrink-0 text-xs font-semibold tabular-nums">{valueForRow(row)}</span></Link>)}</div>
     </section>
-  );
+    <aside className="rounded-lg border border-border bg-surface p-3"><h2 className="text-sm font-semibold">Attention and readiness</h2><p className="mt-3 text-xs leading-5 text-foreground-muted">{data.propertyPerformance.summary.statementReadiness.blockedCount} statement blockers and {formatMoneyDisplay(data.propertyPerformance.summary.arrearsAmount, data.ledgerCurrency).primary} in arrears need review.</p><Link className="mt-3 inline-block text-xs font-medium underline-offset-2 hover:underline" href={`${item.href}${item.href.includes("?") ? "&" : "?"}${params.toString()}`}>{item.label}</Link></aside>
+  </div>;
 }

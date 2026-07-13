@@ -12,6 +12,29 @@ import type {
 afterEach(cleanup);
 
 describe("OverviewScreen", () => {
+  it.each([
+    ["leasing", "Leasing priorities", "Vacancy and lease gaps", "Lease expiries"],
+    ["maintenance", "Maintenance priorities", "Open work", "Paid maintenance cost"],
+    ["records", "Records priorities", "Statement blockers", "Missing record links"],
+  ] as const)("renders the %s lens with the shared operating grammar", (lens, queue, first, second) => {
+    render(
+      <OverviewScreen
+        data={operatingWorkspaceData}
+        query={{ ...portfolioQuery, lens }}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Portfolio" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Property finance" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: queue })).toBeTruthy();
+    expect(screen.getAllByText(first).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(second).length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Attention and readiness" })).toBeTruthy();
+    expect(screen.queryByText("Company P&L")).toBeNull();
+    expect(screen.queryByText("Company costs")).toBeNull();
+    expect(screen.queryByText("Journal health")).toBeNull();
+  });
+
   it("shows a setup path instead of a clear dashboard for a new workspace", () => {
     render(<OverviewScreen data={emptyWorkspaceData} />);
 
@@ -39,40 +62,11 @@ describe("OverviewScreen", () => {
     expect(screen.queryByText(/not people or leases/i)).toBeNull();
   });
 
-  it("shows the selected overview lens as URL-backed tabs", () => {
-    render(<OverviewScreen data={operatingWorkspaceData} lens="finance" />);
-
-    const financeTab = screen.getByTitle("Cash, arrears, and posting queues");
-
-    expect(financeTab.getAttribute("href")).toBe("/overview?lens=finance");
-    expect(financeTab.getAttribute("aria-current")).toBe("page");
-    expect(
-      screen
-        .getByRole("link", { name: "Company P&L" })
-        .getAttribute("aria-current"),
-    ).toBe("page");
-    expect(screen.getByText("Company P&L trend")).toBeTruthy();
-    expect(screen.getByText("Company net P&L")).toBeTruthy();
-    expect(
-      screen.getByTitle("Open cases and repair pressure").getAttribute("href"),
-    ).toBe("/overview?lens=maintenance");
-  });
-
-  it("preserves finance subtab URL state", () => {
-    render(
-      <OverviewScreen
-        data={operatingWorkspaceData}
-        financeView="property-ranking"
-        lens="finance"
-      />,
-    );
-
-    const propertyRankingTab = screen
-      .getAllByRole("link", { name: "Property Ranking" })
-      .find((link) => link.getAttribute("aria-current") === "page");
-
-    expect(propertyRankingTab).toBeTruthy();
-    expect(screen.getByText("CTR / Satomi Dimitroff-Guorguieff")).toBeTruthy();
+  it("shows every URL-backed operating lens without company accounting copy", () => {
+    render(<OverviewScreen data={operatingWorkspaceData} query={{ ...portfolioQuery, lens: "finance" }} />);
+    expect(screen.getByRole("link", { name: "Property finance" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Maintenance" }).getAttribute("href")).toContain("lens=maintenance");
+    expect(screen.queryByText("Company P&L")).toBeNull();
   });
 
   it("shows a cash-basis property scorecard with URL-backed selection", () => {
@@ -202,6 +196,10 @@ describe("OverviewScreen", () => {
     render(
       <PropertyFinanceWorkspace data={operatingWorkspaceData} query={financeQuery} />,
     );
+
+    expect(screen.getByRole("heading", { name: "Expenses by property" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Attention and readiness" })).toBeTruthy();
+    expect(screen.getByText("Expenses paid")).toBeTruthy();
 
     const expectedViews = {
       Collections: "collections",

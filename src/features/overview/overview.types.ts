@@ -24,11 +24,6 @@ export type OverviewViewQuery = {
   review: OverviewReview;
 };
 
-export type OverviewLegacyFinanceView =
-  | "company-pnl"
-  | "ledger"
-  | "owner-receivables"
-  | "property-ranking";
 
 export type OverviewMetric = {
   helper: string;
@@ -69,52 +64,6 @@ export type OverviewLedgerPoint = {
   income: number;
   label: string;
   net: number;
-};
-
-export type OverviewCompanyFinancePoint = OverviewLedgerPoint;
-
-export type OverviewCompanyFinanceProperty = {
-  companyCost: MoneyDisplayValue;
-  companyCostAmount: number;
-  companyRevenue: MoneyDisplayValue;
-  companyRevenueAmount: number;
-  href: string;
-  label: string;
-  marginLabel: string;
-  netContribution: MoneyDisplayValue;
-  netContributionAmount: number;
-  ownerReceivable: MoneyDisplayValue;
-  ownerReceivableAmount: number;
-  tone: OverviewMetricTone;
-};
-
-export type OverviewOwnerReceivable = {
-  amount: MoneyDisplayValue;
-  amountValue: number;
-  billStatus: string;
-  href: string;
-  invoiceDate: string;
-  label: string;
-  ownerReceivable: MoneyDisplayValue;
-  ownerReceivableAmount: number;
-  propertyLabel: string;
-  reimbursed: MoneyDisplayValue;
-  vendorLabel: string;
-};
-
-export type OverviewCompanyFinanceSummary = {
-  companyCost: MoneyDisplayValue;
-  companyCostAmount: number;
-  companyNet: MoneyDisplayValue;
-  companyNetAmount: number;
-  companyRevenue: MoneyDisplayValue;
-  companyRevenueAmount: number;
-  marginLabel: string;
-  monthlyPnl: OverviewCompanyFinancePoint[];
-  ownerReceivable: MoneyDisplayValue;
-  ownerReceivableAmount: number;
-  ownerReceivables: OverviewOwnerReceivable[];
-  properties: OverviewCompanyFinanceProperty[];
 };
 
 export type OverviewPropertyPerformanceRow = {
