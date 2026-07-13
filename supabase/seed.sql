@@ -8,6 +8,8 @@
 -- - member@nestory.com / 123456789 -> Central Operations field technician
 -- - demo@nestory.com / 123456789 -> empty demo workspace
 
+SET search_path TO public, extensions;
+
 SELECT set_config('app.people_leases_skip_sync', 'on', false);
 
 INSERT INTO auth.users (
