@@ -299,7 +299,7 @@ function BillsExpensesTable({
           <tr>
             <th className="px-3 py-2">Vendor / Payee</th>
             <th className="px-3 py-2">Property / Unit</th>
-            <th className="px-3 py-2">Invoice</th>
+            <th className="px-3 py-2">Invoice / Paid</th>
             <th className="px-3 py-2 text-right">Amount</th>
             <th className="px-3 py-2">Category</th>
             <th className="px-3 py-2">Status</th>
@@ -325,7 +325,7 @@ function BillsExpensesTable({
                 <p className="text-xs text-muted">{item.unitNumber}</p>
               </td>
               <td className="px-3 py-2">
-                <p>{formatDate(item.invoiceDate)}</p>
+                <p>{item.isPaymentEvent && item.paidDate ? `Paid ${formatDate(item.paidDate)}` : formatDate(item.invoiceDate)}</p>
                 {item.dueDate ? (
                   <p className={cn("text-xs text-muted", item.isOverdue && "font-semibold text-danger")}>
                     Due {formatDate(item.dueDate)}
@@ -390,7 +390,7 @@ function BillsExpensesInspector({
             <MoneyDisplay value={item.outstandingAmountDisplay} />
           </Detail>
           <Detail label="Category">{item.category}</Detail>
-          <Detail label="Invoice">{formatDate(item.invoiceDate)}</Detail>
+          <Detail label={item.isPaymentEvent ? "Paid" : "Invoice"}>{formatDate(item.isPaymentEvent && item.paidDate ? item.paidDate : item.invoiceDate)}</Detail>
           <Detail label="Due">
             {item.dueDate ? formatDate(item.dueDate) : "No due date"}
           </Detail>
@@ -427,7 +427,7 @@ function BillsExpensesInspector({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-2">
+        {!item.isPaymentEvent ? <div className="flex flex-wrap gap-2">
           {item.status === "draft" ? (
             <Button onClick={() => onApprove(item)}>
               <CheckCircle2 size={15} />
@@ -452,7 +452,7 @@ function BillsExpensesInspector({
               Void
             </Button>
           ) : null}
-        </div>
+        </div> : null}
       </div>
     </aside>
   );

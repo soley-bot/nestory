@@ -159,8 +159,11 @@ RPC write boundaries. Current table families include:
   implementations and direct event-table writes remain unavailable to API
   callers. The lease inspector shows held balance and immutable event history.
 - Bills & Expenses supports `dateBasis=invoice` (default) and
-  `dateBasis=paid`; paid basis scopes the month by `paid_date` and composes
-  with its status, expense type, property, unit, and search filters.
+  `dateBasis=paid`; paid basis is a settlement-event drilldown over payments
+  and allocations scoped by payment `paid_date`, so partial and multi-month
+  payments appear in the month cash reporting recognizes them. Counts and
+  totals are server aggregates and compose with status, expense type,
+  property, unit, and search filters.
 - Accounting compatibility: `accounting_books`, `accounting_accounts`,
   `accounting_periods`, `accounting_journal_entries`, and
   `accounting_journal_lines`. Existing workflows still maintain these records

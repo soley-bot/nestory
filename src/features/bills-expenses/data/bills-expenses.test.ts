@@ -13,7 +13,6 @@ describe("getBillsExpensesScreenData", () => {
       createSupabaseStub({
         finance_expense_items: [
           { count: 1, data: [] },
-          { data: [] },
           {
             data: [
               {
@@ -87,26 +86,22 @@ describe("getBillsExpensesScreenData", () => {
     expect(queryFilters).toContainEqual(["expense_type", "maintenance"]);
   });
 
-  it("scopes paid-basis results by paid date while combining filters", async () => {
-    queryFilters.length = 0;
-    vi.mocked(createSupabaseServerClient).mockResolvedValue(
-      createSupabaseStub({
-        finance_expense_items: [{ count: 0, data: [] }, { data: [] }],
-        people: [{ data: [] }], properties: [{ data: [] }], units: [{ data: [] }],
-      }),
-    );
+  it("shows July partial payment events even when the June invoice is not finally paid", async () => {
+    const expense = { amount: 200, archived_at: null, category: "Repair", company_loss_amount: 0, currency: "USD", description: null, due_date: "2026-06-30", economic_scope: "property_expense", expense_type: "maintenance", id: "expense-1", invoice_date: "2026-06-01", ledger_entry_id: null, organization_id: "org-1", owner_bill_status: "not_billable", owner_reimbursable_amount: 0, owner_reimbursed_amount: 0, paid_date: null, property_id: "property-1", reference: "INV-1", status: "approved", unit_id: null, vendor_label: "Repair Vendor", vendor_person_id: null };
+    const supabase = createSupabaseStub({ people: [{ data: [] }], properties: [{ data: [{ code: "HOME", id: "property-1", name: "Home" }] }], units: [{ data: [] }] }, {
+      get_finance_payment_drilldown: { data: [{ expense, payment_id: "payment-july", paid_date: "2026-07-10", allocation_amount: 50, payment_reference: "PAY-JULY", reversal_of_id: null, total_count: 1, scoped_amount: 50 }] },
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase);
 
-    await getBillsExpensesScreenData("org-1", {
+    const result = await getBillsExpensesScreenData("org-1", {
       dateBasis: "paid", expenseType: "maintenance", month: "2026-07", page: 1,
       pageSize: 25, propertyId: "property-1", query: "", status: "paid", unitId: "all",
     });
 
-    expect(queryFilters).toContainEqual(["status", "paid"]);
-    expect(queryFilters).toContainEqual(["expense_type", "maintenance"]);
-    expect(queryFilters).toContainEqual(["property_id", "property-1"]);
-    expect(queryDateFilters).toContainEqual(["gte", "paid_date", "2026-07-01"]);
-    expect(queryDateFilters).toContainEqual(["lt", "paid_date", "2026-08-01"]);
-    expect(queryDateFilters.filter(([, column]) => column === "paid_date").length).toBeGreaterThan(0);
+    expect(supabase.rpc).toHaveBeenCalledWith("get_finance_payment_drilldown", expect.objectContaining({ p_paid_from: "2026-07-01", p_paid_before: "2026-08-01", p_expense_type: "maintenance", p_status: "paid" }));
+    expect(result.expenseItems[0]).toMatchObject({ id: "payment-july:expense-1", amount: 50, amountPaid: 50, paidDate: "2026-07-10", status: "approved" });
+    expect(result.pagination.totalCount).toBe(1);
+    expect(result.summary.postedTotal).toEqual({ primary: "USD 50.00" });
   });
 });
 
@@ -119,7 +114,7 @@ type SupabaseResult = {
   error?: { message: string } | null;
 };
 
-function createSupabaseStub(results: Record<string, SupabaseResult[]>) {
+function createSupabaseStub(results: Record<string, SupabaseResult[]>, rpcResults: Record<string, SupabaseResult> = {}) {
   const queues = Object.fromEntries(
     Object.entries(results).map(([table, tableResults]) => [table, [...tableResults]]),
   );
@@ -128,7 +123,7 @@ function createSupabaseStub(results: Record<string, SupabaseResult[]>) {
     from: vi.fn((table: string) =>
       createQuery(queues[table]?.shift() ?? { data: [] }),
     ),
-    rpc: vi.fn(async () => ({ data: [], error: null })),
+    rpc: vi.fn(async (name: string) => rpcResults[name] ?? { data: [], error: null }),
   } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>;
 }
 

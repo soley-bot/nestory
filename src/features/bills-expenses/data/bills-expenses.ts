@@ -93,6 +93,9 @@ export async function getBillsExpensesScreenData(
   const vendors = vendorsResult.data ?? [];
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
+  if (viewQuery.dateBasis === "paid") {
+    return getPaidBillsExpensesData({ organizationId, properties, propertiesById, supabase, units, unitsById, vendors, viewQuery });
+  }
   const expenseSearchColumns = [
     "vendor_label",
     "category",
@@ -137,19 +140,18 @@ export async function getBillsExpensesScreenData(
   const today = getBusinessDateValue();
   const [countResult, summaryResult] = await Promise.all([
     baseQuery().limit(0),
-    viewQuery.dateBasis === "invoice" && viewQuery.expenseType === "all"
-    ? supabase.rpc("get_finance_expense_workflow_summary", {
+    supabase.rpc("get_finance_expense_scoped_summary", {
       p_invoice_before: monthScope.before,
       p_invoice_from: monthScope.from,
       p_organization_id: organizationId,
       p_property_id:
-        viewQuery.propertyId === "all" ? null : viewQuery.propertyId,
+        viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
       p_query: viewQuery.query,
-      p_status: viewQuery.status === "all" ? null : viewQuery.status,
+      p_status: viewQuery.status === "all" ? undefined : viewQuery.status,
       p_today: today,
-      p_unit_id: viewQuery.unitId === "all" ? null : viewQuery.unitId,
-    })
-    : baseQuery(),
+      p_unit_id: viewQuery.unitId === "all" ? undefined : viewQuery.unitId,
+      p_expense_type: viewQuery.expenseType === "all" ? undefined : viewQuery.expenseType,
+    }),
   ]);
 
   if (countResult.error) {
@@ -203,9 +205,7 @@ export async function getBillsExpensesScreenData(
   const amountPaidByExpenseId = buildAmountPaidByExpenseId(
     (paymentAllocationsResult.data ?? []) as PaymentAllocationRow[],
   );
-  const summaryRow: ExpenseSummaryRow | null = viewQuery.dateBasis === "invoice" && viewQuery.expenseType === "all"
-    ? (summaryResult.data?.[0] as ExpenseSummaryRow | undefined) ?? null
-    : buildScopedSummaryRow((summaryResult.data ?? []) as ExpenseRow[], today);
+  const summaryRow = (summaryResult.data?.[0] as ExpenseSummaryRow | undefined) ?? null;
 
   return {
     expenseItems: rows.map((row) =>
@@ -298,16 +298,43 @@ function toBillsExpenseItem({
   };
 }
 
-function buildScopedSummaryRow(rows: ExpenseRow[], today: string): ExpenseSummaryRow {
-  return rows.reduce<ExpenseSummaryRow>((summary, row) => {
-    const amount = Number(row.amount);
-    if (row.status === "approved") summary.approved_count += 1;
-    if (row.status === "draft") summary.draft_count += 1;
-    if (row.due_date && row.due_date < today && (row.status === "draft" || row.status === "approved")) summary.overdue_count += 1;
-    if (row.status === "posted" || row.status === "paid") summary.posted_total += amount;
-    else summary.unposted_total += amount;
-    return summary;
-  }, { approved_count: 0, draft_count: 0, overdue_count: 0, posted_total: 0, unposted_total: 0 });
+async function getPaidBillsExpensesData({ organizationId, properties, propertiesById, supabase, units, unitsById, vendors, viewQuery }: {
+  organizationId: string; properties: PropertyRow[]; propertiesById: Map<string, PropertyRow>;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>; units: UnitRow[];
+  unitsById: Map<string, UnitRow>; vendors: PersonRow[]; viewQuery: BillsExpensesViewQuery;
+}) {
+  const scope = getBillsExpensesMonthScope(viewQuery.month);
+  const offset = (viewQuery.page - 1) * viewQuery.pageSize;
+  const { data, error } = await supabase.rpc("get_finance_payment_drilldown", {
+    p_expense_type: viewQuery.expenseType === "all" ? undefined : viewQuery.expenseType,
+    p_limit: viewQuery.pageSize, p_offset: offset, p_organization_id: organizationId,
+    p_paid_before: scope.before, p_paid_from: scope.from,
+    p_property_id: viewQuery.propertyId === "all" ? undefined : viewQuery.propertyId,
+    p_query: viewQuery.query || undefined,
+    p_status: viewQuery.status === "all" ? undefined : viewQuery.status,
+    p_unit_id: viewQuery.unitId === "all" ? undefined : viewQuery.unitId,
+  });
+  if (error) throw new Error(`Could not load paid expense events: ${error.message}`);
+  const rows = data ?? [];
+  const totalCount = Number(rows[0]?.total_count ?? 0);
+  const pagination = buildBillsExpensesPagination({ page: viewQuery.page, pageSize: viewQuery.pageSize, totalCount });
+  const today = getBusinessDateValue();
+  const expenseItems = rows.map((event) => {
+    const expense = event.expense as unknown as ExpenseRow;
+    const signedAmount = Number(event.allocation_amount) * (event.reversal_of_id ? -1 : 1);
+    return { ...toBillsExpenseItem({ amountPaid: signedAmount, propertiesById, row: expense, today, unitsById }),
+      id: `${event.payment_id}:${expense.id}`, amount: signedAmount,
+      isPaymentEvent: true,
+      amountDisplay: formatMoneyDisplay(signedAmount, expense.currency), paidDate: event.paid_date,
+      reference: event.payment_reference ?? expense.reference ?? "",
+      amountPaid: signedAmount, amountPaidDisplay: formatMoneyDisplay(signedAmount, expense.currency),
+      nextAction: event.reversal_of_id ? "Payment reversal" : "Payment event",
+    };
+  });
+  const scopedAmount = Number(rows[0]?.scoped_amount ?? 0);
+  return { expenseItems, pagination, propertyOptions: toPropertyOptions(properties),
+    summary: { approvedCount: "0", draftCount: "0", overdueCount: "0", postedTotal: formatMoneyDisplay(scopedAmount), unpostedTotal: formatMoneyDisplay(0) },
+    unitOptions: toUnitOptions(units, propertiesById), vendorOptions: toVendorOptions(vendors), viewQuery };
 }
 
 function buildAmountPaidByExpenseId(rows: PaymentAllocationRow[]) {

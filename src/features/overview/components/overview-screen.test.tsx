@@ -249,6 +249,7 @@ describe("OverviewScreen", () => {
     expect(screen.getByRole("heading", { name: "Expenses by property" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Attention and readiness" })).toBeTruthy();
     expect(screen.getByText("Expenses paid")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open property expenses" }).getAttribute("href")).toBe("/bills-expenses?dateBasis=paid&status=paid&month=2026-07&propertyId=prop-1");
 
     const expectedViews = {
       Collections: "collections",

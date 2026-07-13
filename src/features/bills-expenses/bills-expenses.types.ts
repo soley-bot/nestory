@@ -79,6 +79,7 @@ export type BillsExpenseUnitOption = BillsExpenseOption & {
 };
 
 export type BillsExpenseItem = {
+  isPaymentEvent?: boolean;
   amount: number;
   amountDisplay: MoneyDisplayValue;
   amountPaid: number;

@@ -81,7 +81,7 @@ function FinanceQueue({ data, query }: { data: OverviewScreenData; query: Overvi
     expenses: {
       description:
         "Review paid property costs and open bills for the selected month.",
-      href: "/bills-expenses",
+      href: "/bills-expenses?dateBasis=paid&status=paid",
       label: "Open property expenses",
     },
     "management-fees": {
