@@ -3701,6 +3701,26 @@ export type Database = {
         Args: { p_month?: string; p_organization_id: string }
         Returns: number
       }
+      get_finance_expense_scoped_summary: {
+        Args: {
+          p_expense_type?: string
+          p_invoice_before: string
+          p_invoice_from: string
+          p_organization_id: string
+          p_property_id?: string
+          p_query?: string
+          p_status?: string
+          p_today: string
+          p_unit_id?: string
+        }
+        Returns: {
+          approved_count: number
+          draft_count: number
+          overdue_count: number
+          posted_total: number
+          unposted_total: number
+        }[]
+      }
       get_finance_expense_workflow_summary: {
         Args: {
           p_invoice_before: string
@@ -3737,6 +3757,30 @@ export type Database = {
           receivable_total: number
           received_total: number
           unposted_count: number
+        }[]
+      }
+      get_finance_payment_drilldown: {
+        Args: {
+          p_expense_type?: string
+          p_limit?: number
+          p_offset?: number
+          p_organization_id: string
+          p_paid_before: string
+          p_paid_from: string
+          p_property_id?: string
+          p_query?: string
+          p_status?: string
+          p_unit_id?: string
+        }
+        Returns: {
+          allocation_amount: number
+          expense: Json
+          paid_date: string
+          payment_id: string
+          payment_reference: string
+          reversal_of_id: string
+          scoped_amount: number
+          total_count: number
         }[]
       }
       get_organization_access_members: {
