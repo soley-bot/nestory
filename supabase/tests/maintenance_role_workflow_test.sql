@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(65);
+SELECT plan(84);
 
 CREATE TEMP TABLE maintenance_role_workflow_state (
   created_task_id uuid
@@ -142,6 +142,36 @@ SELECT ok(
   'only authenticated clients can execute the member workflow RPC'
 );
 
+SELECT ok(
+  (
+    SELECT prosecdef
+      AND proconfig @> ARRAY['search_path=""']
+    FROM pg_proc
+    WHERE oid = to_regprocedure(
+      'public.execute_coordinated_maintenance_task(uuid,uuid,text,text)'
+    )
+  ),
+  'coordinated execution RPC is security definer with an empty search path'
+);
+
+SELECT ok(
+  CASE
+    WHEN to_regprocedure('public.execute_coordinated_maintenance_task(uuid,uuid,text,text)') IS NULL
+      THEN false
+    ELSE has_function_privilege(
+      'authenticated',
+      'public.execute_coordinated_maintenance_task(uuid,uuid,text,text)',
+      'EXECUTE'
+    )
+    AND NOT has_function_privilege(
+      'anon',
+      'public.execute_coordinated_maintenance_task(uuid,uuid,text,text)',
+      'EXECUTE'
+    )
+  END,
+  'only authenticated clients can execute the coordinated workflow RPC'
+);
+
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000501', true);
 SET LOCAL ROLE authenticated;
 
@@ -233,6 +263,13 @@ SELECT throws_ok(
   'assignment rejects a person without an active staff role'
 );
 
+SELECT throws_ok(
+  $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000004')$$,
+  '23503',
+  'Assignee must be an executable linked member for the selected branch',
+  'new assignment to active but unlinked staff fails'
+);
+
 SELECT lives_ok(
   $$UPDATE public.tasks SET actual_cost_amount = 999, actual_cost_currency = 'USD' WHERE id = '91000000-0000-0000-0000-000000000003'$$,
   'direct manager task update is filtered by RLS instead of raising'
@@ -281,12 +318,152 @@ SELECT lives_ok(
   'manager without a branch preserves existing organization-wide management scope'
 );
 
+SELECT throws_ok(
+  $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003')$$,
+  '23503',
+  'Assignee must be an executable linked member for the selected branch',
+  'new assignment to a branch-incompatible linked member fails'
+);
+
 RESET ROLE;
 
 UPDATE public.organization_members
 SET branch_id = '00000000-0000-0000-0000-000000000211'
 WHERE organization_id = '00000000-0000-0000-0000-000000000001'
   AND user_id = '00000000-0000-0000-0000-000000000501';
+
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000005', 'in_progress')$$,
+  '22023',
+  'Use the assigned-member or coordinated execution RPC for execution status changes',
+  'manager cannot start member-owned work through the generic update RPC'
+);
+
+SELECT throws_ok(
+  $$SELECT public.execute_coordinated_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000005', 'start', NULL)$$,
+  '22023',
+  'Executable member assignments must use the member workflow',
+  'manager cannot execute member-owned work through coordinated controls'
+);
+
+SELECT lives_ok(
+  $$SELECT public.execute_coordinated_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000009', 'start', NULL)$$,
+  'manager starts legacy unlinked work through coordinated controls'
+);
+
+SELECT is(
+  (SELECT status FROM public.tasks WHERE id = '91000000-0000-0000-0000-000000000009'),
+  'in_progress',
+  'coordinated start moves pending work to in progress'
+);
+
+SELECT throws_ok(
+  $$SELECT public.execute_coordinated_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000009', 'block', 'x')$$,
+  '22023',
+  'Coordinated block note must be between 3 and 500 characters',
+  'coordinated block requires a useful note'
+);
+
+SELECT lives_ok(
+  $$SELECT public.execute_coordinated_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000009', 'block', 'Waiting for the external vendor')$$,
+  'manager blocks coordinated work with a reason'
+);
+
+SELECT ok(
+  (
+    SELECT status = 'blocked'
+      AND blocked_reason = 'Waiting for the external vendor'
+      AND completed_at IS NULL
+    FROM public.tasks
+    WHERE id = '91000000-0000-0000-0000-000000000009'
+  ),
+  'coordinated block stores the current reason'
+);
+
+SELECT lives_ok(
+  $$SELECT public.execute_coordinated_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000009', 'resume', NULL)$$,
+  'manager resumes coordinated work'
+);
+
+SELECT ok(
+  (
+    SELECT status = 'in_progress' AND blocked_reason IS NULL
+    FROM public.tasks
+    WHERE id = '91000000-0000-0000-0000-000000000009'
+  ),
+  'coordinated resume clears the current blocker'
+);
+
+SELECT throws_ok(
+  $$SELECT public.execute_coordinated_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000009', 'complete', NULL)$$,
+  '22023',
+  'Coordinated completion note must be between 3 and 500 characters',
+  'coordinated completion requires a note'
+);
+
+SELECT lives_ok(
+  $$SELECT public.execute_coordinated_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000009', 'complete', 'External vendor completed the repair')$$,
+  'manager completes coordinated work with a note'
+);
+
+SELECT ok(
+  (
+    SELECT tasks.status = 'completed'
+      AND tasks.completed_at IS NOT NULL
+      AND tasks.blocked_reason IS NULL
+      AND requests.status = 'closed'
+    FROM public.tasks
+    JOIN public.tenant_requests AS requests
+      ON requests.id = tasks.tenant_request_id
+    WHERE tasks.id = '91000000-0000-0000-0000-000000000009'
+  ),
+  'coordinated completion timestamps the task and closes its request'
+);
+
+SELECT is(
+  (SELECT ledger_entry_id FROM public.tasks WHERE id = '91000000-0000-0000-0000-000000000009'),
+  NULL::uuid,
+  'coordinated completion creates no official ledger effect'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM public.activity_logs
+    WHERE entity_type = 'task'
+      AND entity_id = '91000000-0000-0000-0000-000000000009'
+      AND action = 'maintenance_task_coordinated_work_started'
+  )
+  AND EXISTS (
+    SELECT 1 FROM public.activity_logs
+    WHERE entity_type = 'task'
+      AND entity_id = '91000000-0000-0000-0000-000000000009'
+      AND action = 'maintenance_task_coordinated_work_blocked'
+  )
+  AND EXISTS (
+    SELECT 1 FROM public.activity_logs
+    WHERE entity_type = 'task'
+      AND entity_id = '91000000-0000-0000-0000-000000000009'
+      AND action = 'maintenance_task_coordinated_work_resumed'
+  )
+  AND EXISTS (
+    SELECT 1 FROM public.activity_logs
+    WHERE entity_type = 'task'
+      AND entity_id = '91000000-0000-0000-0000-000000000009'
+      AND action = 'maintenance_task_coordinated_work_completed'
+  ),
+  'coordinated transitions emit distinct activity actions'
+);
+
+SELECT throws_ok(
+  $$SELECT public.execute_coordinated_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000008', 'start', NULL)$$,
+  '42501',
+  'Manager can only coordinate tasks in their branch',
+  'branch-scoped manager cannot coordinate work in another branch'
+);
+
+RESET ROLE;
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000601', true);
 SET LOCAL ROLE authenticated;

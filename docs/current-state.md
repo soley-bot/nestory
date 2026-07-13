@@ -111,24 +111,31 @@ Maintenance operations:
   templates, and report links over the existing maintenance records.
 - `/work-orders` remains a legacy board route.
 - `/schedule` redirects to `/maintenance?view=calendar` for legacy links.
-- `/tasks` uses the board/task surface with role-aware assignment controls.
+- `/tasks` uses a compact My Work list for members and role-aware assignment
+  controls for administrative workspaces.
   Members without a linked staff profile see a setup-required state instead of
   an ambiguous empty queue.
 - Maintenance cases expose a role-aware workflow header over the existing task
-  record. Assigned members can start, update their checklist, block/resume, and
-  submit work; managers/admins review submitted work and either approve
-  completion or return it with a required instruction. Submitted work remains
-  operationally open in a dedicated completion-review queue and no longer
-  generates member execution reminders.
+  record. Executable linked-member assignments use member start, checklist,
+  block/resume, submission, and manager review. Unassigned, vendor, and legacy
+  offline assignments use explicit manager-coordinated start, block/resume, and
+  completion controls without imitating member submission or posting finance.
+  Submitted member work remains operationally open in a dedicated
+  completion-review queue and no longer generates member execution reminders.
 - Actual-cost capture is separate from official financial posting: managers can
   record actual cost, while only administrators can link or post the ledger
-  effect. Checklist, blocker, and actual-cost gaps are advisory at completion
-  review; evidence/document warnings are outside this phase.
+  effect. Checklist and current-blocker gaps are advisory at completion review;
+  missing actual cost is warned only when a positive estimate exists, and
+  evidence/document warnings are outside this phase.
 - `/inspections` uses the checklist surface.
 - `/recurring-tasks` uses the routine surface and is labeled Recurring Work in
   nav.
 - Maintenance also has workload, reminder, drawer, document, ledger, and
   timeline linkage behavior in feature components and actions.
+- Admins retain full linked-record and evidence-upload navigation. Managers and
+  members receive the same operational labels without predictable links to
+  admin-only destinations. Member task payloads omit mutable organization-wide
+  option collections, documents, and signed document URLs.
 - Maintenance capabilities distinguish operational actual-cost capture from
   official finance posting: admins can do both, managers can record actual cost
   without linking or posting a ledger effect, and members can do neither.
@@ -211,9 +218,11 @@ Implemented RPC families include:
 - Ledger period locking.
 - Petty cash account creation, register row creation, month rollover, and
   posting expense rows into the ledger.
-- Maintenance atomic create/update/assignment, assigned-member execution, and
-  manager/admin completion review. Managers may record operational actual cost
-  but checked SQL rejects manager ledger creation, mutation, linking, or posting.
+- Maintenance atomic create/update/assignment, assigned-member execution,
+  manager-coordinated execution, and manager/admin completion review. New
+  assignees require an active staff record plus an exact-branch linked member
+  identity. Managers may record operational actual cost but checked SQL rejects
+  manager ledger creation, mutation, linking, or posting.
 - Branch and team creation.
 - Document link validation and property primary-owner sync.
 

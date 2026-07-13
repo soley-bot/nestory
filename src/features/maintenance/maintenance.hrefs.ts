@@ -1,8 +1,90 @@
-import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
+import type { MaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
+import type {
+  MaintenanceActor,
+  MaintenanceCaseHrefs,
+  MaintenanceViewQuery,
+} from "@/features/maintenance/maintenance.types";
 import {
   DEFAULT_MAINTENANCE_PAGE_SIZE,
   DEFAULT_MAINTENANCE_SORT,
 } from "@/features/maintenance/maintenance.filters";
+import { buildUnitRecordHref } from "@/features/units/unit-detail-route";
+import { buildHref } from "@/lib/url/href";
+
+export type MaintenanceHrefTask = {
+  assignee_person_id: string | null;
+  id: string;
+  ledger_entry_id: string | null;
+  property_id: string;
+  timeline_event_id: string | null;
+  unit_id: string | null;
+  vendor_person_id: string | null;
+};
+
+type MaintenanceHrefAccess =
+  | Pick<MaintenanceActor, "role">
+  | Pick<MaintenanceCapabilities, "canUploadMaintenanceEvidence">;
+
+export function buildMaintenanceHrefs(
+  task: MaintenanceHrefTask,
+  access: MaintenanceHrefAccess,
+): MaintenanceCaseHrefs {
+  const taskHref = buildHref("/maintenance", {
+    archiveState: "all",
+    taskId: task.id,
+  });
+  const hasAdminRecordAccess = "role" in access
+    ? access.role === "admin"
+    : access.canUploadMaintenanceEvidence;
+
+  if (!hasAdminRecordAccess) {
+    return { task: taskHref };
+  }
+
+  return {
+    assignee: task.assignee_person_id
+      ? buildHref("/people", {
+          archiveState: "all",
+          personId: task.assignee_person_id,
+        })
+      : undefined,
+    documents: `/documents?archiveState=all&taskId=${task.id}`,
+    documentUpload: buildHref("/documents", {
+      action: "create",
+      category: "Maintenance",
+      propertyId: task.property_id,
+      taskId: task.id,
+      unitId: task.unit_id ?? undefined,
+    }),
+    ledger: task.ledger_entry_id
+      ? buildHref("/ledger", {
+          archiveState: "all",
+          entryId: task.ledger_entry_id,
+        })
+      : undefined,
+    property: `/properties/${task.property_id}`,
+    task: taskHref,
+    timeline: task.timeline_event_id
+      ? buildHref("/timeline", {
+          archiveState: "all",
+          eventId: task.timeline_event_id,
+        })
+      : undefined,
+    unit: task.unit_id
+      ? buildUnitRecordHref({
+          section: "maintenance",
+          sourceTaskId: task.id,
+          unitId: task.unit_id,
+        })
+      : undefined,
+    vendor: task.vendor_person_id
+      ? buildHref("/people", {
+          archiveState: "all",
+          personId: task.vendor_person_id,
+        })
+      : undefined,
+  };
+}
 
 export function getMaintenanceListHref(
   viewQuery: MaintenanceViewQuery,

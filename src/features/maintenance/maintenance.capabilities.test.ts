@@ -13,6 +13,7 @@ describe("getMaintenanceCapabilities", () => {
       canPostMaintenanceCost: true,
       canRecordActualCost: true,
       canReviewCompletion: true,
+      canUploadMaintenanceEvidence: true,
     });
   });
 
@@ -27,6 +28,7 @@ describe("getMaintenanceCapabilities", () => {
       canPostMaintenanceCost: false,
       canRecordActualCost: true,
       canReviewCompletion: true,
+      canUploadMaintenanceEvidence: false,
     });
   });
 
@@ -41,6 +43,7 @@ describe("getMaintenanceCapabilities", () => {
       canPostMaintenanceCost: false,
       canRecordActualCost: false,
       canReviewCompletion: false,
+      canUploadMaintenanceEvidence: false,
     });
   });
 });

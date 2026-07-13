@@ -10,6 +10,7 @@ export type MaintenanceCapabilities = {
   canPostMaintenanceCost: boolean;
   canRecordActualCost: boolean;
   canReviewCompletion: boolean;
+  canUploadMaintenanceEvidence: boolean;
 };
 
 const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
@@ -23,6 +24,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
     canPostMaintenanceCost: true,
     canRecordActualCost: true,
     canReviewCompletion: true,
+    canUploadMaintenanceEvidence: true,
   },
   manager: {
     canArchiveCase: false,
@@ -34,6 +36,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
     canPostMaintenanceCost: false,
     canRecordActualCost: true,
     canReviewCompletion: true,
+    canUploadMaintenanceEvidence: false,
   },
   member: {
     canArchiveCase: false,
@@ -45,6 +48,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
     canPostMaintenanceCost: false,
     canRecordActualCost: false,
     canReviewCompletion: false,
+    canUploadMaintenanceEvidence: false,
   },
 };
 

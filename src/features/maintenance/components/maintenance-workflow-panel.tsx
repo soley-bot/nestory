@@ -2,12 +2,13 @@
 
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, CornerUpLeft, Play, Send } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CornerUpLeft, Pause, Play, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   executeAssignedMaintenanceTaskAction,
+  executeCoordinatedMaintenanceTaskAction,
   reviewMaintenanceCompletionAction,
   type MaintenanceActionState,
 } from "@/features/maintenance/actions";
@@ -15,6 +16,7 @@ import type { MaintenanceCapabilities } from "@/features/maintenance/maintenance
 import type { MaintenanceActor, MaintenanceCase } from "@/features/maintenance/maintenance.types";
 import {
   getCompletionReviewWarnings,
+  getCoordinatedMaintenanceActions,
   getMaintenanceWorkflowState,
 } from "@/features/maintenance/maintenance.workflow";
 
@@ -60,13 +62,111 @@ export function MaintenanceWorkflowPanel({
           <p className="mt-1 leading-5 text-muted">{workflow.latestReviewInstruction}</p>
         </div>
       ) : null}
-      {capabilities.canExecuteAssignedCase ? (
+      {capabilities.canExecuteAssignedCase && maintenanceCase.executionMode === "member_assigned" ? (
         <MemberExecutionPanel maintenanceCase={maintenanceCase} onStatusMessage={onStatusMessage} />
       ) : null}
-      {capabilities.canReviewCompletion && maintenanceCase.status === "ready_for_review" ? (
+      {capabilities.canManageCaseState && maintenanceCase.executionMode === "manager_coordinated" ? (
+        <CoordinatedExecutionPanel maintenanceCase={maintenanceCase} onStatusMessage={onStatusMessage} />
+      ) : null}
+      {capabilities.canReviewCompletion && maintenanceCase.executionMode === "member_assigned" && maintenanceCase.status === "ready_for_review" ? (
         <CompletionReviewPanel maintenanceCase={maintenanceCase} onStatusMessage={onStatusMessage} />
       ) : null}
     </section>
+  );
+}
+
+function CoordinatedExecutionPanel({
+  maintenanceCase,
+  onStatusMessage,
+}: {
+  maintenanceCase: MaintenanceCase;
+  onStatusMessage: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    executeCoordinatedMaintenanceTaskAction,
+    initialState,
+  );
+  const availableActions = getCoordinatedMaintenanceActions(maintenanceCase, {
+    role: "manager",
+  });
+
+  useEffect(() => {
+    if (state.status === "success") {
+      onStatusMessage(state.message ?? "Coordinated work updated.");
+      router.refresh();
+    }
+  }, [onStatusMessage, router, state.message, state.status]);
+
+  if (maintenanceCase.status === "completed" || maintenanceCase.status === "cancelled") {
+    return <p className="text-sm text-muted">This coordinated case is closed.</p>;
+  }
+
+  return (
+    <div className="space-y-3 border-t border-border pt-3" data-coordinated-work-controls>
+      <div>
+        <p className="text-sm font-semibold">Manager-coordinated work</p>
+        <p className="mt-1 text-xs text-muted">
+          Use these controls for vendor, unassigned, or historical offline work. Completion does not post a ledger effect.
+        </p>
+      </div>
+      {availableActions.includes("start") ? (
+        <CoordinatedButton action={action} actionName="start" disabled={pending} taskId={maintenanceCase.id}>
+          <Play size={14} /> Start coordinated work
+        </CoordinatedButton>
+      ) : null}
+      {availableActions.includes("resume") ? (
+        <CoordinatedButton action={action} actionName="resume" disabled={pending} taskId={maintenanceCase.id}>
+          <Play size={14} /> Resume coordinated work
+        </CoordinatedButton>
+      ) : null}
+      {availableActions.includes("block") && availableActions.includes("complete") ? (
+        <>
+          <form action={action} className="space-y-2 rounded-md border border-border bg-surface p-3">
+            <input name="taskId" type="hidden" value={maintenanceCase.id} />
+            <input name="coordinatedAction" type="hidden" value="block" />
+            <label className="block text-sm font-medium" htmlFor={`coordinated-block-${maintenanceCase.id}`}>
+              Blocker
+            </label>
+            <Textarea
+              id={`coordinated-block-${maintenanceCase.id}`}
+              maxLength={500}
+              minLength={3}
+              name="coordinatedNote"
+              placeholder="What prevents coordinated work from continuing?"
+              required
+            />
+            <Button disabled={pending} type="submit">
+              <Pause size={14} /> Mark coordinated work blocked
+            </Button>
+          </form>
+          <form action={action} className="space-y-2 rounded-md border border-border bg-surface p-3">
+            <input name="taskId" type="hidden" value={maintenanceCase.id} />
+            <input name="coordinatedAction" type="hidden" value="complete" />
+            <label className="block text-sm font-medium" htmlFor={`coordinated-complete-${maintenanceCase.id}`}>
+              Completion note
+            </label>
+            <Textarea
+              id={`coordinated-complete-${maintenanceCase.id}`}
+              maxLength={500}
+              minLength={3}
+              name="coordinatedNote"
+              placeholder="What was completed and by whom?"
+              required
+            />
+            <Button disabled={pending} type="submit" variant="primary">
+              <CheckCircle2 size={14} /> Complete coordinated work
+            </Button>
+          </form>
+        </>
+      ) : null}
+      {state.fieldErrors?.coordinatedNote?.[0] ? (
+        <p className="text-xs text-danger">{state.fieldErrors.coordinatedNote[0]}</p>
+      ) : null}
+      {state.status === "error" && state.message ? (
+        <p className="text-sm text-danger" role="alert">{state.message}</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -207,6 +307,22 @@ function ExecutionButton({ action, actionName, children, disabled, primary, task
       <input name="taskId" type="hidden" value={taskId} />
       <input name="executionAction" type="hidden" value={actionName} />
       <Button disabled={disabled} type="submit" variant={primary ? "primary" : "secondary"}>{children}</Button>
+    </form>
+  );
+}
+
+function CoordinatedButton({ action, actionName, children, disabled, taskId }: {
+  action: (payload: FormData) => void;
+  actionName: string;
+  children: React.ReactNode;
+  disabled: boolean;
+  taskId: string;
+}) {
+  return (
+    <form action={action}>
+      <input name="taskId" type="hidden" value={taskId} />
+      <input name="coordinatedAction" type="hidden" value={actionName} />
+      <Button disabled={disabled} type="submit" variant="secondary">{children}</Button>
     </form>
   );
 }

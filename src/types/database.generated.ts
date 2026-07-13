@@ -3713,6 +3713,15 @@ export type Database = {
         }
         Returns: string
       }
+      execute_coordinated_maintenance_task: {
+        Args: {
+          p_action: string
+          p_note?: string
+          p_organization_id: string
+          p_task_id: string
+        }
+        Returns: string
+      }
       generate_monthly_rent_income_items: {
         Args: { p_month?: string; p_organization_id: string }
         Returns: number
@@ -3797,6 +3806,13 @@ export type Database = {
           reversal_of_id: string
           scoped_amount: number
           total_count: number
+        }[]
+      }
+      get_maintenance_execution_members: {
+        Args: { p_organization_id: string }
+        Returns: {
+          branch_id: string
+          person_id: string
         }[]
       }
       get_organization_access_members: {

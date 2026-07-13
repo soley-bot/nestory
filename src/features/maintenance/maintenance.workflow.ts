@@ -1,6 +1,7 @@
 import type {
   MaintenanceActor,
   MaintenanceCase,
+  MaintenanceExecutionMode,
   MaintenanceStatus,
 } from "@/features/maintenance/maintenance.types";
 
@@ -19,17 +20,39 @@ export type MaintenanceCompletionReviewWarning = {
   label: string;
 };
 
+export type CoordinatedMaintenanceAction = "block" | "complete" | "resume" | "start";
+
+export function getCoordinatedMaintenanceActions(
+  maintenanceCase: Pick<MaintenanceCase, "executionMode" | "status">,
+  actor: Pick<MaintenanceActor, "role">,
+): CoordinatedMaintenanceAction[] {
+  if (
+    actor.role === "member" ||
+    maintenanceCase.executionMode !== "manager_coordinated"
+  ) {
+    return [];
+  }
+
+  if (maintenanceCase.status === "pending" || maintenanceCase.status === "scheduled") {
+    return ["start"];
+  }
+  if (maintenanceCase.status === "blocked") {
+    return ["resume"];
+  }
+  if (maintenanceCase.status === "in_progress") {
+    return ["block", "complete"];
+  }
+  return [];
+}
+
 export function getMaintenanceWorkflowState(
-  maintenanceCase: Pick<
-    MaintenanceCase,
-    "activity" | "assigneeLabel" | "blockedReason" | "status"
-  >,
+  maintenanceCase: Pick<MaintenanceCase, "assigneeLabel" | "status"> &
+    Partial<Pick<MaintenanceCase, "activity" | "blockedReason" | "executionMode" | "latestReviewInstruction">>,
   actor: MaintenanceActor,
 ): MaintenanceWorkflowState {
-  const latestReviewInstruction = getLatestMaintenanceReviewInstruction(
-    maintenanceCase.activity,
-  );
+  const latestReviewInstruction = maintenanceCase.latestReviewInstruction;
   const isMember = actor.role === "member";
+  const executionMode = maintenanceCase.executionMode ?? "manager_coordinated";
 
   if (maintenanceCase.status === "ready_for_review") {
     return {
@@ -68,11 +91,34 @@ export function getMaintenanceWorkflowState(
   const unassigned = assignee.toLowerCase() === "unassigned";
   const stageLabel = getOperationalStageLabel(maintenanceCase.status);
 
+  if (maintenanceCase.status === "blocked") {
+    return {
+      blockerLabel: maintenanceCase.blockedReason ?? "A blocker needs coordination.",
+      currentOwnerLabel: "Manager coordination",
+      isWaitingOnCurrentActor: !isMember,
+      latestReviewInstruction,
+      nextActionLabel: isMember ? "Waiting for manager" : "Resolve blocker",
+      nextHandoffLabel: executionMode === "member_assigned"
+        ? `Return the task to ${assignee} after the blocker is resolved`
+        : "Manager coordinates the work through completion",
+      stageLabel,
+    };
+  }
+
+  if (executionMode === "manager_coordinated") {
+    return {
+      currentOwnerLabel: "Manager coordination",
+      isWaitingOnCurrentActor: !isMember,
+      latestReviewInstruction,
+      nextActionLabel: maintenanceCase.status === "in_progress"
+        ? "Complete or block work"
+        : "Start coordinated work",
+      nextHandoffLabel: "Manager coordinates the work through completion",
+      stageLabel,
+    };
+  }
+
   return {
-    blockerLabel:
-      maintenanceCase.status === "blocked"
-        ? maintenanceCase.blockedReason ?? "A blocker needs coordination."
-        : undefined,
     currentOwnerLabel: unassigned ? "Manager coordination" : assignee,
     isWaitingOnCurrentActor:
       (isMember && !unassigned) || (!isMember && unassigned),
@@ -88,33 +134,48 @@ export function getMaintenanceWorkflowState(
 export function canTransitionMaintenanceStatus(
   from: MaintenanceStatus,
   to: MaintenanceStatus,
+  context: {
+    actorRole: MaintenanceActor["role"];
+    executionMode: MaintenanceExecutionMode;
+  },
 ) {
+  if (context.actorRole === "member") {
+    return false;
+  }
+
   if (from === to) {
     return true;
   }
 
-  if (
-    from === "ready_for_review" ||
-    from === "completed" ||
-    from === "cancelled" ||
-    to === "ready_for_review" ||
-    to === "completed"
-  ) {
+  if (from === "completed" || from === "cancelled") {
     return false;
   }
 
-  return to === "pending" || to === "scheduled" || to === "in_progress" ||
-    to === "blocked" || to === "cancelled";
+  if (to === "cancelled") {
+    return true;
+  }
+
+  const genericTransitions: Record<MaintenanceExecutionMode, boolean> = {
+    manager_coordinated:
+      (from === "pending" && to === "scheduled") ||
+      (from === "scheduled" && to === "pending"),
+    member_assigned:
+      (from === "pending" && to === "scheduled") ||
+      (from === "scheduled" && to === "pending"),
+  };
+
+  return genericTransitions[context.executionMode];
 }
 
 export function getCompletionReviewWarnings(
   maintenanceCase: Pick<
     MaintenanceCase,
     | "actualCostAmount"
-    | "activity"
     | "blockedReason"
     | "checklistDoneCount"
     | "checklistTotalCount"
+    | "costEstimateAmount"
+    | "status"
   >,
 ): MaintenanceCompletionReviewWarning[] {
   const warnings: MaintenanceCompletionReviewWarning[] = [];
@@ -129,17 +190,17 @@ export function getCompletionReviewWarnings(
     });
   }
 
-  const historicalBlocker = maintenanceCase.activity
-    .find((change) => change.action === "maintenance_task_work_blocked")
-    ?.details.find((detail) => detail.field === "Blocker")?.after;
   const blocker = maintenanceCase.blockedReason ??
-    (historicalBlocker && historicalBlocker !== "-" ? historicalBlocker : undefined);
+    (maintenanceCase.status === "blocked" ? "A blocker remains unresolved." : undefined);
 
   if (blocker) {
     warnings.push({ code: "blocked", label: `Recorded blocker: ${blocker}` });
   }
 
-  if (maintenanceCase.actualCostAmount <= 0) {
+  if (
+    maintenanceCase.costEstimateAmount > 0 &&
+    maintenanceCase.actualCostAmount <= 0
+  ) {
     warnings.push({
       code: "actual_cost_missing",
       label: "No actual cost has been recorded.",

@@ -15,6 +15,10 @@ export type MaintenanceStatus =
   | "completed"
   | "cancelled";
 
+export type MaintenanceExecutionMode =
+  | "manager_coordinated"
+  | "member_assigned";
+
 export type MaintenanceReviewFilter =
   | "all"
   | "open"
@@ -115,10 +119,10 @@ export type MaintenanceFormValues = {
 
 export type MaintenanceCaseHrefs = {
   assignee?: string;
-  documents: string;
-  documentUpload: string;
+  documents?: string;
+  documentUpload?: string;
   ledger?: string;
-  property: string;
+  property?: string;
   task: string;
   timeline?: string;
   unit?: string;
@@ -149,6 +153,7 @@ export type MaintenanceCase = {
   dueDate?: string;
   dueLabel: string;
   dueTime?: string;
+  executionMode: MaintenanceExecutionMode;
   formValues: MaintenanceFormValues;
   hrefs: MaintenanceCaseHrefs;
   id: string;
@@ -159,6 +164,7 @@ export type MaintenanceCase = {
   isReminderDue: boolean;
   isUpcoming: boolean;
   ledgerEntryId?: string;
+  latestReviewInstruction?: string;
   priority: MaintenancePriority;
   priorityLabel: string;
   priorityTone: MaintenanceBadgeTone;
@@ -207,6 +213,10 @@ export type MaintenanceUnitOption = {
 export type MaintenancePersonOption = {
   id: string;
   label: string;
+};
+
+export type MaintenanceAssigneeOption = MaintenancePersonOption & {
+  branchId?: string;
 };
 
 export type MaintenanceBranchOption = {
@@ -297,7 +307,7 @@ export type MaintenanceScreenData = {
   pagination: MaintenancePagination;
   peopleOptions: MaintenancePersonOption[];
   propertyOptions: MaintenancePropertyOption[];
-  staffOptions: MaintenancePersonOption[];
+  staffOptions: MaintenanceAssigneeOption[];
   summary: MaintenanceSummary;
   unitOptions: MaintenanceUnitOption[];
 };

@@ -13,6 +13,7 @@ import {
 import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type {
+  MaintenanceActor,
   MaintenanceCase,
   MaintenanceStatus,
 } from "@/features/maintenance/maintenance.types";
@@ -20,6 +21,7 @@ import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenan
 import { cn } from "@/lib/utils";
 
 export type BoardSurfaceProps = {
+  actorRole: MaintenanceActor["role"];
   cases: MaintenanceCase[];
   emptyLabel: string;
   onStatusChange?: (
@@ -47,6 +49,7 @@ const BOARD_COLUMNS: Array<{
 ];
 
 export function BoardSurface({
+  actorRole,
   cases,
   emptyLabel,
   onStatusChange,
@@ -71,7 +74,12 @@ export function BoardSurface({
       !maintenanceCase ||
       !onStatusChange ||
       !isMaintenanceStatus(nextStatus) ||
-      maintenanceCase.status === nextStatus
+      maintenanceCase.status === nextStatus ||
+      !canTransitionMaintenanceStatus(
+        maintenanceCase.status,
+        nextStatus,
+        { actorRole, executionMode: maintenanceCase.executionMode },
+      )
     ) {
       return;
     }
@@ -83,6 +91,23 @@ export function BoardSurface({
     return (
       <div className="rounded-md border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted">
         {emptyLabel}
+      </div>
+    );
+  }
+
+  if (actorRole === "member") {
+    return (
+      <div className="space-y-2" data-member-work-list>
+        {cases.map((maintenanceCase) => (
+          <MaintenanceCard
+            isDragging={false}
+            key={maintenanceCase.id}
+            maintenanceCase={maintenanceCase}
+            movable={false}
+            onSelect={onSelect}
+            selected={selectedTaskId === maintenanceCase.id}
+          />
+        ))}
       </div>
     );
   }
@@ -100,9 +125,15 @@ export function BoardSurface({
               canDrop={
                 Boolean(onStatusChange) &&
                 !statusChangePending &&
-                column.status !== "ready_for_review" &&
-                column.status !== "completed"
+                cases.some((maintenanceCase) =>
+                  canTransitionMaintenanceStatus(
+                    maintenanceCase.status,
+                    column.status,
+                    { actorRole, executionMode: maintenanceCase.executionMode },
+                  ),
+                )
               }
+              actorRole={actorRole}
               canManageState={Boolean(onStatusChange) && !statusChangePending}
               column={
                 waitingForReviewLabel && column.status === "ready_for_review"
@@ -124,6 +155,7 @@ export function BoardSurface({
 }
 
 function BoardColumn({
+  actorRole,
   canDrop,
   canManageState,
   column,
@@ -131,6 +163,7 @@ function BoardColumn({
   selectedTaskId,
   tasks,
 }: {
+  actorRole: MaintenanceActor["role"];
   canDrop: boolean;
   canManageState: boolean;
   column: (typeof BOARD_COLUMNS)[number];
@@ -172,6 +205,7 @@ function BoardColumn({
                 canTransitionMaintenanceStatus(
                   maintenanceCase.status,
                   maintenanceCase.status === "cancelled" ? "pending" : "cancelled",
+                  { actorRole, executionMode: maintenanceCase.executionMode },
                 )
               }
               key={maintenanceCase.id}

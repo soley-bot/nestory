@@ -61,6 +61,7 @@ import {
   formatMaintenanceChecklistText,
   parseMaintenanceChecklistText,
 } from "@/features/maintenance/maintenance.checklist";
+import { getMaintenanceBranchControlMode } from "@/features/maintenance/maintenance.execution";
 import {
   ArchiveMaintenancePanel,
   RestoreMaintenancePanel,
@@ -81,6 +82,7 @@ import {
 import type {
   MaintenanceBadgeTone,
   MaintenanceActor,
+  MaintenanceAssigneeOption,
   MaintenanceCase,
   MaintenanceBranchOption,
   MaintenancePagination,
@@ -97,6 +99,18 @@ import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenan
 import { cn } from "@/lib/utils";
 
 const initialState: MaintenanceActionState = {};
+const MAINTENANCE_STATUS_OPTIONS: Array<{
+  label: string;
+  value: MaintenanceStatus;
+}> = [
+  { label: "Pending", value: "pending" },
+  { label: "Scheduled", value: "scheduled" },
+  { label: "In progress", value: "in_progress" },
+  { label: "Blocked", value: "blocked" },
+  { label: "Ready for review", value: "ready_for_review" },
+  { label: "Completed", value: "completed" },
+  { label: "Cancelled", value: "cancelled" },
+];
 const DatePickerField = dynamic(
   () =>
     import("@/components/ui/date-picker-field").then(
@@ -143,7 +157,7 @@ type MaintenanceScreenProps = {
   showCaseViewTabs?: boolean;
   showReviewTabs?: boolean;
   showScopeSummary?: boolean;
-  staffOptions: MaintenancePersonOption[];
+  staffOptions: MaintenanceAssigneeOption[];
   summary: MaintenanceSummary;
   surfaceVariant?: MaintenanceSurfaceVariant;
   title?: string;
@@ -275,7 +289,11 @@ export function MaintenanceScreen({
   ) {
     if (
       maintenanceCase.status === status ||
-      !canTransitionMaintenanceStatus(maintenanceCase.status, status)
+      !canTransitionMaintenanceStatus(
+        maintenanceCase.status,
+        status,
+        { actorRole: actor.role, executionMode: maintenanceCase.executionMode },
+      )
     ) {
       return;
     }
@@ -436,6 +454,7 @@ export function MaintenanceScreen({
           )
         ) : (
           <MaintenanceWorkflowSurface
+            actorRole={actor.role}
             cases={visibleCases}
             emptyLabel={emptyLabel}
             month={viewQuery.month}
@@ -494,6 +513,7 @@ export function MaintenanceScreen({
             />
           ) : (
             <MaintenanceForm
+              actor={actor}
               canPostMaintenanceCost={capabilities.canPostMaintenanceCost}
               canRecordActualCost={capabilities.canRecordActualCost}
               initialValues={
@@ -1109,7 +1129,7 @@ function MaintenanceTable({
   );
 }
 
-function MaintenanceInspector({
+export function MaintenanceInspector({
   actor,
   capabilities,
   maintenanceCase,
@@ -1280,10 +1300,12 @@ function MaintenanceInspector({
                   <Pencil size={15} />
                   Edit
                 </Button>
-                <LinkButton href={maintenanceCase.hrefs.documentUpload}>
-                  <FileText size={15} />
-                  Upload doc
-                </LinkButton>
+                {capabilities.canUploadMaintenanceEvidence && maintenanceCase.hrefs.documentUpload ? (
+                  <LinkButton href={maintenanceCase.hrefs.documentUpload}>
+                    <FileText size={15} />
+                    Upload doc
+                  </LinkButton>
+                ) : null}
               </>
             ) : null}
             {capabilities.canArchiveCase ? (
@@ -1334,11 +1356,13 @@ function getDrawerDescription(drawer: DrawerState) {
 
 function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
   const links = [
-    {
-      href: maintenanceCase.hrefs.property,
-      icon: <Wrench size={14} />,
-      label: "Property",
-    },
+    maintenanceCase.hrefs.property
+      ? {
+          href: maintenanceCase.hrefs.property,
+          icon: <Wrench size={14} />,
+          label: "Property",
+        }
+      : null,
     maintenanceCase.hrefs.unit
       ? {
           href: maintenanceCase.hrefs.unit,
@@ -1360,11 +1384,13 @@ function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
           label: "Ledger",
         }
       : null,
-    {
-      href: maintenanceCase.hrefs.documents,
-      icon: <FileText size={14} />,
-      label: `Documents (${maintenanceCase.documents.length})`,
-    },
+    maintenanceCase.hrefs.documents
+      ? {
+          href: maintenanceCase.hrefs.documents,
+          icon: <FileText size={14} />,
+          label: `Documents (${maintenanceCase.documents.length})`,
+        }
+      : null,
     maintenanceCase.hrefs.vendor
       ? {
           href: maintenanceCase.hrefs.vendor,
@@ -1394,6 +1420,7 @@ function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
 }
 
 function MaintenanceForm({
+  actor,
   branches,
   canPostMaintenanceCost,
   canRecordActualCost,
@@ -1407,6 +1434,7 @@ function MaintenanceForm({
   staff,
   units,
 }: {
+  actor: MaintenanceActor;
   branches: MaintenanceBranchOption[];
   canPostMaintenanceCost: boolean;
   canRecordActualCost: boolean;
@@ -1417,7 +1445,7 @@ function MaintenanceForm({
   onSuccess: (message: string) => void;
   people: MaintenancePersonOption[];
   properties: MaintenancePropertyOption[];
-  staff: MaintenancePersonOption[];
+  staff: MaintenanceAssigneeOption[];
   units: MaintenanceUnitOption[];
 }) {
   const [state, action, pending] = useActionState(
@@ -1432,7 +1460,10 @@ function MaintenanceForm({
       initialValues?.assigneePersonId ??
       "",
     branchId:
-      maintenanceCase?.formValues.branchId ?? initialValues?.branchId ?? "",
+      maintenanceCase?.formValues.branchId ??
+      initialValues?.branchId ??
+      (actor.role === "manager" ? actor.branchId : undefined) ??
+      "",
     category: maintenanceCase?.formValues.category ?? initialValues?.category ?? "General",
     checklistText:
       maintenanceCase?.formValues.checklistText ?? initialValues?.checklistText ?? "",
@@ -1463,7 +1494,26 @@ function MaintenanceForm({
   };
   const [propertyId, setPropertyId] = useState(defaults.propertyId);
   const [unitId, setUnitId] = useState(defaults.unitId ?? "");
+  const [branchId, setBranchId] = useState(defaults.branchId ?? "");
+  const [assigneePersonId, setAssigneePersonId] = useState(
+    defaults.assigneePersonId ?? "",
+  );
   const visibleUnits = units.filter((unit) => unit.propertyId === propertyId);
+  const compatibleStaff = staff.filter(
+    (person) => (person.branchId ?? "") === branchId,
+  );
+  const legacyAssignee = maintenanceCase?.executionMode === "manager_coordinated" &&
+    Boolean(defaults.assigneePersonId) &&
+    !compatibleStaff.some((person) => person.id === defaults.assigneePersonId)
+      ? {
+          id: defaults.assigneePersonId,
+          label: `${maintenanceCase.assigneeLabel} (offline assignment)`,
+        }
+      : undefined;
+  const managerBranch = actor.role === "manager" && actor.branchId
+    ? branches.find((branch) => branch.id === actor.branchId)
+    : undefined;
+  const branchControlMode = getMaintenanceBranchControlMode(actor);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -1527,32 +1577,63 @@ function MaintenanceForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Branch" error={state.fieldErrors?.branchId?.[0]}>
-            <SelectControl
-              ariaLabel="Branch"
-              defaultValue={defaults.branchId ?? ""}
-              name="branchId"
-              options={[
-                { label: "No branch", value: "" },
-                ...branches.map((branch) => ({
-                  label: branch.label,
-                  value: branch.id,
-                })),
-              ]}
-            />
+            {branchControlMode === "fixed" && actor.branchId ? (
+              <>
+                <input name="branchId" type="hidden" value={actor.branchId} />
+                <div className="flex h-8 items-center rounded-md border border-border bg-surface-muted px-2.5 text-[13px]">
+                  {managerBranch?.label ?? maintenanceCase?.branchLabel ?? "Assigned branch"}
+                </div>
+              </>
+            ) : (
+              <>
+                {branchControlMode === "all_branches" ? (
+                  <p className="mb-1.5 text-xs text-muted">All branches access</p>
+                ) : null}
+                <SelectControl
+                  ariaLabel="Branch"
+                  name="branchId"
+                  onValueChange={(value) => {
+                    setBranchId(value);
+                    if (!staff.some((person) => person.id === assigneePersonId && (person.branchId ?? "") === value)) {
+                      setAssigneePersonId("");
+                    }
+                  }}
+                  options={[
+                    { label: "No branch", value: "" },
+                    ...branches.map((branch) => ({
+                      label: branch.label,
+                      value: branch.id,
+                    })),
+                  ]}
+                  value={branchId}
+                />
+              </>
+            )}
           </Field>
           <Field label="Assignee" error={state.fieldErrors?.assigneePersonId?.[0]}>
             <SelectControl
               ariaLabel="Assignee"
-              defaultValue={defaults.assigneePersonId ?? ""}
               name="assigneePersonId"
+              onValueChange={setAssigneePersonId}
               options={[
                 { label: "Unassigned", value: "" },
-                ...staff.map((person) => ({
+                ...(legacyAssignee ? [{
+                  disabled: true,
+                  label: legacyAssignee.label,
+                  value: legacyAssignee.id,
+                }] : []),
+                ...compatibleStaff.map((person) => ({
                   label: person.label,
                   value: person.id,
                 })),
               ]}
+              value={assigneePersonId}
             />
+            {legacyAssignee ? (
+              <p className="mt-1.5 text-xs text-muted">
+                This historical assignee has no executable Nestory member identity. The task remains manager-coordinated until reassigned.
+              </p>
+            ) : null}
           </Field>
         </div>
 
@@ -1573,30 +1654,26 @@ function MaintenanceForm({
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Status" error={state.fieldErrors?.status?.[0]}>
-            {defaults.status === "ready_for_review" || defaults.status === "completed" ? (
-              <>
-                <input name="status" type="hidden" value={defaults.status} />
-                <div className="flex h-8 items-center rounded-md border border-border bg-surface-muted px-2.5 text-[13px]">
-                  {defaults.status === "ready_for_review" ? "Ready for review" : "Completed"}
-                </div>
-              </>
-            ) : (
-              <SelectControl
-                ariaLabel="Status"
-                defaultValue={defaults.status}
-                name="status"
-                options={mode === "create" ? [
-                  { label: "Pending", value: "pending" },
-                  { label: "Scheduled", value: "scheduled" },
-                ] : [
-                  { label: "Pending", value: "pending" },
-                  { label: "Scheduled", value: "scheduled" },
-                  { label: "In progress", value: "in_progress" },
-                  { label: "Blocked", value: "blocked" },
-                  { label: "Cancelled", value: "cancelled" },
-                ]}
-              />
-            )}
+            <SelectControl
+              ariaLabel="Status"
+              defaultValue={defaults.status}
+              name="status"
+              options={mode === "create"
+                ? [
+                    { label: "Pending", value: "pending" },
+                    { label: "Scheduled", value: "scheduled" },
+                  ]
+                : MAINTENANCE_STATUS_OPTIONS.filter((option) =>
+                    canTransitionMaintenanceStatus(
+                      defaults.status,
+                      option.value,
+                      {
+                        actorRole: actor.role,
+                        executionMode: maintenanceCase?.executionMode ?? "manager_coordinated",
+                      },
+                    ),
+                  )}
+            />
           </Field>
           <Field label="Priority" error={state.fieldErrors?.priority?.[0]}>
             <SelectControl

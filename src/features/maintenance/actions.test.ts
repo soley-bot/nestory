@@ -25,6 +25,7 @@ import {
   archiveMaintenanceCaseAction,
   createMaintenanceCaseAction,
   executeAssignedMaintenanceTaskAction,
+  executeCoordinatedMaintenanceTaskAction,
   reviewMaintenanceCompletionAction,
   updateMaintenanceCaseAction,
 } from "@/features/maintenance/actions";
@@ -156,6 +157,60 @@ describe("maintenance action capabilities", () => {
     const result = await executeAssignedMaintenanceTaskAction({}, formData);
 
     expect(result.status).toBe("error");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("routes manager-coordinated execution through its checked RPC", async () => {
+    requireWorkspaceContext.mockResolvedValue({
+      branchId: "00000000-0000-4000-8000-000000000005",
+      organizationId: "00000000-0000-4000-8000-000000000001",
+      role: "manager",
+    });
+    const formData = new FormData();
+    formData.set("taskId", "00000000-0000-4000-8000-000000000003");
+    formData.set("coordinatedAction", "complete");
+    formData.set("coordinatedNote", "  Vendor completed the repair.  ");
+
+    expect(await executeCoordinatedMaintenanceTaskAction({}, formData)).toMatchObject({
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "execute_coordinated_maintenance_task",
+      expect.objectContaining({
+        p_action: "complete",
+        p_note: "Vendor completed the repair.",
+        p_task_id: "00000000-0000-4000-8000-000000000003",
+      }),
+    );
+  });
+
+  it("requires a coordinated block or completion note and rejects members", async () => {
+    requireWorkspaceContext.mockResolvedValue({
+      organizationId: "00000000-0000-4000-8000-000000000001",
+      role: "manager",
+    });
+    const invalid = new FormData();
+    invalid.set("taskId", "00000000-0000-4000-8000-000000000003");
+    invalid.set("coordinatedAction", "block");
+    invalid.set("coordinatedNote", "x");
+
+    expect(await executeCoordinatedMaintenanceTaskAction({}, invalid)).toMatchObject({
+      fieldErrors: { coordinatedNote: expect.any(Array) },
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+
+    requireWorkspaceContext.mockResolvedValue({
+      organizationId: "00000000-0000-4000-8000-000000000001",
+      role: "member",
+    });
+    const start = new FormData();
+    start.set("taskId", "00000000-0000-4000-8000-000000000003");
+    start.set("coordinatedAction", "start");
+
+    expect(await executeCoordinatedMaintenanceTaskAction({}, start)).toMatchObject({
+      status: "error",
+    });
     expect(rpc).not.toHaveBeenCalled();
   });
 

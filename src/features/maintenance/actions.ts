@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { parseMaintenanceChecklistText } from "@/features/maintenance/maintenance.checklist";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
+import { getMaintenanceExecutionMode } from "@/features/maintenance/maintenance.execution";
 import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
 import type { MaintenanceStatus } from "@/features/maintenance/maintenance.types";
 import type { Json } from "@/types/database";
@@ -17,6 +18,7 @@ type MaintenanceFieldErrors = {
   blockedReason?: string[];
   category?: string[];
   checklistText?: string[];
+  coordinatedNote?: string[];
   costEstimateAmount?: string[];
   description?: string[];
   dueDate?: string[];
@@ -90,6 +92,7 @@ const executionActionSchema = z.enum([
   "submit_for_review",
 ]);
 const reviewActionSchema = z.enum(["approve", "reopen"]);
+const coordinatedActionSchema = z.enum(["start", "block", "resume", "complete"]);
 const optionalReviewNoteSchema = z.string().trim().max(500, "Keep the note under 500 characters.");
 const maintenanceSchema = z
   .object({
@@ -351,9 +354,35 @@ export async function updateMaintenanceStatusAction(
     };
   }
 
-  if (!canTransitionMaintenanceStatus(task.status as MaintenanceStatus, parsedStatus.data)) {
+  const memberIdentityResult = await supabase.rpc("get_maintenance_execution_members", {
+    p_organization_id: context.organizationId,
+  });
+
+  if (memberIdentityResult.error) {
     return {
-      message: "Submitted and completed work must use the maintenance review controls.",
+      message: maintenanceActionErrorMessage(memberIdentityResult.error.message),
+      status: "error",
+    };
+  }
+
+  const executionMode = getMaintenanceExecutionMode(
+    {
+      assigneePersonId: task.assignee_person_id ?? undefined,
+      branchId: task.branch_id ?? undefined,
+    },
+    (memberIdentityResult.data ?? []).map((identity) => ({
+      branchId: identity.branch_id ?? undefined,
+      personId: identity.person_id,
+    })),
+  );
+
+  if (!canTransitionMaintenanceStatus(
+    task.status as MaintenanceStatus,
+    parsedStatus.data,
+    { actorRole: context.role, executionMode },
+  )) {
+    return {
+      message: "Use the assigned-member, coordinated-work, or review controls for execution transitions.",
       status: "error",
     };
   }
@@ -546,6 +575,77 @@ export async function executeAssignedMaintenanceTaskAction(
       parsedAction.data === "submit_for_review"
         ? "Work submitted for manager review. Your execution responsibility is paused."
         : "Maintenance work updated.",
+    status: "success",
+  };
+}
+
+export async function executeCoordinatedMaintenanceTaskAction(
+  _state: MaintenanceActionState,
+  formData: FormData,
+): Promise<MaintenanceActionState> {
+  const context = await requireWorkspaceContext();
+  const capabilities = getMaintenanceCapabilities(context.role);
+  const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
+  const parsedAction = coordinatedActionSchema.safeParse(
+    readString(formData, "coordinatedAction"),
+  );
+  const parsedNote = optionalReviewNoteSchema.safeParse(
+    readString(formData, "coordinatedNote"),
+  );
+
+  if (!capabilities.canManageCaseState) {
+    return {
+      message: "Only an administrator or scoped manager can coordinate this work.",
+      status: "error",
+    };
+  }
+
+  if (!parsedTaskId.success || !parsedAction.success || !parsedNote.success) {
+    return { message: "Choose a supported coordinated action and note.", status: "error" };
+  }
+
+  if (
+    (parsedAction.data === "block" || parsedAction.data === "complete") &&
+    (parsedNote.data.length < 3 || parsedNote.data.length > 500)
+  ) {
+    return {
+      fieldErrors: {
+        coordinatedNote: [
+          parsedAction.data === "block"
+            ? "Enter a blocker between 3 and 500 characters."
+            : "Enter a completion note between 3 and 500 characters.",
+        ],
+      },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const pathContext = await getMaintenancePathContext(
+    supabase,
+    context.organizationId,
+    parsedTaskId.data,
+  );
+  const { error } = await supabase.rpc("execute_coordinated_maintenance_task", {
+    p_action: parsedAction.data,
+    p_note: parsedNote.data || undefined,
+    p_organization_id: context.organizationId,
+    p_task_id: parsedTaskId.data,
+  });
+
+  if (error) {
+    return { message: maintenanceActionErrorMessage(error.message), status: "error" };
+  }
+
+  revalidateMaintenancePaths({
+    propertyIds: [pathContext?.property_id],
+    unitIds: [pathContext?.unit_id],
+  });
+
+  return {
+    message: parsedAction.data === "complete"
+      ? "Coordinated work completed. The linked request is closed."
+      : "Coordinated maintenance work updated.",
     status: "success",
   };
 }

@@ -18,6 +18,7 @@ import { PaginationControls } from "@/components/data/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import type { BoardSurfaceProps } from "@/features/maintenance/components/maintenance-board-surface";
 import type {
+  MaintenanceActor,
   MaintenanceCase,
   MaintenancePagination,
   MaintenanceStatus,
@@ -40,6 +41,7 @@ export type MaintenanceSurfaceVariant =
   | "workload";
 
 type MaintenanceWorkflowSurfaceProps = {
+  actorRole: MaintenanceActor["role"];
   cases: MaintenanceCase[];
   emptyLabel: string;
   month: string;
@@ -57,6 +59,7 @@ type MaintenanceWorkflowSurfaceProps = {
 };
 
 export function MaintenanceWorkflowSurface({
+  actorRole,
   cases,
   emptyLabel,
   month,
@@ -80,6 +83,7 @@ export function MaintenanceWorkflowSurface({
         />
       ) : variant === "board" ? (
         <BoardSurface
+          actorRole={actorRole}
           cases={cases}
           emptyLabel={emptyLabel}
           onStatusChange={onStatusChange}
