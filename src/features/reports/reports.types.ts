@@ -32,12 +32,19 @@ export type ReportsViewQuery = {
 
 export type ReportSourceRecordType =
   | "document"
+  | "deposit-event"
+  | "expense-obligation"
   | "lease"
   | "ledger"
   | "maintenance"
   | "owner"
+  | "payment"
+  | "payment-allocation"
   | "person"
   | "property"
+  | "receipt"
+  | "receipt-allocation"
+  | "income-obligation"
   | "timeline"
   | "unit";
 
@@ -55,6 +62,25 @@ export type TraceableReportMetric = {
   value: string;
 };
 
+export type ReportEvidenceLine = {
+  allocatedAmountCents: number | null;
+  allocationId: string | null;
+  classification: string;
+  depositEventId: string | null;
+  eventDate: string | null;
+  expenseItemId: string | null;
+  incomeItemId: string | null;
+  ownerEndedOn: string | null;
+  ownerLinkId: string | null;
+  ownerPersonId: string | null;
+  ownerStartedOn: string | null;
+  paymentId: string | null;
+  propertyId: string;
+  receiptId: string | null;
+  signedAmountCents: number | null;
+  statementFact: string;
+};
+
 export type TrustedReportColumn = {
   align?: "left" | "right";
   key: string;
@@ -63,6 +89,7 @@ export type TrustedReportColumn = {
 
 export type TrustedReportRow = {
   cells: Record<string, string>;
+  evidence?: ReportEvidenceLine[];
   href?: string;
   id: string;
   sourceCount: number;
@@ -83,6 +110,10 @@ export type TrustedReport = {
   periodLabel: string;
   rows: TrustedReportRow[];
   scopeLabel: string;
+  scopeValidation?: {
+    code: string;
+    message: string;
+  };
   summary: TraceableReportMetric[];
   title: string;
   totalsTraceLabel: string;

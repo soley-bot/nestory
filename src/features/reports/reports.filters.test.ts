@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getReportMonthRange,
+  getReportScopeValidation,
   parseReportSearchParams,
 } from "@/features/reports/reports.filters";
 
@@ -57,6 +58,23 @@ describe("report search params", () => {
 
   it("keeps an explicit all-status report filter", () => {
     expect(parseReportSearchParams({ status: "all" }).status).toBe("all");
+  });
+
+  it("rejects unit scope for Owner Statement with actionable copy", () => {
+    expect(
+      getReportScopeValidation({
+        month: "2026-07",
+        propertyId: "all",
+        report: "owner-statement",
+        status: "all",
+        unitId: "8b3a08d2-0898-4de3-9495-994eaf7a08dc",
+      }),
+    ).toEqual({
+      code: "owner_statement_unit_scope",
+      message:
+        "Owner Statements are property-level reports. Clear the unit filter to continue.",
+      status: 400,
+    });
   });
 
   it("builds an inclusive calendar-month range", () => {

@@ -178,6 +178,9 @@ export function buildReportBuilderHref(
 ) {
   const params = new URLSearchParams(query);
   params.delete("report");
+  if (report === "owner-statement") {
+    params.delete("unitId");
+  }
 
   const suffix = params.toString();
 

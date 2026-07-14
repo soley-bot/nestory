@@ -1,5 +1,8 @@
 import { getReportPdf } from "@/features/reports/data/pdf";
-import { parseReportSearchParams } from "@/features/reports/reports.filters";
+import {
+  getReportScopeValidation,
+  parseReportSearchParams,
+} from "@/features/reports/reports.filters";
 import {
   getAdminMembershipForUser,
   getCurrentUser,
@@ -23,6 +26,13 @@ export async function GET(request: Request) {
 
   const searchParams = Object.fromEntries(new URL(request.url).searchParams);
   const viewQuery = parseReportSearchParams(searchParams);
+  const scopeValidation = getReportScopeValidation(viewQuery);
+  if (scopeValidation) {
+    return new Response(scopeValidation.message, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      status: scopeValidation.status,
+    });
+  }
 
   const pdf = await getReportPdf(
     membership.organizationId,

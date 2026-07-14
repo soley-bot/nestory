@@ -126,4 +126,65 @@ describe("trusted report PDF export", () => {
     expect(pdf).toContain("Net income");
     expect(pdf).toContain("USD 1,365.00");
   });
+
+  it("keeps Owner Statement totals and blocked reasons in the generic PDF", () => {
+    const report: TrustedReport = {
+      columns: [
+        { key: "status", label: "Status" },
+        { key: "net", label: "Net owner cash movement", align: "right" },
+        { key: "notes", label: "Notes" },
+      ],
+      description: "Property-level cash-basis owner activity.",
+      emptyDescription: "No rows.",
+      emptyTitle: "No rows",
+      exportFilenameBase: "owner-statement",
+      generatedAt: "2026-08-01T00:00:00.000Z",
+      kind: "owner-statement",
+      periodLabel: "01 Jul 2026 - 31 Jul 2026",
+      rows: [
+        {
+          cells: { net: "USD 100.00", notes: "—", status: "Ready" },
+          id: "ready-1",
+          sourceCount: 1,
+          sourceLinks: [],
+          sourceSummary: "1 evidence line",
+          title: "Owner One / P1",
+          tone: "success",
+        },
+        {
+          cells: {
+            net: "—",
+            notes: "No effective owner on 15 Jul 2026",
+            status: "Blocked",
+          },
+          id: "blocked-1",
+          sourceCount: 1,
+          sourceLinks: [],
+          sourceSummary: "1 evidence line",
+          title: "Blocked: No effective owner on 15 Jul 2026 / P2",
+          tone: "danger",
+        },
+      ],
+      scopeLabel: "All properties",
+      summary: [
+        {
+          detail: "Ready properties only",
+          label: "Net owner cash movement",
+          sourceCount: 1,
+          value: "USD 100.00",
+        },
+      ],
+      title: "Owner Statement",
+      totalsTraceLabel: "Blocked property money excluded.",
+    };
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+
+    expect(pdf).toContain("Owner Statement - Demo Org");
+    expect(pdf).toContain("USD 100.00");
+    expect(pdf).toContain("No effective owner");
+    expect(pdf).not.toContain("amount payable");
+  });
 });

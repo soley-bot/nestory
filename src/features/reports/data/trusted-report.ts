@@ -6,6 +6,7 @@ import {
   type CurrencyCode,
 } from "@/lib/money/format";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
+import { getOwnerStatementReport } from "@/features/reports/data/owner-statement-report";
 import type {
   ReportKind,
   ReportSourceLink,
@@ -200,7 +201,7 @@ const trustedReportSourceRequirements = {
     "units",
   ),
   "missing-data": requiresReportSources("documents", "leases", "owners", "units"),
-  "owner-statement": requiresReportSources("ledgerEntries", "owners", "people"),
+  "owner-statement": requiresReportSources(),
   "property-performance": requiresReportSources(
     "ledgerEntries",
     "leases",
@@ -224,6 +225,10 @@ export async function getTrustedReport({
   organizationId: string;
   viewQuery: ReportsViewQuery;
 }): Promise<TrustedReport> {
+  if (viewQuery.report === "owner-statement") {
+    return getOwnerStatementReport({ organizationId, viewQuery });
+  }
+
   const supabase = await createSupabaseServerClient();
   const period = getReportMonthRange(viewQuery.month);
   const properties = await loadReportProperties(supabase, organizationId, viewQuery);
@@ -321,7 +326,9 @@ export function buildTrustedReport(input: TrustedReportInput): TrustedReport {
   }
 
   if (context.viewQuery.report === "owner-statement") {
-    return buildOwnerStatementReport(context);
+    throw new Error(
+      "Owner Statement must be built through the property-cash report loader",
+    );
   }
 
   if (context.viewQuery.report === "income-expense") {
@@ -564,59 +571,6 @@ function buildPropertyPerformanceReport(context: ReportContext): TrustedReport {
     summary: financialSummary(context, incomeUsd, expenseUsd, rows.length),
     title: "Property Performance",
     totalsTraceLabel: `Totals trace to ${context.ledgerEntries.length} ledger rows and ${context.units.length} unit rows.`,
-  });
-}
-
-function buildOwnerStatementReport(context: ReportContext): TrustedReport {
-  const rows = context.properties.map((property) => {
-    const owner = context.ownersByPropertyId.get(property.id);
-    const person = owner ? context.peopleById.get(owner.person_id) : undefined;
-    const ledger = context.ledgerByPropertyId.get(property.id) ?? [];
-    const incomeUsd = sumLedgerUsd(ledger.filter(isIncome), context);
-    const expenseUsd = sumLedgerUsd(ledger.filter(isExpense), context, true);
-    const ownerName = person?.display_name ?? property.owner ?? "Missing owner";
-
-    return reportRow({
-      cells: {
-        expenses: moneyFromUsd(expenseUsd, context),
-        income: moneyFromUsd(incomeUsd, context),
-        net: moneyFromUsd(incomeUsd - expenseUsd, context),
-        owner: ownerName,
-        ownership: owner?.ownership_percent
-          ? `${owner.ownership_percent}%`
-          : owner?.ownership_label ?? "Primary owner",
-        property: propertyLabel(property),
-      },
-      href: `/properties/${property.id}`,
-      id: property.id,
-      sources: compactSources([
-        propertySource(property),
-        owner && ownerSource(owner, ownerName),
-        ...ledger.map(ledgerSource),
-      ]),
-      title: `${ownerName} / ${property.code}`,
-      tone: owner ? "neutral" : "warning",
-    });
-  });
-  const incomeUsd = sumLedgerUsd(context.ledgerEntries.filter(isIncome), context);
-  const expenseUsd = sumLedgerUsd(
-    context.ledgerEntries.filter(isExpense),
-    context,
-    true,
-  );
-
-  return baseReport(context, {
-    columns: moneyColumns(["owner", "property", "ownership", "income", "expenses", "net"]),
-    description:
-      "Owner-facing statement rows grouped by property owner links and period ledger activity.",
-    emptyDescription: "Add property owners or ledger rows for the selected period.",
-    emptyTitle: "No owner statement rows",
-    exportFilenameBase: "owner-statement",
-    kind: "owner-statement",
-    rows,
-    summary: financialSummary(context, incomeUsd, expenseUsd, rows.length),
-    title: "Owner Statement",
-    totalsTraceLabel: `Statement totals trace to ${context.ledgerEntries.length} ledger rows and ${context.owners.length} owner links.`,
   });
 }
 
@@ -1376,15 +1330,6 @@ function documentSource(document: DocumentRow): ReportSourceLink {
     id: document.id,
     label: document.file_name,
     recordType: "document",
-  };
-}
-
-function ownerSource(owner: OwnerRow, label: string): ReportSourceLink {
-  return {
-    href: `/people/${owner.person_id}`,
-    id: owner.id,
-    label,
-    recordType: "owner",
   };
 }
 

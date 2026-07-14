@@ -202,7 +202,7 @@ describe("trusted reports", () => {
       },
       {
         report: "owner-statement",
-        sources: ["ledgerEntries", "owners", "people"],
+        sources: [],
       },
       {
         report: "property-performance",

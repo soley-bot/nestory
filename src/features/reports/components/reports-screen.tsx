@@ -130,23 +130,25 @@ export function ReportBuilderScreen({
       <div className="print:hidden">
         <PageHeader
           actions={
-            <>
-              <a
-                className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
-                href={buildPdfHref(viewQuery)}
-              >
-                <Download size={14} />
-                Download PDF
-              </a>
-              <a
-                className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
-                href={buildCsvHref(viewQuery)}
-              >
-                <Download size={14} />
-                Export CSV
-              </a>
-              {isPreviewLimited ? null : <PrintButton />}
-            </>
+            trustedReport.scopeValidation ? undefined : (
+              <>
+                <a
+                  className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
+                  href={buildPdfHref(viewQuery)}
+                >
+                  <Download size={14} />
+                  Download PDF
+                </a>
+                <a
+                  className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+                  href={buildCsvHref(viewQuery)}
+                >
+                  <Download size={14} />
+                  Export CSV
+                </a>
+                {isPreviewLimited ? null : <PrintButton />}
+              </>
+            )
           }
           description={selectedReport.description}
           title={selectedReport.title}
@@ -530,7 +532,7 @@ function buildCsvHref(query: ReportsViewQuery) {
     params.set("propertyId", query.propertyId);
   }
 
-  if (query.unitId !== "all") {
+  if (query.unitId !== "all" && query.report !== "owner-statement") {
     params.set("unitId", query.unitId);
   }
 
@@ -551,7 +553,7 @@ function buildPdfHref(query: ReportsViewQuery) {
     params.set("propertyId", query.propertyId);
   }
 
-  if (query.unitId !== "all") {
+  if (query.unitId !== "all" && query.report !== "owner-statement") {
     params.set("unitId", query.unitId);
   }
 

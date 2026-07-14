@@ -38,7 +38,8 @@ export function ReportsFilters({
         className="grid gap-2 p-3 text-[13px]"
         method="get"
       >
-        {viewQuery.unitId !== "all" ? (
+        {viewQuery.unitId !== "all" &&
+        viewQuery.report !== "owner-statement" ? (
           <input name="unitId" type="hidden" value={viewQuery.unitId} />
         ) : null}
 
