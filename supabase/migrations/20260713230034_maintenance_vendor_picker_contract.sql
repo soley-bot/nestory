@@ -82,6 +82,7 @@ BEGIN
 
   IF (
     TG_OP = 'INSERT'
+    OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
     OR NEW.vendor_person_id IS DISTINCT FROM OLD.vendor_person_id
   )
     AND NEW.vendor_person_id IS NOT NULL

@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(107);
+SELECT plan(108);
 
 CREATE TEMP TABLE maintenance_role_workflow_state (
   created_task_id uuid
@@ -1166,6 +1166,63 @@ SELECT throws_matching(
   $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000003')$$,
   'Not authorized|not found',
   'cross-organization admin cannot mutate maintenance work'
+);
+
+RESET ROLE;
+
+INSERT INTO public.properties (
+  id,
+  organization_id,
+  name,
+  code,
+  property_type,
+  status
+)
+VALUES (
+  '82e00000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000002',
+  'Organization Scope Target',
+  'ORG-SCOPE-TARGET',
+  'Residential apartment',
+  'active'
+);
+
+INSERT INTO public.tenant_requests (
+  id,
+  organization_id,
+  property_id,
+  request_type,
+  title,
+  category,
+  priority,
+  status
+)
+VALUES (
+  '82e00000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-000000000002',
+  '82e00000-0000-0000-0000-000000000001',
+  'maintenance',
+  'Organization scope change target',
+  'General',
+  'normal',
+  'open'
+);
+
+SELECT throws_ok(
+  $$
+    UPDATE public.tasks
+    SET
+      organization_id = '00000000-0000-0000-0000-000000000002',
+      tenant_request_id = '82e00000-0000-0000-0000-000000000002',
+      property_id = '82e00000-0000-0000-0000-000000000001',
+      unit_id = NULL,
+      branch_id = NULL,
+      assignee_person_id = NULL
+    WHERE id = '91000000-0000-0000-0000-000000000001'
+  $$,
+  '23503',
+  'Vendor not found',
+  'task organization changes revalidate an unchanged vendor against the new organization'
 );
 
 SELECT * FROM finish();
