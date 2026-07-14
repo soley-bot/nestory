@@ -24,6 +24,7 @@ describe("maintenance execution mode", () => {
 
   it("offers only active staff who have an exact linked member identity", () => {
     expect(getExecutableMaintenanceAssigneeOptions({
+      activePersonIds: new Set(["member-a", "member-b", "offline-person"]),
       branchId: "branch-a",
       memberIdentities: memberships,
       people: [
@@ -32,6 +33,22 @@ describe("maintenance execution mode", () => {
         { id: "offline-person", label: "Offline" },
       ],
       staffPersonIds: new Set(["member-a", "member-b", "offline-person"]),
+    })).toEqual([{ branchId: "branch-a", id: "member-a", label: "A" }]);
+  });
+
+  it("excludes archived people even when membership and active staff-role links remain", () => {
+    expect(getExecutableMaintenanceAssigneeOptions({
+      activePersonIds: new Set(["member-a"]),
+      branchId: "branch-a",
+      memberIdentities: [
+        { branchId: "branch-a", personId: "member-a" },
+        { branchId: "branch-a", personId: "archived-member" },
+      ],
+      people: [
+        { id: "member-a", label: "A" },
+        { id: "archived-member", label: "Archived" },
+      ],
+      staffPersonIds: new Set(["member-a", "archived-member"]),
     })).toEqual([{ branchId: "branch-a", id: "member-a", label: "A" }]);
   });
 

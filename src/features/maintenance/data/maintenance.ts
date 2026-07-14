@@ -248,6 +248,11 @@ export async function getMaintenanceScreenData(
     id: person.id,
     label: person.display_name,
   }));
+  const activePersonIds = new Set(
+    references.people
+      .filter((person) => person.archived_at === null)
+      .map((person) => person.id),
+  );
   const staffPersonIds = new Set(
     references.staffRoles.map((role) => role.person_id),
   );
@@ -255,6 +260,7 @@ export async function getMaintenanceScreenData(
     ? []
     : memberIdentities.flatMap((identity) =>
         getExecutableMaintenanceAssigneeOptions({
+          activePersonIds,
           branchId: identity.branchId,
           memberIdentities,
           people: personOptions,
