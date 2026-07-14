@@ -323,6 +323,7 @@ function receiptAllocation(id: string, incomeItemId: string, amount: number) {
   return {
     amount,
     finance_receipts: {
+      id: `receipt-${id}`,
       received_date: "2026-07-03",
       reversal_of_id: null,
     },
@@ -347,7 +348,11 @@ function paymentAllocation(
       ledger_entry_id: null,
       property_id: "prop-1",
     },
-    finance_payments: { paid_date: paidDate, reversal_of_id: null },
+    finance_payments: {
+      id: `payment-${id}`,
+      paid_date: paidDate,
+      reversal_of_id: null,
+    },
     id,
   };
 }

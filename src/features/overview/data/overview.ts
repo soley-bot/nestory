@@ -64,6 +64,7 @@ type ReceiptAllocationRow = {
   amount: number;
   finance_income_items?: OverviewIncomeItemInputRow | null;
   finance_receipts: {
+    id: string;
     received_date: string;
     reference?: string | null;
     reversal_of_id: string | null;
@@ -79,6 +80,7 @@ type PaymentAllocationRow = {
     ledger_entry_id?: string | null;
   }) | null;
   finance_payments: {
+    id: string;
     paid_date: string;
     reversal_of_id: string | null;
   } | null;
@@ -209,7 +211,7 @@ export async function getOverviewScreenData(
   let cashReceiptAllocationsQuery = supabase
     .from("finance_receipt_allocations")
     .select(
-      "id, amount, income_item_id, finance_receipts!finance_receipt_allocations_receipt_id_fkey!inner(received_date, reversal_of_id, reference, property_id), finance_income_items!finance_receipt_allocations_income_item_id_fkey!inner(id, property_id, due_date, income_type, amount_due)",
+      "id, amount, income_item_id, finance_receipts!finance_receipt_allocations_receipt_id_fkey!inner(id, received_date, reversal_of_id, reference, property_id), finance_income_items!finance_receipt_allocations_income_item_id_fkey!inner(id, property_id, due_date, income_type, amount_due)",
     )
     .eq("organization_id", organizationId)
     .gte("finance_receipts.received_date", monthScope.from)
@@ -217,7 +219,7 @@ export async function getOverviewScreenData(
   let cashPaymentAllocationsQuery = supabase
     .from("finance_payment_allocations")
     .select(
-      "id, amount, expense_item_id, finance_payments!finance_payment_allocations_payment_id_fkey!inner(paid_date, reversal_of_id, property_id), finance_expense_items!finance_payment_allocations_expense_item_id_fkey!inner(id, property_id, expense_type, economic_scope, ledger_entry_id)",
+      "id, amount, expense_item_id, finance_payments!finance_payment_allocations_payment_id_fkey!inner(id, paid_date, reversal_of_id, property_id), finance_expense_items!finance_payment_allocations_expense_item_id_fkey!inner(id, property_id, expense_type, economic_scope, ledger_entry_id)",
     )
     .eq("organization_id", organizationId)
     .gte("finance_payments.paid_date", monthScope.from)
@@ -386,7 +388,7 @@ export async function getOverviewScreenData(
       pageFactory<ReceiptAllocationRow>(supabase
         .from("finance_receipt_allocations")
         .select(
-          "id, amount, income_item_id, finance_receipts!finance_receipt_allocations_receipt_id_fkey(received_date, reversal_of_id, reference)",
+          "id, amount, income_item_id, finance_receipts!finance_receipt_allocations_receipt_id_fkey(id, received_date, reversal_of_id, reference)",
         )
         .eq("organization_id", organizationId)
         .in("income_item_id", incomeItemIds)
@@ -611,8 +613,10 @@ function toReceiptAllocation(
 ): OverviewReceiptAllocationInputRow[] {
   if (!row.finance_receipts) return [];
   return [{
+    allocation_id: row.id,
     amount: Number(row.amount),
     income_item_id: row.income_item_id,
+    receipt_id: row.finance_receipts.id,
     received_date: row.finance_receipts.received_date,
     reversal_of_id: row.finance_receipts.reversal_of_id,
   }];
@@ -623,9 +627,11 @@ function toPaymentAllocation(
 ): OverviewPaymentAllocationInputRow[] {
   if (!row.finance_payments) return [];
   return [{
+    allocation_id: row.id,
     amount: Number(row.amount),
     expense_item_id: row.expense_item_id,
     paid_date: row.finance_payments.paid_date,
+    payment_id: row.finance_payments.id,
     reversal_of_id: row.finance_payments.reversal_of_id,
   }];
 }
@@ -634,6 +640,7 @@ function toDepositEvent(row: DepositEventRow): OverviewDepositEventInputRow {
   const common = {
     amount: Number(row.amount),
     event_date: row.event_date,
+    id: row.id,
     property_id: row.property_id,
   };
 
