@@ -57,6 +57,29 @@ describe("getMaintenanceScreenData reference loading", () => {
     );
   });
 
+  it("batches required executable member people and role references", async () => {
+    const supabase = createMaintenanceSupabaseStub({ memberIdentityCount: 205 });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+
+    const result = await getMaintenanceScreenData(
+      "org-1",
+      makeViewQuery(),
+      { role: "admin" },
+    );
+
+    const peopleIdCalls = supabase.inCalls.filter(
+      (call) => call.table === "people" && call.column === "id",
+    );
+    const staffRoleCalls = supabase.inCalls.filter(
+      (call) => call.table === "person_roles" && call.column === "person_id",
+    );
+    expect(peopleIdCalls).toHaveLength(3);
+    expect(staffRoleCalls).toHaveLength(3);
+    expect(peopleIdCalls.every((call) => call.values.length <= 100)).toBe(true);
+    expect(staffRoleCalls.every((call) => call.values.length <= 100)).toBe(true);
+    expect(result.staffOptions).toHaveLength(205);
+  });
+
   it.each([
     {
       actor: { role: "admin" } as MaintenanceActor,
@@ -202,9 +225,19 @@ type EqCall = {
   table: string;
 };
 
-function createMaintenanceSupabaseStub() {
+function createMaintenanceSupabaseStub({
+  memberIdentityCount = 1,
+}: {
+  memberIdentityCount?: number;
+} = {}) {
   const inCalls: QueryCall[] = [];
   const eqCalls: EqCall[] = [];
+  const memberPersonIds = memberIdentityCount === 1
+    ? ["member-option"]
+    : Array.from(
+        { length: memberIdentityCount },
+        (_, index) => `member-option-${index + 1}`,
+      );
   const rowsByTable: Record<string, Array<Record<string, unknown>>> = {
     activity_logs: [],
     documents: [],
@@ -225,12 +258,14 @@ function createMaintenanceSupabaseStub() {
         id: "visible-vendor",
         organization_id: "org-1",
       },
-      {
+      ...memberPersonIds.map((personId, index) => ({
         archived_at: null,
-        display_name: "Active Member",
-        id: "member-option",
+        display_name: memberIdentityCount === 1
+          ? "Active Member"
+          : `Active Member ${index + 1}`,
+        id: personId,
         organization_id: "org-1",
-      },
+      })),
       {
         archived_at: null,
         display_name: "Off-page Vendor",
@@ -238,15 +273,13 @@ function createMaintenanceSupabaseStub() {
         organization_id: "org-1",
       },
     ],
-    person_roles: [
-      {
-        archived_at: null,
-        organization_id: "org-1",
-        person_id: "member-option",
-        role: "staff",
-        status: "active",
-      },
-    ],
+    person_roles: memberPersonIds.map((personId) => ({
+      archived_at: null,
+      organization_id: "org-1",
+      person_id: personId,
+      role: "staff",
+      status: "active",
+    })),
     properties: [
       { code: "P1", id: "property-visible", name: "Visible Property" },
       { code: "P2", id: "property-off-page", name: "Off-page Property" },
@@ -264,7 +297,10 @@ function createMaintenanceSupabaseStub() {
     rpc: vi.fn(async (name: string) => {
       if (name === "get_maintenance_execution_members") {
         return {
-          data: [{ branch_id: "branch-visible", person_id: "member-option" }],
+          data: memberPersonIds.map((personId) => ({
+            branch_id: "branch-visible",
+            person_id: personId,
+          })),
           error: null,
         };
       }

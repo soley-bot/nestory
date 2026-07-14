@@ -63,6 +63,7 @@ const staffRoleSelect = "person_id";
 const documentSelect =
   "id, task_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
 const MAINTENANCE_QUERY_BATCH_SIZE = 1_000;
+const MAINTENANCE_REFERENCE_ID_BATCH_SIZE = 100;
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type MaintenanceTaskQuery = ReturnType<typeof createBaseTaskQuery>;
@@ -938,22 +939,36 @@ async function getMaintenanceReferenceRows({
       })();
   const peoplePromise = personIds.length === 0
     ? Promise.resolve({ data: [] as PersonRow[], error: null })
-    : supabase
-          .from("people")
-          .select(personSelect)
-          .eq("organization_id", organizationId)
-          .in("id", personIds)
-          .order("display_name", { ascending: true });
+    : Promise.all(
+        chunkReferenceIds(personIds).map((personIdBatch) =>
+          supabase
+            .from("people")
+            .select(personSelect)
+            .eq("organization_id", organizationId)
+            .in("id", personIdBatch)
+            .order("display_name", { ascending: true }),
+        ),
+      ).then((results) => ({
+        data: results.flatMap((result) => (result.data ?? []) as PersonRow[]),
+        error: results.find((result) => result.error)?.error ?? null,
+      }));
   const staffRolesPromise = referencedOnly || staffPersonIds.length === 0
     ? Promise.resolve({ data: [] as StaffRoleRow[], error: null })
-    : supabase
-        .from("person_roles")
-        .select(staffRoleSelect)
-        .eq("organization_id", organizationId)
-        .eq("role", "staff")
-        .eq("status", "active")
-        .is("archived_at", null)
-        .in("person_id", staffPersonIds);
+    : Promise.all(
+        chunkReferenceIds(staffPersonIds).map((staffPersonIdBatch) =>
+          supabase
+            .from("person_roles")
+            .select(staffRoleSelect)
+            .eq("organization_id", organizationId)
+            .eq("role", "staff")
+            .eq("status", "active")
+            .is("archived_at", null)
+            .in("person_id", staffPersonIdBatch),
+        ),
+      ).then((results) => ({
+        data: results.flatMap((result) => (result.data ?? []) as StaffRoleRow[]),
+        error: results.find((result) => result.error)?.error ?? null,
+      }));
   const [branchesResult, propertiesResult, unitsResult, peopleResult, staffRolesResult] =
     await Promise.all([
       branchesPromise,
@@ -1803,6 +1818,16 @@ function uniqueTaskRows(rows: MaintenanceTaskRow[]) {
 
 function uniqueDefined(values: Array<string | null | undefined>) {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+function chunkReferenceIds(values: string[]) {
+  return Array.from(
+    { length: Math.ceil(values.length / MAINTENANCE_REFERENCE_ID_BATCH_SIZE) },
+    (_, index) => values.slice(
+      index * MAINTENANCE_REFERENCE_ID_BATCH_SIZE,
+      (index + 1) * MAINTENANCE_REFERENCE_ID_BATCH_SIZE,
+    ),
+  );
 }
 
 function indexById<T extends { id: string }>(rows: T[]) {
