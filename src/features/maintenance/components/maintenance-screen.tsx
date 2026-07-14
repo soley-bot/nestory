@@ -412,7 +412,7 @@ export function MaintenanceScreen({
         {surfaceVariant === "table" ? (
           balancedCasesWorkspace ? (
             <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="min-h-0 space-y-0">
+              <div className="min-h-0 min-w-0 space-y-0">
                 <MaintenanceTable
                   cases={visibleCases}
                   emptyLabel={emptyLabel}
