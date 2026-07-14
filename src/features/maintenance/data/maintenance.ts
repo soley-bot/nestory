@@ -182,13 +182,14 @@ export async function getMaintenanceScreenData(
       : []
     : await getMaintenanceMemberIdentities(supabase, organizationId);
   const [references, vendorOptions] = await Promise.all([
-    getMaintenanceReferenceRows(
-      supabase,
+    getMaintenanceReferenceRows({
+      additionalPersonIds: memberIdentities.map((identity) => identity.personId),
       organizationId,
-      referenceTaskRows,
-      Boolean(isMember),
-      memberIdentities.map((identity) => identity.personId),
-    ),
+      referencedOnly: Boolean(isMember),
+      referenceTasks: referenceTaskRows,
+      supabase,
+      visiblePersonTasks: pagedTasks.rows,
+    }),
     isMember
       ? Promise.resolve([] as MaintenanceVendorOption[])
       : getMaintenanceVendorOptions(supabase, organizationId),
@@ -869,19 +870,30 @@ function applyActorTaskScope<T extends { eq: (column: string, value: string) => 
   return query;
 }
 
-async function getMaintenanceReferenceRows(
-  supabase: SupabaseServerClient,
-  organizationId: string,
-  tasks: MaintenanceTaskRow[],
-  referencedOnly: boolean,
-  additionalPersonIds: string[] = [],
-) {
-  const branchIds = uniqueDefined(tasks.map((task) => task.branch_id));
-  const propertyIds = uniqueDefined(tasks.map((task) => task.property_id));
-  const unitIds = uniqueDefined(tasks.map((task) => task.unit_id));
+async function getMaintenanceReferenceRows({
+  additionalPersonIds = [],
+  organizationId,
+  referencedOnly,
+  referenceTasks,
+  supabase,
+  visiblePersonTasks,
+}: {
+  additionalPersonIds?: string[];
+  organizationId: string;
+  referencedOnly: boolean;
+  referenceTasks: MaintenanceTaskRow[];
+  supabase: SupabaseServerClient;
+  visiblePersonTasks: MaintenanceTaskRow[];
+}) {
+  const branchIds = uniqueDefined(referenceTasks.map((task) => task.branch_id));
+  const propertyIds = uniqueDefined(referenceTasks.map((task) => task.property_id));
+  const unitIds = uniqueDefined(referenceTasks.map((task) => task.unit_id));
   const personIds = uniqueDefined(
     [
-      ...tasks.flatMap((task) => [task.assignee_person_id, task.vendor_person_id]),
+      ...visiblePersonTasks.flatMap((task) => [
+        task.assignee_person_id,
+        task.vendor_person_id,
+      ]),
       ...additionalPersonIds,
     ],
   );
