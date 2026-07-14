@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:maintenance-mobile": "node scripts/smoke-maintenance-mobile.mjs",
     "test:properties-flow": "node scripts/smoke-properties-flow.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
