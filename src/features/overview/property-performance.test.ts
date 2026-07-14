@@ -8,7 +8,7 @@ import {
 const propertyId = "property-1";
 
 describe("buildOverviewPropertyPerformance", () => {
-  it("calculates owner cash without deposits or owner contributions", () => {
+  it("keeps deposits, owner contributions, and owner payouts out of Overview net cash", () => {
     const result = buildOverviewPropertyPerformance(
       fixture({
         depositEvents: [depositEvent(1_400)],
@@ -16,6 +16,7 @@ describe("buildOverviewPropertyPerformance", () => {
           expense("cleaning"),
           expense("building"),
           expense("repairs"),
+          expense("owner_payout"),
         ],
         incomeItems: [
           income("rent", 1_400),
@@ -27,6 +28,7 @@ describe("buildOverviewPropertyPerformance", () => {
           payment("cleaning", 50),
           payment("building", 327.6),
           payment("repairs", 83),
+          payment("owner_payout", 900),
         ],
         receiptAllocations: [
           receipt("rent", 1_400),

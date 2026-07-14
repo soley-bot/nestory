@@ -86,7 +86,7 @@ describe("buildPropertyCash", () => {
     });
   });
 
-  it("retains prior receipt IDs when they reduce current obligation arrears", () => {
+  it("keeps a prior rent receipt as evidence without treating it as current-period cash", () => {
     const result = buildPropertyCash(
       fixture({
         incomeItems: [incomeItem("july-rent", 100)],
@@ -149,6 +149,22 @@ describe("buildPropertyCash", () => {
         signedAmountCents: -10_000,
       }),
     );
+    expect(result.properties[0]?.sourceLines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          allocationId: "receipt-allocation-original",
+          eventDate: "2026-06-20",
+          receiptId: "receipt-original",
+          signedAmountCents: 10_000,
+        }),
+        expect.objectContaining({
+          allocationId: "receipt-allocation-reversal",
+          eventDate: "2026-07-20",
+          receiptId: "receipt-reversal",
+          signedAmountCents: -10_000,
+        }),
+      ]),
+    );
   });
 
   it("exposes an earned but unpaid management fee as outstanding", () => {
@@ -198,7 +214,7 @@ describe("buildPropertyCash", () => {
     );
   });
 
-  it("retains prior receipt IDs when they reduce an outstanding management fee", () => {
+  it("keeps a prior fee receipt as evidence without treating it as current-period cash", () => {
     const result = buildPropertyCash(
       fixture({
         incomeItems: [incomeItem("fee-1", 100, "management_fee")],
@@ -328,6 +344,18 @@ describe("buildPropertyCash", () => {
         signedAmountCents: -10_000,
       }),
     );
+    expect(
+      result.properties[0]?.sourceLines.filter(
+        (line) => line.classification === "property_expense",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        allocationId: "payment-allocation-reversal",
+        eventDate: "2026-07-21",
+        paymentId: "payment-reversal",
+        signedAmountCents: -10_000,
+      }),
+    ]);
   });
 
   it("keeps owner payouts separate from normal property expenses", () => {
@@ -459,6 +487,45 @@ describe("buildPropertyCash", () => {
     );
 
     expect(result.properties[0]?.operatingCashReceivedCents).toBe(22);
+  });
+
+  it("preserves the numeric(14,2) loader maximum as safe integer cents", () => {
+    const maximumDatabaseAmount = 999_999_999_999.99;
+    const maximumDatabaseCents = 99_999_999_999_999;
+    const result = buildPropertyCash(
+      fixture({
+        incomeItems: [incomeItem("rent-maximum", maximumDatabaseAmount)],
+        receiptAllocations: [
+          receiptAllocation("rent-maximum", maximumDatabaseAmount),
+        ],
+      }),
+    );
+
+    expect(Number.isSafeInteger(maximumDatabaseCents)).toBe(true);
+    expect(result.properties[0]).toMatchObject({
+      operatingCashReceivedCents: maximumDatabaseCents,
+      rentDueCents: maximumDatabaseCents,
+      rentReceivedCents: maximumDatabaseCents,
+    });
+  });
+
+  it("rejects a negative source amount instead of double-applying a reversal sign", () => {
+    expect(() =>
+      buildPropertyCash(
+        fixture({
+          incomeItems: [incomeItem("rent-1", 100)],
+          receiptAllocations: [
+            receiptAllocation(
+              "rent-1",
+              -100,
+              "2026-07-20",
+              "receipt-original",
+              "negative-reversal",
+            ),
+          ],
+        }),
+      ),
+    ).toThrow("Property cash amount must be non-negative");
   });
 
   it("uses organization-independent pure inputs without mutating them", () => {

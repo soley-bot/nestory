@@ -1,3 +1,4 @@
+/** Non-negative decimal money; reversal linkage supplies the sign. */
 export type PropertyCashMoney = number | string;
 
 export type PropertyCashMonthScope = {
@@ -103,6 +104,13 @@ export type PropertyCashTotals = {
 
 export type PropertyCashPropertyFacts = PropertyCashTotals & {
   propertyId: string;
+  /**
+   * Evidence contributing to the calculated facts. This can include
+   * prior-period settlements for obligations due in the selected month and
+   * earlier deposit events needed for the period-end held balance. It is not
+   * a current-period cash journal; consumers must use eventDate and
+   * classification when selecting cash events.
+   */
   sourceLines: PropertyCashSourceLine[];
 };
 
@@ -111,6 +119,7 @@ export type PropertyCashResult = {
   totals: PropertyCashTotals;
 };
 
+/** Builds deterministic integer-cent property cash facts from dated evidence. */
 export function buildPropertyCash(input: PropertyCashInput): PropertyCashResult {
   const factsByPropertyId = new Map<string, PropertyCashPropertyFacts>();
   const incomeItemsById = new Map(
@@ -248,6 +257,8 @@ export function buildPropertyCash(input: PropertyCashInput): PropertyCashResult 
     );
   }
 
+  // Deposit held is cumulative through monthScope.before, not a flow bounded
+  // by monthScope.from, so prior-period received deposits remain in the balance.
   for (const event of input.depositEvents) {
     if (event.eventDate >= input.monthScope.before) continue;
 
@@ -396,6 +407,10 @@ function toCents(value: PropertyCashMoney) {
     wholeCents + fractionCents + (shouldRound ? 1 : 0);
   const signedValue = sign === "-" ? -absoluteCents : absoluteCents;
   const cents = signedValue;
+
+  if (cents < 0) {
+    throw new Error(`Property cash amount must be non-negative: ${input}`);
+  }
 
   if (!Number.isSafeInteger(cents)) {
     throw new Error(`Property cash amount exceeds safe integer cents: ${input}`);

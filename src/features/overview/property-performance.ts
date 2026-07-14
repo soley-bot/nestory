@@ -246,8 +246,8 @@ function toPerformanceRow({
   unitCount: number;
 }): OverviewPropertyPerformanceRow {
   const arrearsAmount = centsToAmount(facts.arrearsCents);
-  const cashExpensesCents =
-    facts.propertyExpensesPaidCents + facts.managementFeesReceivedCents;
+  const { cashExpensesCents, netCashCents } =
+    deriveOverviewCashPresentation(facts);
   const cashExpensesAmount = centsToAmount(cashExpensesCents);
   const cashIncomeAmount = centsToAmount(facts.operatingCashReceivedCents);
   const managementFeeEarnedAmount = centsToAmount(
@@ -259,9 +259,7 @@ function toPerformanceRow({
   const managementFeeReceivedAmount = centsToAmount(
     facts.managementFeesReceivedCents,
   );
-  const netCashAmount = centsToAmount(
-    facts.operatingCashReceivedCents - cashExpensesCents,
-  );
+  const netCashAmount = centsToAmount(netCashCents);
   const collectionRate = percentage(
     facts.rentReceivedCents,
     facts.rentDueCents,
@@ -323,8 +321,8 @@ function buildSummary(
   totals: PropertyCashTotals,
 ) {
   const blockedCount = rows.filter((row) => row.statementBlockers > 0).length;
-  const cashExpensesCents =
-    totals.propertyExpensesPaidCents + totals.managementFeesReceivedCents;
+  const { cashExpensesCents, netCashCents } =
+    deriveOverviewCashPresentation(totals);
 
   return {
     arrearsAmount: centsToAmount(totals.arrearsCents),
@@ -340,14 +338,22 @@ function buildSummary(
     managementFeeReceivedAmount: centsToAmount(
       totals.managementFeesReceivedCents,
     ),
-    netCashAmount: centsToAmount(
-      totals.operatingCashReceivedCents - cashExpensesCents,
-    ),
+    netCashAmount: centsToAmount(netCashCents),
     statementReadiness: {
       blockedCount,
       readyCount: rows.length - blockedCount,
       totalCount: rows.length,
     },
+  };
+}
+
+function deriveOverviewCashPresentation(totals: PropertyCashTotals) {
+  const cashExpensesCents =
+    totals.propertyExpensesPaidCents + totals.managementFeesReceivedCents;
+
+  return {
+    cashExpensesCents,
+    netCashCents: totals.operatingCashReceivedCents - cashExpensesCents,
   };
 }
 
