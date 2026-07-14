@@ -1,3 +1,9 @@
+import {
+  buildPropertyCash,
+  type PropertyCashInput,
+  type PropertyCashPropertyFacts,
+  type PropertyCashTotals,
+} from "@/features/finance/property-cash";
 import type {
   OverviewPropertyPerformance,
   OverviewPropertyPerformanceRow,
@@ -28,8 +34,10 @@ export type OverviewIncomeItemInputRow = {
 };
 
 export type OverviewReceiptAllocationInputRow = {
+  allocation_id: string;
   amount: number;
   income_item_id: string;
+  receipt_id: string;
   received_date: string;
   reversal_of_id: string | null;
 };
@@ -42,9 +50,11 @@ export type OverviewExpenseItemInputRow = {
 };
 
 export type OverviewPaymentAllocationInputRow = {
+  allocation_id: string;
   amount: number;
   expense_item_id: string;
   paid_date: string;
+  payment_id: string;
   reversal_of_id: string | null;
 };
 
@@ -57,6 +67,7 @@ export type OverviewDepositEventType =
 type OverviewDepositEventInputBase = {
   amount: number;
   event_date: string;
+  id: string;
   property_id: string;
 };
 
@@ -98,17 +109,8 @@ export type OverviewPropertyPerformanceInput = {
   units: OverviewUnitInputRow[];
 };
 
-type PropertyAccumulator = {
-  arrearsAmount: number;
-  cashExpensesAmount: number;
-  cashIncomeAmount: number;
-  managementFeeEarnedAmount: number;
-  managementFeeOutstandingAmount: number;
-  managementFeeReceivedAmount: number;
+type OverviewAttentionAccumulator = {
   openBillCount: number;
-  rentDueAmount: number;
-  rentReceivedAmount: number;
-  securityDepositHeldAmount: number;
   statementBlockers: number;
 };
 
@@ -119,169 +121,107 @@ const statusOrder: Record<OverviewPropertyPerformanceRow["status"], number> = {
   healthy: 3,
 };
 
-const managementCompanyFeeTypes = new Set([
-  "leasing_commission",
-  "maintenance_markup",
-  "management_fee",
-  "service_fee",
-]);
-
 export function buildOverviewPropertyPerformance(
   input: OverviewPropertyPerformanceInput,
   review: OverviewReview = "all",
 ): OverviewPropertyPerformance {
-  const accumulators = new Map<string, PropertyAccumulator>();
-  const incomeItemsById = new Map(input.incomeItems.map((item) => [item.id, item]));
-  const expenseItemsById = new Map(input.expenseItems.map((item) => [item.id, item]));
-  const receiptAmountByIncomeItemId = sumSignedAllocations(
-    input.receiptAllocations,
-    (row) => row.income_item_id,
+  const cash = buildPropertyCash(toPropertyCashInput(input));
+  const cashByPropertyId = new Map(
+    cash.properties.map((facts) => [facts.propertyId, facts]),
   );
+  const attentionByPropertyId = new Map<string, OverviewAttentionAccumulator>();
 
   for (const property of input.properties) {
-    accumulators.set(property.id, emptyAccumulator());
-  }
-
-  for (const item of input.incomeItems) {
-    const totals = accumulators.get(item.property_id);
-    if (!totals) continue;
-
-    const amountDue = Number(item.amount_due);
-    const receivedAmount = receiptAmountByIncomeItemId.get(item.id) ?? 0;
-
-    if (item.income_type === "rent" && isDateInScope(item.due_date, input.monthScope)) {
-      totals.rentDueAmount += amountDue;
-      totals.rentReceivedAmount += clamp(receivedAmount, 0, amountDue);
-      totals.arrearsAmount += Math.max(amountDue - receivedAmount, 0);
-    }
-
-    if (
-      isManagementCompanyFee(item.income_type) &&
-      isDateInScope(item.due_date, input.monthScope)
-    ) {
-      totals.managementFeeEarnedAmount += amountDue;
-      totals.managementFeeOutstandingAmount += Math.max(amountDue - receivedAmount, 0);
-    }
-  }
-
-  for (const allocation of input.receiptAllocations) {
-    const item = incomeItemsById.get(allocation.income_item_id);
-    const totals = item ? accumulators.get(item.property_id) : undefined;
-    if (!item || !totals) continue;
-
-    if (!isDateInScope(allocation.received_date, input.monthScope)) continue;
-
-    const signedAmount = signed(allocation.amount, allocation.reversal_of_id);
-    if (isManagementCompanyFee(item.income_type)) {
-      totals.cashExpensesAmount += signedAmount;
-      totals.managementFeeReceivedAmount += signedAmount;
-    } else if (
-      item.income_type !== "security_deposit" &&
-      item.income_type !== "owner_contribution"
-    ) {
-      totals.cashIncomeAmount += signedAmount;
-    }
-  }
-
-  for (const allocation of input.paymentAllocations) {
-    const item = expenseItemsById.get(allocation.expense_item_id);
-    const totals = item ? accumulators.get(item.property_id) : undefined;
-    if (
-      !item ||
-      !totals ||
-      item.expense_type === "owner_payout" ||
-      item.economic_scope !== "property_expense"
-    ) {
-      continue;
-    }
-
-    if (!isDateInScope(allocation.paid_date, input.monthScope)) continue;
-
-    totals.cashExpensesAmount += signed(allocation.amount, allocation.reversal_of_id);
-  }
-
-  for (const event of input.depositEvents) {
-    const totals = accumulators.get(event.property_id);
-    if (!totals) continue;
-    if (event.event_date >= input.monthScope.before) continue;
-    totals.securityDepositHeldAmount += getDepositBalanceEffect(event);
+    attentionByPropertyId.set(property.id, emptyAttentionAccumulator());
   }
 
   for (const bill of input.openBills) {
-    const totals = accumulators.get(bill.property_id);
-    if (totals) totals.openBillCount += 1;
+    const attention = attentionByPropertyId.get(bill.property_id);
+    if (attention) attention.openBillCount += 1;
   }
 
   for (const blocker of input.statementBlockers) {
-    const totals = accumulators.get(blocker.property_id);
-    if (totals) totals.statementBlockers += blocker.blocker_count;
+    const attention = attentionByPropertyId.get(blocker.property_id);
+    if (attention) attention.statementBlockers += blocker.blocker_count;
   }
 
   const unitCountByPropertyId = countByPropertyId(input.units);
   const allRows = input.properties.map((property) => {
-    const totals = accumulators.get(property.id) ?? emptyAccumulator();
+    const facts = cashByPropertyId.get(property.id);
+    if (!facts) {
+      throw new Error(`Property cash facts are missing for ${property.id}`);
+    }
+
     return toPerformanceRow({
+      attention:
+        attentionByPropertyId.get(property.id) ?? emptyAttentionAccumulator(),
       currency: input.currency,
+      facts,
       property,
-      totals,
       unitCount: unitCountByPropertyId.get(property.id) ?? 0,
     });
   });
-  const summary = buildSummary(allRows, accumulators);
+  const summary = buildSummary(allRows, cash.totals);
   const rows = allRows
-    .filter((row) => matchesReview(row, accumulators.get(row.propertyId), review))
+    .filter((row) =>
+      matchesReview(row, attentionByPropertyId.get(row.propertyId), review),
+    )
     .sort(compareRows);
 
   return { rows, summary };
 }
 
-function emptyAccumulator(): PropertyAccumulator {
+function toPropertyCashInput(
+  input: OverviewPropertyPerformanceInput,
+): PropertyCashInput {
   return {
-    arrearsAmount: 0,
-    cashExpensesAmount: 0,
-    cashIncomeAmount: 0,
-    managementFeeEarnedAmount: 0,
-    managementFeeOutstandingAmount: 0,
-    managementFeeReceivedAmount: 0,
-    openBillCount: 0,
-    rentDueAmount: 0,
-    rentReceivedAmount: 0,
-    securityDepositHeldAmount: 0,
-    statementBlockers: 0,
+    depositEvents: input.depositEvents.map((event) => ({
+      amount: event.amount,
+      depositEventId: event.id,
+      eventDate: event.event_date,
+      eventType: event.event_type,
+      propertyId: event.property_id,
+      reversedEventType: event.reversed_event_type,
+    })),
+    expenseItems: input.expenseItems.map((item) => ({
+      economicScope: item.economic_scope,
+      expenseType: item.expense_type,
+      id: item.id,
+      propertyId: item.property_id,
+    })),
+    incomeItems: input.incomeItems.map((item) => ({
+      amountDue: item.amount_due,
+      dueDate: item.due_date,
+      id: item.id,
+      incomeType: item.income_type,
+      propertyId: item.property_id,
+    })),
+    monthScope: input.monthScope,
+    paymentAllocations: input.paymentAllocations.map((allocation) => ({
+      allocationId: allocation.allocation_id,
+      amount: allocation.amount,
+      expenseItemId: allocation.expense_item_id,
+      paidDate: allocation.paid_date,
+      paymentId: allocation.payment_id,
+      reversalOfId: allocation.reversal_of_id,
+    })),
+    propertyIds: input.properties.map((property) => property.id),
+    receiptAllocations: input.receiptAllocations.map((allocation) => ({
+      allocationId: allocation.allocation_id,
+      amount: allocation.amount,
+      incomeItemId: allocation.income_item_id,
+      receiptId: allocation.receipt_id,
+      receivedDate: allocation.received_date,
+      reversalOfId: allocation.reversal_of_id,
+    })),
   };
 }
 
-function sumSignedAllocations<T extends { amount: number; reversal_of_id: string | null }>(
-  rows: T[],
-  getTargetId: (row: T) => string,
-) {
-  const totals = new Map<string, number>();
-  for (const row of rows) {
-    const targetId = getTargetId(row);
-    totals.set(
-      targetId,
-      (totals.get(targetId) ?? 0) + signed(row.amount, row.reversal_of_id),
-    );
-  }
-  return totals;
-}
-
-function signed(amount: number, reversalOfId: string | null) {
-  return Number(amount) * (reversalOfId ? -1 : 1);
-}
-
-function getDepositBalanceEffect(event: OverviewDepositEventInputRow) {
-  if (event.event_type === "reversed") {
-    if (!event.reversed_event_type) {
-      throw new Error("Deposit reversal must identify the reversed event type");
-    }
-    return -depositDirection(event.reversed_event_type) * Number(event.amount);
-  }
-  return depositDirection(event.event_type) * Number(event.amount);
-}
-
-function depositDirection(eventType: OverviewDepositEventType) {
-  return eventType === "received" ? 1 : -1;
+function emptyAttentionAccumulator(): OverviewAttentionAccumulator {
+  return {
+    openBillCount: 0,
+    statementBlockers: 0,
+  };
 }
 
 function countByPropertyId(rows: OverviewUnitInputRow[]) {
@@ -293,31 +233,42 @@ function countByPropertyId(rows: OverviewUnitInputRow[]) {
 }
 
 function toPerformanceRow({
+  attention,
   currency,
+  facts,
   property,
-  totals,
   unitCount,
 }: {
+  attention: OverviewAttentionAccumulator;
   currency: CurrencyCode;
+  facts: PropertyCashPropertyFacts;
   property: OverviewPropertyInputRow;
-  totals: PropertyAccumulator;
   unitCount: number;
 }): OverviewPropertyPerformanceRow {
-  const arrearsAmount = roundMoney(totals.arrearsAmount);
-  const cashExpensesAmount = roundMoney(totals.cashExpensesAmount);
-  const cashIncomeAmount = roundMoney(totals.cashIncomeAmount);
-  const managementFeeEarnedAmount = roundMoney(totals.managementFeeEarnedAmount);
-  const managementFeeOutstandingAmount = roundMoney(
-    totals.managementFeeOutstandingAmount,
+  const arrearsAmount = centsToAmount(facts.arrearsCents);
+  const { cashExpensesCents, netCashCents } =
+    deriveOverviewCashPresentation(facts);
+  const cashExpensesAmount = centsToAmount(cashExpensesCents);
+  const cashIncomeAmount = centsToAmount(facts.operatingCashReceivedCents);
+  const managementFeeEarnedAmount = centsToAmount(
+    facts.managementFeesEarnedCents,
   );
-  const managementFeeReceivedAmount = roundMoney(totals.managementFeeReceivedAmount);
-  const netCashAmount = roundMoney(cashIncomeAmount - cashExpensesAmount);
-  const collectionRate = percentage(totals.rentReceivedAmount, totals.rentDueAmount);
+  const managementFeeOutstandingAmount = centsToAmount(
+    facts.managementFeesOutstandingCents,
+  );
+  const managementFeeReceivedAmount = centsToAmount(
+    facts.managementFeesReceivedCents,
+  );
+  const netCashAmount = centsToAmount(netCashCents);
+  const collectionRate = percentage(
+    facts.rentReceivedCents,
+    facts.rentDueCents,
+  );
   const status = getStatus({
     arrearsAmount,
     hasAttention:
-      totals.openBillCount > 0 ||
-      totals.statementBlockers > 0 ||
+      attention.openBillCount > 0 ||
+      attention.statementBlockers > 0 ||
       managementFeeOutstandingAmount > 0,
     netCashAmount,
   });
@@ -335,13 +286,16 @@ function toPerformanceRow({
     managementFeeEarned: formatMoneyDisplay(managementFeeEarnedAmount, currency),
     managementFeeEarnedAmount,
     managementFeeOutstandingAmount,
-    managementFeeReceived: formatMoneyDisplay(managementFeeReceivedAmount, currency),
+    managementFeeReceived: formatMoneyDisplay(
+      managementFeeReceivedAmount,
+      currency,
+    ),
     managementFeeReceivedAmount,
     netCash: formatMoneyDisplay(netCashAmount, currency),
     netCashAmount,
     propertyId: property.id,
-    securityDepositHeldAmount: roundMoney(totals.securityDepositHeldAmount),
-    statementBlockers: totals.statementBlockers,
+    securityDepositHeldAmount: centsToAmount(facts.securityDepositHeldCents),
+    statementBlockers: attention.statementBlockers,
     status,
     unitCount,
   };
@@ -364,52 +318,27 @@ function getStatus({
 
 function buildSummary(
   rows: OverviewPropertyPerformanceRow[],
-  accumulators: Map<string, PropertyAccumulator>,
+  totals: PropertyCashTotals,
 ) {
-  const totals = rows.reduce(
-    (summary, row) => ({
-      arrearsAmount: summary.arrearsAmount + row.arrearsAmount,
-      cashExpensesAmount: summary.cashExpensesAmount + row.cashExpensesAmount,
-      cashIncomeAmount: summary.cashIncomeAmount + row.cashIncomeAmount,
-      managementFeeEarnedAmount:
-        summary.managementFeeEarnedAmount + row.managementFeeEarnedAmount,
-      managementFeeOutstandingAmount:
-        summary.managementFeeOutstandingAmount + row.managementFeeOutstandingAmount,
-      managementFeeReceivedAmount:
-        summary.managementFeeReceivedAmount + row.managementFeeReceivedAmount,
-      rentDueAmount:
-        summary.rentDueAmount +
-        (accumulators.get(row.propertyId)?.rentDueAmount ?? 0),
-      rentReceivedAmount:
-        summary.rentReceivedAmount +
-        (accumulators.get(row.propertyId)?.rentReceivedAmount ?? 0),
-    }),
-    {
-      arrearsAmount: 0,
-      cashExpensesAmount: 0,
-      cashIncomeAmount: 0,
-      managementFeeEarnedAmount: 0,
-      managementFeeOutstandingAmount: 0,
-      managementFeeReceivedAmount: 0,
-      rentDueAmount: 0,
-      rentReceivedAmount: 0,
-    },
-  );
   const blockedCount = rows.filter((row) => row.statementBlockers > 0).length;
+  const { cashExpensesCents, netCashCents } =
+    deriveOverviewCashPresentation(totals);
 
   return {
-    arrearsAmount: roundMoney(totals.arrearsAmount),
-    cashExpensesAmount: roundMoney(totals.cashExpensesAmount),
-    cashIncomeAmount: roundMoney(totals.cashIncomeAmount),
-    collectionRate: percentage(totals.rentReceivedAmount, totals.rentDueAmount),
-    managementFeeEarnedAmount: roundMoney(totals.managementFeeEarnedAmount),
-    managementFeeOutstandingAmount: roundMoney(
-      totals.managementFeeOutstandingAmount,
+    arrearsAmount: centsToAmount(totals.arrearsCents),
+    cashExpensesAmount: centsToAmount(cashExpensesCents),
+    cashIncomeAmount: centsToAmount(totals.operatingCashReceivedCents),
+    collectionRate: percentage(totals.rentReceivedCents, totals.rentDueCents),
+    managementFeeEarnedAmount: centsToAmount(
+      totals.managementFeesEarnedCents,
     ),
-    managementFeeReceivedAmount: roundMoney(totals.managementFeeReceivedAmount),
-    netCashAmount: roundMoney(
-      totals.cashIncomeAmount - totals.cashExpensesAmount,
+    managementFeeOutstandingAmount: centsToAmount(
+      totals.managementFeesOutstandingCents,
     ),
+    managementFeeReceivedAmount: centsToAmount(
+      totals.managementFeesReceivedCents,
+    ),
+    netCashAmount: centsToAmount(netCashCents),
     statementReadiness: {
       blockedCount,
       readyCount: rows.length - blockedCount,
@@ -418,14 +347,24 @@ function buildSummary(
   };
 }
 
+function deriveOverviewCashPresentation(totals: PropertyCashTotals) {
+  const cashExpensesCents =
+    totals.propertyExpensesPaidCents + totals.managementFeesReceivedCents;
+
+  return {
+    cashExpensesCents,
+    netCashCents: totals.operatingCashReceivedCents - cashExpensesCents,
+  };
+}
+
 function matchesReview(
   row: OverviewPropertyPerformanceRow,
-  totals: PropertyAccumulator | undefined,
+  attention: OverviewAttentionAccumulator | undefined,
   review: OverviewReview,
 ) {
   if (review === "negative") return row.netCashAmount < 0;
   if (review === "arrears") return row.arrearsAmount > 0;
-  if (review === "bills") return (totals?.openBillCount ?? 0) > 0;
+  if (review === "bills") return (attention?.openBillCount ?? 0) > 0;
   if (review === "statement-blocked") return row.statementBlockers > 0;
   return true;
 }
@@ -448,18 +387,10 @@ function percentage(numerator: number, denominator: number) {
   return Math.round(clamp((numerator / denominator) * 100, 0, 100));
 }
 
-function isManagementCompanyFee(incomeType: string) {
-  return managementCompanyFeeTypes.has(incomeType);
-}
-
-function isDateInScope(date: string, scope: OverviewMonthScope) {
-  return date >= scope.from && date < scope.before;
-}
-
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
-function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+function centsToAmount(cents: number) {
+  return cents / 100;
 }

@@ -8,7 +8,7 @@ import {
 const propertyId = "property-1";
 
 describe("buildOverviewPropertyPerformance", () => {
-  it("calculates owner cash without deposits or owner contributions", () => {
+  it("keeps deposits, owner contributions, and owner payouts out of Overview net cash", () => {
     const result = buildOverviewPropertyPerformance(
       fixture({
         depositEvents: [depositEvent(1_400)],
@@ -16,6 +16,7 @@ describe("buildOverviewPropertyPerformance", () => {
           expense("cleaning"),
           expense("building"),
           expense("repairs"),
+          expense("owner_payout"),
         ],
         incomeItems: [
           income("rent", 1_400),
@@ -27,6 +28,7 @@ describe("buildOverviewPropertyPerformance", () => {
           payment("cleaning", 50),
           payment("building", 327.6),
           payment("repairs", 83),
+          payment("owner_payout", 900),
         ],
         receiptAllocations: [
           receipt("rent", 1_400),
@@ -62,7 +64,7 @@ describe("buildOverviewPropertyPerformance", () => {
     expect(result.rows[0]?.status).toBe("arrears");
   });
 
-  it("separates charge month collection from settlement month cash", () => {
+  it("keeps collection facts at period end while recognizing settlement cash", () => {
     const result = buildOverviewPropertyPerformance(
       fixture({
         incomeItems: [
@@ -77,9 +79,9 @@ describe("buildOverviewPropertyPerformance", () => {
     );
 
     expect(result.rows[0]).toMatchObject({
-      arrearsAmount: 0,
+      arrearsAmount: 200,
       cashIncomeAmount: 100,
-      collectionRate: 100,
+      collectionRate: 0,
     });
   });
 
@@ -337,8 +339,10 @@ function receipt(
   receivedDate = "2026-07-20",
 ) {
   return {
+    allocation_id: `allocation-${incomeItemId}-${receivedDate}-${isReversal}`,
     amount,
     income_item_id: incomeItemId,
+    receipt_id: `receipt-${incomeItemId}-${receivedDate}-${isReversal}`,
     received_date: receivedDate,
     reversal_of_id: isReversal ? `original-${incomeItemId}` : null,
   };
@@ -364,9 +368,11 @@ function payment(
   paidDate = "2026-07-21",
 ) {
   return {
+    allocation_id: `allocation-${expenseItemId}-${paidDate}-${isReversal}`,
     amount,
     expense_item_id: expenseItemId,
     paid_date: paidDate,
+    payment_id: `payment-${expenseItemId}-${paidDate}-${isReversal}`,
     reversal_of_id: isReversal ? `original-${expenseItemId}` : null,
   };
 }
@@ -387,6 +393,7 @@ function depositEvent(
       amount,
       event_date: eventDate,
       event_type: "reversed",
+      id: `deposit-${eventType}-${reversedEventType}-${amount}-${eventDate}`,
       property_id: propertyId,
       reversed_event_type: reversedEventType,
     };
@@ -396,6 +403,7 @@ function depositEvent(
     amount,
     event_date: eventDate,
     event_type: eventType,
+    id: `deposit-${eventType}-${amount}-${eventDate}`,
     property_id: propertyId,
     reversed_event_type: null,
   };
