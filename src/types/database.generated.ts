@@ -3815,6 +3815,13 @@ export type Database = {
           person_id: string
         }[]
       }
+      get_maintenance_vendor_options: {
+        Args: { p_organization_id: string }
+        Returns: {
+          id: string
+          label: string
+        }[]
+      }
       get_organization_access_members: {
         Args: { p_organization_id: string }
         Returns: {

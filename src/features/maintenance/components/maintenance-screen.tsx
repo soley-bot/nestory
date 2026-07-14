@@ -46,7 +46,10 @@ import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SearchCombo } from "@/components/ui/search-combo";
-import { SelectControl } from "@/components/ui/select-control";
+import {
+  SelectControl,
+  type SelectControlOption,
+} from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
 import { TimePickerField } from "@/components/ui/time-picker-field";
@@ -87,12 +90,12 @@ import type {
   MaintenanceBranchOption,
   MaintenancePagination,
   MaintenanceChecklistItem,
-  MaintenancePersonOption,
   MaintenancePropertyOption,
   MaintenanceReminderNotification,
   MaintenanceStatus,
   MaintenanceSummary,
   MaintenanceUnitOption,
+  MaintenanceVendorOption,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
 import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
@@ -148,7 +151,6 @@ type MaintenanceScreenProps = {
   initialTaskId?: string;
   listLabel?: string;
   pagination: MaintenancePagination;
-  peopleOptions: MaintenancePersonOption[];
   propertyOptions: MaintenancePropertyOption[];
   recordLabel?: string;
   reminders?: MaintenanceReminderNotification[];
@@ -162,6 +164,7 @@ type MaintenanceScreenProps = {
   surfaceVariant?: MaintenanceSurfaceVariant;
   title?: string;
   unitOptions: MaintenanceUnitOption[];
+  vendorOptions: MaintenanceVendorOption[];
   viewQuery: MaintenanceViewQuery;
 };
 
@@ -178,7 +181,6 @@ export function MaintenanceScreen({
   initialTaskId,
   listLabel = "maintenance cases",
   pagination,
-  peopleOptions,
   propertyOptions,
   recordLabel = "maintenance case",
   reminders = [],
@@ -192,6 +194,7 @@ export function MaintenanceScreen({
   surfaceVariant = "table",
   title = "Maintenance",
   unitOptions,
+  vendorOptions,
   viewQuery,
 }: MaintenanceScreenProps) {
   const pathname = usePathname();
@@ -525,11 +528,11 @@ export function MaintenanceScreen({
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
-              people={peopleOptions}
               properties={propertyOptions}
               branches={branchOptions}
               staff={staffOptions}
               units={unitOptions}
+              vendors={vendorOptions}
             />
           )}
         </SideDrawer>
@@ -1419,7 +1422,7 @@ function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
   );
 }
 
-function MaintenanceForm({
+export function MaintenanceForm({
   actor,
   branches,
   canPostMaintenanceCost,
@@ -1429,10 +1432,10 @@ function MaintenanceForm({
   mode,
   onClose,
   onSuccess,
-  people,
   properties,
   staff,
   units,
+  vendors,
 }: {
   actor: MaintenanceActor;
   branches: MaintenanceBranchOption[];
@@ -1443,10 +1446,10 @@ function MaintenanceForm({
   mode: "create" | "edit";
   onClose: () => void;
   onSuccess: (message: string) => void;
-  people: MaintenancePersonOption[];
   properties: MaintenancePropertyOption[];
   staff: MaintenanceAssigneeOption[];
   units: MaintenanceUnitOption[];
+  vendors: MaintenanceVendorOption[];
 }) {
   const [state, action, pending] = useActionState(
     mode === "create" ? createMaintenanceCaseAction : updateMaintenanceCaseAction,
@@ -1510,6 +1513,11 @@ function MaintenanceForm({
           label: `${maintenanceCase.assigneeLabel} (offline assignment)`,
         }
       : undefined;
+  const vendorSelect = getMaintenanceVendorSelectOptions({
+    currentVendorId: defaults.vendorPersonId,
+    currentVendorLabel: maintenanceCase?.vendorLabel,
+    vendors,
+  });
   const managerBranch = actor.role === "manager" && actor.branchId
     ? branches.find((branch) => branch.id === actor.branchId)
     : undefined;
@@ -1637,19 +1645,19 @@ function MaintenanceForm({
           </Field>
         </div>
 
-        <Field label="Vendor/person" error={state.fieldErrors?.vendorPersonId?.[0]}>
+        <Field label="Vendor" error={state.fieldErrors?.vendorPersonId?.[0]}>
           <SelectControl
-            ariaLabel="Vendor or person"
+            ariaLabel="Vendor"
             defaultValue={defaults.vendorPersonId ?? ""}
             name="vendorPersonId"
-            options={[
-              { label: "No vendor/person", value: "" },
-              ...people.map((person) => ({
-                label: person.label,
-                value: person.id,
-              })),
-            ]}
+            options={vendorSelect.options}
           />
+          {vendorSelect.hasHistoricalVendor ? (
+            <p className="mt-1.5 text-xs leading-5 text-muted">
+              This historical vendor remains linked for this edit. Keep it unchanged,
+              choose an active vendor or No vendor to clear the link.
+            </p>
+          ) : null}
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-3">
@@ -1814,6 +1822,47 @@ function MaintenanceForm({
       </div>
     </form>
   );
+}
+
+function getHistoricalVendorLabel(label?: string) {
+  const baseLabel = label && label !== "No vendor" ? label : "Historical vendor";
+
+  return baseLabel.endsWith("(historical/inactive)")
+    ? baseLabel
+    : `${baseLabel} (historical/inactive)`;
+}
+
+export function getMaintenanceVendorSelectOptions({
+  currentVendorId,
+  currentVendorLabel,
+  vendors,
+}: {
+  currentVendorId?: string | null;
+  currentVendorLabel?: string;
+  vendors: MaintenanceVendorOption[];
+}): {
+  hasHistoricalVendor: boolean;
+  options: SelectControlOption[];
+} {
+  const hasHistoricalVendor = Boolean(currentVendorId) &&
+    !vendors.some((vendor) => vendor.id === currentVendorId);
+
+  return {
+    hasHistoricalVendor,
+    options: [
+      { label: "No vendor", value: "" },
+      ...(hasHistoricalVendor && currentVendorId
+        ? [{
+            label: getHistoricalVendorLabel(currentVendorLabel),
+            value: currentVendorId,
+          }]
+        : []),
+      ...vendors.map((vendor) => ({
+        label: vendor.label,
+        value: vendor.id,
+      })),
+    ],
+  };
 }
 
 function CompactFact({

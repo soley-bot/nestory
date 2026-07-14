@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(87);
+SELECT plan(107);
 
 CREATE TEMP TABLE maintenance_role_workflow_state (
   created_task_id uuid
@@ -10,10 +10,17 @@ CREATE TEMP TABLE maintenance_role_workflow_state (
 
 GRANT ALL ON maintenance_role_workflow_state TO authenticated;
 
+CREATE TEMP TABLE maintenance_vendor_state (
+  created_task_id uuid
+) ON COMMIT DROP;
+
+GRANT ALL ON maintenance_vendor_state TO authenticated;
+
 CREATE OR REPLACE FUNCTION pg_temp.call_create_maintenance_task(
   p_status text,
   p_branch_id uuid,
-  p_assignee_person_id uuid
+  p_assignee_person_id uuid,
+  p_vendor_person_id uuid DEFAULT NULL
 )
 RETURNS uuid
 LANGUAGE sql
@@ -31,7 +38,7 @@ AS $$
     '10:00'::time,
     NULL,
     NULL,
-    NULL,
+    p_vendor_person_id,
     50,
     'USD'::public.currency_code,
     '[{"id":"inspect","label":"Inspect the issue","completed":false}]'::jsonb,
@@ -39,6 +46,23 @@ AS $$
     p_branch_id,
     p_assignee_person_id
   );
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.capture_create_maintenance_vendor_task(
+  p_vendor_person_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO maintenance_vendor_state (created_task_id)
+  SELECT pg_temp.call_create_maintenance_task(
+    'pending',
+    '00000000-0000-0000-0000-000000000211'::uuid,
+    '80300000-0000-0000-0000-000000000003'::uuid,
+    p_vendor_person_id
+  );
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION pg_temp.call_update_maintenance_task(
@@ -89,6 +113,86 @@ BEGIN
   );
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION pg_temp.call_update_maintenance_vendor(
+  p_task_id uuid,
+  p_vendor_person_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  target public.tasks%ROWTYPE;
+BEGIN
+  SELECT * INTO target
+  FROM public.tasks
+  WHERE id = p_task_id;
+
+  RETURN public.update_maintenance_task(
+    target.id,
+    target.organization_id,
+    target.property_id,
+    target.unit_id,
+    target.title,
+    target.description,
+    target.category,
+    target.priority,
+    target.status,
+    target.due_date,
+    target.due_time,
+    target.reminder_date,
+    target.reminder_time,
+    p_vendor_person_id,
+    target.cost_estimate_amount,
+    target.cost_estimate_currency,
+    target.actual_cost_amount,
+    target.actual_cost_currency,
+    target.checklist,
+    target.recurrence_frequency,
+    false,
+    target.branch_id,
+    target.assignee_person_id
+  );
+END;
+$$;
+
+INSERT INTO public.people (id, organization_id, display_name, archived_at)
+VALUES
+  ('82f00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Inactive Vendor', NULL),
+  ('82f00000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Archived Role Vendor', NULL),
+  ('82f00000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Archived Person Vendor', now()),
+  ('82f00000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000002', 'Other Organization Vendor', NULL);
+
+INSERT INTO public.person_roles (
+  id,
+  organization_id,
+  person_id,
+  role,
+  status,
+  archived_at
+)
+VALUES
+  ('83f00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '82f00000-0000-0000-0000-000000000001', 'vendor', 'inactive', NULL),
+  ('83f00000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '82f00000-0000-0000-0000-000000000002', 'vendor', 'active', now()),
+  ('83f00000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '82f00000-0000-0000-0000-000000000003', 'vendor', 'active', NULL),
+  ('83f00000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000002', '82f00000-0000-0000-0000-000000000004', 'vendor', 'active', NULL);
+
+SELECT ok(
+  to_regprocedure('public.get_maintenance_vendor_options(uuid)') IS NOT NULL
+  AND has_function_privilege(
+    'authenticated',
+    'public.get_maintenance_vendor_options(uuid)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'anon',
+    'public.get_maintenance_vendor_options(uuid)',
+    'EXECUTE'
+  ),
+  'maintenance vendor options are exposed only through the authenticated checked RPC'
+);
 
 SELECT has_column(
   'public',
@@ -188,6 +292,163 @@ SELECT ok(
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000501', true);
 SET LOCAL ROLE authenticated;
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_maintenance_vendor_options('00000000-0000-0000-0000-000000000001')
+    WHERE id = '80200000-0000-0000-0000-000000000001'
+  ),
+  1::bigint,
+  'active organization vendor is included in maintenance options'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_maintenance_vendor_options('00000000-0000-0000-0000-000000000001')
+    WHERE id = '80000000-0000-0000-0000-000000000001'
+  ),
+  0::bigint,
+  'tenant-only people are excluded from maintenance vendor options'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_maintenance_vendor_options('00000000-0000-0000-0000-000000000001')
+    WHERE id = '80100000-0000-0000-0000-000000000001'
+  ),
+  0::bigint,
+  'owner-only people are excluded from maintenance vendor options'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_maintenance_vendor_options('00000000-0000-0000-0000-000000000001')
+    WHERE id = '80300000-0000-0000-0000-000000000001'
+  ),
+  0::bigint,
+  'staff-only people are excluded from maintenance vendor options'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_maintenance_vendor_options('00000000-0000-0000-0000-000000000001')
+    WHERE id = '82f00000-0000-0000-0000-000000000001'
+  ),
+  0::bigint,
+  'inactive vendor roles are excluded from maintenance vendor options'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_maintenance_vendor_options('00000000-0000-0000-0000-000000000001')
+    WHERE id = '82f00000-0000-0000-0000-000000000002'
+  ),
+  0::bigint,
+  'archived vendor roles are excluded from maintenance vendor options'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_maintenance_vendor_options('00000000-0000-0000-0000-000000000001')
+    WHERE id = '82f00000-0000-0000-0000-000000000003'
+  ),
+  0::bigint,
+  'archived people are excluded from maintenance vendor options'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_maintenance_vendor_options('00000000-0000-0000-0000-000000000001')
+    WHERE id = '82f00000-0000-0000-0000-000000000004'
+  ),
+  0::bigint,
+  'people from another organization are excluded from maintenance vendor options'
+);
+
+SELECT lives_ok(
+  $$SELECT pg_temp.capture_create_maintenance_vendor_task('80200000-0000-0000-0000-000000000001')$$,
+  'manager can create a maintenance task with an eligible vendor'
+);
+
+SELECT is(
+  (
+    SELECT vendor_person_id
+    FROM public.tasks
+    WHERE id = (SELECT created_task_id FROM maintenance_vendor_state LIMIT 1)
+  ),
+  '80200000-0000-0000-0000-000000000001'::uuid,
+  'valid vendor is stored during maintenance creation'
+);
+
+SELECT throws_ok(
+  $$SELECT pg_temp.call_create_maintenance_task('pending', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000003', '80100000-0000-0000-0000-000000000001')$$,
+  '23503',
+  'Vendor not found',
+  'maintenance creation rejects a newly selected non-vendor person'
+);
+
+SELECT lives_ok(
+  $$SELECT pg_temp.call_update_maintenance_vendor('91000000-0000-0000-0000-000000000003', '80200000-0000-0000-0000-000000000001')$$,
+  'manager can update a maintenance task to an eligible vendor'
+);
+
+SELECT is(
+  (SELECT vendor_person_id FROM public.tasks WHERE id = '91000000-0000-0000-0000-000000000003'),
+  '80200000-0000-0000-0000-000000000001'::uuid,
+  'valid changed vendor is stored during maintenance update'
+);
+
+SELECT lives_ok(
+  $$SELECT pg_temp.call_update_maintenance_vendor('91000000-0000-0000-0000-000000000003', '80200000-0000-0000-0000-000000000002')$$,
+  'manager can assign the vendor before it becomes historical'
+);
+
+RESET ROLE;
+
+UPDATE public.person_roles
+SET status = 'inactive'
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND person_id = '80200000-0000-0000-0000-000000000002'
+  AND role = 'vendor';
+
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000003')$$,
+  'unrelated edits preserve an unchanged historical vendor link'
+);
+
+SELECT is(
+  (SELECT vendor_person_id FROM public.tasks WHERE id = '91000000-0000-0000-0000-000000000003'),
+  '80200000-0000-0000-0000-000000000002'::uuid,
+  'historical vendor link remains stored after an unrelated edit'
+);
+
+SELECT throws_ok(
+  $$SELECT pg_temp.call_update_maintenance_vendor('91000000-0000-0000-0000-000000000003', '80100000-0000-0000-0000-000000000001')$$,
+  '23503',
+  'Vendor not found',
+  'maintenance update rejects a newly selected non-vendor person'
+);
+
+SELECT lives_ok(
+  $$SELECT pg_temp.call_update_maintenance_vendor('91000000-0000-0000-0000-000000000003', NULL)$$,
+  'manager can explicitly clear a historical vendor link'
+);
+
+SELECT is(
+  (SELECT vendor_person_id FROM public.tasks WHERE id = '91000000-0000-0000-0000-000000000003'),
+  NULL::uuid,
+  'historical vendor clearing is stored intentionally'
+);
 
 INSERT INTO maintenance_role_workflow_state (created_task_id)
 SELECT pg_temp.call_create_maintenance_task(

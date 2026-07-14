@@ -78,7 +78,6 @@ export async function renderMaintenanceRoute({
       initialTaskId={initialTaskId}
       listLabel={listLabel}
       pagination={data.pagination}
-      peopleOptions={data.peopleOptions}
       propertyOptions={data.propertyOptions}
       recordLabel={recordLabel}
       reminders={reminders}
@@ -91,6 +90,7 @@ export async function renderMaintenanceRoute({
       surfaceVariant={surfaceVariant}
       title={title}
       unitOptions={data.unitOptions}
+      vendorOptions={data.vendorOptions}
       viewQuery={viewQuery}
     />
   );

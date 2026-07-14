@@ -37,11 +37,11 @@ describe("MaintenancePage", () => {
       branchOptions: [],
       cases: [],
       pagination: {},
-      peopleOptions: [],
       propertyOptions: [],
       staffOptions: [],
       summary: {},
       unitOptions: [],
+      vendorOptions: [],
     });
 
     const page = await MaintenancePage({ searchParams: Promise.resolve({}) });
