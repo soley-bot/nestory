@@ -97,6 +97,6 @@ describe("maintenance vendor form", () => {
       ],
     });
     expect(html).toContain("This historical vendor remains linked");
-    expect(html).toContain("choose an active vendor or No vendor");
+    expect(html).toContain('or choose an active vendor or &quot;No vendor&quot;');
   });
 });

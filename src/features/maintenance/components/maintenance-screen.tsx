@@ -1655,7 +1655,7 @@ export function MaintenanceForm({
           {vendorSelect.hasHistoricalVendor ? (
             <p className="mt-1.5 text-xs leading-5 text-muted">
               This historical vendor remains linked for this edit. Keep it unchanged,
-              choose an active vendor or No vendor to clear the link.
+              or choose an active vendor or &quot;No vendor&quot; to clear the link.
             </p>
           ) : null}
         </Field>
