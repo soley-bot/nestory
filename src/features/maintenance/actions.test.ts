@@ -91,6 +91,7 @@ describe("maintenance action capabilities", () => {
     formData.set("assigneePersonId", "00000000-0000-4000-8000-000000000004");
     formData.set("branchId", "00000000-0000-4000-8000-000000000005");
     formData.set("status", "pending");
+    formData.set("vendorPersonId", "00000000-0000-4000-8000-000000000006");
 
     const result = await createMaintenanceCaseAction({}, formData);
 
@@ -100,9 +101,48 @@ describe("maintenance action capabilities", () => {
       expect.objectContaining({
         p_assignee_person_id: "00000000-0000-4000-8000-000000000004",
         p_branch_id: "00000000-0000-4000-8000-000000000005",
+        p_vendor_person_id: "00000000-0000-4000-8000-000000000006",
       }),
     );
     expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends a changed vendor through the checked update RPC", async () => {
+    requireWorkspaceContext.mockResolvedValue({
+      organizationId: "00000000-0000-4000-8000-000000000001",
+      role: "admin",
+    });
+    const formData = validMaintenanceForm();
+    formData.set("vendorPersonId", "00000000-0000-4000-8000-000000000006");
+
+    expect(await updateMaintenanceCaseAction({}, formData)).toMatchObject({
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "update_maintenance_task",
+      expect.objectContaining({
+        p_vendor_person_id: "00000000-0000-4000-8000-000000000006",
+      }),
+    );
+  });
+
+  it("returns an operator-friendly error when a vendor is no longer eligible", async () => {
+    requireWorkspaceContext.mockResolvedValue({
+      organizationId: "00000000-0000-4000-8000-000000000001",
+      role: "admin",
+    });
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "Vendor not found" },
+    });
+    const formData = validMaintenanceForm();
+    formData.set("status", "pending");
+    formData.set("vendorPersonId", "00000000-0000-4000-8000-000000000006");
+
+    expect(await createMaintenanceCaseAction({}, formData)).toEqual({
+      message: "The selected vendor is no longer eligible. Choose an active vendor or clear the field.",
+      status: "error",
+    });
   });
 
   it("rejects manager archive requests before calling the archive RPC", async () => {

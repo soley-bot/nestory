@@ -75,7 +75,7 @@ function makeCase(
     statusTone: "neutral",
     title: "General task",
     unitLabel: "Property level",
-    vendorLabel: "No vendor/person",
+    vendorLabel: "No vendor",
     ...overrides,
   };
 }
@@ -209,18 +209,18 @@ describe("maintenance role-safe loading", () => {
   it("returns no mutable option collections for members", () => {
     const options = {
       branchOptions: [{ id: "branch-1", label: "Branch" }],
-      peopleOptions: [{ id: "person-1", label: "Person" }],
       propertyOptions: [{ id: "property-1", label: "Property" }],
       staffOptions: [{ branchId: "branch-1", id: "person-1", label: "Person" }],
       unitOptions: [{ id: "unit-1", label: "Unit", propertyId: "property-1" }],
+      vendorOptions: [{ id: "vendor-1", label: "Vendor" }],
     };
 
     expect(scopeMaintenanceMutableOptions({ role: "member" }, options)).toEqual({
       branchOptions: [],
-      peopleOptions: [],
       propertyOptions: [],
       staffOptions: [],
       unitOptions: [],
+      vendorOptions: [],
     });
     expect(scopeMaintenanceMutableOptions({ role: "manager" }, options)).toBe(options);
   });

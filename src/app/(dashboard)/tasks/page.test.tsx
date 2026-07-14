@@ -62,11 +62,11 @@ describe("TasksPage", () => {
       branchOptions: [],
       cases: [],
       pagination: {},
-      peopleOptions: [],
       propertyOptions: [],
       staffOptions: [],
       summary: {},
       unitOptions: [],
+      vendorOptions: [],
     });
     getMaintenanceReminderNotifications.mockResolvedValue([]);
 

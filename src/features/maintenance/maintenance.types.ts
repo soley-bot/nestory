@@ -215,6 +215,8 @@ export type MaintenancePersonOption = {
   label: string;
 };
 
+export type MaintenanceVendorOption = MaintenancePersonOption;
+
 export type MaintenanceAssigneeOption = MaintenancePersonOption & {
   branchId?: string;
 };
@@ -305,11 +307,11 @@ export type MaintenanceScreenData = {
   branchOptions: MaintenanceBranchOption[];
   cases: MaintenanceCase[];
   pagination: MaintenancePagination;
-  peopleOptions: MaintenancePersonOption[];
   propertyOptions: MaintenancePropertyOption[];
   staffOptions: MaintenanceAssigneeOption[];
   summary: MaintenanceSummary;
   unitOptions: MaintenanceUnitOption[];
+  vendorOptions: MaintenanceVendorOption[];
 };
 
 export type MaintenanceActor = {

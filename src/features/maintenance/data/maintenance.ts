@@ -40,6 +40,7 @@ import type {
   MaintenanceSummary,
   MaintenanceUnitStat,
   MaintenanceUnitOption,
+  MaintenanceVendorOption,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
 import type { Json } from "@/types/database";
@@ -56,12 +57,13 @@ const taskSelect =
   "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, blocked_reason, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
 const propertySelect = "id, code, name";
 const unitSelect = "id, property_id, unit_number";
-const personSelect = "id, display_name";
+const personSelect = "id, organization_id, display_name, archived_at";
 const branchSelect = "id, name, code";
 const staffRoleSelect = "person_id";
 const documentSelect =
   "id, task_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
 const MAINTENANCE_QUERY_BATCH_SIZE = 1_000;
+const MAINTENANCE_REFERENCE_ID_BATCH_SIZE = 100;
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type MaintenanceTaskQuery = ReturnType<typeof createBaseTaskQuery>;
@@ -110,8 +112,10 @@ type UnitRow = {
 };
 
 type PersonRow = {
+  archived_at: string | null;
   display_name: string;
   id: string;
+  organization_id: string;
 };
 
 type BranchRow = {
@@ -127,6 +131,11 @@ type StaffRoleRow = {
 type MaintenanceMemberIdentityRow = {
   branch_id: string | null;
   person_id: string;
+};
+
+type MaintenanceVendorOptionRow = {
+  id: string;
+  label: string;
 };
 
 type DocumentRow = {
@@ -168,28 +177,39 @@ export async function getMaintenanceScreenData(
     ...summaryTaskRows,
   ]);
   const isMember = actor?.role === "member";
-  const references = await getMaintenanceReferenceRows(
-    supabase,
-    organizationId,
-    referenceTaskRows,
-    Boolean(isMember),
-  );
   const memberIdentities = isMember
     ? actor?.personId
       ? [{ branchId: actor.branchId, personId: actor.personId }]
       : []
     : await getMaintenanceMemberIdentities(supabase, organizationId);
+  const [references, vendorOptions] = await Promise.all([
+    getMaintenanceReferenceRows({
+      additionalPersonIds: memberIdentities.map((identity) => identity.personId),
+      organizationId,
+      referencedOnly: Boolean(isMember),
+      referenceTasks: referenceTaskRows,
+      supabase,
+      visiblePersonTasks: pagedTasks.rows,
+    }),
+    isMember
+      ? Promise.resolve([] as MaintenanceVendorOption[])
+      : getMaintenanceVendorOptions(supabase, organizationId),
+  ]);
   const branchesById = indexById(references.branches);
   const propertiesById = indexById(references.properties);
   const unitsById = indexById(references.units);
   const peopleById = indexById(references.people);
   const resolvedActor = actor ?? { role: "admin" as const };
+  const eligibleVendorPersonIds = isMember
+    ? undefined
+    : new Set(vendorOptions.map((vendor) => vendor.id));
   const pageCases = pagedTasks.rows.map((task) =>
     toMaintenanceCase({
       actor: resolvedActor,
       activity: [],
       branchesById,
       documents: [],
+      eligibleVendorPersonIds,
       memberIdentities,
       peopleById,
       propertiesById,
@@ -205,6 +225,7 @@ export async function getMaintenanceScreenData(
       activity: [],
       branchesById,
       documents: [],
+      eligibleVendorPersonIds,
       memberIdentities,
       peopleById,
       propertiesById,
@@ -225,10 +246,15 @@ export async function getMaintenanceScreenData(
   const documentsByTaskId = groupDocumentsByTaskId(documentRows);
   const activityByTaskId = groupActivityByTaskId(activityRows);
   const reopenInstructionByTaskId = getLatestReviewInstructionByTaskId(reopenRows);
-  const peopleOptions = references.people.map((person) => ({
+  const personOptions = references.people.map((person) => ({
     id: person.id,
     label: person.display_name,
   }));
+  const activePersonIds = new Set(
+    references.people
+      .filter((person) => person.archived_at === null)
+      .map((person) => person.id),
+  );
   const staffPersonIds = new Set(
     references.staffRoles.map((role) => role.person_id),
   );
@@ -236,18 +262,19 @@ export async function getMaintenanceScreenData(
     ? []
     : memberIdentities.flatMap((identity) =>
         getExecutableMaintenanceAssigneeOptions({
+          activePersonIds,
           branchId: identity.branchId,
           memberIdentities,
-          people: peopleOptions,
+          people: personOptions,
           staffPersonIds,
         }).filter((option) => option.id === identity.personId),
       );
   const mutableOptions = scopeMaintenanceMutableOptions(resolvedActor, {
     branchOptions: toBranchOptions(references.branches),
-    peopleOptions,
     propertyOptions: toPropertyOptions(references.properties),
     staffOptions,
     unitOptions: toUnitOptions(references.units, propertiesById),
+    vendorOptions,
   });
 
   return {
@@ -269,7 +296,7 @@ export function scopeMaintenanceMutableOptions(
   actor: MaintenanceActor,
   options: Pick<
     MaintenanceScreenData,
-    "branchOptions" | "peopleOptions" | "propertyOptions" | "staffOptions" | "unitOptions"
+    "branchOptions" | "propertyOptions" | "staffOptions" | "unitOptions" | "vendorOptions"
   >,
 ) {
   if (actor.role !== "member") {
@@ -278,10 +305,10 @@ export function scopeMaintenanceMutableOptions(
 
   return {
     branchOptions: [],
-    peopleOptions: [],
     propertyOptions: [],
     staffOptions: [],
     unitOptions: [],
+    vendorOptions: [],
   };
 }
 
@@ -844,18 +871,34 @@ function applyActorTaskScope<T extends { eq: (column: string, value: string) => 
   return query;
 }
 
-async function getMaintenanceReferenceRows(
-  supabase: SupabaseServerClient,
-  organizationId: string,
-  tasks: MaintenanceTaskRow[],
-  referencedOnly: boolean,
-) {
-  const branchIds = uniqueDefined(tasks.map((task) => task.branch_id));
-  const propertyIds = uniqueDefined(tasks.map((task) => task.property_id));
-  const unitIds = uniqueDefined(tasks.map((task) => task.unit_id));
+async function getMaintenanceReferenceRows({
+  additionalPersonIds = [],
+  organizationId,
+  referencedOnly,
+  referenceTasks,
+  supabase,
+  visiblePersonTasks,
+}: {
+  additionalPersonIds?: string[];
+  organizationId: string;
+  referencedOnly: boolean;
+  referenceTasks: MaintenanceTaskRow[];
+  supabase: SupabaseServerClient;
+  visiblePersonTasks: MaintenanceTaskRow[];
+}) {
+  const branchIds = uniqueDefined(referenceTasks.map((task) => task.branch_id));
+  const propertyIds = uniqueDefined(referenceTasks.map((task) => task.property_id));
+  const unitIds = uniqueDefined(referenceTasks.map((task) => task.unit_id));
   const personIds = uniqueDefined(
-    tasks.flatMap((task) => [task.assignee_person_id, task.vendor_person_id]),
+    [
+      ...visiblePersonTasks.flatMap((task) => [
+        task.assignee_person_id,
+        task.vendor_person_id,
+      ]),
+      ...additionalPersonIds,
+    ],
   );
+  const staffPersonIds = uniqueDefined(additionalPersonIds);
 
   const branchesPromise = referencedOnly && branchIds.length === 0
     ? Promise.resolve({ data: [] as BranchRow[], error: null })
@@ -894,27 +937,38 @@ async function getMaintenanceReferenceRows(
         if (referencedOnly) query = query.in("id", unitIds);
         return query;
       })();
-  const peoplePromise = referencedOnly && personIds.length === 0
+  const peoplePromise = personIds.length === 0
     ? Promise.resolve({ data: [] as PersonRow[], error: null })
-    : (() => {
-        let query = supabase
-          .from("people")
-          .select(personSelect)
-          .eq("organization_id", organizationId)
-          .is("archived_at", null)
-          .order("display_name", { ascending: true });
-        if (referencedOnly) query = query.in("id", personIds);
-        return query;
-      })();
-  const staffRolesPromise = referencedOnly
+    : Promise.all(
+        chunkReferenceIds(personIds).map((personIdBatch) =>
+          supabase
+            .from("people")
+            .select(personSelect)
+            .eq("organization_id", organizationId)
+            .in("id", personIdBatch)
+            .order("display_name", { ascending: true }),
+        ),
+      ).then((results) => ({
+        data: results.flatMap((result) => (result.data ?? []) as PersonRow[]),
+        error: results.find((result) => result.error)?.error ?? null,
+      }));
+  const staffRolesPromise = referencedOnly || staffPersonIds.length === 0
     ? Promise.resolve({ data: [] as StaffRoleRow[], error: null })
-    : supabase
-        .from("person_roles")
-        .select(staffRoleSelect)
-        .eq("organization_id", organizationId)
-        .eq("role", "staff")
-        .eq("status", "active")
-        .is("archived_at", null);
+    : Promise.all(
+        chunkReferenceIds(staffPersonIds).map((staffPersonIdBatch) =>
+          supabase
+            .from("person_roles")
+            .select(staffRoleSelect)
+            .eq("organization_id", organizationId)
+            .eq("role", "staff")
+            .eq("status", "active")
+            .is("archived_at", null)
+            .in("person_id", staffPersonIdBatch),
+        ),
+      ).then((results) => ({
+        data: results.flatMap((result) => (result.data ?? []) as StaffRoleRow[]),
+        error: results.find((result) => result.error)?.error ?? null,
+      }));
   const [branchesResult, propertiesResult, unitsResult, peopleResult, staffRolesResult] =
     await Promise.all([
       branchesPromise,
@@ -964,6 +1018,24 @@ async function getMaintenanceMemberIdentities(
   return ((result.data ?? []) as MaintenanceMemberIdentityRow[]).map((identity) => ({
     branchId: identity.branch_id ?? undefined,
     personId: identity.person_id,
+  }));
+}
+
+async function getMaintenanceVendorOptions(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+): Promise<MaintenanceVendorOption[]> {
+  const result = await supabase.rpc("get_maintenance_vendor_options", {
+    p_organization_id: organizationId,
+  });
+
+  if (result.error) {
+    throw new Error(`Could not load maintenance vendor options: ${result.error.message}`);
+  }
+
+  return ((result.data ?? []) as MaintenanceVendorOptionRow[]).map((vendor) => ({
+    id: vendor.id,
+    label: vendor.label,
   }));
 }
 
@@ -1066,6 +1138,7 @@ function toMaintenanceCase({
   branchesById,
   currentTime,
   documents,
+  eligibleVendorPersonIds,
   memberIdentities,
   peopleById,
   propertiesById,
@@ -1078,6 +1151,7 @@ function toMaintenanceCase({
   branchesById: Map<string, BranchRow>;
   currentTime: string;
   documents: DocumentRow[];
+  eligibleVendorPersonIds?: Set<string>;
   memberIdentities: MaintenanceMemberIdentity[];
   peopleById: Map<string, PersonRow>;
   propertiesById: Map<string, PropertyRow>;
@@ -1092,6 +1166,14 @@ function toMaintenanceCase({
     ? peopleById.get(task.assignee_person_id)
     : undefined;
   const vendor = task.vendor_person_id ? peopleById.get(task.vendor_person_id) : undefined;
+  const vendorIsHistorical = Boolean(
+    task.vendor_person_id &&
+      eligibleVendorPersonIds &&
+      !eligibleVendorPersonIds.has(task.vendor_person_id),
+  );
+  const vendorLabel = task.vendor_person_id
+    ? vendor?.display_name ?? "Historical vendor"
+    : "No vendor";
   const status = normalizeMaintenanceStatus(task.status);
   const priority = normalizeMaintenancePriority(task.priority);
   const recurrenceFrequency = normalizeRecurrence(task.recurrence_frequency);
@@ -1204,7 +1286,9 @@ function toMaintenanceCase({
     title: task.title,
     unitId: task.unit_id ?? undefined,
     unitLabel: unit ? `Unit ${unit.unit_number}` : "Property level",
-    vendorLabel: vendor?.display_name ?? "No vendor/person",
+    vendorLabel: vendorIsHistorical
+      ? `${vendorLabel} (historical/inactive)`
+      : vendorLabel,
     vendorPersonId: task.vendor_person_id ?? undefined,
   } satisfies MaintenanceCase;
 
@@ -1734,6 +1818,16 @@ function uniqueTaskRows(rows: MaintenanceTaskRow[]) {
 
 function uniqueDefined(values: Array<string | null | undefined>) {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+function chunkReferenceIds(values: string[]) {
+  return Array.from(
+    { length: Math.ceil(values.length / MAINTENANCE_REFERENCE_ID_BATCH_SIZE) },
+    (_, index) => values.slice(
+      index * MAINTENANCE_REFERENCE_ID_BATCH_SIZE,
+      (index + 1) * MAINTENANCE_REFERENCE_ID_BATCH_SIZE,
+    ),
+  );
 }
 
 function indexById<T extends { id: string }>(rows: T[]) {

@@ -42,11 +42,13 @@ export function getMaintenanceExecutionMode(
 }
 
 export function getExecutableMaintenanceAssigneeOptions({
+  activePersonIds,
   branchId,
   memberIdentities,
   people,
   staffPersonIds,
 }: {
+  activePersonIds: ReadonlySet<string>;
   branchId?: string;
   memberIdentities: MaintenanceMemberIdentity[];
   people: MaintenancePersonOption[];
@@ -61,7 +63,9 @@ export function getExecutableMaintenanceAssigneeOptions({
   return people
     .filter(
       (person) =>
-        staffPersonIds.has(person.id) && executablePersonIds.has(person.id),
+        activePersonIds.has(person.id) &&
+        staffPersonIds.has(person.id) &&
+        executablePersonIds.has(person.id),
     )
     .map((person) => ({ ...person, branchId }));
 }

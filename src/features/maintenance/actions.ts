@@ -799,7 +799,7 @@ function maintenanceActionErrorMessage(message: string) {
   }
 
   if (message.includes("Vendor not found") || message.includes("Vendor/person not found")) {
-    return "Choose an active vendor or person.";
+    return "The selected vendor is no longer eligible. Choose an active vendor or clear the field.";
   }
 
   if (message.includes("Assignee not found")) {

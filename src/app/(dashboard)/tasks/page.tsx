@@ -56,7 +56,6 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       initialTaskId={initialTaskId}
       listLabel="tasks"
       pagination={data.pagination}
-      peopleOptions={data.peopleOptions}
       propertyOptions={data.propertyOptions}
       recordLabel="task"
       reminders={reminders}
@@ -66,6 +65,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       surfaceVariant="board"
       title="Tasks"
       unitOptions={data.unitOptions}
+      vendorOptions={data.vendorOptions}
       viewQuery={viewQuery}
     />
   );

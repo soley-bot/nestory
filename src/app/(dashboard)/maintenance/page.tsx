@@ -49,7 +49,6 @@ export default async function MaintenancePage({
       initialTaskId={initialTaskId}
       listLabel="cases"
       pagination={data.pagination}
-      peopleOptions={data.peopleOptions}
       propertyOptions={data.propertyOptions}
       recordLabel="case"
       staffOptions={data.staffOptions}
@@ -61,6 +60,7 @@ export default async function MaintenancePage({
       surfaceVariant={routeConfig.surfaceVariant}
       title="Cases"
       unitOptions={data.unitOptions}
+      vendorOptions={data.vendorOptions}
       viewQuery={viewQuery}
     />
   );
