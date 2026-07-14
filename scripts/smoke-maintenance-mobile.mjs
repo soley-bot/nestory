@@ -1,8 +1,15 @@
 import { chromium } from "playwright";
 
 const baseUrl = process.env.NESTORY_BASE_URL ?? "http://localhost:3000";
-const email = process.env.NESTORY_TEST_EMAIL ?? "nestory@gmail.com";
-const password = process.env.NESTORY_TEST_PASSWORD ?? "123456789";
+const email = process.env.NESTORY_TEST_EMAIL?.trim();
+const password = process.env.NESTORY_TEST_PASSWORD;
+
+if (!email || !password) {
+  throw new Error(
+    "Set NESTORY_TEST_EMAIL and NESTORY_TEST_PASSWORD before running the Maintenance mobile smoke.",
+  );
+}
+
 const viewports = [
   { height: 700, width: 320 },
   { height: 812, width: 375 },
