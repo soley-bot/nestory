@@ -308,13 +308,19 @@ describe("authenticated theme contract", () => {
     for (const selector of [":root", '[data-theme="dark"]']) {
       const theme = getCustomProperties(getBlock(globalsCss, selector));
 
-      expect(
-        getContrastRatio(
-          theme["--foreground-subtle"],
-          theme["--surface-work"],
-        ),
-        `${selector} subtle text contrast`,
-      ).toBeGreaterThanOrEqual(4.5);
+      for (const surfaceToken of [
+        "--surface-canvas",
+        "--surface-work",
+        "--surface-raised",
+      ]) {
+        expect(
+          getContrastRatio(
+            theme["--foreground-subtle"],
+            theme[surfaceToken],
+          ),
+          `${selector} subtle text contrast on ${surfaceToken}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
       expect(
         getContrastRatio(
           theme["--state-attention-foreground"],
