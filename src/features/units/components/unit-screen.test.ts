@@ -129,6 +129,57 @@ describe("UnitScreen redesign contract", () => {
     },
   );
 
+  it.each([
+    { actionName: "Edit unit 1A", drawerName: "Edit unit", width: 1024 },
+    { actionName: "Archive unit 1A", drawerName: "Archive unit", width: 1024 },
+    { actionName: "Edit unit 1A", drawerName: "Edit unit", width: 390 },
+  ])(
+    "replaces the compact preview with one $drawerName drawer at $width px and returns focus",
+    async ({ actionName, drawerName, width }) => {
+      installMatchMedia(width);
+      const user = userEvent.setup();
+      renderUnits();
+      const preview = screen.getByRole("button", { name: "Preview unit 1A" });
+
+      await user.click(preview);
+      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+
+      await user.click(screen.getByRole("button", { name: actionName }));
+
+      const dialogs = screen.getAllByRole("dialog");
+      expect(dialogs).toHaveLength(1);
+      expect(dialogs[0]?.getAttribute("aria-modal")).toBe("true");
+      expect(screen.getByRole("dialog", { name: drawerName })).not.toBeNull();
+      expect(screen.queryByRole("dialog", { name: "Unit 1A inspector" })).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Close drawer" }));
+      expect(document.activeElement).toBe(preview);
+    },
+  );
+
+  it("keeps the 1440px inspector docked while a mutation drawer opens", async () => {
+    installMatchMedia(1440);
+    const user = userEvent.setup();
+    renderUnits();
+    const inspector = screen.getByRole("complementary", {
+      name: "Unit 1A inspector",
+    });
+    const edit = within(inspector).getByRole("button", {
+      name: "Edit unit 1A",
+    });
+
+    await user.click(edit);
+
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog", { name: "Edit unit" })).not.toBeNull();
+    expect(
+      screen.getByRole("complementary", { name: "Unit 1A inspector" }),
+    ).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    expect(document.activeElement).toBe(edit);
+  });
+
   it("announces card selection, keeps links separate, supports Enter and Space, and restores focus", async () => {
     installMatchMedia(1024);
     const user = userEvent.setup();

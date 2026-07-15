@@ -96,7 +96,7 @@ export function PropertyScreen({
   });
   const reviewContext = getPropertyReviewContext(viewQuery);
   const openPropertyAction = (nextDrawer: DrawerState) => {
-    if (!window.matchMedia("(min-width: 1024px)").matches) {
+    if (!isWideWorkspace) {
       setCompactInspectorOpen(false);
     }
     setStatusMessage(null);

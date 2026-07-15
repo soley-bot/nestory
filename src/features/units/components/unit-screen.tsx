@@ -116,7 +116,7 @@ export function UnitScreen({
       : null;
   const fillLeaseLabel = isVacantReview ? "Fill vacancy" : "Add lease";
   const openUnitAction = (nextDrawer: DrawerState) => {
-    if (!window.matchMedia("(min-width: 1024px)").matches) {
+    if (!isWideWorkspace) {
       setCompactInspectorOpen(false);
     }
     setStatusMessage(null);
