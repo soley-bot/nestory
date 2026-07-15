@@ -2,9 +2,13 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
-import { DraftActionBar } from "@/components/ui/draft-action-bar";
+import {
+  DraftActionBar,
+  type DraftStatus,
+} from "@/components/ui/draft-action-bar";
 import { EmptyState, type EmptyStateKind } from "@/components/ui/empty-state";
 import { FormSection } from "@/components/ui/form-section";
 import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
@@ -126,6 +130,53 @@ describe("DraftActionBar", () => {
     expect(describedByIds).toContain(reason.id);
   });
 
+  it("announces a newly supplied disabled reason without announcing consequences", () => {
+    const consequence = (
+      <ConsequencePanel
+        id="permission-impact"
+        summary="Existing workspace access stays unchanged."
+        title="Access impact"
+      />
+    );
+    const { rerender } = render(
+      <>
+        {consequence}
+        <DraftActionBar
+          describedBy="permission-impact"
+          onDiscard={vi.fn()}
+          onSave={vi.fn()}
+          status="dirty"
+        />
+      </>,
+    );
+
+    expect(screen.getByRole("status").textContent).toBe("Unsaved changes");
+
+    rerender(
+      <>
+        {consequence}
+        <DraftActionBar
+          describedBy="permission-impact"
+          disabledReason="Only administrators can apply role changes."
+          onDiscard={vi.fn()}
+          onSave={vi.fn()}
+          status="dirty"
+        />
+      </>,
+    );
+
+    const announcement = screen.getByRole("status");
+    const reason = screen.getByText("Only administrators can apply role changes.");
+    expect(announcement.textContent).toContain("Unsaved changes");
+    expect(announcement.textContent).toContain(
+      "Only administrators can apply role changes.",
+    );
+    expect(announcement.textContent).not.toContain(
+      "Existing workspace access stays unchanged.",
+    );
+    expect(announcement.contains(reason)).toBe(true);
+  });
+
   it("requires an in-component discard confirmation that can be cancelled or confirmed", async () => {
     const user = userEvent.setup();
     const onDiscard = vi.fn();
@@ -151,6 +202,76 @@ describe("DraftActionBar", () => {
     await user.click(screen.getByRole("button", { name: "Discard" }));
     await user.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(onDiscard).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["saving", "Saving changes"],
+    ["saved", "Changes saved"],
+    ["clean", "No changes"],
+  ] as const)(
+    "closes discard confirmation when controlled status changes to %s",
+    async (status, statusText) => {
+      const user = userEvent.setup();
+      const onDiscard = vi.fn();
+      const { rerender } = render(
+        <DraftActionBar
+          onDiscard={onDiscard}
+          onSave={vi.fn()}
+          status="dirty"
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+      const staleConfirmation = screen.getByRole("button", {
+        name: "Discard changes",
+      });
+
+      rerender(
+        <DraftActionBar
+          onDiscard={onDiscard}
+          onSave={vi.fn()}
+          status={status}
+        />,
+      );
+
+      expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
+      expect(screen.getByText(statusText)).not.toBeNull();
+
+      await user.click(staleConfirmation);
+      expect(onDiscard).not.toHaveBeenCalled();
+    },
+  );
+
+  it("moves focus to the stable status after confirmed discard updates caller state", async () => {
+    const user = userEvent.setup();
+    const onDiscard = vi.fn();
+
+    function ControlledDraft() {
+      const [status, setStatus] = useState<DraftStatus>("dirty");
+
+      return (
+        <DraftActionBar
+          onDiscard={() => {
+            onDiscard();
+            setStatus("clean");
+          }}
+          onSave={vi.fn()}
+          status={status}
+        />
+      );
+    }
+
+    render(<ControlledDraft />);
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    const status = screen.getByRole("status");
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+    expect(status.textContent).toContain("No changes");
+    expect(status.getAttribute("tabindex")).toBe("-1");
+    expect(document.activeElement).toBe(status);
+    expect(screen.getByTestId("draft-action-bar").contains(document.activeElement))
+      .toBe(true);
   });
 });
 
@@ -264,20 +385,26 @@ describe("EmptyState", () => {
         />,
       );
 
-      const state = screen.getByRole(role);
-      expect(state.getAttribute("data-kind")).toBe(kind);
-      expect(state.getAttribute("aria-live")).toBe(live);
-      expect(within(state).getByRole("heading", { name: title })).not.toBeNull();
-      expect(within(state).getByText(body)).not.toBeNull();
-      expect(state.querySelector('[data-empty-state-icon="true"][aria-hidden="true"]'))
+      const message = screen.getByRole(role);
+      const state = screen.getByRole("heading", { name: title }).closest("section");
+      expect(state?.getAttribute("data-kind")).toBe(kind);
+      expect(message.getAttribute("aria-live")).toBe(live);
+      expect(within(message).getByRole("heading", { name: title })).not.toBeNull();
+      expect(within(message).getByText(body)).not.toBeNull();
+      expect(state?.querySelector('[data-empty-state-icon="true"][aria-hidden="true"]'))
         .not.toBeNull();
+      expect(message.querySelector('[data-empty-state-icon="true"]')).toBeNull();
 
       if (kind === "empty") {
-        expect(within(state).getByRole("button", { name: "Add property" })).not.toBeNull();
+        const action = screen.getByRole("button", { name: "Add property" });
+        expect(state?.contains(action)).toBe(true);
+        expect(message.contains(action)).toBe(false);
       }
 
       if (kind === "error") {
-        expect(within(state).getByRole("button", { name: "Retry" })).not.toBeNull();
+        const retry = screen.getByRole("button", { name: "Retry" });
+        expect(state?.contains(retry)).toBe(true);
+        expect(message.contains(retry)).toBe(false);
       }
     },
   );

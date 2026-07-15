@@ -59,6 +59,8 @@ const statusPresentation: Record<DraftStatus, StatusPresentation> = {
   },
 };
 
+const discardActionableStatuses = new Set<DraftStatus>(["dirty", "error"]);
+
 function joinIds(...ids: Array<string | undefined>) {
   const joinedIds = ids
     .flatMap((id) => id?.trim().split(/\s+/) ?? [])
@@ -78,17 +80,25 @@ export function DraftActionBar({
   status,
   statusMessage,
 }: DraftActionBarProps) {
-  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [confirmingStatus, setConfirmingStatus] = useState<DraftStatus | null>(null);
   const [restoreDiscardFocus, setRestoreDiscardFocus] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
   const reasonId = useId();
   const presentation = statusPresentation[status];
   const StatusIcon = presentation.icon;
   const isPending = status === "saving";
-  const isDraftActionable = status === "dirty" || status === "error";
-  const actionsDisabled = !isDraftActionable || isPending;
+  const isDiscardActionable = discardActionableStatuses.has(status);
+  const confirmingDiscard =
+    confirmingStatus === status && isDiscardActionable;
+  const actionsDisabled = !isDiscardActionable || isPending;
   const saveDisabled = actionsDisabled || Boolean(disabledReason);
   const saveDescribedBy = joinIds(describedBy, disabledReason ? reasonId : undefined);
+
+  if (confirmingStatus !== null && confirmingStatus !== status) {
+    setConfirmingStatus(null);
+    setRestoreDiscardFocus(false);
+  }
 
   useEffect(() => {
     const control = confirmingDiscard
@@ -105,19 +115,25 @@ export function DraftActionBar({
   }, [confirmingDiscard, restoreDiscardFocus]);
 
   function handleConfirmDiscard() {
-    setConfirmingDiscard(false);
+    setConfirmingStatus(null);
     setRestoreDiscardFocus(false);
-    onDiscard();
+
+    if (isDiscardActionable) {
+      onDiscard();
+      requestAnimationFrame(() => {
+        statusRef.current?.focus();
+      });
+    }
   }
 
   function handleCancelDiscard() {
-    setConfirmingDiscard(false);
+    setConfirmingStatus(null);
     setRestoreDiscardFocus(true);
   }
 
   function handleRequestDiscard() {
     setRestoreDiscardFocus(false);
-    setConfirmingDiscard(true);
+    setConfirmingStatus(status);
   }
 
   return (
@@ -130,29 +146,36 @@ export function DraftActionBar({
     >
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p
+          <div
             aria-atomic="true"
             aria-live={status === "error" ? "assertive" : "polite"}
             className={cn(
-              "flex min-h-5 items-center gap-1.5 font-medium",
+              "min-h-5 font-medium",
               presentation.className,
             )}
+            ref={statusRef}
             role={status === "error" ? "alert" : "status"}
+            tabIndex={-1}
           >
-            <StatusIcon
-              aria-hidden="true"
-              className={cn(
-                "size-4 shrink-0",
-                status === "saving" && "motion-safe:animate-spin",
-              )}
-            />
-            <span>{statusMessage ?? presentation.message}</span>
-          </p>
-          {disabledReason ? (
-            <p className="mt-1 text-sm leading-5 text-foreground-muted" id={reasonId}>
-              {disabledReason}
-            </p>
-          ) : null}
+            <span className="flex items-center gap-1.5">
+              <StatusIcon
+                aria-hidden="true"
+                className={cn(
+                  "size-4 shrink-0",
+                  status === "saving" && "motion-safe:animate-spin",
+                )}
+              />
+              <span>{statusMessage ?? presentation.message}</span>
+            </span>
+            {disabledReason ? (
+              <span
+                className="mt-1 block text-sm font-normal leading-5 text-foreground-muted"
+                id={reasonId}
+              >
+                {disabledReason}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         {confirmingDiscard ? (

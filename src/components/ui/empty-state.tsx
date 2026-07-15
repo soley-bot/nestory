@@ -57,14 +57,11 @@ export function EmptyState({
 
   return (
     <section
-      aria-atomic="true"
-      aria-live={isError ? "assertive" : "polite"}
       className={cn(
         "flex min-h-40 flex-col items-start justify-center px-5 py-6 text-sm",
         className,
       )}
       data-kind={kind}
-      role={isError ? "alert" : "status"}
     >
       <div
         aria-hidden="true"
@@ -76,8 +73,14 @@ export function EmptyState({
       >
         <StateIcon className="size-4" />
       </div>
-      <h3 className="font-semibold text-foreground">{title}</h3>
-      <div className="mt-1 max-w-xl leading-5 text-foreground-muted">{body}</div>
+      <div
+        aria-atomic="true"
+        aria-live={isError ? "assertive" : "polite"}
+        role={isError ? "alert" : "status"}
+      >
+        <h3 className="font-semibold text-foreground">{title}</h3>
+        <div className="mt-1 max-w-xl leading-5 text-foreground-muted">{body}</div>
+      </div>
       {action || retry ? (
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {action}
