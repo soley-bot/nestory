@@ -5,41 +5,19 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import {
-  Activity,
-  BookOpen,
   Building2,
-  CheckSquare,
-  ClipboardList,
-  Coins,
-  CreditCard,
-  Database,
-  ChevronDown,
-  ChevronRight,
-  DoorOpen,
-  FileText,
   FileChartColumn,
-  Gauge,
   History,
-  House,
-  IdCard,
-  KeyRound,
   Landmark,
   LayoutDashboard,
   LogOut,
-  MoreHorizontal,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
-  ReceiptText,
-  Repeat,
-  ScrollText,
   Settings,
   Sun,
-  Truck,
-  Upload,
   UserRound,
   UsersRound,
-  Wallet,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -50,156 +28,104 @@ import { signOutAction } from "@/features/auth/actions";
 import type { WorkspaceRole } from "@/lib/auth/context";
 import { getWorkspaceEntryPath } from "@/lib/auth/workspace-entry";
 
-type NavItem = {
+type GlobalDestination = {
+  id: "overview" | "properties" | "people" | "finance" | "maintenance" | "records" | "reports" | "settings";
   href: string;
-  label: string;
   icon: LucideIcon;
-  activeHrefs?: string[];
-  section?: string;
+  label: string;
+  routes: readonly string[];
 };
 
-type NavGroup = {
-  id: string;
-  label: string;
-  roomLabel: string;
-  icon: LucideIcon;
-  href?: string;
-  items: NavItem[];
-};
-
-const navGroups: NavGroup[] = [
+const ADMIN_GLOBAL_DESTINATIONS = [
   {
-    id: "dashboard",
-    label: "Overview",
-    roomLabel: "Dashboard",
-    icon: LayoutDashboard,
+    id: "overview",
     href: "/overview",
-    items: [],
+    icon: LayoutDashboard,
+    label: "Overview",
+    routes: ["/overview"],
   },
   {
-    id: "property",
-    label: "Property",
-    roomLabel: "Property",
+    id: "properties",
+    href: "/properties",
     icon: Building2,
-    items: [
-      { href: "/properties", label: "Properties", icon: House },
-      { href: "/units", label: "Units", icon: DoorOpen },
-    ],
+    label: "Properties",
+    routes: ["/properties", "/units", "/property-dashboard"],
   },
   {
     id: "people",
-    label: "People",
-    roomLabel: "People",
+    href: "/people",
     icon: UsersRound,
-    items: [
-      { href: "/people", label: "Dashboard", icon: Gauge },
-      { href: "/tenants", label: "Tenants", icon: UserRound },
-      { href: "/owners", label: "Owners", icon: KeyRound },
-      { href: "/staff", label: "Staff", icon: IdCard, activeHrefs: ["/team"] },
-      { href: "/vendors", label: "Vendors", icon: Truck },
-    ],
-  },
-  {
-    id: "operations",
-    label: "Maintenance",
-    roomLabel: "Maintenance",
-    icon: Wrench,
-    items: [
-      {
-        href: "/maintenance",
-        label: "Cases",
-        icon: ClipboardList,
-        activeHrefs: ["/work-orders", "/tasks", "/inspections"],
-      },
-      { href: "/recurring-tasks", label: "Recurring Work", icon: Repeat },
+    label: "People",
+    routes: [
+      "/people",
+      "/people-reports",
+      "/tenants",
+      "/owners",
+      "/vendors",
+      "/staff",
+      "/team",
     ],
   },
   {
     id: "finance",
-    label: "Finance",
-    roomLabel: "Finance",
+    href: "/rent-income",
     icon: Landmark,
-    items: [
-      {
-        href: "/rent-income",
-        label: "Rent & Income",
-        icon: CreditCard,
-        activeHrefs: ["/payments"],
-      },
-      {
-        href: "/bills-expenses",
-        label: "Bills & Expenses",
-        icon: ReceiptText,
-        activeHrefs: ["/invoices"],
-      },
-      { href: "/leases", label: "Leases", icon: ScrollText },
-      { href: "/ledger", label: "Ledger", icon: BookOpen },
-      { href: "/petty-cash", label: "Petty Cash", icon: Coins },
+    label: "Finance",
+    routes: [
+      "/rent-income",
+      "/bills-expenses",
+      "/leases",
+      "/ledger",
+      "/petty-cash",
+      "/payments",
+      "/invoices",
+      "/finance-dashboard",
     ],
   },
   {
-    id: "timeline",
-    label: "Timeline",
-    roomLabel: "Timeline",
+    id: "maintenance",
+    href: "/maintenance",
+    icon: Wrench,
+    label: "Maintenance",
+    routes: [
+      "/maintenance",
+      "/tasks",
+      "/work-orders",
+      "/inspections",
+      "/recurring-tasks",
+      "/schedule",
+      "/maintenance-dashboard",
+    ],
+  },
+  {
+    id: "records",
+    href: "/timeline",
     icon: History,
-    items: [
-      { href: "/timeline", label: "Global Timeline", icon: Activity },
-      {
-        href: "/property-timeline",
-        label: "Property Timeline",
-        icon: Building2,
-      },
-      {
-        href: "/maintenance-timeline",
-        label: "Maintenance Timeline",
-        icon: Wrench,
-      },
-      {
-        href: "/financial-timeline",
-        label: "Financial Timeline",
-        icon: Wallet,
-      },
+    label: "Records",
+    routes: [
+      "/timeline",
+      "/property-timeline",
+      "/maintenance-timeline",
+      "/financial-timeline",
+      "/documents",
+      "/import",
     ],
   },
   {
     id: "reports",
-    label: "Reports",
-    roomLabel: "Reports",
-    icon: FileChartColumn,
     href: "/reports",
-    items: [],
+    icon: FileChartColumn,
+    label: "Reports",
+    routes: ["/reports"],
   },
-];
-
-const dataGroup: NavGroup = {
-  id: "data",
-  label: "Data",
-  roomLabel: "Data",
-  icon: Database,
-  items: [
-    { href: "/documents", label: "Documents", icon: FileText },
-    { href: "/import", label: "Import data", icon: Upload },
-  ],
-};
-
-const settingsGroup: NavGroup = {
-  id: "settings",
-  label: "Settings",
-  roomLabel: "Settings",
-  icon: Settings,
-  items: [
-    { href: "/settings", label: "Organization", icon: Building2, section: "Organization" },
-    { href: "/users-roles", label: "Users & Roles", icon: UsersRound, section: "Access" },
-  ],
-};
-
-const mobilePrimaryItems = [
-  { href: "/overview", label: "Overview", icon: LayoutDashboard },
-  { href: "/properties", label: "Properties", icon: House },
-  { href: "/units", label: "Units", icon: DoorOpen },
-  { href: "/maintenance", label: "Cases", icon: ClipboardList },
-  { href: "/ledger", label: "Ledger", icon: Landmark },
-] satisfies NavItem[];
+  {
+    id: "settings",
+    href: "/settings",
+    icon: Settings,
+    label: "Settings",
+    routes: ["/settings", "/users-roles", "/account"],
+  },
+] satisfies readonly GlobalDestination[];
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -208,71 +134,41 @@ type AppShellProps = {
   userEmail?: string;
 };
 
-function getDesktopNavGroups(role: WorkspaceRole) {
+function getGlobalDestinations(role: WorkspaceRole): readonly GlobalDestination[] {
   if (role === "admin") {
-    return [...navGroups, dataGroup, settingsGroup];
-  }
-
-  if (role === "manager") {
-    return [
-      {
-        ...navGroups.find((group) => group.id === "operations")!,
-        items: [
-          {
-            href: "/maintenance",
-            label: "Cases",
-            icon: ClipboardList,
-            activeHrefs: ["/tasks"],
-          },
-          { href: "/tasks", label: "Tasks", icon: CheckSquare },
-        ],
-      },
-    ];
+    return ADMIN_GLOBAL_DESTINATIONS;
   }
 
   return [
     {
-      ...navGroups.find((group) => group.id === "operations")!,
-      items: [{ href: "/tasks", label: "Tasks", icon: CheckSquare }],
+      id: "maintenance",
+      href: role === "manager" ? "/maintenance" : "/tasks",
+      icon: Wrench,
+      label: "Maintenance",
+      routes:
+        role === "manager"
+          ? ["/maintenance", "/tasks", "/work-orders", "/inspections", "/recurring-tasks"]
+          : ["/tasks"],
     },
   ];
 }
 
-function getMobilePrimaryNavItems(role: WorkspaceRole) {
-  if (role === "admin") {
-    return mobilePrimaryItems;
-  }
-
-  if (role === "manager") {
-    return [
-      { href: "/maintenance", label: "Cases", icon: ClipboardList },
-      { href: "/tasks", label: "Tasks", icon: CheckSquare },
-    ] satisfies NavItem[];
-  }
-
-  return [{ href: "/tasks", label: "Tasks", icon: CheckSquare }] satisfies NavItem[];
-}
-
-function isNavItemActive(pathname: string, item: NavItem) {
-  return (
-    pathname === item.href ||
-    pathname.startsWith(`${item.href}/`) ||
-    item.activeHrefs?.some(
-      (href) => pathname === href || pathname.startsWith(`${href}/`),
-    ) === true
+function destinationMatchesPath(
+  pathname: string,
+  destination: GlobalDestination,
+) {
+  return destination.routes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
 }
 
-function isNavGroupActive(pathname: string, group: NavGroup) {
-  return (
-    (group.href !== undefined &&
-      (pathname === group.href || pathname.startsWith(`${group.href}/`))) ||
-    group.items.some((item) => isNavItemActive(pathname, item))
-  );
-}
-
-function getPathGroup(pathname: string, groups: NavGroup[]) {
-  return groups.find((group) => isNavGroupActive(pathname, group));
+function getActiveDestinationId(
+  pathname: string,
+  destinations: readonly GlobalDestination[],
+) {
+  return destinations.find((destination) =>
+    destinationMatchesPath(pathname, destination),
+  )?.id;
 }
 
 export function AppShell({
@@ -283,36 +179,10 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const desktopNavGroups = getDesktopNavGroups(role);
-  const mobilePrimaryNavItems = getMobilePrimaryNavItems(role);
-  const mobileMoreItems = [
-    ...desktopNavGroups.flatMap((group) =>
-      group.href
-        ? [{ href: group.href, label: group.label, icon: group.icon }]
-        : group.items,
-    ),
-  ] satisfies NavItem[];
-  const pathGroup = getPathGroup(pathname, desktopNavGroups);
-  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
-  const selectedDesktopGroup = pathGroup ?? desktopNavGroups[0];
-  const [openDesktopGroupIds, setOpenDesktopGroupIds] = useState<string[]>(
-    () => [selectedDesktopGroup.id],
-  );
-  const expandedDesktopGroupIds = new Set([
-    ...openDesktopGroupIds,
-    selectedDesktopGroup.id,
-  ]);
-  const workspaceNavGroups = desktopNavGroups.filter(
-    (group) => group.id !== "settings",
-  );
-  const managementNavGroups = desktopNavGroups.filter(
-    (group) => group.id === "settings",
-  );
-  const isSettingsActive = managementNavGroups.some((group) =>
-    group.items.some((item) => isNavItemActive(pathname, item)),
-  );
-  const isMobileMoreActive = mobileMoreItems.some((item) =>
-    isNavItemActive(pathname, item),
+  const globalDestinations = getGlobalDestinations(role);
+  const activeDestinationId = getActiveDestinationId(
+    pathname,
+    globalDestinations,
   );
 
   function toggleTheme() {
@@ -324,21 +194,7 @@ export function AppShell({
     window.localStorage.setItem("nestory-theme", nextTheme);
   }
 
-  function toggleDesktopGroup(groupId: string) {
-    setOpenDesktopGroupIds((current) =>
-      current.includes(groupId)
-        ? current.filter((id) => id !== groupId)
-        : [...current, groupId],
-    );
-  }
-
-  function expandDesktopSidebar(groupId?: string) {
-    if (groupId) {
-      setOpenDesktopGroupIds((current) =>
-        current.includes(groupId) ? current : [...current, groupId],
-      );
-    }
-
+  function expandDesktopSidebar() {
     setSidebarCollapsed(false);
   }
 
@@ -352,30 +208,23 @@ export function AppShell({
       >
         {sidebarCollapsed ? (
           <CollapsedDesktopSidebar
-            groups={workspaceNavGroups}
+            activeDestinationId={activeDestinationId}
+            destinations={globalDestinations}
             onExpand={expandDesktopSidebar}
             onThemeToggle={toggleTheme}
             organizationName={organizationName}
             role={role}
-            selectedGroupId={selectedDesktopGroup.id}
-            showSettings={managementNavGroups.length > 0}
-            settingsActive={isSettingsActive}
             userEmail={userEmail}
           />
         ) : (
           <ExpandedDesktopSidebar
-            expandedGroupIds={expandedDesktopGroupIds}
-            managementGroups={managementNavGroups}
+            activeDestinationId={activeDestinationId}
+            destinations={globalDestinations}
             onCollapse={() => setSidebarCollapsed(true)}
-            onGroupToggle={toggleDesktopGroup}
             onThemeToggle={toggleTheme}
             organizationName={organizationName}
-            pathname={pathname}
             role={role}
-            selectedGroupId={selectedDesktopGroup.id}
-            settingsActive={isSettingsActive}
             userEmail={userEmail}
-            workspaceGroups={workspaceNavGroups}
           />
         )}
       </aside>
@@ -401,21 +250,6 @@ export function AppShell({
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <ThemeToggle onToggle={toggleTheme} />
-              {desktopNavGroups.some((group) => group.id === "settings") ? (
-                <Link
-                  aria-label="Settings"
-                  className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-                    selectedDesktopGroup.id === "settings"
-                      ? "bg-surface-muted text-foreground"
-                      : null,
-                  )}
-                  href="/settings"
-                  prefetch={false}
-                >
-                  <Settings size={16} />
-                </Link>
-              ) : null}
               <ProfileMenu
                 email={userEmail}
                 organizationName={organizationName}
@@ -425,90 +259,32 @@ export function AppShell({
           </div>
           <div className="relative flex items-center gap-2 px-4 pb-3">
             <nav
-              aria-label="Primary mobile navigation"
-              className="flex min-w-0 flex-1 gap-2 overflow-x-auto"
+              aria-label="Global mobile navigation"
+              className="flex min-w-0 flex-1 gap-1 overflow-x-auto"
             >
-              {mobilePrimaryNavItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = isNavItemActive(pathname, item);
+              {globalDestinations.map((destination) => {
+                const Icon = destination.icon;
+                const isActive = activeDestinationId === destination.id;
 
                 return (
                   <Link
+                    aria-current={isActive ? "page" : undefined}
                     className={cn(
-                      "flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
+                      "flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
                       isActive
                         ? "bg-accent-soft text-foreground"
-                        : "hover:bg-surface-muted hover:text-foreground",
+                        : null,
                     )}
-                    href={item.href}
-                    key={item.href}
-                    onNavigate={() => setMobileMoreOpen(false)}
+                    href={destination.href}
+                    key={destination.id}
                     prefetch={false}
                   >
                     <Icon size={15} />
-                    {item.label}
+                    {destination.label}
                   </Link>
                 );
               })}
             </nav>
-            <Popover.Root onOpenChange={setMobileMoreOpen} open={mobileMoreOpen}>
-              <Popover.Trigger asChild>
-                <button
-                  aria-haspopup="menu"
-                  className={cn(
-                    "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted transition-colors",
-                    isMobileMoreActive || mobileMoreOpen
-                      ? "bg-accent-soft text-foreground"
-                      : "hover:bg-surface-muted hover:text-foreground",
-                  )}
-                  type="button"
-                >
-                  <MoreHorizontal size={15} />
-                  More
-                  <ChevronDown
-                    className={cn(
-                      "transition-transform",
-                      mobileMoreOpen && "rotate-180",
-                    )}
-                    size={13}
-                  />
-                </button>
-              </Popover.Trigger>
-              <Popover.Portal>
-                <Popover.Content
-                  align="end"
-                  className="z-[80] w-56 rounded-md border border-border bg-surface p-2 shadow-lg"
-                  role="menu"
-                  sideOffset={6}
-                >
-                  {mobileMoreItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = isNavItemActive(pathname, item);
-
-                    return (
-                      <Link
-                        className={cn(
-                          "flex min-h-9 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted transition-colors",
-                          isActive
-                            ? "bg-accent-soft text-foreground"
-                            : "hover:bg-surface-muted hover:text-foreground",
-                        )}
-                        href={item.href}
-                        key={item.href}
-                        onNavigate={() => setMobileMoreOpen(false)}
-                        prefetch={false}
-                        role="menuitem"
-                      >
-                        <Icon className="shrink-0" size={15} />
-                        <span className="min-w-0 flex-1 truncate">
-                          {item.label}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </Popover.Content>
-              </Popover.Portal>
-            </Popover.Root>
           </div>
         </div>
         <div
@@ -529,37 +305,27 @@ export function AppShell({
 }
 
 function ExpandedDesktopSidebar({
-  expandedGroupIds,
-  managementGroups,
+  activeDestinationId,
+  destinations,
   onCollapse,
-  onGroupToggle,
   onThemeToggle,
   organizationName,
-  pathname,
   role,
-  selectedGroupId,
-  settingsActive,
   userEmail,
-  workspaceGroups,
 }: {
-  expandedGroupIds: Set<string>;
-  managementGroups: NavGroup[];
+  activeDestinationId?: GlobalDestination["id"];
+  destinations: readonly GlobalDestination[];
   onCollapse: () => void;
-  onGroupToggle: (groupId: string) => void;
   onThemeToggle: () => void;
   organizationName: string;
-  pathname: string;
   role: WorkspaceRole;
-  selectedGroupId: string;
-  settingsActive: boolean;
   userEmail?: string;
-  workspaceGroups: NavGroup[];
 }) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-3">
         <Link
-          className="flex min-w-0 flex-1 items-center gap-3 text-foreground"
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-foreground outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           href={getWorkspaceEntryPath(role)}
           prefetch={false}
         >
@@ -572,7 +338,7 @@ function ExpandedDesktopSidebar({
         </Link>
         <button
           aria-label="Collapse sidebar"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
           onClick={onCollapse}
           title="Collapse sidebar"
           type="button"
@@ -581,26 +347,25 @@ function ExpandedDesktopSidebar({
         </button>
       </header>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Sidebar navigation">
-        <DesktopSidebarSection
-          expandedGroupIds={expandedGroupIds}
-          groups={workspaceGroups}
-          onGroupToggle={onGroupToggle}
-          pathname={pathname}
-          selectedGroupId={selectedGroupId}
-          title="Workspace"
-        />
+      <nav
+        aria-label="Global navigation"
+        className="flex-1 overflow-y-auto px-3 py-3"
+      >
+        <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground-subtle">
+          Workspace
+        </p>
+        <div className="space-y-1">
+          {destinations.map((destination) => (
+            <GlobalDestinationLink
+              destination={destination}
+              isActive={activeDestinationId === destination.id}
+              key={destination.id}
+            />
+          ))}
+        </div>
       </nav>
 
-      <div className="flex h-12 shrink-0 items-center gap-1 border-t border-border px-3">
-        {managementGroups.length > 0 ? (
-          <SidebarAccountLink
-            href="/settings"
-            icon={Settings}
-            isActive={settingsActive}
-            label="Settings"
-          />
-        ) : null}
+      <div className="flex h-12 shrink-0 items-center justify-end border-t border-border px-3">
         <ThemeToggle onToggle={onThemeToggle} />
       </div>
 
@@ -619,24 +384,20 @@ function ExpandedDesktopSidebar({
 }
 
 function CollapsedDesktopSidebar({
-  groups,
+  activeDestinationId,
+  destinations,
   onExpand,
   onThemeToggle,
   organizationName,
   role,
-  selectedGroupId,
-  settingsActive,
-  showSettings,
   userEmail,
 }: {
-  groups: NavGroup[];
-  onExpand: (groupId?: string) => void;
+  activeDestinationId?: GlobalDestination["id"];
+  destinations: readonly GlobalDestination[];
+  onExpand: () => void;
   onThemeToggle: () => void;
   organizationName: string;
   role: WorkspaceRole;
-  selectedGroupId: string;
-  settingsActive: boolean;
-  showSettings: boolean;
   userEmail?: string;
 }) {
   return (
@@ -644,7 +405,7 @@ function CollapsedDesktopSidebar({
       <div className="flex h-24 shrink-0 flex-col items-center justify-center gap-2 border-b border-border">
         <Link
           aria-label="Nestory dashboard"
-          className="grid h-8 w-8 place-items-center overflow-hidden"
+          className="grid h-8 w-8 place-items-center overflow-hidden rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           href={getWorkspaceEntryPath(role)}
           prefetch={false}
           title="Nestory"
@@ -653,8 +414,8 @@ function CollapsedDesktopSidebar({
         </Link>
         <button
           aria-label="Expand sidebar"
-          className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-          onClick={() => onExpand()}
+          className="grid h-8 w-8 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+          onClick={onExpand}
           title="Expand sidebar"
           type="button"
         >
@@ -663,65 +424,34 @@ function CollapsedDesktopSidebar({
       </div>
 
       <nav
-        aria-label="Collapsed sidebar navigation"
+        aria-label="Collapsed global navigation"
         className="flex flex-1 flex-col items-center gap-1 px-2 py-3"
       >
-        {groups.map((group) => {
-          const Icon = group.icon;
-          const isActive = selectedGroupId === group.id;
-
-          if (group.href) {
-            return (
-              <Link
-                aria-label={group.label}
-                className={cn(
-                  "grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-                  isActive && "bg-surface-muted text-foreground",
-                )}
-                href={group.href}
-                key={group.id}
-                prefetch={false}
-                title={group.label}
-              >
-                <Icon size={14} />
-              </Link>
-            );
-          }
+        {destinations.map((destination) => {
+          const Icon = destination.icon;
+          const isActive = activeDestinationId === destination.id;
 
           return (
-            <button
-              aria-label={`Open ${group.label} navigation`}
+            <Link
+              aria-current={isActive ? "page" : undefined}
+              aria-label={destination.label}
               className={cn(
-                "grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-                isActive && "bg-surface-muted text-foreground",
+                "grid h-8 w-8 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
+                isActive && "bg-accent-soft text-foreground",
               )}
-              key={group.id}
-              onClick={() => onExpand(group.id)}
-              title={group.label}
-              type="button"
+              href={destination.href}
+              key={destination.id}
+              prefetch={false}
+              title={destination.label}
             >
               <Icon size={14} />
-            </button>
+            </Link>
           );
         })}
       </nav>
 
       <div className="flex w-full shrink-0 flex-col items-center gap-1 border-t border-border py-2">
         <ThemeToggle onToggle={onThemeToggle} />
-        {showSettings ? (
-          <Link
-            aria-label="Settings"
-            className={cn(
-              "grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-              settingsActive && "bg-surface-muted text-foreground",
-            )}
-            href="/settings"
-            prefetch={false}
-            title="Settings"
-          >
-            <Settings size={15} />
-          </Link>
-        ) : null}
         <ProfileMenu
           email={userEmail}
           menuAlign="end"
@@ -735,162 +465,27 @@ function CollapsedDesktopSidebar({
   );
 }
 
-function DesktopSidebarSection({
-  expandedGroupIds,
-  groups,
-  onGroupToggle,
-  pathname,
-  selectedGroupId,
-  title,
-}: {
-  expandedGroupIds: Set<string>;
-  groups: NavGroup[];
-  onGroupToggle: (groupId: string) => void;
-  pathname: string;
-  selectedGroupId: string;
-  title: string;
-}) {
-  if (groups.length === 0) {
-    return null;
-  }
-
-  return (
-    <section className="mb-4">
-      <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground-subtle">
-        {title}
-      </p>
-      <div className="space-y-1">
-        {groups.map((group) => (
-          <DesktopSidebarGroup
-            group={group}
-            isExpanded={expandedGroupIds.has(group.id)}
-            isSelected={selectedGroupId === group.id}
-            key={group.id}
-            onToggle={() => onGroupToggle(group.id)}
-            pathname={pathname}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function DesktopSidebarGroup({
-  group,
-  isExpanded,
-  isSelected,
-  onToggle,
-  pathname,
-}: {
-  group: NavGroup;
-  isExpanded: boolean;
-  isSelected: boolean;
-  onToggle: () => void;
-  pathname: string;
-}) {
-  const Icon = group.icon;
-  const ToggleIcon = isExpanded ? ChevronDown : ChevronRight;
-
-  if (group.href) {
-    return (
-      <Link
-        className={cn(
-          "flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] font-medium text-foreground-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-          isSelected && "bg-surface-muted font-semibold text-foreground",
-        )}
-        href={group.href}
-        prefetch={false}
-      >
-        <Icon
-          className={cn(
-            "ml-[21px] shrink-0",
-            isSelected && "text-foreground",
-          )}
-          size={13}
-        />
-        <span className="min-w-0 flex-1 truncate">{group.label}</span>
-      </Link>
-    );
-  }
-
-  return (
-    <div>
-      <button
-        aria-expanded={isExpanded}
-        className={cn(
-          "flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] font-medium text-foreground-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-          isSelected && "font-semibold text-foreground",
-        )}
-        onClick={onToggle}
-        type="button"
-      >
-        <ToggleIcon className="shrink-0 text-foreground-subtle" size={13} />
-        <Icon
-          className={cn(
-            "shrink-0",
-            isSelected && "text-foreground",
-          )}
-          size={13}
-        />
-        <span className="min-w-0 flex-1 truncate">{group.label}</span>
-      </button>
-      {isExpanded ? (
-        <div className="mt-0.5 space-y-0.5 pl-6">
-          {group.items.map((item, index) => {
-            const ItemIcon = item.icon;
-            const isActive = isNavItemActive(pathname, item);
-            const showSection =
-              item.section && item.section !== group.items[index - 1]?.section;
-
-            return (
-              <div key={item.href}>
-                {showSection ? (
-                  <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground-subtle">
-                    {item.section}
-                  </p>
-                ) : null}
-                <Link
-                  className={cn(
-                    "flex h-8 items-center gap-2 rounded-md px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-                    isActive && "bg-surface-muted font-semibold text-foreground",
-                  )}
-                  href={item.href}
-                  prefetch={false}
-                >
-                  <ItemIcon className="shrink-0" size={13} />
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                </Link>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function SidebarAccountLink({
-  href,
-  icon: Icon,
+function GlobalDestinationLink({
+  destination,
   isActive,
-  label,
 }: {
-  href: string;
-  icon: LucideIcon;
+  destination: GlobalDestination;
   isActive: boolean;
-  label: string;
 }) {
+  const Icon = destination.icon;
+
   return (
     <Link
+      aria-current={isActive ? "page" : undefined}
       className={cn(
-        "flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-        isActive && "bg-surface-muted font-semibold text-foreground",
+        "flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
+        isActive && "bg-accent-soft font-semibold text-foreground",
       )}
-      href={href}
+      href={destination.href}
       prefetch={false}
     >
       <Icon className="shrink-0" size={14} />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate">{destination.label}</span>
     </Link>
   );
 }
@@ -924,7 +519,7 @@ function ProfileMenu({
           aria-haspopup="menu"
           aria-label="Open profile menu"
           className={cn(
-            "transition-colors",
+            "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
             variant === "sidebar"
               ? "flex h-10 w-full min-w-0 items-center gap-3 rounded-md text-left hover:bg-surface-muted"
               : "flex h-8 min-w-8 items-center justify-center rounded-full border border-border bg-surface-muted px-2 text-[12px] font-semibold text-foreground hover:bg-surface",
@@ -969,7 +564,7 @@ function ProfileMenu({
             </p>
           </div>
           <Link
-            className="mt-1 flex min-h-9 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="mt-1 flex min-h-9 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href="/account"
             onNavigate={() => setOpen(false)}
             role="menuitem"
@@ -979,7 +574,7 @@ function ProfileMenu({
           </Link>
           <form action={signOutAction}>
             <button
-              className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium text-danger transition-colors hover:bg-surface-muted"
+              className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium text-danger outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
               role="menuitem"
               type="submit"
             >
@@ -997,7 +592,7 @@ function ThemeToggle({ onToggle }: { onToggle: () => void }) {
   return (
     <button
       aria-label="Toggle color theme"
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
       onClick={onToggle}
       title="Toggle color theme"
       type="button"

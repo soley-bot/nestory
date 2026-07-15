@@ -1,18 +1,16 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { redirect, requireWorkspaceContext } = vi.hoisted(() => ({
-  redirect: vi.fn(),
+const { requireWorkspaceContext } = vi.hoisted(() => ({
   requireWorkspaceContext: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/auth/context", () => ({ requireWorkspaceContext }));
 
 import WorkspacePage from "@/app/workspace/page";
 
 describe("WorkspacePage", () => {
   beforeEach(() => {
-    redirect.mockReset();
     requireWorkspaceContext.mockReset();
   });
 
@@ -20,11 +18,32 @@ describe("WorkspacePage", () => {
     ["admin", "/overview"],
     ["manager", "/maintenance"],
     ["member", "/tasks"],
-  ] as const)("redirects %s users to %s", async (role, expectedPath) => {
-    requireWorkspaceContext.mockResolvedValue({ role });
+  ] as const)("links %s users to %s", async (role, expectedPath) => {
+    requireWorkspaceContext.mockResolvedValue({
+      organizationName: "Riverside Operations",
+      role,
+    });
 
-    await WorkspacePage();
+    const html = renderToStaticMarkup(await WorkspacePage());
 
-    expect(redirect).toHaveBeenCalledWith(expectedPath);
+    expect(html).toContain(`href="${expectedPath}"`);
+    expect(html).toContain("Open workspace");
+  });
+
+  it("renders concise organization and role context without a second dashboard shell", async () => {
+    requireWorkspaceContext.mockResolvedValue({
+      organizationName: "Riverside Operations",
+      role: "manager",
+    });
+
+    const html = renderToStaticMarkup(await WorkspacePage());
+
+    expect(requireWorkspaceContext).toHaveBeenCalledOnce();
+    expect(html).toContain("Riverside Operations");
+    expect(html).toContain("Manager workspace");
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).not.toContain("<aside");
+    expect(html).not.toContain("<nav");
+    expect(html).not.toContain("Dashboard");
   });
 });

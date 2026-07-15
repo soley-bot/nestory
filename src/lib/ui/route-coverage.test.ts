@@ -117,11 +117,11 @@ describe("UI route coverage contract", () => {
     }
   });
 
-  it("models the current workspace entry as a linked-persona redirect", () => {
+  it("models the workspace entry as a linked-persona recovery surface", () => {
     expect(getUiRouteContract("/workspace")).toMatchObject({
       roles: ["admin", "staff", "maintenance"],
-      states: [],
-      surface: "redirect",
+      states: ["populated", "permission-blocked"],
+      surface: "workspace",
     });
   });
 

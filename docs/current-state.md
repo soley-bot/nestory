@@ -38,9 +38,10 @@ Public and auth:
 
 - `/` renders the marketing/public entry.
 - `/login`, `/signup`, `/setup`, `/no-access` handle auth and workspace access.
-- `/workspace` resolves the signed-in member's role to `/overview` for admins,
-  `/maintenance` for managers, and `/tasks` for members while preserving setup
-  and no-access handling for users without a workspace membership.
+- `/workspace` is a concise authenticated organization entry surface with one
+  role-aware continuation link to `/overview` for admins, `/maintenance` for
+  managers, or `/tasks` for members. Setup and no-access handling remains at
+  the workspace context boundary for users without a matching membership.
 - `/auth/callback`, `/auth/confirm` handle Supabase auth callbacks.
 
 Core dashboard shell:

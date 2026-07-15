@@ -183,6 +183,10 @@ describe("workspace search scopes", () => {
     expect(getWorkspaceSearchScopes("manager")).toEqual(["tasks"]);
     expect(getWorkspaceSearchScopes("member")).toEqual(["tasks"]);
 
+    expect(getWorkspaceSearchActions("admin").map((action) => action.href)).toEqual(
+      expect.arrayContaining(["/tasks", "/work-orders", "/inspections"]),
+    );
+
     expect(getWorkspaceSearchActions("manager").map((action) => action.href)).toEqual([
       "/maintenance",
       "/tasks",
