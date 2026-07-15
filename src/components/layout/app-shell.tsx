@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NestoryLogo } from "@/components/brand/nestory-logo";
+import { WorkspaceCommandPalette } from "@/components/layout/workspace-command-palette";
 import { signOutAction } from "@/features/auth/actions";
 import type { WorkspaceRole } from "@/lib/auth/context";
 import { getWorkspaceEntryPath } from "@/lib/auth/workspace-entry";
@@ -509,6 +510,12 @@ export function AppShell({
               </Popover.Portal>
             </Popover.Root>
           </div>
+        </div>
+        <div
+          className="flex shrink-0 justify-center border-b border-border bg-surface px-4 py-2 print:hidden"
+          data-slot="workspace-command-entry"
+        >
+          <WorkspaceCommandPalette role={role} />
         </div>
         <div
           className="min-h-0 min-w-0 flex-1 overflow-y-auto print:overflow-visible"

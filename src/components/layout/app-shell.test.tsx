@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/app-shell";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/tasks",
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 vi.mock("@/features/auth/actions", () => ({
@@ -62,6 +63,18 @@ describe("AppShell workspace logo", () => {
 });
 
 describe("AppShell viewport contract", () => {
+  it("renders one global Search or jump trigger across the authenticated shell", () => {
+    render(
+      <AppShell role="admin">
+        <div>Workspace</div>
+      </AppShell>,
+    );
+
+    expect(
+      screen.getAllByRole("button", { name: "Search or jump" }),
+    ).toHaveLength(1);
+  });
+
   it("bounds authenticated content while preserving an internal legacy-page scroller", () => {
     const { container } = render(
       <AppShell>
