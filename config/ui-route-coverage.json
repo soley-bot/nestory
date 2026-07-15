@@ -1,0 +1,370 @@
+[
+  {
+    "route": "/workspace",
+    "source": "src/app/workspace/page.tsx",
+    "phase": 2,
+    "surface": "workspace",
+    "roles": ["unlinked", "admin", "staff", "maintenance"],
+    "states": ["loading", "permission-blocked", "success"]
+  },
+  {
+    "route": "/properties",
+    "source": "src/app/(dashboard)/properties/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/units",
+    "source": "src/app/(dashboard)/units/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/people",
+    "source": "src/app/(dashboard)/people/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "error", "permission-blocked"]
+  },
+  {
+    "route": "/owners",
+    "source": "src/app/(dashboard)/owners/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/staff",
+    "source": "src/app/(dashboard)/staff/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/tenants",
+    "source": "src/app/(dashboard)/tenants/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/vendors",
+    "source": "src/app/(dashboard)/vendors/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/leases",
+    "source": "src/app/(dashboard)/leases/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/rent-income",
+    "source": "src/app/(dashboard)/rent-income/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/bills-expenses",
+    "source": "src/app/(dashboard)/bills-expenses/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/ledger",
+    "source": "src/app/(dashboard)/ledger/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/petty-cash",
+    "source": "src/app/(dashboard)/petty-cash/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/maintenance",
+    "source": "src/app/(dashboard)/maintenance/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin", "staff", "maintenance"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/tasks",
+    "source": "src/app/(dashboard)/tasks/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin", "staff", "maintenance"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/recurring-tasks",
+    "source": "src/app/(dashboard)/recurring-tasks/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin", "staff", "maintenance"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/inspections",
+    "source": "src/app/(dashboard)/inspections/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin", "staff", "maintenance"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/work-orders",
+    "source": "src/app/(dashboard)/work-orders/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin", "staff", "maintenance"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/timeline",
+    "source": "src/app/(dashboard)/timeline/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/financial-timeline",
+    "source": "src/app/(dashboard)/financial-timeline/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/maintenance-timeline",
+    "source": "src/app/(dashboard)/maintenance-timeline/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/property-timeline",
+    "source": "src/app/(dashboard)/property-timeline/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/documents",
+    "source": "src/app/(dashboard)/documents/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/reports",
+    "source": "src/app/(dashboard)/reports/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked"]
+  },
+  {
+    "route": "/reports/[reportKind]",
+    "source": "src/app/(dashboard)/reports/[reportKind]/page.tsx",
+    "phase": 3,
+    "surface": "detail",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked"]
+  },
+  {
+    "route": "/people-reports",
+    "source": "src/app/(dashboard)/people-reports/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked"]
+  },
+  {
+    "route": "/settings",
+    "source": "src/app/(dashboard)/settings/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/users-roles",
+    "source": "src/app/(dashboard)/users-roles/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/account",
+    "source": "src/app/(dashboard)/account/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": ["admin", "staff", "maintenance"],
+    "states": ["loading", "populated", "error", "permission-blocked"]
+  },
+  {
+    "route": "/import",
+    "source": "src/app/(dashboard)/import/page.tsx",
+    "phase": 4,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/overview",
+    "source": "src/app/(dashboard)/overview/page.tsx",
+    "phase": 5,
+    "surface": "workspace",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked"]
+  },
+  {
+    "route": "/properties/[propertyId]",
+    "source": "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+    "phase": 5,
+    "surface": "detail",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/units/[unitId]",
+    "source": "src/app/(dashboard)/units/[unitId]/page.tsx",
+    "phase": 5,
+    "surface": "detail",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/people/[personId]",
+    "source": "src/app/(dashboard)/people/[personId]/page.tsx",
+    "phase": 5,
+    "surface": "detail",
+    "roles": ["admin"],
+    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/",
+    "source": "src/app/page.tsx",
+    "phase": 6,
+    "surface": "public",
+    "roles": ["public"],
+    "states": ["populated"]
+  },
+  {
+    "route": "/login",
+    "source": "src/app/(auth)/login/page.tsx",
+    "phase": 6,
+    "surface": "auth",
+    "roles": ["public"],
+    "states": ["draft", "saving", "error", "success"]
+  },
+  {
+    "route": "/signup",
+    "source": "src/app/(auth)/signup/page.tsx",
+    "phase": 6,
+    "surface": "auth",
+    "roles": ["public"],
+    "states": ["draft", "saving", "error", "success"]
+  },
+  {
+    "route": "/setup",
+    "source": "src/app/setup/page.tsx",
+    "phase": 6,
+    "surface": "auth",
+    "roles": ["unlinked"],
+    "states": ["loading", "error", "permission-blocked", "draft", "saving", "success"]
+  },
+  {
+    "route": "/no-access",
+    "source": "src/app/no-access/page.tsx",
+    "phase": 6,
+    "surface": "auth",
+    "roles": ["unlinked"],
+    "states": ["permission-blocked"]
+  },
+  {
+    "route": "/property-dashboard",
+    "source": "src/app/(dashboard)/property-dashboard/page.tsx",
+    "phase": 6,
+    "surface": "redirect",
+    "roles": ["admin"],
+    "states": []
+  },
+  {
+    "route": "/finance-dashboard",
+    "source": "src/app/(dashboard)/finance-dashboard/page.tsx",
+    "phase": 6,
+    "surface": "redirect",
+    "roles": ["admin"],
+    "states": []
+  },
+  {
+    "route": "/maintenance-dashboard",
+    "source": "src/app/(dashboard)/maintenance-dashboard/page.tsx",
+    "phase": 6,
+    "surface": "redirect",
+    "roles": ["admin"],
+    "states": []
+  },
+  {
+    "route": "/payments",
+    "source": "src/app/(dashboard)/payments/page.tsx",
+    "phase": 6,
+    "surface": "redirect",
+    "roles": ["admin"],
+    "states": []
+  },
+  {
+    "route": "/invoices",
+    "source": "src/app/(dashboard)/invoices/page.tsx",
+    "phase": 6,
+    "surface": "redirect",
+    "roles": ["admin"],
+    "states": []
+  },
+  {
+    "route": "/schedule",
+    "source": "src/app/(dashboard)/schedule/page.tsx",
+    "phase": 6,
+    "surface": "redirect",
+    "roles": ["admin", "staff", "maintenance"],
+    "states": []
+  },
+  {
+    "route": "/team",
+    "source": "src/app/(dashboard)/team/page.tsx",
+    "phase": 6,
+    "surface": "redirect",
+    "roles": ["admin"],
+    "states": []
+  }
+]
