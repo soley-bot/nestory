@@ -6,6 +6,7 @@ import {
   selectCurrentLease,
 } from "@/features/units/data/unit-summary";
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
+import { selectOwnerStatementRecipient } from "@/features/reports/data/owner-statement-report";
 import type {
   OccupancyReport,
   OccupancyReportRow,
@@ -86,9 +87,25 @@ export async function getReportsScreenData(
 
   return {
     propertyOptions,
-    trustedReport: trimTrustedReportForScreen(trustedReport),
+    trustedReport: prepareTrustedReportForScreen(trustedReport, viewQuery),
     viewQuery,
   };
+}
+
+export function prepareTrustedReportForScreen(
+  report: TrustedReport,
+  viewQuery: ReportsViewQuery,
+): TrustedReport {
+  if (
+    report.kind === "owner-statement" &&
+    !report.scopeValidation &&
+    (viewQuery.ownerPersonId !== "all" || viewQuery.ownerPersonIdInvalid)
+  ) {
+    const selection = selectOwnerStatementRecipient(report, viewQuery);
+    return "report" in selection ? selection.report : report;
+  }
+
+  return trimTrustedReportForScreen(report);
 }
 
 function trimTrustedReportForScreen(report: TrustedReport): TrustedReport {
