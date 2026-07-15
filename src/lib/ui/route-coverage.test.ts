@@ -8,6 +8,7 @@ import routeCoverageJson from "../../../config/ui-route-coverage.json";
 import {
   getUiRouteContract,
   getUiRoutesForPhase,
+  uiPersonaWorkspaceRoles,
   uiRouteCoverage,
   type UiRouteContract,
 } from "./route-coverage";
@@ -114,6 +115,24 @@ describe("UI route coverage contract", () => {
     ]) {
       expect(routes.has(route)).toBe(true);
     }
+  });
+
+  it("models the current workspace entry as a linked-persona redirect", () => {
+    expect(getUiRouteContract("/workspace")).toMatchObject({
+      roles: ["admin", "staff", "maintenance"],
+      states: [],
+      surface: "redirect",
+    });
+  });
+
+  it("maps fixture personas to real base workspace roles", () => {
+    expect(uiPersonaWorkspaceRoles).toEqual({
+      admin: ["admin"],
+      maintenance: ["member"],
+      public: [],
+      staff: ["manager", "member"],
+      unlinked: [],
+    });
   });
 
   it("exposes typed route and phase lookup helpers", () => {

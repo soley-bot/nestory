@@ -3,9 +3,9 @@
     "route": "/workspace",
     "source": "src/app/workspace/page.tsx",
     "phase": 2,
-    "surface": "workspace",
-    "roles": ["unlinked", "admin", "staff", "maintenance"],
-    "states": ["loading", "permission-blocked", "success"]
+    "surface": "redirect",
+    "roles": ["admin", "staff", "maintenance"],
+    "states": []
   },
   {
     "route": "/properties",

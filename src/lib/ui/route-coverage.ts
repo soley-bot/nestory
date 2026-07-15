@@ -1,4 +1,5 @@
 import routeCoverageJson from "../../../config/ui-route-coverage.json";
+import type { WorkspaceRole } from "@/lib/auth/context";
 
 export type UiPhase = 2 | 3 | 4 | 5 | 6;
 export type UiRole = "public" | "unlinked" | "admin" | "staff" | "maintenance";
@@ -12,6 +13,16 @@ export interface UiRouteContract {
   roles: UiRole[];
   states: string[];
 }
+
+export const uiPersonaWorkspaceRoles: Readonly<
+  Record<UiRole, readonly WorkspaceRole[]>
+> = {
+  admin: ["admin"],
+  maintenance: ["member"],
+  public: [],
+  staff: ["manager", "member"],
+  unlinked: [],
+};
 
 export const uiRouteCoverage =
   routeCoverageJson as unknown as UiRouteContract[];
