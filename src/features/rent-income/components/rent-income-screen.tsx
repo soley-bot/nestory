@@ -3,14 +3,21 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useActionState, useEffect, useState } from "react";
-import { Coins, Plus, Send, XCircle } from "lucide-react";
+import { Coins, Eye, Plus, Send, XCircle } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import {
+  useWideWorkspace,
+  WorkspaceSplitView,
+} from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
@@ -70,6 +77,8 @@ export function RentIncomeScreen({
 }: RentIncomeScreenProps) {
   const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
   const [selectedItemId, setSelectedItemId] = useState(incomeItems[0]?.id ?? "");
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
+  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedItem =
     incomeItems.find((item) => item.id === selectedItemId) ??
@@ -77,55 +86,121 @@ export function RentIncomeScreen({
     null;
 
   const openDrawer = (nextDrawer: DrawerState) => {
+    if (!isWideWorkspace) {
+      setCompactInspectorOpen(false);
+    }
     setStatusMessage(null);
     setDrawerState(nextDrawer);
   };
 
+  const previewItem = (itemId: string) => {
+    setSelectedItemId(itemId);
+    setCompactInspectorOpen(true);
+  };
+
+  const hasFilters =
+    viewQuery.incomeScope !== "all" ||
+    viewQuery.propertyId !== "all" ||
+    viewQuery.query.trim() !== "" ||
+    viewQuery.status !== "all" ||
+    viewQuery.unitId !== "all";
+  const openCreate = () => openDrawer({ mode: "create" });
+  const incomeList = (
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+      {incomeItems.length === 0 ? (
+        <EmptyState
+          action={
+            hasFilters ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href="/rent-income"
+              >
+                Clear filters
+              </Link>
+            ) : (
+              <Button onClick={openCreate} variant="primary">
+                <Plus size={15} />
+                Add income
+              </Button>
+            )
+          }
+          body={
+            hasFilters
+              ? "The current filters return no income records."
+              : "Add the first expected or received income record."
+          }
+          className="h-full"
+          kind={hasFilters ? "filtered" : "empty"}
+          title={hasFilters ? "No matching income" : "No income yet"}
+        />
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 p-3">
+            <RentIncomeTable
+              incomeItems={incomeItems}
+              onSelectItem={previewItem}
+              selectedItemId={selectedItem?.id ?? ""}
+            />
+          </div>
+          <PaginationControls attached pagination={pagination} />
+        </>
+      )}
+    </section>
+  );
+  const incomeInspector = selectedItem ? (
+    <RentIncomeInspector
+      item={selectedItem}
+      onPost={(item) => openDrawer({ item, mode: "post" })}
+      onRecordPayment={(item) => openDrawer({ item, mode: "payment" })}
+      onVoid={(item) => openDrawer({ item, mode: "void" })}
+    />
+  ) : null;
+
   return (
-    <div className="min-h-screen">
-      <PageHeader
+    <WorkspacePage
+      header={<PageHeader
         actions={
-          <Button onClick={() => openDrawer({ mode: "create" })} variant="primary">
+          <Button onClick={openCreate} variant="primary">
             <Plus size={15} />
             Add income
           </Button>
         }
-        description="Track expected and received money from tenants, owners, deposits, fees, and reimbursements before posting confirmed rows to the ledger."
+        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
         title="Rent & Income"
-      />
+      />}
+      toolbar={
+        <RentIncomeFilters
+          propertyOptions={propertyOptions}
+          unitOptions={unitOptions}
+          viewQuery={viewQuery}
+        />
+      }
+    >
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6">
+        <div className="shrink-0 px-4 py-2 sm:px-6">
           <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm" role="status">
             {statusMessage}
           </p>
         </div>
       ) : null}
 
-      <RentIncomeFilters
-        propertyOptions={propertyOptions}
-        unitOptions={unitOptions}
-        viewQuery={viewQuery}
-      />
       {viewQuery.incomeScope === "all" ? <RentIncomeSummaryStrip summary={summary} /> : <ScopedSummary label="Management fees" totalCount={pagination.totalCount} />}
 
-      <main className="grid min-h-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="min-w-0 space-y-3">
-          <RentIncomeTable
-            incomeItems={incomeItems}
-            onSelectItem={setSelectedItemId}
-            selectedItemId={selectedItem?.id ?? ""}
+      <div className="min-h-0 min-w-0 flex-1">
+        {incomeInspector && selectedItem ? (
+          <WorkspaceSplitView
+            inspector={incomeInspector}
+            inspectorLabel={`${selectedItem.payerLabel} income inspector`}
+            inspectorOpen={isWideWorkspace || compactInspectorOpen}
+            list={incomeList}
+            onInspectorOpenChange={setCompactInspectorOpen}
           />
-          <PaginationControls attached pagination={pagination} />
-        </section>
-
-        <RentIncomeInspector
-          item={selectedItem}
-          onPost={(item) => openDrawer({ item, mode: "post" })}
-          onRecordPayment={(item) => openDrawer({ item, mode: "payment" })}
-          onVoid={(item) => openDrawer({ item, mode: "void" })}
-        />
-      </main>
+        ) : (
+          <WorkspaceSplitView list={incomeList} />
+        )}
+      </div>
 
       {drawerState ? (
         <SideDrawer
@@ -163,7 +238,8 @@ export function RentIncomeScreen({
           )}
         </SideDrawer>
       ) : null}
-    </div>
+      </div>
+    </WorkspacePage>
   );
 }
 
@@ -179,7 +255,7 @@ function RentIncomeFilters({
   return (
     <form
       action="/rent-income"
-      className="grid gap-2 border-b border-border bg-surface-muted/35 px-4 py-3 sm:px-6 lg:grid-cols-[150px_160px_180px_minmax(160px,1fr)_minmax(160px,1fr)_minmax(180px,1.2fr)_auto]"
+      className="grid w-full gap-2 lg:grid-cols-[150px_160px_180px_minmax(160px,1fr)_minmax(160px,1fr)_minmax(180px,1.2fr)_auto]"
     >
       <MonthPickerField
         ariaLabel="Income month"
@@ -229,7 +305,7 @@ function RentIncomeFilters({
 
 function RentIncomeSummaryStrip({ summary }: { summary: RentIncomeSummary }) {
   return (
-    <section aria-label="Global income summary" className="grid gap-3 border-b border-border px-4 py-3 sm:px-6 lg:grid-cols-5">
+    <section aria-label="Global income summary" className="grid grid-flow-col auto-cols-[minmax(156px,1fr)] gap-3 overflow-x-auto border-b border-border px-4 py-3 sm:px-6 lg:grid-flow-row lg:grid-cols-5 lg:auto-cols-auto">
       <SummaryCard label="Expected" value={<MoneyDisplay value={summary.receivableTotal} />} />
       <SummaryCard label="Received" value={<MoneyDisplay value={summary.receivedTotal} />} />
       <SummaryCard label="Open rows" value={summary.openCount} />
@@ -263,17 +339,9 @@ function RentIncomeTable({
   onSelectItem: (itemId: string) => void;
   selectedItemId: string;
 }) {
-  if (incomeItems.length === 0) {
-    return (
-      <div className="rounded-md border border-border bg-surface p-6 text-sm text-muted">
-        No income rows for this filter. Add expected rent, a deposit, or another income item.
-      </div>
-    );
-  }
-
   return (
-    <div className="overflow-x-auto rounded-md border border-border bg-surface">
-      <table className="w-full min-w-[860px] text-left text-sm">
+    <div className="h-full overflow-auto rounded-md border border-border bg-surface">
+      <table className="w-full min-w-[920px] table-fixed border-collapse text-left text-[13px]">
         <thead className="border-b border-border bg-surface-muted text-[11px] uppercase tracking-[0.06em] text-muted">
           <tr>
             <th className="px-3 py-2">Payer</th>
@@ -283,6 +351,7 @@ function RentIncomeTable({
             <th className="px-3 py-2 text-right">Received</th>
             <th className="px-3 py-2">Status</th>
             <th className="px-3 py-2">Next</th>
+            <th className="w-[74px] px-3 py-2 text-right">Preview</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -294,13 +363,27 @@ function RentIncomeTable({
               )}
               key={item.id}
               onClick={() => onSelectItem(item.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelectItem(item.id);
+                }
+              }}
+              aria-selected={selectedItemId === item.id}
+              tabIndex={0}
             >
               <td className="px-3 py-2">
                 <p className="font-medium">{item.payerLabel}</p>
                 <p className="text-xs text-muted">{item.incomeTypeLabel}</p>
               </td>
               <td className="px-3 py-2">
-                <p className="font-medium">{item.propertyCode}</p>
+                <Link
+                  className="font-medium text-accent hover:underline"
+                  href={item.hrefs.property}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {item.propertyName}
+                </Link>
                 <p className="text-xs text-muted">{item.unitNumber}</p>
               </td>
               <td className="px-3 py-2">
@@ -308,16 +391,30 @@ function RentIncomeTable({
                   {formatDate(item.dueDate)}
                 </span>
               </td>
-              <td className="px-3 py-2 text-right">
+              <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
                 <MoneyDisplay align="right" value={item.amountDueDisplay} />
               </td>
-              <td className="px-3 py-2 text-right">
+              <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
                 <MoneyDisplay align="right" value={item.amountReceivedDisplay} />
               </td>
               <td className="px-3 py-2">
                 <StatusBadge item={item} />
               </td>
               <td className="px-3 py-2 text-xs text-muted">{item.nextAction}</td>
+              <td className="px-3 py-2 text-right">
+                <Button
+                  aria-label={`Preview ${item.payerLabel}`}
+                  className="h-8 w-8 px-0"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSelectItem(item.id);
+                  }}
+                  title={`Preview ${item.payerLabel}`}
+                  variant="ghost"
+                >
+                  <Eye size={15} />
+                </Button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -575,6 +672,14 @@ function RecordPaymentPanel({
     <form action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
         <input name="incomeItemId" type="hidden" value={item.id} />
+        <ConsequencePanel
+          rows={[
+            { label: "Receipt", value: item.payerLabel },
+            { label: "Remaining", value: item.balanceDisplay.primary },
+          ]}
+          summary="Records dated cash received against this income item. Posting remains a separate action."
+          title="Receipt consequence"
+        />
         <FormSection title="Received money">
           <Field
             label="Received amount"
@@ -633,10 +738,14 @@ function PostIncomePanel({
     <form action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
         <input name="incomeItemId" type="hidden" value={item.id} />
-        <p className="rounded-md border border-border bg-surface-muted p-3 text-sm">
-          This posts <strong>{item.amountReceivedDisplay.primary}</strong> from{" "}
-          <strong>{item.payerLabel}</strong> to the official ledger.
-        </p>
+        <ConsequencePanel
+          rows={[
+            { label: "Payer", value: item.payerLabel },
+            { label: "Ledger amount", value: item.amountReceivedDisplay.primary },
+          ]}
+          summary="Creates the official income ledger entry for this received amount."
+          title="Posting consequence"
+        />
         {state.message ? <FormMessage state={state} /> : null}
       </div>
       <DrawerActions
@@ -668,9 +777,12 @@ function VoidIncomePanel({
     <form action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
         <input name="incomeItemId" type="hidden" value={item.id} />
-        <p className="rounded-md border border-danger/30 bg-danger/10 p-3 text-sm">
-          Void this unposted income row. Posted income must be handled from the ledger.
-        </p>
+        <ConsequencePanel
+          className="border-danger/30 bg-danger-soft"
+          rows={[{ label: "Income record", value: item.payerLabel }]}
+          summary="Removes this unposted row from the active income workflow. Posted income remains in the ledger."
+          title="Void consequence"
+        />
         {state.message ? <FormMessage state={state} /> : null}
       </div>
       <DrawerActions onCancel={onClose} pending={pending} submitLabel="Void row" />

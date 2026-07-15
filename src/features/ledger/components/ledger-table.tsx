@@ -1,10 +1,12 @@
-import { ArrowDownCircle, ArrowUpCircle, Lock } from "lucide-react";
+import Link from "next/link";
+import { ArrowDownCircle, ArrowUpCircle, Eye, Lock } from "lucide-react";
 import {
   previewRowClassName,
   selectedPreviewRowClassName,
 } from "@/components/data/interactive-table";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
@@ -24,13 +26,14 @@ export function LedgerTable({
   return (
     <div className="overflow-hidden rounded-md border border-border bg-surface">
       <div className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]">
-        <table className="w-full min-w-[880px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
             <col className="w-[10%]" />
             <col className="w-[11%]" />
             <col className="w-[34%]" />
             <col className="w-[27%]" />
             <col className="w-[18%]" />
+            <col className="w-[74px]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
@@ -39,12 +42,13 @@ export function LedgerTable({
               <th className="px-4 py-2.5 font-semibold">Category</th>
               <th className="px-3 py-2.5 font-semibold">Property</th>
               <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Preview</th>
             </tr>
           </thead>
           <tbody>
             {entries.length === 0 ? (
               <tr className="border-t border-border">
-                <td className="px-4 py-8 text-center text-muted" colSpan={5}>
+                <td className="px-4 py-8 text-center text-muted" colSpan={6}>
                   No ledger rows match the current filters.
                 </td>
               </tr>
@@ -65,6 +69,7 @@ export function LedgerTable({
                   }
                 }}
                 tabIndex={0}
+                aria-selected={selectedEntryId === entry.id}
               >
                 <td className="whitespace-nowrap px-3 py-2.5 align-middle text-muted">
                   {formatDate(entry.transactionDate)}
@@ -95,16 +100,20 @@ export function LedgerTable({
                   <p className="truncate font-medium" title={entry.propertyCode}>
                     {entry.propertyCode}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-muted">
+                  <Link
+                    className="mt-0.5 block truncate text-xs text-accent hover:underline"
+                    href={entry.hrefs.property}
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     {entry.propertyName}
-                  </p>
+                  </Link>
                   {entry.unitNumber ? (
                     <p className="mt-0.5 truncate text-xs text-muted">
                       Unit {entry.unitNumber}
                     </p>
                   ) : null}
                 </td>
-                <td className="px-3 py-2.5 align-middle">
+                <td className="px-3 py-2.5 align-middle tabular-nums" data-money-cell="true">
                   <MoneyDisplay
                     align="right"
                     className={
@@ -115,6 +124,20 @@ export function LedgerTable({
                       entry.currency,
                     )}
                   />
+                </td>
+                <td className="px-3 py-2.5 text-right align-middle">
+                  <Button
+                    aria-label={`Preview ${entry.category}`}
+                    className="h-8 w-8 px-0"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectEntry(entry.id);
+                    }}
+                    title={`Preview ${entry.category}`}
+                    variant="ghost"
+                  >
+                    <Eye size={15} />
+                  </Button>
                 </td>
               </tr>
             ))}

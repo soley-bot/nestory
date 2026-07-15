@@ -32,13 +32,7 @@ export function LedgerInspector({
   if (!entry) {
     return (
       <aside className="bg-surface p-4">
-        <h2 className="text-base font-semibold tracking-tight">
-          No ledger entry selected
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-muted">
-          Select a row to inspect transaction details, property context, and linked
-          timeline status.
-        </p>
+        <h2 className="text-base font-semibold tracking-tight">Ledger entry</h2>
       </aside>
     );
   }

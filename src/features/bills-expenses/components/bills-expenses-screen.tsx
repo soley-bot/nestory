@@ -3,14 +3,21 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
-import { CheckCircle2, Plus, XCircle } from "lucide-react";
+import { CheckCircle2, Eye, Plus, XCircle } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import {
+  useWideWorkspace,
+  WorkspaceSplitView,
+} from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
@@ -71,6 +78,8 @@ export function BillsExpensesScreen({
 }: BillsExpensesScreenProps) {
   const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
   const [selectedItemId, setSelectedItemId] = useState(expenseItems[0]?.id ?? "");
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
+  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedItem =
     expenseItems.find((item) => item.id === selectedItemId) ??
@@ -78,55 +87,122 @@ export function BillsExpensesScreen({
     null;
 
   const openDrawer = (nextDrawer: DrawerState) => {
+    if (!isWideWorkspace) {
+      setCompactInspectorOpen(false);
+    }
     setStatusMessage(null);
     setDrawerState(nextDrawer);
   };
 
+  const previewItem = (itemId: string) => {
+    setSelectedItemId(itemId);
+    setCompactInspectorOpen(true);
+  };
+
+  const hasFilters =
+    viewQuery.dateBasis !== "invoice" ||
+    viewQuery.expenseType !== "all" ||
+    viewQuery.propertyId !== "all" ||
+    viewQuery.query.trim() !== "" ||
+    viewQuery.status !== "all" ||
+    viewQuery.unitId !== "all";
+  const openCreate = () => openDrawer({ mode: "create" });
+  const expenseList = (
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+      {expenseItems.length === 0 ? (
+        <EmptyState
+          action={
+            hasFilters ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href="/bills-expenses"
+              >
+                Clear filters
+              </Link>
+            ) : (
+              <Button onClick={openCreate} variant="primary">
+                <Plus size={15} />
+                Add bill
+              </Button>
+            )
+          }
+          body={
+            hasFilters
+              ? "The current filters return no bill or expense records."
+              : "Add the first outgoing bill or expense."
+          }
+          className="h-full"
+          kind={hasFilters ? "filtered" : "empty"}
+          title={hasFilters ? "No matching expenses" : "No bills or expenses yet"}
+        />
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 p-3">
+            <BillsExpensesTable
+              expenseItems={expenseItems}
+              onSelectItem={previewItem}
+              selectedItemId={selectedItem?.id ?? ""}
+            />
+          </div>
+          <PaginationControls attached pagination={pagination} />
+        </>
+      )}
+    </section>
+  );
+  const expenseInspector = selectedItem ? (
+    <BillsExpensesInspector
+      item={selectedItem}
+      onApprove={(item) => openDrawer({ item, mode: "approve" })}
+      onPost={(item) => openDrawer({ item, mode: "post" })}
+      onVoid={(item) => openDrawer({ item, mode: "void" })}
+    />
+  ) : null;
+
   return (
-    <div className="min-h-screen">
-      <PageHeader
+    <WorkspacePage
+      header={<PageHeader
         actions={
-          <Button onClick={() => openDrawer({ mode: "create" })} variant="primary">
+          <Button onClick={openCreate} variant="primary">
             <Plus size={15} />
             Add bill
           </Button>
         }
-        description="Track outgoing money for vendor bills, maintenance, utilities, refunds, owner payouts, and other property expenses from approval through payment."
+        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
         title="Bills & Expenses"
-      />
+      />}
+      toolbar={
+        <BillsExpensesFilters
+          propertyOptions={propertyOptions}
+          unitOptions={unitOptions}
+          viewQuery={viewQuery}
+        />
+      }
+    >
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6">
+        <div className="shrink-0 px-4 py-2 sm:px-6">
           <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm" role="status">
             {statusMessage}
           </p>
         </div>
       ) : null}
 
-      <BillsExpensesFilters
-        propertyOptions={propertyOptions}
-        unitOptions={unitOptions}
-        viewQuery={viewQuery}
-      />
       {viewQuery.expenseType === "all" ? <BillsExpensesSummaryStrip summary={summary} /> : <ScopedSummary label={`${expenseTypeOptions.find((option) => option.value === viewQuery.expenseType)?.label ?? "Filtered"} expenses`} totalCount={pagination.totalCount} />}
 
-      <main className="grid min-h-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="min-w-0 space-y-3">
-          <BillsExpensesTable
-            expenseItems={expenseItems}
-            onSelectItem={setSelectedItemId}
-            selectedItemId={selectedItem?.id ?? ""}
+      <div className="min-h-0 min-w-0 flex-1">
+        {expenseInspector && selectedItem ? (
+          <WorkspaceSplitView
+            inspector={expenseInspector}
+            inspectorLabel={`${selectedItem.vendorLabel} expense inspector`}
+            inspectorOpen={isWideWorkspace || compactInspectorOpen}
+            list={expenseList}
+            onInspectorOpenChange={setCompactInspectorOpen}
           />
-          <PaginationControls attached pagination={pagination} />
-        </section>
-
-        <BillsExpensesInspector
-          item={selectedItem}
-          onApprove={(item) => openDrawer({ item, mode: "approve" })}
-          onPost={(item) => openDrawer({ item, mode: "post" })}
-          onVoid={(item) => openDrawer({ item, mode: "void" })}
-        />
-      </main>
+        ) : (
+          <WorkspaceSplitView list={expenseList} />
+        )}
+      </div>
 
       {drawerState ? (
         <SideDrawer
@@ -172,7 +248,8 @@ export function BillsExpensesScreen({
           )}
         </SideDrawer>
       ) : null}
-    </div>
+      </div>
+    </WorkspacePage>
   );
 }
 
@@ -188,7 +265,7 @@ function BillsExpensesFilters({
   return (
     <form
       action="/bills-expenses"
-      className="grid gap-2 border-b border-border bg-surface-muted/35 px-4 py-3 sm:px-6 lg:grid-cols-[150px_160px_180px_minmax(160px,1fr)_minmax(160px,1fr)_minmax(180px,1.2fr)_auto]"
+      className="grid w-full gap-2 lg:grid-cols-[150px_160px_180px_minmax(160px,1fr)_minmax(160px,1fr)_minmax(180px,1.2fr)_auto]"
     >
       <MonthPickerField
         ariaLabel="Expense month"
@@ -250,7 +327,7 @@ function BillsExpensesSummaryStrip({
   summary: BillsExpensesSummary;
 }) {
   return (
-    <section aria-label="Global expense summary" className="grid gap-3 border-b border-border px-4 py-3 sm:px-6 lg:grid-cols-5">
+    <section aria-label="Global expense summary" className="grid grid-flow-col auto-cols-[minmax(156px,1fr)] gap-3 overflow-x-auto border-b border-border px-4 py-3 sm:px-6 lg:grid-flow-row lg:grid-cols-5 lg:auto-cols-auto">
       <SummaryCard label="Approved" value={summary.approvedCount} />
       <SummaryCard label="Draft" value={summary.draftCount} />
       <SummaryCard label="Overdue" value={summary.overdueCount} />
@@ -284,17 +361,9 @@ function BillsExpensesTable({
   onSelectItem: (itemId: string) => void;
   selectedItemId: string;
 }) {
-  if (expenseItems.length === 0) {
-    return (
-      <div className="rounded-md border border-border bg-surface p-6 text-sm text-muted">
-        No bills or expenses for this filter. Add vendor bills, maintenance expenses, utilities, or other outgoing money.
-      </div>
-    );
-  }
-
   return (
-    <div className="overflow-x-auto rounded-md border border-border bg-surface">
-      <table className="w-full min-w-[860px] text-left text-sm">
+    <div className="h-full overflow-auto rounded-md border border-border bg-surface">
+      <table className="w-full min-w-[930px] table-fixed border-collapse text-left text-[13px]">
         <thead className="border-b border-border bg-surface-muted text-[11px] uppercase tracking-[0.06em] text-muted">
           <tr>
             <th className="px-3 py-2">Vendor / Payee</th>
@@ -304,6 +373,7 @@ function BillsExpensesTable({
             <th className="px-3 py-2">Category</th>
             <th className="px-3 py-2">Status</th>
             <th className="px-3 py-2">Next</th>
+            <th className="w-[74px] px-3 py-2 text-right">Preview</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -315,13 +385,27 @@ function BillsExpensesTable({
               )}
               key={item.id}
               onClick={() => onSelectItem(item.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelectItem(item.id);
+                }
+              }}
+              aria-selected={selectedItemId === item.id}
+              tabIndex={0}
             >
               <td className="px-3 py-2">
                 <p className="font-medium">{item.vendorLabel}</p>
                 <p className="text-xs text-muted">{item.expenseTypeLabel}</p>
               </td>
               <td className="px-3 py-2">
-                <p className="font-medium">{item.propertyCode}</p>
+                <Link
+                  className="font-medium text-accent hover:underline"
+                  href={item.hrefs.property}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {item.propertyName}
+                </Link>
                 <p className="text-xs text-muted">{item.unitNumber}</p>
               </td>
               <td className="px-3 py-2">
@@ -332,7 +416,7 @@ function BillsExpensesTable({
                   </p>
                 ) : null}
               </td>
-              <td className="px-3 py-2 text-right">
+              <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
                 <MoneyDisplay align="right" value={item.amountDisplay} />
               </td>
               <td className="px-3 py-2">{item.category}</td>
@@ -340,6 +424,20 @@ function BillsExpensesTable({
                 <StatusBadge item={item} />
               </td>
               <td className="px-3 py-2 text-xs text-muted">{item.nextAction}</td>
+              <td className="px-3 py-2 text-right">
+                <Button
+                  aria-label={`Preview ${item.vendorLabel}`}
+                  className="h-8 w-8 px-0"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSelectItem(item.id);
+                  }}
+                  title={`Preview ${item.vendorLabel}`}
+                  variant="ghost"
+                >
+                  <Eye size={15} />
+                </Button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -658,11 +756,15 @@ function PostExpensePanel({
         <input name="propertyId" type="hidden" value={item.propertyId} />
         <input name="reference" type="hidden" value={item.reference} />
         <input name="unitId" type="hidden" value={item.unitId ?? ""} />
-        <p className="rounded-md border border-border bg-surface-muted p-3 text-sm">
-          Record the remaining property payment of{" "}
-          <strong>{item.outstandingAmountDisplay.primary}</strong> to{" "}
-          <strong>{item.vendorLabel}</strong>.
-        </p>
+        <ConsequencePanel
+          rows={[
+            { label: "Payee", value: item.vendorLabel },
+            { label: "Cash payment", value: item.outstandingAmountDisplay.primary },
+            { label: "Remaining after payment", value: item.currency === "USD" ? "USD 0.00" : "0.00" },
+          ]}
+          summary={`Records the remaining property payment of ${item.outstandingAmountDisplay.primary} and its settlement allocation.`}
+          title="Payment consequence"
+        />
         <Field label="Payment date" error={state.fieldErrors?.paidDate?.[0]}>
           <DatePickerField
             defaultValue={item.paidDate ?? item.invoiceDate}
@@ -709,9 +811,12 @@ function StatusPanel({
     <form action={formAction} className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
         <input name="expenseItemId" type="hidden" value={item.id} />
-        <p className="rounded-md border border-border bg-surface-muted p-3 text-sm">
-          {message}
-        </p>
+        <ConsequencePanel
+          className={submitLabel === "Void" ? "border-danger/30 bg-danger-soft" : undefined}
+          rows={[{ label: "Bill", value: item.vendorLabel }]}
+          summary={message}
+          title={`${submitLabel} consequence`}
+        />
         {state.message ? <FormMessage state={state} /> : null}
       </div>
       <DrawerActions
@@ -813,10 +918,15 @@ function Detail({ children, label }: { children: ReactNode; label: string }) {
 }
 
 function StatusBadge({ item }: { item: BillsExpenseItem }) {
+  const isPaymentReversal =
+    item.isPaymentEvent === true && item.nextAction === "Payment reversal";
+
   return (
     <Badge
       tone={
-        item.status === "paid" || item.status === "posted"
+        isPaymentReversal
+          ? "danger"
+          : item.status === "paid" || item.status === "posted"
           ? "success"
           : item.isOverdue
             ? "danger"
@@ -825,7 +935,7 @@ function StatusBadge({ item }: { item: BillsExpenseItem }) {
               : "neutral"
       }
     >
-      {item.isOverdue ? "Overdue" : item.statusLabel}
+      {isPaymentReversal ? "Reversed" : item.isOverdue ? "Overdue" : item.statusLabel}
     </Badge>
   );
 }

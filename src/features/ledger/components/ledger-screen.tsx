@@ -10,16 +10,22 @@ import {
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   DOCUMENT_FILE_ACCEPT,
   FileDropzoneField,
 } from "@/components/ui/file-dropzone-field";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
-import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import {
+  useWideWorkspace,
+  WorkspaceSplitView,
+} from "@/components/layout/workspace-split-view";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
 import { RecentChangesPopover } from "@/features/activity/components/recent-changes-popover";
@@ -104,7 +110,8 @@ export function LedgerScreen({
   const [selectedEntryId, setSelectedEntryId] = useState(() =>
     getInitialRecordId(entries, initialEntryId),
   );
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
+  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const focusedEntry = initialEntryId
@@ -125,13 +132,15 @@ export function LedgerScreen({
     viewQuery.propertyId,
   );
   const openLedgerAction = (nextDrawer: DrawerState) => {
-    setPreviewOpen(false);
+    if (!isWideWorkspace) {
+      setCompactInspectorOpen(false);
+    }
     setStatusMessage(null);
     setDrawerState(nextDrawer);
   };
   const previewEntry = (entryId: string) => {
     setSelectedEntryId(entryId);
-    setPreviewOpen(true);
+    setCompactInspectorOpen(true);
   };
 
   useEffect(() => {
@@ -141,7 +150,7 @@ export function LedgerScreen({
 
     queueMicrotask(() => {
       setSelectedEntryId(focusedEntryId);
-      setPreviewOpen(true);
+      setCompactInspectorOpen(true);
     });
   }, [focusedEntryId]);
 
@@ -159,9 +168,75 @@ export function LedgerScreen({
     });
   }, [createInitialValues, pathname, router, searchParams]);
 
+  const hasFilters =
+    viewQuery.archiveState !== "active" ||
+    viewQuery.dateFrom !== "" ||
+    viewQuery.dateTo !== "" ||
+    viewQuery.direction !== "all" ||
+    viewQuery.minAmount !== null ||
+    viewQuery.period !== "all" ||
+    viewQuery.propertyId !== "all" ||
+    viewQuery.query.trim() !== "" ||
+    viewQuery.sort !== "date_desc" ||
+    viewQuery.unitId !== "all";
+  const openCreate = () =>
+    openLedgerAction({ initialValues: createInitialValues, mode: "add" });
+  const ledgerList = (
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+      {entries.length === 0 ? (
+        <EmptyState
+          action={
+            hasFilters ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href="/ledger"
+                scroll={false}
+              >
+                Clear filters
+              </Link>
+            ) : (
+              <Button onClick={openCreate} variant="primary">
+                <Plus size={15} />
+                Add entry
+              </Button>
+            )
+          }
+          body={
+            hasFilters
+              ? "The current filters return no financial ledger records."
+              : "Add the first official income or expense record."
+          }
+          className="h-full"
+          kind={hasFilters ? "filtered" : "empty"}
+          title={hasFilters ? "No matching ledger entries" : "No ledger entries yet"}
+        />
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 p-3">
+            <LedgerTable
+              entries={entries}
+              onSelectEntry={previewEntry}
+              selectedEntryId={selectedEntry?.id ?? ""}
+            />
+          </div>
+          <PaginationControls attached pagination={pagination} />
+        </>
+      )}
+    </section>
+  );
+  const ledgerInspector = selectedEntry ? (
+    <LedgerInspector
+      entry={selectedEntry}
+      onArchiveEntry={(entry) => openLedgerAction({ entry, mode: "archive" })}
+      onAttachReceipt={(entry) => openLedgerAction({ entry, mode: "receipt" })}
+      onEditEntry={(entry) => openLedgerAction({ entry, mode: "edit" })}
+      onRestoreEntry={(entry) => openLedgerAction({ entry, mode: "restore" })}
+    />
+  ) : null;
+
   return (
-    <div className="min-h-screen">
-      <PageHeader
+    <WorkspacePage
+      header={<PageHeader
         actions={
           <>
             <RecentChangesPopover
@@ -178,10 +253,7 @@ export function LedgerScreen({
             </Button>
             <Button
               onClick={() =>
-                openLedgerAction({
-                  initialValues: createInitialValues,
-                  mode: "add",
-                })
+                openCreate()
               }
               variant="primary"
             >
@@ -190,9 +262,18 @@ export function LedgerScreen({
             </Button>
           </>
         }
-        description="Record income and expenses against properties and units while keeping the timeline in sync."
+        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
         title="Financial Ledger"
-      />
+      />}
+      toolbar={
+        <LedgerFilters
+          properties={propertyOptions}
+          units={unitOptions}
+          viewQuery={viewQuery}
+        />
+      }
+    >
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
 
       {statusMessage ? (
         <div className="px-4 pt-5 sm:px-6 lg:px-6">
@@ -205,12 +286,6 @@ export function LedgerScreen({
         </div>
       ) : null}
 
-      <LedgerFilters
-        properties={propertyOptions}
-        units={unitOptions}
-        viewQuery={viewQuery}
-      />
-
       <LedgerCloseStrip closeSummary={closeSummary} entries={entries} />
 
       {reviewContext ? (
@@ -221,30 +296,19 @@ export function LedgerScreen({
         />
       ) : null}
 
-      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="min-w-0 space-y-0">
-          <LedgerTable
-            entries={entries}
-            onSelectEntry={previewEntry}
-            selectedEntryId={selectedEntry?.id ?? ""}
+      <div className="min-h-0 min-w-0 flex-1">
+        {ledgerInspector && selectedEntry ? (
+          <WorkspaceSplitView
+            inspector={ledgerInspector}
+            inspectorLabel={`${selectedEntry.category} ledger inspector`}
+            inspectorOpen={isWideWorkspace || compactInspectorOpen}
+            list={ledgerList}
+            onInspectorOpenChange={setCompactInspectorOpen}
           />
-          <PaginationControls attached pagination={pagination} />
-        </div>
+        ) : (
+          <WorkspaceSplitView list={ledgerList} />
+        )}
       </div>
-
-      <RecordPreviewDrawer
-        onClose={() => setPreviewOpen(false)}
-        open={previewOpen && Boolean(selectedEntry)}
-        title="Ledger preview"
-      >
-        <LedgerInspector
-          entry={selectedEntry}
-          onArchiveEntry={(entry) => openLedgerAction({ entry, mode: "archive" })}
-          onAttachReceipt={(entry) => openLedgerAction({ entry, mode: "receipt" })}
-          onEditEntry={(entry) => openLedgerAction({ entry, mode: "edit" })}
-          onRestoreEntry={(entry) => openLedgerAction({ entry, mode: "restore" })}
-        />
-      </RecordPreviewDrawer>
 
       {drawerState ? (
         <SideDrawer
@@ -298,7 +362,8 @@ export function LedgerScreen({
           )}
         </SideDrawer>
       ) : null}
-    </div>
+      </div>
+    </WorkspacePage>
   );
 }
 
@@ -492,8 +557,8 @@ function LedgerCloseStrip({
   const sourceSummary = summarizeLedgerSources(entries);
 
   return (
-    <section className="border-b border-border bg-surface px-4 py-3 sm:px-6">
-      <div className="grid gap-3 xl:grid-cols-[minmax(260px,1.15fr)_minmax(0,2.4fr)_minmax(260px,1fr)] xl:items-stretch">
+    <section className="overflow-x-auto border-b border-border bg-surface px-4 py-3 sm:px-6">
+      <div className="grid min-w-[980px] grid-cols-[260px_minmax(420px,1fr)_260px] items-stretch gap-3 xl:min-w-0 xl:grid-cols-[minmax(260px,1.15fr)_minmax(0,2.4fr)_minmax(260px,1fr)]">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
             Month close
@@ -509,7 +574,7 @@ function LedgerCloseStrip({
             before relying on owner or finance reports.
           </p>
         </div>
-        <div className="grid overflow-hidden rounded-md border border-border bg-surface-muted/25 sm:grid-cols-4">
+        <div className="grid grid-cols-4 overflow-hidden rounded-md border border-border bg-surface-muted/25">
           <CloseLink
             count={closeSummary.incomeReadyToPost}
             href={closeSummary.incomeReadyHref}
@@ -702,21 +767,15 @@ function ArchivePanel({
     <form action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <div className="flex items-center gap-2 text-danger">
-          <Archive size={16} />
-          <p className="text-sm font-semibold">Archive confirmation</p>
-        </div>
-        <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
-          <p className="text-sm font-medium">{entry.category}</p>
-          <p className="mt-1 text-sm text-muted">
-            {entry.propertyCode}
-            {entry.unitNumber ? ` / Unit ${entry.unitNumber}` : " / Property"}
-          </p>
-        </div>
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
-          This removes the entry from active totals. Any linked timeline event is
-          archived with it, so history stays consistent.
-        </p>
+        <ConsequencePanel
+          className="border-danger/30 bg-danger-soft"
+          rows={[
+            { label: "Entry", value: entry.category },
+            { label: "Scope", value: entry.unitNumber ? `${entry.propertyCode} / Unit ${entry.unitNumber}` : `${entry.propertyCode} / Property` },
+          ]}
+          summary="Removes this entry from active totals and archives its linked timeline event when present."
+          title="Archive consequence"
+        />
         {state.message ? (
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
@@ -772,21 +831,14 @@ function RestorePanel({
     <form action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <div className="flex items-center gap-2 text-accent">
-          <RotateCcw size={16} />
-          <p className="text-sm font-semibold">Restore confirmation</p>
-        </div>
-        <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
-          <p className="text-sm font-medium">{entry.category}</p>
-          <p className="mt-1 text-sm text-muted">
-            {entry.propertyCode}
-            {entry.unitNumber ? ` / Unit ${entry.unitNumber}` : " / Property"}
-          </p>
-        </div>
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
-          Restoring adds this entry back into ledger totals. If a linked timeline
-          event exists, it is restored at the same time.
-        </p>
+        <ConsequencePanel
+          rows={[
+            { label: "Entry", value: entry.category },
+            { label: "Scope", value: entry.unitNumber ? `${entry.propertyCode} / Unit ${entry.unitNumber}` : `${entry.propertyCode} / Property` },
+          ]}
+          summary="Adds this entry back into ledger totals and restores its linked timeline event when present."
+          title="Restore consequence"
+        />
         {state.message ? (
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
@@ -928,6 +980,10 @@ function PeriodLockPanel({
   return (
     <form action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-5 px-4 py-5 sm:px-5">
+        <ConsequencePanel
+          summary="Locking prevents changes to historical financial records in the selected month. Unlocking reopens that month for authorized changes."
+          title="Period lock consequence"
+        />
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
           <label className="block text-sm font-medium">
             Accounting month
