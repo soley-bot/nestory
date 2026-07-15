@@ -8,18 +8,22 @@ import { cn } from "@/lib/utils";
 type SideDrawerProps = {
   children: React.ReactNode;
   description?: string;
+  footer?: React.ReactNode;
   onClose: () => void;
   open: boolean;
   size?: "default" | "preview";
+  summary?: React.ReactNode;
   title: string;
 };
 
 export function SideDrawer({
   children,
   description,
+  footer,
   onClose,
   open,
   size = "default",
+  summary,
   title,
 }: SideDrawerProps) {
   const drawerRef = useRef<HTMLElement>(null);
@@ -162,7 +166,10 @@ export function SideDrawer({
         ref={drawerRef}
         tabIndex={-1}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border bg-surface px-5 py-4">
+        <div
+          className="flex shrink-0 items-start justify-between gap-4 border-b border-border bg-surface px-5 py-4"
+          data-slot="drawer-header"
+        >
           <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight" id={titleId}>
               {title}
@@ -186,7 +193,28 @@ export function SideDrawer({
             <X size={16} />
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto bg-surface text-sm"
+          data-slot="drawer-content"
+        >
+          {children}
+        </div>
+        {summary ? (
+          <div
+            className="shrink-0 border-t border-border bg-surface-raised px-5 py-3 text-sm"
+            data-slot="drawer-summary"
+          >
+            {summary}
+          </div>
+        ) : null}
+        {footer ? (
+          <footer
+            className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-surface px-5 py-3 text-sm"
+            data-slot="drawer-footer"
+          >
+            {footer}
+          </footer>
+        ) : null}
       </aside>
     </div>
   );
