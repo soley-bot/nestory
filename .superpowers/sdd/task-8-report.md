@@ -57,8 +57,8 @@ and announced loading/error/count/empty states.
 
 ## Verification
 
-- Focused tests: 2 files, 31 tests passed.
-- Full tests: 85 files, 526 tests passed.
+- Focused tests: 2 files, 32 tests passed.
+- Full tests: 85 files, 527 tests passed.
 - Touched ESLint: passed.
 - Full `npm run lint`: passed.
 - `npx tsc --noEmit`: passed.
@@ -82,6 +82,7 @@ from structural class tests alone.
 
 - Implementation: `d22d9b2cf8120f44b319f754407f92f3c833c386`
 - Review fixes: `c09e42ce4d57f3678e04aa684a18eb5b349914f6`
+- Re-review fixes: `5a5edfc1062712ceac43660b1f80f60db319ba6e`
 
 ## Independent review fixes
 
@@ -94,6 +95,11 @@ from structural class tests alone.
 - The shell trigger, combobox frame, and close control now expose explicit
   focus treatment through the approved `focus-ring` semantic token without raw
   colors.
+- Short queries with local navigation matches now announce both the navigation
+  result count and that record search starts at two characters.
+- Tab and Shift+Tab remain trapped between the input and close control during
+  IME composition, while Arrow, Enter, Escape, and palette shortcuts remain
+  composition-safe.
 
 ## Known non-task warnings
 
