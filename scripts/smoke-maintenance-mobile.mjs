@@ -13,13 +13,13 @@ if (!email || !password) {
 }
 
 const routeMatrix = [
-  { heading: "Cases", label: "cases-list", path: "/maintenance", primary: "New case" },
-  { heading: "Cases", label: "cases-board", path: "/maintenance?view=board", primary: "New case" },
-  { heading: "Cases", label: "cases-calendar", path: "/maintenance?view=calendar", primary: "New case" },
-  { heading: "Tasks", label: "tasks", path: "/tasks", primary: "New task" },
-  { heading: "Recurring Work", label: "recurring-work", path: "/recurring-tasks", primary: "New recurring task" },
-  { heading: "Inspections", label: "inspections", path: "/inspections", primary: "New inspection" },
-  { heading: "Work Orders", label: "work-orders", path: "/work-orders", primary: "New work order" },
+  { active: "Cases", heading: "Cases", label: "cases-list", path: "/maintenance", primary: "New case", surface: "table" },
+  { active: "Cases", heading: "Cases", label: "cases-board", path: "/maintenance?view=board", primary: "New case", surface: "board" },
+  { active: "Cases", heading: "Cases", label: "cases-calendar", path: "/maintenance?view=calendar", primary: "New case", surface: "calendar" },
+  { active: "My work", heading: "Tasks", label: "tasks", path: "/tasks", primary: "New task", surface: "board" },
+  { active: "Recurring work", heading: "Recurring Work", label: "recurring-work", path: "/recurring-tasks", primary: "New recurring task", surface: "routine" },
+  { active: "Inspections", heading: "Inspections", label: "inspections", path: "/inspections", primary: "New inspection", surface: "checklist" },
+  { active: "Work orders", heading: "Work Orders", label: "work-orders", path: "/work-orders", primary: "New work order", surface: "board" },
 ];
 const matrixViewports = [
   { height: 900, width: 1440 },
@@ -46,6 +46,7 @@ const page = await browser.newPage({
   viewport: matrixViewports[0],
 });
 const consoleProblems = [];
+const blockedMutationRequests = [];
 
 page.on("console", (message) => {
   if (["error", "warning"].includes(message.type())) {
@@ -58,6 +59,7 @@ page.on("pageerror", (error) => {
 
 try {
   await signIn();
+  await installReadOnlyGuard();
 
   const measurements = [];
   const failures = [];
@@ -140,6 +142,7 @@ try {
     });
     measurements.push(measurement);
     failures.push(...getDocumentOverflowFailures(measurement));
+    failures.push(...getTableFailures(measurement));
   }
 
   await openRoute(routeMatrix[0], { height: 844, width: 390 });
@@ -147,12 +150,21 @@ try {
   measurements.push(...interactionResults.measurements);
   failures.push(...interactionResults.failures);
 
+  if (blockedMutationRequests.length > 0) {
+    failures.push(
+      `Read-only guard blocked mutation requests:\n${blockedMutationRequests
+        .map((request) => `${request.method} ${request.url}`)
+        .join("\n")}`,
+    );
+  }
+
   if (consoleProblems.length > 0) {
     failures.push(`Browser console problems:\n${consoleProblems.join("\n")}`);
   }
 
   const summary = {
     artifacts: artifactDirectory,
+    blockedMutationRequests,
     consoleProblems,
     measurements,
     routes: routeMatrix.map((route) => route.path),
@@ -189,6 +201,21 @@ async function signIn() {
   }
 }
 
+async function installReadOnlyGuard() {
+  await page.route("**/*", async (route) => {
+    const request = route.request();
+    const method = request.method().toUpperCase();
+
+    if (method !== "GET" && method !== "HEAD") {
+      blockedMutationRequests.push({ method, url: request.url() });
+      await route.abort("blockedbyclient");
+      return;
+    }
+
+    await route.continue();
+  });
+}
+
 async function openRoute(route, viewport) {
   await page.setViewportSize(viewport);
   await page.goto(`${baseUrl}${route.path}`, { waitUntil: "networkidle" });
@@ -217,12 +244,74 @@ async function getWorkspaceContractFailures(route, viewport, primary) {
   const label = `${route.label}-${viewport.width}`;
   const localNavs = page.getByRole("navigation", { name: "Maintenance workspace" });
   const currentItems = localNavs.locator('[aria-current="page"]');
+  const expectedSurfaces = page.locator(
+    `[data-maintenance-surface="${route.surface}"]`,
+  );
+  const localNavCount = await localNavs.count();
+  const currentItemCount = await currentItems.count();
+  const expectedSurfaceCount = await expectedSurfaces.count();
 
-  if ((await localNavs.count()) !== 1) {
-    failures.push(`${label} has ${(await localNavs.count())} maintenance local navigations.`);
+  if (localNavCount !== 1) {
+    failures.push(`${label} has ${localNavCount} maintenance local navigations.`);
   }
-  if ((await currentItems.count()) !== 1) {
-    failures.push(`${label} has ${(await currentItems.count())} active local destinations.`);
+  if (currentItemCount !== 1) {
+    failures.push(`${label} has ${currentItemCount} active local destinations.`);
+  } else {
+    const currentLabel = (await currentItems.first().textContent())?.trim();
+    if (currentLabel !== route.active) {
+      failures.push(
+        `${label} marks ${JSON.stringify(currentLabel)} active instead of ${JSON.stringify(route.active)}.`,
+      );
+    }
+  }
+  if (expectedSurfaceCount !== 1) {
+    const visibleSurfaces = await page
+      .locator("[data-maintenance-surface]")
+      .evaluateAll((elements) =>
+        elements
+          .filter((element) => {
+            const bounds = element.getBoundingClientRect();
+            return bounds.width > 0 && bounds.height > 0;
+          })
+          .map((element) => element.getAttribute("data-maintenance-surface")),
+      );
+    failures.push(
+      `${label} expected one ${route.surface} surface, found ${expectedSurfaceCount}; visible surfaces: ${JSON.stringify(visibleSurfaces)}.`,
+    );
+  } else if (!(await expectedSurfaces.first().isVisible())) {
+    failures.push(`${label} hides its expected ${route.surface} surface.`);
+  }
+
+  if (localNavCount === 1 && currentItemCount === 1) {
+    const navMetrics = await localNavs.first().evaluate((nav) => {
+      const current = nav.querySelector('[aria-current="page"]');
+      if (!current) throw new Error("Maintenance local navigation has no current item.");
+      const navBounds = nav.getBoundingClientRect();
+      const currentBounds = current.getBoundingClientRect();
+      return {
+        clientWidth: nav.clientWidth,
+        currentLeft: Math.round(currentBounds.left),
+        currentRight: Math.round(currentBounds.right),
+        left: Math.round(navBounds.left),
+        overflowX: window.getComputedStyle(nav).overflowX,
+        right: Math.round(navBounds.right),
+        scrollLeft: Math.round(nav.scrollLeft),
+        scrollWidth: nav.scrollWidth,
+      };
+    });
+
+    if (navMetrics.left < -0.5 || navMetrics.right > viewport.width + 0.5) {
+      failures.push(`${label} local navigation escapes the viewport: ${JSON.stringify(navMetrics)}.`);
+    }
+    if (!["auto", "scroll"].includes(navMetrics.overflowX)) {
+      failures.push(`${label} local navigation does not own horizontal scrolling: ${JSON.stringify(navMetrics)}.`);
+    }
+    if (
+      navMetrics.currentLeft < navMetrics.left - 0.5 ||
+      navMetrics.currentRight > navMetrics.right + 0.5
+    ) {
+      failures.push(`${label} active local destination is not visible: ${JSON.stringify(navMetrics)}.`);
+    }
   }
   if (!(await primary.isVisible())) {
     failures.push(`${label} hides its primary action (${route.primary}).`);
@@ -291,6 +380,7 @@ async function verifyMaintenanceListInteractions() {
   measurements.push(createOpen);
   failures.push(...getDocumentOverflowFailures(createOpen));
   failures.push(...getDrawerFailures(createOpen));
+  failures.push(...getTableFailures(createOpen));
   await createDrawer.getByRole("button", { name: "Close drawer" }).click();
   await createDrawer.waitFor({ state: "hidden" });
 
@@ -408,4 +498,32 @@ function getDrawerFailures(measurement) {
     ];
   }
   return [];
+}
+
+function getTableFailures(measurement) {
+  if (!measurement.table) {
+    return [`${measurement.label} did not expose maintenance table measurements.`];
+  }
+
+  const failures = [];
+  if (
+    measurement.table.left < -0.5 ||
+    measurement.table.right > measurement.documentClientWidth + 0.5
+  ) {
+    failures.push(
+      `${measurement.label} table scroll region escapes the viewport: ${JSON.stringify(measurement.table)}.`,
+    );
+  }
+  if (!["auto", "scroll"].includes(measurement.table.overflowX)) {
+    failures.push(
+      `${measurement.label} table does not own horizontal scrolling: ${JSON.stringify(measurement.table)}.`,
+    );
+  }
+  if (measurement.table.scrollWidth < measurement.table.clientWidth) {
+    failures.push(
+      `${measurement.label} table scroll metrics are invalid: ${JSON.stringify(measurement.table)}.`,
+    );
+  }
+
+  return failures;
 }

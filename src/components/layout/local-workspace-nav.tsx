@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type LocalWorkspaceNavItem = {
@@ -16,6 +18,18 @@ type LocalWorkspaceNavProps = {
 
 export function LocalWorkspaceNav({ items, label }: LocalWorkspaceNavProps) {
   const activeIndex = items.findIndex((item) => item.active);
+  const activeItemRef = useRef<HTMLAnchorElement | null>(null);
+
+  useEffect(() => {
+    const activeItem = activeItemRef.current;
+
+    if (typeof activeItem?.scrollIntoView === "function") {
+      activeItem.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+      });
+    }
+  }, [activeIndex]);
 
   return (
     <nav
@@ -36,6 +50,7 @@ export function LocalWorkspaceNav({ items, label }: LocalWorkspaceNavProps) {
               href={item.href}
               key={`${item.href}-${item.label}`}
               prefetch={false}
+              ref={isActive ? activeItemRef : undefined}
             >
               {item.icon ? <span aria-hidden="true">{item.icon}</span> : null}
               {item.label}

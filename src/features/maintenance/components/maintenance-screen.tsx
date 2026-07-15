@@ -134,6 +134,11 @@ type MaintenanceScopeFact = {
   value: number;
 };
 
+type MaintenanceStatusMessage = {
+  kind: "error" | "success";
+  text: string;
+};
+
 type DrawerState =
   | {
       initialValues?: Partial<MaintenanceCase["formValues"]>;
@@ -222,7 +227,9 @@ export function MaintenanceScreen({
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(
     Boolean(initialTaskId),
   );
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<MaintenanceStatusMessage | null>(
+    null,
+  );
   const [statusOverrides, setStatusOverrides] = useState(
     () => new Map<string, MaintenanceStatus>(),
   );
@@ -231,6 +238,17 @@ export function MaintenanceScreen({
     () => applyMaintenanceStatusOverrides(cases, statusOverrides),
     [cases, statusOverrides],
   );
+  const normalizedViewQuery = useMemo(
+    () =>
+      actor.role === "member" && viewQuery.view === "board"
+        ? { ...viewQuery, view: "list" as const }
+        : viewQuery,
+    [actor.role, viewQuery],
+  );
+  const normalizedSurfaceVariant =
+    actor.role === "member" && surfaceVariant === "board"
+      ? "table"
+      : surfaceVariant;
   const focusedCase = initialTaskId
     ? visibleCases.find((maintenanceCase) => maintenanceCase.id === initialTaskId) ??
       null
@@ -319,11 +337,17 @@ export function MaintenanceScreen({
           next.delete(maintenanceCase.id);
           return next;
         });
-        setStatusMessage(result.message ?? "Could not update maintenance status.");
+        setStatusMessage({
+          kind: "error",
+          text: result.message ?? "Could not update maintenance status.",
+        });
         return;
       }
 
-      setStatusMessage(result.message ?? "Maintenance status updated.");
+      setStatusMessage({
+        kind: "success",
+        text: result.message ?? "Maintenance status updated.",
+      });
       router.refresh();
     });
   }
@@ -338,7 +362,9 @@ export function MaintenanceScreen({
       actor={actor}
       capabilities={capabilities}
       maintenanceCase={selectedCase}
-      onStatusMessage={setStatusMessage}
+      onStatusMessage={(message) =>
+        setStatusMessage({ kind: "success", text: message })
+      }
       onArchive={(maintenanceCase) =>
         openDrawer({ maintenanceCase, mode: "archive" })
       }
@@ -369,7 +395,15 @@ export function MaintenanceScreen({
       {visibleCases.length === 0 ? (
         <EmptyState
           action={
-            hasFilters ? (
+            viewQuery.view === "board" || viewQuery.view === "calendar" ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={buildMaintenanceCasesViewHref(pathname, searchParams, "list")}
+                scroll={false}
+              >
+                View all cases
+              </Link>
+            ) : hasFilters ? (
               <Link
                 className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
                 href={buildClearFiltersHref(pathname, searchParams)}
@@ -377,11 +411,6 @@ export function MaintenanceScreen({
               >
                 Clear filters
               </Link>
-            ) : capabilities.canCreateCase ? (
-              <Button onClick={openCreateCase} variant="primary">
-                <Plus size={15} />
-                {createButtonLabel}
-              </Button>
             ) : undefined
           }
           body={
@@ -397,7 +426,7 @@ export function MaintenanceScreen({
               : `No ${listLabel} yet`
           }
         />
-      ) : surfaceVariant === "table" ? (
+      ) : normalizedSurfaceVariant === "table" ? (
         <>
           <div className="min-h-0 min-w-0 flex-1 p-3">
             <MaintenanceTable
@@ -417,14 +446,14 @@ export function MaintenanceScreen({
             actorRole={actor.role}
             cases={visibleCases}
             emptyLabel={emptyLabel}
-            month={viewQuery.month}
+            month={normalizedViewQuery.month}
             onCreateDate={capabilities.canCreateCase ? createCaseOnDate : undefined}
             onStatusChange={capabilities.canManageCaseState ? moveMaintenanceStatus : undefined}
             onSelect={previewCase}
             pagination={pagination}
             selectedTaskId={selectedCase?.id ?? ""}
             statusChangePending={statusChangePending}
-            variant={surfaceVariant}
+            variant={normalizedSurfaceVariant}
             waitingForReviewLabel={actor.role === "member"}
           />
         </div>
@@ -470,7 +499,7 @@ export function MaintenanceScreen({
             properties={propertyOptions}
             summary={summary}
             units={unitOptions}
-            viewQuery={viewQuery}
+            viewQuery={normalizedViewQuery}
           />
         ) : showFilters ? (
           <MaintenanceFilters
@@ -488,10 +517,15 @@ export function MaintenanceScreen({
         {statusMessage ? (
           <div className="shrink-0 px-4 py-2 sm:px-6">
             <p
-              className="rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm font-medium text-foreground"
-              role="status"
+              className={cn(
+                "rounded-md border px-3 py-2 text-sm font-medium text-foreground",
+                statusMessage.kind === "error"
+                  ? "border-danger/30 bg-danger-soft text-danger"
+                  : "border-success/30 bg-success-soft",
+              )}
+              role={statusMessage.kind === "error" ? "alert" : "status"}
             >
-              {statusMessage}
+              {statusMessage.text}
             </p>
           </div>
         ) : null}
@@ -522,13 +556,17 @@ export function MaintenanceScreen({
             <ArchiveMaintenancePanel
               maintenanceCase={drawer.maintenanceCase}
               onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
+              onSuccess={(message) =>
+                setStatusMessage({ kind: "success", text: message })
+              }
             />
           ) : drawer.mode === "restore" ? (
             <RestoreMaintenancePanel
               maintenanceCase={drawer.maintenanceCase}
               onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
+              onSuccess={(message) =>
+                setStatusMessage({ kind: "success", text: message })
+              }
             />
           ) : (
             <MaintenanceForm
@@ -543,7 +581,9 @@ export function MaintenanceScreen({
               }
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
+              onSuccess={(message) =>
+                setStatusMessage({ kind: "success", text: message })
+              }
               properties={propertyOptions}
               branches={branchOptions}
               staff={staffOptions}
@@ -1048,6 +1088,7 @@ function MaintenanceTable({
         "overflow-hidden rounded-md border border-border bg-surface",
         fillHeight && "flex h-[calc(100%-41px)] min-h-0 flex-col",
       )}
+      data-maintenance-surface="table"
     >
       <div
         className={cn(
@@ -1096,6 +1137,10 @@ function MaintenanceTable({
                   onSelect(maintenanceCase.id);
                 }}
                 onKeyDown={(event) => {
+                  if (event.currentTarget !== event.target) {
+                    return;
+                  }
+
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     onSelect(maintenanceCase.id);

@@ -158,6 +158,46 @@ describe("shared workspace anatomy", () => {
     );
   });
 
+  it("scrolls the active local item into view without stealing focus", () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      const { rerender } = render(
+        <>
+          <button type="button">Keep focus</button>
+        </>,
+      );
+      const focusTarget = screen.getByRole("button", { name: "Keep focus" });
+      focusTarget.focus();
+
+      rerender(
+        <>
+          <button type="button">Keep focus</button>
+          <LocalWorkspaceNav
+            items={[
+              { href: "/maintenance", label: "Cases" },
+              { href: "/tasks", label: "My work" },
+              { href: "/recurring-tasks", label: "Recurring work" },
+              { href: "/inspections", label: "Inspections" },
+              { active: true, href: "/work-orders", label: "Work orders" },
+            ]}
+            label="Maintenance workspace"
+          />
+        </>,
+      );
+
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        block: "nearest",
+        inline: "nearest",
+      });
+      expect(document.activeElement).toBe(focusTarget);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    }
+  });
+
   it("owns one labelled toolbar and prevents workspace-level horizontal overflow", () => {
     render(
       <WorkspacePage

@@ -1,13 +1,23 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import { ModuleLoading } from "@/components/layout/module-loading";
 import { BoardSurface } from "@/features/maintenance/components/maintenance-board-surface";
 import { MaintenanceScreen } from "@/features/maintenance/components/maintenance-screen";
-import type { MaintenanceSurfaceVariant } from "@/features/maintenance/components/maintenance-work-surfaces";
+import {
+  MaintenanceWorkflowSurface,
+  type MaintenanceSurfaceVariant,
+} from "@/features/maintenance/components/maintenance-work-surfaces";
 import type {
   MaintenanceCase,
   MaintenanceViewQuery,
@@ -231,6 +241,55 @@ describe("maintenance workspace redesign contract", () => {
     expect(screen.queryByRole("button", { name: "New case" })).toBeNull();
   });
 
+  it("keeps one primary create action for an authorized true-empty workspace", () => {
+    renderMaintenance({ cases: [] });
+
+    expect(screen.getAllByRole("button", { name: "New case" })).toHaveLength(1);
+    expect(screen.getByText("No cases yet").closest("section")?.getAttribute("data-kind")).toBe(
+      "empty",
+    );
+  });
+
+  it.each([
+    ["board", "work_orders"],
+    ["calendar", "scheduled"],
+  ] as const)(
+    "recovers an empty derived %s view into the unfiltered case list",
+    (view, review) => {
+      navigation.searchParams = new URLSearchParams(`view=${view}&review=${review}`);
+      renderMaintenance({
+        cases: [],
+        surfaceVariant: view === "board" ? "board" : "agenda",
+        viewQuery: { ...defaultViewQuery, review, view },
+      });
+
+      const emptyState = screen.getByText("No matching cases").closest("section");
+      const recoveryLink = within(emptyState!).getByRole("link", {
+        name: "View all cases",
+      });
+
+      expect(recoveryLink.getAttribute("href")).toBe("/maintenance?view=list");
+      expect(within(emptyState!).queryByRole("link", { name: "Clear filters" })).toBeNull();
+    },
+  );
+
+  it("normalizes a member board request to the list control and table surface", () => {
+    navigation.searchParams = new URLSearchParams("view=board&review=work_orders");
+    renderMaintenance({
+      actorRole: "member",
+      showCaseViewTabs: true,
+      surfaceVariant: "board",
+      viewQuery: { ...defaultViewQuery, review: "work_orders", view: "board" },
+    });
+
+    expect(screen.getByRole("table")).not.toBeNull();
+    expect(screen.getByRole("link", { name: "List" }).getAttribute("aria-current")).toBe(
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Board" }).getAttribute("aria-current")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Work order display" })).toBeNull();
+  });
+
   it("marks one selected maintenance row and supports Enter and Space", () => {
     renderMaintenance({ cases: [makeCase(), makeCase("task-2", "Replace fan")] });
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
@@ -242,6 +301,21 @@ describe("maintenance workspace redesign contract", () => {
     rows[0]!.focus();
     fireEvent.keyDown(rows[0]!, { key: " " });
     expect(rows[0]?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("keeps direct title links independent from table-row Preview keyboard handling", () => {
+    renderMaintenance({ cases: [makeCase(), makeCase("task-2", "Replace fan")] });
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    const titleLink = within(rows[1]!).getByRole("link", { name: "Replace fan" });
+
+    expect(titleLink.getAttribute("href")).toBe("/maintenance?taskId=task-2");
+    fireEvent.keyDown(titleLink, { key: "Enter" });
+    fireEvent.click(titleLink);
+    expect(rows[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(rows[1]?.getAttribute("aria-selected")).toBe("false");
+
+    fireEvent.keyDown(rows[1]!, { key: "Enter" });
+    expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
   });
 
   it.each([
@@ -281,6 +355,52 @@ describe("maintenance workspace redesign contract", () => {
     expect(
       screen.getByRole("dialog", { name: "Repair sink Preview" }),
     ).not.toBeNull();
+  });
+
+  it("gives calendar events 24px targets and restores focus from its dialog", async () => {
+    const onSelect = vi.fn();
+    renderWorkflowSurface("agenda", [makeCase()], onSelect);
+    const eventButton = screen.getByRole("button", {
+      name: /Repair sink, Pending, High, Riverside House, Pich, Rapid Repairs/,
+    });
+
+    expect(eventButton.className).toContain("min-h-6");
+    expect(eventButton.getAttribute("aria-haspopup")).toBe("dialog");
+    fireEvent.click(eventButton);
+
+    const dialog = screen.getByRole("dialog", { name: "Repair sink calendar event" });
+    const closeButton = within(dialog).getByRole("button", { name: "Close event" });
+    await waitFor(() => expect(document.activeElement).toBe(closeButton));
+    fireEvent.keyDown(closeButton, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Repair sink calendar event" })).toBeNull();
+    expect(document.activeElement).toBe(eventButton);
+
+    fireEvent.click(eventButton);
+    fireEvent.click(screen.getByRole("button", { name: "Close event" }));
+    expect(document.activeElement).toBe(eventButton);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("keeps the calendar more target accessible and returns focus after close", () => {
+    renderWorkflowSurface(
+      "agenda",
+      [
+        makeCase(),
+        makeCase("task-2", "Replace fan"),
+        makeCase("task-3", "Check alarm"),
+        makeCase("task-4", "Seal window"),
+      ],
+      vi.fn(),
+    );
+    const moreButton = screen.getByRole("button", { name: "1 more" });
+
+    expect(moreButton.className).toContain("min-h-6");
+    expect(moreButton.getAttribute("aria-haspopup")).toBe("dialog");
+    fireEvent.click(moreButton);
+    expect(screen.getByRole("dialog", { name: "Seal window calendar event" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close event" }));
+    expect(document.activeElement).toBe(moreButton);
   });
 });
 
@@ -324,17 +444,97 @@ describe("maintenance board accessible alternative", () => {
     expect(within(table).getByText("Rapid Repairs")).not.toBeNull();
     expect(listButton.getAttribute("aria-pressed")).toBe("true");
   });
+
+  it("separates board title navigation, Preview, and drag interactions", () => {
+    const onSelect = vi.fn();
+    const { container } = render(
+      <BoardSurface
+        actorRole="manager"
+        cases={[makeCase()]}
+        emptyLabel="No work orders found."
+        onStatusChange={vi.fn()}
+        onSelect={onSelect}
+        selectedTaskId="task-1"
+      />,
+    );
+    const titleLink = screen.getByRole("link", { name: "Repair sink" });
+
+    expect(titleLink.getAttribute("href")).toBe("/maintenance?taskId=task-1");
+    fireEvent.keyDown(titleLink, { key: "Enter" });
+    fireEvent.click(titleLink);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(container.querySelector("button a, a button")).toBeNull();
+
+    const previewButton = screen.getByRole("button", { name: "Preview Repair sink" });
+    expect(previewButton.getAttribute("type")).toBe("button");
+    previewButton.focus();
+    previewButton.click();
+    expect(onSelect).toHaveBeenCalledWith("task-1");
+    expect(screen.getByRole("button", { name: "Move Repair sink" })).not.toBeNull();
+  });
+
+  it("keeps board-list direct links independent from row Preview handling", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <BoardSurface
+        actorRole="manager"
+        cases={[makeCase()]}
+        emptyLabel="No work orders found."
+        onSelect={onSelect}
+        selectedTaskId=""
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "List" }));
+    const row = within(screen.getByRole("table", { name: "Work order list" })).getAllByRole(
+      "row",
+    )[1]!;
+    const titleLink = within(row).getByRole("link", { name: "Repair sink" });
+
+    expect(titleLink.getAttribute("href")).toBe("/maintenance?taskId=task-1");
+    fireEvent.keyDown(titleLink, { key: "Enter" });
+    fireEvent.click(titleLink);
+    expect(onSelect).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledWith("task-1");
+  });
+});
+
+describe("maintenance record cards", () => {
+  it.each(["inbox", "checklist", "routine", "workload"] as const)(
+    "keeps %s title navigation independent from its Preview control",
+    (variant) => {
+      const onSelect = vi.fn();
+      const { container } = renderWorkflowSurface(variant, [makeCase()], onSelect);
+      const titleLink = screen.getByRole("link", { name: "Repair sink" });
+
+      expect(titleLink.getAttribute("href")).toBe("/maintenance?taskId=task-1");
+      fireEvent.keyDown(titleLink, { key: "Enter" });
+      fireEvent.click(titleLink);
+      expect(onSelect).not.toHaveBeenCalled();
+      expect(container.querySelector("button a, a button")).toBeNull();
+
+      const previewButton = screen.getByRole("button", { name: "Preview Repair sink" });
+      expect(previewButton.getAttribute("type")).toBe("button");
+      previewButton.focus();
+      previewButton.click();
+      expect(onSelect).toHaveBeenCalledWith("task-1");
+    },
+  );
 });
 
 function renderMaintenance({
   actorRole = "admin",
   cases = [makeCase()],
   surfaceVariant = "table",
+  showCaseViewTabs = false,
   viewQuery = defaultViewQuery,
 }: {
   actorRole?: "admin" | "manager" | "member";
   cases?: MaintenanceCase[];
   surfaceVariant?: MaintenanceSurfaceVariant;
+  showCaseViewTabs?: boolean;
   viewQuery?: MaintenanceViewQuery;
 } = {}) {
   return render(
@@ -358,12 +558,39 @@ function renderMaintenance({
       propertyOptions={[{ id: "property-1", label: "Riverside House" }]}
       recordLabel="case"
       staffOptions={[]}
+      showCaseViewTabs={showCaseViewTabs}
       summary={makeSummary(cases.length)}
       surfaceVariant={surfaceVariant}
       title="Cases"
       unitOptions={[]}
       vendorOptions={[]}
       viewQuery={viewQuery}
+    />,
+  );
+}
+
+function renderWorkflowSurface(
+  variant: Exclude<MaintenanceSurfaceVariant, "table">,
+  cases: MaintenanceCase[],
+  onSelect: (taskId: string) => void,
+) {
+  return render(
+    <MaintenanceWorkflowSurface
+      actorRole="manager"
+      cases={cases}
+      emptyLabel="No maintenance cases found."
+      month="2026-07"
+      onSelect={onSelect}
+      pagination={{
+        from: cases.length ? 1 : 0,
+        page: 1,
+        pageSize: 25,
+        to: cases.length,
+        totalCount: cases.length,
+        totalPages: cases.length ? 1 : 0,
+      }}
+      selectedTaskId=""
+      variant={variant}
     />,
   );
 }

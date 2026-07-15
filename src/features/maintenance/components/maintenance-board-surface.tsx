@@ -10,8 +10,9 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import Link from "next/link";
 import { useState } from "react";
-import { Columns3, GripVertical, ListChecks } from "lucide-react";
+import { Columns3, Eye, GripVertical, ListChecks } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type {
   MaintenanceActor,
@@ -207,7 +208,10 @@ function BoardListSurface({
   selectedTaskId: string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-md border border-border bg-surface">
+    <div
+      className="overflow-x-auto rounded-md border border-border bg-surface"
+      data-maintenance-surface="board-list"
+    >
       <table
         aria-label="Work order list"
         className="w-full min-w-[760px] border-collapse text-left text-[13px]"
@@ -236,6 +240,10 @@ function BoardListSurface({
                 onSelect(maintenanceCase.id);
               }}
               onKeyDown={(event) => {
+                if (event.currentTarget !== event.target) {
+                  return;
+                }
+
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   onSelect(maintenanceCase.id);
@@ -243,7 +251,17 @@ function BoardListSurface({
               }}
               tabIndex={0}
             >
-              <td className="px-3 py-2 font-medium">{maintenanceCase.title}</td>
+              <td className="px-3 py-2 font-medium">
+                <Link
+                  className="block truncate outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  href={maintenanceCase.hrefs.task}
+                  onClick={(event) => event.stopPropagation()}
+                  prefetch={false}
+                  title={maintenanceCase.title}
+                >
+                  {maintenanceCase.title}
+                </Link>
+              </td>
               <td className="px-3 py-2">
                 <div className="flex flex-wrap gap-1.5">
                   <Badge tone={maintenanceCase.statusTone}>
@@ -399,30 +417,46 @@ function MaintenanceCard({
   selected: boolean;
 }) {
   return (
-    <button
-      aria-pressed={selected}
+    <article
       className={cn(
-        "w-full touch-none rounded-md border bg-surface p-3 text-left text-sm shadow-sm transition-colors hover:bg-surface-muted",
-        movable && "cursor-grab active:cursor-grabbing",
+        "w-full rounded-md border bg-surface p-3 text-left text-sm shadow-sm transition-colors hover:bg-surface-muted",
         isDragging && "shadow-lg ring-2 ring-state-selected-strong",
         selected
           ? "border-accent ring-2 ring-state-selected-strong"
           : "border-border",
       )}
-      data-maintenance-record-trigger={maintenanceCase.id}
-      onClick={() => onSelect(maintenanceCase.id)}
-      type="button"
-      {...dragAttributes}
-      {...dragListeners}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-medium">{maintenanceCase.title}</p>
+          <Link
+            className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+            href={maintenanceCase.hrefs.task}
+            prefetch={false}
+            title={maintenanceCase.title}
+          >
+            {maintenanceCase.title}
+          </Link>
           <p className="mt-1 truncate text-xs text-muted">
             {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
           </p>
         </div>
-        <GripVertical className="mt-0.5 shrink-0 text-muted" size={15} />
+        {movable ? (
+          <button
+            aria-label={`Move ${maintenanceCase.title}`}
+            className="inline-flex size-7 shrink-0 touch-none items-center justify-center rounded text-muted outline-none hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring active:cursor-grabbing"
+            type="button"
+            {...dragAttributes}
+            {...dragListeners}
+          >
+            <GripVertical size={15} />
+          </button>
+        ) : (
+          <GripVertical
+            aria-hidden="true"
+            className="mt-0.5 shrink-0 text-muted"
+            size={15}
+          />
+        )}
       </div>
       <div className="mt-3 flex items-center justify-between gap-2 text-xs">
         <span className="truncate font-medium text-foreground">
@@ -441,7 +475,18 @@ function MaintenanceCard({
         <span className="truncate">Assignee: {maintenanceCase.assigneeLabel}</span>
         <span className="truncate">Vendor: {maintenanceCase.vendorLabel}</span>
       </div>
-    </button>
+      <button
+        aria-label={`Preview ${maintenanceCase.title}`}
+        aria-pressed={selected}
+        className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+        data-maintenance-record-trigger={maintenanceCase.id}
+        onClick={() => onSelect(maintenanceCase.id)}
+        type="button"
+      >
+        <Eye size={14} />
+        Preview
+      </button>
+    </article>
   );
 }
 

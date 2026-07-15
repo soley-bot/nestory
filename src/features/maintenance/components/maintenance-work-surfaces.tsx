@@ -3,12 +3,13 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  Eye,
   ListChecks,
   Repeat,
   UserRound,
@@ -73,7 +74,10 @@ export function MaintenanceWorkflowSurface({
   waitingForReviewLabel = false,
 }: MaintenanceWorkflowSurfaceProps) {
   return (
-    <div className={variant === "agenda" ? "h-full min-h-0" : "space-y-3"}>
+    <div
+      className={variant === "agenda" ? "h-full min-h-0" : "space-y-3"}
+      data-maintenance-surface={variant === "agenda" ? "calendar" : variant}
+    >
       {variant === "inbox" ? (
         <InboxSurface
           cases={cases}
@@ -175,24 +179,37 @@ function InboxSurface({
         ) : (
           <div className="divide-y divide-border">
             {attentionCases.slice(0, 6).map((maintenanceCase) => (
-              <button
-                className="block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-surface-muted"
+              <div
+                className="flex items-start gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-surface-muted"
                 key={maintenanceCase.id}
-                onClick={() => onSelect(maintenanceCase.id)}
-                type="button"
               >
-                <span className="block truncate font-medium">
-                  {maintenanceCase.title}
-                </span>
-                <span className="mt-1 flex flex-wrap gap-1.5">
-                  <Badge tone={maintenanceCase.progressTone}>
-                    {maintenanceCase.progressLabel}
-                  </Badge>
-                  <Badge tone={maintenanceCase.priorityTone}>
-                    {maintenanceCase.priorityLabel}
-                  </Badge>
-                </span>
-              </button>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    href={maintenanceCase.hrefs.task}
+                    prefetch={false}
+                  >
+                    {maintenanceCase.title}
+                  </Link>
+                  <span className="mt-1 flex flex-wrap gap-1.5">
+                    <Badge tone={maintenanceCase.progressTone}>
+                      {maintenanceCase.progressLabel}
+                    </Badge>
+                    <Badge tone={maintenanceCase.priorityTone}>
+                      {maintenanceCase.priorityLabel}
+                    </Badge>
+                  </span>
+                </div>
+                <button
+                  aria-label={`Preview ${maintenanceCase.title}`}
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded border border-border outline-none hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  data-maintenance-record-trigger={maintenanceCase.id}
+                  onClick={() => onSelect(maintenanceCase.id)}
+                  type="button"
+                >
+                  <Eye size={13} />
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -214,6 +231,11 @@ function AgendaSurface({
   const calendarDays = getCalendarDays(month);
   const casesByDate = groupCasesByCalendarDate(cases);
   const monthLinks = getCalendarMonthLinks(pathname, searchParams, month);
+
+  function closeActiveEvent() {
+    activeTriggerRef.current?.focus();
+    setActiveCase(null);
+  }
 
   return (
     <section className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface">
@@ -251,6 +273,7 @@ function AgendaSurface({
           <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6">
             {calendarDays.map((day, index) => (
               <CalendarDayCell
+                activeCaseId={activeCase?.id}
                 day={day}
                 dayCases={casesByDate.get(day.date) ?? []}
                 key={day.date}
@@ -269,10 +292,9 @@ function AgendaSurface({
       {activeCase ? (
         <CalendarEventPopover
           maintenanceCase={activeCase}
-          onClose={() => setActiveCase(null)}
+          onClose={closeActiveEvent}
           onOpen={() => {
-            activeTriggerRef.current?.focus();
-            setActiveCase(null);
+            closeActiveEvent();
             onSelect(activeCase.id);
           }}
         />
@@ -300,15 +322,15 @@ function ChecklistSurface({
       />
       <div className="grid gap-3 lg:grid-cols-2">
         {cases.map((maintenanceCase) => (
-          <button
-            aria-pressed={selectedTaskId === maintenanceCase.id}
+          <article
             className={cardClassName(selectedTaskId === maintenanceCase.id)}
-            data-maintenance-record-trigger={maintenanceCase.id}
             key={maintenanceCase.id}
-            onClick={() => onSelect(maintenanceCase.id)}
-            type="button"
           >
-            <CardHeader maintenanceCase={maintenanceCase} />
+            <CardHeader
+              maintenanceCase={maintenanceCase}
+              onSelect={onSelect}
+              selected={selectedTaskId === maintenanceCase.id}
+            />
             <div className="mt-3 rounded-md border border-border bg-surface-muted/60 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-semibold uppercase tracking-[0] text-muted">
@@ -352,7 +374,7 @@ function ChecklistSurface({
                 )}
               </div>
             </div>
-          </button>
+          </article>
         ))}
       </div>
     </section>
@@ -495,24 +517,23 @@ function MaintenanceCard({
   selected: boolean;
 }) {
   return (
-    <button
-      aria-pressed={selected}
-      className={cardClassName(selected)}
-      data-maintenance-record-trigger={maintenanceCase.id}
-      onClick={() => onSelect(maintenanceCase.id)}
-      type="button"
-    >
-      <CardHeader maintenanceCase={maintenanceCase} />
+    <article className={cardClassName(selected)}>
+      <CardHeader
+        maintenanceCase={maintenanceCase}
+        onSelect={onSelect}
+        selected={selected}
+      />
       <div className="mt-2 flex min-w-0 text-left">
         <span className="min-w-0 truncate text-xs font-medium text-muted">
           {maintenanceCase.dueLabel}
         </span>
       </div>
-    </button>
+    </article>
   );
 }
 
 function CalendarDayCell({
+  activeCaseId,
   day,
   dayCases,
   onActivateCase,
@@ -520,6 +541,7 @@ function CalendarDayCell({
   showBottomBorder,
   showRightBorder,
 }: {
+  activeCaseId?: string;
   day: ReturnType<typeof getCalendarDays>[number];
   dayCases: MaintenanceCase[];
   onActivateCase: (
@@ -558,9 +580,10 @@ function CalendarDayCell({
           {day.dayNumber}
         </span>
       </div>
-      <div className="relative z-10 mt-0.5 space-y-0.5 overflow-hidden">
+      <div className="relative z-10 mt-0.5 space-y-1 overflow-hidden">
         {dayCases.slice(0, 3).map((maintenanceCase) => (
           <CalendarCaseButton
+            expanded={activeCaseId === maintenanceCase.id}
             key={maintenanceCase.id}
             maintenanceCase={maintenanceCase}
             onActivate={onActivateCase}
@@ -568,7 +591,9 @@ function CalendarDayCell({
         ))}
         {dayCases.length > 3 ? (
           <button
-            className="block h-4 w-full rounded-sm px-1.5 text-left text-xs font-medium leading-4 text-muted hover:bg-surface-muted hover:text-foreground"
+            aria-expanded={activeCaseId === dayCases[3]?.id}
+            aria-haspopup="dialog"
+            className="block min-h-6 w-full rounded-sm px-1.5 py-1 text-left text-xs font-medium leading-4 text-muted hover:bg-surface-muted hover:text-foreground"
             onClick={(event) => onActivateCase(dayCases[3], event.currentTarget)}
             type="button"
           >
@@ -581,9 +606,11 @@ function CalendarDayCell({
 }
 
 function CalendarCaseButton({
+  expanded,
   maintenanceCase,
   onActivate,
 }: {
+  expanded: boolean;
   maintenanceCase: MaintenanceCase;
   onActivate: (
     maintenanceCase: MaintenanceCase,
@@ -592,9 +619,11 @@ function CalendarCaseButton({
 }) {
   return (
     <button
+      aria-expanded={expanded}
+      aria-haspopup="dialog"
       aria-label={`${maintenanceCase.title}, ${maintenanceCase.statusLabel}, ${maintenanceCase.priorityLabel}, ${maintenanceCase.propertyLabel}, ${maintenanceCase.assigneeLabel}, ${maintenanceCase.vendorLabel}`}
       className={cn(
-        "block h-4 w-full rounded px-1.5 text-left text-xs leading-4 transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "block min-h-6 w-full rounded px-1.5 py-1 text-left text-xs leading-4 transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
         getCalendarCaseClassName(maintenanceCase),
       )}
       data-maintenance-record-trigger={maintenanceCase.id}
@@ -615,13 +644,32 @@ function CalendarEventPopover({
   onClose: () => void;
   onOpen: () => void;
 }) {
+  const firstActionRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    firstActionRef.current?.focus();
+  }, []);
+
   return (
-    <div className="absolute left-1/2 top-24 z-30 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-surface shadow-xl">
+    <div
+      aria-label={`${maintenanceCase.title} calendar event`}
+      aria-modal="false"
+      className="absolute left-1/2 top-24 z-30 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-surface shadow-xl"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+      role="dialog"
+    >
       <div className="flex justify-end px-2 pt-2">
         <button
           aria-label="Close event"
           className="inline-flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           onClick={onClose}
+          ref={firstActionRef}
           type="button"
         >
           X
@@ -722,17 +770,45 @@ function CalendarNavLink({
   );
 }
 
-function CardHeader({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
+function CardHeader({
+  maintenanceCase,
+  onSelect,
+  selected,
+}: {
+  maintenanceCase: MaintenanceCase;
+  onSelect: (taskId: string) => void;
+  selected: boolean;
+}) {
   return (
     <div className="text-left">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-medium">{maintenanceCase.title}</p>
+          <Link
+            className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+            href={maintenanceCase.hrefs.task}
+            prefetch={false}
+            title={maintenanceCase.title}
+          >
+            {maintenanceCase.title}
+          </Link>
           <p className="mt-1 truncate text-xs text-muted">
             {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
           </p>
         </div>
-        <Wrench className="mt-0.5 shrink-0 text-muted" size={15} />
+        <div className="flex shrink-0 items-center gap-1">
+          <Wrench aria-hidden="true" className="text-muted" size={15} />
+          <button
+            aria-label={`Preview ${maintenanceCase.title}`}
+            aria-pressed={selected}
+            className="inline-flex h-7 items-center gap-1 rounded border border-border bg-surface px-2 text-xs font-medium outline-none hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+            data-maintenance-record-trigger={maintenanceCase.id}
+            onClick={() => onSelect(maintenanceCase.id)}
+            type="button"
+          >
+            <Eye size={13} />
+            Preview
+          </button>
+        </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         <Badge tone={maintenanceCase.statusTone}>
@@ -780,7 +856,7 @@ function EmptySurface({ label }: { label: string }) {
 
 function cardClassName(selected: boolean) {
   return cn(
-    "block w-full rounded-md border border-border bg-surface px-3 py-3 text-left shadow-sm outline-none transition-colors hover:border-accent/40 hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
+    "block w-full rounded-md border border-border bg-surface px-3 py-3 text-left shadow-sm transition-colors hover:border-accent/40 hover:bg-surface-muted",
     selected && "border-record-spine bg-state-selected",
   );
 }
