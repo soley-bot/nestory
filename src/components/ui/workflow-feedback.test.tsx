@@ -242,6 +242,79 @@ describe("DraftActionBar", () => {
     },
   );
 
+  it.each([
+    ["Keep editing", "saving", "Saving changes"],
+    ["Discard changes", "saving", "Saving changes"],
+    ["Keep editing", "clean", "No changes"],
+    ["Discard changes", "clean", "No changes"],
+  ] as const)(
+    "moves focus from focused %s to status when controlled state becomes %s",
+    async (focusedControl, status, statusText) => {
+      const user = userEvent.setup();
+      const { rerender } = render(
+        <DraftActionBar
+          onDiscard={vi.fn()}
+          onSave={vi.fn()}
+          status="dirty"
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+      const confirmationControl = screen.getByRole("button", {
+        name: focusedControl,
+      });
+      confirmationControl.focus();
+      expect(document.activeElement).toBe(confirmationControl);
+
+      rerender(
+        <DraftActionBar
+          onDiscard={vi.fn()}
+          onSave={vi.fn()}
+          status={status}
+        />,
+      );
+
+      const statusRegion = screen.getByRole("status");
+      expect(statusRegion.textContent).toContain(statusText);
+      expect(document.activeElement).toBe(statusRegion);
+    },
+  );
+
+  it("does not steal focus when confirmation invalidates after focus moved elsewhere", async () => {
+    const user = userEvent.setup();
+    const outsideAction = <button type="button">Review another workflow</button>;
+    const { rerender } = render(
+      <>
+        {outsideAction}
+        <DraftActionBar
+          onDiscard={vi.fn()}
+          onSave={vi.fn()}
+          status="dirty"
+        />
+      </>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    const outsideButton = screen.getByRole("button", {
+      name: "Review another workflow",
+    });
+    outsideButton.focus();
+
+    rerender(
+      <>
+        {outsideAction}
+        <DraftActionBar
+          onDiscard={vi.fn()}
+          onSave={vi.fn()}
+          status="clean"
+        />
+      </>,
+    );
+
+    expect(document.activeElement).toBe(outsideButton);
+    expect(document.activeElement).not.toBe(screen.getByRole("status"));
+  });
+
   it("moves focus to the stable status after confirmed discard updates caller state", async () => {
     const user = userEvent.setup();
     const onDiscard = vi.fn();

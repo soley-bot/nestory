@@ -80,7 +80,10 @@ export function DraftActionBar({
   status,
   statusMessage,
 }: DraftActionBarProps) {
+  const [confirmationFocused, setConfirmationFocused] = useState(false);
   const [confirmingStatus, setConfirmingStatus] = useState<DraftStatus | null>(null);
+  const [focusStatusAfterInvalidation, setFocusStatusAfterInvalidation] =
+    useState(false);
   const [restoreDiscardFocus, setRestoreDiscardFocus] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
@@ -96,6 +99,8 @@ export function DraftActionBar({
   const saveDescribedBy = joinIds(describedBy, disabledReason ? reasonId : undefined);
 
   if (confirmingStatus !== null && confirmingStatus !== status) {
+    setFocusStatusAfterInvalidation(confirmationFocused);
+    setConfirmationFocused(false);
     setConfirmingStatus(null);
     setRestoreDiscardFocus(false);
   }
@@ -114,8 +119,20 @@ export function DraftActionBar({
     control?.focus();
   }, [confirmingDiscard, restoreDiscardFocus]);
 
+  useEffect(() => {
+    if (!focusStatusAfterInvalidation) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      statusRef.current?.focus();
+    });
+  }, [focusStatusAfterInvalidation]);
+
   function handleConfirmDiscard() {
+    setConfirmationFocused(false);
     setConfirmingStatus(null);
+    setFocusStatusAfterInvalidation(false);
     setRestoreDiscardFocus(false);
 
     if (isDiscardActionable) {
@@ -127,11 +144,15 @@ export function DraftActionBar({
   }
 
   function handleCancelDiscard() {
+    setConfirmationFocused(false);
     setConfirmingStatus(null);
+    setFocusStatusAfterInvalidation(false);
     setRestoreDiscardFocus(true);
   }
 
   function handleRequestDiscard() {
+    setConfirmationFocused(false);
+    setFocusStatusAfterInvalidation(false);
     setRestoreDiscardFocus(false);
     setConfirmingStatus(status);
   }
@@ -179,7 +200,22 @@ export function DraftActionBar({
         </div>
 
         {confirmingDiscard ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div
+            className="flex flex-wrap items-center justify-end gap-2"
+            onBlurCapture={(event) => {
+              const nextTarget = event.relatedTarget;
+
+              if (
+                !(nextTarget instanceof Node) ||
+                !event.currentTarget.contains(nextTarget)
+              ) {
+                setConfirmationFocused(false);
+              }
+            }}
+            onFocusCapture={() => {
+              setConfirmationFocused(true);
+            }}
+          >
             <span className="font-medium text-foreground">Discard unsaved changes?</span>
             <Button
               data-discard-control="cancel"
