@@ -159,7 +159,7 @@ async function authenticate(browserContext) {
 
     await Promise.all([
       page.waitForURL(
-        (url) => !["/login", "/workspace"].includes(url.pathname),
+        (url) => url.pathname !== "/login",
         { timeout: 20_000 },
       ),
       page.getByRole("button", { name: /sign in/i }).click(),

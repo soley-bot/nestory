@@ -10,8 +10,13 @@ import {
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import {
+  useWideWorkspace,
+  WorkspaceSplitView,
+} from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
-import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import {
@@ -22,11 +27,13 @@ import { UnitForm } from "@/features/units/components/unit-form";
 import { UnitFilters } from "@/features/units/components/unit-filters";
 import { UnitInspector } from "@/features/units/components/unit-inspector";
 import { UnitsTable } from "@/features/units/components/units-table";
+import { DEFAULT_UNIT_SORT } from "@/features/units/unit.filters";
 import type {
   UnitDisplayMode,
   UnitFormValues,
   UnitPagination,
   UnitPropertyOption,
+  UnitSortKey,
   UnitSummary,
   UnitViewQuery,
 } from "@/features/units/unit.types";
@@ -40,6 +47,7 @@ type DrawerState =
   | { mode: "restore"; unit: UnitSummary };
 
 type UnitScreenProps = {
+  canCreate: boolean;
   initialUnitId?: string;
   pagination: UnitPagination;
   propertyOptions: UnitPropertyOption[];
@@ -48,6 +56,7 @@ type UnitScreenProps = {
 };
 
 export function UnitScreen({
+  canCreate,
   initialUnitId,
   pagination,
   propertyOptions,
@@ -86,7 +95,10 @@ export function UnitScreen({
   const [selectedUnitId, setSelectedUnitId] = useState(() =>
     getInitialRecordId(units, initialUnitId),
   );
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
+    Boolean(initialUnitId) && searchParams.get("action") !== "create",
+  );
+  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedUnit = initialUnitId
     ? units.find((unit) => unit.id === initialUnitId) ?? null
@@ -102,19 +114,31 @@ export function UnitScreen({
       ? getCreateLeaseHref(selectedUnit)
       : null;
   const fillLeaseLabel = isVacantReview ? "Fill vacancy" : "Add lease";
-  const openUnitRecord = (unitId: string) => {
-    router.push(`/units/${unitId}`);
-  };
   const openUnitAction = (nextDrawer: DrawerState) => {
-    setPreviewOpen(false);
+    if (!window.matchMedia("(min-width: 1024px)").matches) {
+      setCompactInspectorOpen(false);
+    }
     setStatusMessage(null);
     setDrawer(nextDrawer);
   };
   const previewUnit = (unitId: string) => {
     setSelectedUnitId(unitId);
-    if (window.matchMedia("(max-width: 1279px)").matches) {
-      setPreviewOpen(true);
+    setCompactInspectorOpen(true);
+  };
+  const changeSort = (sort: UnitSortKey) => {
+    const nextParams = new URLSearchParams(searchParams.toString());
+
+    if (sort === DEFAULT_UNIT_SORT) {
+      nextParams.delete("sort");
+    } else {
+      nextParams.set("sort", sort);
     }
+
+    nextParams.delete("page");
+    const queryString = nextParams.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+      scroll: false,
+    });
   };
   const changeDisplayMode = (mode: UnitDisplayMode) => {
     setDisplayMode(mode);
@@ -137,9 +161,7 @@ export function UnitScreen({
     if (focusedUnitId) {
       queueMicrotask(() => {
         setSelectedUnitId(focusedUnitId);
-        if (window.matchMedia("(max-width: 1279px)").matches) {
-          setPreviewOpen(true);
-        }
+        setCompactInspectorOpen(true);
       });
     }
   }, [focusedUnitId]);
@@ -150,6 +172,7 @@ export function UnitScreen({
     }
 
     queueMicrotask(() => {
+      setCompactInspectorOpen(false);
       setStatusMessage(null);
       setDrawer({ initialValues: createInitialValues, mode: "create" });
     });
@@ -158,9 +181,74 @@ export function UnitScreen({
     });
   }, [createInitialValues, pathname, router, searchParams]);
 
+  const hasFilters =
+    hasActiveUnitFilters(viewQuery) ||
+    (units.length === 0 && pagination.totalCount > 0);
+  const openCreateUnit = () => {
+    openUnitAction({ initialValues: createInitialValues, mode: "create" });
+  };
+  const unitList = (
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+      {units.length === 0 ? (
+        <EmptyState
+          action={
+            hasFilters ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={pathname}
+                scroll={false}
+              >
+                Clear filters
+              </Link>
+            ) : canCreate ? (
+              <Button onClick={openCreateUnit} variant="primary">
+                <Plus size={15} />
+                Add unit
+              </Button>
+            ) : undefined
+          }
+          body={
+            hasFilters
+              ? "The current filters return no unit records."
+              : "There are no units in this workspace."
+          }
+          className="h-full"
+          kind={hasFilters ? "filtered" : "empty"}
+          title={hasFilters ? "No matching units" : "No units yet"}
+        />
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 p-3">
+            <UnitsTable
+              archiveState={viewQuery.archiveState}
+              displayMode={displayMode}
+              onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
+              onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
+              onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
+              onSelectUnit={previewUnit}
+              onSortChange={changeSort}
+              selectedUnitId={selectedUnit?.id ?? ""}
+              sort={viewQuery.sort}
+              units={units}
+            />
+          </div>
+          <PaginationControls attached={isTableMode} pagination={pagination} />
+        </>
+      )}
+    </section>
+  );
+  const unitInspector = selectedUnit ? (
+    <UnitInspector
+      onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
+      onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
+      onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
+      unit={selectedUnit}
+    />
+  ) : null;
+
   return (
-    <div className="min-h-screen lg:flex lg:h-screen lg:min-h-0 lg:flex-col lg:overflow-hidden">
-      <PageHeader
+    <WorkspacePage
+      header={<PageHeader
         actions={
           <>
             {fillVacancyHref ? (
@@ -181,42 +269,45 @@ export function UnitScreen({
                 Make report
               </Link>
             ) : null}
-            <Button
-              onClick={() => {
-                openUnitAction({ initialValues: createInitialValues, mode: "create" });
-              }}
-              variant="primary"
-            >
-              <Plus size={15} />
-              Add unit
-            </Button>
+            {canCreate ? (
+              <Button onClick={openCreateUnit} variant="primary">
+                <Plus size={15} />
+                Add unit
+              </Button>
+            ) : null}
           </>
         }
+        context={
+          <span className="tabular-nums">
+            {pagination.totalCount} {pagination.totalCount === 1 ? "record" : "records"}
+          </span>
+        }
         description={
-          activeReview
-            ? activeReview.description
-            : "Operational unit records connected to parent properties, leases, ledger rows, and timeline history."
+          activeReview ? activeReview.description : undefined
         }
         title="Units"
-      />
+      />}
+      toolbar={
+        <UnitFilters
+          displayMode={displayMode}
+          onDisplayModeChange={changeDisplayMode}
+          properties={propertyOptions}
+          viewQuery={viewQuery}
+        />
+      }
+    >
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-6">
+        <div className="shrink-0 px-4 py-2 sm:px-6">
           <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            className="rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
             role="status"
           >
             {statusMessage}
           </p>
         </div>
       ) : null}
-
-      <UnitFilters
-        displayMode={displayMode}
-        onDisplayModeChange={changeDisplayMode}
-        properties={propertyOptions}
-        viewQuery={viewQuery}
-      />
 
       {activeReview ? (
         <UnitReviewStrip
@@ -226,58 +317,20 @@ export function UnitScreen({
         />
       ) : null}
 
-      <div className="px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:px-6 lg:py-4">
-        <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
-          <section className="flex min-h-0 min-w-0 flex-col">
-            <div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-[13px]">
-              <div className="min-w-0">
-                <p className="font-semibold text-foreground">Unit records</p>
-                <p className="text-foreground-muted">
-                  Select a row to inspect. Double-click to open the full unit file.
-                </p>
-              </div>
-              <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-muted">
-                {pagination.totalCount} total
-              </span>
-            </div>
-            <div className="min-h-0 flex-1">
-              <UnitsTable
-                archiveState={viewQuery.archiveState}
-                displayMode={displayMode}
-                onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
-                onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
-                onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
-                onOpenUnit={openUnitRecord}
-                onSelectUnit={previewUnit}
-                selectedUnitId={selectedUnit?.id ?? ""}
-                units={units}
-              />
-            </div>
-            <PaginationControls attached={isTableMode} pagination={pagination} />
-          </section>
-          <aside className="hidden min-h-0 overflow-hidden rounded-md border border-border bg-surface xl:block">
-            <UnitInspector
-              onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
-              onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
-              onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
-              unit={selectedUnit}
+        <div className="min-h-0 min-w-0 flex-1">
+          {unitInspector && selectedUnit ? (
+            <WorkspaceSplitView
+              inspector={unitInspector}
+              inspectorLabel={`Unit ${selectedUnit.unitNumber} inspector`}
+              inspectorOpen={isWideWorkspace || compactInspectorOpen}
+              list={unitList}
+              onInspectorOpenChange={setCompactInspectorOpen}
             />
-          </aside>
+          ) : (
+            <WorkspaceSplitView list={unitList} />
+          )}
         </div>
       </div>
-
-      <RecordPreviewDrawer
-        onClose={() => setPreviewOpen(false)}
-        open={previewOpen && Boolean(selectedUnit)}
-        title="Unit preview"
-      >
-        <UnitInspector
-          onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
-          onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
-          onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
-          unit={selectedUnit}
-        />
-      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer
@@ -313,7 +366,7 @@ export function UnitScreen({
           )}
         </SideDrawer>
       ) : null}
-    </div>
+    </WorkspacePage>
   );
 }
 
@@ -363,8 +416,8 @@ function getUnitReviewContext({
     return {
       countLabel: "marked vacant",
       description:
-        "Showing vacant units. Select a row, then fill the vacancy or make the available-units report.",
-      nextStep: "Fill vacancy opens Add lease with the selected unit already scoped.",
+        "Vacant units ready for leasing review.",
+      nextStep: "Fill vacancy or create the vacancy report",
       reportHref: getVacantUnitsReportHref(propertyId),
     };
   }
@@ -373,9 +426,8 @@ function getUnitReviewContext({
     return {
       countLabel: "not currently occupied",
       description:
-        "Showing units that are not occupied. Select a row to add a lease or update the unit status.",
-      nextStep:
-        "Add a lease from the inspector, or edit status if the unit is vacant.",
+        "Units without current occupancy.",
+      nextStep: "Add a lease or update status",
     };
   }
 
@@ -383,13 +435,23 @@ function getUnitReviewContext({
     return {
       countLabel: "without an active lease",
       description:
-        "Showing units without an active lease. Select a row to add a lease or update the unit status.",
-      nextStep:
-        "Use Add lease for the selected row, or edit status if the unit is actually vacant.",
+        "Units without an active lease.",
+      nextStep: "Add a lease or update status",
     };
   }
 
   return null;
+}
+
+function hasActiveUnitFilters(viewQuery: UnitViewQuery) {
+  return (
+    viewQuery.archiveState !== "active" ||
+    viewQuery.leaseStatus !== "all" ||
+    viewQuery.occupancy !== "all" ||
+    viewQuery.propertyId !== "all" ||
+    viewQuery.query.trim().length > 0 ||
+    viewQuery.status !== "all"
+  );
 }
 
 export function getVacantUnitsReportHref(propertyId: string) {

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   Archive,
-  Building2,
   ExternalLink,
   Landmark,
   ListTree,
@@ -27,27 +26,16 @@ export function UnitInspector({
   unit,
 }: UnitInspectorProps) {
   if (!unit) {
-    return (
-      <aside className="bg-surface p-4">
-        <div className="flex items-center gap-2">
-          <Building2 className="text-muted" size={16} />
-          <h2 className="text-base font-semibold">Unit inspector</h2>
-        </div>
-        <p className="mt-4 text-sm leading-6 text-muted">
-          Select a unit row to inspect rent, ledger context, lease state, and the
-          latest timeline record.
-        </p>
-      </aside>
-    );
+    return null;
   }
 
   const iconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
   const primaryIconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
 
   return (
-    <aside className="bg-surface">
+    <div className="bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -90,7 +78,7 @@ export function UnitInspector({
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Link
                 aria-label={`Add lease for unit ${unit.unitNumber}`}
-                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-soft/40 px-2 text-sm font-medium text-foreground transition-colors hover:bg-warning-soft"
+                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-soft/40 px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-warning-soft focus-visible:ring-2 focus-visible:ring-focus-ring"
                 href={getCreateLeaseHref(unit)}
                 title="Add lease for this unit"
               >
@@ -99,7 +87,7 @@ export function UnitInspector({
               </Link>
               <button
                 aria-label={`Edit status for unit ${unit.unitNumber}`}
-                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted"
+                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() => onEditUnit(unit)}
                 title="Edit unit status"
                 type="button"
@@ -164,7 +152,7 @@ export function UnitInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open timeline filtered to unit ${unit.unitNumber}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={`/timeline?unitId=${unit.id}`}
             title="Open unit timeline"
           >
@@ -173,7 +161,7 @@ export function UnitInspector({
           </Link>
           <Link
             aria-label={`Open ledger filtered to unit ${unit.unitNumber}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={`/ledger?propertyId=${unit.propertyId}&query=${encodeURIComponent(
               unit.unitNumber,
             )}`}
@@ -184,7 +172,7 @@ export function UnitInspector({
           </Link>
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 

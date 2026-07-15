@@ -135,8 +135,8 @@ export function PropertyFilters({
   }
 
   return (
-    <div className="border-b border-border bg-background px-4 py-2 sm:px-6 lg:px-6">
-      <div className="space-y-1.5">
+    <div className="w-full min-w-0">
+      <div>
         <div className="flex flex-col gap-2 text-[13px] lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
             ariaLabel="Search properties"
@@ -172,7 +172,7 @@ export function PropertyFilters({
               <Popover.Trigger asChild>
                 <button
                   className={cn(
-                    "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted data-[state=open]:border-foreground sm:flex-none",
+                    "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring data-[state=open]:border-foreground sm:flex-none",
                     hasAdvancedFilters &&
                       "border-accent bg-accent-soft text-accent hover:bg-accent-soft",
                   )}
@@ -181,7 +181,7 @@ export function PropertyFilters({
                   <SlidersHorizontal size={14} />
                   <span>Filters</span>
                   {activeFilters > 0 ? (
-                    <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                    <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-background">
                       {activeFilters}
                     </span>
                   ) : null}
@@ -197,17 +197,12 @@ export function PropertyFilters({
                 >
                   <div className="border-b border-border px-3 py-2.5">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h2 className="text-sm font-semibold text-foreground">
-                          Filter properties
-                        </h2>
-                        <p className="mt-0.5 text-xs text-muted">
-                          Narrow the portfolio list without changing the page layout.
-                        </p>
-                      </div>
+                      <h2 className="min-w-0 text-sm font-semibold text-foreground">
+                        Filter properties
+                      </h2>
                       {hasAnyFilters ? (
                         <Link
-                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                           href={pathname}
                           scroll={false}
                         >
@@ -232,19 +227,12 @@ export function PropertyFilters({
                             }
                           />
                         ))
-                      ) : (
-                        <div className="w-full rounded-md border border-dashed border-border px-2 py-1.5 text-xs text-muted">
-                          No filters applied. Defaults show active records sorted by code.
-                        </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
                   <div className="space-y-3 p-3">
-                    <FilterSection
-                      description="Choose which property records are visible."
-                      title="Record state"
-                    >
+                    <FilterSection title="Record state">
                       <FilterField label="Status">
                         <SelectControl
                           ariaLabel="Filter by status"
@@ -270,10 +258,7 @@ export function PropertyFilters({
                       </FilterField>
                     </FilterSection>
 
-                    <FilterSection
-                      description="Find records that need follow-up or financial review."
-                      title="Operational review"
-                    >
+                    <FilterSection title="Operational review">
                       <FilterField label="Owner link">
                         <SelectControl
                           ariaLabel="Filter by owner link"
@@ -311,10 +296,7 @@ export function PropertyFilters({
                       </FilterField>
                     </FilterSection>
 
-                    <FilterSection
-                      description="Adjust ordering and row density for this table."
-                      title="Table setup"
-                    >
+                    <FilterSection title="Table setup">
                       <FilterField label="Sort">
                         <SelectControl
                           ariaLabel="Sort properties"
@@ -356,7 +338,7 @@ export function PropertyFilters({
                     </span>
                     <Popover.Close asChild>
                       <button
-                        className="inline-flex h-7 items-center rounded-md border border-border px-2.5 font-medium text-foreground transition-colors hover:bg-surface-muted"
+                        className="inline-flex h-7 items-center rounded-md border border-border px-2.5 font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
                         type="button"
                       >
                         Done
@@ -369,7 +351,7 @@ export function PropertyFilters({
             {hasAnyFilters ? (
               <Link
                 aria-label="Reset property filters"
-                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-accent/40 bg-surface px-2 text-accent transition-colors hover:bg-surface-muted hover:text-accent"
+                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-accent/40 bg-surface px-2 text-accent outline-none transition-colors hover:bg-surface-muted hover:text-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
                 href={pathname}
                 scroll={false}
                 title="Reset filters"
@@ -387,21 +369,16 @@ export function PropertyFilters({
 
 function FilterSection({
   children,
-  description,
   title,
 }: {
   children: React.ReactNode;
-  description: string;
   title: string;
 }) {
   return (
     <section className="space-y-2">
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">
-          {title}
-        </h3>
-        <p className="mt-0.5 text-xs text-muted">{description}</p>
-      </div>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">
+        {title}
+      </h3>
       <div className="grid gap-2 sm:grid-cols-2">{children}</div>
     </section>
   );
@@ -431,7 +408,7 @@ function ActiveFilterChip({
 }) {
   return (
     <button
-      className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-muted px-2 py-1 text-left text-xs text-foreground transition-colors hover:bg-surface"
+      className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-muted px-2 py-1 text-left text-xs text-foreground outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring"
       onClick={onRemove}
       title={`Remove ${filter.label} filter`}
       type="button"
@@ -597,7 +574,7 @@ function ViewModeButton({
     <button
       aria-pressed={active}
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted transition-colors hover:text-foreground",
+        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
         active && "bg-surface text-foreground shadow-sm",
       )}
       onClick={onClick}

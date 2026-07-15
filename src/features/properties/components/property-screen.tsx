@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
@@ -13,8 +14,13 @@ import {
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import {
+  useWideWorkspace,
+  WorkspaceSplitView,
+} from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
-import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import {
@@ -26,10 +32,12 @@ import { PropertyForm } from "@/features/properties/components/property-form";
 import { PropertyInspector } from "@/features/properties/components/property-inspector";
 import { PropertiesTable } from "@/features/properties/components/properties-table";
 import type { PropertySummary } from "@/features/properties/data/properties";
+import { DEFAULT_PROPERTY_SORT } from "@/features/properties/property.filters";
 import type {
   PropertyDisplayMode,
   PropertyOwnerOption,
   PropertyPagination,
+  PropertySortKey,
   PropertyViewQuery,
 } from "@/features/properties/property.types";
 
@@ -40,6 +48,7 @@ type DrawerState =
   | { mode: "restore"; property: PropertySummary };
 
 type PropertyScreenProps = {
+  canCreate: boolean;
   initialPropertyId?: string;
   ownerOptions: PropertyOwnerOption[];
   pagination: PropertyPagination;
@@ -48,6 +57,7 @@ type PropertyScreenProps = {
 };
 
 export function PropertyScreen({
+  canCreate,
   initialPropertyId,
   ownerOptions,
   pagination,
@@ -67,7 +77,10 @@ export function PropertyScreen({
   const [selectedPropertyId, setSelectedPropertyId] = useState(() =>
     getInitialRecordId(properties, initialPropertyId),
   );
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
+    Boolean(initialPropertyId) && searchParams.get("action") !== "create",
+  );
+  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedProperty = initialPropertyId
     ? properties.find((property) => property.id === initialPropertyId) ?? null
@@ -79,19 +92,16 @@ export function PropertyScreen({
     selectedRecordId: selectedPropertyId,
   });
   const reviewContext = getPropertyReviewContext(viewQuery);
-  const openPropertyRecord = (propertyId: string) => {
-    router.push(`/properties/${propertyId}`);
-  };
   const openPropertyAction = (nextDrawer: DrawerState) => {
-    setPreviewOpen(false);
+    if (!window.matchMedia("(min-width: 1024px)").matches) {
+      setCompactInspectorOpen(false);
+    }
     setStatusMessage(null);
     setDrawer(nextDrawer);
   };
   const previewProperty = (propertyId: string) => {
     setSelectedPropertyId(propertyId);
-    if (window.matchMedia("(max-width: 1279px)").matches) {
-      setPreviewOpen(true);
-    }
+    setCompactInspectorOpen(true);
   };
   const changeDisplayMode = (mode: PropertyDisplayMode) => {
     setDisplayMode(mode);
@@ -109,14 +119,27 @@ export function PropertyScreen({
       scroll: false,
     });
   };
+  const changeSort = (sort: PropertySortKey) => {
+    const nextParams = new URLSearchParams(searchParams.toString());
+
+    if (sort === DEFAULT_PROPERTY_SORT) {
+      nextParams.delete("sort");
+    } else {
+      nextParams.set("sort", sort);
+    }
+
+    nextParams.delete("page");
+    const queryString = nextParams.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+      scroll: false,
+    });
+  };
 
   useEffect(() => {
     if (focusedPropertyId) {
       queueMicrotask(() => {
         setSelectedPropertyId(focusedPropertyId);
-        if (window.matchMedia("(max-width: 1279px)").matches) {
-          setPreviewOpen(true);
-        }
+        setCompactInspectorOpen(true);
       });
     }
   }, [focusedPropertyId]);
@@ -127,6 +150,7 @@ export function PropertyScreen({
     }
 
     queueMicrotask(() => {
+      setCompactInspectorOpen(false);
       setStatusMessage(null);
       setDrawer({ mode: "create" });
     });
@@ -135,9 +159,76 @@ export function PropertyScreen({
     });
   }, [pathname, router, searchParams]);
 
+  const hasFilters =
+    hasActivePropertyFilters(viewQuery) ||
+    (properties.length === 0 && pagination.totalCount > 0);
+  const openCreateProperty = () => {
+    openPropertyAction({ mode: "create" });
+  };
+  const propertyList = (
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+      {properties.length === 0 ? (
+        <EmptyState
+          action={
+            hasFilters ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={pathname}
+                scroll={false}
+              >
+                Clear filters
+              </Link>
+            ) : canCreate ? (
+              <Button onClick={openCreateProperty} variant="primary">
+                <Plus size={15} />
+                Add property
+              </Button>
+            ) : undefined
+          }
+          body={
+            hasFilters
+              ? "The current filters return no property records."
+              : "Your portfolio is empty."
+          }
+          className="h-full"
+          kind={hasFilters ? "filtered" : "empty"}
+          title={hasFilters ? "No matching properties" : "No properties yet"}
+        />
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 p-3">
+            <PropertiesTable
+              displayMode={displayMode}
+              onSelectProperty={previewProperty}
+              onSortChange={changeSort}
+              properties={properties}
+              selectedPropertyId={selectedProperty?.id ?? ""}
+              sort={viewQuery.sort}
+            />
+          </div>
+          <PaginationControls attached={isTableMode} pagination={pagination} />
+        </>
+      )}
+    </section>
+  );
+  const propertyInspector = selectedProperty ? (
+    <PropertyInspector
+      onArchiveProperty={(property) =>
+        openPropertyAction({ mode: "archive", property })
+      }
+      onEditProperty={(property) =>
+        openPropertyAction({ mode: "edit", property })
+      }
+      onRestoreProperty={(property) =>
+        openPropertyAction({ mode: "restore", property })
+      }
+      property={selectedProperty}
+    />
+  ) : null;
+
   return (
-    <div className="min-h-screen lg:flex lg:h-screen lg:min-h-0 lg:flex-col lg:overflow-hidden">
-      <PageHeader
+    <WorkspacePage
+      header={<PageHeader
         actions={
           <>
             {reviewContext && selectedProperty ? (
@@ -150,31 +241,40 @@ export function PropertyScreen({
                 Edit selected
               </Button>
             ) : null}
-            <Button
-              onClick={() => {
-                setPreviewOpen(false);
-                setStatusMessage(null);
-                setDrawer({ mode: "create" });
-              }}
-              variant="primary"
-            >
-              <Plus size={15} />
-              Add property
-            </Button>
+            {canCreate ? (
+              <Button onClick={openCreateProperty} variant="primary">
+                <Plus size={15} />
+                Add property
+              </Button>
+            ) : null}
           </>
         }
+        context={
+          <span className="tabular-nums">
+            {pagination.totalCount} {pagination.totalCount === 1 ? "record" : "records"}
+          </span>
+        }
         description={
-          reviewContext
-            ? reviewContext.description
-            : "Operational property records with ownership, occupancy, and linked unit performance."
+          reviewContext ? reviewContext.description : undefined
         }
         title="Properties"
-      />
+      />}
+      toolbar={
+        <PropertyFilters
+          onDisplayModeChange={changeDisplayMode}
+          displayMode={displayMode}
+          onSelectProperty={previewProperty}
+          properties={properties}
+          viewQuery={viewQuery}
+        />
+      }
+    >
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-6">
+        <div className="shrink-0 px-4 py-2 sm:px-6">
           <div
-            className="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 px-3.5 py-3 text-sm text-success shadow-sm"
+            className="flex items-start gap-2 rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
             role="status"
           >
             <CheckCircle2 className="mt-0.5 shrink-0" size={16} />
@@ -183,14 +283,6 @@ export function PropertyScreen({
         </div>
       ) : null}
 
-      <PropertyFilters
-        onDisplayModeChange={changeDisplayMode}
-        displayMode={displayMode}
-        onSelectProperty={previewProperty}
-        properties={properties}
-        viewQuery={viewQuery}
-      />
-
       {reviewContext ? (
         <PropertyReviewStrip
           context={reviewContext}
@@ -198,68 +290,20 @@ export function PropertyScreen({
         />
       ) : null}
 
-      <div className="px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:px-6 lg:py-4">
-        <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
-          <section
-            className="flex min-h-0 min-w-0 flex-col"
-          >
-            <div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-[13px]">
-              <div className="min-w-0">
-                <p className="font-semibold text-foreground">Portfolio records</p>
-                <p className="text-foreground-muted">
-                  Select a row to inspect. Double-click to open the full property file.
-                </p>
-              </div>
-              <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-muted">
-                {pagination.totalCount} total
-              </span>
-            </div>
-            <div className="min-h-0 flex-1">
-              <PropertiesTable
-                displayMode={displayMode}
-                onOpenProperty={openPropertyRecord}
-                onSelectProperty={previewProperty}
-                properties={properties}
-                selectedPropertyId={selectedProperty?.id ?? ""}
-              />
-            </div>
-            <PaginationControls attached={isTableMode} pagination={pagination} />
-          </section>
-          <aside className="hidden min-h-0 overflow-hidden rounded-md border border-border bg-surface xl:block">
-            <PropertyInspector
-              onArchiveProperty={(property) =>
-                openPropertyAction({ mode: "archive", property })
-              }
-              onEditProperty={(property) =>
-                openPropertyAction({ mode: "edit", property })
-              }
-              onRestoreProperty={(property) =>
-                openPropertyAction({ mode: "restore", property })
-              }
-              property={selectedProperty}
+        <div className="min-h-0 min-w-0 flex-1">
+          {propertyInspector && selectedProperty ? (
+            <WorkspaceSplitView
+              inspector={propertyInspector}
+              inspectorLabel={`${selectedProperty.name} inspector`}
+              inspectorOpen={isWideWorkspace || compactInspectorOpen}
+              list={propertyList}
+              onInspectorOpenChange={setCompactInspectorOpen}
             />
-          </aside>
+          ) : (
+            <WorkspaceSplitView list={propertyList} />
+          )}
         </div>
       </div>
-
-      <RecordPreviewDrawer
-        onClose={() => setPreviewOpen(false)}
-        open={previewOpen && Boolean(selectedProperty)}
-        title="Property preview"
-      >
-        <PropertyInspector
-          onArchiveProperty={(property) =>
-            openPropertyAction({ mode: "archive", property })
-          }
-          onEditProperty={(property) =>
-            openPropertyAction({ mode: "edit", property })
-          }
-          onRestoreProperty={(property) =>
-            openPropertyAction({ mode: "restore", property })
-          }
-          property={selectedProperty}
-        />
-      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer
@@ -292,7 +336,7 @@ export function PropertyScreen({
           )}
         </SideDrawer>
       ) : null}
-    </div>
+    </WorkspacePage>
   );
 }
 
@@ -329,8 +373,7 @@ function getPropertyReviewContext(
       countLabel: "missing a current owner link",
       description:
         "Showing properties that need a current owner link before ownership reporting and follow-up are reliable.",
-      nextStep:
-        "Select a property, then choose a current owner in the edit drawer.",
+      nextStep: "Current owner link required",
     };
   }
 
@@ -339,8 +382,7 @@ function getPropertyReviewContext(
       countLabel: "with negative net income",
       description:
         "Showing properties where active ledger totals are below zero and need income, expense, or occupancy review.",
-      nextStep:
-        "Select a property, then open its Ledger, Units, or Timeline context from the inspector.",
+      nextStep: "Review ledger, units, or timeline",
     };
   }
 
@@ -349,8 +391,7 @@ function getPropertyReviewContext(
       countLabel: "without unit records",
       description:
         "Showing property shells that need units before leasing, vacancy, and operating history can work reliably.",
-      nextStep:
-        "Open the property record, then add the first unit from its operating record.",
+      nextStep: "Add the first unit",
     };
   }
 
@@ -359,8 +400,7 @@ function getPropertyReviewContext(
       countLabel: "missing a property photo",
       description:
         "Showing properties that need at least one saved photo for visual identification.",
-      nextStep:
-        "Open the full property record, then use the Photos tab to upload a cover image.",
+      nextStep: "Add a cover photo",
     };
   }
 
@@ -369,11 +409,22 @@ function getPropertyReviewContext(
       countLabel: "missing an address",
       description:
         "Showing properties that need an address before documents, reports, and field work are clear.",
-      nextStep: "Select a property, then add the address in the edit drawer.",
+      nextStep: "Add the property address",
     };
   }
 
   return null;
+}
+
+function hasActivePropertyFilters(viewQuery: PropertyViewQuery) {
+  return (
+    viewQuery.archiveState !== "active" ||
+    viewQuery.netStatus !== "all" ||
+    viewQuery.ownerStatus !== "all" ||
+    viewQuery.query.trim().length > 0 ||
+    viewQuery.review !== "all" ||
+    viewQuery.status !== "all"
+  );
 }
 
 function getPropertyDrawerTitle(drawer: DrawerState) {

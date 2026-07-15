@@ -23,6 +23,7 @@ export default async function UnitsPage({ searchParams }: UnitsPageProps) {
 
   return (
     <UnitScreen
+      canCreate
       key={initialUnitId ?? "units"}
       initialUnitId={initialUnitId}
       pagination={pagination}

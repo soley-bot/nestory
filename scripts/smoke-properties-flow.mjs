@@ -151,15 +151,12 @@ try {
   }
   await page.keyboard.press("Escape");
 
-  await page.getByRole("button", { name: /open actions for/i }).first().click();
-  const actionMenuText = await page
-    .locator("[data-radix-popper-content-wrapper]")
-    .last()
-    .innerText();
-  if (/upload photo|add photo/i.test(actionMenuText)) {
-    throw new Error("Property table action menu should not expose photo upload.");
+  const rowActionCount = await page
+    .getByRole("button", { name: /open actions for/i })
+    .count();
+  if (rowActionCount !== 0) {
+    throw new Error("Property records should keep mutations in the inspector.");
   }
-  await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: /^archive /i }).first().click();
   await page.waitForSelector('form[data-flow-state="blocked"]');

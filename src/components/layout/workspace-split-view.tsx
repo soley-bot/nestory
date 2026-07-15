@@ -51,6 +51,14 @@ function getWideWorkspaceServerSnapshot() {
   return true;
 }
 
+export function useWideWorkspace() {
+  return useSyncExternalStore(
+    subscribeToWideWorkspace,
+    getWideWorkspaceSnapshot,
+    getWideWorkspaceServerSnapshot,
+  );
+}
+
 export function WorkspaceSplitView({
   inspector,
   inspectorLabel,
@@ -58,11 +66,7 @@ export function WorkspaceSplitView({
   list,
   onInspectorOpenChange,
 }: WorkspaceSplitViewProps) {
-  const isWideWorkspace = useSyncExternalStore(
-    subscribeToWideWorkspace,
-    getWideWorkspaceSnapshot,
-    getWideWorkspaceServerSnapshot,
-  );
+  const isWideWorkspace = useWideWorkspace();
   const hasDismissableInspector =
     inspector != null && typeof onInspectorOpenChange === "function";
   const showInspector = hasDismissableInspector && inspectorOpen === true;

@@ -1,27 +1,35 @@
-import {
-  previewRowClassName,
-  selectedPreviewRowClassName,
-} from "@/components/data/interactive-table";
+import Link from "next/link";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { PropertySummary } from "@/features/properties/data/properties";
-import type { PropertyDisplayMode } from "@/features/properties/property.types";
+import type {
+  PropertyDisplayMode,
+  PropertySortKey,
+} from "@/features/properties/property.types";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
+const propertyRowClassName =
+  "cursor-pointer border-t border-border outline-none transition-colors hover:bg-surface-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring";
+const selectedPropertyRowClassName =
+  "bg-state-selected shadow-[inset_3px_0_0_var(--record-spine)]";
+
 type PropertiesTableProps = {
   displayMode: PropertyDisplayMode;
-  onOpenProperty: (id: string) => void;
   onSelectProperty: (id: string) => void;
+  onSortChange: (sort: PropertySortKey) => void;
   properties: PropertySummary[];
   selectedPropertyId: string;
+  sort: PropertySortKey;
 };
 
 export function PropertiesTable({
   displayMode,
-  onOpenProperty,
   onSelectProperty,
+  onSortChange,
   properties,
   selectedPropertyId,
+  sort,
 }: PropertiesTableProps) {
   return (
     <div className="h-full min-h-0">
@@ -41,7 +49,6 @@ export function PropertiesTable({
         {properties.map((property) => (
           <PropertyCard
             key={property.id}
-            onOpenProperty={onOpenProperty}
             onSelectProperty={onSelectProperty}
             property={property}
             selected={selectedPropertyId === property.id}
@@ -63,16 +70,34 @@ export function PropertiesTable({
               </colgroup>
               <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
                 <tr>
-                  <th className="px-2.5 py-2.5 font-semibold">Property</th>
+                  <SortableHeader
+                    active={sort === "code_asc"}
+                    direction="ascending"
+                    label="Property"
+                    onClick={() => onSortChange("code_asc")}
+                    sortLabel="Order property records"
+                  />
                   <th className="px-1.5 py-2.5 font-semibold">Owner</th>
                   <th className="px-1.5 py-2.5 font-semibold">Occupancy</th>
-                  <th className="px-1.5 py-2.5 text-right font-semibold">
-                    Net
-                  </th>
+                  <SortableHeader
+                    active={sort === "net_asc" || sort === "net_desc"}
+                    align="right"
+                    direction={sort === "net_asc" ? "ascending" : "descending"}
+                    label="Net"
+                    onClick={() =>
+                      onSortChange(sort === "net_desc" ? "net_asc" : "net_desc")
+                    }
+                    sortLabel="Sort properties by net"
+                  />
                   <th className="px-1.5 py-2.5 font-semibold">Open</th>
-                  <th className="px-1.5 py-2.5 text-center font-semibold">
-                    Status
-                  </th>
+                  <SortableHeader
+                    active={sort === "status_asc"}
+                    align="center"
+                    direction="ascending"
+                    label="Status"
+                    onClick={() => onSortChange("status_asc")}
+                    sortLabel="Sort properties by status"
+                  />
                 </tr>
               </thead>
               <tbody>
@@ -85,16 +110,20 @@ export function PropertiesTable({
                 ) : null}
                 {properties.map((property) => (
                   <tr
+                    aria-selected={selectedPropertyId === property.id}
                     className={cn(
-                      previewRowClassName,
+                      propertyRowClassName,
                       selectedPropertyId === property.id &&
-                        selectedPreviewRowClassName,
+                        selectedPropertyRowClassName,
                       property.isArchived && "text-muted",
                     )}
                     key={property.id}
                     onClick={() => onSelectProperty(property.id)}
-                    onDoubleClick={() => onOpenProperty(property.id)}
                     onKeyDown={(event) => {
+                      if (event.currentTarget !== event.target) {
+                        return;
+                      }
+
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
                         onSelectProperty(property.id);
@@ -106,12 +135,15 @@ export function PropertiesTable({
                       <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
                         <PropertyThumbnail property={property} />
                         <div className="min-w-0">
-                          <p
-                            className="truncate font-medium"
+                          <Link
+                            className="block truncate rounded-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            href={`/properties/${property.id}`}
+                            onClick={(event) => event.stopPropagation()}
+                            prefetch={false}
                             title={property.name}
                           >
                             {property.name}
-                          </p>
+                          </Link>
                           <p
                             className="mt-0.5 truncate text-xs text-muted"
                             title={`${property.code} / ${property.type}`}
@@ -156,12 +188,10 @@ export function PropertiesTable({
 }
 
 function PropertyCard({
-  onOpenProperty,
   onSelectProperty,
   property,
   selected,
 }: {
-  onOpenProperty: (id: string) => void;
   onSelectProperty: (id: string) => void;
   property: PropertySummary;
   selected: boolean;
@@ -171,13 +201,17 @@ function PropertyCard({
   return (
     <article
       className={cn(
-        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-[#c9d0da] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-        selected && "border-accent shadow-[0_0_0_1px_var(--accent)]",
+        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-focus-ring",
+        selected && "border-record-spine bg-state-selected",
         property.isArchived && "text-muted",
       )}
+      data-selected={selected ? "true" : "false"}
       onClick={() => onSelectProperty(property.id)}
-      onDoubleClick={() => onOpenProperty(property.id)}
       onKeyDown={(event) => {
+        if (event.currentTarget !== event.target) {
+          return;
+        }
+
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onSelectProperty(property.id);
@@ -199,12 +233,15 @@ function PropertyCard({
         </div>
 
         <div className="min-w-0">
-          <p
-            className="truncate text-sm font-semibold leading-5"
+          <Link
+            className="block truncate rounded-sm text-sm font-semibold leading-5 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            href={`/properties/${property.id}`}
+            onClick={(event) => event.stopPropagation()}
+            prefetch={false}
             title={property.name}
           >
             {property.name}
-          </p>
+          </Link>
           <p
             className="mt-0.5 truncate text-xs text-foreground-muted"
             title={property.type}
@@ -220,6 +257,49 @@ function PropertyCard({
         ) : null}
       </div>
     </article>
+  );
+}
+
+function SortableHeader({
+  active,
+  align = "left",
+  direction,
+  label,
+  onClick,
+  sortLabel,
+}: {
+  active: boolean;
+  align?: "center" | "left" | "right";
+  direction: "ascending" | "descending";
+  label: string;
+  onClick: () => void;
+  sortLabel: string;
+}) {
+  const SortIcon = active
+    ? direction === "ascending"
+      ? ArrowUp
+      : ArrowDown
+    : ArrowUpDown;
+
+  return (
+    <th
+      aria-sort={active ? direction : "none"}
+      className="px-1.5 py-1.5 font-semibold"
+    >
+      <button
+        aria-label={sortLabel}
+        className={cn(
+          "flex h-7 w-full items-center gap-1 rounded px-1 outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring",
+          align === "center" && "justify-center",
+          align === "right" && "justify-end",
+        )}
+        onClick={onClick}
+        type="button"
+      >
+        <span>{label}</span>
+        <SortIcon aria-hidden="true" className="size-3" />
+      </button>
+    </th>
   );
 }
 

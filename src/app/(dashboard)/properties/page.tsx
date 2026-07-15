@@ -25,6 +25,7 @@ export default async function PropertiesPage({
 
   return (
     <PropertyScreen
+      canCreate
       key={initialPropertyId ?? "properties"}
       initialPropertyId={initialPropertyId}
       ownerOptions={ownerOptions}

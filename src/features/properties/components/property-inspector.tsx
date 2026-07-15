@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   Archive,
-  Building2,
   ExternalLink,
   Home,
   Landmark,
@@ -29,24 +28,13 @@ export function PropertyInspector({
   property,
 }: PropertyInspectorProps) {
   if (!property) {
-    return (
-      <aside className="bg-surface p-4">
-        <div className="flex items-center gap-2">
-          <Building2 className="text-muted" size={16} />
-          <h2 className="text-base font-semibold">Property inspector</h2>
-        </div>
-        <p className="mt-4 text-sm leading-6 text-muted">
-          Select a property row to inspect ownership, occupancy, and linked record
-          context.
-        </p>
-      </aside>
-    );
+    return null;
   }
 
   const action = getPropertySummaryAction(property);
 
   return (
-    <aside className="bg-surface">
+    <div className="bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -95,7 +83,7 @@ export function PropertyInspector({
         <div className="grid grid-cols-3 gap-2 text-sm">
           <Link
             aria-label={`Open ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={`/properties/${property.id}`}
             prefetch={false}
             title="Open property"
@@ -144,7 +132,7 @@ export function PropertyInspector({
         <div className="grid grid-cols-3 gap-2">
           <Link
             aria-label={`Open units for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={`/units?propertyId=${property.id}`}
             title="Open property units"
           >
@@ -153,7 +141,7 @@ export function PropertyInspector({
           </Link>
           <Link
             aria-label={`Open ledger for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={`/ledger?propertyId=${property.id}`}
             title="Open property ledger"
           >
@@ -162,7 +150,7 @@ export function PropertyInspector({
           </Link>
           <Link
             aria-label={`Open timeline for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={`/timeline?propertyId=${property.id}`}
             title="Open property timeline"
           >
@@ -174,7 +162,7 @@ export function PropertyInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open leases for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={`/leases?propertyId=${property.id}`}
             title="Open property leases"
           >
@@ -183,7 +171,7 @@ export function PropertyInspector({
           </Link>
           <Link
             aria-label={`Open maintenance for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={`/maintenance?propertyId=${property.id}`}
             title="Open property maintenance"
           >
@@ -192,7 +180,7 @@ export function PropertyInspector({
           </Link>
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 
