@@ -57,8 +57,8 @@ and announced loading/error/count/empty states.
 
 ## Verification
 
-- Focused tests: 2 files, 27 tests passed.
-- Full tests: 85 files, 522 tests passed.
+- Focused tests: 2 files, 31 tests passed.
+- Full tests: 85 files, 526 tests passed.
 - Touched ESLint: passed.
 - Full `npm run lint`: passed.
 - `npx tsc --noEmit`: passed.
@@ -74,10 +74,26 @@ and announced loading/error/count/empty states.
 available and the running process was not proven to be this worktree. I did not
 claim a real authenticated browser smoke. Keyboard, focus, abort, activation,
 and accessibility relationships are covered in the focused jsdom tests.
+The actual visual appearance of the semantic focus ring remains a deferred Minor
+for the later Phase 8/release authenticated browser smoke; it is not claimed
+from structural class tests alone.
 
 ## Commit
 
 - Implementation: `d22d9b2cf8120f44b319f754407f92f3c833c386`
+- Review fixes: `c09e42ce4d57f3678e04aa684a18eb5b349914f6`
+
+## Independent review fixes
+
+- One-complete-code-point queries keep local action matching but do not fetch or
+  show terminal `No results`; unmatched short queries render and announce
+  `Type 2 characters to search records`.
+- IME composition start/end is tracked. Arrow, Enter, Escape, and global
+  shortcuts ignore tracked composition, native `isComposing`, and keyCode 229;
+  commands resume after composition end.
+- The shell trigger, combobox frame, and close control now expose explicit
+  focus treatment through the approved `focus-ring` semantic token without raw
+  colors.
 
 ## Known non-task warnings
 
