@@ -342,7 +342,7 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-dvh min-h-0 overflow-hidden bg-background print:h-auto print:min-h-screen print:overflow-visible">
       <aside
         className={cn(
           "fixed inset-y-0 left-0 hidden border-r border-border bg-surface text-foreground transition-[width] duration-200 print:hidden lg:flex",
@@ -381,11 +381,14 @@ export function AppShell({
 
       <main
         className={cn(
-          "min-h-screen transition-[margin-left] duration-200 print:ml-0",
+          "flex h-dvh min-h-0 flex-col overflow-hidden transition-[margin-left] duration-200 print:ml-0 print:block print:h-auto print:overflow-visible",
           sidebarCollapsed ? "lg:ml-12" : "lg:ml-[244px]",
         )}
       >
-        <div className="border-b border-border bg-surface print:hidden lg:hidden">
+        <div
+          className="shrink-0 border-b border-border bg-surface print:hidden lg:hidden"
+          data-slot="mobile-shell-header"
+        >
           <div className="flex items-center justify-between gap-3 px-4 py-2">
             <div className="flex min-w-0 items-center gap-3">
               <NestoryLogo
@@ -507,7 +510,12 @@ export function AppShell({
             </Popover.Root>
           </div>
         </div>
-        {children}
+        <div
+          className="min-h-0 min-w-0 flex-1 overflow-y-auto print:overflow-visible"
+          data-slot="app-shell-content"
+        >
+          {children}
+        </div>
       </main>
     </div>
   );

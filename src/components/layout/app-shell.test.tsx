@@ -60,3 +60,56 @@ describe("AppShell workspace logo", () => {
     expect(screen.queryByRole("link", { name: "Settings" })).toBeNull();
   });
 });
+
+describe("AppShell viewport contract", () => {
+  it("bounds authenticated content while preserving an internal legacy-page scroller", () => {
+    const { container } = render(
+      <AppShell>
+        <div>Legacy page content</div>
+      </AppShell>,
+    );
+
+    const main = screen.getByRole("main");
+    expect(main.className).toContain("h-dvh");
+    expect(main.className).toContain("min-h-0");
+    expect(main.className).toContain("flex");
+    expect(main.className).toContain("flex-col");
+    expect(main.className).toContain("overflow-hidden");
+
+    const contentViewport = container.querySelector<HTMLElement>(
+      '[data-slot="app-shell-content"]',
+    );
+    expect(contentViewport).not.toBeNull();
+    expect(contentViewport?.className).toContain("min-h-0");
+    expect(contentViewport?.className).toContain("min-w-0");
+    expect(contentViewport?.className).toContain("flex-1");
+    expect(contentViewport?.className).toContain("overflow-y-auto");
+    expect(contentViewport?.contains(screen.getByText("Legacy page content"))).toBe(
+      true,
+    );
+  });
+
+  it("keeps the mobile header fixed in the flex stack and releases bounds for print", () => {
+    const { container } = render(
+      <AppShell>
+        <div>Printable page</div>
+      </AppShell>,
+    );
+
+    const main = screen.getByRole("main");
+    expect(main.className).toContain("print:h-auto");
+    expect(main.className).toContain("print:overflow-visible");
+
+    const mobileHeader = container.querySelector<HTMLElement>(
+      '[data-slot="mobile-shell-header"]',
+    );
+    expect(mobileHeader).not.toBeNull();
+    expect(mobileHeader?.className).toContain("shrink-0");
+    expect(mobileHeader?.className).toContain("print:hidden");
+
+    const contentViewport = container.querySelector<HTMLElement>(
+      '[data-slot="app-shell-content"]',
+    );
+    expect(contentViewport?.className).toContain("print:overflow-visible");
+  });
+});

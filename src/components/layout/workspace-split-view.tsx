@@ -6,13 +6,27 @@ import { cn } from "@/lib/utils";
 
 const WIDE_WORKSPACE_QUERY = "(min-width: 1024px)";
 
-type WorkspaceSplitViewProps = {
+type WorkspaceSplitViewBaseProps = {
   list: ReactNode;
-  inspector?: ReactNode;
+};
+
+type WorkspaceSplitViewWithInspectorProps = WorkspaceSplitViewBaseProps & {
+  inspector: ReactNode;
   inspectorLabel: string;
   inspectorOpen: boolean;
-  onInspectorOpenChange?: (open: boolean) => void;
+  onInspectorOpenChange: (open: boolean) => void;
 };
+
+type WorkspaceSplitViewWithoutInspectorProps = WorkspaceSplitViewBaseProps & {
+  inspector?: never;
+  inspectorLabel?: never;
+  inspectorOpen?: never;
+  onInspectorOpenChange?: never;
+};
+
+type WorkspaceSplitViewProps =
+  | WorkspaceSplitViewWithInspectorProps
+  | WorkspaceSplitViewWithoutInspectorProps;
 
 function subscribeToWideWorkspace(onStoreChange: () => void) {
   if (typeof window === "undefined" || !window.matchMedia) {
@@ -49,9 +63,15 @@ export function WorkspaceSplitView({
     getWideWorkspaceSnapshot,
     getWideWorkspaceServerSnapshot,
   );
-  const showInspector = inspectorOpen && inspector !== undefined;
+  const hasDismissableInspector =
+    inspector != null && typeof onInspectorOpenChange === "function";
+  const showInspector = hasDismissableInspector && inspectorOpen === true;
   const showDockedInspector = showInspector && isWideWorkspace;
   const showInspectorDrawer = showInspector && !isWideWorkspace;
+
+  function closeInspector() {
+    onInspectorOpenChange?.(false);
+  }
 
   return (
     <div
@@ -84,7 +104,7 @@ export function WorkspaceSplitView({
 
       {showInspectorDrawer ? (
         <SideDrawer
-          onClose={() => onInspectorOpenChange?.(false)}
+          onClose={closeInspector}
           open
           size="preview"
           title={inspectorLabel}

@@ -2,7 +2,7 @@
 
 import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import { PageHeader } from "@/components/layout/page-header";
@@ -12,6 +12,22 @@ import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 type MatchMediaController = {
   setMatches: (matches: boolean) => void;
 };
+
+type WorkspaceSplitViewProps = ComponentProps<typeof WorkspaceSplitView>;
+
+const validNoInspectorProps: WorkspaceSplitViewProps = {
+  list: <div>Property list</div>,
+};
+void validNoInspectorProps;
+
+// @ts-expect-error An open inspector must provide its controlled dismissal callback.
+const invalidOpenInspectorProps: WorkspaceSplitViewProps = {
+  inspector: <div>Property details</div>,
+  inspectorLabel: "Property inspector",
+  inspectorOpen: true,
+  list: <div>Property list</div>,
+};
+void invalidOpenInspectorProps;
 
 function installMatchMedia(initialMatches: boolean): MatchMediaController {
   let matches = initialMatches;
@@ -145,6 +161,7 @@ describe("shared workspace anatomy", () => {
         inspectorLabel="Lease inspector"
         inspectorOpen
         list={<div>Lease list</div>}
+        onInspectorOpenChange={vi.fn()}
       />,
     );
 
@@ -190,12 +207,18 @@ describe("shared workspace anatomy", () => {
     expect(screen.getByRole("dialog", { name: "Property inspector" })).not.toBeNull();
   });
 
-  it("opens and closes the compact inspector drawer and returns focus to the trigger", async () => {
+  it("closes the compact inspector from its Close control and returns focus", async () => {
     installMatchMedia(false);
     const user = userEvent.setup();
+    const onInspectorOpenChange = vi.fn();
 
     function CompactWorkspace() {
       const [open, setOpen] = useState(false);
+
+      function handleInspectorOpenChange(nextOpen: boolean) {
+        onInspectorOpenChange(nextOpen);
+        setOpen(nextOpen);
+      }
 
       return (
         <WorkspaceSplitView
@@ -207,7 +230,7 @@ describe("shared workspace anatomy", () => {
               Open inspector
             </button>
           }
-          onInspectorOpenChange={setOpen}
+          onInspectorOpenChange={handleInspectorOpenChange}
         />
       );
     }
@@ -222,19 +245,108 @@ describe("shared workspace anatomy", () => {
 
     await user.click(screen.getByRole("button", { name: "Close drawer" }));
 
+    expect(onInspectorOpenChange).toHaveBeenLastCalledWith(false);
     expect(screen.queryByRole("dialog", { name: "Unit inspector" })).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it("closes the compact inspector with Escape through the controlled callback", async () => {
+    installMatchMedia(false);
+    const user = userEvent.setup();
+    const onInspectorOpenChange = vi.fn();
+
+    function CompactWorkspace() {
+      const [open, setOpen] = useState(false);
+
+      function handleInspectorOpenChange(nextOpen: boolean) {
+        onInspectorOpenChange(nextOpen);
+        setOpen(nextOpen);
+      }
+
+      return (
+        <WorkspaceSplitView
+          inspector={<div>Unit details</div>}
+          inspectorLabel="Unit inspector"
+          inspectorOpen={open}
+          list={
+            <button onClick={() => setOpen(true)} type="button">
+              Open inspector
+            </button>
+          }
+          onInspectorOpenChange={handleInspectorOpenChange}
+        />
+      );
+    }
+
+    render(<CompactWorkspace />);
+    await user.click(screen.getByRole("button", { name: "Open inspector" }));
+    await user.keyboard("{Escape}");
+
+    expect(onInspectorOpenChange).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("dialog", { name: "Unit inspector" })).toBeNull();
+  });
+
+  it("closes the compact inspector from its backdrop through the controlled callback", async () => {
+    installMatchMedia(false);
+    const user = userEvent.setup();
+    const onInspectorOpenChange = vi.fn();
+
+    function CompactWorkspace() {
+      const [open, setOpen] = useState(false);
+
+      function handleInspectorOpenChange(nextOpen: boolean) {
+        onInspectorOpenChange(nextOpen);
+        setOpen(nextOpen);
+      }
+
+      return (
+        <WorkspaceSplitView
+          inspector={<div>Unit details</div>}
+          inspectorLabel="Unit inspector"
+          inspectorOpen={open}
+          list={
+            <button onClick={() => setOpen(true)} type="button">
+              Open inspector
+            </button>
+          }
+          onInspectorOpenChange={handleInspectorOpenChange}
+        />
+      );
+    }
+
+    const { container } = render(<CompactWorkspace />);
+    await user.click(screen.getByRole("button", { name: "Open inspector" }));
+
+    const backdrop = container.querySelector<HTMLElement>(
+      'button[aria-hidden="true"]',
+    );
+    expect(backdrop).not.toBeNull();
+    await user.click(backdrop!);
+
+    expect(onInspectorOpenChange).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("dialog", { name: "Unit inspector" })).toBeNull();
+  });
+
+  it("does not mount an undismissable compact modal from invalid JavaScript props", () => {
+    installMatchMedia(false);
+    const unsafeProps = {
+      inspector: <div>Unsafe inspector</div>,
+      inspectorLabel: "Unsafe inspector",
+      inspectorOpen: true,
+      list: <div>Property list</div>,
+    } as unknown as WorkspaceSplitViewProps;
+
+    render(<WorkspaceSplitView {...unsafeProps} />);
+
+    expect(screen.queryByRole("dialog", { name: "Unsafe inspector" })).toBeNull();
+    expect(screen.queryByText("Unsafe inspector")).toBeNull();
   });
 
   it("keeps the main work surface directly keyboard reachable", () => {
     installMatchMedia(false);
 
     render(
-      <WorkspaceSplitView
-        inspectorLabel="Property inspector"
-        inspectorOpen={false}
-        list={<div>Property list</div>}
-      />,
+      <WorkspaceSplitView list={<div>Property list</div>} />,
     );
 
     const mainSurface = screen.getByRole("region", { name: "Workspace content" });
