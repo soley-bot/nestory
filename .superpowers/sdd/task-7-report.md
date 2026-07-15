@@ -1,62 +1,47 @@
-# Task 7 report: aligned Overview operating lenses
+# Task 7 report: scoped global workspace search
 
-## RED / GREEN
+## RED evidence
 
-- RED: added parameterized Leasing, Maintenance, and Records tests for the shared lens grammar. The focused test failed because the legacy screen exposed `All` / `Finance` and chart-first branches rather than the required workspaces.
-- RED: added a Property finance workspace assertion for a ranked expense queue, compact metrics, and readiness aside. It failed against the previous single-link placeholder.
-- GREEN: composed Overview through `OverviewHeader`, `PortfolioWorkspace`, `PropertyFinanceWorkspace`, and the new `OverviewLensWorkspace`. The focused Overview suite passes.
+- Added the data-boundary and route suites before production code.
+- `npm test -- src/features/workspace-search/data/workspace-search.test.ts src/app/api/workspace-search/route.test.ts` failed because both expected modules were absent. An initial trailing-backslash test literal had a parse typo; it was corrected before implementation and RED was rerun, still failing only on the missing feature and route.
 
-## Lens behavior
+## Implementation and decisions
 
-- Portfolio remains the Task 6 property cash scorecard and selected-property detail.
-- Property finance preserves URL-backed Collections, Expenses, Management fees, Owner statements, and Property transactions. It now shows real property-performance metrics, ranked property rows, exact module links, and an attention/readiness aside.
-- Leasing ranks properties by current occupancy and exposes vacancy/gap, expiry, and active-lease work with supporting lease/occupancy evidence.
-- Maintenance surfaces open Overview work and unpaid-bill signals. Paid maintenance cost is explicitly marked unavailable because current Overview data does not separate maintenance payments from other property expenses; the action opens the real expenses module.
-- Records surfaces statement blockers, missing owner/record links, reporting readiness, and direct repair/report actions.
-- Charts are supporting evidence below the primary queue. Layout uses existing neutral semantic tokens, dense borders, overflow-safe navigation, and responsive grids.
-
-## Removed code
-
-- Removed the property-performance-to-company finance adapter.
-- Removed legacy company finance view types, company summary/property/receivable types, legacy company subtabs, company P&L rendering, owner receivables rendering, and dormant company metric helpers/imports.
-- Production Overview code contains none of the forbidden company-accounting copy; remaining matches are negative assertions in tests.
-
-## Commands and results
-
-- `npm run test -- src/features/overview/components/overview-screen.test.tsx` — RED, then GREEN.
-- `npm run test -- src/features/overview` — PASS, 4 files / 38 tests.
-- `npx tsc --noEmit` — PASS.
-- `npm run lint -- "src/features/overview/**/*.{ts,tsx}"` — PASS.
-- `rg -n -i "company p&l|company costs|owner receivables|journal health|general ledger|companyFinance|OverviewCompanyFinance|OverviewOwnerReceivable|OverviewLegacyFinanceView" src/features/overview` — only negative test assertions.
+- Added a request-time `GET /api/workspace-search` boundary that returns private, no-store responses and derives user, organization, role, branch, and person only from the signed-in server context. Unauthenticated callers receive JSON 401; signed-in callers without a workspace membership receive JSON 403.
+- Admins can search active properties, units, people, leases, tasks/cases, documents, and admin navigation actions. Managers search branch-scoped tasks plus Cases/Tasks actions. Members search only branch-and-assignee-scoped tasks plus the Tasks action; an unlinked member performs no entity query.
+- Every entity query has an explicit `organization_id` predicate, an active-record predicate, a per-field bound of 20, and remains subject to the signed-in client's RLS. The implementation performs a fixed set of parallel queries and no N+1 lookups.
+- Query text is trimmed, whitespace-normalized, capped at 120 characters, and requires at least two characters. `%`, `_`, and backslash are escaped in individual `.ilike()` calls; no user input is interpolated into PostgREST `.or()` grammar.
+- Results expose only id, kind, label, optional display metadata, and an existing route href. Ranking is exact/prefix/word/contains, deterministic by kind/label/id, deduplicated, and capped at 20 overall. Role-visible action synonyms are ranked using hidden server-only search text and are not added to the response payload.
+- Checked Supabase CLI 2.108.0 version and migration help, then created `20260715155241_workspace_search_indexes.sql` with `npx supabase migration new workspace_search_indexes`. It enables no extension and adds only active-record GIN trigram indexes for task title/description, document file name, and lease tenant name.
+- No hosted Supabase command or service-role client was used.
 
 ## Files
 
-- `src/features/overview/components/overview-lens-workspace.tsx`
-- `src/features/overview/components/overview-screen.tsx`
-- `src/features/overview/components/overview-screen.test.tsx`
-- `src/features/overview/components/property-finance-workspace.tsx`
-- `src/features/overview/overview.types.ts`
+- `src/features/workspace-search/workspace-search.types.ts`
+- `src/features/workspace-search/workspace-search.scopes.ts`
+- `src/features/workspace-search/data/workspace-search.ts`
+- `src/features/workspace-search/data/workspace-search.test.ts`
+- `src/app/api/workspace-search/route.ts`
+- `src/app/api/workspace-search/route.test.ts`
+- `supabase/migrations/20260715155241_workspace_search_indexes.sql`
 
-## Concerns
+## Verification
 
-- Current Overview data has no maintenance-only paid-cost aggregation or per-property maintenance case counts. The UI reports this honestly and links to the source modules rather than deriving a false value.
-- Records uses exact known attention contracts and shows `Not calculated` when a dedicated owner/lease-link total is absent.
+- Focused RED: FAIL on missing feature and route, as expected.
+- Focused final: PASS, 2 files / 10 tests.
+- Full test suite: PASS, 84 files / 498 tests.
+- `npm run lint`: PASS.
+- Final touched lint: PASS.
+- `npx tsc --noEmit`: PASS.
+- `npm run db:lint`: PASS, no schema errors.
+- Confirmed local stack with `npx supabase status`; `npx supabase migration up` applied the generated migration locally.
+- Queried `pg_indexes`: all four expected partial GIN trigram indexes exist with `archived_at IS NULL` predicates.
+- Read-only `EXPLAIN` checks used the real organization + active + ILIKE query shapes. The tiny local fixture estimates one organization row and therefore prefers its existing organization indexes; the new trigram definitions and predicates still match the ILIKE search paths for larger cardinalities.
+- `npm run build`: PASS on Next.js 16.2.9; `/api/workspace-search` is emitted as a dynamic route.
+- `git diff --cached --check`: PASS before commit.
 
-## Review follow-up
+## Commit and concerns
 
-- Leasing expiry now uses the loader's exact `leaseRiskCount` 60-day contract rather than summing six-month chart buckets.
-- Maintenance open work now matches only the exact `Open maintenance` attention item. Paid maintenance cost remains honestly `Not calculated`; its exact source action is `expenseType=maintenance&status=paid`. The all-status source action is labeled `Maintenance expenses`, not unpaid bills.
-- Records now recognizes only exact `Properties without owner link` and `Leases missing tenant link` attention contracts. Statement blockers remain a separate property-performance readiness value. Missing dedicated totals render `Not calculated`.
-- Nonfinance destination helpers preserve selected property and month where supported; Overview-internal review links use `buildOverviewHref` and retain month/property state.
-- Property-finance rankings are view-specific and deterministic: arrears/collection rate, paid expenses, fee outstanding/receipt ratio, statement blockers, or absolute cash movement.
-- Rent & Income now parses `incomeScope=management-fees` and applies the four supported fee types server-side. Bills & Expenses parses `expenseType` and applies it server-side. Both filter surfaces preserve the selected scope.
-- Added mobile semantic priority-card markup equivalent to the desktop ranked queue.
-- Follow-up verification: 10 focused files / 54 tests passed, then Overview focused tests passed 17/17; TypeScript and targeted lint passed.
-
-## Final review closeout
-
-- Scoped Rent & Income and Bills & Expenses routes no longer render unfiltered monetary workflow summaries. They show an explicitly labeled scoped summary with the truthful server-filtered row count.
-- Mobile priority cards now keep `dt`/`dd` semantics inside a real `Link` using the same row destination as desktop.
-- Leasing Active leases preserves the selected property only; Properties ranked is now an Overview-internal URL that preserves lens, month, and property state.
-- Added deterministic equal-primary-value ranking coverage proving label and then property ID tie-breaking.
-- Final verification: 10 test files / 59 tests passed; TypeScript, targeted lint, and `git diff --check` passed.
+- Commit: `a839ce3 feat(search): add scoped global workspace search`
+- The build retains the existing warning about multiple lockfiles/workspace-root inference in the isolated worktree; it did not affect the build.
+- No browser UI was added in this task; Task 8 will consume this API in the command palette.
