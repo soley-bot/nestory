@@ -135,4 +135,64 @@ describe("trusted report CSV export", () => {
       "Row,Title,Record,Issue,Source records,Source ids,Source links\r\n,No rows,No missing data.,,,,",
     );
   });
+
+  it("exports exact typed Owner Statement evidence and allocated cents", () => {
+    const report: TrustedReport = {
+      columns: [
+        { key: "readiness", label: "Status" },
+        { key: "notes", label: "Notes" },
+      ],
+      description: "Cash-basis owner statement.",
+      emptyDescription: "No rows.",
+      emptyTitle: "No rows",
+      exportFilenameBase: "owner-statement",
+      generatedAt: "2026-08-01T00:00:00.000Z",
+      kind: "owner-statement",
+      periodLabel: "01 Jul 2026 - 31 Jul 2026",
+      rows: [
+        {
+          cells: { notes: "—", readiness: "Ready" },
+          evidence: [
+            {
+              allocatedAmountCents: 6_000,
+              allocationId: "allocation-1",
+              classification: "operating_receipt",
+              depositEventId: null,
+              eventDate: "2026-07-20",
+              expenseItemId: null,
+              incomeItemId: "income-1",
+              ownerEndedOn: null,
+              ownerLinkId: "owner-link-1",
+              ownerPersonId: "person-1",
+              ownerStartedOn: "2026-01-01",
+              paymentId: null,
+              propertyId: "property-1",
+              receiptId: "receipt-1",
+              signedAmountCents: 10_000,
+              statementFact: "operating_cash_received",
+            },
+          ],
+          id: "row-1",
+          sourceCount: 1,
+          sourceLinks: [],
+          sourceSummary: "1 evidence line",
+          title: "Owner One / P1",
+        },
+      ],
+      scopeLabel: "P1 - Property One",
+      summary: [],
+      title: "Owner Statement",
+      totalsTraceLabel: "Ready rows only.",
+    };
+
+    const csv = buildTrustedReportCsv(report);
+
+    expect(csv).toContain("Evidence records,Evidence details");
+    expect(csv).toContain(
+      "property:property-1 | owner-person:person-1 | owner-link:owner-link-1 | income-obligation:income-1 | receipt:receipt-1 | receipt-allocation:allocation-1",
+    );
+    expect(csv).toContain(
+      "2026-07-20 | operating_receipt | signed_cents=10000 | allocated_cents=6000 | fact=operating_cash_received",
+    );
+  });
 });

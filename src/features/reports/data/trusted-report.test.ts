@@ -151,6 +151,7 @@ function makeReportInput(
     ],
     viewQuery: {
       month: "2026-06",
+      ownerPersonId: "all",
       propertyId: "all",
       report: "unit-performance",
       status: "all",
@@ -202,7 +203,7 @@ describe("trusted reports", () => {
       },
       {
         report: "owner-statement",
-        sources: ["ledgerEntries", "owners", "people"],
+        sources: [],
       },
       {
         report: "property-performance",

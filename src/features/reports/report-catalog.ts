@@ -32,12 +32,12 @@ export const reportCatalog: ReportCatalogItem[] = [
     title: "Income & Expense",
   },
   {
-    bestFor: "Owner packet closeout",
+    bestFor: "Owner statement readiness and generation",
     category: "Finance",
     description:
-      "Owner-facing property statement with income, expenses, net, and ownership context.",
+      "Review property and owner readiness, then generate one owner-facing statement at a time.",
     kind: "owner-statement",
-    sources: "Ledger, owners, people",
+    sources: "Finance cash events, owners, people",
     title: "Owner Statement",
   },
   {
@@ -178,6 +178,10 @@ export function buildReportBuilderHref(
 ) {
   const params = new URLSearchParams(query);
   params.delete("report");
+  params.delete("ownerPersonId");
+  if (report === "owner-statement") {
+    params.delete("unitId");
+  }
 
   const suffix = params.toString();
 

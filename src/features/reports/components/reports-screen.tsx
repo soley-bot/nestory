@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { PrintButton } from "@/features/reports/components/print-button";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import { formatLongReportDate } from "@/features/reports/data/report-format";
+import { selectOwnerStatementRecipient } from "@/features/reports/data/owner-statement-report";
 import {
   buildReportBuilderHref,
   getReportCatalogItem,
@@ -124,32 +125,62 @@ export function ReportBuilderScreen({
   const reportRowCount = trustedReport.totalRowCount ?? trustedReport.rows.length;
   const isPreviewLimited = reportRowCount > trustedReport.rows.length;
   const selectedReport = getReportCatalogItem(viewQuery.report);
+  const isOwnerStatement = trustedReport.kind === "owner-statement";
+
+  if (
+    isOwnerStatement &&
+    !trustedReport.scopeValidation &&
+    (viewQuery.ownerPersonId !== "all" || viewQuery.ownerPersonIdInvalid)
+  ) {
+    const selection = selectOwnerStatementRecipient(trustedReport, viewQuery);
+    if ("status" in selection) {
+      return (
+        <OwnerStatementValidationScreen
+          message={selection.message}
+          viewQuery={viewQuery}
+        />
+      );
+    }
+
+    return (
+      <OwnerStatementRecipientScreen
+        organizationName={organizationName}
+        report={selection.report}
+        row={selection.report.rows[0]}
+        viewQuery={viewQuery}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background print:bg-white">
       <div className="print:hidden">
         <PageHeader
           actions={
-            <>
-              <a
-                className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
-                href={buildPdfHref(viewQuery)}
-              >
-                <Download size={14} />
-                Download PDF
-              </a>
-              <a
-                className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
-                href={buildCsvHref(viewQuery)}
-              >
-                <Download size={14} />
-                Export CSV
-              </a>
-              {isPreviewLimited ? null : <PrintButton />}
-            </>
+            trustedReport.scopeValidation ? undefined : (
+              <>
+                {isOwnerStatement ? null : (
+                  <a
+                    className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
+                    href={buildPdfHref(viewQuery)}
+                  >
+                    <Download size={14} />
+                    Download PDF
+                  </a>
+                )}
+                <a
+                  className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+                  href={buildCsvHref(viewQuery)}
+                >
+                  <Download size={14} />
+                  Export CSV
+                </a>
+                {isOwnerStatement || isPreviewLimited ? null : <PrintButton />}
+              </>
+            )
           }
-          description={selectedReport.description}
-          title={selectedReport.title}
+          description={isOwnerStatement ? trustedReport.description : selectedReport.description}
+          title={isOwnerStatement ? trustedReport.title : selectedReport.title}
         />
       </div>
 
@@ -180,8 +211,227 @@ export function ReportBuilderScreen({
         <TrustedReportTable
           organizationName={organizationName}
           report={trustedReport}
+          viewQuery={viewQuery}
         />
       </main>
+    </div>
+  );
+}
+
+function OwnerStatementRecipientScreen({
+  organizationName,
+  report,
+  row,
+  viewQuery,
+}: {
+  organizationName: string;
+  report: TrustedReport;
+  row: TrustedReportRow;
+  viewQuery: ReportsViewQuery;
+}) {
+  return (
+    <div className="min-h-screen bg-background print:bg-white">
+      <div className="print:hidden">
+        <PageHeader
+          actions={
+            <>
+              <a
+                className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
+                href={buildPdfHref(viewQuery)}
+              >
+                <Download size={14} />
+                Download PDF
+              </a>
+              <PrintButton autoPrint={viewQuery.print === true} />
+            </>
+          }
+          description={report.description}
+          title="Owner Statement"
+        />
+      </div>
+
+      <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 print:p-0">
+        <Link
+          className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground print:hidden"
+          href={buildOwnerStatementReadinessHref(viewQuery)}
+          prefetch={false}
+        >
+          <ArrowLeft size={14} />
+          Back to readiness
+        </Link>
+
+        <article className="mx-auto max-w-5xl overflow-hidden rounded-md border border-border bg-surface shadow-sm print:max-w-none print:rounded-none print:border-0 print:shadow-none">
+          <header className="border-b border-border bg-surface-muted/45 px-5 py-5 print:bg-white print:px-0 print:pt-0">
+            <p className="text-xs font-medium text-muted">{organizationName}</p>
+            <div className="mt-3 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
+              <OwnerStatementIdentity label="Owner" value={row.cells.owner ?? "-"} />
+              <OwnerStatementIdentity label="Property" value={row.cells.property ?? "-"} />
+              <OwnerStatementIdentity
+                label="Ownership share"
+                value={row.cells.ownership ?? "-"}
+              />
+            </div>
+            <p className="mt-4 text-xs text-foreground-muted">
+              Statement period: {report.periodLabel}
+            </p>
+          </header>
+
+          <div className="space-y-6 px-5 py-5 print:px-0 print:pb-0">
+            <OwnerStatementFactSection
+              facts={[
+                ["Operating cash received", "operatingCash"],
+                ["Property expenses paid", "propertyExpenses"],
+                ["Management fees received", "managementReceived"],
+                ["Owner contributions", "ownerContributions"],
+                ["Owner payouts", "ownerPayouts"],
+                ["Net owner cash movement", "netMovement"],
+              ]}
+              row={row}
+              title="Cash activity"
+            />
+            <OwnerStatementFactSection
+              facts={[
+                ["Management fees earned", "managementEarned"],
+                [
+                  "Management fees outstanding from this period",
+                  "managementOutstanding",
+                ],
+                ["Security deposits held", "depositsHeld"],
+              ]}
+              row={row}
+              title="Period disclosures"
+            />
+          </div>
+        </article>
+      </main>
+    </div>
+  );
+}
+
+function OwnerStatementValidationScreen({
+  message,
+  viewQuery,
+}: {
+  message: string;
+  viewQuery: ReportsViewQuery;
+}) {
+  return (
+    <div className="min-h-screen bg-background">
+      <PageHeader
+        description="Choose a ready property and owner recipient to continue."
+        title="Owner Statement"
+      />
+      <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6">
+        <Link
+          className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+          href={buildOwnerStatementReadinessHref(viewQuery)}
+          prefetch={false}
+        >
+          <ArrowLeft size={14} />
+          Back to readiness
+        </Link>
+        <section
+          className="rounded-md border border-warning/40 bg-warning/5 px-4 py-4"
+          role="alert"
+        >
+          <h2 className="text-sm font-semibold text-foreground">
+            Statement cannot be generated
+          </h2>
+          <p className="mt-1 text-[13px] leading-5 text-foreground-muted">
+            {message}
+          </p>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function OwnerStatementIdentity({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </p>
+      <p className="mt-1 break-words text-sm font-semibold text-foreground">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function OwnerStatementFactSection({
+  facts,
+  row,
+  title,
+}: {
+  facts: Array<readonly [label: string, key: string]>;
+  row: TrustedReportRow;
+  title: string;
+}) {
+  return (
+    <section>
+      <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-muted">
+        {title}
+      </h2>
+      <dl className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-3">
+        {facts.map(([label, key]) => (
+          <div
+            className="rounded-md border border-border px-3 py-3 print:break-inside-avoid"
+            key={key}
+          >
+            <dt className="text-xs leading-4 text-foreground-muted">{label}</dt>
+            <dd className="mt-1 text-base font-semibold tabular-nums text-foreground">
+              {row.cells[key] ?? "-"}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function OwnerStatementRowActions({
+  row,
+  viewQuery,
+}: {
+  row: TrustedReportRow;
+  viewQuery: ReportsViewQuery;
+}) {
+  const recipientQuery = {
+    ...viewQuery,
+    ownerPersonId: row.ownerPersonId!,
+    propertyId: row.propertyId!,
+  };
+
+  return (
+    <div className="flex min-w-[190px] flex-wrap items-center justify-end gap-1.5 print:hidden">
+      <Link
+        className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-surface-muted"
+        href={buildOwnerStatementPreviewHref(recipientQuery)}
+        prefetch={false}
+      >
+        Preview
+      </Link>
+      <a
+        className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-surface-muted"
+        href={buildPdfHref(recipientQuery)}
+      >
+        PDF
+      </a>
+      <Link
+        className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-surface-muted"
+        href={buildOwnerStatementPreviewHref(recipientQuery, true)}
+        prefetch={false}
+        target="_blank"
+      >
+        Print
+      </Link>
     </div>
   );
 }
@@ -328,9 +578,11 @@ function ReportSummaryGrid({ report }: { report: TrustedReport }) {
 function TrustedReportTable({
   organizationName,
   report,
+  viewQuery,
 }: {
   organizationName: string;
   report: TrustedReport;
+  viewQuery: ReportsViewQuery;
 }) {
   const totalRowCount = report.totalRowCount ?? report.rows.length;
   const isPreviewLimited = totalRowCount > report.rows.length;
@@ -387,7 +639,9 @@ function TrustedReportTable({
                   {column.label}
                 </th>
               ))}
-              <th className="border-b border-border px-3 py-2">Sources</th>
+              <th className="border-b border-border px-3 py-2">
+                {report.kind === "owner-statement" ? "Actions / sources" : "Sources"}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -408,7 +662,9 @@ function TrustedReportTable({
                 <TrustedReportTableRow
                   columns={report.columns}
                   key={row.id}
+                  reportKind={report.kind}
                   row={row}
+                  viewQuery={viewQuery}
                 />
               ))
             )}
@@ -421,10 +677,14 @@ function TrustedReportTable({
 
 function TrustedReportTableRow({
   columns,
+  reportKind,
   row,
+  viewQuery,
 }: {
   columns: TrustedReport["columns"];
+  reportKind: TrustedReport["kind"];
   row: TrustedReportRow;
+  viewQuery: ReportsViewQuery;
 }) {
   const primarySource = row.sourceLinks[0];
   const hiddenSourceCount = row.sourceCount - (primarySource ? 1 : 0);
@@ -464,6 +724,11 @@ function TrustedReportTableRow({
         </td>
       ))}
       <td className="w-[150px] border-b border-border px-3 py-2.5">
+        {reportKind === "owner-statement" &&
+        row.ownerPersonId &&
+        row.propertyId ? (
+          <OwnerStatementRowActions row={row} viewQuery={viewQuery} />
+        ) : (
         <div className="flex min-w-0 items-center justify-end gap-1.5">
           {primarySource?.href ? (
             <Link
@@ -489,6 +754,7 @@ function TrustedReportTableRow({
             {hiddenSourceCount > 0 ? `+${hiddenSourceCount}` : row.sourceCount}
           </span>
         </div>
+        )}
       </td>
     </tr>
   );
@@ -530,7 +796,7 @@ function buildCsvHref(query: ReportsViewQuery) {
     params.set("propertyId", query.propertyId);
   }
 
-  if (query.unitId !== "all") {
+  if (query.unitId !== "all" && query.report !== "owner-statement") {
     params.set("unitId", query.unitId);
   }
 
@@ -551,7 +817,14 @@ function buildPdfHref(query: ReportsViewQuery) {
     params.set("propertyId", query.propertyId);
   }
 
-  if (query.unitId !== "all") {
+  if (
+    query.report === "owner-statement" &&
+    query.ownerPersonId !== "all"
+  ) {
+    params.set("ownerPersonId", query.ownerPersonId);
+  }
+
+  if (query.unitId !== "all" && query.report !== "owner-statement") {
     params.set("unitId", query.unitId);
   }
 
@@ -560,6 +833,27 @@ function buildPdfHref(query: ReportsViewQuery) {
   }
 
   return `/api/reports/pdf?${params.toString()}`;
+}
+
+function buildOwnerStatementPreviewHref(
+  query: ReportsViewQuery,
+  print = false,
+) {
+  const params = new URLSearchParams({
+    month: query.month,
+    ownerPersonId: query.ownerPersonId,
+    propertyId: query.propertyId,
+  });
+  if (print) params.set("print", "1");
+  return `/reports/owner-statement?${params.toString()}`;
+}
+
+function buildOwnerStatementReadinessHref(query: ReportsViewQuery) {
+  const params = new URLSearchParams({ month: query.month });
+  if (query.propertyId !== "all") {
+    params.set("propertyId", query.propertyId);
+  }
+  return `/reports/owner-statement?${params.toString()}`;
 }
 
 function buildCatalogCardHref(
