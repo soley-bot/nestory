@@ -13,6 +13,8 @@
 # testing
 /coverage
 /output/
+/artifacts/ui-redesign/*
+!/artifacts/ui-redesign/.gitkeep
 
 # next.js
 /.next/

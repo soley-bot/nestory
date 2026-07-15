@@ -52,6 +52,21 @@ Use a real browser smoke when a change affects:
 - Maintenance board/agenda/checklist/task interactions.
 - Report export or print/PDF behavior.
 
+### Read-only redesign baseline
+
+Run the redesign evidence capture only against an explicit local fixture. The
+runner uses the supplied test account for authentication, then blocks every
+non-read browser request while it visits the representative routes. Generated
+screenshots and `summary.json` remain under the ignored
+`artifacts/ui-redesign/<UTC run>/` directory.
+
+```powershell
+$env:BASE_URL='http://localhost:3000'
+$env:E2E_EMAIL='local fixture email'
+$env:E2E_PASSWORD='local fixture password'
+npm run test:ui-redesign
+```
+
 For authenticated UI, start from the route an operator would use, not only a
 deep component state.
 
