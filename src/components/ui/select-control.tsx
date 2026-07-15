@@ -68,7 +68,7 @@ export function SelectControl({
         <Select.Trigger
           aria-label={ariaLabel}
           className={cn(
-            "flex h-8 w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-md border border-border bg-surface px-2.5 text-left text-[13px] shadow-sm outline-none transition-colors data-[placeholder]:text-muted focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60",
+            "flex h-8 w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-md border border-border bg-surface px-2.5 text-left text-sm shadow-sm outline-none transition-colors data-[placeholder]:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
             className,
           )}
           type="button"
@@ -90,7 +90,7 @@ export function SelectControl({
               <Select.Group>
                 {options.map((option) => (
                   <Select.Item
-                    className="relative flex min-h-8 cursor-default select-none items-center rounded-md px-2 pr-8 text-[13px] outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-surface-muted data-[highlighted]:text-foreground"
+                    className="relative flex min-h-8 cursor-default select-none items-center rounded-md px-2 pr-8 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-surface-muted data-[highlighted]:text-foreground"
                     disabled={option.disabled}
                     key={`${option.value}-${option.label}`}
                     value={toRadixItemValue(option.value)}

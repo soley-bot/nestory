@@ -42,9 +42,9 @@ export function UnitInspector({
   }
 
   const iconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted";
   const primaryIconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-[13px] text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground transition-colors hover:bg-surface-muted";
 
   return (
     <aside className="bg-surface">
@@ -90,7 +90,7 @@ export function UnitInspector({
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Link
                 aria-label={`Add lease for unit ${unit.unitNumber}`}
-                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-soft/40 px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-warning-soft"
+                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-soft/40 px-2 text-sm font-medium text-foreground transition-colors hover:bg-warning-soft"
                 href={getCreateLeaseHref(unit)}
                 title="Add lease for this unit"
               >
@@ -99,7 +99,7 @@ export function UnitInspector({
               </Link>
               <button
                 aria-label={`Edit status for unit ${unit.unitNumber}`}
-                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted"
                 onClick={() => onEditUnit(unit)}
                 title="Edit unit status"
                 type="button"
@@ -164,7 +164,7 @@ export function UnitInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open timeline filtered to unit ${unit.unitNumber}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/timeline?unitId=${unit.id}`}
             title="Open unit timeline"
           >
@@ -173,7 +173,7 @@ export function UnitInspector({
           </Link>
           <Link
             aria-label={`Open ledger filtered to unit ${unit.unitNumber}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/ledger?propertyId=${unit.propertyId}&query=${encodeURIComponent(
               unit.unitNumber,
             )}`}

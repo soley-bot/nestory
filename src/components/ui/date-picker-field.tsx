@@ -38,7 +38,7 @@ export function DatePickerField({
           <button
             aria-label={ariaLabel}
             className={cn(
-              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 text-left text-[13px] shadow-sm outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent-soft",
+              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 text-left text-sm shadow-sm outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring",
               className,
             )}
             type="button"
@@ -58,7 +58,7 @@ export function DatePickerField({
             <div className="flex items-center justify-between gap-2">
               <button
                 aria-label="Previous month"
-                className="flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                className="flex size-8 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() =>
                   setVisibleMonth((current) => addMonths(current, -1))
                 }
@@ -71,7 +71,7 @@ export function DatePickerField({
               </p>
               <button
                 aria-label="Next month"
-                className="flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                className="flex size-8 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() =>
                   setVisibleMonth((current) => addMonths(current, 1))
                 }
@@ -86,7 +86,7 @@ export function DatePickerField({
                 caption_label: "sr-only",
                 day: "p-0 text-center align-middle",
                 day_button:
-                  "flex size-8 items-center justify-center rounded-md text-sm transition-colors hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-accent-soft",
+                  "flex size-8 items-center justify-center rounded-md text-sm outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
                 disabled: "text-muted opacity-40",
                 month_caption: "sr-only",
                 month_grid: "mt-3 w-full border-separate border-spacing-1",
@@ -117,7 +117,7 @@ export function DatePickerField({
 
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
               <button
-                className="rounded-md px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                className="rounded-md px-2 py-1 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() => {
                   setValue("");
                   setOpen(false);
@@ -127,7 +127,7 @@ export function DatePickerField({
                 Clear
               </button>
               <button
-                className="rounded-md px-2 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+                className="rounded-md px-2 py-1 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() => {
                   const today = getBusinessDateValue();
                   setValue(today);

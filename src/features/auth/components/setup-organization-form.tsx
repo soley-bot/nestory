@@ -84,7 +84,7 @@ export function SetupOrganizationForm({ rootDomain }: SetupOrganizationFormProps
         >
           Workspace URL
         </label>
-        <div className="mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-md border border-border bg-surface shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+        <div className="mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-md border border-border bg-surface shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-focus-ring">
           <Input
             aria-describedby={workspaceSlugHelpId}
             aria-invalid={Boolean(state.fieldErrors?.workspaceSlug?.length)}
@@ -143,7 +143,7 @@ export function SetupOrganizationForm({ rootDomain }: SetupOrganizationFormProps
       </div>
 
       <Button
-        className="box-border h-11 w-full border-foreground bg-foreground text-[12px] font-semibold uppercase tracking-[0.14em] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-70"
+        className="box-border h-11 w-full border-foreground bg-foreground text-[12px] font-semibold uppercase tracking-[0.14em] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-70"
         disabled={pending}
         type="submit"
         variant="primary"

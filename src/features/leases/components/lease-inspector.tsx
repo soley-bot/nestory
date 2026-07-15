@@ -54,9 +54,9 @@ export function LeaseInspector({
   }
 
   const iconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted";
   const primaryIconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-[13px] text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground transition-colors hover:bg-surface-muted";
 
   return (
     <aside className="bg-surface">
@@ -193,7 +193,7 @@ export function LeaseInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open timeline filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={lease.hrefs.timeline}
             title="Open lease timeline"
           >
@@ -202,7 +202,7 @@ export function LeaseInspector({
           </Link>
           <Link
             aria-label={`Open ledger filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={lease.hrefs.ledger}
             title="Open lease ledger"
           >

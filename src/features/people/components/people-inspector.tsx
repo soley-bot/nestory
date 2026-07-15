@@ -48,9 +48,9 @@ export function PeopleInspector({
   }
 
   const iconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted";
   const primaryIconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-[13px] text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground transition-colors hover:bg-surface-muted";
 
   return (
     <aside className="bg-surface">
@@ -200,7 +200,7 @@ function AccessStatusNote({
           </p>
         </div>
         <Link
-          className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+          className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted"
           href={getInviteHref(person)}
         >
           <UserPlus size={15} />

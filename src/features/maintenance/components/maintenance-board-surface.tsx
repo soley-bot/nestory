@@ -283,9 +283,9 @@ function MaintenanceCard({
       className={cn(
         "w-full touch-none rounded-md border bg-surface p-3 text-left text-sm shadow-sm transition-colors hover:bg-surface-muted",
         movable && "cursor-grab active:cursor-grabbing",
-        isDragging && "shadow-lg ring-2 ring-accent-soft",
+        isDragging && "shadow-lg ring-2 ring-state-selected-strong",
         selected
-          ? "border-accent ring-2 ring-accent-soft"
+          ? "border-accent ring-2 ring-state-selected-strong"
           : "border-border",
       )}
       onClick={() => onSelect(maintenanceCase.id)}

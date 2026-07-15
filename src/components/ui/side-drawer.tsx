@@ -169,7 +169,7 @@ export function SideDrawer({
             </h2>
             {description ? (
               <p
-                className="mt-1 text-[13px] leading-5 text-foreground-muted"
+                className="mt-1 text-sm leading-5 text-foreground-muted"
                 id={descriptionId}
               >
                 {description}

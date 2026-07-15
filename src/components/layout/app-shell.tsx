@@ -342,7 +342,7 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-screen bg-background text-[13px]">
+    <div className="min-h-screen bg-background">
       <aside
         className={cn(
           "fixed inset-y-0 left-0 hidden border-r border-border bg-surface text-foreground transition-[width] duration-200 print:hidden lg:flex",

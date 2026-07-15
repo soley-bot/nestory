@@ -8,6 +8,7 @@
   --state-selected: #dcebe6;
   --state-selected-strong: #356e62;
   --state-attention: #b7791f;
+  --state-attention-foreground: #885817;
   --state-attention-soft: #fff4d5;
   --state-danger: #b42318;
   --state-danger-soft: #ffefef;
@@ -22,7 +23,7 @@
   --background: var(--surface-canvas);
   --foreground: #17211f;
   --foreground-muted: #52605c;
-  --foreground-subtle: #6f7d78;
+  --foreground-subtle: #697671;
   --surface: var(--surface-work);
   --surface-muted: var(--surface-canvas);
   --border: var(--border-neutral);
@@ -32,7 +33,7 @@
   --accent-soft: var(--state-selected);
   --danger: var(--state-danger);
   --danger-soft: var(--state-danger-soft);
-  --warning: var(--state-attention);
+  --warning: var(--state-attention-foreground);
   --warning-soft: var(--state-attention-soft);
   --success: var(--state-success);
   --success-soft: var(--state-success-soft);
@@ -49,6 +50,7 @@
   --state-selected: #203a34;
   --state-selected-strong: #86bfb0;
   --state-attention: #d6a85f;
+  --state-attention-foreground: #d6a85f;
   --state-attention-soft: #332414;
   --state-danger: #ff8a80;
   --state-danger-soft: #381b20;
@@ -73,7 +75,7 @@
   --accent-soft: var(--state-selected);
   --danger: var(--state-danger);
   --danger-soft: var(--state-danger-soft);
-  --warning: var(--state-attention);
+  --warning: var(--state-attention-foreground);
   --warning-soft: var(--state-attention-soft);
   --success: var(--state-success);
   --success-soft: var(--state-success-soft);
@@ -148,6 +150,7 @@
   --color-surface-canvas: var(--surface-canvas);
   --color-surface-work: var(--surface-work);
   --color-surface-raised: var(--surface-raised);
+  --color-border-neutral: var(--border-neutral);
   --color-surface: var(--surface);
   --color-surface-muted: var(--surface-muted);
   --color-border: var(--border);
@@ -158,8 +161,12 @@
   --color-state-selected: var(--state-selected);
   --color-state-selected-strong: var(--state-selected-strong);
   --color-state-attention: var(--state-attention);
+  --color-state-attention-foreground: var(--state-attention-foreground);
+  --color-state-attention-soft: var(--state-attention-soft);
   --color-state-danger: var(--state-danger);
+  --color-state-danger-soft: var(--state-danger-soft);
   --color-state-success: var(--state-success);
+  --color-state-success-soft: var(--state-success-soft);
   --color-focus-ring: var(--focus-ring);
   --color-record-spine: var(--record-spine);
   --color-danger: var(--danger);

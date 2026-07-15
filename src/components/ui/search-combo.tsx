@@ -54,7 +54,7 @@ export function SearchCombo({
       onSubmit={onSubmit}
     >
       <div className="relative min-w-0 flex-1">
-        <div className="flex min-w-0 overflow-hidden rounded-md border border-border bg-surface shadow-sm focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft">
+        <div className="flex min-w-0 overflow-hidden rounded-md border border-border bg-surface shadow-sm focus-within:border-accent focus-within:ring-2 focus-within:ring-focus-ring">
           {hasScope ? (
             <SelectControl
               ariaLabel={`${ariaLabel} scope`}
@@ -87,7 +87,7 @@ export function SearchCombo({
           <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-md border border-border bg-surface p-1 shadow-lg">
             {suggestions.map((suggestion) => (
               <button
-                className="flex min-h-10 w-full min-w-0 items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-[13px] transition-colors hover:bg-surface-muted focus:bg-surface-muted focus:outline-none"
+                className="flex min-h-10 w-full min-w-0 items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none"
                 key={suggestion.id}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {

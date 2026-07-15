@@ -94,7 +94,7 @@ export function TimelineInspector({
           {isLedgerLinked ? (
             <Link
               aria-label="Open linked ledger entry"
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border text-[13px] font-medium transition-colors hover:bg-surface-muted"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border text-sm font-medium transition-colors hover:bg-surface-muted"
               href={event.hrefs.ledger ?? event.hrefs.timeline}
               title="Open linked ledger entry"
             >

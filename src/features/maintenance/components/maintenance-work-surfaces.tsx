@@ -533,7 +533,7 @@ function CalendarDayCell({
       {onCreateDate ? (
         <button
           aria-label={`Add scheduled item on ${formatCalendarPanelDate(day.date)}`}
-          className="absolute inset-0 z-0 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          className="absolute inset-0 z-0 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
           data-calendar-add-date={day.date}
           onClick={() => onCreateDate(day.date)}
           type="button"
@@ -581,7 +581,7 @@ function CalendarCaseButton({
   return (
     <button
       className={cn(
-        "block h-4 w-full rounded px-1.5 text-left text-xs leading-4 transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        "block h-4 w-full rounded px-1.5 text-left text-xs leading-4 transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
         getCalendarCaseClassName(maintenanceCase),
       )}
       onClick={() => onActivate(maintenanceCase)}
@@ -604,7 +604,7 @@ function CalendarEventPopover({
       <div className="flex justify-end px-2 pt-2">
         <button
           aria-label="Close event"
-          className="inline-flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="inline-flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           onClick={onClose}
           type="button"
         >

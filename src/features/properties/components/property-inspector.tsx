@@ -95,7 +95,7 @@ export function PropertyInspector({
         <div className="grid grid-cols-3 gap-2 text-sm">
           <Link
             aria-label={`Open ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted"
             href={`/properties/${property.id}`}
             prefetch={false}
             title="Open property"
@@ -144,7 +144,7 @@ export function PropertyInspector({
         <div className="grid grid-cols-3 gap-2">
           <Link
             aria-label={`Open units for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/units?propertyId=${property.id}`}
             title="Open property units"
           >
@@ -153,7 +153,7 @@ export function PropertyInspector({
           </Link>
           <Link
             aria-label={`Open ledger for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/ledger?propertyId=${property.id}`}
             title="Open property ledger"
           >
@@ -162,7 +162,7 @@ export function PropertyInspector({
           </Link>
           <Link
             aria-label={`Open timeline for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/timeline?propertyId=${property.id}`}
             title="Open property timeline"
           >
@@ -174,7 +174,7 @@ export function PropertyInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open leases for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/leases?propertyId=${property.id}`}
             title="Open property leases"
           >
@@ -183,7 +183,7 @@ export function PropertyInspector({
           </Link>
           <Link
             aria-label={`Open maintenance for ${property.name}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
             href={`/maintenance?propertyId=${property.id}`}
             title="Open property maintenance"
           >
