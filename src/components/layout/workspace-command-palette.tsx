@@ -64,6 +64,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const compositionActiveRef = useRef(false);
   const activeRequestRef = useRef<AbortController | null>(null);
   const requestSequenceRef = useRef(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -121,6 +122,13 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
 
   useEffect(() => {
     function handleDocumentKeyDown(event: KeyboardEvent) {
+      if (
+        compositionActiveRef.current ||
+        isComposingKeyboardEvent(event)
+      ) {
+        return;
+      }
+
       const opensPalette =
         event.key.toLowerCase() === "k" &&
         (event.ctrlKey || event.metaKey) &&
@@ -262,6 +270,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
   function closePalette() {
     requestSequenceRef.current += 1;
     activeRequestRef.current?.abort();
+    compositionActiveRef.current = false;
     setIsOpen(false);
     setQuery("");
     setActiveIndex(0);
@@ -279,6 +288,14 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
   }
 
   function handleInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (
+      compositionActiveRef.current ||
+      isComposingKeyboardEvent(event) ||
+      isComposingKeyboardEvent(event.nativeEvent)
+    ) {
+      return;
+    }
+
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setActiveIndex(() =>
@@ -307,6 +324,9 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
   }
 
   const statusMessage = getStatusMessage({
+    isShortQuery:
+      normalizedQuery.length > 0 &&
+      Array.from(normalizedQuery).length < WORKSPACE_SEARCH_MIN_QUERY_LENGTH,
     query,
     resultCount: orderedResults.length,
     searchState,
@@ -316,7 +336,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
     <>
       <button
         aria-label="Search or jump"
-        className="flex h-10 w-full max-w-xl items-center gap-2 rounded-md border border-border bg-surface-raised px-3 text-left text-sm text-foreground-muted shadow-sm transition-colors hover:border-accent hover:text-foreground lg:h-9"
+        className="flex h-10 w-full max-w-xl items-center gap-2 rounded-md border border-border bg-surface-raised px-3 text-left text-sm text-foreground-muted shadow-sm outline-none transition-colors hover:border-accent hover:text-foreground focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring lg:h-9"
         onClick={openFromTrigger}
         ref={triggerRef}
         type="button"
@@ -345,7 +365,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                 className="flex max-h-[min(72vh,620px)] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border bg-surface-raised shadow-xl"
                 role="dialog"
               >
-                <div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-3">
+                <div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-3 transition-shadow focus-within:border-accent focus-within:ring-2 focus-within:ring-focus-ring">
                   <Search className="shrink-0 text-foreground-subtle" size={17} />
                   <h2 className="sr-only" id={dialogTitleId}>
                     Search or jump
@@ -357,7 +377,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                     aria-expanded="true"
                     aria-label="Search or jump"
                     autoComplete="off"
-                    className="h-10 min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-foreground outline-none placeholder:text-foreground-subtle focus:ring-0"
+                    className="h-10 min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-foreground outline-none placeholder:text-foreground-subtle"
                     id={inputId}
                     onChange={(event) => {
                       const nextQuery = event.target.value;
@@ -372,6 +392,12 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                           : "idle",
                       );
                     }}
+                    onCompositionEnd={() => {
+                      compositionActiveRef.current = false;
+                    }}
+                    onCompositionStart={() => {
+                      compositionActiveRef.current = true;
+                    }}
                     onKeyDown={handleInputKeyDown}
                     placeholder="Search or jump…"
                     ref={inputRef}
@@ -381,7 +407,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                   />
                   <button
                     aria-label="Close search"
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                     onClick={closePalette}
                     ref={closeButtonRef}
                     type="button"
@@ -460,7 +486,9 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
 
                   {groups.length === 0 && searchState !== "loading" ? (
                     <div className="px-3 py-10 text-center text-sm text-foreground-muted">
-                      {searchState === "error" ? "Search unavailable" : "No results"}
+                      {searchState === "error"
+                        ? "Search unavailable"
+                        : statusMessage}
                     </div>
                   ) : null}
                 </div>
@@ -650,10 +678,12 @@ function slugify(value: string) {
 }
 
 function getStatusMessage({
+  isShortQuery,
   query,
   resultCount,
   searchState,
 }: {
+  isShortQuery: boolean;
   query: string;
   resultCount: number;
   searchState: SearchState;
@@ -666,9 +696,20 @@ function getStatusMessage({
     return "Search unavailable. Try again.";
   }
 
+  if (isShortQuery && resultCount === 0) {
+    return "Type 2 characters to search records";
+  }
+
   if (query.trim() && resultCount === 0) {
     return "No results";
   }
 
   return `${resultCount} ${resultCount === 1 ? "result" : "results"}`;
+}
+
+function isComposingKeyboardEvent(event: {
+  isComposing?: boolean;
+  keyCode?: number;
+}) {
+  return event.isComposing === true || event.keyCode === 229;
 }

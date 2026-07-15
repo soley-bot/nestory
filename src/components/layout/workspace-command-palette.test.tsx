@@ -58,6 +58,24 @@ afterEach(() => {
 });
 
 describe("Workspace command palette access", () => {
+  it("uses the semantic focus token on the trigger, search field, and close control", () => {
+    renderPalette();
+    const trigger = screen.getByRole("button", { name: "Search or jump" });
+    expect(trigger.className).toContain("focus-visible:ring-2");
+    expect(trigger.className).toContain("focus-visible:ring-focus-ring");
+
+    openPalette();
+    const input = screen.getByRole("combobox", { name: "Search or jump" });
+    const inputFrame = input.parentElement;
+    const closeButton = screen.getByRole("button", { name: "Close search" });
+
+    expect(inputFrame?.className).toContain("focus-within:ring-2");
+    expect(inputFrame?.className).toContain("focus-within:ring-focus-ring");
+    expect(input.className).not.toContain("focus:ring-0");
+    expect(closeButton.className).toContain("focus-visible:ring-2");
+    expect(closeButton.className).toContain("focus-visible:ring-focus-ring");
+  });
+
   it("opens with Ctrl+K or Cmd+K and opens from its single visible trigger", () => {
     renderPalette();
 
@@ -126,9 +144,69 @@ describe("Workspace command palette access", () => {
     expect(screen.queryByRole("dialog", { name: "Search or jump" })).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
+
+  it("does not move, activate, or close while an IME composition is active", () => {
+    renderPalette("manager");
+    openPalette();
+    const input = screen.getByRole("combobox", { name: "Search or jump" });
+    const initialActiveOption = input.getAttribute("aria-activedescendant");
+
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(input.getAttribute("aria-activedescendant")).toBe(initialActiveOption);
+    expect(navigation.push).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Search or jump" })).toBeTruthy();
+
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input.getAttribute("aria-activedescendant")).not.toBe(
+      initialActiveOption,
+    );
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(navigation.push).toHaveBeenCalledWith("/tasks");
+  });
+
+  it("honors native composing and keyCode 229 fallbacks", () => {
+    renderPalette("manager");
+    openPalette();
+    const input = screen.getByRole("combobox", { name: "Search or jump" });
+    const initialActiveOption = input.getAttribute("aria-activedescendant");
+
+    fireEvent.keyDown(input, { isComposing: true, key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229, which: 229 });
+    fireEvent.keyDown(document, { key: "Escape", keyCode: 229, which: 229 });
+
+    expect(input.getAttribute("aria-activedescendant")).toBe(initialActiveOption);
+    expect(navigation.push).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Search or jump" })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Search or jump" })).toBeNull();
+  });
 });
 
 describe("Workspace command palette results", () => {
+  it("keeps one-character queries nonterminal and does not fetch records", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderPalette("member");
+    openPalette();
+    fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
+      target: { value: "x" },
+    });
+    await advanceSearch();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("status").textContent).toBe(
+      "Type 2 characters to search records",
+    );
+    expect(screen.queryByText("No results")).toBeNull();
+  });
+
   it("shows only immediate navigation actions visible to the current role", () => {
     renderPalette("member");
     openPalette();
