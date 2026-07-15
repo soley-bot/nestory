@@ -69,6 +69,36 @@ describe("RentIncomeScreen", () => {
     expect(container.querySelectorAll("[data-money-cell='true']").length).toBeGreaterThan(0);
   });
 
+  it("keeps nested links independent while row keys and Preview state select records", () => {
+    const secondIncome = {
+      ...partialIncome,
+      hrefs: { property: "/properties/property-2" },
+      id: "income-2",
+      payerLabel: "Jordan Tenant",
+      propertyName: "Lake House",
+    } satisfies RentIncomeItem;
+    renderIncome("all", [partialIncome, secondIncome]);
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    const secondLink = within(rows[1]!).getByRole("link", { name: "Lake House" });
+    const secondPreview = within(rows[1]!).getByRole("button", {
+      name: "Preview Jordan Tenant",
+    });
+    expect(rows[0]!.className).toContain("focus-visible:outline");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
+
+    expect(fireEvent.keyDown(secondLink, { key: "Enter" })).toBe(true);
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.keyDown(rows[1]!, { key: "Enter" });
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("true");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.keyDown(rows[0]!, { key: " " });
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+  });
+
   it.each([1024, 390])(
     "opens one deliberate preview drawer at %ipx and returns focus after a cash action",
     async (width) => {
@@ -87,6 +117,8 @@ describe("RentIncomeScreen", () => {
       expect(screen.getByRole("dialog", { name: "Record received money" })).not.toBeNull();
       const consequence = screen.getByRole("region", { name: "Receipt consequence" });
       expect(consequence.textContent).toContain("USD 400.00");
+      expect(within(consequence).getByText("Current balance")).not.toBeNull();
+      expect(within(consequence).queryByText("Remaining")).toBeNull();
       expect(
         (document.querySelector('input[name="incomeItemId"]') as HTMLInputElement).value,
       ).toBe("income-1");

@@ -400,13 +400,16 @@ function PettyCashTable({
             {entries.map((entry) => (
               <tr
                 className={cn(
-                  "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus:bg-surface-muted focus:outline-none",
+                  "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
                   selectedEntryId === entry.id &&
                     "bg-surface-muted shadow-[inset_3px_0_0_var(--accent)]",
                 )}
                 key={entry.id}
                 onClick={() => onSelectEntry(entry.id)}
                 onKeyDown={(event) => {
+                  if (event.currentTarget !== event.target) {
+                    return;
+                  }
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     onSelectEntry(entry.id);
@@ -471,6 +474,7 @@ function PettyCashTable({
                 <td className="px-3 py-2 text-right">
                   <Button
                     aria-label={`Preview ${entry.category}`}
+                    aria-pressed={selectedEntryId === entry.id}
                     className="h-8 w-8 px-0"
                     onClick={(event) => {
                       event.stopPropagation();

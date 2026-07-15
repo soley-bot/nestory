@@ -5,7 +5,10 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BillsExpensesScreen } from "./bills-expenses-screen";
-import type { BillsExpenseItem } from "../bills-expenses.types";
+import type {
+  BillsExpenseItem,
+  BillsExpensesSummary,
+} from "../bills-expenses.types";
 
 beforeEach(() => installMatchMedia(1440));
 
@@ -28,21 +31,7 @@ describe("BillsExpensesScreen", () => {
       statusLabel: "Paid",
       vendorLabel: "Power Company",
     } satisfies BillsExpenseItem;
-    const reversedExpense = {
-      ...partialExpense,
-      amount: -50,
-      amountDisplay: { primary: "-USD 50.00" },
-      amountPaid: -50,
-      amountPaidDisplay: { primary: "-USD 50.00" },
-      id: "payment-reversal:expense-1",
-      isPaymentEvent: true,
-      nextAction: "Payment reversal",
-      outstandingAmount: 0,
-      outstandingAmountDisplay: { primary: "USD 0.00" },
-      paidDate: "2026-07-15",
-      vendorLabel: "Reversed payment",
-    } satisfies BillsExpenseItem;
-    const { container } = renderScreen([partialExpense, paidExpense, reversedExpense]);
+    const { container } = renderScreen([partialExpense, paidExpense]);
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
@@ -81,8 +70,101 @@ describe("BillsExpensesScreen", () => {
       within(rows[0]!).getByRole("button", { name: "Preview Repair Vendor" }),
     ).not.toBeNull();
     expect(within(rows[1]!).getByText("Paid")).not.toBeNull();
-    expect(within(rows[2]!).getByText("Reversed")).not.toBeNull();
     expect(container.querySelectorAll("[data-money-cell='true']").length).toBeGreaterThan(0);
+  });
+
+  it("uses signed paid-basis events for truthful state, amount, and date details", () => {
+    renderScreen(
+      [paymentEvent, reversalEvent],
+      "all",
+      { dateBasis: "paid" },
+      {
+        summary: {
+          approvedCount: "9",
+          draftCount: "8",
+          overdueCount: "7",
+          postedTotal: { primary: "USD 25.00" },
+          unpostedTotal: { primary: "USD 999.00" },
+        },
+      },
+    );
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(within(rows[0]!).getByText("Payment")).not.toBeNull();
+    expect(within(rows[0]!).getByText("Payment 15 Jul 2026")).not.toBeNull();
+    expect(within(rows[1]!).getByText("Reversed")).not.toBeNull();
+    expect(within(rows[1]!).getByText("Reversed 16 Jul 2026")).not.toBeNull();
+
+    let inspector = screen.getByRole("complementary", {
+      name: "Repair Vendor expense inspector",
+    });
+    expect(within(inspector).getByText("Payment", { selector: "p" })).not.toBeNull();
+    expect(within(inspector).getByText("Payment date")).not.toBeNull();
+    expect(within(inspector).getAllByText("USD 75.00")).toHaveLength(1);
+    expect(within(inspector).queryByText("Remaining")).toBeNull();
+
+    fireEvent.click(
+      within(rows[1]!).getByRole("button", { name: "Preview Repair Vendor" }),
+    );
+    inspector = screen.getByRole("complementary", {
+      name: "Repair Vendor expense inspector",
+    });
+    expect(within(inspector).getByText("Reversed", { selector: "p" })).not.toBeNull();
+    expect(within(inspector).getByText("Reversed date")).not.toBeNull();
+    expect(within(inspector).getAllByText("-USD 50.00")).toHaveLength(1);
+    expect(within(inspector).queryByText("Remaining")).toBeNull();
+  });
+
+  it("retains obligation status logic outside paid-basis event rows", () => {
+    const overdueExpense = {
+      ...partialExpense,
+      id: "expense-overdue",
+      isOverdue: true,
+      vendorLabel: "Late Vendor",
+    } satisfies BillsExpenseItem;
+    const draftExpense = {
+      ...partialExpense,
+      id: "expense-draft",
+      status: "draft",
+      statusLabel: "Draft",
+      vendorLabel: "Draft Vendor",
+    } satisfies BillsExpenseItem;
+    renderScreen([partialExpense, overdueExpense, draftExpense]);
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(within(rows[0]!).getByText("Approved")).not.toBeNull();
+    expect(within(rows[1]!).getByText("Overdue")).not.toBeNull();
+    expect(within(rows[2]!).getByText("Draft")).not.toBeNull();
+  });
+
+  it("keeps nested links independent while row keys and Preview state select records", () => {
+    const secondExpense = {
+      ...partialExpense,
+      hrefs: { property: "/properties/property-2" },
+      id: "expense-2",
+      propertyName: "Lake House",
+      vendorLabel: "Lake Vendor",
+    } satisfies BillsExpenseItem;
+    renderScreen([partialExpense, secondExpense]);
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    const secondLink = within(rows[1]!).getByRole("link", { name: "Lake House" });
+    const secondPreview = within(rows[1]!).getByRole("button", {
+      name: "Preview Lake Vendor",
+    });
+    expect(rows[0]!.className).toContain("focus-visible:outline");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
+
+    expect(fireEvent.keyDown(secondLink, { key: "Enter" })).toBe(true);
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.keyDown(rows[1]!, { key: "Enter" });
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("true");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.keyDown(rows[0]!, { key: " " });
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
   });
 
   it.each([1024, 390])(
@@ -102,6 +184,7 @@ describe("BillsExpensesScreen", () => {
       expect(screen.getByRole("dialog", { name: "Record payment" })).not.toBeNull();
       const consequence = screen.getByRole("region", { name: "Payment consequence" });
       expect(consequence.textContent).toContain("USD 150.00");
+      expect(consequence.textContent).toContain("Remaining after paymentUSD 0.00");
       const paymentDialog = screen.getByRole("dialog", { name: "Record payment" });
       expect((paymentDialog.querySelector('input[name="expenseItemId"]') as HTMLInputElement).value).toBe(
         "expense-1",
@@ -133,12 +216,51 @@ describe("BillsExpensesScreen", () => {
     expect(within(emptyState).getByRole("button", { name: "Add bill" })).not.toBeNull();
   });
 
-  it("shows a truthful filtered count instead of global totals for maintenance", () => {
-    renderScreen([partialExpense], "maintenance");
-    expect(screen.getByText("Maintenance expenses")).toBeTruthy();
-    expect(screen.getByText("1 filtered row")).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Global expense summary" })).toBeNull();
-    expect(screen.getByRole("region", { name: "Scoped expense summary" })).toBeTruthy();
+  it("keeps exact invoice-basis financial totals when expense type is filtered", () => {
+    renderScreen([partialExpense], "maintenance", {}, {
+      summary: {
+        approvedCount: "3",
+        draftCount: "2",
+        overdueCount: "1",
+        postedTotal: { primary: "USD 450.00" },
+        unpostedTotal: { primary: "USD 275.00" },
+      },
+    });
+    const summaryRegion = screen.getByRole("region", { name: "Global expense summary" });
+    expect(summaryRegion.textContent).toContain("Approved3");
+    expect(summaryRegion.textContent).toContain("Draft2");
+    expect(summaryRegion.textContent).toContain("Overdue1");
+    expect(summaryRegion.textContent).toContain("USD 450.00");
+    expect(summaryRegion.textContent).toContain("USD 275.00");
+    expect(screen.queryByRole("region", { name: "Scoped expense summary" })).toBeNull();
+  });
+
+  it("shows paid-basis event count and signed net payments without obligation metrics", () => {
+    renderScreen(
+      [paymentEvent, reversalEvent],
+      "maintenance",
+      { dateBasis: "paid" },
+      {
+        summary: {
+          approvedCount: "91",
+          draftCount: "82",
+          overdueCount: "73",
+          postedTotal: { primary: "USD 25.00" },
+          unpostedTotal: { primary: "USD 999.00" },
+        },
+        totalCount: 7,
+      },
+    );
+
+    const summaryRegion = screen.getByRole("region", { name: "Paid expense summary" });
+    expect(within(summaryRegion).getByText("Event count")).not.toBeNull();
+    expect(within(summaryRegion).getByText("7")).not.toBeNull();
+    expect(within(summaryRegion).getByText("Net payments")).not.toBeNull();
+    expect(summaryRegion.textContent).toContain("USD 25.00");
+    expect(within(summaryRegion).queryByText("Approved")).toBeNull();
+    expect(within(summaryRegion).queryByText("Draft")).toBeNull();
+    expect(within(summaryRegion).queryByText("Unposted")).toBeNull();
+    expect(within(summaryRegion).queryByText("Posted")).toBeNull();
   });
   it("submits and describes only the outstanding expense amount", () => {
     renderScreen([partialExpense]);
@@ -207,17 +329,50 @@ const partialExpense = {
   vendorPersonId: null,
 } as BillsExpenseItem;
 
+const paymentEvent = {
+  ...partialExpense,
+  amount: 75,
+  amountDisplay: { primary: "USD 75.00" },
+  amountPaid: 75,
+  amountPaidDisplay: { primary: "USD 75.00" },
+  id: "payment-1:expense-1",
+  isPaymentEvent: true,
+  nextAction: "Payment event",
+  outstandingAmount: 125,
+  outstandingAmountDisplay: { primary: "USD 125.00" },
+  paidDate: "2026-07-15",
+} satisfies BillsExpenseItem;
+
+const reversalEvent = {
+  ...partialExpense,
+  amount: -50,
+  amountDisplay: { primary: "-USD 50.00" },
+  amountPaid: -50,
+  amountPaidDisplay: { primary: "-USD 50.00" },
+  id: "payment-2:expense-1",
+  isPaymentEvent: true,
+  nextAction: "Payment reversal",
+  outstandingAmount: 250,
+  outstandingAmountDisplay: { primary: "USD 250.00" },
+  paidDate: "2026-07-16",
+} satisfies BillsExpenseItem;
+
 function renderScreen(
   expenseItems: BillsExpenseItem[] = [partialExpense],
   expenseType: "all" | "maintenance" = "all",
   viewQuery: Partial<ComponentProps<typeof BillsExpensesScreen>["viewQuery"]> = {},
+  options: {
+    summary?: BillsExpensesSummary;
+    totalCount?: number;
+  } = {},
 ) {
+  const totalCount = options.totalCount ?? expenseItems.length;
   return render(
     <BillsExpensesScreen
       expenseItems={expenseItems}
-      pagination={{ from: expenseItems.length ? 1 : 0, page: 1, pageSize: 25, to: expenseItems.length, totalCount: expenseItems.length, totalPages: expenseItems.length ? 1 : 0 }}
+      pagination={{ from: expenseItems.length ? 1 : 0, page: 1, pageSize: 25, to: expenseItems.length, totalCount, totalPages: totalCount ? 1 : 0 }}
       propertyOptions={[{ id: "property-1", label: "HOME / Home" }]}
-      summary={{
+      summary={options.summary ?? {
         approvedCount: "1",
         draftCount: "0",
         overdueCount: "0",

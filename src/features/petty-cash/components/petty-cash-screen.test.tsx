@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PettyCashScreen } from "@/features/petty-cash/components/petty-cash-screen";
@@ -56,6 +56,34 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(container.querySelectorAll("[data-money-cell='true']").length).toBeGreaterThan(0);
     expect(screen.getByRole("complementary", { name: "Cleaning cash inspector" })).not.toBeNull();
     expect(screen.queryByText(/select a row/i)).toBeNull();
+  });
+
+  it("keeps nested links independent while row keys and Preview state select records", () => {
+    const secondEntry = {
+      ...entries[1]!,
+      propertyCode: "LAKE",
+      propertyId: "property-2",
+    } satisfies PettyCashEntry;
+    renderPettyCash({ entries: [entries[0]!, secondEntry] });
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    const secondLink = within(rows[1]!).getByRole("link", { name: "LAKE" });
+    const secondPreview = within(rows[1]!).getByRole("button", {
+      name: "Preview Supplies",
+    });
+    expect(rows[0]!.className).toContain("focus-visible:outline");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
+
+    expect(fireEvent.keyDown(secondLink, { key: "Enter" })).toBe(true);
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.keyDown(rows[1]!, { key: "Enter" });
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("true");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.keyDown(rows[0]!, { key: " " });
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
   });
 
   it.each([1024, 390])(

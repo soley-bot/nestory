@@ -63,6 +63,9 @@ export function LedgerTable({
                 key={entry.id}
                 onClick={() => onSelectEntry(entry.id)}
                 onKeyDown={(event) => {
+                  if (event.currentTarget !== event.target) {
+                    return;
+                  }
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     onSelectEntry(entry.id);
@@ -128,6 +131,7 @@ export function LedgerTable({
                 <td className="px-3 py-2.5 text-right align-middle">
                   <Button
                     aria-label={`Preview ${entry.category}`}
+                    aria-pressed={selectedEntryId === entry.id}
                     className="h-8 w-8 px-0"
                     onClick={(event) => {
                       event.stopPropagation();

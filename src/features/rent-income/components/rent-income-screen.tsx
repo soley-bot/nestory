@@ -358,12 +358,15 @@ function RentIncomeTable({
           {incomeItems.map((item) => (
             <tr
               className={cn(
-                "cursor-pointer transition-colors hover:bg-surface-muted",
+                "cursor-pointer transition-colors hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
                 selectedItemId === item.id && "bg-accent-soft/35",
               )}
               key={item.id}
               onClick={() => onSelectItem(item.id)}
               onKeyDown={(event) => {
+                if (event.currentTarget !== event.target) {
+                  return;
+                }
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   onSelectItem(item.id);
@@ -404,6 +407,7 @@ function RentIncomeTable({
               <td className="px-3 py-2 text-right">
                 <Button
                   aria-label={`Preview ${item.payerLabel}`}
+                  aria-pressed={selectedItemId === item.id}
                   className="h-8 w-8 px-0"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -675,7 +679,7 @@ function RecordPaymentPanel({
         <ConsequencePanel
           rows={[
             { label: "Receipt", value: item.payerLabel },
-            { label: "Remaining", value: item.balanceDisplay.primary },
+            { label: "Current balance", value: item.balanceDisplay.primary },
           ]}
           summary="Records dated cash received against this income item. Posting remains a separate action."
           title="Receipt consequence"

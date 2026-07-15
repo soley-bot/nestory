@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LedgerScreen } from "@/features/ledger/components/ledger-screen";
@@ -54,6 +54,29 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(screen.getByRole("combobox", { name: "Filter by property" })).not.toBeNull();
     expect(screen.getByRole("combobox", { name: "Filter by direction" })).not.toBeNull();
     expect(screen.queryByText(/select a row/i)).toBeNull();
+  });
+
+  it("keeps nested links independent while row keys and Preview state select records", () => {
+    renderLedger();
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    const secondLink = within(rows[1]!).getByRole("link", { name: "Home" });
+    const secondPreview = within(rows[1]!).getByRole("button", {
+      name: "Preview Repair",
+    });
+    expect(rows[0]!.className).toContain("focus-visible:outline");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
+
+    expect(fireEvent.keyDown(secondLink, { key: "Enter" })).toBe(true);
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.keyDown(rows[1]!, { key: "Enter" });
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("true");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.keyDown(rows[0]!, { key: " " });
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
   });
 
   it.each([1024, 390])(

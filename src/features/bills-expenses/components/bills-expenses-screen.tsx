@@ -44,6 +44,7 @@ import {
 } from "@/features/bills-expenses/bills-expenses.types";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
+import { formatMoneyDisplay } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 const createInitialState: BillsExpensesActionState = {};
@@ -188,7 +189,14 @@ export function BillsExpensesScreen({
         </div>
       ) : null}
 
-      {viewQuery.expenseType === "all" ? <BillsExpensesSummaryStrip summary={summary} /> : <ScopedSummary label={`${expenseTypeOptions.find((option) => option.value === viewQuery.expenseType)?.label ?? "Filtered"} expenses`} totalCount={pagination.totalCount} />}
+      {viewQuery.dateBasis === "paid" ? (
+        <PaidBillsExpensesSummaryStrip
+          eventCount={pagination.totalCount}
+          netPayments={summary.postedTotal}
+        />
+      ) : (
+        <BillsExpensesSummaryStrip summary={summary} />
+      )}
 
       <div className="min-h-0 min-w-0 flex-1">
         {expenseInspector && selectedItem ? (
@@ -337,8 +345,22 @@ function BillsExpensesSummaryStrip({
   );
 }
 
-function ScopedSummary({ label, totalCount }: { label: string; totalCount: number }) {
-  return <section aria-label="Scoped expense summary" className="border-b border-border px-4 py-3 sm:px-6"><p className="text-sm font-semibold">{label}</p><p className="mt-1 text-xs text-muted">{totalCount} filtered {totalCount === 1 ? "row" : "rows"}</p></section>;
+function PaidBillsExpensesSummaryStrip({
+  eventCount,
+  netPayments,
+}: {
+  eventCount: number;
+  netPayments: BillsExpensesSummary["postedTotal"];
+}) {
+  return (
+    <section
+      aria-label="Paid expense summary"
+      className="grid grid-flow-col auto-cols-[minmax(156px,220px)] gap-3 overflow-x-auto border-b border-border px-4 py-3 sm:px-6"
+    >
+      <SummaryCard label="Event count" value={eventCount} />
+      <SummaryCard label="Net payments" value={<MoneyDisplay value={netPayments} />} />
+    </section>
+  );
 }
 
 function SummaryCard({ label, value }: { label: string; value: ReactNode }) {
@@ -380,12 +402,15 @@ function BillsExpensesTable({
           {expenseItems.map((item) => (
             <tr
               className={cn(
-                "cursor-pointer transition-colors hover:bg-surface-muted",
+                "cursor-pointer transition-colors hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
                 selectedItemId === item.id && "bg-accent-soft/35",
               )}
               key={item.id}
               onClick={() => onSelectItem(item.id)}
               onKeyDown={(event) => {
+                if (event.currentTarget !== event.target) {
+                  return;
+                }
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   onSelectItem(item.id);
@@ -409,8 +434,12 @@ function BillsExpensesTable({
                 <p className="text-xs text-muted">{item.unitNumber}</p>
               </td>
               <td className="px-3 py-2">
-                <p>{item.isPaymentEvent && item.paidDate ? `Paid ${formatDate(item.paidDate)}` : formatDate(item.invoiceDate)}</p>
-                {item.dueDate ? (
+                <p>
+                  {item.isPaymentEvent
+                    ? `${getPaymentEventLabel(item)} ${item.paidDate ? formatDate(item.paidDate) : "date unavailable"}`
+                    : formatDate(item.invoiceDate)}
+                </p>
+                {!item.isPaymentEvent && item.dueDate ? (
                   <p className={cn("text-xs text-muted", item.isOverdue && "font-semibold text-danger")}>
                     Due {formatDate(item.dueDate)}
                   </p>
@@ -423,10 +452,13 @@ function BillsExpensesTable({
               <td className="px-3 py-2">
                 <StatusBadge item={item} />
               </td>
-              <td className="px-3 py-2 text-xs text-muted">{item.nextAction}</td>
+              <td className="px-3 py-2 text-xs text-muted">
+                {item.isPaymentEvent ? "Recorded" : item.nextAction}
+              </td>
               <td className="px-3 py-2 text-right">
                 <Button
                   aria-label={`Preview ${item.vendorLabel}`}
+                  aria-pressed={selectedItemId === item.id}
                   className="h-8 w-8 px-0"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -478,20 +510,34 @@ function BillsExpensesInspector({
       </div>
       <div className="space-y-4 p-4">
         <div className="grid grid-cols-2 gap-3">
-          <Detail label="Amount">
-            <MoneyDisplay value={item.amountDisplay} />
-          </Detail>
-          <Detail label="Paid">
-            <MoneyDisplay value={item.amountPaidDisplay} />
-          </Detail>
-          <Detail label="Remaining">
-            <MoneyDisplay value={item.outstandingAmountDisplay} />
-          </Detail>
-          <Detail label="Category">{item.category}</Detail>
-          <Detail label={item.isPaymentEvent ? "Paid" : "Invoice"}>{formatDate(item.isPaymentEvent && item.paidDate ? item.paidDate : item.invoiceDate)}</Detail>
-          <Detail label="Due">
-            {item.dueDate ? formatDate(item.dueDate) : "No due date"}
-          </Detail>
+          {item.isPaymentEvent ? (
+            <>
+              <Detail label={getPaymentEventLabel(item)}>
+                <MoneyDisplay value={item.amountDisplay} />
+              </Detail>
+              <Detail label={`${getPaymentEventLabel(item)} date`}>
+                {item.paidDate ? formatDate(item.paidDate) : "Date unavailable"}
+              </Detail>
+              <Detail label="Category">{item.category}</Detail>
+            </>
+          ) : (
+            <>
+              <Detail label="Amount">
+                <MoneyDisplay value={item.amountDisplay} />
+              </Detail>
+              <Detail label="Paid">
+                <MoneyDisplay value={item.amountPaidDisplay} />
+              </Detail>
+              <Detail label="Remaining">
+                <MoneyDisplay value={item.outstandingAmountDisplay} />
+              </Detail>
+              <Detail label="Category">{item.category}</Detail>
+              <Detail label="Invoice">{formatDate(item.invoiceDate)}</Detail>
+              <Detail label="Due">
+                {item.dueDate ? formatDate(item.dueDate) : "No due date"}
+              </Detail>
+            </>
+          )}
           <Detail label="Company handling">{item.economicScopeLabel}</Detail>
           <Detail label="Owner bill status">{item.ownerBillStatusLabel}</Detail>
           <Detail label="Owner receivable">
@@ -760,7 +806,7 @@ function PostExpensePanel({
           rows={[
             { label: "Payee", value: item.vendorLabel },
             { label: "Cash payment", value: item.outstandingAmountDisplay.primary },
-            { label: "Remaining after payment", value: item.currency === "USD" ? "USD 0.00" : "0.00" },
+            { label: "Remaining after payment", value: formatMoneyDisplay(0, item.currency).primary },
           ]}
           summary={`Records the remaining property payment of ${item.outstandingAmountDisplay.primary} and its settlement allocation.`}
           title="Payment consequence"
@@ -918,14 +964,17 @@ function Detail({ children, label }: { children: ReactNode; label: string }) {
 }
 
 function StatusBadge({ item }: { item: BillsExpenseItem }) {
-  const isPaymentReversal =
-    item.isPaymentEvent === true && item.nextAction === "Payment reversal";
+  const paymentEventLabel = item.isPaymentEvent
+    ? getPaymentEventLabel(item)
+    : null;
 
   return (
     <Badge
       tone={
-        isPaymentReversal
-          ? "danger"
+        paymentEventLabel
+          ? paymentEventLabel === "Reversed"
+            ? "danger"
+            : "success"
           : item.status === "paid" || item.status === "posted"
           ? "success"
           : item.isOverdue
@@ -935,9 +984,13 @@ function StatusBadge({ item }: { item: BillsExpenseItem }) {
               : "neutral"
       }
     >
-      {isPaymentReversal ? "Reversed" : item.isOverdue ? "Overdue" : item.statusLabel}
+      {paymentEventLabel ?? (item.isOverdue ? "Overdue" : item.statusLabel)}
     </Badge>
   );
+}
+
+function getPaymentEventLabel(item: BillsExpenseItem): "Payment" | "Reversed" {
+  return item.amount < 0 ? "Reversed" : "Payment";
 }
 
 function useCloseOnSuccess(
