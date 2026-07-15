@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  normalizeWorkspaceSearchQuery,
   rankWorkspaceSearchResults,
   searchWorkspace,
 } from "@/features/workspace-search/data/workspace-search";
@@ -24,9 +25,16 @@ type RecordedFilter = {
   value: unknown;
 };
 
+type RecordedOrder = {
+  ascending: boolean;
+  column: string;
+};
+
 type RecordedQuery = {
   filters: RecordedFilter[];
   limit?: number;
+  orders: RecordedOrder[];
+  selectedColumns: string[];
   table: TableName;
 };
 
@@ -36,7 +44,12 @@ function createSearchClient(rows: Partial<Record<TableName, Record<string, unkno
   return {
     client: {
       from(table: TableName) {
-        const query: RecordedQuery = { filters: [], table };
+        const query: RecordedQuery = {
+          filters: [],
+          orders: [],
+          selectedColumns: [],
+          table,
+        };
         queries.push(query);
 
         const builder = {
@@ -56,10 +69,15 @@ function createSearchClient(rows: Partial<Record<TableName, Record<string, unkno
             query.limit = value;
             return builder;
           },
-          order() {
+          order(column: string, options: { ascending?: boolean } = {}) {
+            query.orders.push({
+              ascending: options.ascending ?? true,
+              column,
+            });
             return builder;
           },
-          select() {
+          select(columns: string) {
+            query.selectedColumns = columns.split(",").map((column) => column.trim());
             return builder;
           },
           then<TResult1 = { data: Record<string, unknown>[]; error: null }>(
@@ -67,13 +85,21 @@ function createSearchClient(rows: Partial<Record<TableName, Record<string, unkno
               | ((value: { data: Record<string, unknown>[]; error: null }) => TResult1)
               | null,
           ) {
-            const filteredRows = (rows[table] ?? []).filter((row) =>
-              query.filters
-                .filter((filter) => filter.operator === "eq" || filter.operator === "is")
-                .every((filter) => row[filter.column] === filter.value),
-            );
+            const filteredRows = (rows[table] ?? [])
+              .filter((row) =>
+                query.filters.every((filter) => {
+                  if (filter.operator === "ilike") {
+                    return matchesIlike(row[filter.column], String(filter.value));
+                  }
+
+                  return row[filter.column] === filter.value;
+                }),
+              )
+              .toSorted((first, second) => compareRecordedRows(first, second, query.orders));
             const value = {
-              data: filteredRows.slice(0, query.limit),
+              data: filteredRows
+                .slice(0, query.limit)
+                .map((row) => selectRecordedColumns(row, query.selectedColumns)),
               error: null,
             };
 
@@ -86,6 +112,62 @@ function createSearchClient(rows: Partial<Record<TableName, Record<string, unkno
     },
     queries,
   };
+}
+
+function compareRecordedRows(
+  first: Record<string, unknown>,
+  second: Record<string, unknown>,
+  orders: RecordedOrder[],
+) {
+  for (const order of orders) {
+    const firstValue = first[order.column];
+    const secondValue = second[order.column];
+
+    if (firstValue === secondValue) continue;
+    if (firstValue === null || firstValue === undefined) return 1;
+    if (secondValue === null || secondValue === undefined) return -1;
+
+    const comparison = String(firstValue).localeCompare(String(secondValue));
+    if (comparison !== 0) return order.ascending ? comparison : -comparison;
+  }
+
+  return 0;
+}
+
+function matchesIlike(value: unknown, pattern: string) {
+  if (typeof value !== "string") return false;
+
+  let regex = "";
+
+  for (let index = 0; index < pattern.length; index += 1) {
+    const character = pattern[index];
+
+    if (character === "\\" && index + 1 < pattern.length) {
+      index += 1;
+      regex += escapeRegex(pattern[index]);
+    } else if (character === "%") {
+      regex += ".*";
+    } else if (character === "_") {
+      regex += ".";
+    } else {
+      regex += escapeRegex(character);
+    }
+  }
+
+  return new RegExp(`^${regex}$`, "isu").test(value);
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function selectRecordedColumns(
+  row: Record<string, unknown>,
+  selectedColumns: string[],
+) {
+  return Object.fromEntries(
+    selectedColumns.map((column) => [column, row[column]]),
+  );
 }
 
 describe("workspace search scopes", () => {
@@ -126,6 +208,30 @@ describe("searchWorkspace", () => {
       }),
     ).resolves.toEqual([]);
     expect(queries).toEqual([]);
+  });
+
+  it("counts complete Unicode code points and normalizes canonically", async () => {
+    const { client, queries } = createSearchClient({});
+
+    await expect(
+      searchWorkspace({
+        client: client as never,
+        context: { organizationId: "org-1", role: "admin" },
+        query: "🧰",
+      }),
+    ).resolves.toEqual([]);
+    expect(queries).toEqual([]);
+    expect(normalizeWorkspaceSearchQuery("  Cafe\u0301\t records ")).toBe(
+      "Café records",
+    );
+
+    const truncated = normalizeWorkspaceSearchQuery(
+      `${"a".repeat(119)}🧰z`,
+    );
+    expect(truncated).not.toBeNull();
+    expect(Array.from(truncated!)).toHaveLength(120);
+    expect(truncated!.endsWith("🧰")).toBe(true);
+    expect(truncated!.isWellFormed()).toBe(true);
   });
 
   it("searches only active admin records in the authenticated organization", async () => {
@@ -214,6 +320,22 @@ describe("searchWorkspace", () => {
     );
     expect(queries).not.toHaveLength(0);
     expect(queries.every((query) => query.limit !== undefined && query.limit! <= 20)).toBe(true);
+    expect(
+      queries.every((query) => {
+        const searchedField = query.filters.find(
+          (filter) => filter.operator === "ilike",
+        )?.column;
+
+        return (
+          searchedField !== undefined &&
+          JSON.stringify(query.orders) ===
+            JSON.stringify([
+              { ascending: true, column: searchedField },
+              { ascending: true, column: "id" },
+            ])
+        );
+      }),
+    ).toBe(true);
     expect(
       queries.every((query) =>
         query.filters.some(
@@ -304,6 +426,95 @@ describe("searchWorkspace", () => {
           (filter) => filter.column === "branch_id" && filter.value === "branch-a",
         ),
       ),
+    ).toBe(true);
+  });
+
+  it("returns description-only task matches without leaking internal match text", async () => {
+    const { client } = createSearchClient({
+      tasks: [
+        {
+          archived_at: null,
+          branch_id: "branch-a",
+          category: "Inspection",
+          description: "Inspect boiler pressure before reopening",
+          id: "task-description-only",
+          organization_id: "org-1",
+          status: "pending",
+          title: "Mechanical review",
+        },
+      ],
+    });
+
+    const results = await searchWorkspace({
+      client: client as never,
+      context: {
+        branchId: "branch-a",
+        organizationId: "org-1",
+        role: "manager",
+      },
+      query: "boiler",
+    });
+
+    expect(results).toEqual([
+      {
+        href: "/maintenance?archiveState=all&taskId=task-description-only",
+        id: "task-description-only",
+        kind: "maintenance",
+        label: "Mechanical review",
+        meta: "Pending · Inspection",
+      },
+    ]);
+    expect(results[0]).not.toHaveProperty("description");
+    expect(results[0]).not.toHaveProperty("searchText");
+  });
+
+  it("uses deterministic field-plus-id ordering before every bounded query", async () => {
+    const propertyRows = Array.from({ length: 25 }, (_, index) => ({
+      archived_at: null,
+      code: "NO-MATCH",
+      id: `property-${String(index).padStart(2, "0")}`,
+      name: "Boiler",
+      organization_id: "org-1",
+    }));
+    const firstSearch = createSearchClient({ properties: propertyRows });
+    const secondSearch = createSearchClient({
+      properties: [...propertyRows].reverse(),
+    });
+
+    const [firstResults, secondResults] = await Promise.all([
+      searchWorkspace({
+        client: firstSearch.client as never,
+        context: { organizationId: "org-1", role: "admin" },
+        query: "boiler",
+      }),
+      searchWorkspace({
+        client: secondSearch.client as never,
+        context: { organizationId: "org-1", role: "admin" },
+        query: "boiler",
+      }),
+    ]);
+
+    expect(firstResults).toEqual(secondResults);
+    expect(firstResults).toHaveLength(20);
+    expect(firstResults.map((result) => result.id)).toEqual(
+      Array.from(
+        { length: 20 },
+        (_, index) => `property-${String(index).padStart(2, "0")}`,
+      ),
+    );
+    expect(
+      [...firstSearch.queries, ...secondSearch.queries].every((query) => {
+        const searchedField = query.filters.find(
+          (filter) => filter.operator === "ilike",
+        )?.column;
+
+        return (
+          query.limit === 20 &&
+          searchedField !== undefined &&
+          query.orders[0]?.column === searchedField &&
+          query.orders[1]?.column === "id"
+        );
+      }),
     ).toBe(true);
   });
 

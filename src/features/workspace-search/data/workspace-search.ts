@@ -1,4 +1,8 @@
-import { getWorkspaceSearchActions } from "@/features/workspace-search/workspace-search.scopes";
+import {
+  getWorkspaceSearchActions,
+  getWorkspaceSearchScopes,
+  type WorkspaceSearchScope,
+} from "@/features/workspace-search/workspace-search.scopes";
 import {
   WORKSPACE_SEARCH_MIN_QUERY_LENGTH,
   WORKSPACE_SEARCH_RESULT_LIMIT,
@@ -14,6 +18,11 @@ type SearchWorkspaceOptions = {
   client?: WorkspaceSearchClient;
   context: WorkspaceSearchContext;
   query: string;
+};
+
+type WorkspaceSearchCandidate = {
+  result: WorkspaceSearchResult;
+  searchText?: string;
 };
 
 const PER_FIELD_RESULT_LIMIT = WORKSPACE_SEARCH_RESULT_LIMIT;
@@ -43,59 +52,58 @@ export async function searchWorkspace({
 
   const supabase = client ?? (await createSupabaseServerClient());
   const pattern = buildIlikePattern(normalizedQuery);
-  const recordSearches =
-    context.role === "admin"
-      ? [
-          searchProperties(supabase, context.organizationId, pattern),
-          searchUnits(supabase, context.organizationId, pattern),
-          searchPeople(supabase, context.organizationId, pattern),
-          searchLeases(supabase, context.organizationId, pattern),
-          searchTasks(supabase, context, pattern),
-          searchDocuments(supabase, context.organizationId, pattern),
-        ]
-      : [searchTasks(supabase, context, pattern)];
+  const recordSearches = getWorkspaceSearchScopes(context.role).map((scope) =>
+    searchWorkspaceScope(scope, supabase, context, pattern),
+  );
   const recordGroups = await Promise.all(recordSearches);
   const scopedActions = getWorkspaceSearchActions(context.role);
-  const actionSearchText = new Map(
-    scopedActions.map((action) => [
-      getResultKey(action),
-      action.keywords.join(" "),
-    ]),
+  const actions = scopedActions.map(
+    (action): WorkspaceSearchCandidate => ({
+      result: {
+        href: action.href,
+        id: action.id,
+        kind: action.kind,
+        label: action.label,
+        meta: action.meta,
+      },
+      searchText: action.keywords.join(" "),
+    }),
   );
-  const actions = scopedActions.map((action) => ({
-    href: action.href,
-    id: action.id,
-    kind: action.kind,
-    label: action.label,
-    meta: action.meta,
-  }));
 
-  return rankWorkspaceSearchCandidates(
-    normalizedQuery,
-    [...actions, ...recordGroups.flat()],
-    actionSearchText,
-  );
+  return rankWorkspaceSearchCandidates(normalizedQuery, [
+    ...actions,
+    ...recordGroups.flat(),
+  ]);
 }
 
 export function normalizeWorkspaceSearchQuery(query: string) {
-  const normalized = query.trim().replace(/\s+/g, " ").slice(0, MAX_QUERY_LENGTH);
+  const normalized = query
+    .toWellFormed()
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/gu, " ");
+  const codePoints = Array.from(normalized);
 
-  return normalized.length >= WORKSPACE_SEARCH_MIN_QUERY_LENGTH
-    ? normalized
-    : null;
+  if (codePoints.length < WORKSPACE_SEARCH_MIN_QUERY_LENGTH) {
+    return null;
+  }
+
+  return codePoints.slice(0, MAX_QUERY_LENGTH).join("");
 }
 
 export function rankWorkspaceSearchResults(
   query: string,
   candidates: readonly WorkspaceSearchResult[],
 ): WorkspaceSearchResult[] {
-  return rankWorkspaceSearchCandidates(query, candidates);
+  return rankWorkspaceSearchCandidates(
+    query,
+    candidates.map((result) => ({ result })),
+  );
 }
 
 function rankWorkspaceSearchCandidates(
   query: string,
-  candidates: readonly WorkspaceSearchResult[],
-  additionalSearchText = new Map<string, string>(),
+  candidates: readonly WorkspaceSearchCandidate[],
 ): WorkspaceSearchResult[] {
   const normalizedQuery = normalizeWorkspaceSearchQuery(query)?.toLowerCase();
 
@@ -104,17 +112,22 @@ function rankWorkspaceSearchCandidates(
   }
 
   const uniqueCandidates = [
-    ...new Map(candidates.map((candidate) => [getResultKey(candidate), candidate])).values(),
+    ...new Map(
+      candidates.map((candidate) => [
+        getResultKey(candidate.result),
+        candidate,
+      ]),
+    ).values(),
   ];
 
   return uniqueCandidates
-    .map((result) => ({
+    .map((candidate) => ({
       rank: getMatchRank(
-        result,
+        candidate.result,
         normalizedQuery,
-        additionalSearchText.get(getResultKey(result)),
+        candidate.searchText,
       ),
-      result,
+      result: candidate.result,
     }))
     .filter(({ rank }) => rank < Number.POSITIVE_INFINITY)
     .toSorted((first, second) => {
@@ -140,11 +153,35 @@ function rankWorkspaceSearchCandidates(
     .slice(0, WORKSPACE_SEARCH_RESULT_LIMIT);
 }
 
+function searchWorkspaceScope(
+  scope: WorkspaceSearchScope,
+  client: WorkspaceSearchClient,
+  context: WorkspaceSearchContext,
+  pattern: string,
+): Promise<WorkspaceSearchCandidate[]> {
+  switch (scope) {
+    case "properties":
+      return searchProperties(client, context.organizationId, pattern);
+    case "units":
+      return searchUnits(client, context.organizationId, pattern);
+    case "people":
+      return searchPeople(client, context.organizationId, pattern);
+    case "leases":
+      return searchLeases(client, context.organizationId, pattern);
+    case "tasks":
+      return searchTasks(client, context, pattern);
+    case "documents":
+      return searchDocuments(client, context.organizationId, pattern);
+    default:
+      return assertNever(scope);
+  }
+}
+
 async function searchProperties(
   client: WorkspaceSearchClient,
   organizationId: string,
   pattern: string,
-): Promise<WorkspaceSearchResult[]> {
+): Promise<WorkspaceSearchCandidate[]> {
   const [nameResult, codeResult] = await Promise.all([
     client
       .from("properties")
@@ -152,6 +189,8 @@ async function searchProperties(
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .ilike("name", pattern)
+      .order("name", { ascending: true })
+      .order("id", { ascending: true })
       .limit(PER_FIELD_RESULT_LIMIT),
     client
       .from("properties")
@@ -159,6 +198,8 @@ async function searchProperties(
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .ilike("code", pattern)
+      .order("code", { ascending: true })
+      .order("id", { ascending: true })
       .limit(PER_FIELD_RESULT_LIMIT),
   ]);
 
@@ -166,11 +207,13 @@ async function searchProperties(
 
   return dedupeRows([...(nameResult.data ?? []), ...(codeResult.data ?? [])]).map(
     (property) => ({
-      href: `/properties/${property.id}`,
-      id: property.id,
-      kind: "property",
-      label: property.name,
-      meta: property.code,
+      result: {
+        href: `/properties/${property.id}`,
+        id: property.id,
+        kind: "property",
+        label: property.name,
+        meta: property.code,
+      },
     }),
   );
 }
@@ -179,23 +222,27 @@ async function searchUnits(
   client: WorkspaceSearchClient,
   organizationId: string,
   pattern: string,
-): Promise<WorkspaceSearchResult[]> {
+): Promise<WorkspaceSearchCandidate[]> {
   const result = await client
     .from("units")
     .select("id, organization_id, unit_number, status")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .ilike("unit_number", pattern)
+    .order("unit_number", { ascending: true })
+    .order("id", { ascending: true })
     .limit(PER_FIELD_RESULT_LIMIT);
 
   assertSearchSucceeded("units", result.error);
 
   return (result.data ?? []).map((unit) => ({
-    href: `/units/${unit.id}`,
-    id: unit.id,
-    kind: "unit",
-    label: `Unit ${unit.unit_number}`,
-    meta: formatStoredLabel(unit.status),
+    result: {
+      href: `/units/${unit.id}`,
+      id: unit.id,
+      kind: "unit",
+      label: `Unit ${unit.unit_number}`,
+      meta: formatStoredLabel(unit.status),
+    },
   }));
 }
 
@@ -203,23 +250,27 @@ async function searchPeople(
   client: WorkspaceSearchClient,
   organizationId: string,
   pattern: string,
-): Promise<WorkspaceSearchResult[]> {
+): Promise<WorkspaceSearchCandidate[]> {
   const result = await client
     .from("people")
     .select("id, organization_id, display_name, party_type")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .ilike("display_name", pattern)
+    .order("display_name", { ascending: true })
+    .order("id", { ascending: true })
     .limit(PER_FIELD_RESULT_LIMIT);
 
   assertSearchSucceeded("people", result.error);
 
   return (result.data ?? []).map((person) => ({
-    href: `/people/${person.id}`,
-    id: person.id,
-    kind: "person",
-    label: person.display_name,
-    meta: formatStoredLabel(person.party_type),
+    result: {
+      href: `/people/${person.id}`,
+      id: person.id,
+      kind: "person",
+      label: person.display_name,
+      meta: formatStoredLabel(person.party_type),
+    },
   }));
 }
 
@@ -227,23 +278,27 @@ async function searchLeases(
   client: WorkspaceSearchClient,
   organizationId: string,
   pattern: string,
-): Promise<WorkspaceSearchResult[]> {
+): Promise<WorkspaceSearchCandidate[]> {
   const result = await client
     .from("leases")
     .select("id, organization_id, tenant_name, status")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .ilike("tenant_name", pattern)
+    .order("tenant_name", { ascending: true })
+    .order("id", { ascending: true })
     .limit(PER_FIELD_RESULT_LIMIT);
 
   assertSearchSucceeded("leases", result.error);
 
   return (result.data ?? []).map((lease) => ({
-    href: `/leases?archiveState=all&leaseId=${encodeURIComponent(lease.id)}`,
-    id: lease.id,
-    kind: "lease",
-    label: lease.tenant_name,
-    meta: formatStoredLabel(lease.status),
+    result: {
+      href: `/leases?archiveState=all&leaseId=${encodeURIComponent(lease.id)}`,
+      id: lease.id,
+      kind: "lease",
+      label: lease.tenant_name,
+      meta: formatStoredLabel(lease.status),
+    },
   }));
 }
 
@@ -251,7 +306,7 @@ async function searchTasks(
   client: WorkspaceSearchClient,
   context: WorkspaceSearchContext,
   pattern: string,
-): Promise<WorkspaceSearchResult[]> {
+): Promise<WorkspaceSearchCandidate[]> {
   if (context.role === "member" && !context.personId) {
     return [];
   }
@@ -265,11 +320,16 @@ async function searchTasks(
 
   return dedupeRows([...(titleResult.data ?? []), ...(descriptionResult.data ?? [])]).map(
     (task) => ({
-      href: buildTaskHref(context.role, task.id),
-      id: task.id,
-      kind: context.role === "member" ? "task" : "maintenance",
-      label: task.title,
-      meta: [formatStoredLabel(task.status), formatStoredLabel(task.category)].join(" · "),
+      result: {
+        href: buildTaskHref(context.role, task.id),
+        id: task.id,
+        kind: context.role === "member" ? "task" : "maintenance",
+        label: task.title,
+        meta: [formatStoredLabel(task.status), formatStoredLabel(task.category)].join(
+          " · ",
+        ),
+      },
+      searchText: task.description ?? "",
     }),
   );
 }
@@ -282,7 +342,7 @@ function createTaskSearchQuery(
 ) {
   let query = client
     .from("tasks")
-    .select("id, organization_id, title, category, status")
+    .select("id, organization_id, title, description, category, status")
     .eq("organization_id", context.organizationId)
     .is("archived_at", null)
     .ilike(field, pattern);
@@ -298,30 +358,37 @@ function createTaskSearchQuery(
       : query.is("branch_id", null);
   }
 
-  return query.limit(PER_FIELD_RESULT_LIMIT);
+  return query
+    .order(field, { ascending: true })
+    .order("id", { ascending: true })
+    .limit(PER_FIELD_RESULT_LIMIT);
 }
 
 async function searchDocuments(
   client: WorkspaceSearchClient,
   organizationId: string,
   pattern: string,
-): Promise<WorkspaceSearchResult[]> {
+): Promise<WorkspaceSearchCandidate[]> {
   const result = await client
     .from("documents")
     .select("id, organization_id, file_name, category")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .ilike("file_name", pattern)
+    .order("file_name", { ascending: true })
+    .order("id", { ascending: true })
     .limit(PER_FIELD_RESULT_LIMIT);
 
   assertSearchSucceeded("documents", result.error);
 
   return (result.data ?? []).map((document) => ({
-    href: `/documents?archiveState=all&documentId=${encodeURIComponent(document.id)}`,
-    id: document.id,
-    kind: "document",
-    label: document.file_name,
-    meta: document.category,
+    result: {
+      href: `/documents?archiveState=all&documentId=${encodeURIComponent(document.id)}`,
+      id: document.id,
+      kind: "document",
+      label: document.file_name,
+      meta: document.category,
+    },
   }));
 }
 
@@ -364,6 +431,10 @@ function dedupeRows<T extends { id: string }>(rows: readonly T[]) {
 
 function getResultKey(result: Pick<WorkspaceSearchResult, "id" | "kind">) {
   return `${result.kind}:${result.id}`;
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unsupported workspace search scope: ${String(value)}`);
 }
 
 function assertSearchSucceeded(
