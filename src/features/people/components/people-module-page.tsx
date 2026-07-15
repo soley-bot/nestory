@@ -3,6 +3,7 @@ import { PeopleScreen } from "@/features/people/components/people-screen";
 import { PeopleScreenSkeleton } from "@/features/people/components/people-screen-skeleton";
 import { getAccessByPersonId } from "@/features/organization/data";
 import { getPeopleScreenData } from "@/features/people/data/people";
+import { getPeopleReportHubData } from "@/features/people/data/people-reports";
 import { parsePeopleSearchParams } from "@/features/people/people.filters";
 import type { PersonRoleValue } from "@/features/people/people.types";
 import { requireAdminContext } from "@/lib/auth/context";
@@ -19,6 +20,7 @@ export type PeopleModuleConfig = {
   role?: PersonRoleValue;
   searchPlaceholder: string;
   showAccessStatus?: boolean;
+  showInsights?: boolean;
   title: string;
 };
 
@@ -49,10 +51,12 @@ async function PeopleModulePageContent({
   const viewQuery = parsePeopleSearchParams(
     config.role ? { ...params, role: config.role } : params,
   );
-  const { pagination, people } = await getPeopleScreenData(
-    context.organizationId,
-    viewQuery,
-  );
+  const [{ pagination, people }, insightData] = await Promise.all([
+    getPeopleScreenData(context.organizationId, viewQuery),
+    config.showInsights
+      ? getPeopleReportHubData(context.organizationId)
+      : Promise.resolve(undefined),
+  ]);
   const initialPersonId = viewQuery.personId ?? undefined;
   const accessByPersonId = config.showAccessStatus
     ? await getAccessByPersonId(
@@ -68,6 +72,8 @@ async function PeopleModulePageContent({
       createRole={config.createRole}
       description={config.description}
       initialPersonId={initialPersonId}
+      insightPeople={insightData?.people}
+      insightTotalCount={insightData?.pagination.totalCount}
       key={initialPersonId ?? config.role ?? "people"}
       lockedRole={config.role}
       pagination={pagination}

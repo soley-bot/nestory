@@ -1,16 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Pencil, Plus } from "lucide-react";
+import { CheckCircle2, Pencil, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import {
   getInitialRecordId,
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
+import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import {
+  useWideWorkspace,
+  WorkspaceSplitView,
+} from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
-import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
@@ -19,6 +26,7 @@ import {
   RestorePersonPanel,
 } from "@/features/people/components/person-drawer-panels";
 import { PersonForm } from "@/features/people/components/person-form";
+import { PeopleCommandCenter } from "@/features/people/components/people-command-center";
 import { PeopleFilters } from "@/features/people/components/people-filters";
 import { PeopleInspector } from "@/features/people/components/people-inspector";
 import { PeopleTable } from "@/features/people/components/people-table";
@@ -40,9 +48,12 @@ type DrawerState =
 type PeopleScreenProps = {
   accessByPersonId?: Record<string, OrganizationPersonAccessStatus>;
   addButtonLabel?: string;
+  canCreate?: boolean;
   createRole?: PersonRoleValue;
   description?: string;
   initialPersonId?: string;
+  insightPeople?: PeopleSummary[];
+  insightTotalCount?: number;
   lockedRole?: PersonRoleValue;
   pagination: PeoplePagination;
   people: PeopleSummary[];
@@ -54,9 +65,11 @@ type PeopleScreenProps = {
 export function PeopleScreen({
   accessByPersonId,
   addButtonLabel = "Add person",
+  canCreate = true,
   createRole,
-  description = "Operational people, company, tenant, owner, vendor, and staff records linked back to the work they support.",
   initialPersonId,
+  insightPeople,
+  insightTotalCount,
   lockedRole,
   pagination,
   people,
@@ -68,14 +81,20 @@ export function PeopleScreen({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    searchParams.get("action") === "create" ? { mode: "create" } : null,
+    canCreate && searchParams.get("action") === "create"
+      ? { mode: "create" }
+      : null,
   );
   const [displayMode, setDisplayMode] = useState<PeopleDisplayMode>("table");
   const isTableMode = displayMode === "table";
   const [selectedPersonId, setSelectedPersonId] = useState(() =>
     getInitialRecordId(people, initialPersonId),
   );
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
+    Boolean(initialPersonId) &&
+      (!canCreate || searchParams.get("action") !== "create"),
+  );
+  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedPerson = initialPersonId
     ? people.find((person) => person.id === initialPersonId) ?? null
@@ -92,17 +111,16 @@ export function PeopleScreen({
   });
   const moduleRole = lockedRole ?? createRole;
   const getPersonRecordHref = (personId: string) => `/people/${personId}`;
-  const openPersonRecord = (personId: string) => {
-    router.push(getPersonRecordHref(personId), { scroll: false });
-  };
   const openPeopleAction = (nextDrawer: DrawerState) => {
-    setPreviewOpen(false);
+    if (!isWideWorkspace) {
+      setCompactInspectorOpen(false);
+    }
     setStatusMessage(null);
     setDrawer(nextDrawer);
   };
   const previewPerson = (personId: string) => {
     setSelectedPersonId(personId);
-    setPreviewOpen(!usesPersistentInspector());
+    setCompactInspectorOpen(true);
   };
 
   useEffect(() => {
@@ -112,7 +130,7 @@ export function PeopleScreen({
 
     queueMicrotask(() => {
       setSelectedPersonId(focusedPersonId);
-      setPreviewOpen(!usesPersistentInspector());
+      setCompactInspectorOpen(true);
     });
   }, [focusedPersonId]);
 
@@ -121,18 +139,81 @@ export function PeopleScreen({
       return;
     }
 
+    if (!canCreate) {
+      router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+        scroll: false,
+      });
+      return;
+    }
+
     queueMicrotask(() => {
+      setCompactInspectorOpen(false);
       setStatusMessage(null);
       setDrawer({ mode: "create" });
     });
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [pathname, router, searchParams]);
+  }, [canCreate, pathname, router, searchParams]);
+
+  const hasFilters = hasActivePeopleFilters(viewQuery, lockedRole);
+  const peopleList = (
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+      {people.length === 0 ? (
+        <EmptyState
+          action={
+            hasFilters ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={pathname}
+                scroll={false}
+              >
+                Clear filters
+              </Link>
+            ) : canCreate ? (
+              <Button onClick={() => openPeopleAction({ mode: "create" })} variant="primary">
+                <Plus size={15} />
+                {addButtonLabel}
+              </Button>
+            ) : undefined
+          }
+          body={hasFilters ? "No records match the active People filters." : "No People records are available in this workspace."}
+          className="h-full"
+          kind={hasFilters ? "filtered" : "empty"}
+          title={hasFilters ? "No matching people" : "No people yet"}
+        />
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 p-3">
+            <PeopleTable
+              archiveState={viewQuery.archiveState}
+              displayMode={displayMode}
+              onSelectPerson={previewPerson}
+              people={people}
+              roleContext={lockedRole}
+              selectedPersonId={selectedPerson?.id ?? ""}
+            />
+          </div>
+          <PaginationControls attached={isTableMode} pagination={pagination} />
+        </>
+      )}
+    </section>
+  );
+  const peopleInspector = selectedPerson ? (
+    <PeopleInspector
+      onArchivePerson={(person) => openPeopleAction({ mode: "archive", person })}
+      onEditPerson={(person) => openPeopleAction({ mode: "edit", person })}
+      onRestorePerson={(person) => openPeopleAction({ mode: "restore", person })}
+      getPersonHref={getPersonRecordHref}
+      accessStatus={accessByPersonId?.[selectedPerson.id]}
+      person={selectedPerson}
+      showAccessStatus={moduleRole === "staff"}
+    />
+  ) : null;
 
   return (
-    <div className="min-h-screen lg:flex lg:h-screen lg:flex-col lg:overflow-hidden">
-      <PageHeader
+    <WorkspacePage
+      header={<PageHeader
         actions={
           <>
             {reviewContext && selectedPerson ? (
@@ -145,116 +226,69 @@ export function PeopleScreen({
                 Edit selected
               </Button>
             ) : null}
-            <Button
-              onClick={() => openPeopleAction({ mode: "create" })}
-              variant="primary"
-            >
-              <Plus size={15} />
-              {addButtonLabel}
-            </Button>
+            {canCreate ? (
+              <Button
+                onClick={() => openPeopleAction({ mode: "create" })}
+                variant="primary"
+              >
+                <Plus size={15} />
+                {addButtonLabel}
+              </Button>
+            ) : null}
           </>
         }
-        description={
-          reviewContext
-            ? reviewContext.description
-            : description
-        }
+        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+        description={reviewContext?.description}
         title={title}
-      />
-
-      {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-6">
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role="status"
-          >
-            {statusMessage}
-          </p>
-        </div>
-      ) : null}
-
-      <PeopleFilters
+      />}
+      localNav={<PeopleLensNavigation activeRole={lockedRole} />}
+      toolbar={<PeopleFilters
         displayMode={displayMode}
         lockedRole={lockedRole}
         onDisplayModeChange={setDisplayMode}
         searchPlaceholder={searchPlaceholder}
         viewQuery={viewQuery}
-      />
+      />}
+    >
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
+
+      {statusMessage ? (
+        <div className="shrink-0 px-4 py-2 sm:px-6">
+          <div
+            className="flex items-start gap-2 rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
+            role="status"
+          >
+            <CheckCircle2 className="mt-0.5 shrink-0" size={16} />
+            <p className="font-medium text-foreground">{statusMessage}</p>
+          </div>
+        </div>
+      ) : null}
+
+      {insightPeople ? (
+        <PeopleCommandCenter
+          people={insightPeople}
+          totalCount={insightTotalCount ?? insightPeople.length}
+        />
+      ) : null}
 
       {reviewContext ? (
         <PeopleReviewStrip context={reviewContext} count={pagination.totalCount} />
       ) : null}
 
-      <div className="px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:px-6 lg:py-4">
-        <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
-          <section className="flex min-h-0 min-w-0 flex-col">
-            <div className="mb-2 flex min-w-0 items-center justify-between gap-3 text-[13px]">
-              <div className="min-w-0">
-                <p className="font-semibold text-foreground">
-                  {getPeopleListTitle(moduleRole)}
-                </p>
-                <p className="text-foreground-muted">
-                  Select a row to inspect. Double-click to open the full relationship file.
-                </p>
-              </div>
-              <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium text-muted">
-                {pagination.totalCount} total
-              </span>
-            </div>
-            <div className="min-h-0 flex-1">
-              <PeopleTable
-                archiveState={viewQuery.archiveState}
-                displayMode={displayMode}
-                onOpenPerson={openPersonRecord}
-                onSelectPerson={previewPerson}
-                people={people}
-                roleContext={lockedRole}
-                selectedPersonId={selectedPerson?.id ?? ""}
-              />
-            </div>
-            <PaginationControls attached={isTableMode} pagination={pagination} />
-          </section>
-          <aside className="hidden min-h-0 overflow-y-auto rounded-md border border-border bg-surface xl:block">
-            <PeopleInspector
-              onArchivePerson={(person) =>
-                openPeopleAction({ mode: "archive", person })
-              }
-              onEditPerson={(person) => openPeopleAction({ mode: "edit", person })}
-              onRestorePerson={(person) =>
-                openPeopleAction({ mode: "restore", person })
-              }
-              getPersonHref={getPersonRecordHref}
-              accessStatus={
-                selectedPerson ? accessByPersonId?.[selectedPerson.id] : undefined
-              }
-              person={selectedPerson}
-              showAccessStatus={moduleRole === "staff"}
+        <div className="min-h-0 min-w-0 flex-1">
+          {peopleInspector && selectedPerson ? (
+            <WorkspaceSplitView
+              inspector={peopleInspector}
+              inspectorLabel={`${selectedPerson.displayName} inspector`}
+              inspectorOpen={isWideWorkspace || compactInspectorOpen}
+              list={peopleList}
+              onInspectorOpenChange={setCompactInspectorOpen}
             />
-          </aside>
+          ) : (
+            <WorkspaceSplitView list={peopleList} />
+          )}
         </div>
       </div>
-
-      <RecordPreviewDrawer
-        onClose={() => setPreviewOpen(false)}
-        open={previewOpen && Boolean(selectedPerson)}
-        title="Person preview"
-      >
-        <PeopleInspector
-          onArchivePerson={(person) =>
-            openPeopleAction({ mode: "archive", person })
-          }
-          onEditPerson={(person) => openPeopleAction({ mode: "edit", person })}
-          onRestorePerson={(person) =>
-            openPeopleAction({ mode: "restore", person })
-          }
-          getPersonHref={getPersonRecordHref}
-          accessStatus={
-            selectedPerson ? accessByPersonId?.[selectedPerson.id] : undefined
-          }
-          person={selectedPerson}
-          showAccessStatus={moduleRole === "staff"}
-        />
-      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer
@@ -290,7 +324,7 @@ export function PeopleScreen({
           )}
         </SideDrawer>
       ) : null}
-    </div>
+    </WorkspacePage>
   );
 }
 
@@ -332,7 +366,7 @@ function getPeopleReviewContext(
     return {
       countLabel: "in this activity view",
       description: "Opened from recent activity with archived records included.",
-      nextStep: "The focused person is selected for inspector review.",
+      nextStep: "Focused person ready for review.",
     };
   }
 
@@ -350,7 +384,7 @@ function getPeopleReviewContext(
       countLabel: "missing usable contact",
       description:
         "Showing people records that need a usable email or phone before tenant, owner, vendor, or staff follow-up.",
-      nextStep: "Select a person, then edit contact details from the header or inspector.",
+      nextStep: "Add a usable email or phone in Edit.",
     };
   }
 
@@ -359,37 +393,39 @@ function getPeopleReviewContext(
       countLabel: "without an assigned role",
       description:
         "Showing people records that need a tenant, owner, vendor, or staff role before they can drive linked workflows.",
-      nextStep: "Select a person, then assign the right role from the edit drawer.",
+      nextStep: "Assign the operating role in Edit.",
     };
   }
 
   return null;
 }
 
-function getPeopleListTitle(role?: PersonRoleValue) {
-  if (role === "tenant") {
-    return "Tenant records";
-  }
-
-  if (role === "owner") {
-    return "Owner records";
-  }
-
-  if (role === "vendor") {
-    return "Vendor records";
-  }
-
-  if (role === "staff") {
-    return "Staff records";
-  }
-
-  return "People records";
+function PeopleLensNavigation({ activeRole }: { activeRole?: PersonRoleValue }) {
+  return (
+    <LocalWorkspaceNav
+      items={[
+        { active: !activeRole, href: "/people", label: "All" },
+        { active: activeRole === "owner", href: "/owners", label: "Owners" },
+        { active: activeRole === "staff", href: "/staff", label: "Staff" },
+        { active: activeRole === "tenant", href: "/tenants", label: "Tenants" },
+        { active: activeRole === "vendor", href: "/vendors", label: "Vendors" },
+      ]}
+      label="People views"
+    />
+  );
 }
 
-function usesPersistentInspector() {
+function hasActivePeopleFilters(
+  viewQuery: PeopleViewQuery,
+  lockedRole?: PersonRoleValue,
+) {
   return (
-    typeof window !== "undefined" &&
-    window.matchMedia("(min-width: 1280px)").matches
+    viewQuery.query.trim().length > 0 ||
+    (viewQuery.role !== "all" && !lockedRole) ||
+    viewQuery.status !== "all" ||
+    viewQuery.archiveState !== "active" ||
+    viewQuery.sort !== "name_asc" ||
+    viewQuery.pageSize !== 50
   );
 }
 

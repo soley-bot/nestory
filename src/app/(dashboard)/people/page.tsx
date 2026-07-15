@@ -1,22 +1,20 @@
-import { PageHeader } from "@/components/layout/page-header";
-import { PeopleCommandCenter } from "@/features/people/components/people-command-center";
-import { getPeopleReportHubData } from "@/features/people/data/people-reports";
-import { requireAdminContext } from "@/lib/auth/context";
+import { PeopleModulePage } from "@/features/people/components/people-module-page";
 
-export default async function PeoplePage() {
-  const context = await requireAdminContext();
-  const data = await getPeopleReportHubData(context.organizationId);
+type PeoplePageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
+export default function PeoplePage({ searchParams }: PeoplePageProps) {
   return (
-    <div>
-      <PageHeader
-        description="Relationship readiness across tenants, owners, vendors, and staff."
-        title="People"
-      />
-      <PeopleCommandCenter
-        people={data.people}
-        totalCount={data.pagination.totalCount}
-      />
-    </div>
+    <PeopleModulePage
+      config={{
+        addButtonLabel: "Add person",
+        description: "People and companies linked to operating work.",
+        searchPlaceholder: "Search name, contact, role, lease, or property",
+        showInsights: true,
+        title: "People",
+      }}
+      searchParams={searchParams}
+    />
   );
 }

@@ -1,8 +1,5 @@
-import { Building2, UserRound } from "lucide-react";
-import {
-  previewRowClassName,
-  selectedPreviewRowClassName,
-} from "@/components/data/interactive-table";
+import Link from "next/link";
+import { Building2, PanelRightOpen, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatRole } from "@/features/people/people.labels";
 import type {
@@ -17,7 +14,6 @@ import { cn } from "@/lib/utils";
 type PeopleTableProps = {
   archiveState: PeopleArchiveState;
   displayMode: PeopleDisplayMode;
-  onOpenPerson: (id: string) => void;
   onSelectPerson: (id: string) => void;
   people: PeopleSummary[];
   roleContext?: PersonRoleValue;
@@ -27,7 +23,6 @@ type PeopleTableProps = {
 export function PeopleTable({
   archiveState,
   displayMode,
-  onOpenPerson,
   onSelectPerson,
   people,
   roleContext,
@@ -53,7 +48,6 @@ export function PeopleTable({
         {people.map((person) => (
           <PersonCard
             key={person.id}
-            onOpenPerson={onOpenPerson}
             onSelectPerson={onSelectPerson}
             person={person}
             selected={selectedPersonId === person.id}
@@ -122,16 +116,20 @@ export function PeopleTable({
                 ) : null}
                 {people.map((person) => (
                   <tr
+                    aria-selected={selectedPersonId === person.id}
                     className={cn(
-                      previewRowClassName,
+                      "cursor-pointer border-t border-border outline-none transition-colors hover:bg-surface-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring",
                       selectedPersonId === person.id &&
-                        selectedPreviewRowClassName,
+                        "bg-state-selected shadow-[inset_3px_0_0_var(--record-spine)]",
                       person.isArchived && "text-muted",
                     )}
                     key={person.id}
                     onClick={() => onSelectPerson(person.id)}
-                    onDoubleClick={() => onOpenPerson(person.id)}
                     onKeyDown={(event) => {
+                      if (event.currentTarget !== event.target) {
+                        return;
+                      }
+
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
                         onSelectPerson(person.id);
@@ -141,12 +139,15 @@ export function PeopleTable({
                   >
                     <td className="px-2.5 py-2">
                       <div className="min-w-0">
-                        <p
-                          className="truncate font-semibold text-foreground"
+                        <Link
+                          className="block truncate rounded-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                          href={`/people/${person.id}`}
+                          onClick={(event) => event.stopPropagation()}
+                          prefetch={false}
                           title={person.displayName}
                         >
                           {person.displayName}
-                        </p>
+                        </Link>
                         <p
                           className="mt-0.5 truncate text-xs text-muted"
                           title={person.legalName ?? person.partyTypeLabel}
@@ -190,12 +191,10 @@ export function PeopleTable({
 }
 
 function PersonCard({
-  onOpenPerson,
   onSelectPerson,
   person,
   selected,
 }: {
-  onOpenPerson: (id: string) => void;
   onSelectPerson: (id: string) => void;
   person: PeopleSummary;
   selected: boolean;
@@ -203,19 +202,11 @@ function PersonCard({
   return (
     <article
       className={cn(
-        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-[#c9d0da] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-        selected && "border-accent shadow-[0_0_0_1px_var(--accent)]",
+        "group min-w-0 overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-record-spine",
+        selected && "border-record-spine bg-state-selected",
         person.isArchived && "text-muted",
       )}
-      onClick={() => onSelectPerson(person.id)}
-      onDoubleClick={() => onOpenPerson(person.id)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelectPerson(person.id);
-        }
-      }}
-      tabIndex={0}
+      data-selected={selected ? "true" : "false"}
     >
       <div className="flex items-start gap-3 border-b border-border px-3.5 py-3.5">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-muted">
@@ -228,12 +219,14 @@ function PersonCard({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <p
-                className="truncate text-base font-semibold leading-5 text-foreground"
+              <Link
+                className="block truncate rounded-sm text-sm font-semibold leading-5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={`/people/${person.id}`}
+                prefetch={false}
                 title={person.displayName}
               >
                 {person.displayName}
-              </p>
+              </Link>
               <p className="mt-1 truncate text-xs text-muted">
                 {person.legalName ?? person.partyTypeLabel}
               </p>
@@ -247,6 +240,19 @@ function PersonCard({
       </div>
       <div className="border-t border-border px-3.5 py-2.5 text-sm">
         <CardMetric label="Linked" value={getLinkedLabel(person)} />
+        <button
+          aria-label={`Preview ${person.displayName}`}
+          aria-pressed={selected}
+          className={cn(
+            "mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
+            selected && "border-record-spine bg-state-selected",
+          )}
+          onClick={() => onSelectPerson(person.id)}
+          type="button"
+        >
+          <PanelRightOpen aria-hidden="true" className="size-3.5" />
+          Preview
+        </button>
       </div>
     </article>
   );
@@ -309,9 +315,14 @@ function PhoneCell({ person }: { person: PeopleSummary }) {
 function NextActionCell({ person }: { person: PeopleSummary }) {
   return (
     <div className="min-w-0 space-y-1">
-      <Badge className="max-w-full px-2 text-xs" tone={person.nextAction.tone}>
-        <span className="truncate">{person.nextAction.label}</span>
-      </Badge>
+      <div className="flex min-w-0 flex-wrap gap-1">
+        <Badge className="max-w-full px-2 text-xs" tone={person.statusTone}>
+          {person.statusLabel}
+        </Badge>
+        <Badge className="max-w-full px-2 text-xs" tone={person.nextAction.tone}>
+          <span className="truncate">{person.nextAction.label}</span>
+        </Badge>
+      </div>
       <p className="line-clamp-1 text-xs text-muted" title={person.nextAction.description}>
         {person.nextAction.description}
       </p>

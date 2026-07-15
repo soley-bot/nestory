@@ -6,7 +6,6 @@ import {
   Pencil,
   RotateCcw,
   UserPlus,
-  UserRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
@@ -33,27 +32,16 @@ export function PeopleInspector({
   showAccessStatus = false,
 }: PeopleInspectorProps) {
   if (!person) {
-    return (
-      <aside className="bg-surface p-4">
-        <div className="flex items-center gap-2">
-          <UserRound className="text-muted" size={16} />
-          <h2 className="text-base font-semibold">People inspector</h2>
-        </div>
-        <p className="mt-4 text-sm leading-6 text-muted">
-          Select a person to inspect roles, contact details, lease links,
-          ownership, vendor profile, and notes.
-        </p>
-      </aside>
-    );
+    return null;
   }
 
   const iconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
   const primaryIconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
 
   return (
-    <aside className="bg-surface">
+    <div className="bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -94,6 +82,11 @@ export function PeopleInspector({
           <CompactFact label="Contact">
             <span className="line-clamp-2 break-words">
               {getContactLabel(person)}
+            </span>
+          </CompactFact>
+          <CompactFact label="Relationship" wide>
+            <span className="line-clamp-2 break-words">
+              {getRelationshipLabel(person)}
             </span>
           </CompactFact>
         </div>
@@ -167,7 +160,7 @@ export function PeopleInspector({
           )}
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -236,12 +229,14 @@ function formatAccessRole(role: OrganizationPersonAccessStatus["role"]) {
 function CompactFact({
   children,
   label,
+  wide = false,
 }: {
   children: React.ReactNode;
   label: string;
+  wide?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-md border border-border px-3 py-2.5">
+    <div className={wide ? "col-span-2 min-w-0 rounded-md border border-border px-3 py-2.5" : "min-w-0 rounded-md border border-border px-3 py-2.5"}>
       <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
         {label}
       </p>
@@ -307,4 +302,20 @@ function getContactLabel(person: PeopleSummary) {
   }
 
   return person.contact.email ?? person.contact.phone ?? "No contact";
+}
+
+function getRelationshipLabel(person: PeopleSummary) {
+  if (person.linked.activeLease) {
+    return `${person.linked.activeLease.unitLabel} / ${person.linked.activeLease.propertyLabel}`;
+  }
+
+  if (person.linked.ownerProperty) {
+    return `${person.linked.ownerProperty.ownershipLabel} / ${person.linked.ownerProperty.label}`;
+  }
+
+  if (person.linked.vendorProfile) {
+    return person.linked.vendorProfile.label;
+  }
+
+  return "No linked records";
 }

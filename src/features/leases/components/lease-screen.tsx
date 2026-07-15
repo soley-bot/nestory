@@ -1,16 +1,22 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus } from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import {
   getInitialRecordId,
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import {
+  useWideWorkspace,
+  WorkspaceSplitView,
+} from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
-import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeSearchParams } from "@/lib/url/href";
 import {
@@ -58,6 +64,8 @@ type DrawerState =
   | { lease: LeaseSummary; mode: "restore" };
 
 type LeaseScreenProps = {
+  canCreate?: boolean;
+  canGenerateRent?: boolean;
   initialLeaseId?: string;
   leases: LeaseSummary[];
   pagination: LeasePagination;
@@ -68,6 +76,8 @@ type LeaseScreenProps = {
 };
 
 export function LeaseScreen({
+  canCreate = true,
+  canGenerateRent = true,
   initialLeaseId,
   leases,
   pagination,
@@ -91,7 +101,7 @@ export function LeaseScreen({
   );
   const createIntent = getLeaseCreateIntent(searchParams, createInitialValues);
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    searchParams.get("action") === "create"
+    canCreate && searchParams.get("action") === "create"
       ? {
           initialValues: createInitialValues,
           intent: createIntent,
@@ -102,7 +112,11 @@ export function LeaseScreen({
   const [selectedLeaseId, setSelectedLeaseId] = useState(() =>
     getInitialRecordId(leases, initialLeaseId),
   );
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
+    Boolean(initialLeaseId) &&
+      (!canCreate || searchParams.get("action") !== "create"),
+  );
+  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [rentState, generateRent, generatingRent] = useActionState(
     generateMonthlyRentAction,
@@ -127,17 +141,16 @@ export function LeaseScreen({
   );
   const getLeaseRecordHref = (leaseId: string) =>
     getFocusedRecordHref(pathname, searchParams, "leaseId", leaseId);
-  const openLeaseRecord = (leaseId: string) => {
-    router.push(getLeaseRecordHref(leaseId), { scroll: false });
-  };
   const openLeaseAction = (nextDrawer: DrawerState) => {
-    setPreviewOpen(false);
+    if (!isWideWorkspace) {
+      setCompactInspectorOpen(false);
+    }
     setStatusMessage(null);
     setDrawer(nextDrawer);
   };
   const previewLease = (leaseId: string) => {
     setSelectedLeaseId(leaseId);
-    setPreviewOpen(true);
+    setCompactInspectorOpen(true);
   };
 
   useEffect(() => {
@@ -147,7 +160,7 @@ export function LeaseScreen({
 
     queueMicrotask(() => {
       setSelectedLeaseId(focusedLeaseId);
-      setPreviewOpen(true);
+      setCompactInspectorOpen(true);
     });
   }, [focusedLeaseId]);
 
@@ -156,7 +169,15 @@ export function LeaseScreen({
       return;
     }
 
+    if (!canCreate) {
+      router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+        scroll: false,
+      });
+      return;
+    }
+
     queueMicrotask(() => {
+      setCompactInspectorOpen(false);
       setStatusMessage(null);
       setDrawer({
         initialValues: createInitialValues,
@@ -167,7 +188,7 @@ export function LeaseScreen({
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [createInitialValues, createIntent, pathname, router, searchParams]);
+  }, [canCreate, createInitialValues, createIntent, pathname, router, searchParams]);
 
   useEffect(() => {
     if (rentState.status === "success" || rentState.status === "error") {
@@ -177,47 +198,106 @@ export function LeaseScreen({
     }
   }, [rentState.message, rentState.status]);
 
+  const hasFilters = hasActiveLeaseFilters(viewQuery);
+  const leaseList = (
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+      {leases.length === 0 ? (
+        <EmptyState
+          action={
+            hasFilters ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={pathname}
+                scroll={false}
+              >
+                Clear filters
+              </Link>
+            ) : canCreate ? (
+              <Button onClick={() => openLeaseAction({ mode: "create" })} variant="primary">
+                <Plus size={15} />
+                Add lease
+              </Button>
+            ) : undefined
+          }
+          body={hasFilters ? "No lease records match the active filters." : "No lease records are available in this workspace."}
+          className="h-full"
+          kind={hasFilters ? "filtered" : "empty"}
+          title={hasFilters ? "No matching leases" : "No leases yet"}
+        />
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 p-3">
+            <LeasesTable
+              archiveState={viewQuery.archiveState}
+              leases={leases}
+              getLeaseHref={getLeaseRecordHref}
+              onSelectLease={previewLease}
+              selectedLeaseId={selectedLease?.id ?? ""}
+            />
+          </div>
+          <PaginationControls attached pagination={pagination} />
+        </>
+      )}
+    </section>
+  );
+  const leaseInspector = selectedLease ? (
+    <LeaseInspector
+      lease={selectedLease}
+      onArchiveLease={(lease) => openLeaseAction({ lease, mode: "archive" })}
+      onEditLease={(lease) => openLeaseAction({ lease, mode: "edit" })}
+      onRestoreLease={(lease) => openLeaseAction({ lease, mode: "restore" })}
+      getLeaseHref={getLeaseRecordHref}
+    />
+  ) : null;
+
   return (
-    <div className="min-h-screen">
-      <PageHeader
+    <WorkspacePage
+      header={<PageHeader
         actions={
           <div className="flex flex-wrap gap-2">
-            <form action={generateRent}>
-              <Button disabled={generatingRent} type="submit">
-                {generatingRent ? "Generating..." : "Generate rent"}
+            {canGenerateRent ? (
+              <form action={generateRent}>
+                <Button disabled={generatingRent} type="submit">
+                  {generatingRent ? "Generating..." : "Generate rent"}
+                </Button>
+              </form>
+            ) : null}
+            {canCreate ? (
+              <Button
+                onClick={() => openLeaseAction({ mode: "create" })}
+                variant="primary"
+              >
+                <Plus size={15} />
+                Add lease
               </Button>
-            </form>
-            <Button
-              onClick={() => openLeaseAction({ mode: "create" })}
-              variant="primary"
-            >
-              <Plus size={15} />
-              Add lease
-            </Button>
+            ) : null}
           </div>
         }
-        description="Operational lease records connected to tenants, units, terms, deposits, and occupancy history."
+        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+        description={reviewContext?.description}
         title="Leases"
-      />
+      />}
+      toolbar={<LeaseFilters
+        properties={propertyOptions}
+        units={unitOptions}
+        viewQuery={viewQuery}
+      />}
+    >
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-6">
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+        <div className="shrink-0 px-4 py-2 sm:px-6">
+          <div
+            className="flex items-start gap-2 rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
             role="status"
           >
-            {statusMessage}
-          </p>
+            <CheckCircle2 className="mt-0.5 shrink-0" size={16} />
+            <p className="font-medium text-foreground">{statusMessage}</p>
+          </div>
         </div>
       ) : null}
 
       <LeaseCommandStrip leases={leases} totalCount={pagination.totalCount} />
-
-      <LeaseFilters
-        properties={propertyOptions}
-        units={unitOptions}
-        viewQuery={viewQuery}
-      />
 
       {reviewContext ? (
         <LeaseReviewStrip
@@ -227,37 +307,20 @@ export function LeaseScreen({
         />
       ) : null}
 
-      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="min-w-0 space-y-0">
-          <LeasesTable
-            archiveState={viewQuery.archiveState}
-            leases={leases}
-            getLeaseHref={getLeaseRecordHref}
-            onOpenLease={openLeaseRecord}
-            onSelectLease={previewLease}
-            selectedLeaseId={selectedLease?.id ?? ""}
-          />
-          <PaginationControls attached pagination={pagination} />
+        <div className="min-h-0 min-w-0 flex-1">
+          {leaseInspector && selectedLease ? (
+            <WorkspaceSplitView
+              inspector={leaseInspector}
+              inspectorLabel={`${selectedLease.tenantName} lease inspector`}
+              inspectorOpen={isWideWorkspace || compactInspectorOpen}
+              list={leaseList}
+              onInspectorOpenChange={setCompactInspectorOpen}
+            />
+          ) : (
+            <WorkspaceSplitView list={leaseList} />
+          )}
         </div>
       </div>
-
-      <RecordPreviewDrawer
-        onClose={() => setPreviewOpen(false)}
-        open={previewOpen && Boolean(selectedLease)}
-        title="Lease preview"
-      >
-        <LeaseInspector
-          lease={selectedLease}
-          onArchiveLease={(lease) =>
-            openLeaseAction({ lease, mode: "archive" })
-          }
-          onEditLease={(lease) => openLeaseAction({ lease, mode: "edit" })}
-          onRestoreLease={(lease) =>
-            openLeaseAction({ lease, mode: "restore" })
-          }
-          getLeaseHref={getLeaseRecordHref}
-        />
-      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer
@@ -295,7 +358,7 @@ export function LeaseScreen({
           )}
         </SideDrawer>
       ) : null}
-    </div>
+    </WorkspacePage>
   );
 }
 
@@ -460,7 +523,7 @@ function getLeaseReviewContext(
     return {
       countLabel: "in this activity view",
       description: "Opened from recent activity with archived records included.",
-      nextStep: "The focused lease is selected for inspector review.",
+      nextStep: "Focused lease ready for review.",
     };
   }
 
@@ -477,7 +540,7 @@ function getLeaseReviewContext(
     return {
       countLabel: `ending in ${endMonthLabel}`,
       description: `Showing leases inside the next ${viewQuery.endsWithinDays} days and this month.`,
-      nextStep: "Select a lease to renew, edit dates, or prepare move-out follow-up.",
+      nextStep: "Renewal, date, or move-out follow-up is due.",
     };
   }
 
@@ -485,7 +548,7 @@ function getLeaseReviewContext(
     return {
       countLabel: `ending in the next ${viewQuery.endsWithinDays} days`,
       description: "Dashboard lease risk opens this renewal and move-out review.",
-      nextStep: "Select the earliest lease first, then renew, edit, or follow up.",
+      nextStep: "Earliest end dates need renewal or move-out follow-up.",
     };
   }
 
@@ -493,7 +556,7 @@ function getLeaseReviewContext(
     return {
       countLabel: `ending in ${endMonthLabel}`,
       description: "Opened from the Dashboard lease-ending chart.",
-      nextStep: "Select a lease to inspect tenant, unit, rent, and term details.",
+      nextStep: "Renewal and move-out context is ready for review.",
     };
   }
 
@@ -501,7 +564,7 @@ function getLeaseReviewContext(
     return {
       countLabel: "missing a tenant link",
       description: "Showing leases without a linked People tenant.",
-      nextStep: "Select a lease, then edit it to choose the tenant record.",
+      nextStep: "A People tenant link is required for reliable occupancy history.",
     };
   }
 
@@ -510,14 +573,14 @@ function getLeaseReviewContext(
       return {
         countLabel: "currently active or in notice",
         description: "Showing leases that count as current occupancy records.",
-        nextStep: "Select a lease to inspect tenant, unit, rent, and term details.",
+        nextStep: "Tenant, unit, rent, and term context is available per record.",
       };
     }
 
     return {
       countLabel: `with ${viewQuery.status.replace("_", " ")} status`,
       description: "Showing leases filtered by operational status.",
-      nextStep: "Clear filters to return to all active lease records.",
+      nextStep: "The register is scoped to this lifecycle state.",
     };
   }
 
@@ -551,42 +614,37 @@ function LeaseCommandStrip({
     .reduce((total, lease) => total + lease.rentUsd, 0);
 
   return (
-    <section className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-6">
-      <div className="grid gap-3 lg:grid-cols-[minmax(230px,1.15fr)_minmax(0,4fr)] lg:items-stretch">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
-            Lease register
-          </p>
-          <p className="mt-1 truncate text-sm font-semibold">
-            {totalCount} lease{totalCount === 1 ? "" : "s"} in view
-          </p>
-          <p className="mt-0.5 max-w-[34rem] truncate text-xs text-muted">
-            Renewals, tenant links, rent exposure, evidence gaps.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 overflow-hidden rounded-md border border-border bg-surface-muted/25 sm:grid-cols-5">
-          <LeaseCommandMetric label="Current" value={String(currentCount)} />
-          <LeaseCommandMetric
-            label="Ending risk"
-            tone={endingSoonCount > 0 ? "warning" : "success"}
-            value={String(endingSoonCount)}
-          />
-          <LeaseCommandMetric
-            label="Tenant gaps"
-            tone={missingTenantCount > 0 ? "warning" : "success"}
-            value={String(missingTenantCount)}
-          />
-          <LeaseCommandMetric
-            label="Missing docs"
-            tone={missingDocumentsCount > 0 ? "warning" : "success"}
-            value={String(missingDocumentsCount)}
-          />
-          <LeaseCommandMetric
-            label="Rent at risk"
-            tone={rentAtRisk > 0 ? "warning" : "neutral"}
-            value={formatDollarMetric(rentAtRisk)}
-          />
-        </div>
+    <section
+      aria-label="Lease summary"
+      className="shrink-0 border-b border-border bg-surface px-4 py-2 sm:px-6"
+      role="region"
+    >
+      <div
+        className="flex min-w-0 overflow-x-auto rounded-md border border-border bg-surface-muted/25"
+        data-mobile-summary-strip="lease-metrics"
+      >
+        <LeaseCommandMetric label="Leases" value={String(totalCount)} />
+        <LeaseCommandMetric label="Current" value={String(currentCount)} />
+        <LeaseCommandMetric
+          label="Ending risk"
+          tone={endingSoonCount > 0 ? "warning" : "success"}
+          value={String(endingSoonCount)}
+        />
+        <LeaseCommandMetric
+          label="Tenant gaps"
+          tone={missingTenantCount > 0 ? "warning" : "success"}
+          value={String(missingTenantCount)}
+        />
+        <LeaseCommandMetric
+          label="Missing docs"
+          tone={missingDocumentsCount > 0 ? "warning" : "success"}
+          value={String(missingDocumentsCount)}
+        />
+        <LeaseCommandMetric
+          label="Rent at risk"
+          tone={rentAtRisk > 0 ? "warning" : "neutral"}
+          value={formatDollarMetric(rentAtRisk)}
+        />
       </div>
     </section>
   );
@@ -609,7 +667,7 @@ function LeaseCommandMetric({
         : "text-foreground";
 
   return (
-    <div className="min-w-0 border-b border-r border-border px-3 py-2 last:border-r-0 sm:border-b-0">
+    <div className="min-w-[128px] flex-1 border-r border-border px-3 py-2 last:border-r-0">
       <p className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
         {label}
       </p>
@@ -645,4 +703,19 @@ function getSelectedPropertyLabel(
   }
 
   return properties.find((property) => property.id === propertyId)?.label;
+}
+
+function hasActiveLeaseFilters(viewQuery: LeaseViewQuery) {
+  return (
+    viewQuery.query.trim().length > 0 ||
+    viewQuery.propertyId !== "all" ||
+    viewQuery.unitId !== "all" ||
+    viewQuery.status !== "all" ||
+    viewQuery.tenantStatus !== "all" ||
+    viewQuery.archiveState !== "active" ||
+    viewQuery.endsWithinDays !== null ||
+    viewQuery.endMonth !== "" ||
+    viewQuery.sort !== "start_desc" ||
+    viewQuery.pageSize !== 50
+  );
 }

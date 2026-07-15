@@ -89,7 +89,7 @@ export function PeopleFilters({
   }
 
   return (
-    <div className="border-b border-border bg-background px-4 py-2 sm:px-6 lg:px-6">
+    <div className="w-full min-w-0">
       <div className="space-y-1.5">
         <div className="flex flex-col gap-2 text-[13px] lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
@@ -126,7 +126,7 @@ export function PeopleFilters({
                   <SlidersHorizontal size={14} />
                   <span>Filters</span>
                   {activeFilters > 0 ? (
-                    <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                    <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-background">
                       {activeFilters}
                     </span>
                   ) : null}
@@ -146,9 +146,6 @@ export function PeopleFilters({
                         <h2 className="text-sm font-semibold text-foreground">
                           Filter people
                         </h2>
-                        <p className="mt-0.5 text-xs text-muted">
-                          Narrow the directory without changing the page layout.
-                        </p>
                       </div>
                       {hasAnyFilters ? (
                         <Link
@@ -164,10 +161,7 @@ export function PeopleFilters({
                   </div>
 
                   <div className="space-y-3 p-3">
-                    <FilterSection
-                      description="Choose which relationship records are visible."
-                      title="Record state"
-                    >
+                    <FilterSection title="Record state">
                       {hasLockedRole ? null : (
                         <FilterField label="Role">
                           <SelectControl
@@ -227,10 +221,7 @@ export function PeopleFilters({
                       </FilterField>
                     </FilterSection>
 
-                    <FilterSection
-                      description="Adjust ordering and row density for this table."
-                      title="Table setup"
-                    >
+                    <FilterSection title="Table setup">
                       <FilterField label="Sort">
                         <SelectControl
                           ariaLabel="Sort people"
@@ -301,11 +292,9 @@ export function PeopleFilters({
 
 function FilterSection({
   children,
-  description,
   title,
 }: {
   children: React.ReactNode;
-  description: string;
   title: string;
 }) {
   return (
@@ -314,7 +303,6 @@ function FilterSection({
         <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">
           {title}
         </h3>
-        <p className="mt-0.5 text-xs text-muted">{description}</p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">{children}</div>
     </section>

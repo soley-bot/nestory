@@ -8,7 +8,6 @@ import {
   ListTree,
   Pencil,
   RotateCcw,
-  Users,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
@@ -39,27 +38,16 @@ export function LeaseInspector({
   const [depositState, recordDepositEvent, depositPending] = useActionState(recordLeaseDepositEventAction, {});
   const [reversalState, reverseDepositEvent, reversalPending] = useActionState(reverseLeaseDepositEventAction, {});
   if (!lease) {
-    return (
-      <aside className="bg-surface p-4">
-        <div className="flex items-center gap-2">
-          <Users className="text-muted" size={16} />
-          <h2 className="text-base font-semibold">Lease inspector</h2>
-        </div>
-        <p className="mt-4 text-sm leading-6 text-muted">
-          Select a lease row to inspect tenant parties, term dates, rent,
-          deposit, occupancy, and linked records.
-        </p>
-      </aside>
-    );
+    return null;
   }
 
   const iconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
   const primaryIconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground transition-colors hover:bg-surface-muted";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
 
   return (
-    <aside className="bg-surface">
+    <div className="bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -82,13 +70,16 @@ export function LeaseInspector({
 
       <div className="space-y-4 p-4">
         <dl className="grid grid-cols-2 gap-3 text-sm">
-          <Detail
-            label="Term"
-            value={`${lease.startDateLabel} - ${lease.endDateLabel}`}
-          />
+          <Detail label="Start" value={lease.startDateLabel} />
+          <Detail label="End" value={lease.endDateLabel} />
           <Detail label="Rent">
             <MoneyDisplay value={lease.rentDisplay} />
           </Detail>
+          <Detail
+            label="Payment activity"
+            value={`${lease.recordCounts.ledgerEntries} ledger ${lease.recordCounts.ledgerEntries === 1 ? "entry" : "entries"}`}
+          />
+          <Detail label="Deposit" value={getDepositSummary(lease)} wide />
         </dl>
 
         {lease.deposits.length ? (
@@ -98,11 +89,31 @@ export function LeaseInspector({
               <div className="flex justify-between gap-3 text-sm"><span>{deposit.typeLabel}</span><span>Held <MoneyDisplay value={deposit.heldBalanceDisplay} /></span></div>
               <form action={recordDepositEvent} className="grid grid-cols-2 gap-2">
                 <input name="leaseDepositId" type="hidden" value={deposit.id} />
-                <SelectControl name="eventType" options={[{label:"Receipt",value:"received"},{label:"Application",value:"applied"},{label:"Retention",value:"retained"},{label:"Refund",value:"refunded"}]} />
-                <DatePickerField name="eventDate" defaultValue={getBusinessDateValue()} />
-                <NumberInput name="amount" placeholder="Amount" required />
-                <Input name="reference" placeholder="Reference" />
-                <Button disabled={depositPending} type="submit">{depositPending ? "Saving..." : "Record event"}</Button>
+                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                  <span>Event type</span>
+                  <SelectControl
+                    ariaLabel="Deposit event type"
+                    name="eventType"
+                    options={[{label:"Receipt",value:"received"},{label:"Application",value:"applied"},{label:"Retention",value:"retained"},{label:"Refund",value:"refunded"}]}
+                  />
+                </label>
+                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                  <span>Event date</span>
+                  <DatePickerField
+                    ariaLabel="Deposit event date"
+                    name="eventDate"
+                    defaultValue={getBusinessDateValue()}
+                  />
+                </label>
+                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                  <span>Amount</span>
+                  <NumberInput name="amount" required />
+                </label>
+                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                  <span>Reference</span>
+                  <Input name="reference" />
+                </label>
+                <Button className="col-span-2" disabled={depositPending} type="submit">{depositPending ? "Saving..." : "Record event"}</Button>
               </form>
               {depositState.message ? <p className="text-xs" role="status">{depositState.message}</p> : null}
               <div className="space-y-1">{deposit.events.map((event) => <div className="flex items-center justify-between gap-2 text-xs" key={event.id}><span>{event.eventDate} · {event.eventType} · <MoneyDisplay value={event.amountDisplay} /> {event.reference}</span>{event.reversible ? <form action={reverseDepositEvent}><input name="eventId" type="hidden" value={event.id}/><input name="eventDate" type="hidden" value={getBusinessDateValue()}/><Button disabled={reversalPending} type="submit">Reverse</Button></form> : null}</div>)}</div>
@@ -193,7 +204,7 @@ export function LeaseInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open timeline filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={lease.hrefs.timeline}
             title="Open lease timeline"
           >
@@ -202,7 +213,7 @@ export function LeaseInspector({
           </Link>
           <Link
             aria-label={`Open ledger filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={lease.hrefs.ledger}
             title="Open lease ledger"
           >
@@ -211,7 +222,7 @@ export function LeaseInspector({
           </Link>
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -278,4 +289,14 @@ function AttentionNote({
 
 function getAttentionItem(items: LeaseSummary["riskIndicators"]) {
   return items.find((item) => item.tone !== "success");
+}
+
+function getDepositSummary(lease: LeaseSummary) {
+  const deposit = lease.deposits[0];
+
+  if (deposit) {
+    return `${deposit.heldBalanceDisplay.primary} held`;
+  }
+
+  return lease.depositLabel;
 }

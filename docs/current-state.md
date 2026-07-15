@@ -68,10 +68,13 @@ Property and units:
 
 People and leases:
 
-- `/people` is the People command dashboard without a directory table.
-- `/tenants`, `/owners`, `/vendors`, and `/staff` reuse the people module with
-  role-specific copy, create defaults, search, and access-status display for
-  staff. `/team` redirects to `/staff` for legacy links.
+- `/people`, `/tenants`, `/owners`, `/vendors`, and `/staff` reuse one dense
+  People workspace with local relationship lenses, URL-backed filters,
+  table/card selection, a responsive inspector, direct person links, and
+  create/edit/archive/restore drawers. `/people` keeps the cross-role readiness
+  summary, while each alias opens its matching lens and create default; Staff
+  also shows software-access status. `/team` redirects to `/staff` for legacy
+  links.
 - `/people-reports` is a People-domain report hub with CSV/PDF exports for
   relationship, tenant, owner, vendor, and staff readiness.
 - `/leases` supports lease list, filters, create/update/archive/restore, linked
