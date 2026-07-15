@@ -228,6 +228,121 @@ describe("Owner Statement trusted report adapter", () => {
       );
     }
   });
+
+  it("keeps valid properties ready when another property has a malformed deposit reversal", async () => {
+    const blockedPropertyId = "property-2";
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub(
+        ownerStatementLoaderResults({
+          depositRows: [
+            {
+              amount: 100,
+              event_date: "2026-07-22",
+              event_type: "reversed",
+              id: "deposit-reversal-b",
+              property_id: blockedPropertyId,
+              reversal_of_id: "missing-deposit-event",
+            },
+          ],
+        }),
+        [],
+      ),
+    );
+
+    const report = await getOwnerStatementReport({
+      organizationId: "organization-1",
+      viewQuery: ownerStatementQuery(),
+    });
+
+    expect(report.rows).toHaveLength(2);
+    expect(report.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cells: expect.objectContaining({
+            operatingCash: "USD 100.00",
+            readiness: "Ready",
+          }),
+        }),
+        expect.objectContaining({
+          cells: expect.objectContaining({
+            notes: expect.stringContaining("deposit-reversal-b"),
+            readiness: "Blocked",
+          }),
+          evidence: expect.arrayContaining([
+            expect.objectContaining({
+              allocatedAmountCents: null,
+              classification: "security_deposit",
+              depositEventId: "deposit-reversal-b",
+              eventDate: "2026-07-22",
+              propertyId: blockedPropertyId,
+              signedAmountCents: null,
+            }),
+          ]),
+        }),
+      ]),
+    );
+    expect(report.summary.map((metric) => [metric.label, metric.value])).toEqual(
+      [
+        ["Ready statements", "1"],
+        ["Blocked properties", "1"],
+        ["Operating cash received", "USD 100.00"],
+        ["Property expenses paid", "USD 0.00"],
+        ["Management fees received", "USD 0.00"],
+        ["Net owner cash movement", "USD 100.00"],
+      ],
+    );
+
+    const csv = buildTrustedReportCsv(report);
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    expect(csv).toContain("deposit-reversal-b");
+    expect(pdf).toContain("deposit-reversal-b");
+  });
+
+  it("blocks an unsupported deposit type with the event ID and type", async () => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub(
+        ownerStatementLoaderResults({
+          depositRows: [
+            {
+              amount: 100,
+              event_date: "2026-07-23",
+              event_type: "mystery",
+              id: "deposit-unsupported",
+              property_id: propertyId,
+              reversal_of_id: null,
+            },
+          ],
+          includeBlockedProperty: false,
+        }),
+        [],
+      ),
+    );
+
+    const report = await getOwnerStatementReport({
+      organizationId: "organization-1",
+      viewQuery: ownerStatementQuery(),
+    });
+
+    expect(report.rows).toHaveLength(1);
+    expect(report.rows[0]).toMatchObject({
+      cells: {
+        notes: expect.stringContaining(
+          "Deposit event deposit-unsupported has unsupported type mystery",
+        ),
+        readiness: "Blocked",
+      },
+      evidence: expect.arrayContaining([
+        expect.objectContaining({
+          allocatedAmountCents: null,
+          depositEventId: "deposit-unsupported",
+          eventDate: "2026-07-23",
+          signedAmountCents: null,
+        }),
+      ]),
+    });
+  });
 });
 
 type SupabaseResult = {
@@ -315,5 +430,103 @@ function ownerStatementQuery(): ReportsViewQuery {
     report: "owner-statement",
     status: "all",
     unitId: "all",
+  };
+}
+
+function ownerStatementLoaderResults({
+  depositRows,
+  includeBlockedProperty = true,
+}: {
+  depositRows: unknown[];
+  includeBlockedProperty?: boolean;
+}): Record<string, SupabaseResult> {
+  const blockedPropertyId = "property-2";
+  const properties = [
+    { code: "P1", id: propertyId, name: "Property One" },
+    ...(includeBlockedProperty
+      ? [{ code: "P2", id: blockedPropertyId, name: "Property Two" }]
+      : []),
+  ];
+  const owners = [
+    {
+      archived_at: null,
+      ended_on: null,
+      id: "owner-link-1",
+      is_primary: true,
+      ownership_percent: null,
+      person_id: "person-1",
+      property_id: propertyId,
+      started_on: null,
+    },
+    ...(includeBlockedProperty
+      ? [
+          {
+            archived_at: null,
+            ended_on: null,
+            id: "owner-link-2",
+            is_primary: true,
+            ownership_percent: null,
+            person_id: "person-2",
+            property_id: blockedPropertyId,
+            started_on: null,
+          },
+        ]
+      : []),
+  ];
+  const people = [
+    {
+      display_name: "Owner One",
+      id: "person-1",
+      primary_email: "owner-one@example.com",
+      primary_phone: null,
+    },
+    ...(includeBlockedProperty
+      ? [
+          {
+            display_name: "Owner Two",
+            id: "person-2",
+            primary_email: "owner-two@example.com",
+            primary_phone: null,
+          },
+        ]
+      : []),
+  ];
+  return {
+    finance_income_items: {
+      data: [
+        {
+          amount_due: 100,
+          due_date: "2026-07-01",
+          id: "rent-ready",
+          income_type: "rent",
+          property_id: propertyId,
+        },
+      ],
+    },
+    finance_receipt_allocations: {
+      data: [
+        {
+          amount: 100,
+          finance_income_items: {
+            amount_due: 100,
+            due_date: "2026-07-01",
+            id: "rent-ready",
+            income_type: "rent",
+            property_id: propertyId,
+          },
+          finance_receipts: {
+            id: "receipt-ready",
+            received_date: "2026-07-20",
+            reversal_of_id: null,
+          },
+          id: "allocation-ready",
+          income_item_id: "rent-ready",
+        },
+      ],
+    },
+    lease_deposit_events: { data: depositRows },
+    people: { data: people },
+    properties: { data: properties },
+    property_owners: { data: owners },
   };
 }

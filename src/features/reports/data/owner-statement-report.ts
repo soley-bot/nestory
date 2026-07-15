@@ -21,6 +21,7 @@ import type {
   TrustedReportRow,
 } from "@/features/reports/reports.types";
 import type {
+  OwnerStatementDataIssue,
   OwnerStatementEvidenceLine,
   OwnerStatementPerson,
   OwnerStatementReadyRow,
@@ -196,9 +197,10 @@ export async function getOwnerStatementReport({
     ...historicalReceiptRows,
   ]);
   const people = toOwnerStatementPeople(personRows, contactRows);
+  const deposits = toDepositEvents(depositRows);
   const result = buildOwnerStatement({
     cashInput: {
-      depositEvents: toDepositEvents(depositRows),
+      depositEvents: deposits.events,
       expenseItems: uniqueById(
         paymentRows.flatMap((row) =>
           row.finance_expense_items ? [row.finance_expense_items] : [],
@@ -215,6 +217,7 @@ export async function getOwnerStatementReport({
       propertyIds,
       receiptAllocations: receiptRows.flatMap(toReceiptAllocation),
     },
+    dataIssues: deposits.issues,
     ownerLinks: ownerRows.map(toOwnerLink),
     people,
   });
@@ -899,9 +902,15 @@ function toPaymentAllocation(
   ];
 }
 
-function toDepositEvents(rows: DepositEventRow[]): PropertyCashDepositEvent[] {
+function toDepositEvents(rows: DepositEventRow[]): {
+  events: PropertyCashDepositEvent[];
+  issues: OwnerStatementDataIssue[];
+} {
   const typesById = new Map(rows.map((row) => [row.id, row.event_type]));
-  return rows.map((row) => {
+  const events: PropertyCashDepositEvent[] = [];
+  const issues: OwnerStatementDataIssue[] = [];
+
+  for (const row of rows) {
     const common = {
       amount: row.amount,
       depositEventId: row.id,
@@ -913,25 +922,66 @@ function toDepositEvents(rows: DepositEventRow[]): PropertyCashDepositEvent[] {
         ? typesById.get(row.reversal_of_id)
         : undefined;
       if (!isDepositEventType(reversedEventType)) {
-        throw new Error(
-          `Deposit reversal ${row.id} is missing its original event type`,
+        issues.push(
+          depositDataIssue(
+            row,
+            `Deposit reversal ${row.id} is missing its original event type`,
+          ),
         );
+        continue;
       }
-      return {
+      events.push({
         ...common,
         eventType: "reversed",
         reversedEventType,
-      };
+      });
+      continue;
     }
     if (!isDepositEventType(row.event_type)) {
-      throw new Error(`Unsupported deposit event type: ${row.event_type}`);
+      issues.push(
+        depositDataIssue(
+          row,
+          `Deposit event ${row.id} has unsupported type ${row.event_type}`,
+        ),
+      );
+      continue;
     }
-    return {
+    events.push({
       ...common,
       eventType: row.event_type,
       reversedEventType: null,
-    };
-  });
+    });
+  }
+
+  return { events, issues };
+}
+
+function depositDataIssue(
+  row: DepositEventRow,
+  reason: string,
+): OwnerStatementDataIssue {
+  return {
+    evidence: {
+      allocatedAmountCents: null,
+      allocationId: null,
+      classification: "security_deposit",
+      depositEventId: row.id,
+      eventDate: row.event_date,
+      expenseItemId: null,
+      incomeItemId: null,
+      ownerEndedOn: null,
+      ownerLinkId: null,
+      ownerPersonId: null,
+      ownerStartedOn: null,
+      paymentId: null,
+      propertyId: row.property_id,
+      receiptId: null,
+      signedAmountCents: null,
+      statementFact: "supporting_evidence",
+    },
+    propertyId: row.property_id,
+    reason,
+  };
 }
 
 function isDepositEventType(

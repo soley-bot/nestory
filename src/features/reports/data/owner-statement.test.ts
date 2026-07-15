@@ -21,6 +21,105 @@ type FixtureOverrides = Partial<Omit<OwnerStatementInput, "cashInput">> &
   Partial<PropertyCashInput>;
 
 describe("buildOwnerStatement financial facts", () => {
+  it("isolates property-scoped data issues from ready statements and summaries", () => {
+    const blockedPropertyId = "property-2";
+    const result = buildOwnerStatement({
+      cashInput: {
+        depositEvents: [],
+        expenseItems: [],
+        incomeItems: [
+          incomeItem("rent-ready", 100),
+          {
+            amountDue: 200,
+            dueDate: "2026-07-01",
+            id: "rent-blocked",
+            incomeType: "rent",
+            propertyId: blockedPropertyId,
+          },
+        ],
+        monthScope: { before: "2026-08-01", from: "2026-07-01" },
+        paymentAllocations: [],
+        propertyIds: [propertyId, blockedPropertyId],
+        receiptAllocations: [
+          receiptAllocation("rent-ready", 100),
+          {
+            allocationId: "receipt-allocation-blocked",
+            amount: 200,
+            incomeItemId: "rent-blocked",
+            receiptId: "receipt-blocked",
+            receivedDate: "2026-07-20",
+            reversalOfId: null,
+          },
+        ],
+      },
+      dataIssues: [
+        {
+          evidence: {
+            allocatedAmountCents: null,
+            allocationId: null,
+            classification: "security_deposit",
+            depositEventId: "deposit-reversal-b",
+            eventDate: "2026-07-22",
+            expenseItemId: null,
+            incomeItemId: null,
+            ownerEndedOn: null,
+            ownerLinkId: null,
+            ownerPersonId: null,
+            ownerStartedOn: null,
+            paymentId: null,
+            propertyId: blockedPropertyId,
+            receiptId: null,
+            signedAmountCents: null,
+            statementFact: "supporting_evidence",
+          },
+          propertyId: blockedPropertyId,
+          reason:
+            "Deposit reversal deposit-reversal-b is missing its original event type",
+        },
+      ],
+      ownerLinks: [
+        ownerLink(),
+        ownerLink({
+          id: "owner-link-2",
+          personId: "owner-person-2",
+          propertyId: blockedPropertyId,
+        }),
+      ],
+      people: twoPeople(),
+    });
+
+    expect(result.rows).toHaveLength(2);
+    expect(readyRow(result)).toMatchObject({
+      operatingCashReceivedCents: 10_000,
+      propertyId,
+      status: "ready",
+    });
+    const blocked = result.rows.find(
+      (row) => row.propertyId === blockedPropertyId,
+    );
+    expect(blocked).toMatchObject({
+      reasons: [
+        "Deposit reversal deposit-reversal-b is missing its original event type",
+      ],
+      status: "blocked",
+    });
+    expect(blocked?.evidence).toContainEqual(
+      expect.objectContaining({
+        allocatedAmountCents: null,
+        classification: "security_deposit",
+        depositEventId: "deposit-reversal-b",
+        eventDate: "2026-07-22",
+        propertyId: blockedPropertyId,
+        signedAmountCents: null,
+      }),
+    );
+    expect(result.summary).toMatchObject({
+      blockedPropertyCount: 1,
+      operatingCashReceivedCents: 10_000,
+      readyStatementCount: 1,
+    });
+  });
+
   it("allocates full and partial operating receipts on their receipt dates", () => {
     const result = buildOwnerStatement(
       fixture({

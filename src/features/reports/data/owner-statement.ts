@@ -25,6 +25,7 @@ export type OwnerStatementPerson = {
 
 export type OwnerStatementInput = {
   cashInput: PropertyCashInput;
+  dataIssues?: OwnerStatementDataIssue[];
   ownerLinks: OwnerStatementOwnerLink[];
   people: OwnerStatementPerson[];
 };
@@ -58,6 +59,12 @@ export type OwnerStatementEvidenceLine = {
   receiptId: string | null;
   signedAmountCents: number | null;
   statementFact: OwnerStatementFact;
+};
+
+export type OwnerStatementDataIssue = {
+  evidence?: OwnerStatementEvidenceLine;
+  propertyId: string;
+  reason: string;
 };
 
 export type OwnerStatementReadyRow = OwnerStatementMoneyFacts & {
@@ -127,6 +134,9 @@ export function buildOwnerStatement(
   let readyStatementCount = 0;
 
   for (const facts of cash.properties) {
+    const propertyDataIssues = (input.dataIssues ?? []).filter(
+      (issue) => issue.propertyId === facts.propertyId,
+    );
     const propertyLinks = input.ownerLinks
       .filter(
         (link) =>
@@ -142,10 +152,10 @@ export function buildOwnerStatement(
       monthScope: input.cashInput.monthScope,
       periodEnd,
     });
-    const blockers = duplicateOverlapReasons(
-      propertyLinks,
-      input.cashInput.monthScope,
-    );
+    const blockers = [
+      ...propertyDataIssues.map((issue) => issue.reason),
+      ...duplicateOverlapReasons(propertyLinks, input.cashInput.monthScope),
+    ];
     const rostersByDate = new Map<string, EffectiveOwner[]>();
 
     for (const date of requiredDates) {
@@ -185,7 +195,7 @@ export function buildOwnerStatement(
     const uniqueBlockers = [...new Set(blockers)].toSorted();
     if (uniqueBlockers.length > 0) {
       rows.push({
-        evidence: blockedEvidence(facts, propertyLinks),
+        evidence: blockedEvidence(facts, propertyLinks, propertyDataIssues),
         propertyId: facts.propertyId,
         reasons: uniqueBlockers,
         status: "blocked",
@@ -764,6 +774,7 @@ function parseOwnershipThousandths(value: number | string | null) {
 function blockedEvidence(
   facts: PropertyCashPropertyFacts,
   links: OwnerStatementOwnerLink[],
+  dataIssues: OwnerStatementDataIssue[],
 ) {
   return [
     ...facts.sourceLines.map((line) =>
@@ -775,6 +786,9 @@ function blockedEvidence(
       }),
     ),
     ...links.map(ownerLinkEvidence),
+    ...dataIssues.flatMap((issue) =>
+      issue.evidence ? [issue.evidence] : [],
+    ),
   ].toSorted(compareEvidence);
 }
 
