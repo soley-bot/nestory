@@ -68,7 +68,9 @@ export function PropertyScreen({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    searchParams.get("action") === "create" ? { mode: "create" } : null,
+    canCreate && searchParams.get("action") === "create"
+      ? { mode: "create" }
+      : null,
   );
   const [displayMode, setDisplayMode] = useState<PropertyDisplayMode>(() =>
     searchParams.get("view") === "cards" ? "cards" : "table",
@@ -78,7 +80,8 @@ export function PropertyScreen({
     getInitialRecordId(properties, initialPropertyId),
   );
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(
-    Boolean(initialPropertyId) && searchParams.get("action") !== "create",
+    Boolean(initialPropertyId) &&
+      (!canCreate || searchParams.get("action") !== "create"),
   );
   const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -149,6 +152,13 @@ export function PropertyScreen({
       return;
     }
 
+    if (!canCreate) {
+      router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+        scroll: false,
+      });
+      return;
+    }
+
     queueMicrotask(() => {
       setCompactInspectorOpen(false);
       setStatusMessage(null);
@@ -157,7 +167,7 @@ export function PropertyScreen({
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [pathname, router, searchParams]);
+  }, [canCreate, pathname, router, searchParams]);
 
   const hasFilters =
     hasActivePropertyFilters(viewQuery) ||

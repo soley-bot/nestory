@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, PanelRightOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
@@ -201,23 +201,11 @@ function PropertyCard({
   return (
     <article
       className={cn(
-        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "group min-w-0 overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-record-spine",
         selected && "border-record-spine bg-state-selected",
         property.isArchived && "text-muted",
       )}
       data-selected={selected ? "true" : "false"}
-      onClick={() => onSelectProperty(property.id)}
-      onKeyDown={(event) => {
-        if (event.currentTarget !== event.target) {
-          return;
-        }
-
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelectProperty(property.id);
-        }
-      }}
-      tabIndex={0}
     >
       <PropertyThumbnail property={property} size="card" />
 
@@ -236,7 +224,6 @@ function PropertyCard({
           <Link
             className="block truncate rounded-sm text-sm font-semibold leading-5 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={`/properties/${property.id}`}
-            onClick={(event) => event.stopPropagation()}
             prefetch={false}
             title={property.name}
           >
@@ -255,6 +242,20 @@ function PropertyCard({
             {attention.label}
           </Badge>
         ) : null}
+
+        <button
+          aria-label={`Preview ${property.name}`}
+          aria-pressed={selected}
+          className={cn(
+            "mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
+            selected && "border-record-spine bg-state-selected",
+          )}
+          onClick={() => onSelectProperty(property.id)}
+          type="button"
+        >
+          <PanelRightOpen aria-hidden="true" className="size-3.5" />
+          Preview
+        </button>
       </div>
     </article>
   );

@@ -184,7 +184,11 @@ try {
 async function renamePropertyCard({ fromName, toName }) {
   const card = page.locator("article").filter({ hasText: fromName }).first();
   await card.waitFor();
-  await card.click({ position: { x: 10, y: 10 } });
+  await card
+    .getByRole("button", {
+      name: new RegExp(`Preview ${escapeRegExp(fromName)}`),
+    })
+    .click();
   await page
     .getByRole("button", {
       name: new RegExp(`Edit ${escapeRegExp(fromName)}`),

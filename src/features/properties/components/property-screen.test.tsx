@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PropertyScreen } from "@/features/properties/components/property-screen";
 import { buildPropertySummary } from "@/features/properties/data/property-summary";
@@ -44,7 +45,7 @@ beforeEach(() => {
   navigation.push.mockReset();
   navigation.replace.mockReset();
   navigation.searchParams = new URLSearchParams();
-  installMatchMedia(true);
+  installMatchMedia(1440);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
     return 1;
@@ -96,13 +97,16 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });
 
-  it("uses the inspector drawer below the compact-desktop breakpoint", () => {
-    installMatchMedia(false);
+  it.each([1024, 390])(
+    "uses the inspector drawer after selection at %ipx",
+    async (width) => {
+    installMatchMedia(width);
+    const user = userEvent.setup();
     renderProperties();
 
     expect(screen.queryByRole("dialog")).toBeNull();
-    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
-    fireEvent.click(rows[0]!);
+    expect(screen.queryByRole("complementary")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Preview Home Residence" }));
 
     expect(
       screen.getByRole("dialog", { name: "Home Residence inspector" }),
@@ -110,6 +114,59 @@ describe("PropertyScreen redesign contract", () => {
     expect(
       screen.queryByRole("complementary", { name: "Home Residence inspector" }),
     ).toBeNull();
+    },
+  );
+
+  it("announces card selection, keeps links separate, supports Enter and Space, and restores focus", async () => {
+    installMatchMedia(1024);
+    const user = userEvent.setup();
+    const { container } = renderProperties();
+    const cards = Array.from(container.querySelectorAll("article"));
+    const firstCard = cards[0]!;
+    const secondCard = cards[1]!;
+    const firstPreview = within(firstCard).getByRole("button", {
+      name: "Preview Home Residence",
+    });
+    const secondPreview = within(secondCard).getByRole("button", {
+      name: "Preview Riverside House",
+    });
+
+    expect(firstPreview.getAttribute("aria-pressed")).toBe("true");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
+
+    const secondLink = within(secondCard).getByRole("link", {
+      name: "Riverside House",
+    });
+    secondLink.addEventListener("click", (event) => event.preventDefault(), {
+      once: true,
+    });
+    await user.click(secondLink);
+    expect(firstPreview.getAttribute("aria-pressed")).toBe("true");
+
+    secondPreview.focus();
+    await user.keyboard("{Enter}");
+    expect(secondPreview.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("dialog", { name: "Riverside House inspector" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    expect(document.activeElement).toBe(secondPreview);
+
+    firstPreview.focus();
+    await user.keyboard(" ");
+    expect(firstPreview.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("dialog", { name: "Home Residence inspector" })).not.toBeNull();
+  });
+
+  it("supports Enter and Space for table-row selection", () => {
+    renderProperties();
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+
+    rows[1]!.focus();
+    fireEvent.keyDown(rows[1]!, { key: "Enter" });
+    expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
+
+    rows[0]!.focus();
+    fireEvent.keyDown(rows[0]!, { key: " " });
+    expect(rows[0]?.getAttribute("aria-selected")).toBe("true");
   });
 
   it("offers Clear filters for a filtered empty result", () => {
@@ -134,6 +191,13 @@ describe("PropertyScreen redesign contract", () => {
 
     renderProperties({ canCreate: false, properties: [] });
     expect(screen.queryByRole("button", { name: "Add property" })).toBeNull();
+  });
+
+  it("does not open an action=create drawer when create is unauthorized", () => {
+    navigation.searchParams = new URLSearchParams("action=create");
+    renderProperties({ canCreate: false, properties: [] });
+
+    expect(screen.queryByRole("dialog", { name: "Add property" })).toBeNull();
   });
 });
 
@@ -182,18 +246,22 @@ function makeProperty(id: string, code: string, name: string) {
   });
 }
 
-function installMatchMedia(wide: boolean) {
+function installMatchMedia(width: number) {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
-    value: vi.fn((query: string) => ({
+    value: vi.fn((query: string) => {
+      const minWidth = Number(query.match(/min-width:\s*(\d+)px/)?.[1] ?? 0);
+
+      return {
       addEventListener: vi.fn(),
       addListener: vi.fn(),
       dispatchEvent: vi.fn(),
-      matches: query.includes("min-width") ? wide : !wide,
+      matches: width >= minWidth,
       media: query,
       onchange: null,
       removeEventListener: vi.fn(),
       removeListener: vi.fn(),
-    })),
+      };
+    }),
   });
 }

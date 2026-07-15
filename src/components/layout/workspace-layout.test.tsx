@@ -36,7 +36,7 @@ function installMatchMedia(initialMatches: boolean): MatchMediaController {
     get matches() {
       return matches;
     },
-    media: "(min-width: 1024px)",
+    media: "(min-width: 1280px)",
     onchange: null,
     addEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => {
       listeners.add(listener);
@@ -70,6 +70,30 @@ function installMatchMedia(initialMatches: boolean): MatchMediaController {
       });
     },
   };
+}
+
+function installViewportMatchMedia(width: number) {
+  const matchMedia = vi.fn((query: string) => {
+    const minWidth = Number(query.match(/min-width:\s*(\d+)px/)?.[1] ?? 0);
+
+    return {
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches: width >= minWidth,
+      media: query,
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    } as unknown as MediaQueryList;
+  });
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: matchMedia,
+  });
+
+  return matchMedia;
 }
 
 beforeEach(() => {
@@ -155,6 +179,7 @@ describe("shared workspace anatomy", () => {
   });
 
   it("keeps a wide inspector between 280px and 320px with the record spine", () => {
+    const matchMedia = installViewportMatchMedia(1440);
     render(
       <WorkspaceSplitView
         inspector={<div>Lease details</div>}
@@ -180,9 +205,33 @@ describe("shared workspace anatomy", () => {
     expect(splitView?.className).toContain("min-w-0");
     expect(splitView?.className).toContain("overflow-hidden");
     expect(splitView?.className).toContain(
-      "lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]",
+      "xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]",
     );
+    expect(matchMedia).toHaveBeenCalledWith("(min-width: 1280px)");
   });
+
+  it.each([1024, 390])(
+    "uses a dismissable drawer instead of a docked inspector at %ipx",
+    (width) => {
+      const matchMedia = installViewportMatchMedia(width);
+
+      render(
+        <WorkspaceSplitView
+          inspector={<div>Selected unit</div>}
+          inspectorLabel="Unit inspector"
+          inspectorOpen
+          list={<div>Unit list</div>}
+          onInspectorOpenChange={vi.fn()}
+        />,
+      );
+
+      expect(matchMedia).toHaveBeenCalledWith("(min-width: 1280px)");
+      expect(
+        screen.queryByRole("complementary", { name: "Unit inspector" }),
+      ).toBeNull();
+      expect(screen.getByRole("dialog", { name: "Unit inspector" })).not.toBeNull();
+    },
+  );
 
   it("renders the inspector once while changing between wide and compact modes", () => {
     const media = installMatchMedia(true);

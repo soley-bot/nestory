@@ -84,7 +84,7 @@ export function UnitScreen({
     [propertyOptions, viewQuery],
   );
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    searchParams.get("action") === "create"
+    canCreate && searchParams.get("action") === "create"
       ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
@@ -96,7 +96,8 @@ export function UnitScreen({
     getInitialRecordId(units, initialUnitId),
   );
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(
-    Boolean(initialUnitId) && searchParams.get("action") !== "create",
+    Boolean(initialUnitId) &&
+      (!canCreate || searchParams.get("action") !== "create"),
   );
   const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -171,6 +172,13 @@ export function UnitScreen({
       return;
     }
 
+    if (!canCreate) {
+      router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+        scroll: false,
+      });
+      return;
+    }
+
     queueMicrotask(() => {
       setCompactInspectorOpen(false);
       setStatusMessage(null);
@@ -179,7 +187,7 @@ export function UnitScreen({
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [createInitialValues, pathname, router, searchParams]);
+  }, [canCreate, createInitialValues, pathname, router, searchParams]);
 
   const hasFilters =
     hasActiveUnitFilters(viewQuery) ||

@@ -9,6 +9,7 @@ import {
   Building2,
   Ellipsis,
   ImagePlus,
+  PanelRightOpen,
   Pencil,
   RotateCcw,
 } from "lucide-react";
@@ -267,23 +268,11 @@ function UnitCard({
   return (
     <article
       className={cn(
-        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "group min-w-0 overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-record-spine",
         selected && "border-record-spine bg-state-selected",
         unit.isArchived && "text-muted",
       )}
       data-selected={selected ? "true" : "false"}
-      onClick={() => onSelectUnit(unit.id)}
-      onKeyDown={(event) => {
-        if (event.currentTarget !== event.target) {
-          return;
-        }
-
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelectUnit(unit.id);
-        }
-      }}
-      tabIndex={0}
     >
       <UnitPhoto unit={unit} />
 
@@ -294,7 +283,6 @@ function UnitCard({
               aria-label={`Unit ${unit.unitNumber}`}
               className="block truncate rounded-sm text-sm font-semibold leading-5 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               href={`/units/${unit.id}`}
-              onClick={(event) => event.stopPropagation()}
               prefetch={false}
               title={`Unit ${unit.unitNumber}`}
             >
@@ -326,7 +314,20 @@ function UnitCard({
           </p>
         </div>
 
-        <div className="mt-3 flex justify-end border-t border-border pt-2">
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2">
+          <button
+            aria-label={`Preview unit ${unit.unitNumber}`}
+            aria-pressed={selected}
+            className={cn(
+              "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
+              selected && "border-record-spine bg-state-selected",
+            )}
+            onClick={() => onSelectUnit(unit.id)}
+            type="button"
+          >
+            <PanelRightOpen aria-hidden="true" className="size-3.5" />
+            Preview
+          </button>
           <UnitActions
             className="justify-end gap-1"
             onArchiveUnit={onArchiveUnit}

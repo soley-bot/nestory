@@ -4,7 +4,7 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { cn } from "@/lib/utils";
 
-const WIDE_WORKSPACE_QUERY = "(min-width: 1024px)";
+const WIDE_WORKSPACE_QUERY = "(min-width: 1280px)";
 
 type WorkspaceSplitViewBaseProps = {
   list: ReactNode;
@@ -82,7 +82,7 @@ export function WorkspaceSplitView({
       className={cn(
         "grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden bg-surface-raised",
         showDockedInspector &&
-          "lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]",
+          "xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]",
       )}
       data-slot="workspace-split-view"
     >
