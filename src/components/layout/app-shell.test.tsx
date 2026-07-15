@@ -36,7 +36,7 @@ describe("AppShell workspace logo", () => {
 
     expect(
       screen
-        .getByRole("link", { name: "NestoryDashboard" })
+        .getByRole("link", { name: "NestoryWorkspace" })
         .getAttribute("href"),
     ).toBe(expectedPath);
   });
@@ -52,9 +52,31 @@ describe("AppShell workspace logo", () => {
 
     expect(
       screen
-        .getByRole("link", { name: "Nestory dashboard" })
+        .getByRole("link", { name: "Nestory workspace" })
         .getAttribute("href"),
     ).toBe("/maintenance");
+  });
+
+  it("moves focus to the replacement sidebar toggle in both directions", () => {
+    render(
+      <AppShell role="admin">
+        <div>Workspace</div>
+      </AppShell>,
+    );
+
+    const collapseButton = screen.getByRole("button", {
+      name: "Collapse sidebar",
+    });
+    collapseButton.focus();
+    fireEvent.click(collapseButton);
+
+    const expandButton = screen.getByRole("button", { name: "Expand sidebar" });
+    expect(document.activeElement).toBe(expandButton);
+
+    fireEvent.click(expandButton);
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Collapse sidebar" }),
+    );
   });
 
   it("keeps managers out of admin-only settings navigation", () => {
@@ -188,6 +210,35 @@ describe("AppShell global navigation hierarchy", () => {
       expect(within(globalNavigation).queryByText("Properties")).toBeNull();
     },
   );
+
+  it.each([
+    "/maintenance",
+    "/tasks",
+    "/recurring-tasks",
+    "/inspections",
+    "/work-orders",
+    "/schedule",
+  ])("keeps one current member Maintenance family on %s", (pathname) => {
+    navigation.pathname = pathname;
+    render(
+      <AppShell role="member">
+        <div>Workspace</div>
+      </AppShell>,
+    );
+
+    for (const label of ["Global navigation", "Global mobile navigation"]) {
+      const globalNavigation = screen.getByRole("navigation", { name: label });
+      const links = within(globalNavigation).getAllByRole("link");
+      const current = links.filter(
+        (link) => link.getAttribute("aria-current") === "page",
+      );
+
+      expect(links).toHaveLength(1);
+      expect(current).toHaveLength(1);
+      expect(current[0]?.textContent?.trim()).toBe("Maintenance");
+      expect(current[0]?.getAttribute("href")).toBe("/tasks");
+    }
+  });
 
   it("keeps collapsed destinations named and ordered without group-toggle dead ends", () => {
     navigation.pathname = "/documents";

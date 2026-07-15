@@ -24,7 +24,7 @@ export default async function WorkspacePage() {
           {context.organizationName}
         </h1>
         <Link
-          className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-accent-strong focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-background outline-none transition-colors hover:bg-accent-strong focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           href={entryPath}
           prefetch={false}
         >

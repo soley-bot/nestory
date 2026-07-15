@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import {
   Building2,
@@ -145,10 +145,14 @@ function getGlobalDestinations(role: WorkspaceRole): readonly GlobalDestination[
       href: role === "manager" ? "/maintenance" : "/tasks",
       icon: Wrench,
       label: "Maintenance",
-      routes:
-        role === "manager"
-          ? ["/maintenance", "/tasks", "/work-orders", "/inspections", "/recurring-tasks"]
-          : ["/tasks"],
+      routes: [
+        "/maintenance",
+        "/tasks",
+        "/work-orders",
+        "/inspections",
+        "/recurring-tasks",
+        "/schedule",
+      ],
     },
   ];
 }
@@ -179,11 +183,26 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const collapseToggleRef = useRef<HTMLButtonElement>(null);
+  const expandToggleRef = useRef<HTMLButtonElement>(null);
+  const pendingSidebarFocusRef = useRef<"collapse" | "expand" | null>(null);
   const globalDestinations = getGlobalDestinations(role);
   const activeDestinationId = getActiveDestinationId(
     pathname,
     globalDestinations,
   );
+
+  useEffect(() => {
+    const pendingFocus = pendingSidebarFocusRef.current;
+
+    if (pendingFocus === "expand" && sidebarCollapsed) {
+      expandToggleRef.current?.focus();
+      pendingSidebarFocusRef.current = null;
+    } else if (pendingFocus === "collapse" && !sidebarCollapsed) {
+      collapseToggleRef.current?.focus();
+      pendingSidebarFocusRef.current = null;
+    }
+  }, [sidebarCollapsed]);
 
   function toggleTheme() {
     const currentTheme =
@@ -195,7 +214,13 @@ export function AppShell({
   }
 
   function expandDesktopSidebar() {
+    pendingSidebarFocusRef.current = "collapse";
     setSidebarCollapsed(false);
+  }
+
+  function collapseDesktopSidebar() {
+    pendingSidebarFocusRef.current = "expand";
+    setSidebarCollapsed(true);
   }
 
   return (
@@ -214,16 +239,18 @@ export function AppShell({
             onThemeToggle={toggleTheme}
             organizationName={organizationName}
             role={role}
+            toggleRef={expandToggleRef}
             userEmail={userEmail}
           />
         ) : (
           <ExpandedDesktopSidebar
             activeDestinationId={activeDestinationId}
             destinations={globalDestinations}
-            onCollapse={() => setSidebarCollapsed(true)}
+            onCollapse={collapseDesktopSidebar}
             onThemeToggle={toggleTheme}
             organizationName={organizationName}
             role={role}
+            toggleRef={collapseToggleRef}
             userEmail={userEmail}
           />
         )}
@@ -311,6 +338,7 @@ function ExpandedDesktopSidebar({
   onThemeToggle,
   organizationName,
   role,
+  toggleRef,
   userEmail,
 }: {
   activeDestinationId?: GlobalDestination["id"];
@@ -319,6 +347,7 @@ function ExpandedDesktopSidebar({
   onThemeToggle: () => void;
   organizationName: string;
   role: WorkspaceRole;
+  toggleRef: RefObject<HTMLButtonElement | null>;
   userEmail?: string;
 }) {
   return (
@@ -331,7 +360,7 @@ function ExpandedDesktopSidebar({
         >
           <NestoryLogo
             markClassName="h-8 w-8"
-            subtitle="Dashboard"
+            subtitle="Workspace"
             subtitleClassName="text-muted"
             textClassName="text-foreground"
           />
@@ -340,6 +369,7 @@ function ExpandedDesktopSidebar({
           aria-label="Collapse sidebar"
           className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
           onClick={onCollapse}
+          ref={toggleRef}
           title="Collapse sidebar"
           type="button"
         >
@@ -390,6 +420,7 @@ function CollapsedDesktopSidebar({
   onThemeToggle,
   organizationName,
   role,
+  toggleRef,
   userEmail,
 }: {
   activeDestinationId?: GlobalDestination["id"];
@@ -398,13 +429,14 @@ function CollapsedDesktopSidebar({
   onThemeToggle: () => void;
   organizationName: string;
   role: WorkspaceRole;
+  toggleRef: RefObject<HTMLButtonElement | null>;
   userEmail?: string;
 }) {
   return (
     <div className="flex h-full w-12 flex-col items-center">
       <div className="flex h-24 shrink-0 flex-col items-center justify-center gap-2 border-b border-border">
         <Link
-          aria-label="Nestory dashboard"
+          aria-label="Nestory workspace"
           className="grid h-8 w-8 place-items-center overflow-hidden rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           href={getWorkspaceEntryPath(role)}
           prefetch={false}
@@ -416,6 +448,7 @@ function CollapsedDesktopSidebar({
           aria-label="Expand sidebar"
           className="grid h-8 w-8 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
           onClick={onExpand}
+          ref={toggleRef}
           title="Expand sidebar"
           type="button"
         >

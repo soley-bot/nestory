@@ -80,6 +80,16 @@ function getCustomProperties(block: string): Record<string, string> {
   );
 }
 
+function resolveThemeColor(
+  theme: Record<string, string>,
+  token: string,
+): string {
+  const value = theme[token];
+  const alias = value?.match(/^var\((--[\w-]+)\)$/)?.[1];
+
+  return alias ? resolveThemeColor(theme, alias) : value;
+}
+
 function getSource(path: string): string {
   return readFileSync(resolve(process.cwd(), ...path.split("/")), "utf8");
 }
@@ -327,6 +337,25 @@ describe("authenticated theme contract", () => {
           theme["--surface-work"],
         ),
         `${selector} attention text contrast`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("keeps the workspace CTA semantic and readable in both themes", () => {
+    const workspaceSource = getSource("src/app/workspace/page.tsx");
+
+    expect(workspaceSource).toMatch(/bg-accent[^"\n]*text-background/);
+    expect(workspaceSource).not.toMatch(/bg-accent[^"\n]*text-white/);
+
+    for (const selector of [":root", '[data-theme="dark"]']) {
+      const theme = getCustomProperties(getBlock(globalsCss, selector));
+
+      expect(
+        getContrastRatio(
+          resolveThemeColor(theme, "--background"),
+          resolveThemeColor(theme, "--accent"),
+        ),
+        `${selector} workspace CTA contrast`,
       ).toBeGreaterThanOrEqual(4.5);
     }
   });
