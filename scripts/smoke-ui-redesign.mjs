@@ -1,6 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
 import { chromium } from "playwright";
+import {
+  createReadOnlyRequestPolicy,
+  validateLocalBaseUrl,
+} from "./smoke-ui-redesign-policy.mjs";
 
 const baseUrlValue = process.env.BASE_URL?.trim();
 
@@ -8,21 +12,12 @@ if (!baseUrlValue) {
   throw new Error("BASE_URL is required");
 }
 
+const baseUrl = validateLocalBaseUrl(baseUrlValue);
 const email = process.env.E2E_EMAIL?.trim();
 const password = process.env.E2E_PASSWORD;
 
 if (!email || !password) {
   throw new Error("E2E_EMAIL and E2E_PASSWORD are required");
-}
-
-let baseUrl;
-
-try {
-  const parsedBaseUrl = new URL(baseUrlValue);
-  parsedBaseUrl.pathname = parsedBaseUrl.pathname.replace(/\/$/, "");
-  baseUrl = parsedBaseUrl.toString().replace(/\/$/, "");
-} catch {
-  throw new Error("BASE_URL must be a valid absolute URL");
 }
 
 const routes = [
@@ -48,7 +43,6 @@ const viewports = [
   { height: 844, name: "phone", width: 390 },
 ];
 
-const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
 const startedAt = new Date();
 const runName = startedAt
   .toISOString()
@@ -58,7 +52,7 @@ const runDirectory = resolve("artifacts", "ui-redesign", runName);
 const summaryPath = resolve(runDirectory, "summary.json");
 const blockedMutationRequests = [];
 const results = [];
-let authenticationInProgress = false;
+const requestPolicy = createReadOnlyRequestPolicy({ baseUrl });
 
 await mkdir(runDirectory, { recursive: true });
 
@@ -70,25 +64,22 @@ const context = await browser.newContext({
 
 await context.route("**/*", async (route) => {
   const request = route.request();
-  const method = request.method().toUpperCase();
+  const decision = requestPolicy.evaluate({
+    headers: request.headers(),
+    method: request.method(),
+    url: request.url(),
+  });
 
-  if (safeMethods.has(method)) {
+  if (decision.allowed) {
     await route.continue();
     return;
   }
 
-  const requestUrl = new URL(request.url());
-  const isAuthenticationRequest =
-    authenticationInProgress &&
-    method === "POST" &&
-    requestUrl.origin === new URL(baseUrl).origin;
-
-  if (isAuthenticationRequest) {
-    await route.continue();
-    return;
-  }
-
-  blockedMutationRequests.push({ method, url: request.url() });
+  blockedMutationRequests.push({
+    method: request.method().toUpperCase(),
+    reason: decision.reason,
+    url: request.url(),
+  });
   await route.abort("blockedbyclient");
 });
 
@@ -166,7 +157,6 @@ async function authenticate(browserContext) {
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
 
-    authenticationInProgress = true;
     await Promise.all([
       page.waitForURL(
         (url) => !["/login", "/workspace"].includes(url.pathname),
@@ -182,7 +172,6 @@ async function authenticate(browserContext) {
       throw new Error(`E2E account cannot access a workspace: ${page.url()}`);
     }
   } finally {
-    authenticationInProgress = false;
     await page.close();
   }
 }

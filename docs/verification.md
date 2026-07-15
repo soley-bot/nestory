@@ -55,10 +55,11 @@ Use a real browser smoke when a change affects:
 ### Read-only redesign baseline
 
 Run the redesign evidence capture only against an explicit local fixture. The
-runner uses the supplied test account for authentication, then blocks every
-non-read browser request while it visits the representative routes. Generated
-screenshots and `summary.json` remain under the ignored
-`artifacts/ui-redesign/<UTC run>/` directory.
+runner accepts only HTTP(S) loopback hosts (`localhost`, `127.0.0.1`, or
+`::1`) without URL userinfo. It uses the supplied test account for one
+Next.js login server action, then blocks every non-read browser request while
+it visits the representative routes. Generated screenshots and `summary.json`
+remain under the ignored `artifacts/ui-redesign/<UTC run>/` directory.
 
 ```powershell
 $env:BASE_URL='http://localhost:3000'
