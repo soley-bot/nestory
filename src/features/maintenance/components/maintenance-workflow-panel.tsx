@@ -107,18 +107,22 @@ function CoordinatedExecutionPanel({
       <div>
         <p className="text-sm font-semibold">Manager-coordinated work</p>
         <p className="mt-1 text-xs text-muted">
-          Use these controls for vendor, unassigned, or historical offline work. Completion does not post a ledger effect.
+          Vendor, unassigned, or historical offline work stays with manager coordination.
         </p>
       </div>
       {availableActions.includes("start") ? (
-        <CoordinatedButton action={action} actionName="start" disabled={pending} taskId={maintenanceCase.id}>
-          <Play size={14} /> Start coordinated work
-        </CoordinatedButton>
+        <ActionConsequence text="Starting marks the case in progress. Manager coordination remains responsible.">
+          <CoordinatedButton action={action} actionName="start" disabled={pending} taskId={maintenanceCase.id}>
+            <Play size={14} /> Start coordinated work
+          </CoordinatedButton>
+        </ActionConsequence>
       ) : null}
       {availableActions.includes("resume") ? (
-        <CoordinatedButton action={action} actionName="resume" disabled={pending} taskId={maintenanceCase.id}>
-          <Play size={14} /> Resume coordinated work
-        </CoordinatedButton>
+        <ActionConsequence text="Resuming clears the blocker and returns the case to in-progress manager coordination.">
+          <CoordinatedButton action={action} actionName="resume" disabled={pending} taskId={maintenanceCase.id}>
+            <Play size={14} /> Resume coordinated work
+          </CoordinatedButton>
+        </ActionConsequence>
       ) : null}
       {availableActions.includes("block") && availableActions.includes("complete") ? (
         <>
@@ -136,6 +140,9 @@ function CoordinatedExecutionPanel({
               placeholder="What prevents coordinated work from continuing?"
               required
             />
+            <p className="text-xs text-foreground-muted">
+              Blocking pauses coordinated execution and keeps the case open.
+            </p>
             <Button disabled={pending} type="submit">
               <Pause size={14} /> Mark coordinated work blocked
             </Button>
@@ -154,6 +161,9 @@ function CoordinatedExecutionPanel({
               placeholder="What was completed and by whom?"
               required
             />
+            <p className="text-xs text-foreground-muted">
+              Completion closes the task and its request without posting a ledger effect.
+            </p>
             <Button disabled={pending} type="submit" variant="primary">
               <CheckCircle2 size={14} /> Complete coordinated work
             </Button>
@@ -202,14 +212,18 @@ function MemberExecutionPanel({
     <div className="space-y-3 border-t border-border pt-3">
       <p className="text-sm font-semibold">Your work</p>
       {maintenanceCase.status === "pending" || maintenanceCase.status === "scheduled" ? (
-        <ExecutionButton action={action} actionName="start" disabled={pending} taskId={maintenanceCase.id}>
-          <Play size={14} /> Start work
-        </ExecutionButton>
+        <ActionConsequence text="Starting moves the task to in progress and keeps you responsible for execution.">
+          <ExecutionButton action={action} actionName="start" disabled={pending} taskId={maintenanceCase.id}>
+            <Play size={14} /> Start work
+          </ExecutionButton>
+        </ActionConsequence>
       ) : null}
       {maintenanceCase.status === "blocked" ? (
-        <ExecutionButton action={action} actionName="resume" disabled={pending} taskId={maintenanceCase.id}>
-          <Play size={14} /> Resume work
-        </ExecutionButton>
+        <ActionConsequence text="Resuming clears the recorded blocker and returns the task to in progress.">
+          <ExecutionButton action={action} actionName="resume" disabled={pending} taskId={maintenanceCase.id}>
+            <Play size={14} /> Resume work
+          </ExecutionButton>
+        </ActionConsequence>
       ) : null}
       {maintenanceCase.status === "in_progress" || maintenanceCase.status === "blocked" ? (
         <div className="space-y-1.5">
@@ -237,11 +251,16 @@ function MemberExecutionPanel({
             <label className="block text-sm font-medium" htmlFor={`blocked-${maintenanceCase.id}`}>Blocker</label>
             <Textarea id={`blocked-${maintenanceCase.id}`} maxLength={500} minLength={3} name="blockedReason" placeholder="What prevents the work from continuing?" required />
             {state.fieldErrors?.blockedReason?.[0] ? <p className="text-xs text-danger">{state.fieldErrors.blockedReason[0]}</p> : null}
+            <p className="text-xs text-foreground-muted">
+              Blocking pauses execution and hands resolution to a manager.
+            </p>
             <Button disabled={pending} type="submit"><AlertTriangle size={14} /> Mark blocked</Button>
           </form>
-          <ExecutionButton action={action} actionName="submit_for_review" disabled={pending} taskId={maintenanceCase.id} primary>
-            <Send size={14} /> Submit for review
-          </ExecutionButton>
+          <ActionConsequence text="Submission keeps the case open and hands completion review to a manager.">
+            <ExecutionButton action={action} actionName="submit_for_review" disabled={pending} taskId={maintenanceCase.id} primary>
+              <Send size={14} /> Submit for review
+            </ExecutionButton>
+          </ActionConsequence>
         </>
       ) : null}
       {state.status === "error" && state.message ? <p className="text-sm text-danger" role="alert">{state.message}</p> : null}
@@ -275,7 +294,9 @@ function CompletionReviewPanel({
       <input name="taskId" type="hidden" value={maintenanceCase.id} />
       <div>
         <p className="text-sm font-semibold">Completion review</p>
-        <p className="mt-1 text-xs text-muted">Warnings are advisory. Review the work and choose the correct handoff.</p>
+        <p className="mt-1 text-xs text-muted">
+          Approval completes the task and closes its request. Returning work reopens execution and records the review note.
+        </p>
       </div>
       {warnings.length > 0 ? (
         <ul className="space-y-1 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs">
@@ -329,4 +350,19 @@ function CoordinatedButton({ action, actionName, children, disabled, taskId }: {
 
 function WorkflowFact({ label, value }: { label: string; value: string }) {
   return <div className="rounded-md border border-border bg-surface px-2.5 py-2"><p className="text-xs text-muted">{label}</p><p className="mt-0.5 text-sm font-medium">{value}</p></div>;
+}
+
+function ActionConsequence({
+  children,
+  text,
+}: {
+  children: React.ReactNode;
+  text: string;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-border bg-surface p-3">
+      <p className="text-xs leading-5 text-foreground-muted">{text}</p>
+      {children}
+    </div>
+  );
 }

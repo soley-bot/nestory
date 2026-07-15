@@ -10,7 +10,8 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { GripVertical } from "lucide-react";
+import { useState } from "react";
+import { Columns3, GripVertical, ListChecks } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type {
   MaintenanceActor,
@@ -58,6 +59,9 @@ export function BoardSurface({
   statusChangePending = false,
   waitingForReviewLabel = false,
 }: BoardSurfaceProps) {
+  const [presentation, setPresentation] = useState<"board" | "list">(
+    actorRole === "member" ? "list" : "board",
+  );
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { delay: 120, tolerance: 6 },
@@ -97,22 +101,15 @@ export function BoardSurface({
 
   if (actorRole === "member") {
     return (
-      <div className="space-y-2" data-member-work-list>
-        {cases.map((maintenanceCase) => (
-          <MaintenanceCard
-            isDragging={false}
-            key={maintenanceCase.id}
-            maintenanceCase={maintenanceCase}
-            movable={false}
-            onSelect={onSelect}
-            selected={selectedTaskId === maintenanceCase.id}
-          />
-        ))}
-      </div>
+      <BoardListSurface
+        cases={cases}
+        onSelect={onSelect}
+        selectedTaskId={selectedTaskId}
+      />
     );
   }
 
-  return (
+  const board = (
     <DndContext
       id="maintenance-status-board"
       onDragEnd={handleDragEnd}
@@ -151,6 +148,129 @@ export function BoardSurface({
         </div>
       </div>
     </DndContext>
+  );
+
+  return (
+    <div className="space-y-2">
+      <div
+        aria-label="Work order display"
+        className="flex items-center justify-end gap-1"
+        role="group"
+      >
+        <button
+          aria-pressed={presentation === "board"}
+          className={cn(
+            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
+            presentation === "board"
+              ? "border-accent bg-accent-soft text-foreground"
+              : "border-border bg-surface text-foreground-muted hover:bg-surface-muted",
+          )}
+          onClick={() => setPresentation("board")}
+          type="button"
+        >
+          <Columns3 size={14} />
+          Board
+        </button>
+        <button
+          aria-pressed={presentation === "list"}
+          className={cn(
+            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
+            presentation === "list"
+              ? "border-accent bg-accent-soft text-foreground"
+              : "border-border bg-surface text-foreground-muted hover:bg-surface-muted",
+          )}
+          onClick={() => setPresentation("list")}
+          type="button"
+        >
+          <ListChecks size={14} />
+          List
+        </button>
+      </div>
+      {presentation === "list" ? (
+        <BoardListSurface
+          cases={cases}
+          onSelect={onSelect}
+          selectedTaskId={selectedTaskId}
+        />
+      ) : board}
+    </div>
+  );
+}
+
+function BoardListSurface({
+  cases,
+  onSelect,
+  selectedTaskId,
+}: {
+  cases: MaintenanceCase[];
+  onSelect: (taskId: string) => void;
+  selectedTaskId: string;
+}) {
+  return (
+    <div className="overflow-x-auto rounded-md border border-border bg-surface">
+      <table
+        aria-label="Work order list"
+        className="w-full min-w-[760px] border-collapse text-left text-[13px]"
+      >
+        <thead className="bg-surface-muted text-[11px] uppercase text-foreground-muted">
+          <tr>
+            <th className="px-3 py-2 font-semibold">Work order</th>
+            <th className="px-3 py-2 font-semibold">Status / Priority</th>
+            <th className="px-3 py-2 font-semibold">Property / Unit</th>
+            <th className="px-3 py-2 font-semibold">Assignee / Vendor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cases.map((maintenanceCase) => (
+            <tr
+              aria-selected={selectedTaskId === maintenanceCase.id}
+              className={cn(
+                "cursor-pointer border-t border-border outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring",
+                selectedTaskId === maintenanceCase.id &&
+                  "bg-state-selected shadow-[inset_3px_0_0_var(--state-selected-strong)]",
+              )}
+              data-maintenance-record-trigger={maintenanceCase.id}
+              key={maintenanceCase.id}
+              onClick={(event) => {
+                event.currentTarget.focus();
+                onSelect(maintenanceCase.id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(maintenanceCase.id);
+                }
+              }}
+              tabIndex={0}
+            >
+              <td className="px-3 py-2 font-medium">{maintenanceCase.title}</td>
+              <td className="px-3 py-2">
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge tone={maintenanceCase.statusTone}>
+                    {maintenanceCase.statusLabel}
+                  </Badge>
+                  <Badge tone={maintenanceCase.priorityTone}>
+                    {maintenanceCase.priorityLabel}
+                  </Badge>
+                </div>
+              </td>
+              <td className="px-3 py-2">
+                <p>{maintenanceCase.propertyLabel}</p>
+                <p className="text-xs text-foreground-muted">
+                  {maintenanceCase.unitLabel}
+                </p>
+              </td>
+              <td className="px-3 py-2">
+                <p>{maintenanceCase.assigneeLabel}</p>
+                <p className="text-xs text-foreground-muted">
+                  {maintenanceCase.vendorLabel}
+                </p>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -280,6 +400,7 @@ function MaintenanceCard({
 }) {
   return (
     <button
+      aria-pressed={selected}
       className={cn(
         "w-full touch-none rounded-md border bg-surface p-3 text-left text-sm shadow-sm transition-colors hover:bg-surface-muted",
         movable && "cursor-grab active:cursor-grabbing",
@@ -288,6 +409,7 @@ function MaintenanceCard({
           ? "border-accent ring-2 ring-state-selected-strong"
           : "border-border",
       )}
+      data-maintenance-record-trigger={maintenanceCase.id}
       onClick={() => onSelect(maintenanceCase.id)}
       type="button"
       {...dragAttributes}
@@ -306,11 +428,18 @@ function MaintenanceCard({
         <span className="truncate font-medium text-foreground">
           {maintenanceCase.dueLabel}
         </span>
-        {maintenanceCase.priorityLabel === "Normal" ? null : (
+        <div className="flex gap-1.5">
+          <Badge tone={maintenanceCase.statusTone}>
+            {maintenanceCase.statusLabel}
+          </Badge>
           <Badge tone={maintenanceCase.priorityTone}>
             {maintenanceCase.priorityLabel}
           </Badge>
-        )}
+        </div>
+      </div>
+      <div className="mt-2 grid gap-1 text-xs text-foreground-muted">
+        <span className="truncate">Assignee: {maintenanceCase.assigneeLabel}</span>
+        <span className="truncate">Vendor: {maintenanceCase.vendorLabel}</span>
       </div>
     </button>
   );

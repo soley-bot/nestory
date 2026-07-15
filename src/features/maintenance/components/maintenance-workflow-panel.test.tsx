@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import { MaintenanceInspector } from "@/features/maintenance/components/maintenance-screen";
+import { MaintenanceWorkflowPanel } from "@/features/maintenance/components/maintenance-workflow-panel";
 import type { MaintenanceCase } from "@/features/maintenance/maintenance.types";
 
 vi.mock("next/navigation", () => ({
@@ -71,6 +72,119 @@ describe("MaintenanceInspector role-safe workflow", () => {
     } finally {
       process.env.TZ = originalTimeZone;
     }
+  });
+
+  it("keeps manager transition consequences beside coordinated actions", () => {
+    render(
+      <MaintenanceWorkflowPanel
+        actor={{ branchId: "branch-1", role: "manager" }}
+        capabilities={getMaintenanceCapabilities("manager")}
+        maintenanceCase={makeCase()}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /start coordinated work/i })).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Starting marks the case in progress. Manager coordination remains responsible.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("shows the member submission handoff without manager-only controls", () => {
+    render(
+      <MaintenanceWorkflowPanel
+        actor={{ branchId: "branch-1", personId: "person-1", role: "member" }}
+        capabilities={getMaintenanceCapabilities("member")}
+        maintenanceCase={{
+          ...makeCase(),
+          assigneeLabel: "Pich",
+          assigneePersonId: "person-1",
+          executionMode: "member_assigned",
+          status: "in_progress",
+          statusLabel: "In progress",
+        }}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /submit for review/i })).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Submission keeps the case open and hands completion review to a manager.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Completion review")).toBeNull();
+  });
+
+  it("states approval and return outcomes before completion review", () => {
+    render(
+      <MaintenanceWorkflowPanel
+        actor={{ branchId: "branch-1", role: "admin" }}
+        capabilities={getMaintenanceCapabilities("admin")}
+        maintenanceCase={{
+          ...makeCase(),
+          assigneeLabel: "Pich",
+          executionMode: "member_assigned",
+          status: "ready_for_review",
+          statusLabel: "Ready for review",
+        }}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Approval completes the task and closes its request. Returning work reopens execution and records the review note.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /approve completion/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /return to assignee/i })).toBeTruthy();
+  });
+
+  it("keeps inspector mutations aligned to admin and member capabilities", () => {
+    const admin = render(
+      <MaintenanceInspector
+        actor={{ branchId: "branch-1", role: "admin" }}
+        capabilities={getMaintenanceCapabilities("admin")}
+        maintenanceCase={{
+          ...makeCase(),
+          hrefs: { documentUpload: "/documents?action=create", task: "/maintenance" },
+        }}
+        onArchive={vi.fn()}
+        onEdit={vi.fn()}
+        onRestore={vi.fn()}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /edit/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /archive/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /upload doc/i })).toBeTruthy();
+    admin.unmount();
+
+    render(
+      <MaintenanceInspector
+        actor={{ branchId: "branch-1", personId: "person-1", role: "member" }}
+        capabilities={getMaintenanceCapabilities("member")}
+        maintenanceCase={{
+          ...makeCase(),
+          assigneeLabel: "Pich",
+          assigneePersonId: "person-1",
+          executionMode: "member_assigned",
+        }}
+        onArchive={vi.fn()}
+        onEdit={vi.fn()}
+        onRestore={vi.fn()}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /start work/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /archive/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /upload doc/i })).toBeNull();
   });
 });
 

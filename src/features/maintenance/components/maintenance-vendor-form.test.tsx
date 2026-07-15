@@ -99,4 +99,52 @@ describe("maintenance vendor form", () => {
     expect(html).toContain("This historical vendor remains linked");
     expect(html).toContain('or choose an active vendor or &quot;No vendor&quot;');
   });
+
+  it("keeps vendor assignment available to managers without exposing ledger posting", () => {
+    const html = renderToStaticMarkup(
+      <MaintenanceForm
+        actor={{ branchId: "branch-1", role: "manager" }}
+        branches={[{ id: "branch-1", label: "Main branch" }]}
+        canPostMaintenanceCost={false}
+        canRecordActualCost
+        maintenanceCase={{
+          assigneeLabel: "Unassigned",
+          branchId: "branch-1",
+          branchLabel: "Main branch",
+          executionMode: "manager_coordinated",
+          formValues: {
+            branchId: "branch-1",
+            category: "Plumbing",
+            checklistText: "",
+            priority: "normal",
+            propertyId: "property-1",
+            recurrenceFrequency: "none",
+            status: "pending",
+            title: "Repair sink",
+            vendorPersonId: "vendor-1",
+          },
+          id: "task-1",
+          vendorLabel: "Rapid Repairs",
+        } as MaintenanceCase}
+        mode="edit"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+        properties={[{ id: "property-1", label: "Property One" }]}
+        staff={[]}
+        units={[]}
+        vendors={[{ id: "vendor-1", label: "Rapid Repairs" }]}
+      />,
+    );
+
+    expect(
+      getMaintenanceVendorSelectOptions({
+        currentVendorId: "vendor-1",
+        currentVendorLabel: "Rapid Repairs",
+        vendors: [{ id: "vendor-1", label: "Rapid Repairs" }],
+      }).options,
+    ).toContainEqual({ label: "Rapid Repairs", value: "vendor-1" });
+    expect(html).toContain('name="vendorPersonId" value="vendor-1"');
+    expect(html).toContain("Actual cost");
+    expect(html).not.toContain("Link actual cost to ledger");
+  });
 });

@@ -3,6 +3,7 @@ import {
   getMaintenanceListHref,
   getMaintenanceReportHref,
 } from "@/features/maintenance/maintenance.hrefs";
+import { getMaintenanceWorkspaceNavItems } from "@/features/maintenance/components/maintenance-screen";
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
 
 describe("maintenance screen report links", () => {
@@ -41,5 +42,18 @@ describe("maintenance screen report links", () => {
     expect(getMaintenanceListHref(viewQuery)).toBe(
       "/maintenance?month=2026-06&review=work_orders&view=board",
     );
+  });
+
+  it.each([
+    ["/maintenance", "Cases"],
+    ["/tasks", "My work"],
+    ["/recurring-tasks", "Recurring work"],
+    ["/inspections", "Inspections"],
+    ["/work-orders", "Work orders"],
+  ])("maps %s to exactly one local maintenance destination", (pathname, label) => {
+    const items = getMaintenanceWorkspaceNavItems(pathname);
+
+    expect(items.filter((item) => item.active)).toHaveLength(1);
+    expect(items.find((item) => item.active)?.label).toBe(label);
   });
 });

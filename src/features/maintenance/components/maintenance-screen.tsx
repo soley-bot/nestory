@@ -37,14 +37,20 @@ import {
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
+import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import {
+  useWideWorkspace,
+  WorkspaceSplitView,
+} from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckboxControl } from "@/components/ui/checkbox-control";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
-import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SearchCombo } from "@/components/ui/search-combo";
 import {
   SelectControl,
@@ -200,8 +206,7 @@ export function MaintenanceScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const calendarMode = surfaceVariant === "agenda";
-  const balancedCasesWorkspace = showCaseViewTabs && surfaceVariant === "table";
+  const isWideWorkspace = useWideWorkspace();
   const createInitialValues = useMemo(
     () => getCreateInitialValues(viewQuery, propertyOptions, unitOptions),
     [propertyOptions, unitOptions, viewQuery],
@@ -214,7 +219,9 @@ export function MaintenanceScreen({
   const [selectedTaskId, setSelectedTaskId] = useState(() =>
     getInitialRecordId(cases, initialTaskId),
   );
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
+    Boolean(initialTaskId),
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusOverrides, setStatusOverrides] = useState(
     () => new Map<string, MaintenanceStatus>(),
@@ -239,13 +246,10 @@ export function MaintenanceScreen({
     if (focusedTaskId) {
       queueMicrotask(() => {
         setSelectedTaskId(focusedTaskId);
-        setPreviewOpen(
-          !balancedCasesWorkspace ||
-            !window.matchMedia("(min-width: 1280px)").matches,
-        );
+        setCompactInspectorOpen(true);
       });
     }
-  }, [balancedCasesWorkspace, focusedTaskId]);
+  }, [focusedTaskId]);
 
   useEffect(() => {
     if (!capabilities.canCreateCase || searchParams.get("action") !== "create") {
@@ -262,17 +266,16 @@ export function MaintenanceScreen({
   }, [capabilities.canCreateCase, createInitialValues, pathname, router, searchParams]);
 
   function openDrawer(nextDrawer: DrawerState) {
-    setPreviewOpen(false);
+    if (!isWideWorkspace) {
+      setCompactInspectorOpen(false);
+    }
     setStatusMessage(null);
     setDrawer(nextDrawer);
   }
 
   function previewCase(taskId: string) {
     setSelectedTaskId(taskId);
-    setPreviewOpen(
-      !balancedCasesWorkspace ||
-        !window.matchMedia("(min-width: 1280px)").matches,
-    );
+    setCompactInspectorOpen(true);
   }
 
   function createCaseOnDate(dueDate: string) {
@@ -325,80 +328,32 @@ export function MaintenanceScreen({
     });
   }
 
-  return (
-    <div className={calendarMode ? "min-h-0 overflow-hidden" : "min-h-screen"}>
-      <PageHeader
-        actions={
-          <>
-            {showReportAction ? (
-              <LinkButton href={getMaintenanceReportHref(viewQuery)}>
-                <FileText size={15} />
-                Make report
-              </LinkButton>
-            ) : null}
-            {capabilities.canCreateCase ? (
-              <Button
-                onClick={() =>
-                  openDrawer({ initialValues: createInitialValues, mode: "create" })
-                }
-                variant="primary"
-              >
-                <Plus size={15} />
-                {createButtonLabel}
-              </Button>
-            ) : null}
-          </>
-        }
-        description={description}
-        title={title}
-      />
-
-      {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-6">
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role="status"
-          >
-            {statusMessage}
-          </p>
-        </div>
-      ) : null}
-
-      {showCaseViewTabs ? (
-        <MaintenanceCasesCommandBar
-          listLabel={listLabel}
-          properties={propertyOptions}
-          summary={summary}
-          units={unitOptions}
-          viewQuery={viewQuery}
-        />
-      ) : showFilters ? (
-        <MaintenanceFilters
-          baseReview={baseReview}
-          listLabel={listLabel}
-          properties={propertyOptions}
-          showReviewTabs={showReviewTabs}
-          units={unitOptions}
-          viewQuery={viewQuery}
-        />
-      ) : null}
-
-      <main
-        className={cn(
-          "px-4 sm:px-6 lg:px-6",
-          calendarMode
-            ? cn(
-                "min-h-0 py-3",
-                showCaseViewTabs
-                  ? "h-[calc(100vh-226px)]"
-                  : "h-[calc(100vh-122px)]",
-              )
-            : balancedCasesWorkspace
-              ? "h-[calc(100vh-169px)] min-h-0 py-3"
-              : "space-y-3 py-4 lg:py-4",
-        )}
-      >
-        {showScopeSummary ? (
+  const hasFilters =
+    hasActiveMaintenanceFilters(viewQuery, baseReview) ||
+    (visibleCases.length === 0 && pagination.totalCount > 0);
+  const openCreateCase = () =>
+    openDrawer({ initialValues: createInitialValues, mode: "create" });
+  const maintenanceInspector = selectedCase ? (
+    <MaintenanceInspector
+      actor={actor}
+      capabilities={capabilities}
+      maintenanceCase={selectedCase}
+      onStatusMessage={setStatusMessage}
+      onArchive={(maintenanceCase) =>
+        openDrawer({ maintenanceCase, mode: "archive" })
+      }
+      onEdit={(maintenanceCase) =>
+        openDrawer({ maintenanceCase, mode: "edit" })
+      }
+      onRestore={(maintenanceCase) =>
+        openDrawer({ maintenanceCase, mode: "restore" })
+      }
+    />
+  ) : null;
+  const maintenanceList = (
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+      {showScopeSummary && visibleCases.length > 0 ? (
+        <div className="shrink-0 border-b border-border px-3 py-2">
           <MaintenanceScopeSummary
             flowLabel={flowLabel}
             listLabel={listLabel}
@@ -408,54 +363,56 @@ export function MaintenanceScreen({
             units={unitOptions}
             viewQuery={viewQuery}
           />
-        ) : null}
-        {surfaceVariant === "table" ? (
-          balancedCasesWorkspace ? (
-            <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="min-h-0 min-w-0 space-y-0">
-                <MaintenanceTable
-                  cases={visibleCases}
-                  emptyLabel={emptyLabel}
-                  fillHeight
-                  onSelect={previewCase}
-                  recordLabel={recordLabel}
-                  selectedTaskId={selectedCase?.id ?? ""}
-                />
-                <PaginationControls attached pagination={pagination} />
-              </div>
-              <div className="hidden min-h-0 overflow-hidden rounded-md border border-border bg-surface xl:block">
-                <div className="h-full overflow-auto">
-                  <MaintenanceInspector
-                    actor={actor}
-                    capabilities={capabilities}
-                    maintenanceCase={selectedCase}
-                    onStatusMessage={setStatusMessage}
-                    onArchive={(maintenanceCase) =>
-                      openDrawer({ maintenanceCase, mode: "archive" })
-                    }
-                    onEdit={(maintenanceCase) =>
-                      openDrawer({ maintenanceCase, mode: "edit" })
-                    }
-                    onRestore={(maintenanceCase) =>
-                      openDrawer({ maintenanceCase, mode: "restore" })
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-0">
-              <MaintenanceTable
-                cases={visibleCases}
-                emptyLabel={emptyLabel}
-                onSelect={previewCase}
-                recordLabel={recordLabel}
-                selectedTaskId={selectedCase?.id ?? ""}
-              />
-              <PaginationControls attached pagination={pagination} />
-            </div>
-          )
-        ) : (
+        </div>
+      ) : null}
+
+      {visibleCases.length === 0 ? (
+        <EmptyState
+          action={
+            hasFilters ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={buildClearFiltersHref(pathname, searchParams)}
+                scroll={false}
+              >
+                Clear filters
+              </Link>
+            ) : capabilities.canCreateCase ? (
+              <Button onClick={openCreateCase} variant="primary">
+                <Plus size={15} />
+                {createButtonLabel}
+              </Button>
+            ) : undefined
+          }
+          body={
+            hasFilters
+              ? `The current filters return no ${listLabel}.`
+              : `No ${listLabel} are available in this workspace.`
+          }
+          className="h-full"
+          kind={hasFilters ? "filtered" : "empty"}
+          title={
+            hasFilters
+              ? `No matching ${listLabel}`
+              : `No ${listLabel} yet`
+          }
+        />
+      ) : surfaceVariant === "table" ? (
+        <>
+          <div className="min-h-0 min-w-0 flex-1 p-3">
+            <MaintenanceTable
+              cases={visibleCases}
+              emptyLabel={emptyLabel}
+              fillHeight
+              onSelect={previewCase}
+              recordLabel={recordLabel}
+              selectedTaskId={selectedCase?.id ?? ""}
+            />
+          </div>
+          <PaginationControls attached pagination={pagination} />
+        </>
+      ) : (
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto p-3">
           <MaintenanceWorkflowSurface
             actorRole={actor.role}
             cases={visibleCases}
@@ -470,30 +427,89 @@ export function MaintenanceScreen({
             variant={surfaceVariant}
             waitingForReviewLabel={actor.role === "member"}
           />
-        )}
-      </main>
+        </div>
+      )}
+    </section>
+  );
 
-      <RecordPreviewDrawer
-        onClose={() => setPreviewOpen(false)}
-        open={previewOpen && Boolean(selectedCase)}
-        title={capitalizeLabel(recordLabel)}
-      >
-        <MaintenanceInspector
-          actor={actor}
-          capabilities={capabilities}
-          maintenanceCase={selectedCase}
-          onStatusMessage={setStatusMessage}
-          onArchive={(maintenanceCase) =>
-            openDrawer({ maintenanceCase, mode: "archive" })
+  return (
+    <WorkspacePage
+      header={
+        <PageHeader
+          actions={
+            <>
+              {showReportAction ? (
+                <LinkButton href={getMaintenanceReportHref(viewQuery)}>
+                  <FileText size={15} />
+                  Make report
+                </LinkButton>
+              ) : null}
+              {capabilities.canCreateCase ? (
+                <Button onClick={openCreateCase} variant="primary">
+                  <Plus size={15} />
+                  {createButtonLabel}
+                </Button>
+              ) : null}
+            </>
           }
-          onEdit={(maintenanceCase) =>
-            openDrawer({ maintenanceCase, mode: "edit" })
-          }
-          onRestore={(maintenanceCase) =>
-            openDrawer({ maintenanceCase, mode: "restore" })
-          }
+          context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+          description={description}
+          title={title}
         />
-      </RecordPreviewDrawer>
+      }
+      localNav={
+        <LocalWorkspaceNav
+          items={getMaintenanceWorkspaceNavItems(pathname)}
+          label="Maintenance workspace"
+        />
+      }
+      toolbar={
+        showCaseViewTabs ? (
+          <MaintenanceCasesCommandBar
+            listLabel={listLabel}
+            properties={propertyOptions}
+            summary={summary}
+            units={unitOptions}
+            viewQuery={viewQuery}
+          />
+        ) : showFilters ? (
+          <MaintenanceFilters
+            baseReview={baseReview}
+            listLabel={listLabel}
+            properties={propertyOptions}
+            showReviewTabs={showReviewTabs}
+            units={unitOptions}
+            viewQuery={viewQuery}
+          />
+        ) : undefined
+      }
+    >
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
+        {statusMessage ? (
+          <div className="shrink-0 px-4 py-2 sm:px-6">
+            <p
+              className="rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm font-medium text-foreground"
+              role="status"
+            >
+              {statusMessage}
+            </p>
+          </div>
+        ) : null}
+
+        <div className="min-h-0 min-w-0 flex-1">
+          {maintenanceInspector && selectedCase ? (
+            <WorkspaceSplitView
+              inspector={maintenanceInspector}
+              inspectorLabel={`${selectedCase.title} Preview`}
+              inspectorOpen={isWideWorkspace || compactInspectorOpen}
+              list={maintenanceList}
+              onInspectorOpenChange={setCompactInspectorOpen}
+            />
+          ) : (
+            <WorkspaceSplitView list={maintenanceList} />
+          )}
+        </div>
+      </div>
 
       {drawer ? (
         <SideDrawer
@@ -538,7 +554,7 @@ export function MaintenanceScreen({
         </SideDrawer>
       ) : null}
       <MaintenanceReminderNotifications reminders={reminders} />
-    </div>
+    </WorkspacePage>
   );
 }
 
@@ -626,18 +642,19 @@ function MaintenanceCasesCommandBar({
   }
 
   return (
-    <div className="relative border-b border-border px-4 py-2 sm:px-6 lg:px-6">
+    <div className="relative w-full min-w-0">
       <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
         <div className="flex shrink-0 flex-wrap gap-1.5">
           {getMaintenanceSavedViewTabs(pathname, searchParams, viewQuery, summary).map(
             (tab) => (
               <Link
                 className={cn(
-                  "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors",
+                  "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
                   tab.active
                     ? "border-accent bg-accent-soft text-foreground"
                     : "border-border bg-surface text-muted hover:bg-surface-muted hover:text-foreground",
                 )}
+                aria-current={tab.active ? "page" : undefined}
                 href={tab.href}
                 key={tab.review}
                 prefetch={false}
@@ -679,11 +696,12 @@ function MaintenanceCasesCommandBar({
           {getMaintenanceCasesViewTabs(pathname, searchParams, viewQuery).map((tab) => (
             <Link
               className={cn(
-                "inline-flex size-8 items-center justify-center border-r border-border text-muted transition-colors last:border-r-0 hover:bg-surface-muted hover:text-foreground",
+                "inline-flex size-8 items-center justify-center border-r border-border text-muted outline-none transition-colors last:border-r-0 hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring",
                 tab.active
                   ? "bg-accent-soft text-foreground"
                   : "bg-surface",
               )}
+              aria-current={tab.active ? "page" : undefined}
               aria-label={tab.label}
               href={tab.href}
               key={tab.id}
@@ -698,7 +716,7 @@ function MaintenanceCasesCommandBar({
       </div>
 
       {advancedOpen ? (
-        <div className="absolute right-4 top-[calc(100%+6px)] z-30 grid w-[min(760px,calc(100vw-2rem))] gap-2 rounded-md border border-border bg-surface p-3 shadow-lg sm:right-6 lg:grid-cols-[minmax(180px,1fr)_160px_160px_160px]">
+        <div className="absolute right-0 top-[calc(100%+6px)] z-30 grid w-[min(760px,calc(100vw-2rem))] gap-2 rounded-md border border-border bg-surface p-3 shadow-lg lg:grid-cols-[minmax(180px,1fr)_160px_160px_160px]">
           <SelectControl
             ariaLabel="Maintenance scope"
             onValueChange={replaceScope}
@@ -847,7 +865,7 @@ function MaintenanceFilters({
   }
 
   return (
-    <div className="border-b border-border px-4 py-3 sm:px-6 lg:px-6">
+    <div className="w-full min-w-0">
       {showReviewTabs ? (
         <div className="mb-3 flex flex-wrap gap-1.5">
           {getMaintenanceTabs(pathname, searchParams, viewQuery).map((tab) => (
@@ -1064,14 +1082,19 @@ function MaintenanceTable({
             ) : null}
             {cases.map((maintenanceCase) => (
               <tr
+                aria-selected={selectedTaskId === maintenanceCase.id}
                 className={cn(
                   previewRowClassName,
                   selectedTaskId === maintenanceCase.id &&
                     selectedPreviewRowClassName,
                   maintenanceCase.isArchived && "text-muted",
                 )}
+                data-maintenance-record-trigger={maintenanceCase.id}
                 key={maintenanceCase.id}
-                onClick={() => onSelect(maintenanceCase.id)}
+                onClick={(event) => {
+                  event.currentTarget.focus();
+                  onSelect(maintenanceCase.id);
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
@@ -1081,9 +1104,15 @@ function MaintenanceTable({
                 tabIndex={0}
               >
                 <td className="px-2.5 py-2">
-                  <p className="truncate font-medium" title={maintenanceCase.title}>
+                  <Link
+                    className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    href={maintenanceCase.hrefs.task}
+                    onClick={(event) => event.stopPropagation()}
+                    prefetch={false}
+                    title={maintenanceCase.title}
+                  >
                     {maintenanceCase.title}
-                  </p>
+                  </Link>
                   <p
                     className={cn(
                       "mt-0.5 truncate text-xs text-muted",
@@ -1150,14 +1179,7 @@ export function MaintenanceInspector({
   onStatusMessage: (message: string) => void;
 }) {
   if (!maintenanceCase) {
-    return (
-      <aside className="bg-surface p-4">
-        <h2 className="text-base font-semibold">No case selected</h2>
-        <p className="mt-2 text-sm leading-6 text-muted">
-          Select a case to inspect its schedule, checklist, documents, and links.
-        </p>
-      </aside>
-    );
+    return null;
   }
 
   return (
@@ -1891,7 +1913,7 @@ function LinkButton({
 }) {
   return (
     <Link
-      className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium transition-colors hover:bg-surface-muted"
+      className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
       href={href}
       prefetch={false}
     >
@@ -2107,6 +2129,39 @@ function formatMaintenanceTableDueDate(maintenanceCase: MaintenanceCase) {
     month: "short",
     timeZone: "UTC",
   }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+const MAINTENANCE_WORKSPACE_ROUTES = [
+  { href: "/maintenance", label: "Cases" },
+  { href: "/tasks", label: "My work" },
+  { href: "/recurring-tasks", label: "Recurring work" },
+  { href: "/inspections", label: "Inspections" },
+  { href: "/work-orders", label: "Work orders" },
+] as const;
+
+export function getMaintenanceWorkspaceNavItems(pathname: string) {
+  return MAINTENANCE_WORKSPACE_ROUTES.map((item) => ({
+    ...item,
+    active: pathname === item.href,
+  }));
+}
+
+function hasActiveMaintenanceFilters(
+  viewQuery: MaintenanceViewQuery,
+  baseReview: MaintenanceViewQuery["review"],
+) {
+  return (
+    viewQuery.archiveState !== "active" ||
+    viewQuery.page > 1 ||
+    viewQuery.priority !== "all" ||
+    viewQuery.propertyId !== "all" ||
+    Boolean(viewQuery.query) ||
+    viewQuery.review !== baseReview ||
+    viewQuery.scope !== "focused" ||
+    viewQuery.sort !== "due_asc" ||
+    viewQuery.status !== "all" ||
+    viewQuery.unitId !== "all"
+  );
 }
 
 const MAINTENANCE_TABS = [

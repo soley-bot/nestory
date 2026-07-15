@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -205,10 +205,12 @@ function AgendaSurface({
   cases,
   month,
   onCreateDate,
+  onSelect,
 }: SurfaceProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [activeCase, setActiveCase] = useState<MaintenanceCase | null>(null);
+  const activeTriggerRef = useRef<HTMLButtonElement | null>(null);
   const calendarDays = getCalendarDays(month);
   const casesByDate = groupCasesByCalendarDate(cases);
   const monthLinks = getCalendarMonthLinks(pathname, searchParams, month);
@@ -252,7 +254,10 @@ function AgendaSurface({
                 day={day}
                 dayCases={casesByDate.get(day.date) ?? []}
                 key={day.date}
-                onActivateCase={setActiveCase}
+                onActivateCase={(maintenanceCase, trigger) => {
+                  activeTriggerRef.current = trigger;
+                  setActiveCase(maintenanceCase);
+                }}
                 onCreateDate={onCreateDate}
                 showBottomBorder={index < 35}
                 showRightBorder={index % 7 !== 6}
@@ -265,6 +270,11 @@ function AgendaSurface({
         <CalendarEventPopover
           maintenanceCase={activeCase}
           onClose={() => setActiveCase(null)}
+          onOpen={() => {
+            activeTriggerRef.current?.focus();
+            setActiveCase(null);
+            onSelect(activeCase.id);
+          }}
         />
       ) : null}
     </section>
@@ -291,7 +301,9 @@ function ChecklistSurface({
       <div className="grid gap-3 lg:grid-cols-2">
         {cases.map((maintenanceCase) => (
           <button
+            aria-pressed={selectedTaskId === maintenanceCase.id}
             className={cardClassName(selectedTaskId === maintenanceCase.id)}
+            data-maintenance-record-trigger={maintenanceCase.id}
             key={maintenanceCase.id}
             onClick={() => onSelect(maintenanceCase.id)}
             type="button"
@@ -484,21 +496,15 @@ function MaintenanceCard({
 }) {
   return (
     <button
+      aria-pressed={selected}
       className={cardClassName(selected)}
+      data-maintenance-record-trigger={maintenanceCase.id}
       onClick={() => onSelect(maintenanceCase.id)}
       type="button"
     >
       <CardHeader maintenanceCase={maintenanceCase} />
-      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 text-left">
-        <Badge tone={maintenanceCase.progressTone}>
-          {maintenanceCase.progressLabel}
-        </Badge>
-        {maintenanceCase.priority !== "normal" ? (
-          <Badge tone={maintenanceCase.priorityTone}>
-            {maintenanceCase.priorityLabel}
-          </Badge>
-        ) : null}
-        <span className="ml-auto min-w-0 truncate text-xs font-medium text-muted">
+      <div className="mt-2 flex min-w-0 text-left">
+        <span className="min-w-0 truncate text-xs font-medium text-muted">
           {maintenanceCase.dueLabel}
         </span>
       </div>
@@ -516,7 +522,10 @@ function CalendarDayCell({
 }: {
   day: ReturnType<typeof getCalendarDays>[number];
   dayCases: MaintenanceCase[];
-  onActivateCase: (maintenanceCase: MaintenanceCase) => void;
+  onActivateCase: (
+    maintenanceCase: MaintenanceCase,
+    trigger: HTMLButtonElement,
+  ) => void;
   onCreateDate?: (dueDate: string) => void;
   showBottomBorder: boolean;
   showRightBorder: boolean;
@@ -539,7 +548,7 @@ function CalendarDayCell({
           type="button"
         />
       ) : null}
-      <div className="relative z-10 flex h-5 justify-end">
+      <div className="pointer-events-none relative z-10 flex h-5 justify-end">
         <span
           className={cn(
             "inline-flex size-5 items-center justify-center rounded-full text-xs",
@@ -560,7 +569,7 @@ function CalendarDayCell({
         {dayCases.length > 3 ? (
           <button
             className="block h-4 w-full rounded-sm px-1.5 text-left text-xs font-medium leading-4 text-muted hover:bg-surface-muted hover:text-foreground"
-            onClick={() => onActivateCase(dayCases[3])}
+            onClick={(event) => onActivateCase(dayCases[3], event.currentTarget)}
             type="button"
           >
             {dayCases.length - 3} more
@@ -576,15 +585,20 @@ function CalendarCaseButton({
   onActivate,
 }: {
   maintenanceCase: MaintenanceCase;
-  onActivate: (maintenanceCase: MaintenanceCase) => void;
+  onActivate: (
+    maintenanceCase: MaintenanceCase,
+    trigger: HTMLButtonElement,
+  ) => void;
 }) {
   return (
     <button
+      aria-label={`${maintenanceCase.title}, ${maintenanceCase.statusLabel}, ${maintenanceCase.priorityLabel}, ${maintenanceCase.propertyLabel}, ${maintenanceCase.assigneeLabel}, ${maintenanceCase.vendorLabel}`}
       className={cn(
         "block h-4 w-full rounded px-1.5 text-left text-xs leading-4 transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
         getCalendarCaseClassName(maintenanceCase),
       )}
-      onClick={() => onActivate(maintenanceCase)}
+      data-maintenance-record-trigger={maintenanceCase.id}
+      onClick={(event) => onActivate(maintenanceCase, event.currentTarget)}
       type="button"
     >
       <span className="block truncate font-medium">{maintenanceCase.title}</span>
@@ -595,9 +609,11 @@ function CalendarCaseButton({
 function CalendarEventPopover({
   maintenanceCase,
   onClose,
+  onOpen,
 }: {
   maintenanceCase: MaintenanceCase;
   onClose: () => void;
+  onOpen: () => void;
 }) {
   return (
     <div className="absolute left-1/2 top-24 z-30 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-surface shadow-xl">
@@ -637,7 +653,15 @@ function CalendarEventPopover({
             </p>
             <p className="text-muted">{maintenanceCase.reminderLabel}</p>
             <p className="text-muted">{maintenanceCase.assigneeLabel}</p>
+            <p className="text-muted">{maintenanceCase.vendorLabel}</p>
           </div>
+          <button
+            className="mt-4 inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface px-3 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+            onClick={onOpen}
+            type="button"
+          >
+            Open Preview
+          </button>
         </div>
       </div>
     </div>
@@ -700,14 +724,28 @@ function CalendarNavLink({
 
 function CardHeader({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0 text-left">
-        <p className="truncate font-medium">{maintenanceCase.title}</p>
-        <p className="mt-1 truncate text-xs text-muted">
-          {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
-        </p>
+    <div className="text-left">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-medium">{maintenanceCase.title}</p>
+          <p className="mt-1 truncate text-xs text-muted">
+            {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
+          </p>
+        </div>
+        <Wrench className="mt-0.5 shrink-0 text-muted" size={15} />
       </div>
-      <Wrench className="mt-0.5 shrink-0 text-muted" size={15} />
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <Badge tone={maintenanceCase.statusTone}>
+          {maintenanceCase.statusLabel}
+        </Badge>
+        <Badge tone={maintenanceCase.priorityTone}>
+          {maintenanceCase.priorityLabel}
+        </Badge>
+      </div>
+      <div className="mt-2 grid gap-1 text-xs text-foreground-muted sm:grid-cols-2">
+        <span className="truncate">Assignee: {maintenanceCase.assigneeLabel}</span>
+        <span className="truncate">Vendor: {maintenanceCase.vendorLabel}</span>
+      </div>
     </div>
   );
 }
@@ -725,7 +763,7 @@ function SectionTitle({
     <div className="flex items-center gap-2 text-sm">
       <span className="text-muted">{icon}</span>
       <div>
-        <p className="font-semibold">{title}</p>
+        <h2 className="font-semibold">{title}</h2>
         <p className="text-xs text-muted">{detail}</p>
       </div>
     </div>
@@ -742,8 +780,8 @@ function EmptySurface({ label }: { label: string }) {
 
 function cardClassName(selected: boolean) {
   return cn(
-    "block w-full rounded-md border border-border bg-surface px-3 py-3 text-left shadow-sm transition-colors hover:border-accent/40 hover:bg-surface-muted",
-    selected && "border-accent bg-accent-soft",
+    "block w-full rounded-md border border-border bg-surface px-3 py-3 text-left shadow-sm outline-none transition-colors hover:border-accent/40 hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
+    selected && "border-record-spine bg-state-selected",
   );
 }
 
