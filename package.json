@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:ui-copy": "node scripts/verify-ui-copy.mjs",
     "test:ui-coverage": "node scripts/verify-ui-route-coverage.mjs",
     "test:ui-redesign": "node scripts/smoke-ui-redesign.mjs",
     "test:maintenance-mobile": "node scripts/smoke-maintenance-mobile.mjs",

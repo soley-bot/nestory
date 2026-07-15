@@ -11,11 +11,16 @@ Use this for authenticated operational screens before calling a flow ready.
 
 ## Actions And Copy
 
+- **Label the action; explain only risk, consequence, permission, unfamiliar
+  domain meaning, or handoff.**
 - Action labels must open the exact workflow they name.
 - Destructive or lifecycle actions need a record summary, consequence, and
   confirm/blocked state.
 - Prefer concrete next steps such as Open record, Add units, Upload photo, or
   Review active units.
+- `npm run test:ui-copy` scans `src/app`, `src/components`, and `src/features`.
+  Its sole exclusion is `src/features/marketing/`, the public landing surface;
+  do not broaden that exclusion without reviewing the guard.
 
 ## Forms
 
@@ -32,6 +37,9 @@ Use this for authenticated operational screens before calling a flow ready.
 
 ## Accessibility And Recovery
 
+- Brevity must preserve accessibility: form controls keep visible labels,
+  keyboard-only interactions keep instructions, and icon-only actions keep
+  accessible names for screen readers.
 - Each drawer should have one announced close button.
 - Focus, Escape, keyboard submit, and disabled states must work.
 - Empty, loading, error, blocked, and success states should be visible and
