@@ -779,6 +779,8 @@ function loadCurrentReceiptAllocations(
       .eq("organization_id", organizationId)
       .in("finance_receipts.property_id", propertyIds)
       .in("finance_income_items.property_id", propertyIds)
+      .is("finance_income_items.archived_at", null)
+      .neq("finance_income_items.status", "void")
       .gte("finance_receipts.received_date", monthScope.from)
       .lt("finance_receipts.received_date", monthScope.before),
     "owner statement receipt allocations",
@@ -801,6 +803,8 @@ function loadPaymentAllocations(
       .eq("organization_id", organizationId)
       .in("finance_payments.property_id", propertyIds)
       .in("finance_expense_items.property_id", propertyIds)
+      .is("finance_expense_items.archived_at", null)
+      .neq("finance_expense_items.status", "void")
       .gte("finance_payments.paid_date", monthScope.from)
       .lt("finance_payments.paid_date", monthScope.before),
     "owner statement payment allocations",

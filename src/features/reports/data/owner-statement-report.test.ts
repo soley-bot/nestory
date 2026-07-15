@@ -231,6 +231,45 @@ describe("Owner Statement trusted report adapter", () => {
     }
   });
 
+  it("excludes allocations whose income or expense obligation was voided", async () => {
+    const calls: QueryCall[] = [];
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub(
+        ownerStatementLoaderResults({
+          depositRows: [],
+          includeBlockedProperty: false,
+        }),
+        calls,
+      ),
+    );
+
+    await getOwnerStatementReport({
+      organizationId: "organization-1",
+      viewQuery: ownerStatementQuery(),
+    });
+
+    expect(calls).toContainEqual({
+      args: ["finance_income_items.archived_at", null],
+      method: "is",
+      table: "finance_receipt_allocations",
+    });
+    expect(calls).toContainEqual({
+      args: ["finance_income_items.status", "void"],
+      method: "neq",
+      table: "finance_receipt_allocations",
+    });
+    expect(calls).toContainEqual({
+      args: ["finance_expense_items.archived_at", null],
+      method: "is",
+      table: "finance_payment_allocations",
+    });
+    expect(calls).toContainEqual({
+      args: ["finance_expense_items.status", "void"],
+      method: "neq",
+      table: "finance_payment_allocations",
+    });
+  });
+
   it("keeps valid properties ready when another property has a malformed deposit reversal", async () => {
     const blockedPropertyId = "property-2";
     vi.mocked(createSupabaseServerClient).mockResolvedValue(
