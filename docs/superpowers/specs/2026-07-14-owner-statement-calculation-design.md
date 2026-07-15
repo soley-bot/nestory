@@ -7,10 +7,10 @@
 
 Replace the existing current-primary-owner label over monthly ledger totals with
 a property-level, cash-basis Owner Statement powered by `buildPropertyCash`.
-This PR produces an internal operational statement with explicit ownership
-readiness, exact allocation, source evidence, and consistent preview/export
-behavior. It does not add ownership editing, schema, branding, delivery,
-snapshots, or Overview changes.
+This PR produces an internal readiness workspace with exact allocation and
+source evidence, then generates owner-facing preview, print, and PDF documents
+for exactly one property, one owner, and one month. It does not add ownership
+editing, schema, branding, delivery, snapshots, or Overview changes.
 
 ## Architecture
 
@@ -19,8 +19,10 @@ Supabase report loader
   -> PropertyCashInput
   -> buildPropertyCash
   -> report-owned owner allocation
-  -> TrustedReport
-  -> preview / CSV / print / generic PDF
+  -> readiness TrustedReport
+     -> internal readiness preview / evidence CSV
+     -> recipient selection
+        -> owner-facing preview / print / dedicated PDF
 ```
 
 `src/features/reports/data/owner-statement.ts` is a pure module. It owns
@@ -84,7 +86,11 @@ financial totals.
 Ready rows expose owner, property, share, operating cash received, property
 expenses paid, management fees earned/received/outstanding from this period,
 owner contributions, owner payouts, deposits held, and net owner cash movement.
-Only ready properties contribute to monetary summary totals.
+Only ready properties contribute to monetary summary totals. Summary counts
+distinguish ready properties, owner statements ready, and blocked properties.
+A 60/40 ready property therefore counts as one ready property and two owner
+statements ready. Consecutive historical links for the same person do not
+duplicate the recipient count.
 
 Evidence is separate from navigation. An evidence line preserves property ID,
 owner person/link IDs, obligation ID, receipt/payment ID, allocation ID,
@@ -93,7 +99,7 @@ owner-allocated cents. CSV serializes exact evidence record types and IDs.
 Navigation uses only supported module filters and labels non-focused links as
 review links.
 
-## Unit Scope and Exports
+## Readiness, Recipient Scope, and Exports
 
 Owner Statement is property-level. The UI must not carry `unitId` into Owner
 Statement links or forms. A direct preview with a real unit ID shows:
@@ -101,15 +107,27 @@ Statement links or forms. A direct preview with a real unit ID shows:
 > Owner Statements are property-level reports. Clear the unit filter to continue.
 
 CSV and PDF endpoints reject the same unsupported request with a controlled
-HTTP 400. They must never silently broaden it to a property statement. Preview,
-CSV, print, and generic PDF otherwise consume the same calculated rows and keep
-blocked reasons visible.
+HTTP 400. They must never silently broaden it to a property statement.
+
+The all-properties surface is titled `Owner Statement readiness`. It is an
+internal operational workspace with counts, blockers, evidence links, and a
+portfolio CSV. Each ready owner row links to a recipient-scoped preview, PDF,
+and print view using `propertyId`, `ownerPersonId`, and month. Blocked rows never
+offer monetary documents.
+
+Owner-facing preview, print, and PDF require one selected property. A property
+with exactly one ready owner may infer that recipient; a multi-owner property
+requires `ownerPersonId`. Unknown recipients return controlled HTTP 400 and a
+blocked property returns controlled HTTP 409. The resulting document contains
+one owner only, all nine financial/disclosure values, and no readiness state,
+blocker details, warnings, evidence IDs, or source counts. CSV remains the
+internal evidence export and retains exact traceability.
 
 ## Scope Boundaries
 
 - No migration or generated database type change.
 - No ownership write workflow.
 - No finance write change.
-- No organization profile, branding, email, snapshot, or dedicated PDF design.
+- No organization profile, branding, email, or snapshot work.
 - No Overview behavior or type dependency.
 - No unsupported exact-record focus query parameters.

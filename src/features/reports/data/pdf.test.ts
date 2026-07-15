@@ -1,7 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildTrustedReportPdf } from "@/features/reports/data/pdf";
+import {
+  buildTrustedReportPdf,
+  getReportPdf,
+} from "@/features/reports/data/pdf";
+import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import type { TrustedReport } from "@/features/reports/reports.types";
+
+vi.mock("@/features/reports/data/trusted-report", () => ({
+  getTrustedReport: vi.fn(),
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("trusted report PDF export", () => {
   it("renders report metadata and rows into a PDF document", () => {
@@ -129,7 +141,7 @@ describe("trusted report PDF export", () => {
     expect(pdf).toContain("USD 1,365.00");
   });
 
-  it("keeps all nine Owner Statement amounts readable with identity and warnings", () => {
+  it("keeps all nine owner-facing amounts readable without internal readiness detail", () => {
     const amounts = [
       "USD 100.00",
       "USD 12,345.67",
@@ -161,7 +173,8 @@ describe("trusted report PDF export", () => {
     ).toString("latin1");
     const renderedText = extractPdfCommandText(pdf);
 
-    expect(pdf).toContain("Owner Statement - Demo Org");
+    expect(pdf).toContain("Owner Statement");
+    expect(pdf).toContain("Demo Org");
     for (const amount of amounts) expect(pdf).toContain(amount);
     for (const label of [
       "Operating cash received",
@@ -176,86 +189,132 @@ describe("trusted report PDF export", () => {
     ]) {
       expect(renderedText).toContain(label);
     }
+    expect(renderedText).toContain("CASH ACTIVITY");
+    expect(renderedText).toContain("PERIOD DISCLOSURES");
     expect(pdf).not.toContain("USD...");
     expect(pdf).toContain("Owner 1");
     expect(pdf).toContain("P1 - Property 1");
-    expect(pdf).toContain("Ready with warning");
     expect(pdf).toContain("100.000%");
-    expect(pdf).toContain("Owner contact details are missing");
+    expect(pdf).not.toContain("Ready with warning");
+    expect(pdf).not.toContain("Owner contact details are missing");
+    expect(pdf).not.toContain("EVIDENCE / SOURCES");
+    expect(pdf).not.toContain("9 evidence lines");
+    expect(pdf).not.toContain("TRACEABLE OPERATING REPORT");
+    expect(pdf).not.toContain("Nestory property report");
   });
 
-  it("renders a blocked Owner Statement with its full reason and no money grid", () => {
-    const reason =
-      "No effective owner roster exists on 15 Jul 2026 for property P2; correct ownership before generating this statement.";
-    const report = ownerStatementReport([
-      {
-        cells: {
-          depositsHeld: "-",
-          managementEarned: "-",
-          managementOutstanding: "-",
-          managementReceived: "-",
-          netMovement: "-",
-          notes: reason,
-          operatingCash: "-",
-          owner: "Blocked",
-          ownerContributions: "-",
-          ownerPayouts: "-",
-          ownership: "-",
-          property: "P2 - Property 2",
-          propertyExpenses: "-",
-          readiness: "Blocked",
-        },
-        id: "blocked-2",
-        sourceCount: 3,
-        sourceLinks: [],
-        sourceSummary: "3 evidence lines",
-        title: `Blocked: ${reason} / P2`,
-        tone: "danger",
-      },
-    ]);
-
-    const pdf = Buffer.from(
-      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
-    ).toString("latin1");
-    const renderedText = extractPdfCommandText(pdf);
-
-    expect(pdf).toContain("P2 - Property 2");
-    expect(pdf).toContain("Blocked");
-    expect(renderedText).toContain(reason);
-    expect(pdf).toContain("3 evidence lines");
-    expect(pdf).not.toContain("Operating cash received");
-    expect(pdf).not.toContain("USD ");
-  });
-
-  it("paginates complete Owner Statement blocks without separating identity and amounts", () => {
-    const rows = Array.from({ length: 7 }, (_, index) =>
-      ownerStatementReadyRow(index + 1, {
-        netMovement: `USD ${index + 1},000.00`,
-      }),
-    );
+  it("bounds long owner and property identity while keeping the complete statement on one page", () => {
+    const row = ownerStatementReadyRow(1, {
+      owner: `Owner ${"Extraordinarily Long Recipient Name ".repeat(12)}`,
+      property: `P1 - ${"Extraordinarily Long Property Name ".repeat(12)}`,
+    });
     const pdf = Buffer.from(
       buildTrustedReportPdf({
         organizationName: "Demo Org",
-        report: ownerStatementReport(rows),
+        report: ownerStatementReport([row]),
       }),
     ).toString("latin1");
+    const renderedText = extractPdfCommandText(pdf);
 
-    expect(pdf).toMatch(/\/Count [2-9]/);
-    expect(pdf).toContain("Page 1 of");
-    expect(pdf).toContain("Page 2 of");
+    expect(pdf).toContain("/Count 1");
+    expect(pdf).toContain("Page 1 of 1");
+    expect(renderedText).toContain("...");
+    expect(pdf).toContain("USD 600.00");
+    expect(pdf).toContain("Security deposits held");
+    expect(pdf).not.toContain("Extraordinarily Long Recipient Name Extraordinarily Long Recipient Name Extraordinarily Long Recipient Name Extraordinarily Long Recipient Name");
+  });
+});
 
-    const pageStreams = [...pdf.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map(
-      (match) => match[1],
+describe("Owner Statement PDF selection", () => {
+  const selectedPropertyId = "52b1ed33-0ac8-4c3d-9d9d-631e9f557014";
+  const selectedOwnerId = "c304facd-1caa-4f98-9d43-cf44f65ac32f";
+
+  it("rejects portfolio PDF before loading the readiness report", async () => {
+    const result = await getReportPdf("organization-1", "Demo Org", {
+      month: "2026-07",
+      ownerPersonId: "all",
+      propertyId: "all",
+      report: "owner-statement",
+      status: "all",
+      unitId: "all",
+    });
+
+    expect(result).toEqual({
+      validation: {
+        message: "Select one property before generating an Owner Statement PDF.",
+        status: 400,
+      },
+    });
+    expect(getTrustedReport).not.toHaveBeenCalled();
+  });
+
+  it("infers one ready recipient and emits only that owner document", async () => {
+    const report = ownerStatementReport([
+      {
+        ...ownerStatementReadyRow(1),
+        ownerPersonId: selectedOwnerId,
+        propertyId: selectedPropertyId,
+      },
+    ]);
+    report.title = "Owner Statement readiness";
+    vi.mocked(getTrustedReport).mockResolvedValue(report);
+
+    const result = await getReportPdf("organization-1", "Demo Org", {
+      month: "2026-07",
+      ownerPersonId: "all",
+      propertyId: selectedPropertyId,
+      report: "owner-statement",
+      status: "all",
+      unitId: "all",
+    });
+
+    expect("validation" in result).toBe(false);
+    if ("validation" in result) return;
+    const pdf = Buffer.from(result.body).toString("latin1");
+    expect(pdf).toContain("Owner 1");
+    expect(pdf).toContain("USD 600.00");
+    expect(pdf).not.toContain("Ready with warning");
+    expect(pdf).not.toContain("9 evidence lines");
+    expect(result.filename).toContain("owner-statement-2026-07");
+  });
+
+  it("returns 409 without rendering money for a blocked property", async () => {
+    vi.mocked(getTrustedReport).mockResolvedValue(
+      ownerStatementReport([
+        {
+          cells: {
+            notes: "No effective owner on 1 Jul 2026",
+            owner: "Blocked",
+            property: "P1 - Property 1",
+            readiness: "Blocked",
+          },
+          id: "blocked-property",
+          propertyId: selectedPropertyId,
+          sourceCount: 1,
+          sourceLinks: [],
+          sourceSummary: "1 evidence line",
+          title: "Blocked property",
+          tone: "danger",
+        },
+      ]),
     );
-    for (const [index] of rows.entries()) {
-      const owner = `Owner ${index + 1}`;
-      const amount = `USD ${index + 1},000.00`;
-      expect(
-        pageStreams.some(
-          (page) => page.includes(owner) && page.includes(amount),
-        ),
-      ).toBe(true);
-    }
+
+    const result = await getReportPdf("organization-1", "Demo Org", {
+      month: "2026-07",
+      ownerPersonId: "all",
+      propertyId: selectedPropertyId,
+      report: "owner-statement",
+      status: "all",
+      unitId: "all",
+    });
+
+    expect(result).toEqual({
+      validation: {
+        message:
+          "This Owner Statement is not ready. Resolve the property blockers before generating it.",
+        status: 409,
+      },
+    });
   });
 });
 

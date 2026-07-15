@@ -39,6 +39,12 @@ export async function GET(request: Request) {
     membership.organizationName,
     viewQuery,
   );
+  if ("validation" in pdf) {
+    return new Response(pdf.validation.message, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      status: pdf.validation.status,
+    });
+  }
   const body = pdf.body.buffer.slice(
     pdf.body.byteOffset,
     pdf.body.byteOffset + pdf.body.byteLength,

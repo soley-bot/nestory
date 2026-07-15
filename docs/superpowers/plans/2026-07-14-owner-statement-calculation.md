@@ -4,7 +4,7 @@
 
 **Goal:** Replace the ledger-based Owner Statement with a property-cash-kernel statement that validates and allocates effective ownership exactly.
 
-**Architecture:** A pure report-owned module calls `buildPropertyCash`, validates dated ownership rosters, allocates cents, and returns domain rows/evidence/blockers. The existing Reports loader adapts organization-scoped Supabase records into that input and formats its output as the generic `TrustedReport` consumed by preview, CSV, print, and PDF.
+**Architecture:** A pure report-owned module calls `buildPropertyCash`, validates dated ownership rosters, allocates cents, and returns domain rows/evidence/blockers. The Reports loader adapts organization-scoped Supabase records into an internal readiness `TrustedReport`. CSV preserves that report and its exact evidence; a pure recipient selector narrows one ready property/owner row for owner-facing preview, print, and PDF.
 
 **Tech Stack:** Next.js 16.2.9 App Router, TypeScript 5, Supabase/PostgREST, Vitest 4, React 19, generic Nestory CSV/PDF renderers.
 
@@ -19,6 +19,9 @@
 - Keep missing contact as a warning; keep blocked property money out of summaries.
 - Keep deposits and period-scoped management-fee outstanding disclosure-only.
 - Reject Owner Statement unit scope consistently; CSV/PDF return HTTP 400.
+- Count ready properties separately from ready owner-recipient statements.
+- Keep all-properties Owner Statement as an internal readiness workspace; never offer portfolio PDF or print.
+- Require one ready property/owner/month for owner-facing preview, print, and PDF. Return controlled 400 for missing/invalid recipient scope and 409 for blocked properties.
 - Do not add ownership editing, finance writes, schema, branding, organization profile, email, snapshots, or Overview changes.
 
 ---
@@ -32,8 +35,8 @@
 - Modify `src/features/reports/reports.types.ts`: optional structured evidence metadata and controlled validation state.
 - Modify `src/features/reports/components/reports-filters.tsx` and `reports-screen.tsx`: remove stale Owner Statement unit scope and show actionable validation copy.
 - Modify `src/features/reports/data/csv.ts` and `csv.test.ts`: exact evidence serialization and shared totals/blocker behavior.
-- Modify `src/features/reports/data/pdf.ts` and `pdf.test.ts`: generic Owner Statement row/blocker parity.
-- Modify `src/app/api/reports/export/route.ts` and `pdf/route.ts`: controlled 400 for unsupported Owner Statement unit scope.
+- Modify `src/features/reports/data/pdf.ts` and `pdf.test.ts`: one-recipient owner-facing PDF with bounded identity and no internal readiness/evidence detail.
+- Modify `src/app/api/reports/export/route.ts` and `pdf/route.ts`: controlled 400 for unsupported unit/missing recipient scope and controlled 409 for blocked property PDFs.
 - Add focused route tests if no existing route-test harness can cover the 400 contract through lower-level validation tests.
 
 ---
@@ -96,7 +99,7 @@
 - [ ] Ensure the filter form does not preserve Owner Statement `unitId`; do not broaden direct incoming requests.
 - [ ] Run focused tests and verify GREEN.
 
-### Task 4: CSV, Print, and Generic PDF Parity
+### Task 4: Internal CSV and Recipient Document Workflow
 
 **Files:**
 - Modify: `src/features/reports/data/csv.ts`
@@ -106,13 +109,13 @@
 
 **Interfaces:**
 - Consumes: calculated Owner Statement `TrustedReport` rows with blockers and structured evidence.
-- Produces: matching generic exports with exact CSV evidence IDs and visible blockers.
+- Produces: internal CSV with exact evidence plus one-recipient preview, print, and PDF documents.
 
 - [ ] Write failing CSV tests for exact evidence type/ID/date/classification/signed/allocated cents and blocked reasons.
-- [ ] Write failing PDF tests for ready totals, blocked state, and approved labels.
+- [ ] Write failing PDF and route tests for property/recipient validation, owner isolation, all nine values, blocked 409, and bounded identity.
 - [ ] Run CSV/PDF tests and verify RED.
 - [ ] Add optional evidence columns only when structured evidence exists; keep spreadsheet formula protection.
-- [ ] Keep PDF generic and render the same row cells/summary; do not add branding.
+- [ ] Keep CSV on the readiness report. Sanitize one ready recipient for PDF/print, omit internal readiness/evidence detail, and do not add branding.
 - [ ] Run CSV/PDF/trusted-report tests and verify GREEN.
 
 ### Task 5: Verification, Browser QA, and PR
