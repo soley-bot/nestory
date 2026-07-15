@@ -31,6 +31,7 @@ import { PeopleFilters } from "@/features/people/components/people-filters";
 import { PeopleInspector } from "@/features/people/components/people-inspector";
 import { PeopleTable } from "@/features/people/components/people-table";
 import { formatRole } from "@/features/people/people.labels";
+import type { PeopleInsights } from "@/features/people/people.insights";
 import type {
   PeopleDisplayMode,
   PeoplePagination,
@@ -52,8 +53,7 @@ type PeopleScreenProps = {
   createRole?: PersonRoleValue;
   description?: string;
   initialPersonId?: string;
-  insightPeople?: PeopleSummary[];
-  insightTotalCount?: number;
+  insights?: PeopleInsights;
   lockedRole?: PersonRoleValue;
   pagination: PeoplePagination;
   people: PeopleSummary[];
@@ -68,8 +68,7 @@ export function PeopleScreen({
   canCreate = true,
   createRole,
   initialPersonId,
-  insightPeople,
-  insightTotalCount,
+  insights,
   lockedRole,
   pagination,
   people,
@@ -264,11 +263,8 @@ export function PeopleScreen({
         </div>
       ) : null}
 
-      {insightPeople ? (
-        <PeopleCommandCenter
-          people={insightPeople}
-          totalCount={insightTotalCount ?? insightPeople.length}
-        />
+      {insights ? (
+        <PeopleCommandCenter insights={insights} />
       ) : null}
 
       {reviewContext ? (

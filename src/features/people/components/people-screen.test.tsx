@@ -9,6 +9,7 @@ import StaffPage from "@/app/(dashboard)/staff/page";
 import TenantsPage from "@/app/(dashboard)/tenants/page";
 import VendorsPage from "@/app/(dashboard)/vendors/page";
 import { PeopleScreen } from "@/features/people/components/people-screen";
+import { getPeopleInsights } from "@/features/people/people.insights";
 import type {
   PeopleSummary,
   PeopleViewQuery,
@@ -41,13 +42,6 @@ vi.mock("@/features/people/components/people-module-page", () => ({
 
 vi.mock("@/lib/auth/context", () => ({
   requireAdminContext: async () => ({ organizationId: "organization-1" }),
-}));
-
-vi.mock("@/features/people/data/people-reports", () => ({
-  getPeopleReportHubData: async () => ({
-    pagination: { totalCount: 0 },
-    people: [],
-  }),
 }));
 
 const defaultViewQuery: PeopleViewQuery = {
@@ -214,6 +208,53 @@ describe("People route family redesign contract", () => {
 
     expect(screen.queryByRole("dialog", { name: "Add person" })).toBeNull();
   });
+
+  it("uses truthful staff operating context in the table, cards, and inspector", () => {
+    const staffWithNotes = {
+      ...makePerson("staff-1", "Sokha Staff", "staff"),
+      notes: "Coordinates maintenance dispatch",
+    };
+    const staffWithoutContext = {
+      ...makePerson("staff-2", "Maly Staff", "staff"),
+      notes: null,
+    };
+    renderPeople({
+      lockedRole: "staff",
+      people: [staffWithNotes, staffWithoutContext],
+    });
+
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Operating context")).not.toBeNull();
+    expect(within(table).getByText("Coordinates maintenance dispatch")).not.toBeNull();
+    expect(within(table).getByText("No operating context")).not.toBeNull();
+    expect(screen.queryByText("Team context")).toBeNull();
+
+    const firstInspector = screen.getByRole("complementary", {
+      name: "Sokha Staff inspector",
+    });
+    expect(within(firstInspector).getByText("Operating context")).not.toBeNull();
+    expect(
+      within(firstInspector).getByText("Coordinates maintenance dispatch"),
+    ).not.toBeNull();
+
+    fireEvent.click(
+      within(table)
+        .getByRole("link", { name: "Maly Staff" })
+        .closest("tr")!,
+    );
+    const secondInspector = screen.getByRole("complementary", {
+      name: "Maly Staff inspector",
+    });
+    expect(within(secondInspector).getByText("No operating context")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cards" }));
+    const cards = screen.getAllByRole("article");
+    expect(within(cards[0]!).getByText("Operating context")).not.toBeNull();
+    expect(
+      within(cards[0]!).getByText("Coordinates maintenance dispatch"),
+    ).not.toBeNull();
+    expect(within(cards[1]!).getByText("No operating context")).not.toBeNull();
+  });
 });
 
 function renderPeople({
@@ -232,8 +273,7 @@ function renderPeople({
       addButtonLabel={lockedRole ? `Add ${lockedRole}` : "Add person"}
       canCreate={canCreate}
       createRole={lockedRole}
-      insightPeople={people}
-      insightTotalCount={people.length}
+      insights={getPeopleInsights(people, people.length)}
       lockedRole={lockedRole}
       pagination={{
         from: nextPeople.length > 0 ? 1 : 0,

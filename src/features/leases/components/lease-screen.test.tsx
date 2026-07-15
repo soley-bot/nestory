@@ -164,17 +164,55 @@ describe("LeaseScreen redesign contract", () => {
 
     expect(screen.queryByRole("dialog", { name: "Add lease" })).toBeNull();
   });
+
+  it("scopes every summary metric to this page on a later result page", () => {
+    renderLeases({
+      pagination: {
+        from: 51,
+        page: 2,
+        pageSize: 50,
+        to: 52,
+        totalCount: 121,
+        totalPages: 3,
+      },
+    });
+
+    const summary = screen.getByRole("region", { name: "Lease summary" });
+    expect(within(summary).getByText("This page")).not.toBeNull();
+    expectLeaseMetric(summary, "Leases", "2");
+    expectLeaseMetric(summary, "Current", "2");
+    expectLeaseMetric(summary, "Tenant gaps", "0");
+    expectLeaseMetric(summary, "Missing docs", "2");
+    expect(within(summary).queryByText("121")).toBeNull();
+    expect(screen.getByText("121 records")).not.toBeNull();
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === "P" &&
+          element.textContent === "Showing 51-52 of 121",
+      ),
+    ).not.toBeNull();
+  });
 });
 
 function renderLeases({
   canCreate = true,
   canGenerateRent = true,
   leases: nextLeases = leases,
+  pagination,
   viewQuery = defaultViewQuery,
 }: {
   canCreate?: boolean;
   canGenerateRent?: boolean;
   leases?: typeof leases;
+  pagination?: {
+    from: number;
+    page: number;
+    pageSize: number;
+    to: number;
+    totalCount: number;
+    totalPages: number;
+  };
   viewQuery?: LeaseViewQuery;
 } = {}) {
   return render(
@@ -182,14 +220,14 @@ function renderLeases({
       canCreate={canCreate}
       canGenerateRent={canGenerateRent}
       leases={nextLeases}
-      pagination={{
-        from: nextLeases.length > 0 ? 1 : 0,
-        page: 1,
-        pageSize: 50,
-        to: nextLeases.length,
-        totalCount: nextLeases.length,
-        totalPages: nextLeases.length > 0 ? 1 : 0,
-      }}
+      pagination={pagination ?? {
+          from: nextLeases.length > 0 ? 1 : 0,
+          page: 1,
+          pageSize: 50,
+          to: nextLeases.length,
+          totalCount: nextLeases.length,
+          totalPages: nextLeases.length > 0 ? 1 : 0,
+        }}
       propertyOptions={[{ id: "property-1", label: "Riverside House" }]}
       tenantOptions={[
         { id: "person-1", label: "Alice Tenant" },
@@ -202,6 +240,17 @@ function renderLeases({
       viewQuery={viewQuery}
     />,
   );
+}
+
+function expectLeaseMetric(
+  summary: HTMLElement,
+  label: string,
+  value: string,
+) {
+  const metric = within(summary).getByText(label).closest("div");
+
+  expect(metric).not.toBeNull();
+  expect(within(metric!).getByText(value)).not.toBeNull();
 }
 
 function makeLease(id: string, tenantName: string, unitNumber: string) {

@@ -39,6 +39,18 @@ describe("people insights", () => {
     expect(insights.attentionQueues.find((queue) => queue.id === "missing-evidence")?.count).toBe(2);
   });
 
+  it("preserves visible active scope when a report window is smaller than total", () => {
+    const insights = getPeopleInsights(
+      [person({ contact: true, documents: 1, roles: ["staff"] })],
+      101,
+    );
+
+    expect(insights.visibleCount).toBe(1);
+    expect(insights.metrics.find((metric) => metric.label === "People")?.helper).toBe(
+      "1 visible active",
+    );
+  });
+
   it("builds traceable people report rows", () => {
     const report = buildPeopleTrustedReport({
       generatedAt: "2026-07-03T00:00:00.000Z",

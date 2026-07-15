@@ -297,7 +297,7 @@ export function LeaseScreen({
         </div>
       ) : null}
 
-      <LeaseCommandStrip leases={leases} totalCount={pagination.totalCount} />
+      <LeaseCommandStrip leases={leases} />
 
       {reviewContext ? (
         <LeaseReviewStrip
@@ -589,10 +589,8 @@ function getLeaseReviewContext(
 
 function LeaseCommandStrip({
   leases,
-  totalCount,
 }: {
   leases: LeaseSummary[];
-  totalCount: number;
 }) {
   const currentCount = leases.filter(
     (lease) =>
@@ -623,7 +621,10 @@ function LeaseCommandStrip({
         className="flex min-w-0 overflow-x-auto rounded-md border border-border bg-surface-muted/25"
         data-mobile-summary-strip="lease-metrics"
       >
-        <LeaseCommandMetric label="Leases" value={String(totalCount)} />
+        <div className="flex min-w-[84px] shrink-0 items-center border-r border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+          This page
+        </div>
+        <LeaseCommandMetric label="Leases" value={String(leases.length)} />
         <LeaseCommandMetric label="Current" value={String(currentCount)} />
         <LeaseCommandMetric
           label="Ending risk"

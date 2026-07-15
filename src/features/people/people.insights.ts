@@ -47,6 +47,24 @@ export type PeopleInsights = {
   visibleCount: number;
 };
 
+export type PeopleInsightCounts = {
+  activeCount: number;
+  missingContactCount: number;
+  missingEvidenceCount: number;
+  missingRoleCount: number;
+  owners: PeopleReadinessCount;
+  staff: PeopleReadinessCount;
+  tenants: PeopleReadinessCount;
+  totalCount: number;
+  vendors: PeopleReadinessCount;
+  visibleCount: number;
+};
+
+type PeopleReadinessCount = {
+  count: number;
+  readyCount: number;
+};
+
 export const peopleReportOptions: Array<{
   description: string;
   href: string;
@@ -115,44 +133,74 @@ export function getPeopleInsights(
   ).length;
   const staffReady = staff.filter((person) => person.hasUsefulContact).length;
 
+  return buildPeopleInsightsFromCounts({
+    activeCount: activePeople.length,
+    missingContactCount: missingContact.length,
+    missingEvidenceCount: missingEvidence.length,
+    missingRoleCount: missingRole.length,
+    owners: { count: owners.length, readyCount: ownerReady },
+    staff: { count: staff.length, readyCount: staffReady },
+    tenants: { count: tenants.length, readyCount: tenantReady },
+    totalCount,
+    vendors: { count: vendors.length, readyCount: vendorReady },
+    visibleCount: people.length,
+  });
+}
+
+export function buildPeopleInsightsFromCounts({
+  activeCount,
+  missingContactCount,
+  missingEvidenceCount,
+  missingRoleCount,
+  owners,
+  staff,
+  tenants,
+  totalCount,
+  vendors,
+  visibleCount,
+}: PeopleInsightCounts): PeopleInsights {
   return {
     attentionQueues: [
       {
-        count: missingContact.length,
+        count: missingContactCount,
         description: "People records without a usable email or phone.",
         href: "/people-reports",
         id: "missing-contact",
         label: "Missing contact",
-        tone: missingContact.length > 0 ? "warning" : "success",
+        tone: missingContactCount > 0 ? "warning" : "success",
       },
       {
-        count: missingRole.length,
+        count: missingRoleCount,
         description: "Records that cannot drive workflows until a role is set.",
         href: "/people-reports",
         id: "missing-role",
         label: "No role",
-        tone: missingRole.length > 0 ? "warning" : "success",
+        tone: missingRoleCount > 0 ? "warning" : "success",
       },
       {
-        count: missingEvidence.length,
+        count: missingEvidenceCount,
         description: "Records without linked documents or evidence.",
         href: "/people-reports",
         id: "missing-evidence",
         label: "Evidence gaps",
-        tone: missingEvidence.length > 0 ? "warning" : "success",
+        tone: missingEvidenceCount > 0 ? "warning" : "success",
       },
       {
-        count: vendors.length - vendorReady,
+        count: vendors.count - vendors.readyCount,
         description: "Vendor records missing contact or service profile context.",
         href: "/vendors",
         id: "vendor-review",
         label: "Vendor review",
-        tone: vendors.length - vendorReady > 0 ? "warning" : "success",
+        tone:
+          vendors.count - vendors.readyCount > 0 ? "warning" : "success",
       },
     ],
     metrics: [
       {
-        helper: activePeople.length === totalCount ? "Active directory records" : `${activePeople.length} visible active`,
+        helper:
+          activeCount === totalCount
+            ? "Active directory records"
+            : `${activeCount} visible active`,
         href: "/people",
         label: "People",
         tone: "accent",
@@ -162,60 +210,60 @@ export function getPeopleInsights(
         helper: "Ready tenants with active lease context",
         href: "/tenants",
         label: "Tenants",
-        tone: getReadinessTone(tenantReady, tenants.length),
-        value: formatRatio(tenantReady, tenants.length),
+        tone: getReadinessTone(tenants.readyCount, tenants.count),
+        value: formatRatio(tenants.readyCount, tenants.count),
       },
       {
         helper: "Owners with property links and contact",
         href: "/owners",
         label: "Owners",
-        tone: getReadinessTone(ownerReady, owners.length),
-        value: formatRatio(ownerReady, owners.length),
+        tone: getReadinessTone(owners.readyCount, owners.count),
+        value: formatRatio(owners.readyCount, owners.count),
       },
       {
         helper: "Vendors with service profile and contact",
         href: "/vendors",
         label: "Vendors",
-        tone: getReadinessTone(vendorReady, vendors.length),
-        value: formatRatio(vendorReady, vendors.length),
+        tone: getReadinessTone(vendors.readyCount, vendors.count),
+        value: formatRatio(vendors.readyCount, vendors.count),
       },
     ],
     relationshipStats: [
       {
-        count: tenants.length,
+        count: tenants.count,
         helper: "Contact plus active lease link",
         href: "/tenants",
         label: "Tenant readiness",
-        readyCount: tenantReady,
-        tone: getReadinessTone(tenantReady, tenants.length),
+        readyCount: tenants.readyCount,
+        tone: getReadinessTone(tenants.readyCount, tenants.count),
       },
       {
-        count: owners.length,
+        count: owners.count,
         helper: "Contact plus ownership link",
         href: "/owners",
         label: "Owner readiness",
-        readyCount: ownerReady,
-        tone: getReadinessTone(ownerReady, owners.length),
+        readyCount: owners.readyCount,
+        tone: getReadinessTone(owners.readyCount, owners.count),
       },
       {
-        count: vendors.length,
+        count: vendors.count,
         helper: "Contact plus vendor profile",
         href: "/vendors",
         label: "Vendor readiness",
-        readyCount: vendorReady,
-        tone: getReadinessTone(vendorReady, vendors.length),
+        readyCount: vendors.readyCount,
+        tone: getReadinessTone(vendors.readyCount, vendors.count),
       },
       {
-        count: staff.length,
+        count: staff.count,
         helper: "Contact-ready staff records",
         href: "/staff",
         label: "Staff readiness",
-        readyCount: staffReady,
-        tone: getReadinessTone(staffReady, staff.length),
+        readyCount: staff.readyCount,
+        tone: getReadinessTone(staff.readyCount, staff.count),
       },
     ],
     totalCount,
-    visibleCount: people.length,
+    visibleCount,
   };
 }
 

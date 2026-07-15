@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Building2, PanelRightOpen, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  getPeopleLinkedLabel,
+  getPeopleOperatingContext,
+} from "@/features/people/people.context";
 import { formatRole } from "@/features/people/people.labels";
 import type {
   PeopleArchiveState,
@@ -50,6 +54,7 @@ export function PeopleTable({
             key={person.id}
             onSelectPerson={onSelectPerson}
             person={person}
+            roleContext={roleContext}
             selected={selectedPersonId === person.id}
           />
         ))}
@@ -168,7 +173,7 @@ export function PeopleTable({
                       <PhoneCell person={person} />
                     </td>
                     <td className="px-2 py-2">
-                      <LinkedCell person={person} />
+                      <ContextCell person={person} roleContext={roleContext} />
                     </td>
                     {isRoleScoped ? (
                       <td className="px-2 py-2">
@@ -193,10 +198,12 @@ export function PeopleTable({
 function PersonCard({
   onSelectPerson,
   person,
+  roleContext,
   selected,
 }: {
   onSelectPerson: (id: string) => void;
   person: PeopleSummary;
+  roleContext?: PersonRoleValue;
   selected: boolean;
 }) {
   return (
@@ -239,7 +246,10 @@ function PersonCard({
         </div>
       </div>
       <div className="border-t border-border px-3.5 py-2.5 text-sm">
-        <CardMetric label="Linked" value={getLinkedLabel(person)} />
+        <CardMetric
+          label={getContextHeader(roleContext)}
+          value={getContextValue(person, roleContext)}
+        />
         <button
           aria-label={`Preview ${person.displayName}`}
           aria-pressed={selected}
@@ -258,7 +268,23 @@ function PersonCard({
   );
 }
 
-function LinkedCell({ person }: { person: PeopleSummary }) {
+function ContextCell({
+  person,
+  roleContext,
+}: {
+  person: PeopleSummary;
+  roleContext?: PersonRoleValue;
+}) {
+  if (roleContext === "staff") {
+    const context = getPeopleOperatingContext(person);
+
+    return (
+      <p className="line-clamp-2 break-words font-medium" title={context}>
+        {context}
+      </p>
+    );
+  }
+
   const label = getLinkedLabel(person);
   const detail = getLinkedDetail(person);
 
@@ -393,23 +419,16 @@ function CardMetric({ label, value }: { label: string; value: string }) {
 }
 
 function getLinkedLabel(person: PeopleSummary) {
-  if (person.linked.activeLease) {
-    return `${person.linked.activeLeaseCount} active lease${
-      person.linked.activeLeaseCount === 1 ? "" : "s"
-    }`;
-  }
+  return getPeopleLinkedLabel(person) ?? "No linked records";
+}
 
-  if (person.linked.ownerProperty) {
-    return `${person.linked.ownerPropertyCount} owner propert${
-      person.linked.ownerPropertyCount === 1 ? "y" : "ies"
-    }`;
-  }
-
-  if (person.linked.vendorProfile) {
-    return person.linked.vendorProfile.label;
-  }
-
-  return "No linked records";
+function getContextValue(
+  person: PeopleSummary,
+  roleContext?: PersonRoleValue,
+) {
+  return roleContext === "staff"
+    ? getPeopleOperatingContext(person)
+    : getLinkedLabel(person);
 }
 
 function getLinkedDetail(person: PeopleSummary) {
@@ -464,7 +483,7 @@ function getContextHeader(roleContext?: PersonRoleValue) {
   }
 
   if (roleContext === "staff") {
-    return "Team context";
+    return "Operating context";
   }
 
   return "Linked";

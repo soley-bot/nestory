@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
+import { getPeopleOperatingContext } from "@/features/people/people.context";
 import { formatRole } from "@/features/people/people.labels";
 import type { PeopleSummary } from "@/features/people/people.types";
 
@@ -84,9 +85,14 @@ export function PeopleInspector({
               {getContactLabel(person)}
             </span>
           </CompactFact>
-          <CompactFact label="Relationship" wide>
+          <CompactFact
+            label={showAccessStatus ? "Operating context" : "Relationship"}
+            wide
+          >
             <span className="line-clamp-2 break-words">
-              {getRelationshipLabel(person)}
+              {showAccessStatus
+                ? getPeopleOperatingContext(person)
+                : getRelationshipLabel(person)}
             </span>
           </CompactFact>
         </div>

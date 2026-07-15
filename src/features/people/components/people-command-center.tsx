@@ -1,19 +1,13 @@
 import Link from "next/link";
 import { FileCheck2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { getPeopleInsights } from "@/features/people/people.insights";
-import type { PeopleSummary } from "@/features/people/people.types";
+import type { PeopleInsights } from "@/features/people/people.insights";
 
 type PeopleCommandCenterProps = {
-  people: PeopleSummary[];
-  totalCount: number;
+  insights: PeopleInsights;
 };
 
-export function PeopleCommandCenter({
-  people,
-  totalCount,
-}: PeopleCommandCenterProps) {
-  const insights = getPeopleInsights(people, totalCount);
+export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
   const staff = insights.relationshipStats.find(
     (stat) => stat.label === "Staff readiness",
   );
