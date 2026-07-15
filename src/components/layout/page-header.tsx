@@ -3,25 +3,37 @@ import type { ReactNode } from "react";
 type PageHeaderProps = {
   title: string;
   description?: string;
+  context?: ReactNode;
   actions?: ReactNode;
 };
 
-export function PageHeader({ title, description, actions }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  description,
+  context,
+  actions,
+}: PageHeaderProps) {
   return (
-    <header className="flex flex-col gap-2 border-b border-border bg-surface px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-5 lg:px-6">
-      <div className="min-w-0">
-        <h1 className="text-base font-semibold leading-6 text-foreground">
-          {title}
-        </h1>
-        {description ? (
-          <p className="mt-0.5 hidden max-w-2xl text-[13px] leading-5 text-foreground-muted sm:block">
-            {description}
-          </p>
-        ) : null}
-      </div>
-      {actions ? (
-        <div className="flex flex-wrap items-center gap-2 text-[13px] lg:justify-end">
-          {actions}
+    <header className="border-b border-border bg-surface px-4 py-3 sm:px-6">
+      <h1 className="text-base font-semibold leading-6 text-foreground">
+        {title}
+      </h1>
+      {description || context || actions ? (
+        <div
+          className="mt-1 flex min-w-0 flex-wrap items-center justify-between gap-x-5 gap-y-2 text-sm leading-5"
+          data-slot="page-header-meta"
+        >
+          {description || context ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-foreground-muted">
+              {description ? <p className="max-w-2xl">{description}</p> : null}
+              {context ? <div className="min-w-0">{context}</div> : null}
+            </div>
+          ) : null}
+          {actions ? (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {actions}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </header>
