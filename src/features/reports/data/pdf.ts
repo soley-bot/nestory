@@ -8,6 +8,7 @@ import type {
   OccupancyReportRow,
   ReportsViewQuery,
   TrustedReport,
+  TrustedReportRow,
 } from "@/features/reports/reports.types";
 
 type PdfExport = {
@@ -65,6 +66,21 @@ type IncomeExpenseStatementEntry = {
   property: string;
 };
 
+type OwnerStatementPdfBlock = {
+  height: number;
+  kind: "blocked" | "empty" | "ready";
+  row?: TrustedReportRow;
+};
+
+type OwnerStatementPdfPage = {
+  blocks: OwnerStatementPdfBlock[];
+};
+
+type OwnerStatementMoneyMetric = {
+  key: string;
+  label: string;
+};
+
 const pageWidth = 842;
 const pageHeight = 595;
 const marginX = 36;
@@ -76,6 +92,9 @@ const tableTopY = 382;
 const statementTableTopY = 438;
 const tableBottomY = 45;
 const headerRowHeight = 24;
+const ownerStatementBlockGap = 10;
+const ownerStatementIdentityHeight = 32;
+const ownerStatementMoneyRowHeight = 48;
 
 const colors = {
   accent: "#2f5f7f",
@@ -96,6 +115,25 @@ const statementColumns: PdfColumn[] = [
   { label: "Property", maxLines: 2, width: 160 },
   { align: "right", label: "Amount", maxLines: 1, width: 96 },
   { label: "Description", maxLines: 2, width: 210 },
+];
+
+const ownerStatementMoneyRows: OwnerStatementMoneyMetric[][] = [
+  [
+    { key: "operatingCash", label: "Operating cash received" },
+    { key: "propertyExpenses", label: "Property expenses paid" },
+    { key: "managementReceived", label: "Management fees received" },
+    { key: "netMovement", label: "Net owner cash movement" },
+  ],
+  [
+    { key: "managementEarned", label: "Management fees earned" },
+    {
+      key: "managementOutstanding",
+      label: "Management fees outstanding from this period",
+    },
+    { key: "ownerContributions", label: "Owner contributions" },
+    { key: "ownerPayouts", label: "Owner payouts" },
+    { key: "depositsHeld", label: "Security deposits held" },
+  ],
 ];
 
 const columns: PdfColumn[] = [
@@ -136,6 +174,9 @@ export function buildTrustedReportPdf({
 }) {
   if (report.kind === "income-expense") {
     return buildIncomeExpenseStatementPdf({ organizationName, report });
+  }
+  if (report.kind === "owner-statement") {
+    return buildOwnerStatementPdf({ organizationName, report });
   }
 
   const reportColumns = buildTrustedReportPdfColumns(report);
@@ -389,6 +430,373 @@ function renderTrustedReportPage({
   drawFooter(commands, pageNumber, totalPages);
 
   return commands.join("\n");
+}
+
+function buildOwnerStatementPdf({
+  organizationName,
+  report,
+}: {
+  organizationName: string;
+  report: TrustedReport;
+}) {
+  const blocks = buildOwnerStatementPdfBlocks(report);
+  const pages = paginateOwnerStatementBlocks(blocks);
+  const pageCommands = pages.map((page, pageIndex) =>
+    renderOwnerStatementPage({
+      organizationName,
+      page,
+      pageIndex,
+      report,
+      totalPages: pages.length,
+    }),
+  );
+
+  return createPdfDocument(pageCommands);
+}
+
+function buildOwnerStatementPdfBlocks(
+  report: TrustedReport,
+): OwnerStatementPdfBlock[] {
+  if (report.rows.length === 0) {
+    return [{ height: 64, kind: "empty" }];
+  }
+
+  return report.rows.map((row) => ({
+    height: getOwnerStatementBlockHeight(row),
+    kind: isBlockedOwnerStatementRow(row) ? "blocked" : "ready",
+    row,
+  }));
+}
+
+function getOwnerStatementBlockHeight(row: TrustedReportRow) {
+  if (isBlockedOwnerStatementRow(row)) {
+    const reasonLines = ownerStatementTextLines(
+      ownerStatementBlockerReason(row),
+      tableWidth - 20,
+      8.5,
+    );
+    return ownerStatementIdentityHeight + 44 + reasonLines.length * 10.5;
+  }
+
+  const noteLines = ownerStatementTextLines(
+    ownerStatementNotes(row),
+    tableWidth - 190,
+    8.2,
+  );
+  const supportHeight = Math.max(28, 18 + noteLines.length * 10);
+  return (
+    ownerStatementIdentityHeight +
+    ownerStatementMoneyRowHeight * ownerStatementMoneyRows.length +
+    supportHeight
+  );
+}
+
+function paginateOwnerStatementBlocks(blocks: OwnerStatementPdfBlock[]) {
+  const pages: OwnerStatementPdfPage[] = [];
+  let currentBlocks: OwnerStatementPdfBlock[] = [];
+  let remainingHeight = tableTopY - tableBottomY;
+
+  for (const block of blocks) {
+    const gap = currentBlocks.length > 0 ? ownerStatementBlockGap : 0;
+    if (
+      currentBlocks.length > 0 &&
+      block.height + gap > remainingHeight
+    ) {
+      pages.push({ blocks: currentBlocks });
+      currentBlocks = [];
+      remainingHeight = tableTopY - tableBottomY;
+    }
+
+    const appliedGap = currentBlocks.length > 0 ? ownerStatementBlockGap : 0;
+    currentBlocks.push(block);
+    remainingHeight -= block.height + appliedGap;
+  }
+
+  pages.push({ blocks: currentBlocks });
+  return pages;
+}
+
+function renderOwnerStatementPage({
+  organizationName,
+  page,
+  pageIndex,
+  report,
+  totalPages,
+}: {
+  organizationName: string;
+  page: OwnerStatementPdfPage;
+  pageIndex: number;
+  report: TrustedReport;
+  totalPages: number;
+}) {
+  const commands: string[] = [];
+  const pageNumber = pageIndex + 1;
+  let yTop = tableTopY;
+
+  drawTrustedReportHeader(commands, organizationName, report);
+
+  for (const [index, block] of page.blocks.entries()) {
+    if (index > 0) yTop -= ownerStatementBlockGap;
+    drawOwnerStatementBlock(commands, block, report, yTop);
+    yTop -= block.height;
+  }
+
+  drawFooter(commands, pageNumber, totalPages);
+  return commands.join("\n");
+}
+
+function drawOwnerStatementBlock(
+  commands: string[],
+  block: OwnerStatementPdfBlock,
+  report: TrustedReport,
+  yTop: number,
+) {
+  if (block.kind === "empty") {
+    drawOwnerStatementEmptyBlock(commands, report, yTop, block.height);
+    return;
+  }
+
+  const row = block.row!;
+  if (block.kind === "blocked") {
+    drawBlockedOwnerStatement(commands, row, yTop, block.height);
+    return;
+  }
+
+  drawReadyOwnerStatement(commands, row, yTop, block.height);
+}
+
+function drawReadyOwnerStatement(
+  commands: string[],
+  row: TrustedReportRow,
+  yTop: number,
+  height: number,
+) {
+  const yBottom = yTop - height;
+  drawRect(commands, marginX, yBottom, tableWidth, height, {
+    fill: colors.rowFill,
+    stroke: colors.border,
+  });
+  drawRect(
+    commands,
+    marginX,
+    yTop - ownerStatementIdentityHeight,
+    tableWidth,
+    ownerStatementIdentityHeight,
+    { fill: colors.soft, stroke: colors.border },
+  );
+
+  drawMeta(commands, "Owner", row.cells.owner ?? "-", marginX + 10, yTop - 22, 190);
+  drawMeta(
+    commands,
+    "Property",
+    row.cells.property ?? "-",
+    marginX + 210,
+    yTop - 22,
+    250,
+  );
+  drawMeta(
+    commands,
+    "Status",
+    row.cells.readiness ?? "Ready",
+    marginX + 470,
+    yTop - 22,
+    160,
+  );
+  drawMeta(
+    commands,
+    "Ownership share",
+    row.cells.ownership ?? "-",
+    marginX + 640,
+    yTop - 22,
+    120,
+  );
+
+  let moneyRowTop = yTop - ownerStatementIdentityHeight;
+  for (const metrics of ownerStatementMoneyRows) {
+    drawOwnerStatementMoneyRow(commands, row, moneyRowTop, metrics);
+    moneyRowTop -= ownerStatementMoneyRowHeight;
+  }
+
+  drawOwnerStatementSupportLine(commands, row, moneyRowTop, yBottom);
+}
+
+function drawOwnerStatementMoneyRow(
+  commands: string[],
+  row: TrustedReportRow,
+  yTop: number,
+  metrics: OwnerStatementMoneyMetric[],
+) {
+  const gap = 8;
+  const cellWidth = (tableWidth - gap * (metrics.length - 1)) / metrics.length;
+  const yBottom = yTop - ownerStatementMoneyRowHeight;
+
+  for (const [index, metric] of metrics.entries()) {
+    const x = marginX + index * (cellWidth + gap);
+    drawRect(commands, x, yBottom, cellWidth, ownerStatementMoneyRowHeight, {
+      fill: colors.rowFill,
+      stroke: colors.border,
+    });
+    const labelLines = wrapText(metric.label, cellWidth - 16, 6.5, 3);
+    labelLines.forEach((line, lineIndex) => {
+      drawText(commands, line, x + 8, yTop - 12 - lineIndex * 7.2, {
+        bold: true,
+        color: colors.muted,
+        fontSize: 6.5,
+        width: cellWidth - 16,
+      });
+    });
+    drawText(commands, row.cells[metric.key] ?? "-", x + 8, yBottom + 8, {
+      align: "right",
+      bold: true,
+      color: colors.ink,
+      fontSize: 10,
+      width: cellWidth - 16,
+    });
+  }
+}
+
+function drawOwnerStatementSupportLine(
+  commands: string[],
+  row: TrustedReportRow,
+  yTop: number,
+  yBottom: number,
+) {
+  const noteWidth = tableWidth - 190;
+  drawRect(commands, marginX, yBottom, tableWidth, yTop - yBottom, {
+    fill: row.tone === "warning" ? "#fffaf0" : colors.rowFill,
+    stroke: colors.border,
+  });
+  drawText(commands, "NOTES / WARNINGS", marginX + 10, yTop - 11, {
+    bold: true,
+    color: colors.muted,
+    fontSize: 6.8,
+    width: noteWidth,
+  });
+  const noteLines = ownerStatementTextLines(
+    ownerStatementNotes(row),
+    noteWidth,
+    8.2,
+  );
+  noteLines.forEach((line, index) => {
+    drawText(commands, line, marginX + 10, yTop - 23 - index * 10, {
+      color: colors.ink,
+      fontSize: 8.2,
+      width: noteWidth,
+    });
+  });
+  drawText(commands, "EVIDENCE / SOURCES", marginX + tableWidth - 160, yTop - 11, {
+    align: "right",
+    bold: true,
+    color: colors.muted,
+    fontSize: 6.8,
+    width: 150,
+  });
+  drawText(commands, row.sourceSummary, marginX + tableWidth - 160, yTop - 23, {
+    align: "right",
+    color: colors.ink,
+    fontSize: 8.2,
+    width: 150,
+  });
+}
+
+function drawBlockedOwnerStatement(
+  commands: string[],
+  row: TrustedReportRow,
+  yTop: number,
+  height: number,
+) {
+  const yBottom = yTop - height;
+  drawRect(commands, marginX, yBottom, tableWidth, height, {
+    fill: "#fffaf0",
+    stroke: colors.warning,
+  });
+  drawRect(
+    commands,
+    marginX,
+    yTop - ownerStatementIdentityHeight,
+    tableWidth,
+    ownerStatementIdentityHeight,
+    { fill: "#fff4df", stroke: colors.warning },
+  );
+  drawMeta(
+    commands,
+    "Property",
+    row.cells.property ?? "-",
+    marginX + 10,
+    yTop - 22,
+    520,
+  );
+  drawMeta(commands, "Status", "Blocked", marginX + 550, yTop - 22, 210);
+
+  const bodyTop = yTop - ownerStatementIdentityHeight;
+  drawText(commands, "BLOCKER REASONS", marginX + 10, bodyTop - 14, {
+    bold: true,
+    color: colors.warning,
+    fontSize: 6.8,
+    width: tableWidth - 20,
+  });
+  const reasonLines = ownerStatementTextLines(
+    ownerStatementBlockerReason(row),
+    tableWidth - 20,
+    8.5,
+  );
+  reasonLines.forEach((line, index) => {
+    drawText(commands, line, marginX + 10, bodyTop - 28 - index * 10.5, {
+      color: colors.ink,
+      fontSize: 8.5,
+      width: tableWidth - 20,
+    });
+  });
+  drawText(commands, row.sourceSummary, marginX + 10, yBottom + 9, {
+    color: colors.muted,
+    fontSize: 7.8,
+    width: tableWidth - 20,
+  });
+}
+
+function drawOwnerStatementEmptyBlock(
+  commands: string[],
+  report: TrustedReport,
+  yTop: number,
+  height: number,
+) {
+  const yBottom = yTop - height;
+  drawRect(commands, marginX, yBottom, tableWidth, height, {
+    fill: colors.rowFill,
+    stroke: colors.border,
+  });
+  drawText(commands, report.emptyTitle, marginX + 12, yTop - 24, {
+    bold: true,
+    color: colors.ink,
+    fontSize: 11,
+    width: tableWidth - 24,
+  });
+  drawText(commands, report.emptyDescription, marginX + 12, yTop - 43, {
+    color: colors.muted,
+    fontSize: 8.5,
+    width: tableWidth - 24,
+  });
+}
+
+function isBlockedOwnerStatementRow(row: TrustedReportRow) {
+  return row.cells.readiness === "Blocked";
+}
+
+function ownerStatementBlockerReason(row: TrustedReportRow) {
+  return row.cells.notes?.trim() || row.title;
+}
+
+function ownerStatementNotes(row: TrustedReportRow) {
+  const notes = row.cells.notes?.trim();
+  return notes && !/^[\u2010-\u2015-]+$/.test(notes) ? notes : "No warnings";
+}
+
+function ownerStatementTextLines(
+  value: string,
+  maxWidth: number,
+  fontSize: number,
+) {
+  return wrapText(value, maxWidth, fontSize, 100);
 }
 
 function buildIncomeExpenseStatementPdf({
