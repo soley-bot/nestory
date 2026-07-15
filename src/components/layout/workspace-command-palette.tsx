@@ -122,12 +122,8 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
 
   useEffect(() => {
     function handleDocumentKeyDown(event: KeyboardEvent) {
-      if (
-        compositionActiveRef.current ||
-        isComposingKeyboardEvent(event)
-      ) {
-        return;
-      }
+      const isComposing =
+        compositionActiveRef.current || isComposingKeyboardEvent(event);
 
       const opensPalette =
         event.key.toLowerCase() === "k" &&
@@ -135,6 +131,10 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
         !event.altKey;
 
       if (opensPalette) {
+        if (isComposing) {
+          return;
+        }
+
         event.preventDefault();
         if (!isOpen) {
           previouslyFocusedRef.current =
@@ -151,6 +151,10 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
       }
 
       if (event.key === "Escape") {
+        if (isComposing) {
+          return;
+        }
+
         event.preventDefault();
         closePalette();
         return;
@@ -696,8 +700,12 @@ function getStatusMessage({
     return "Search unavailable. Try again.";
   }
 
-  if (isShortQuery && resultCount === 0) {
-    return "Type 2 characters to search records";
+  if (isShortQuery) {
+    if (resultCount === 0) {
+      return "Type 2 characters to search records";
+    }
+
+    return `${resultCount} navigation ${resultCount === 1 ? "result" : "results"}. Type 2 characters to search records.`;
   }
 
   if (query.trim() && resultCount === 0) {

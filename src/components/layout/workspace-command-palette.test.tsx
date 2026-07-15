@@ -149,9 +149,14 @@ describe("Workspace command palette access", () => {
     renderPalette("manager");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
+    const closeButton = screen.getByRole("button", { name: "Close search" });
     const initialActiveOption = input.getAttribute("aria-activedescendant");
 
     fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(document.activeElement).toBe(closeButton);
+    fireEvent.keyDown(closeButton, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(input);
     fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "ArrowUp" });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -203,6 +208,24 @@ describe("Workspace command palette results", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByRole("status").textContent).toBe(
       "Type 2 characters to search records",
+    );
+    expect(screen.queryByText("No results")).toBeNull();
+  });
+
+  it("discloses the record-search threshold alongside a short-query navigation match", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderPalette("member");
+    openPalette();
+    fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
+      target: { value: "t" },
+    });
+    await advanceSearch();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("option", { name: /Tasks/ })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe(
+      "1 navigation result. Type 2 characters to search records.",
     );
     expect(screen.queryByText("No results")).toBeNull();
   });
