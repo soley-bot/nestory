@@ -24,6 +24,9 @@ export type ReportPropertyOption = {
 
 export type ReportsViewQuery = {
   month: string;
+  ownerPersonId: string;
+  ownerPersonIdInvalid?: boolean;
+  print?: boolean;
   propertyId: string;
   report: ReportKind;
   status: ReportStatusFilter;
@@ -92,6 +95,8 @@ export type TrustedReportRow = {
   evidence?: ReportEvidenceLine[];
   href?: string;
   id: string;
+  ownerPersonId?: string;
+  propertyId?: string;
   sourceCount: number;
   sourceLinks: ReportSourceLink[];
   sourceSummary: string;

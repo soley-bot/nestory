@@ -116,6 +116,7 @@ describe("buildOwnerStatement financial facts", () => {
     expect(result.summary).toMatchObject({
       blockedPropertyCount: 1,
       operatingCashReceivedCents: 10_000,
+      readyPropertyCount: 1,
       readyStatementCount: 1,
     });
   });
@@ -529,6 +530,31 @@ describe("buildOwnerStatement ownership readiness", () => {
     ]);
   });
 
+  it("counts one recipient once across consecutive historical ownership links", () => {
+    const result = buildOwnerStatement(
+      fixture({
+        ownerLinks: [
+          ownerLink({ endedOn: "2026-07-15" }),
+          ownerLink({
+            id: "owner-link-successor",
+            startedOn: "2026-07-15",
+          }),
+        ],
+      }),
+    );
+
+    expect(readyRows(result)).toHaveLength(1);
+    expect(readyRow(result).ownerLinkIds).toEqual([
+      "owner-link-1",
+      "owner-link-successor",
+    ]);
+    expect(result.summary).toMatchObject({
+      blockedPropertyCount: 0,
+      readyPropertyCount: 1,
+      readyStatementCount: 1,
+    });
+  });
+
   it("blocks duplicate overlapping links for the same owner", () => {
     const result = buildOwnerStatement(
       fixture({
@@ -560,6 +586,7 @@ describe("buildOwnerStatement ownership readiness", () => {
       blockedPropertyCount: 1,
       netOwnerCashMovementCents: 0,
       operatingCashReceivedCents: 0,
+      readyPropertyCount: 0,
       readyStatementCount: 0,
     });
   });
@@ -605,6 +632,43 @@ describe("buildOwnerStatement exact allocation", () => {
         0,
       ),
     ).toBe(10_100);
+    expect(result.summary).toMatchObject({
+      blockedPropertyCount: 0,
+      readyPropertyCount: 1,
+      readyStatementCount: 2,
+    });
+  });
+
+  it("counts ready properties separately from their owner recipients", () => {
+    const secondPropertyId = "property-2";
+    const input = fixture({
+      ownerLinks: twoOwnerLinks("60.000", "40.000"),
+      people: [
+        ...twoPeople(),
+        {
+          displayName: "Owner Three",
+          hasUsableContact: true,
+          id: "owner-person-3",
+        },
+      ],
+    });
+    input.cashInput.propertyIds = [propertyId, secondPropertyId];
+    input.ownerLinks.push(
+      ownerLink({
+        id: "owner-link-3",
+        personId: "owner-person-3",
+        propertyId: secondPropertyId,
+      }),
+    );
+
+    const result = buildOwnerStatement(input);
+
+    expect(readyRows(result)).toHaveLength(3);
+    expect(result.summary).toMatchObject({
+      blockedPropertyCount: 0,
+      readyPropertyCount: 2,
+      readyStatementCount: 3,
+    });
   });
 
   it("assigns a one-cent equal-share remainder by person then owner-link ID", () => {

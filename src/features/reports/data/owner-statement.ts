@@ -90,6 +90,7 @@ export type OwnerStatementRow =
 
 export type OwnerStatementSummary = OwnerStatementMoneyFacts & {
   blockedPropertyCount: number;
+  readyPropertyCount: number;
   readyStatementCount: number;
 };
 
@@ -131,7 +132,6 @@ export function buildOwnerStatement(
   const cash = buildPropertyCash(input.cashInput);
   const peopleById = new Map(input.people.map((person) => [person.id, person]));
   const rows: OwnerStatementRow[] = [];
-  let readyStatementCount = 0;
 
   for (const facts of cash.properties) {
     const propertyDataIssues = (input.dataIssues ?? []).filter(
@@ -203,7 +203,6 @@ export function buildOwnerStatement(
       continue;
     }
 
-    readyStatementCount += 1;
     const accumulators = createAccumulators(
       facts.propertyId,
       propertyLinks,
@@ -254,7 +253,8 @@ export function buildOwnerStatement(
       ...sumReadyRows(readyRows),
       blockedPropertyCount: rows.filter((row) => row.status === "blocked")
         .length,
-      readyStatementCount,
+      readyPropertyCount: new Set(readyRows.map((row) => row.propertyId)).size,
+      readyStatementCount: readyRows.length,
     },
   };
 }

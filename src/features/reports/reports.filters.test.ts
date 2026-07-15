@@ -17,6 +17,7 @@ describe("report search params", () => {
     expect(query.propertyId).toBe("all");
     expect(query.status).toBe("all");
     expect(query.unitId).toBe("all");
+    expect(query.ownerPersonId).toBe("all");
     expect(query.month).toMatch(/^\d{4}-\d{2}$/);
   });
 
@@ -29,6 +30,7 @@ describe("report search params", () => {
       }),
     ).toEqual({
       month: "2026-06",
+      ownerPersonId: "all",
       propertyId: "all",
       report: "income-expense",
       status: "vacant",
@@ -60,10 +62,24 @@ describe("report search params", () => {
     expect(parseReportSearchParams({ status: "all" }).status).toBe("all");
   });
 
+  it("keeps an Owner Statement recipient only when it is a real person id", () => {
+    const ownerPersonId = "c304facd-1caa-4f98-9d43-cf44f65ac32f";
+
+    expect(parseReportSearchParams({ ownerPersonId }).ownerPersonId).toBe(
+      ownerPersonId,
+    );
+    const invalid = parseReportSearchParams({
+      ownerPersonId: "not-a-real-id",
+    });
+    expect(invalid.ownerPersonId).toBe("all");
+    expect(invalid.ownerPersonIdInvalid).toBe(true);
+  });
+
   it("rejects unit scope for Owner Statement with actionable copy", () => {
     expect(
       getReportScopeValidation({
         month: "2026-07",
+        ownerPersonId: "all",
         propertyId: "all",
         report: "owner-statement",
         status: "all",

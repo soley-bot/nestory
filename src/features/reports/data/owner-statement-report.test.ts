@@ -8,8 +8,8 @@ import { buildTrustedReportCsv } from "@/features/reports/data/csv";
 import {
   buildOwnerStatementTrustedReport,
   getOwnerStatementReport,
+  selectOwnerStatementRecipient,
 } from "@/features/reports/data/owner-statement-report";
-import { buildTrustedReportPdf } from "@/features/reports/data/pdf";
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -85,6 +85,10 @@ describe("Owner Statement trusted report adapter", () => {
     expect(report.columns.map((column) => column.label)).toContain(
       "Management fees outstanding from this period",
     );
+    expect(report.title).toBe("Owner Statement readiness");
+    expect(report.description).toBe(
+      "Review which property and owner statements are ready before generating owner-facing documents.",
+    );
     expect(report.rows[0]).toMatchObject({
       cells: {
         netMovement: "USD 100.00",
@@ -111,7 +115,8 @@ describe("Owner Statement trusted report adapter", () => {
     });
     expect(report.summary.map((metric) => [metric.label, metric.value])).toEqual(
       [
-        ["Ready statements", "1"],
+        ["Ready properties", "1"],
+        ["Owner statements ready", "1"],
         ["Blocked properties", "0"],
         ["Operating cash received", "USD 100.00"],
         ["Property expenses paid", "USD 0.00"],
@@ -121,11 +126,7 @@ describe("Owner Statement trusted report adapter", () => {
     );
 
     const csv = buildTrustedReportCsv(report);
-    const pdf = Buffer.from(
-      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
-    ).toString("latin1");
     expect(csv).toContain("USD 100.00");
-    expect(pdf).toContain("USD 100.00");
   });
 
   it("renders one explicit blocked property row without monetary totals", () => {
@@ -164,6 +165,7 @@ describe("Owner Statement trusted report adapter", () => {
       tone: "danger",
     });
     expect(report.summary.map((metric) => metric.value)).toEqual([
+      "0",
       "0",
       "1",
       "USD 0.00",
@@ -283,7 +285,8 @@ describe("Owner Statement trusted report adapter", () => {
     );
     expect(report.summary.map((metric) => [metric.label, metric.value])).toEqual(
       [
-        ["Ready statements", "1"],
+        ["Ready properties", "1"],
+        ["Owner statements ready", "1"],
         ["Blocked properties", "1"],
         ["Operating cash received", "USD 100.00"],
         ["Property expenses paid", "USD 0.00"],
@@ -293,11 +296,7 @@ describe("Owner Statement trusted report adapter", () => {
     );
 
     const csv = buildTrustedReportCsv(report);
-    const pdf = Buffer.from(
-      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
-    ).toString("latin1");
     expect(csv).toContain("deposit-reversal-b");
-    expect(pdf).toContain("deposit-reversal-b");
   });
 
   it("blocks an unsupported deposit type with the event ID and type", async () => {
@@ -342,6 +341,138 @@ describe("Owner Statement trusted report adapter", () => {
         }),
       ]),
     });
+  });
+});
+
+describe("Owner Statement recipient selection", () => {
+  it("requires one property before creating an owner-facing document", () => {
+    const selection = selectOwnerStatementRecipient(
+      readyTrustedReport(),
+      ownerStatementQuery(),
+    );
+
+    expect(selection).toEqual({
+      message: "Select one property before generating an Owner Statement PDF.",
+      status: 400,
+    });
+  });
+
+  it("infers the recipient when the selected property has one ready owner", () => {
+    const selection = selectOwnerStatementRecipient(readyTrustedReport(), {
+      ...ownerStatementQuery(),
+      propertyId,
+    });
+
+    expect(selection).toMatchObject({
+      report: {
+        rows: [
+          {
+            cells: { owner: "Owner One", property: "P1 - Property One" },
+            evidence: undefined,
+            ownerPersonId: "person-1",
+            propertyId,
+            sourceCount: 0,
+            sourceLinks: [],
+          },
+        ],
+        title: "Owner Statement",
+      },
+    });
+  });
+
+  it("requires an explicit recipient for a ready multi-owner property", () => {
+    const report = readyTrustedReport({ twoOwners: true });
+
+    expect(
+      selectOwnerStatementRecipient(report, {
+        ...ownerStatementQuery(),
+        propertyId,
+      }),
+    ).toEqual({
+      message: "Select an owner recipient before generating this statement.",
+      status: 400,
+    });
+  });
+
+  it("rejects a recipient that is not ready for the selected property", () => {
+    expect(
+      selectOwnerStatementRecipient(readyTrustedReport({ twoOwners: true }), {
+        ...ownerStatementQuery(),
+        ownerPersonId: "person-missing",
+        propertyId,
+      }),
+    ).toEqual({
+      message:
+        "The selected owner is not a ready recipient for this property and month.",
+      status: 400,
+    });
+  });
+
+  it("does not infer a recipient after a malformed owner id is normalized", () => {
+    expect(
+      selectOwnerStatementRecipient(readyTrustedReport(), {
+        ...ownerStatementQuery(),
+        ownerPersonIdInvalid: true,
+        propertyId,
+      }),
+    ).toEqual({
+      message:
+        "The selected owner is not a ready recipient for this property and month.",
+      status: 400,
+    });
+  });
+
+  it("blocks owner-facing output when the selected property is not ready", () => {
+    const result = buildOwnerStatement(
+      input({
+        cashInput: emptyCashInput(),
+        ownerLinks: [],
+      }),
+    );
+    const report = buildOwnerStatementTrustedReport({
+      generatedAt: "2026-08-01T00:00:00.000Z",
+      people: [],
+      properties: [{ code: "P1", id: propertyId, name: "Property One" }],
+      result,
+      viewQuery: ownerStatementQuery(),
+    });
+
+    expect(
+      selectOwnerStatementRecipient(report, {
+        ...ownerStatementQuery(),
+        propertyId,
+      }),
+    ).toEqual({
+      message:
+        "This Owner Statement is not ready. Resolve the property blockers before generating it.",
+      status: 409,
+    });
+  });
+
+  it("selects only the requested owner and removes internal evidence", () => {
+    const selection = selectOwnerStatementRecipient(
+      readyTrustedReport({ twoOwners: true }),
+      {
+        ...ownerStatementQuery(),
+        ownerPersonId: "person-2",
+        propertyId,
+      },
+    );
+
+    expect("report" in selection && selection.report.rows).toHaveLength(1);
+    expect("report" in selection && selection.report.rows[0]).toMatchObject({
+      cells: { owner: "Owner Two" },
+      evidence: undefined,
+      ownerPersonId: "person-2",
+      sourceCount: 0,
+      sourceLinks: [],
+    });
+    expect("report" in selection && selection.report.rows[0].cells).not.toHaveProperty(
+      "notes",
+    );
+    expect("report" in selection && selection.report.rows[0].cells).not.toHaveProperty(
+      "readiness",
+    );
   });
 });
 
@@ -423,9 +554,72 @@ function input(overrides: Partial<OwnerStatementInput>): OwnerStatementInput {
   };
 }
 
+function emptyCashInput(): OwnerStatementInput["cashInput"] {
+  return {
+    depositEvents: [],
+    expenseItems: [],
+    incomeItems: [],
+    monthScope: { before: "2026-08-01", from: "2026-07-01" },
+    paymentAllocations: [],
+    propertyIds: [propertyId],
+    receiptAllocations: [],
+  };
+}
+
+function readyTrustedReport({ twoOwners = false } = {}) {
+  const ownerLinks: OwnerStatementInput["ownerLinks"] = [
+    {
+      archivedAt: null,
+      endedOn: null,
+      id: "owner-link-1",
+      isPrimary: true,
+      ownershipPercent: twoOwners ? "60.000" : null,
+      personId: "person-1",
+      propertyId,
+      startedOn: null,
+    },
+  ];
+  const people: OwnerStatementInput["people"] = [
+    {
+      displayName: "Owner One",
+      hasUsableContact: true,
+      id: "person-1",
+    },
+  ];
+
+  if (twoOwners) {
+    ownerLinks.push({
+      archivedAt: null,
+      endedOn: null,
+      id: "owner-link-2",
+      isPrimary: false,
+      ownershipPercent: "40.000",
+      personId: "person-2",
+      propertyId,
+      startedOn: null,
+    });
+    people.push({
+      displayName: "Owner Two",
+      hasUsableContact: true,
+      id: "person-2",
+    });
+  }
+
+  return buildOwnerStatementTrustedReport({
+    generatedAt: "2026-08-01T00:00:00.000Z",
+    people,
+    properties: [{ code: "P1", id: propertyId, name: "Property One" }],
+    result: buildOwnerStatement(
+      input({ cashInput: emptyCashInput(), ownerLinks, people }),
+    ),
+    viewQuery: ownerStatementQuery(),
+  });
+}
+
 function ownerStatementQuery(): ReportsViewQuery {
   return {
     month: "2026-07",
+    ownerPersonId: "all",
     propertyId: "all",
     report: "owner-statement",
     status: "all",

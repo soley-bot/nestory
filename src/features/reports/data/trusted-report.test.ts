@@ -151,6 +151,7 @@ function makeReportInput(
     ],
     viewQuery: {
       month: "2026-06",
+      ownerPersonId: "all",
       propertyId: "all",
       report: "unit-performance",
       status: "all",

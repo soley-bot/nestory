@@ -37,6 +37,7 @@ describe("ReportsFilters", () => {
 function query(report: ReportsViewQuery["report"]): ReportsViewQuery {
   return {
     month: "2026-07",
+    ownerPersonId: "all",
     propertyId: "all",
     report,
     status: "all",

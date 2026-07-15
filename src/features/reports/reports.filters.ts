@@ -24,8 +24,18 @@ export const OWNER_STATEMENT_UNIT_SCOPE_MESSAGE =
 export function parseReportSearchParams(
   params: ReportSearchParams,
 ): ReportsViewQuery {
+  const ownerPersonIdParam = getFirstSearchParam(params.ownerPersonId);
+  const ownerPersonId = getUuidOrAllSearchParam(params.ownerPersonId);
+
   return {
     month: parseMonth(params.month, params.date),
+    ownerPersonId,
+    ...(ownerPersonIdParam &&
+    ownerPersonIdParam !== "all" &&
+    ownerPersonId === "all"
+      ? { ownerPersonIdInvalid: true }
+      : {}),
+    ...(getFirstSearchParam(params.print) === "1" ? { print: true } : {}),
     propertyId: getUuidOrAllSearchParam(params.propertyId),
     report: parseReportKind(params.report),
     status: parseStatus(params.status),

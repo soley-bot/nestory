@@ -307,6 +307,7 @@ export function buildOwnerStatementTrustedReport({
         evidence: row.evidence satisfies ReportEvidenceLine[],
         href: `/properties/${row.propertyId}`,
         id: `owner-statement-blocked:${row.propertyId}`,
+        propertyId: row.propertyId,
         sourceCount,
         sourceLinks,
         sourceSummary: sourceLabel(sourceCount),
@@ -338,6 +339,8 @@ export function buildOwnerStatementTrustedReport({
       evidence: row.evidence satisfies ReportEvidenceLine[],
       href: `/properties/${row.propertyId}`,
       id: `owner-statement:${row.propertyId}:${row.ownerPersonId}`,
+      ownerPersonId: row.ownerPersonId,
+      propertyId: row.propertyId,
       sourceCount,
       sourceLinks,
       sourceSummary: sourceLabel(sourceCount),
@@ -368,7 +371,7 @@ export function buildOwnerStatementTrustedReport({
       { key: "notes", label: "Notes" },
     ],
     description:
-      "Property-level cash-basis owner activity allocated across effective ownership, with ambiguous properties explicitly blocked.",
+      "Review which property and owner statements are ready before generating owner-facing documents.",
     emptyDescription: "Add active properties or adjust the property filter.",
     emptyTitle: "No owner statement rows",
     exportFilenameBase: "owner-statement",
@@ -378,9 +381,115 @@ export function buildOwnerStatementTrustedReport({
     rows,
     scopeLabel: scopeLabel(viewQuery, propertiesById),
     summary: statementSummary(result),
-    title: "Owner Statement",
+    title: "Owner Statement readiness",
     totalsTraceLabel:
       "Monetary totals include ready properties only and trace to property-cash evidence plus effective owner links.",
+  };
+}
+
+export const OWNER_STATEMENT_PROPERTY_REQUIRED_MESSAGE =
+  "Select one property before generating an Owner Statement PDF.";
+export const OWNER_STATEMENT_RECIPIENT_REQUIRED_MESSAGE =
+  "Select an owner recipient before generating this statement.";
+export const OWNER_STATEMENT_RECIPIENT_INVALID_MESSAGE =
+  "The selected owner is not a ready recipient for this property and month.";
+export const OWNER_STATEMENT_NOT_READY_MESSAGE =
+  "This Owner Statement is not ready. Resolve the property blockers before generating it.";
+
+type OwnerStatementRecipientSelection =
+  | { message: string; status: 400 | 409 }
+  | { report: TrustedReport; row: TrustedReportRow };
+
+export function selectOwnerStatementRecipient(
+  report: TrustedReport,
+  viewQuery: ReportsViewQuery,
+): OwnerStatementRecipientSelection {
+  if (viewQuery.propertyId === "all") {
+    return { message: OWNER_STATEMENT_PROPERTY_REQUIRED_MESSAGE, status: 400 };
+  }
+
+  if (viewQuery.ownerPersonIdInvalid) {
+    return {
+      message: OWNER_STATEMENT_RECIPIENT_INVALID_MESSAGE,
+      status: 400,
+    };
+  }
+
+  const propertyRows = report.rows.filter(
+    (row) => row.propertyId === viewQuery.propertyId,
+  );
+  if (propertyRows.some((row) => row.cells.readiness === "Blocked")) {
+    return { message: OWNER_STATEMENT_NOT_READY_MESSAGE, status: 409 };
+  }
+
+  const readyRows = propertyRows.filter((row) => row.ownerPersonId);
+  let selectedRow: TrustedReportRow | undefined;
+
+  if (viewQuery.ownerPersonId === "all") {
+    if (readyRows.length > 1) {
+      return {
+        message: OWNER_STATEMENT_RECIPIENT_REQUIRED_MESSAGE,
+        status: 400,
+      };
+    }
+    selectedRow = readyRows[0];
+  } else {
+    selectedRow = readyRows.find(
+      (row) => row.ownerPersonId === viewQuery.ownerPersonId,
+    );
+    if (!selectedRow) {
+      return {
+        message: OWNER_STATEMENT_RECIPIENT_INVALID_MESSAGE,
+        status: 400,
+      };
+    }
+  }
+
+  if (!selectedRow) {
+    return { message: OWNER_STATEMENT_NOT_READY_MESSAGE, status: 409 };
+  }
+
+  return {
+    report: buildOwnerStatementRecipientReport(report, selectedRow),
+    row: selectedRow,
+  };
+}
+
+function buildOwnerStatementRecipientReport(
+  report: TrustedReport,
+  row: TrustedReportRow,
+): TrustedReport {
+  const ownerFacingCells = Object.fromEntries(
+    Object.entries(row.cells).filter(
+      ([key]) => key !== "notes" && key !== "readiness",
+    ),
+  );
+  const recipientRow: TrustedReportRow = {
+    ...row,
+    cells: ownerFacingCells,
+    evidence: undefined,
+    href: undefined,
+    sourceCount: 0,
+    sourceLinks: [],
+    sourceSummary: "",
+    tone: undefined,
+  };
+
+  return {
+    ...report,
+    columns: report.columns.filter(
+      (column) => column.key !== "notes" && column.key !== "readiness",
+    ),
+    description:
+      "Cash activity and period disclosures for the selected owner, property, and month.",
+    emptyDescription: "Select a ready owner recipient to preview this statement.",
+    emptyTitle: "No owner statement recipient selected",
+    rows: [recipientRow],
+    scopeLabel: `${row.cells.property ?? "Selected property"} / ${row.cells.owner ?? "Selected owner"}`,
+    summary: [],
+    title: "Owner Statement",
+    totalsTraceLabel: "Owner-specific cash activity for the selected property and month.",
+    totalRowCount: 1,
   };
 }
 
@@ -391,9 +500,15 @@ function statementSummary(result: OwnerStatementResult): TraceableReportMetric[]
 
   return [
     metric(
-      "Ready statements",
+      "Ready properties",
+      String(result.summary.readyPropertyCount),
+      "Properties with valid ownership on every required fact date",
+      readyEvidence.length,
+    ),
+    metric(
+      "Owner statements ready",
       String(result.summary.readyStatementCount),
-      "Property/month statements with valid ownership on every required date",
+      "Owner recipients ready for a property/month statement",
       readyEvidence.length,
     ),
     metric(
