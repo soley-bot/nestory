@@ -389,6 +389,8 @@ export function buildOwnerStatementTrustedReport({
 
 export const OWNER_STATEMENT_PROPERTY_REQUIRED_MESSAGE =
   "Select one property before generating an Owner Statement PDF.";
+export const OWNER_STATEMENT_PROPERTY_INVALID_MESSAGE =
+  "The selected property is not available for this organization.";
 export const OWNER_STATEMENT_RECIPIENT_REQUIRED_MESSAGE =
   "Select an owner recipient before generating this statement.";
 export const OWNER_STATEMENT_RECIPIENT_INVALID_MESSAGE =
@@ -418,6 +420,9 @@ export function selectOwnerStatementRecipient(
   const propertyRows = report.rows.filter(
     (row) => row.propertyId === viewQuery.propertyId,
   );
+  if (propertyRows.length === 0) {
+    return { message: OWNER_STATEMENT_PROPERTY_INVALID_MESSAGE, status: 400 };
+  }
   if (propertyRows.some((row) => row.cells.readiness === "Blocked")) {
     return { message: OWNER_STATEMENT_NOT_READY_MESSAGE, status: 409 };
   }

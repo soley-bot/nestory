@@ -419,6 +419,18 @@ describe("Owner Statement recipient selection", () => {
     });
   });
 
+  it("rejects a property that is not available in the organization report", () => {
+    expect(
+      selectOwnerStatementRecipient(readyTrustedReport(), {
+        ...ownerStatementQuery(),
+        propertyId: "property-outside-organization",
+      }),
+    ).toEqual({
+      message: "The selected property is not available for this organization.",
+      status: 400,
+    });
+  });
+
   it("requires an explicit recipient for a ready multi-owner property", () => {
     const report = readyTrustedReport({ twoOwners: true });
 
