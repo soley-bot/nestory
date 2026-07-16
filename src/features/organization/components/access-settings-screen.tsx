@@ -192,8 +192,15 @@ function InviteUserForm({
     personId: defaults?.personId ?? "",
     role: "member",
   };
+  const clean = {
+    branchId: "",
+    email: "",
+    personId: "",
+    role: "member",
+  };
   const draft = useAccessDraft({
     action: addExistingUserAccessAction,
+    baselineValues: clean,
     initialStatus: initial.email || initial.personId ? "dirty" : "clean",
     initialValues: initial,
     validate: (values) =>
@@ -222,6 +229,7 @@ function InviteUserForm({
           <input
             className="h-8 w-full rounded-md border border-border bg-surface px-2.5 text-sm outline-none shadow-sm transition-colors placeholder:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
             id={emailId}
+            disabled={draft.status === "saving"}
             onChange={(event) => draft.setField("email", event.target.value)}
             placeholder="user@example.com"
             ref={emailRef}
@@ -230,18 +238,21 @@ function InviteUserForm({
           />
         </label>
         <AccessSelect
+          disabled={draft.status === "saving"}
           label="Role"
           onValueChange={(value) => draft.setField("role", value)}
           options={roleOptions}
           value={draft.values.role}
         />
         <AccessSelect
+          disabled={draft.status === "saving"}
           label="Scope"
           onValueChange={(value) => draft.setField("branchId", value)}
           options={branchOptions(branches)}
           value={draft.values.branchId}
         />
         <AccessSelect
+          disabled={draft.status === "saving"}
           label="Staff link"
           onValueChange={(value) => draft.setField("personId", value)}
           options={personOptions(people)}
@@ -333,18 +344,21 @@ function MemberAccessForm({
 
       <div className="grid gap-3 sm:grid-cols-3">
         <AccessSelect
+          disabled={draft.status === "saving"}
           label="Role"
           onValueChange={(value) => draft.setField("role", value)}
           options={roleOptions}
           value={draft.values.role}
         />
         <AccessSelect
+          disabled={draft.status === "saving"}
           label="Scope"
           onValueChange={(value) => draft.setField("branchId", value)}
           options={branchOptions(branches)}
           value={draft.values.branchId}
         />
         <AccessSelect
+          disabled={draft.status === "saving"}
           label="Staff link"
           onValueChange={(value) => draft.setField("personId", value)}
           options={personOptions(people)}
@@ -378,11 +392,13 @@ function MemberAccessForm({
 }
 
 function AccessSelect({
+  disabled = false,
   label,
   onValueChange,
   options,
   value,
 }: {
+  disabled?: boolean;
   label: string;
   onValueChange: (value: string) => void;
   options: Array<{ label: string; value: string }>;
@@ -393,6 +409,7 @@ function AccessSelect({
       <span>{label}</span>
       <SelectControl
         ariaLabel={label}
+        disabled={disabled}
         onValueChange={onValueChange}
         options={options}
         value={value}
@@ -415,16 +432,18 @@ function useRegisterAccessDraft(
 
 function useAccessDraft<TValues extends Record<string, string>>({
   action,
+  baselineValues,
   initialStatus = "clean",
   initialValues,
   validate,
 }: {
   action: (state: OrganizationActionState, formData: FormData) => Promise<OrganizationActionState>;
+  baselineValues?: TValues;
   initialStatus?: DraftStatus;
   initialValues: TValues;
   validate?: (values: TValues) => { field: keyof TValues; message: string } | undefined;
 }) {
-  const baseline = useRef({ ...initialValues });
+  const baseline = useRef({ ...(baselineValues ?? initialValues) });
   const alive = useRef(true);
   const submitting = useRef(false);
   const submission = useRef(0);
@@ -452,6 +471,9 @@ function useAccessDraft<TValues extends Record<string, string>>({
   }, []);
 
   const setField = useCallback(<TKey extends keyof TValues>(key: TKey, value: string) => {
+    if (submitting.current) {
+      return;
+    }
     setMessage(undefined);
     setErrorKind(undefined);
     setValues((current) => {
@@ -484,7 +506,8 @@ function useAccessDraft<TValues extends Record<string, string>>({
     setErrorKind(undefined);
     setStatus("saving");
     const formData = new FormData();
-    Object.entries(values).forEach(([key, value]) => formData.set(key, value));
+    const submittedValues = { ...values };
+    Object.entries(submittedValues).forEach(([key, value]) => formData.set(key, value));
 
     try {
       const result = await action({}, formData);
@@ -493,7 +516,7 @@ function useAccessDraft<TValues extends Record<string, string>>({
       }
       setMessage(result.message);
       if (result.status === "success") {
-        baseline.current = { ...values };
+        baseline.current = submittedValues;
         setStatus("saved");
       } else {
         setErrorKind("server");

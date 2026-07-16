@@ -155,6 +155,27 @@ describe("AccessSettingsScreen", () => {
     ).toBe(false);
   });
 
+  it("discards a trusted invite handoff back to an empty access draft", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        inviteDefaults={{ email: "new@example.com", personId: person.id }}
+        members={[admin]}
+        people={[person]}
+      />,
+    );
+
+    const addForm = screen.getByTestId("add-access-form");
+    await user.click(within(addForm).getByRole("button", { name: "Discard" }));
+    await user.click(within(addForm).getByRole("button", { name: "Discard changes" }));
+
+    expect((within(addForm).getByLabelText("Email") as HTMLInputElement).value).toBe("");
+    expect(
+      (within(addForm).getByRole("button", { name: "Add access" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
   it("focuses the invalid email and announces one actionable error", async () => {
     render(
       <AccessSettingsScreen
@@ -201,6 +222,74 @@ describe("AccessSettingsScreen", () => {
     const alert = await within(addForm).findByRole("alert");
     await waitFor(() => expect(document.activeElement).toBe(alert));
     expect(alert.textContent).toContain("Invite could not be sent.");
+  });
+
+  it("freezes access fields while their submitted snapshot is saving", async () => {
+    let resolveAction: (value: { status: "success"; message: string }) => void = () => undefined;
+    addAccess.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveAction = resolve;
+      }),
+    );
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person]}
+      />,
+    );
+    const addForm = screen.getByTestId("add-access-form");
+    const email = within(addForm).getByLabelText("Email") as HTMLInputElement;
+    fireEvent.change(email, { target: { value: "new@example.com" } });
+    fireEvent.click(within(addForm).getByRole("button", { name: "Add access" }));
+
+    expect(email.disabled).toBe(true);
+    expect(
+      (within(addForm).getByRole("combobox", { name: "Role" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+
+    resolveAction({ status: "success", message: "User access added." });
+    expect(await within(addForm).findByText("User access added.")).toBeTruthy();
+  });
+
+  it("turns a pending navigation into a dirty decision when another draft remains", async () => {
+    const user = userEvent.setup();
+    let resolveAction: (value: { status: "success"; message: string }) => void = () => undefined;
+    addAccess.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveAction = resolve;
+      }),
+    );
+    const otherAdmin = {
+      ...admin,
+      email: "other@example.com",
+      id: "55555555-5555-4555-8555-555555555555",
+      userId: "66666666-6666-4666-8666-666666666666",
+    };
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin, otherAdmin]}
+        people={[person]}
+      />,
+    );
+
+    const member = screen.getByTestId(`access-member-${admin.id}`);
+    await user.click(within(member).getByRole("combobox", { name: "Role" }));
+    await user.click(screen.getByRole("option", { name: "Manager" }));
+    const addForm = screen.getByTestId("add-access-form");
+    fireEvent.change(within(addForm).getByLabelText("Email"), {
+      target: { value: "new@example.com" },
+    });
+    fireEvent.click(within(addForm).getByRole("button", { name: "Add access" }));
+    await user.click(screen.getByRole("link", { name: "Workspace" }));
+    expect(screen.getByRole("dialog").textContent).toContain("save is still in progress");
+
+    resolveAction({ status: "success", message: "User access added." });
+    await waitFor(() => {
+      expect(screen.getByRole("dialog").textContent).toContain("unsaved changes");
+    });
+    expect(screen.getByRole("button", { name: "Discard and open Workspace" })).toBeTruthy();
   });
 
   it("guards the Workspace link while an add draft is dirty and restores its focus", async () => {

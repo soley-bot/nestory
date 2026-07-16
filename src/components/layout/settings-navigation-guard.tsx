@@ -67,6 +67,13 @@ export function SettingsNavigationGuardProvider({
         return;
       }
 
+      if (status === "dirty") {
+        const dirtyPending = { ...pending, mode: "dirty" as const };
+        pendingNavigationRef.current = dirtyPending;
+        setPendingNavigation(dirtyPending);
+        return;
+      }
+
       if (status === "saved" || status === "error") {
         pendingNavigationRef.current = undefined;
         setPendingNavigation(undefined);
