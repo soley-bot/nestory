@@ -132,7 +132,12 @@ export function UnitDetailView({
         unitId={unit.id}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto pr-1">
+      <div
+        aria-label="Unit record details"
+        className="min-h-0 flex-1 overflow-auto pr-1"
+        role="region"
+        tabIndex={0}
+      >
         <div className="space-y-3">
           <section
             className={cn(

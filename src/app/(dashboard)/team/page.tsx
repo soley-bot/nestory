@@ -1,5 +1,13 @@
 import { redirect } from "next/navigation";
+import {
+  buildLegacyRedirect,
+  type LegacyRedirectSearchParams,
+} from "@/lib/navigation/legacy-redirect";
 
-export default function TeamPage() {
-  redirect("/staff");
+export default async function TeamPage({
+  searchParams,
+}: {
+  searchParams: LegacyRedirectSearchParams;
+}) {
+  redirect(await buildLegacyRedirect("/staff", searchParams));
 }

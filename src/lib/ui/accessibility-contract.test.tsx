@@ -6,6 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import { ModuleLoading } from "@/components/layout/module-loading";
+import {
+  CSV_FILE_ACCEPT,
+  FileDropzoneField,
+} from "@/components/ui/file-dropzone-field";
 import { RecordField } from "@/components/ui/record-form";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
@@ -128,6 +132,19 @@ describe("platform accessibility contract", () => {
     expect(status.getAttribute("aria-live")).toBe("polite");
     expect(status.textContent).toContain("Properties is loading");
     expect(container.querySelectorAll("[aria-hidden='true']").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the file input outside its keyboard-operable drop action", () => {
+    const { container } = render(
+      <FileDropzoneField accept={CSV_FILE_ACCEPT} name="importFile" />,
+    );
+    const dropAction = screen.getByRole("button", {
+      name: /Drop file here or browse/i,
+    });
+    const fileInput = container.querySelector("input[type='file']");
+
+    expect(fileInput).not.toBeNull();
+    expect(dropAction.contains(fileInput)).toBe(false);
   });
 });
 

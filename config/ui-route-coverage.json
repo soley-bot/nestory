@@ -21,6 +21,21 @@
         "src/app/workspace/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/workspace",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/workspace/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -78,6 +93,25 @@
         "src/app/(dashboard)/properties/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/properties?query=Central",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/properties/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -135,6 +169,25 @@
         "src/app/(dashboard)/units/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/units?query=09",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/units/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -172,6 +225,24 @@
         "src/app/(dashboard)/people/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/people?query=Dara",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/people/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -229,6 +300,25 @@
         "src/app/(dashboard)/owners/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/owners?query=Sokha",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/owners/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -286,6 +376,25 @@
         "src/app/(dashboard)/staff/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/staff?query=Mara",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/staff/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -343,6 +452,25 @@
         "src/app/(dashboard)/tenants/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/tenants?query=Dara",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/tenants/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -400,6 +528,25 @@
         "src/app/(dashboard)/vendors/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/vendors?query=Vendor",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/vendors/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -457,6 +604,25 @@
         "src/app/(dashboard)/leases/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/leases?query=Dara",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/leases/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -514,6 +680,25 @@
         "src/app/(dashboard)/rent-income/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/rent-income?query=Central",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/rent-income/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -571,6 +756,25 @@
         "src/app/(dashboard)/bills-expenses/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/bills-expenses?query=Repair",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/bills-expenses/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -628,6 +832,25 @@
         "src/app/(dashboard)/ledger/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/ledger?query=Central",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/ledger/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -685,6 +908,25 @@
         "src/app/(dashboard)/petty-cash/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/petty-cash",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/petty-cash/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -744,6 +986,25 @@
         "src/app/(dashboard)/maintenance/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/maintenance?view=list&query=Kitchen",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/maintenance/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -803,6 +1064,25 @@
         "src/app/(dashboard)/tasks/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/tasks?query=Kitchen",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/tasks/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -862,6 +1142,25 @@
         "src/app/(dashboard)/recurring-tasks/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/recurring-tasks",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -921,6 +1220,25 @@
         "src/app/(dashboard)/inspections/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/inspections",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/inspections/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -980,6 +1298,25 @@
         "src/app/(dashboard)/work-orders/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/work-orders",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/work-orders/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1037,6 +1374,25 @@
         "src/app/(dashboard)/timeline/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/timeline?query=Kitchen",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/timeline/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1094,6 +1450,25 @@
         "src/app/(dashboard)/financial-timeline/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/financial-timeline?query=Central",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/financial-timeline/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1151,6 +1526,25 @@
         "src/app/(dashboard)/maintenance-timeline/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/maintenance-timeline?query=Kitchen",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1208,6 +1602,25 @@
         "src/app/(dashboard)/property-timeline/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/property-timeline?propertyId=10000000-0000-0000-0000-000000000001",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/property-timeline/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1265,6 +1678,25 @@
         "src/app/(dashboard)/documents/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/documents?query=lease",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/documents/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1307,6 +1739,24 @@
         "src/app/(dashboard)/reports/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/reports",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/reports/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1349,6 +1799,24 @@
         "src/app/(dashboard)/reports/[reportKind]/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/reports/rent-roll?month=2026-07",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/reports/[reportKind]/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1391,6 +1859,24 @@
         "src/app/(dashboard)/people-reports/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/people-reports",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/people-reports/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1443,6 +1929,25 @@
         "src/app/(dashboard)/settings/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/settings",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1495,6 +2000,25 @@
         "src/app/(dashboard)/users-roles/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/users-roles",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/users-roles/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1529,6 +2053,23 @@
         "src/app/(dashboard)/account/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/account",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/account/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1586,6 +2127,25 @@
         "src/app/(dashboard)/import/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/import",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/import/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1628,6 +2188,24 @@
         "src/app/(dashboard)/overview/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/overview",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/overview/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1685,6 +2263,25 @@
         "src/app/(dashboard)/properties/[propertyId]/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/properties/10000000-0000-0000-0000-000000000001",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1742,6 +2339,25 @@
         "src/app/(dashboard)/units/[unitId]/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/units/20000000-0000-0000-0000-000000000001",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1799,6 +2415,25 @@
         "src/app/(dashboard)/people/[personId]/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/people/80100000-0000-0000-0000-000000000001",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/people/[personId]/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1816,6 +2451,20 @@
       "populated": [
         "src/app/page.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "redirected",
+        "member": "redirected",
+        "anonymous": "accessible"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/page.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1849,6 +2498,23 @@
         "src/app/(auth)/login/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/login",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "redirected",
+        "member": "redirected",
+        "anonymous": "accessible"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(auth)/login/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1882,6 +2548,23 @@
         "src/app/(auth)/signup/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/signup",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "redirected",
+        "member": "redirected",
+        "anonymous": "accessible"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(auth)/signup/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": []
     }
   },
   {
@@ -1925,6 +2608,26 @@
         "src/app/setup/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/setup",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "redirected",
+        "member": "redirected",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/setup/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [
+        "Unlinked-account browser presentation is covered by unit and state contracts; the retained local fixtures represent linked roles."
+      ]
     }
   },
   {
@@ -1943,6 +2646,23 @@
         "src/app/no-access/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
+    },
+    "smoke": {
+      "path": "/no-access",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/no-access/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": [
+        "Unlinked-account browser presentation is covered by unit and state contracts; the retained local fixtures represent linked roles."
+      ]
     }
   },
   {
@@ -1954,7 +2674,22 @@
       "admin"
     ],
     "states": [],
-    "evidence": {}
+    "evidence": {},
+    "smoke": {
+      "path": "/property-dashboard?query=HOME&tag=late&tag=open",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "redirect-preserved",
+      "workflowEvidence": [
+        "src/app/legacy-redirects.test.ts"
+      ],
+      "limitations": [],
+      "expectedFinalPath": "/overview?lens=records&query=HOME&tag=late&tag=open"
+    }
   },
   {
     "route": "/finance-dashboard",
@@ -1965,7 +2700,22 @@
       "admin"
     ],
     "states": [],
-    "evidence": {}
+    "evidence": {},
+    "smoke": {
+      "path": "/finance-dashboard?query=HOME&tag=late&tag=open",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "redirect-preserved",
+      "workflowEvidence": [
+        "src/app/legacy-redirects.test.ts"
+      ],
+      "limitations": [],
+      "expectedFinalPath": "/overview?lens=finance&query=HOME&tag=late&tag=open"
+    }
   },
   {
     "route": "/maintenance-dashboard",
@@ -1976,7 +2726,22 @@
       "admin"
     ],
     "states": [],
-    "evidence": {}
+    "evidence": {},
+    "smoke": {
+      "path": "/maintenance-dashboard?query=HOME&tag=late&tag=open",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "redirect-preserved",
+      "workflowEvidence": [
+        "src/app/legacy-redirects.test.ts"
+      ],
+      "limitations": [],
+      "expectedFinalPath": "/overview?lens=maintenance&query=HOME&tag=late&tag=open"
+    }
   },
   {
     "route": "/payments",
@@ -1987,7 +2752,22 @@
       "admin"
     ],
     "states": [],
-    "evidence": {}
+    "evidence": {},
+    "smoke": {
+      "path": "/payments?query=HOME&tag=late&tag=open",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "redirect-preserved",
+      "workflowEvidence": [
+        "src/app/legacy-redirects.test.ts"
+      ],
+      "limitations": [],
+      "expectedFinalPath": "/rent-income?query=HOME&tag=late&tag=open"
+    }
   },
   {
     "route": "/invoices",
@@ -1998,7 +2778,22 @@
       "admin"
     ],
     "states": [],
-    "evidence": {}
+    "evidence": {},
+    "smoke": {
+      "path": "/invoices?query=HOME&tag=late&tag=open",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "redirect-preserved",
+      "workflowEvidence": [
+        "src/app/legacy-redirects.test.ts"
+      ],
+      "limitations": [],
+      "expectedFinalPath": "/bills-expenses?query=HOME&tag=late&tag=open"
+    }
   },
   {
     "route": "/schedule",
@@ -2011,7 +2806,22 @@
       "maintenance"
     ],
     "states": [],
-    "evidence": {}
+    "evidence": {},
+    "smoke": {
+      "path": "/schedule?query=HOME&tag=late&tag=open",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "redirected",
+        "member": "redirected",
+        "anonymous": "login-required"
+      },
+      "queryContract": "redirect-preserved",
+      "workflowEvidence": [
+        "src/app/legacy-redirects.test.ts"
+      ],
+      "limitations": [],
+      "expectedFinalPath": "/maintenance?view=calendar&query=HOME&tag=late&tag=open"
+    }
   },
   {
     "route": "/team",
@@ -2022,6 +2832,21 @@
       "admin"
     ],
     "states": [],
-    "evidence": {}
+    "evidence": {},
+    "smoke": {
+      "path": "/team?query=HOME&tag=late&tag=open",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "redirect-preserved",
+      "workflowEvidence": [
+        "src/app/legacy-redirects.test.ts"
+      ],
+      "limitations": [],
+      "expectedFinalPath": "/staff?query=HOME&tag=late&tag=open"
+    }
   }
 ]

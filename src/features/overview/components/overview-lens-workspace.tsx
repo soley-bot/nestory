@@ -53,9 +53,24 @@ export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenDat
               </Link>
             ))}
           </div>
-          <dl aria-label={`${config.title} priority cards`} className="divide-y divide-border sm:hidden">
-            {config.queue.map((item) => <div key={item.label}><Link className="block px-3 py-3" href={item.href}><dt className="text-sm font-medium">{item.label}</dt><dd className="mt-1 text-xs text-foreground-muted">{item.detail}</dd><dd className="mt-1 text-xs font-semibold tabular-nums">{item.value}</dd></Link></div>)}
-          </dl>
+          <ul
+            aria-label={`${config.title} priority cards`}
+            className="divide-y divide-border sm:hidden"
+          >
+            {config.queue.map((item) => (
+              <li key={item.label}>
+                <Link className="block px-3 py-3" href={item.href}>
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <p className="mt-1 text-xs text-foreground-muted">
+                    {item.detail}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold tabular-nums">
+                    {item.value}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <aside className="rounded-lg border border-border bg-surface p-3">

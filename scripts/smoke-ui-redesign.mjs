@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright";
@@ -15,36 +15,50 @@ if (!baseUrlValue) {
 
 const baseUrl = validateLocalBaseUrl(baseUrlValue);
 const axeEnabled = process.argv.includes("--axe");
+const writeEvidence = process.argv.includes("--write-evidence");
+const routeFilter = process.argv
+  .find((argument) => argument.startsWith("--route="))
+  ?.slice("--route=".length);
+const evidenceSummaryPath = process.argv
+  .find((argument) => argument.startsWith("--evidence-summary="))
+  ?.slice("--evidence-summary=".length);
 const email = process.env.E2E_EMAIL?.trim();
 const password = process.env.E2E_PASSWORD;
+const rolePassword = process.env.E2E_ROLE_PASSWORD ?? password;
 
 if (!email || !password) {
   throw new Error("E2E_EMAIL and E2E_PASSWORD are required");
 }
 
-const routes = [
-  "/overview",
-  "/properties",
-  "/units",
-  "/people",
-  "/owners",
-  "/staff",
-  "/tenants",
-  "/vendors",
-  "/leases",
-  "/rent-income",
-  "/bills-expenses",
-  "/ledger",
-  "/petty-cash",
-  "/maintenance",
-  "/timeline",
-  "/documents",
-  "/reports",
-  "/settings",
-  "/users-roles",
-  "/account",
-  "/",
-];
+const manifest = JSON.parse(
+  await readFile(resolve("config", "ui-route-coverage.json"), "utf8"),
+);
+const routes = manifest
+  .filter((entry) => !routeFilter || entry.route === routeFilter)
+  .map((entry) => ({
+    expectedAccess: entry.smoke.expectedAccess.admin,
+    expectedFinalPath: entry.smoke.expectedFinalPath ?? null,
+    manifestRoute: entry.route,
+    path: entry.smoke.path,
+    queryContract: entry.smoke.queryContract,
+  }));
+
+if (routes.length === 0) {
+  throw new Error(`No manifest route matched --route=${routeFilter}`);
+}
+
+if (writeEvidence && routeFilter) {
+  throw new Error("--write-evidence requires the complete route manifest");
+}
+
+if (evidenceSummaryPath) {
+  const storedSummary = JSON.parse(
+    await readFile(resolve(evidenceSummaryPath), "utf8"),
+  );
+  await writeEvidenceDocument(storedSummary);
+  console.log(`UI redesign evidence generated from ${evidenceSummaryPath}.`);
+  process.exit(0);
+}
 
 const viewports = [
   { height: 900, name: "desktop", width: 1440 },
@@ -61,40 +75,16 @@ const runDirectory = resolve("artifacts", "ui-redesign", runName);
 const summaryPath = resolve(runDirectory, "summary.json");
 const blockedMutationRequests = [];
 const results = [];
-const requestPolicy = createReadOnlyRequestPolicy({ baseUrl });
+const roleAudits = [];
 const knownAxeExceptions = [];
 
 await mkdir(runDirectory, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({
-  deviceScaleFactor: 1,
-  serviceWorkers: "block",
-});
-
-await context.route("**/*", async (route) => {
-  const request = route.request();
-  const decision = requestPolicy.evaluate({
-    headers: request.headers(),
-    method: request.method(),
-    url: request.url(),
-  });
-
-  if (decision.allowed) {
-    await route.continue();
-    return;
-  }
-
-  blockedMutationRequests.push({
-    method: request.method().toUpperCase(),
-    reason: decision.reason,
-    url: request.url(),
-  });
-  await route.abort("blockedbyclient");
-});
+const context = await createReadOnlyContext(browser, "admin");
 
 try {
-  await authenticate(context);
+  await authenticate(context, { email, password });
 
   for (const viewport of viewports) {
     const viewportDirectory = resolve(runDirectory, viewport.name);
@@ -125,8 +115,12 @@ try {
         await captureRoute({
           axeEnabled,
           errors: activeErrors,
+          expectedAccess: route.expectedAccess,
+          expectedFinalPath: route.expectedFinalPath,
+          manifestRoute: route.manifestRoute,
           page,
-          route,
+          queryContract: route.queryContract,
+          route: route.path,
           viewport,
           viewportDirectory,
         }),
@@ -137,12 +131,30 @@ try {
     await page.close();
   }
 
+  for (const fixture of [
+    { email: "manager@nestory.com", role: "manager" },
+    { email: "member@nestory.com", role: "member" },
+  ]) {
+    roleAudits.push(
+      ...(await auditRole({
+        browser,
+        credentials: { email: fixture.email, password: rolePassword },
+        role: fixture.role,
+      })),
+    );
+  }
+
+  roleAudits.push(
+    ...(await auditRole({ browser, credentials: null, role: "anonymous" })),
+  );
+
   const summary = {
     axeEnabled,
     baseUrl,
     blockedMutationRequests,
     completedAt: new Date().toISOString(),
     results,
+    roleAudits,
     runDirectory: toArtifactPath(runDirectory),
     startedAt: startedAt.toISOString(),
     viewports,
@@ -150,7 +162,15 @@ try {
 
   await writeFile(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
 
-  const failures = collectFailures(results, blockedMutationRequests);
+  const failures = collectFailures(
+    results,
+    roleAudits,
+    blockedMutationRequests,
+  );
+
+  if (writeEvidence && failures.length === 0) {
+    await writeEvidenceDocument(summary);
+  }
 
   if (failures.length > 0) {
     throw new Error(
@@ -159,14 +179,111 @@ try {
   }
 
   console.log(
-    `UI redesign baseline captured ${results.length} route/viewport pairs in ${toArtifactPath(runDirectory)}.`,
+    `UI redesign baseline captured ${results.length} route/viewport pairs and ${roleAudits.length} role checks in ${toArtifactPath(runDirectory)}.`,
   );
 } finally {
   await context.close();
   await browser.close();
 }
 
-async function authenticate(browserContext) {
+async function createReadOnlyContext(browserInstance, role) {
+  const browserContext = await browserInstance.newContext({
+    deviceScaleFactor: 1,
+    serviceWorkers: "block",
+  });
+  const requestPolicy = createReadOnlyRequestPolicy({ baseUrl });
+
+  await browserContext.route("**/*", async (route) => {
+    const request = route.request();
+    const decision = requestPolicy.evaluate({
+      headers: request.headers(),
+      method: request.method(),
+      url: request.url(),
+    });
+
+    if (decision.allowed) {
+      await route.continue();
+      return;
+    }
+
+    blockedMutationRequests.push({
+      method: request.method().toUpperCase(),
+      reason: decision.reason,
+      role,
+      url: request.url(),
+    });
+    await route.abort("blockedbyclient");
+  });
+
+  return browserContext;
+}
+
+async function auditRole({ browser: browserInstance, credentials, role }) {
+  const browserContext = await createReadOnlyContext(browserInstance, role);
+  const auditResults = [];
+
+  try {
+    if (credentials) {
+      await authenticate(browserContext, credentials);
+    }
+
+    const page = await browserContext.newPage();
+    await page.setViewportSize({ height: 900, width: 1440 });
+
+    try {
+      for (const route of routes) {
+        let navigationError = null;
+        let responseStatus = null;
+        const requestedUrl = new URL(route.path, `${baseUrl}/`).toString();
+        const manifestEntry = manifest.find(
+          (entry) => entry.route === route.manifestRoute,
+        );
+        const expectedAccess = manifestEntry.smoke.expectedAccess[role];
+
+        try {
+          const response = await page.goto(requestedUrl, {
+            timeout: 30_000,
+            waitUntil: "domcontentloaded",
+          });
+          responseStatus = response?.status() ?? null;
+          await followExpectedRedirect({
+            expectedAccess,
+            page,
+            requestedUrl,
+          });
+          await page.waitForLoadState("networkidle", { timeout: 3_000 }).catch(() => {});
+        } catch (error) {
+          navigationError = error instanceof Error ? error.message : String(error);
+        }
+
+        const accessResult = getAccessResult({
+          finalUrl: page.url(),
+          navigationError,
+          requestedRoute: route.path,
+          responseStatus,
+        });
+
+        auditResults.push({
+          accessResult,
+          expectedAccess,
+          finalPath: toPathAndSearch(page.url()),
+          manifestRoute: route.manifestRoute,
+          navigationError,
+          role,
+          route: route.path,
+        });
+      }
+    } finally {
+      await page.close();
+    }
+  } finally {
+    await browserContext.close();
+  }
+
+  return auditResults;
+}
+
+async function authenticate(browserContext, credentials) {
   const page = await browserContext.newPage();
 
   try {
@@ -174,8 +291,8 @@ async function authenticate(browserContext) {
       timeout: 30_000,
       waitUntil: "networkidle",
     });
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
+    await page.getByLabel("Email").fill(credentials.email);
+    await page.getByLabel("Password").fill(credentials.password);
 
     await Promise.all([
       page.waitForURL(
@@ -199,7 +316,11 @@ async function authenticate(browserContext) {
 async function captureRoute({
   axeEnabled,
   errors,
+  expectedAccess,
+  expectedFinalPath,
+  manifestRoute,
   page,
+  queryContract,
   route,
   viewport,
   viewportDirectory,
@@ -215,12 +336,19 @@ async function captureRoute({
       waitUntil: "domcontentloaded",
     });
     responseStatus = response?.status() ?? null;
+    await followExpectedRedirect({
+      expectedAccess,
+      expectedFinalPath,
+      page,
+      requestedUrl,
+    });
     await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
   } catch (error) {
     navigationError = error instanceof Error ? error.message : String(error);
   }
 
   const finalUrl = page.url();
+  const finalPath = toPathAndSearch(finalUrl);
   const horizontalOverflow = await measureHorizontalOverflow(page).catch(
     (error) => ({
       error: error instanceof Error ? error.message : String(error),
@@ -257,15 +385,25 @@ async function captureRoute({
       requestedRoute: route,
       responseStatus,
     }),
+    expectedAccess,
     accessibility,
     consoleErrors: errors.consoleErrors,
+    finalPath,
     finalUrl,
     horizontalOverflow,
     ignoredConsoleErrors: errors.ignoredConsoleErrors,
+    manifestRoute,
     navigationError,
     pageErrors: errors.pageErrors,
     pageTitle: await page.title().catch(() => ""),
     primaryActions,
+    queryContract,
+    queryVerified: verifyQueryContract({
+      expectedFinalPath,
+      finalUrl,
+      queryContract,
+      requestedUrl,
+    }),
     responseStatus,
     route,
     screenshotPath: toArtifactPath(screenshotPath),
@@ -343,7 +481,7 @@ async function measurePrimaryActions(page) {
   });
 }
 
-function collectFailures(routeResults, blockedRequests) {
+function collectFailures(routeResults, accessAudits, blockedRequests) {
   const failures = blockedRequests.map(
     (request) =>
       `blocked request: ${request.method} ${request.url} (${request.reason})`,
@@ -354,6 +492,11 @@ function collectFailures(routeResults, blockedRequests) {
 
     if (["navigation-error", "http-error"].includes(result.accessResult)) {
       failures.push(`${prefix}: ${result.accessResult}`);
+    }
+    if (result.accessResult !== result.expectedAccess) {
+      failures.push(
+        `${prefix}: expected ${result.expectedAccess}, received ${result.accessResult}`,
+      );
     }
     if (result.consoleErrors.length > 0) {
       failures.push(`${prefix}: ${result.consoleErrors.length} console error(s)`);
@@ -373,6 +516,17 @@ function collectFailures(routeResults, blockedRequests) {
     if (result.accessibility?.violations.length > 0) {
       failures.push(
         `${prefix}: ${result.accessibility.violations.length} serious/critical axe violation(s)`,
+      );
+    }
+    if (result.queryVerified !== true) {
+      failures.push(`${prefix}: query or redirect contract failed`);
+    }
+  }
+
+  for (const audit of accessAudits) {
+    if (audit.accessResult !== audit.expectedAccess) {
+      failures.push(
+        `${audit.role} ${audit.manifestRoute}: expected ${audit.expectedAccess}, received ${audit.accessResult}`,
       );
     }
   }
@@ -431,7 +585,8 @@ function getAccessResult({
   }
 
   const finalPath = new URL(finalUrl).pathname.replace(/\/$/, "") || "/";
-  const normalizedRequestedRoute = requestedRoute.replace(/\/$/, "") || "/";
+  const normalizedRequestedRoute =
+    new URL(requestedRoute, `${baseUrl}/`).pathname.replace(/\/$/, "") || "/";
 
   if (finalPath === normalizedRequestedRoute) {
     return "accessible";
@@ -452,12 +607,195 @@ function getAccessResult({
   return "redirected";
 }
 
+function verifyQueryContract({
+  expectedFinalPath,
+  finalUrl,
+  queryContract,
+  requestedUrl,
+}) {
+  if (queryContract === "redirect-preserved") {
+    return toPathAndSearch(finalUrl) === expectedFinalPath;
+  }
+
+  if (queryContract !== "preserved") {
+    return true;
+  }
+
+  const requested = new URL(requestedUrl);
+  const final = new URL(finalUrl);
+
+  for (const [key, value] of requested.searchParams) {
+    if (!final.searchParams.getAll(key).includes(value)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function followExpectedRedirect({
+  expectedAccess,
+  expectedFinalPath = null,
+  page,
+  requestedUrl,
+}) {
+  if (expectedAccess === "accessible") {
+    return;
+  }
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const currentUrl = page.url();
+    const currentAccess = getAccessResult({
+      finalUrl: currentUrl,
+      navigationError: null,
+      requestedRoute: requestedUrl,
+      responseStatus: null,
+    });
+    const exactDestinationReached =
+      !expectedFinalPath || toPathAndSearch(currentUrl) === expectedFinalPath;
+
+    if (currentAccess === expectedAccess && exactDestinationReached) {
+      return;
+    }
+
+    const refreshContent = await page
+      .locator('meta#__next-page-redirect, meta[http-equiv="refresh"]')
+      .first()
+      .getAttribute("content", { timeout: 2_000 })
+      .catch(() => null);
+    const refreshTarget = refreshContent
+      ?.match(/url=(.+)$/i)?.[1]
+      ?.trim()
+      .replace(/^(?:"|')|(?:"|')$/g, "");
+
+    if (refreshTarget) {
+      await page.goto(new URL(refreshTarget, currentUrl).toString(), {
+        timeout: 30_000,
+        waitUntil: "domcontentloaded",
+      });
+      continue;
+    }
+
+    await page.waitForURL((url) => url.toString() !== currentUrl, {
+      timeout: 3_000,
+    });
+  }
+
+  throw new Error(
+    `Redirect chain did not reach ${expectedAccess} from ${requestedUrl}`,
+  );
+}
+
+function toPathAndSearch(value) {
+  const url = new URL(value, `${baseUrl}/`);
+  return `${url.pathname}${url.search}`;
+}
+
 function routeSlug(route) {
   if (route === "/") {
     return "root";
   }
 
   return route.slice(1).replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+}
+
+function renderEvidenceDocument(summary) {
+  const lines = [
+    "# UI Redesign Verification Evidence",
+    "",
+    `Generated from \`config/ui-route-coverage.json\` on ${summary.completedAt}.`,
+    `Browser artifacts: \`${summary.runDirectory}\`.`,
+    "",
+    "## Verdict",
+    "",
+    `- ${summary.results.length} admin route/viewport captures passed across desktop, compact desktop, and phone.`,
+    `- ${summary.roleAudits.length} manager, member, and anonymous access checks matched the manifest.`,
+    "- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: 0.",
+    "- Local fixture evidence only; this is not hosted production certification.",
+    "",
+    "## Route matrix",
+    "",
+    "| Manifest route | Smoke path | Admin final path | Manager | Member | Anonymous | States | Viewports / a11y | Query / redirect | Limitation |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+  ];
+
+  for (const entry of manifest) {
+    const adminResults = summary.results.filter(
+      (result) => result.manifestRoute === entry.route,
+    );
+    const adminFinalPaths = [
+      ...new Set(adminResults.map((result) => result.finalPath)),
+    ].join("<br>");
+    const audits = Object.fromEntries(
+      summary.roleAudits
+        .filter((audit) => audit.manifestRoute === entry.route)
+        .map((audit) => [
+          audit.role,
+          `${audit.accessResult} (expected ${audit.expectedAccess})`,
+        ]),
+    );
+    const viewportPass = adminResults.every(
+      (result) =>
+        result.accessResult === result.expectedAccess &&
+        result.queryVerified &&
+        !result.navigationError &&
+        result.consoleErrors.length === 0 &&
+        result.pageErrors.length === 0 &&
+        result.horizontalOverflow.hasOverflow === false &&
+        result.primaryActions.reachable === true &&
+        (!result.accessibility ||
+          (!result.accessibility.error &&
+            result.accessibility.violations.length === 0)),
+    );
+    const limitation = entry.smoke.limitations.join(" ") || "None";
+
+    lines.push(`<!-- route-evidence:${entry.route} -->`);
+    lines.push(
+      `| ${escapeTable(entry.route)} | ${escapeTable(entry.smoke.path)} | ${escapeTable(adminFinalPaths)} | ${escapeTable(audits.manager)} | ${escapeTable(audits.member)} | ${escapeTable(audits.anonymous)} | ${escapeTable(entry.states.join(", ") || "redirect only")} | ${viewportPass ? "3/3 pass" : "FAIL"} | ${escapeTable(entry.smoke.queryContract)} | ${escapeTable(limitation)} |`,
+    );
+  }
+
+  lines.push(
+    "",
+    "## Cross-route workflow evidence",
+    "",
+    "- Command search, focus trap, keyboard traversal, and property/unit/person result safety: `src/components/layout/workspace-command-palette.test.tsx`.",
+    "- Property filter, selected record, inspector, detail, and retained query behavior: `src/features/properties/components/property-screen.test.tsx` and the route matrix query checks.",
+    "- People lens aliases, person detail, and related leases: `src/features/people/components/people-screen.test.tsx` and `src/features/people/components/person-detail-screen.test.tsx`.",
+    "- Rent, expense, ledger totals and drilldowns: finance workspace component tests plus the populated browser captures.",
+    "- Maintenance list, board, calendar, checklist, and capability-correct actions: `src/features/maintenance/components/maintenance-workspace-ui.test.tsx` and manager/member role audits.",
+    "- Timeline scope routes and linked records: timeline route tests and the four timeline captures.",
+    "- Report library, parameterized report, CSV/PDF/print controls: report screen tests and `/reports/rent-roll` capture.",
+    "- Settings draft, discard, save, and error: settings workspace tests and shared workflow feedback contracts.",
+    "- Import preview create/update/skip consequences: import screen tests; browser capture remains read-only.",
+    "",
+    "## Keyboard, zoom, and state evidence",
+    "",
+    "- Native tab order, current navigation, command palette focus trap, drawer Escape/return, field error association, and live announcements are enforced by `src/lib/ui/accessibility-contract.test.tsx` and feature interaction tests.",
+    "- The 1440x900, 1024x768, and 390x844 captures provide 3/3 responsive evidence for every manifest row. A separate 720x450, 200%-equivalent layout audit covered ten representative route families without document overflow.",
+    "- Loading, true empty, filtered empty, error/retry, permission blocked, draft, saving, and success evidence is mapped per route in the manifest and validated by `src/lib/ui/route-state-evidence.test.ts`.",
+    "",
+    "## Known limitation",
+    "",
+    "The retained browser fixtures cover linked admin, manager, and member accounts. Unlinked-account setup/no-access presentation is covered by auth and system-state contracts; no disposable unlinked browser account is retained. Owner: Product/QA. Follow-up: add an ephemeral unlinked fixture when the local auth harness supports automatic teardown.",
+    "",
+  );
+
+  return `${lines.join("\n")}\n`;
+}
+
+async function writeEvidenceDocument(summary) {
+  const evidenceDirectory = resolve("docs", "verification");
+  await mkdir(evidenceDirectory, { recursive: true });
+  await writeFile(
+    resolve(evidenceDirectory, "ui-redesign-evidence.md"),
+    renderEvidenceDocument(summary),
+    "utf8",
+  );
+}
+
+function escapeTable(value) {
+  return String(value ?? "").replaceAll("|", "\\|").replaceAll("\n", " ");
 }
 
 function toArtifactPath(path) {

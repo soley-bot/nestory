@@ -578,11 +578,11 @@ function SelectedReportPanel({
         </div>
       </div>
 
-      <dl className="mt-4 grid grid-cols-3 gap-2 text-xs">
+      <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
         <ReportMeta label="Rows" value={String(totalRowCount)} />
         <ReportMeta label="Scope" value={trustedReport.scopeLabel} />
         <ReportMeta label="Period" value={trustedReport.periodLabel} />
-      </dl>
+      </div>
     </section>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { UploadCloud } from "lucide-react";
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useState } from "react";
 import { useDropzone, type Accept } from "react-dropzone";
 import { cn } from "@/lib/utils";
 
@@ -87,34 +87,8 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
   const displayLabel =
     displayFileName ??
     (fileName || (isDragActive ? "Drop file here" : "Drop file here or browse"));
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Enter" && event.key !== " ") {
-      return;
-    }
-
-    event.preventDefault();
-    open();
-  };
-
   return (
-    <div
-      {...getRootProps({
-        "aria-describedby": ariaDescribedBy,
-        "aria-labelledby": ariaLabelledBy,
-        onClick(event) {
-          event.preventDefault();
-          handleOpen();
-        },
-        onKeyDown: handleKeyDown,
-        role: "button",
-        tabIndex: 0,
-        className: cn(
-          "flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border bg-surface px-3 py-4 text-center text-sm transition-colors hover:border-accent hover:bg-surface-muted/60",
-          isDragActive && "border-accent bg-accent-soft/40",
-          className,
-        ),
-      })}
-    >
+    <div>
       <input
         {...getInputProps({ name })}
         aria-describedby={ariaDescribedBy}
@@ -122,13 +96,33 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
         aria-required={ariaRequired ?? required}
         required={required}
       />
-      <UploadCloud className="text-muted" size={18} />
-      <span className="mt-2 font-medium text-foreground">
-        {displayLabel}
-      </span>
-      {description ? (
-        <span className="mt-1 text-xs leading-5 text-muted">{description}</span>
-      ) : null}
+      <button
+        {...getRootProps({
+          "aria-describedby": ariaDescribedBy,
+          "aria-labelledby": ariaLabelledBy,
+          onClick(event) {
+            event.preventDefault();
+            handleOpen();
+          },
+          role: "button",
+          className: cn(
+            "flex min-h-24 w-full cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border bg-surface px-3 py-4 text-center text-sm transition-colors hover:border-accent hover:bg-surface-muted/60",
+            isDragActive && "border-accent bg-accent-soft/40",
+            className,
+          ),
+        })}
+        type="button"
+      >
+        <UploadCloud className="text-muted" size={18} />
+        <span className="mt-2 font-medium text-foreground">
+          {displayLabel}
+        </span>
+        {description ? (
+          <span className="mt-1 text-xs leading-5 text-muted">
+            {description}
+          </span>
+        ) : null}
+      </button>
     </div>
   );
 }

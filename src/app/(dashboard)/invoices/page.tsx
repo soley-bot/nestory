@@ -1,5 +1,13 @@
 import { redirect } from "next/navigation";
+import {
+  buildLegacyRedirect,
+  type LegacyRedirectSearchParams,
+} from "@/lib/navigation/legacy-redirect";
 
-export default function InvoicesPage() {
-  redirect("/bills-expenses");
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: LegacyRedirectSearchParams;
+}) {
+  redirect(await buildLegacyRedirect("/bills-expenses", searchParams));
 }

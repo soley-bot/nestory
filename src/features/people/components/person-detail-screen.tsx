@@ -162,7 +162,12 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
           onSectionChange={setActiveSection}
         />
 
-        <div className="min-h-0 flex-1 overflow-auto pr-1">
+        <div
+          aria-label="Person record details"
+          className="min-h-0 flex-1 overflow-auto pr-1"
+          role="region"
+          tabIndex={0}
+        >
           <div className="space-y-3">
             <section
               aria-labelledby="person-tab-overview"

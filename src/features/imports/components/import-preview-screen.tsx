@@ -524,7 +524,12 @@ export function ImportPreviewScreen({
             />
           ) : null}
 
-          <div className="max-h-[min(360px,calc(100vh-500px))] max-w-full overflow-auto">
+          <div
+            aria-label="Import preview rows"
+            className="max-h-[min(360px,calc(100vh-500px))] max-w-full overflow-auto"
+            role="region"
+            tabIndex={0}
+          >
             <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
               <thead className="bg-surface-muted text-[11px] uppercase tracking-[0] text-muted">
                 <tr>
@@ -866,7 +871,12 @@ function CleanupQueue({
           </Badge>
         </div>
       </div>
-      <div className="max-h-64 overflow-auto px-4 pb-3 sm:px-5">
+      <div
+        aria-label="Import cleanup queue"
+        className="max-h-64 overflow-auto px-4 pb-3 sm:px-5"
+        role="region"
+        tabIndex={0}
+      >
         {items.length === 0 ? (
           <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
             All preview rows can be committed.
@@ -938,7 +948,12 @@ function ImportRunHistory({ runs }: { runs: ImportRunSummary[] }) {
           {runs.length}
         </Badge>
       </div>
-      <div className="max-h-72 overflow-auto p-3">
+      <div
+        aria-label="Import run history"
+        className="max-h-72 overflow-auto p-3"
+        role="region"
+        tabIndex={0}
+      >
         {runs.length === 0 ? (
           <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
             No import runs yet.

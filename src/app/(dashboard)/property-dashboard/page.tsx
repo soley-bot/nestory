@@ -1,5 +1,13 @@
 import { redirect } from "next/navigation";
+import {
+  buildLegacyRedirect,
+  type LegacyRedirectSearchParams,
+} from "@/lib/navigation/legacy-redirect";
 
-export default function PropertyDashboardPage() {
-  redirect("/overview?lens=records");
+export default async function PropertyDashboardPage({
+  searchParams,
+}: {
+  searchParams: LegacyRedirectSearchParams;
+}) {
+  redirect(await buildLegacyRedirect("/overview?lens=records", searchParams));
 }
