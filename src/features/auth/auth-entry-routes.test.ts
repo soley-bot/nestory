@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { exchangeCodeForSession, verifyOtp } = vi.hoisted(() => ({
@@ -53,3 +55,54 @@ describe("successful auth entry routes", () => {
     );
   });
 });
+
+describe("entry experience contracts", () => {
+  it("puts a direct workspace action in the landing hero", () => {
+    const source = readSource("src/features/marketing/landing-page.tsx");
+    const hero = source.slice(
+      source.indexOf('className="landing-hero'),
+      source.indexOf('id="workspace"'),
+    );
+
+    expect(hero).toContain('href="/signup"');
+    expect(hero).toContain("Create workspace");
+  });
+
+  it("keeps auth pages focused on the form instead of a label explainer", () => {
+    const shell = readSource("src/features/auth/components/auth-page-shell.tsx");
+    const setup = readSource(
+      "src/features/auth/components/setup-organization-form.tsx",
+    );
+
+    expect(shell).not.toContain("contextItems.map");
+    expect(setup).not.toContain("After setup");
+  });
+
+  it("associates auth validation with the affected fields", () => {
+    for (const path of [
+      "src/features/auth/components/login-form.tsx",
+      "src/features/auth/components/signup-form.tsx",
+    ]) {
+      const source = readSource(path);
+      expect(source).toContain("aria-invalid");
+      expect(source).toContain("aria-describedby");
+    }
+  });
+
+  it("keeps the no-access recovery honest and the preview attention-first", () => {
+    const noAccess = readSource("src/app/no-access/page.tsx");
+    const preview = readSource(
+      "src/features/marketing/components/control-preview.tsx",
+    );
+
+    expect(noAccess).not.toContain('href="/login"');
+    expect(noAccess).toContain("signOutAction");
+    expect(noAccess).toContain("requireUser");
+    expect(preview).toContain("Needs attention");
+    expect(preview).not.toContain("Focus now");
+  });
+});
+
+function readSource(path: string) {
+  return readFileSync(resolve(process.cwd(), path), "utf8");
+}

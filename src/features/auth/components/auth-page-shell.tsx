@@ -7,10 +7,6 @@ import { cn } from "@/lib/utils";
 
 type AuthPageShellProps = {
   children: ReactNode;
-  contextItems?: Array<{
-    label: string;
-    text: string;
-  }>;
   contextLabel?: string;
   contextText?: string;
   contextTitle?: string;
@@ -22,27 +18,11 @@ type AuthPageShellProps = {
   visualSrc?: string;
 };
 
-const defaultContextItems = [
-  {
-    label: "Portfolio",
-    text: "Properties, units, owners, tenants.",
-  },
-  {
-    label: "Rent",
-    text: "Collections, balances, deposits.",
-  },
-  {
-    label: "Operations",
-    text: "Leases, maintenance, records.",
-  },
-];
-
 export function AuthPageShell({
   children,
-  contextItems = defaultContextItems,
-  contextLabel = "Nestory workspace",
-  contextText = "Portfolio, rent, maintenance, documents, and records stay connected.",
-  contextTitle = "Property management, kept under control.",
+  contextLabel = "Private workspace",
+  contextText = "Your operating record stays connected and scoped to your workspace.",
+  contextTitle = "Continue where the work is.",
   description,
   switchHref,
   switchLabel,
@@ -143,38 +123,12 @@ export function AuthPageShell({
           </p>
 
           <div
+            aria-hidden="true"
             className={cn(
-              "mt-10 border-t",
-              visualSrc ? "border-[color:var(--auth-page-line)]" : "border-border",
+              "mt-10 h-px w-24",
+              visualSrc ? "bg-[var(--auth-page-line)]" : "bg-border",
             )}
-          >
-            {contextItems.map((item) => (
-              <div
-                className={cn(
-                  "grid grid-cols-[0.4fr_1fr] gap-8 border-b py-5",
-                  visualSrc ? "border-[color:var(--auth-page-line)]" : "border-border",
-                )}
-                key={item.label}
-              >
-                <p
-                  className={cn(
-                    "font-display text-lg font-semibold leading-tight",
-                    visualSrc ? "text-[var(--auth-page-fg)]" : "text-foreground",
-                  )}
-                >
-                  {item.label}
-                </p>
-                <p
-                  className={cn(
-                    "text-sm leading-6",
-                    visualSrc ? "text-[var(--auth-page-muted)]" : "text-foreground-muted",
-                  )}
-                >
-                  {item.text}
-                </p>
-              </div>
-            ))}
-          </div>
+          />
         </aside>
 
         <div

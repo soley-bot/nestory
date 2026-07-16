@@ -16,11 +16,12 @@ import { NestoryLogo } from "@/components/brand/nestory-logo";
 
 const navItems: Array<{ icon: LucideIcon; label: string; active?: boolean }> = [
   { icon: LayoutDashboard, label: "Overview", active: true },
-  { icon: Building2, label: "Property" },
-  { icon: Wrench, label: "Maintenance" },
+  { icon: Building2, label: "Properties" },
+  { icon: Database, label: "People" },
   { icon: DollarSign, label: "Finance" },
+  { icon: Wrench, label: "Maintenance" },
+  { icon: Database, label: "Records" },
   { icon: BarChart3, label: "Reports" },
-  { icon: Database, label: "Data" },
 ];
 
 const metrics = [
@@ -309,7 +310,7 @@ function FocusPanel() {
   return (
     <section className="rounded-md border border-[var(--preview-border)] bg-[var(--preview-panel)] shadow-[var(--preview-card-shadow)] transition-colors duration-300">
       <div className="flex items-center justify-between border-b border-[var(--preview-border)] px-3 py-3">
-        <h4 className="text-[13px] font-semibold">Focus now</h4>
+        <h4 className="text-[13px] font-semibold">Needs attention</h4>
         <span className="rounded border border-[var(--preview-warm-border)] bg-[var(--preview-warm-soft)] px-1.5 py-0.5 text-[9px] text-[var(--preview-warm-ink)]">
           30
         </span>

@@ -127,21 +127,6 @@ export function SetupOrganizationForm({ rootDomain }: SetupOrganizationFormProps
         ) : null}
       </div>
 
-      <div className="border-y border-border py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-subtle">
-          After setup
-        </p>
-        <div className="mt-3 grid gap-3 text-sm leading-6 text-foreground-muted">
-          <p>
-            Add the first property record, then attach units, leases, rent, and
-            maintenance history to it.
-          </p>
-          <p>
-            You can also import data later from the workspace dashboard.
-          </p>
-        </div>
-      </div>
-
       <Button
         className="box-border h-11 w-full border-foreground bg-foreground text-[12px] font-semibold uppercase tracking-[0.14em] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-70"
         disabled={pending}

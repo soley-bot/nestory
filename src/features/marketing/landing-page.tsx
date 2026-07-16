@@ -184,6 +184,24 @@ export function LandingPage() {
             <h1 className="font-display text-4xl font-semibold leading-[1.08] text-[var(--landing-heading)] drop-shadow-[0_2px_18px_rgb(0_0_0_/_30%)] sm:text-5xl lg:text-6xl">
               What if your whole portfolio stayed under control?
             </h1>
+            <p className="mt-5 max-w-xl text-base leading-7 text-[var(--landing-muted)]">
+              Property operations, connected from the portfolio to each record.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <Link
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#090a0c] transition-transform hover:-translate-y-0.5"
+                href="/signup"
+              >
+                Create workspace
+                <ArrowRight size={15} />
+              </Link>
+              <a
+                className="inline-flex h-11 items-center px-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-white/75 hover:text-white"
+                href="#control"
+              >
+                See workspace
+              </a>
+            </div>
           </div>
         </div>
 

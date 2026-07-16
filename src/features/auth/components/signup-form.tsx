@@ -1,23 +1,25 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useId } from "react";
 import { signupAction, type AuthActionState } from "@/features/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const initialState: AuthActionState = {};
 
-function FieldError({ errors }: { errors?: string[] }) {
+function FieldError({ errors, id }: { errors?: string[]; id: string }) {
   if (!errors?.length) {
     return null;
   }
 
-  return <p className="mt-2 text-xs leading-5 text-danger">{errors[0]}</p>;
+  return <p className="mt-2 text-xs leading-5 text-danger" id={id}>{errors[0]}</p>;
 }
 
 export function SignupForm() {
   const [state, action, pending] = useActionState(signupAction, initialState);
   const isSuccess = state.status === "success";
+  const emailErrorId = useId();
+  const passwordErrorId = useId();
 
   return (
     <form action={action} className="space-y-5">
@@ -37,25 +39,29 @@ export function SignupForm() {
       <label className="block text-sm font-semibold text-foreground">
         Email
         <Input
+          aria-describedby={state.fieldErrors?.email?.length ? emailErrorId : undefined}
+          aria-invalid={Boolean(state.fieldErrors?.email?.length)}
           autoComplete="email"
           className="mt-2 box-border h-11 px-3 text-[15px] text-foreground placeholder:text-foreground-subtle"
           name="email"
           placeholder="admin@example.com"
           type="email"
         />
-        <FieldError errors={state.fieldErrors?.email} />
+        <FieldError errors={state.fieldErrors?.email} id={emailErrorId} />
       </label>
 
       <label className="block text-sm font-semibold text-foreground">
         Password
         <Input
+          aria-describedby={state.fieldErrors?.password?.length ? passwordErrorId : undefined}
+          aria-invalid={Boolean(state.fieldErrors?.password?.length)}
           autoComplete="new-password"
           className="mt-2 box-border h-11 px-3 text-[15px] text-foreground placeholder:text-foreground-subtle"
           name="password"
           placeholder="Create password"
           type="password"
         />
-        <FieldError errors={state.fieldErrors?.password} />
+        <FieldError errors={state.fieldErrors?.password} id={passwordErrorId} />
       </label>
 
       <Button

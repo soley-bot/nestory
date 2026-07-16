@@ -29,24 +29,10 @@ export default async function SetupPage() {
 
   return (
     <AuthPageShell
-      contextItems={[
-        {
-          label: "Identity",
-          text: "Name the company record your portfolio belongs to.",
-        },
-        {
-          label: "Address",
-          text: "Choose the workspace URL before property data moves in.",
-        },
-        {
-          label: "First run",
-          text: "Add a property, import units, or open the overview next.",
-        },
-      ]}
       contextLabel="Workspace setup"
-      contextText="Nestory creates one admin workspace first. Property records, rent, maintenance, and documents attach to it after setup."
+      contextText="Name the workspace and choose the address your team will use."
       contextTitle="Start with a clean operating base."
-      description="Create the admin workspace and choose the address your team will use."
+      description="Choose the workspace name and address."
       title="Set up workspace"
       visualSrc="/marketing/login-property-building-blue-hour.png"
     >
