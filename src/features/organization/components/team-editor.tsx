@@ -37,6 +37,7 @@ const initialTeamDraft: TeamDraft = {
 type TeamEditorProps = {
   branches: OrganizationBranch[];
   canManageStructure: boolean;
+  focusServerError: boolean;
   onDraftStatusChange: (status: DraftStatus) => void;
   organizationName: string;
   staff: OrganizationPersonOption[];
@@ -48,6 +49,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
     {
       branches,
       canManageStructure,
+      focusServerError,
       onDraftStatusChange,
       organizationName,
       staff,
@@ -221,7 +223,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
           <DraftActionBar
             describedBy="team-impact"
             disabledReason={permissionReason}
-            focusOnError={Boolean(serverError)}
+            focusOnError={focusServerError && Boolean(serverError)}
             onDiscard={draft.discard}
             onSave={() => formRef.current?.requestSubmit()}
             saveLabel="Save"

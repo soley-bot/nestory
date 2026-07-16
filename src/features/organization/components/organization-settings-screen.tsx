@@ -1,3 +1,7 @@
+"use client";
+
+import { SettingsNavigationGuardProvider } from "@/components/layout/settings-navigation-guard";
+import { SettingsTabs } from "@/components/layout/settings-tabs";
 import {
   SettingsWorkspace,
   type SettingsSection,
@@ -26,14 +30,17 @@ export function OrganizationSettingsScreen({
   teams: OrganizationTeam[];
 }) {
   return (
-    <SettingsWorkspace
-      branches={branches}
-      canManageStructure={canManageStructure}
-      organizationName={organizationName}
-      organizationSlug={organizationSlug}
-      section={section}
-      staff={staff}
-      teams={teams}
-    />
+    <SettingsNavigationGuardProvider>
+      <SettingsTabs activeHref="/settings" />
+      <SettingsWorkspace
+        branches={branches}
+        canManageStructure={canManageStructure}
+        organizationName={organizationName}
+        organizationSlug={organizationSlug}
+        section={section}
+        staff={staff}
+        teams={teams}
+      />
+    </SettingsNavigationGuardProvider>
   );
 }

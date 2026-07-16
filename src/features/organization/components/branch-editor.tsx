@@ -31,6 +31,7 @@ const initialBranchDraft: BranchDraft = {
 type BranchEditorProps = {
   branches: OrganizationBranch[];
   canManageStructure: boolean;
+  focusServerError: boolean;
   onDraftStatusChange: (status: DraftStatus) => void;
   organizationName: string;
 };
@@ -41,7 +42,13 @@ export type SettingsEditorHandle = {
 
 export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
   function BranchEditor(
-    { branches, canManageStructure, onDraftStatusChange, organizationName },
+    {
+      branches,
+      canManageStructure,
+      focusServerError,
+      onDraftStatusChange,
+      organizationName,
+    },
     controllerRef,
   ) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -174,7 +181,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
           <DraftActionBar
             describedBy="branch-impact"
             disabledReason={permissionReason}
-            focusOnError={Boolean(serverError)}
+            focusOnError={focusServerError && Boolean(serverError)}
             onDiscard={draft.discard}
             onSave={() => formRef.current?.requestSubmit()}
             saveLabel="Save"

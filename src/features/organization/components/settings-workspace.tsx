@@ -1,18 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type MouseEvent,
-} from "react";
+import { useEffect, useRef, type MouseEvent } from "react";
 import { Building2, Landmark, UsersRound } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  SettingsNavigationGuardProvider,
+  useSettingsNavigationGuard,
+} from "@/components/layout/settings-navigation-guard";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
-import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import {
   BranchEditor,
   type SettingsEditorHandle,
@@ -33,22 +28,7 @@ const sections = [
   { icon: UsersRound, label: "Teams", value: "teams" },
 ] as const;
 
-type PendingNavigation = {
-  href: string;
-  label: string;
-  mode: "dirty" | "saving";
-  trigger: HTMLAnchorElement;
-};
-
-export function SettingsWorkspace({
-  branches,
-  canManageStructure,
-  organizationName,
-  organizationSlug,
-  section,
-  staff,
-  teams,
-}: {
+type SettingsWorkspaceProps = {
   branches: OrganizationBranch[];
   canManageStructure: boolean;
   organizationName: string;
@@ -56,61 +36,57 @@ export function SettingsWorkspace({
   section: SettingsSection;
   staff: OrganizationPersonOption[];
   teams: OrganizationTeam[];
-}) {
-  const router = useRouter();
-  const [draftStatus, setDraftStatus] = useState<DraftStatus>("clean");
-  const [pendingNavigation, setPendingNavigation] =
-    useState<PendingNavigation>();
-  const dialogRef = useRef<HTMLDivElement>(null);
+};
+
+export function SettingsWorkspace(props: SettingsWorkspaceProps) {
+  const guard = useSettingsNavigationGuard();
+
+  if (!guard) {
+    return (
+      <SettingsNavigationGuardProvider>
+        <SettingsWorkspaceContent {...props} />
+      </SettingsNavigationGuardProvider>
+    );
+  }
+
+  return <SettingsWorkspaceContent {...props} />;
+}
+
+function SettingsWorkspaceContent({
+  branches,
+  canManageStructure,
+  organizationName,
+  organizationSlug,
+  section,
+  staff,
+  teams,
+}: SettingsWorkspaceProps) {
+  const guard = useSettingsNavigationGuard();
   const editorRef = useRef<SettingsEditorHandle>(null);
-  const dialogTitleId = useId();
 
   useEffect(() => {
-    if (!pendingNavigation) {
-      return;
+    if (!guard) {
+      return undefined;
     }
 
-    requestAnimationFrame(() => {
-      dialogRef.current
-        ?.querySelector<HTMLButtonElement>("[data-navigation-guard-cancel]")
-        ?.focus();
+    guard.registerDraftController({
+      discard: () => editorRef.current?.discard(),
     });
-  }, [pendingNavigation]);
+    return () => guard.registerDraftController(null);
+  }, [guard]);
 
   function handleSectionClick(
     event: MouseEvent<HTMLAnchorElement>,
     destination: (typeof sections)[number],
   ) {
-    if (destination.value === section || draftStatus === "clean" || draftStatus === "saved") {
+    if (!guard || destination.value === section) {
       return;
     }
 
-    event.preventDefault();
-    setPendingNavigation({
+    guard.handleNavigationClick(event, {
       href: `/settings?section=${destination.value}`,
       label: destination.label,
-      mode: draftStatus === "saving" ? "saving" : "dirty",
-      trigger: event.currentTarget,
     });
-  }
-
-  function keepEditing() {
-    const trigger = pendingNavigation?.trigger;
-    setPendingNavigation(undefined);
-    if (trigger) {
-      requestAnimationFrame(() => trigger.focus());
-    }
-  }
-
-  function discardAndNavigate() {
-    if (!pendingNavigation || pendingNavigation.mode !== "dirty") {
-      return;
-    }
-
-    const href = pendingNavigation.href;
-    editorRef.current?.discard();
-    setPendingNavigation(undefined);
-    router.push(href);
   }
 
   return (
@@ -144,55 +120,6 @@ export function SettingsWorkspace({
         })}
       </nav>
 
-      {pendingNavigation ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/20 p-4">
-          <div
-            aria-labelledby={dialogTitleId}
-            aria-modal="true"
-            className="w-full max-w-sm rounded-lg border border-border bg-surface-raised p-4 shadow-xl"
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                keepEditing();
-              }
-            }}
-            ref={dialogRef}
-            role="dialog"
-          >
-            <h2 className="text-sm font-semibold text-foreground" id={dialogTitleId}>
-              Open {pendingNavigation.label}?
-            </h2>
-            <p className="mt-2 text-sm text-foreground-muted">
-              {pendingNavigation.mode === "saving"
-                ? "A save is still in progress. Stay on this section until it finishes."
-                : "This section has unsaved changes. Discard them before leaving."}
-            </p>
-            <div
-              className="mt-4 grid gap-2 sm:flex sm:items-center sm:justify-end"
-              data-testid="settings-navigation-actions"
-            >
-              <Button
-                className="w-full sm:w-auto"
-                data-navigation-guard-cancel
-                onClick={keepEditing}
-                variant="ghost"
-              >
-                Keep editing
-              </Button>
-              {pendingNavigation.mode === "dirty" ? (
-                <Button
-                  className="w-full sm:w-auto"
-                  onClick={discardAndNavigate}
-                  variant="primary"
-                >
-                  Discard and open {pendingNavigation.label}
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {section === "organization" ? (
         <OrganizationIdentity
           branches={branches}
@@ -204,7 +131,8 @@ export function SettingsWorkspace({
         <BranchEditor
           branches={branches}
           canManageStructure={canManageStructure}
-          onDraftStatusChange={setDraftStatus}
+          focusServerError={!guard?.suppressErrorFocus}
+          onDraftStatusChange={guard?.setDraftStatus ?? (() => undefined)}
           organizationName={organizationName}
           ref={editorRef}
         />
@@ -212,7 +140,8 @@ export function SettingsWorkspace({
         <TeamEditor
           branches={branches}
           canManageStructure={canManageStructure}
-          onDraftStatusChange={setDraftStatus}
+          focusServerError={!guard?.suppressErrorFocus}
+          onDraftStatusChange={guard?.setDraftStatus ?? (() => undefined)}
           organizationName={organizationName}
           ref={editorRef}
           staff={staff}

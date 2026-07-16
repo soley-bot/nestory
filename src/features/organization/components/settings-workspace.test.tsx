@@ -1,6 +1,13 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +28,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { SettingsWorkspace } from "@/features/organization/components/settings-workspace";
+import { OrganizationSettingsScreen } from "@/features/organization/components/organization-settings-screen";
 
 const branches = [
   {
@@ -209,6 +217,168 @@ describe("SettingsWorkspace navigation and layout", () => {
     await user.click(screen.getByRole("link", { name: "Teams" }));
 
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it("contains forward and reverse focus, blocks the background, and restores the trigger on Escape", async () => {
+    const user = userEvent.setup();
+    renderSettingsScreen("branches");
+
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Pending");
+    const destination = screen.getByRole("link", { name: "Teams" });
+    const backgroundLink = screen.getByRole("link", { name: "Organization" });
+    await user.click(destination);
+
+    const dialog = screen.getByRole("dialog", { name: "Open Teams?" });
+    const keepEditing = within(dialog).getByRole("button", { name: "Keep editing" });
+    const discard = within(dialog).getByRole("button", {
+      name: "Discard and open Teams",
+    });
+    const background = screen.getByTestId("settings-navigation-background");
+
+    expect(document.activeElement).toBe(keepEditing);
+    expect(background.hasAttribute("inert")).toBe(true);
+    expect(background.getAttribute("aria-hidden")).toBe("true");
+
+    await user.tab();
+    expect(document.activeElement).toBe(discard);
+    await user.tab();
+    expect(document.activeElement).toBe(keepEditing);
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(discard);
+
+    fireEvent.click(backgroundLink);
+    expect(screen.getByRole("dialog", { name: "Open Teams?" })).not.toBeNull();
+    expect(navigation.push).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(destination);
+    expect(background.hasAttribute("inert")).toBe(false);
+    expect(background.hasAttribute("aria-hidden")).toBe(false);
+  });
+
+  it("guards the adjacent Users & Roles tab with the same draft confirmation", async () => {
+    const user = userEvent.setup();
+    renderSettingsScreen("branches");
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+    const destination = screen.getByRole("link", { name: "Users & Roles" });
+    await user.type(name, "Pending branch");
+    await user.click(destination);
+
+    expect(navigation.push).not.toHaveBeenCalled();
+    expect((name as HTMLInputElement).value).toBe("Pending branch");
+    expect(
+      screen.getByRole("dialog", { name: "Open Users & Roles?" }),
+    ).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(document.activeElement).toBe(destination);
+    expect((name as HTMLInputElement).value).toBe("Pending branch");
+    expect(navigation.push).not.toHaveBeenCalled();
+
+    await user.click(destination);
+    await user.click(
+      screen.getByRole("button", { name: "Discard and open Users & Roles" }),
+    );
+
+    expect(navigation.push).toHaveBeenCalledOnce();
+    expect(navigation.push).toHaveBeenCalledWith("/users-roles");
+    expect((name as HTMLInputElement).value).toBe("");
+  });
+
+  it("keeps a clean Users & Roles tab as a native Link", async () => {
+    const user = userEvent.setup();
+    renderSettingsScreen("branches");
+
+    await user.click(screen.getByRole("link", { name: "Users & Roles" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it("completes one pending outer-tab navigation after an in-flight save succeeds", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<{ message: string; status: "success" }>();
+    createBranchAction.mockReturnValueOnce(pending.promise);
+    renderSettingsScreen("branches");
+
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
+    await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("link", { name: "Users & Roles" }));
+
+    expect(
+      screen.getByText(
+        "A save is still in progress. Stay on this section until it finishes.",
+      ),
+    ).not.toBeNull();
+    expect(navigation.push).not.toHaveBeenCalled();
+
+    pending.resolve({ message: "Branch added.", status: "success" });
+
+    await waitFor(() => {
+      expect(navigation.push).toHaveBeenCalledOnce();
+    });
+    expect(navigation.push).toHaveBeenCalledWith("/users-roles");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByText(/save is still in progress/i)).toBeNull();
+  });
+
+  it("closes pending navigation and focuses the sole visible error after an in-flight save fails", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<{ message: string; status: "error" }>();
+    createBranchAction.mockReturnValueOnce(pending.promise);
+    renderSettingsScreen("branches");
+
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
+    await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("link", { name: "Teams" }));
+
+    pending.resolve({
+      message: "That code or branch name is already in use.",
+      status: "error",
+    });
+
+    const alert = await screen.findByRole("alert");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(alert);
+    });
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(alert.textContent).toContain(
+      "Branch not saved: That code or branch name is already in use.",
+    );
+    expect(screen.queryByText(/save is still in progress/i)).toBeNull();
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it("restores the outer trigger when an existing error draft cancels navigation", async () => {
+    const user = userEvent.setup();
+    createBranchAction.mockResolvedValueOnce({
+      message: "That code or branch name is already in use.",
+      status: "error",
+    });
+    renderSettingsScreen("branches");
+
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
+    await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    const alert = await screen.findByRole("alert");
+    expect(document.activeElement).toBe(alert);
+
+    const destination = screen.getByRole("link", { name: "Users & Roles" });
+    await user.click(destination);
+    expect(
+      screen.getByRole("dialog", { name: "Open Users & Roles?" }),
+    ).not.toBeNull();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(destination);
     expect(navigation.push).not.toHaveBeenCalled();
   });
 });
@@ -450,4 +620,10 @@ function deferred<T>() {
   });
 
   return { promise, resolve };
+}
+
+function renderSettingsScreen(section: "organization" | "branches" | "teams") {
+  return render(
+    <OrganizationSettingsScreen {...defaultProps} section={section} />,
+  );
 }

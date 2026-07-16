@@ -1,5 +1,4 @@
 import { PageHeader } from "@/components/layout/page-header";
-import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { OrganizationSettingsScreen } from "@/features/organization/components/organization-settings-screen";
 import type { SettingsSection } from "@/features/organization/components/settings-workspace";
 import { getOrganizationSettingsData } from "@/features/organization/data";
@@ -20,7 +19,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         description="Organization structure and workspace access."
         title="Settings"
       />
-      <SettingsTabs activeHref="/settings" />
       <OrganizationSettingsScreen
         branches={data.branches}
         canManageStructure={context.role === "admin"}

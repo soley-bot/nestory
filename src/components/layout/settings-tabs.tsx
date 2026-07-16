@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useSettingsNavigationGuard } from "@/components/layout/settings-navigation-guard";
 import { cn } from "@/lib/utils";
 
 const settingsTabs = [
@@ -7,6 +10,7 @@ const settingsTabs = [
 ];
 
 export function SettingsTabs({ activeHref }: { activeHref: string }) {
+  const navigationGuard = useSettingsNavigationGuard();
   const activeIndex = settingsTabs.findIndex((tab) => tab.href === activeHref);
 
   return (
@@ -27,6 +31,9 @@ export function SettingsTabs({ activeHref }: { activeHref: string }) {
               )}
               href={tab.href}
               key={tab.href}
+              onClick={(event) =>
+                navigationGuard?.handleNavigationClick(event, tab)
+              }
               prefetch={false}
             >
               {tab.label}
