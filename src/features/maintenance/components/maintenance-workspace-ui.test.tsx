@@ -369,7 +369,10 @@ describe("maintenance workspace redesign contract", () => {
     fireEvent.click(eventButton);
 
     const dialog = screen.getByRole("dialog", { name: "Repair sink calendar event" });
+    const directLink = within(dialog).getByRole("link", { name: "Repair sink" });
     const closeButton = within(dialog).getByRole("button", { name: "Close event" });
+    expect(directLink.getAttribute("href")).toBe("/maintenance?taskId=task-1");
+    expect(dialog.querySelector("button a, a button")).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(closeButton));
     fireEvent.keyDown(closeButton, { key: "Escape" });
 
@@ -382,25 +385,49 @@ describe("maintenance workspace redesign contract", () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it("keeps the calendar more target accessible and returns focus after close", () => {
-    renderWorkflowSurface(
-      "agenda",
-      [
+  it("discloses every hidden calendar case with direct and Preview access", async () => {
+    installMatchMedia(390);
+    renderMaintenance({
+      cases: [
         makeCase(),
         makeCase("task-2", "Replace fan"),
         makeCase("task-3", "Check alarm"),
         makeCase("task-4", "Seal window"),
+        makeCase("task-5", "Inspect boiler"),
       ],
-      vi.fn(),
-    );
-    const moreButton = screen.getByRole("button", { name: "1 more" });
+      surfaceVariant: "agenda",
+    });
+    const moreButton = screen.getByRole("button", { name: "2 more" });
 
     expect(moreButton.className).toContain("min-h-6");
     expect(moreButton.getAttribute("aria-haspopup")).toBe("dialog");
     fireEvent.click(moreButton);
-    expect(screen.getByRole("dialog", { name: "Seal window calendar event" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Close event" }));
+    const disclosure = screen.getByRole("dialog", { name: "2 more calendar events" });
+    const hiddenList = within(disclosure).getByRole("list", {
+      name: "More calendar events",
+    });
+    const sealLink = within(hiddenList).getByRole("link", { name: "Seal window" });
+    const boilerLink = within(hiddenList).getByRole("link", { name: "Inspect boiler" });
+
+    expect(sealLink.getAttribute("href")).toBe("/maintenance?taskId=task-4");
+    expect(boilerLink.getAttribute("href")).toBe("/maintenance?taskId=task-5");
+    expect(within(hiddenList).getByRole("button", { name: "Preview Seal window" })).not.toBeNull();
+    expect(within(hiddenList).getByRole("button", { name: "Preview Inspect boiler" })).not.toBeNull();
+    expect(disclosure.querySelector("button a, a button")).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(sealLink));
+
+    fireEvent.click(within(disclosure).getByRole("button", { name: "Close events" }));
     expect(document.activeElement).toBe(moreButton);
+
+    fireEvent.click(moreButton);
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "2 more calendar events" }),
+      ).getByRole("button", { name: "Preview Inspect boiler" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Inspect boiler Preview" }),
+    ).not.toBeNull();
   });
 });
 

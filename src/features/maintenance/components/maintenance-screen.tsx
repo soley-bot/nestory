@@ -6,6 +6,7 @@ import {
   useActionState,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type ReactNode,
@@ -234,6 +235,7 @@ export function MaintenanceScreen({
     () => new Map<string, MaintenanceStatus>(),
   );
   const [statusChangePending, startStatusChange] = useTransition();
+  const previousCasesRef = useRef(cases);
   const visibleCases = useMemo(
     () => applyMaintenanceStatusOverrides(cases, statusOverrides),
     [cases, statusOverrides],
@@ -259,6 +261,37 @@ export function MaintenanceScreen({
     records: visibleCases,
     selectedRecordId: selectedTaskId,
   });
+
+  useEffect(() => {
+    if (previousCasesRef.current === cases || statusChangePending) {
+      return;
+    }
+
+    const previousCases = new Map(
+      previousCasesRef.current.map((maintenanceCase) => [
+        maintenanceCase.id,
+        maintenanceCase,
+      ]),
+    );
+    previousCasesRef.current = cases;
+    const canonicalCases = new Map(
+      cases.map((maintenanceCase) => [maintenanceCase.id, maintenanceCase]),
+    );
+
+    setStatusOverrides((current) => {
+      let changed = false;
+      const next = new Map(current);
+
+      for (const taskId of current.keys()) {
+        if (previousCases.get(taskId) !== canonicalCases.get(taskId)) {
+          next.delete(taskId);
+          changed = true;
+        }
+      }
+
+      return changed ? next : current;
+    });
+  }, [cases, statusChangePending]);
 
   useEffect(() => {
     if (focusedTaskId) {

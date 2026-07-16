@@ -227,6 +227,10 @@ function AgendaSurface({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [activeCase, setActiveCase] = useState<MaintenanceCase | null>(null);
+  const [activeOverflow, setActiveOverflow] = useState<{
+    cases: MaintenanceCase[];
+    date: string;
+  } | null>(null);
   const activeTriggerRef = useRef<HTMLButtonElement | null>(null);
   const calendarDays = getCalendarDays(month);
   const casesByDate = groupCasesByCalendarDate(cases);
@@ -235,6 +239,7 @@ function AgendaSurface({
   function closeActiveEvent() {
     activeTriggerRef.current?.focus();
     setActiveCase(null);
+    setActiveOverflow(null);
   }
 
   return (
@@ -279,9 +284,16 @@ function AgendaSurface({
                 key={day.date}
                 onActivateCase={(maintenanceCase, trigger) => {
                   activeTriggerRef.current = trigger;
+                  setActiveOverflow(null);
                   setActiveCase(maintenanceCase);
                 }}
+                onActivateOverflow={(overflowCases, trigger) => {
+                  activeTriggerRef.current = trigger;
+                  setActiveCase(null);
+                  setActiveOverflow({ cases: overflowCases, date: day.date });
+                }}
                 onCreateDate={onCreateDate}
+                overflowExpanded={activeOverflow?.date === day.date}
                 showBottomBorder={index < 35}
                 showRightBorder={index % 7 !== 6}
               />
@@ -296,6 +308,16 @@ function AgendaSurface({
           onOpen={() => {
             closeActiveEvent();
             onSelect(activeCase.id);
+          }}
+        />
+      ) : null}
+      {activeOverflow ? (
+        <CalendarOverflowPopover
+          cases={activeOverflow.cases}
+          onClose={closeActiveEvent}
+          onOpen={(maintenanceCase) => {
+            closeActiveEvent();
+            onSelect(maintenanceCase.id);
           }}
         />
       ) : null}
@@ -537,7 +559,9 @@ function CalendarDayCell({
   day,
   dayCases,
   onActivateCase,
+  onActivateOverflow,
   onCreateDate,
+  overflowExpanded,
   showBottomBorder,
   showRightBorder,
 }: {
@@ -548,7 +572,12 @@ function CalendarDayCell({
     maintenanceCase: MaintenanceCase,
     trigger: HTMLButtonElement,
   ) => void;
+  onActivateOverflow: (
+    maintenanceCases: MaintenanceCase[],
+    trigger: HTMLButtonElement,
+  ) => void;
   onCreateDate?: (dueDate: string) => void;
+  overflowExpanded: boolean;
   showBottomBorder: boolean;
   showRightBorder: boolean;
 }) {
@@ -591,10 +620,12 @@ function CalendarDayCell({
         ))}
         {dayCases.length > 3 ? (
           <button
-            aria-expanded={activeCaseId === dayCases[3]?.id}
+            aria-expanded={overflowExpanded}
             aria-haspopup="dialog"
             className="block min-h-6 w-full rounded-sm px-1.5 py-1 text-left text-xs font-medium leading-4 text-muted hover:bg-surface-muted hover:text-foreground"
-            onClick={(event) => onActivateCase(dayCases[3], event.currentTarget)}
+            onClick={(event) =>
+              onActivateOverflow(dayCases.slice(3), event.currentTarget)
+            }
             type="button"
           >
             {dayCases.length - 3} more
@@ -684,7 +715,13 @@ function CalendarEventPopover({
         />
         <div className="min-w-0">
           <h3 className="break-words text-lg font-normal leading-6">
-            {maintenanceCase.title}
+            <Link
+              className="inline-flex min-h-6 items-center rounded outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href={maintenanceCase.hrefs.task}
+              prefetch={false}
+            >
+              {maintenanceCase.title}
+            </Link>
           </h3>
           <p className="mt-1 text-sm text-muted">{maintenanceCase.dueLabel}</p>
           <div className="mt-4 flex flex-wrap gap-1.5">
@@ -712,6 +749,82 @@ function CalendarEventPopover({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CalendarOverflowPopover({
+  cases,
+  onClose,
+  onOpen,
+}: {
+  cases: MaintenanceCase[];
+  onClose: () => void;
+  onOpen: (maintenanceCase: MaintenanceCase) => void;
+}) {
+  const firstActionRef = useRef<HTMLAnchorElement | null>(null);
+
+  useEffect(() => {
+    firstActionRef.current?.focus();
+  }, []);
+
+  return (
+    <div
+      aria-label={`${cases.length} more calendar events`}
+      aria-modal="false"
+      className="absolute left-1/2 top-24 z-30 w-[min(460px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-surface shadow-xl"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+      role="dialog"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
+        <h3 className="text-sm font-semibold">More calendar events</h3>
+        <button
+          aria-label="Close events"
+          className="inline-flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          onClick={onClose}
+          type="button"
+        >
+          X
+        </button>
+      </div>
+      <ul aria-label="More calendar events" className="divide-y divide-border">
+        {cases.map((maintenanceCase, index) => (
+          <li
+            className="flex items-center gap-3 px-4 py-2.5"
+            key={maintenanceCase.id}
+          >
+            <div className="min-w-0 flex-1">
+              <Link
+                className="flex min-h-6 items-center truncate rounded font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={maintenanceCase.hrefs.task}
+                prefetch={false}
+                ref={index === 0 ? firstActionRef : undefined}
+              >
+                {maintenanceCase.title}
+              </Link>
+              <p className="mt-0.5 truncate text-xs text-muted">
+                {maintenanceCase.statusLabel} / {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
+              </p>
+            </div>
+            <button
+              aria-label={`Preview ${maintenanceCase.title}`}
+              className="inline-flex min-h-6 shrink-0 items-center gap-1 rounded-md border border-border bg-surface px-2 text-xs font-medium outline-none hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+              data-maintenance-record-trigger={maintenanceCase.id}
+              onClick={() => onOpen(maintenanceCase)}
+              type="button"
+            >
+              <Eye size={13} />
+              Preview
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

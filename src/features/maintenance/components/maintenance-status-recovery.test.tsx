@@ -142,30 +142,7 @@ describe("maintenance status recovery", () => {
       .mockResolvedValueOnce({ message: "Maintenance status updated.", status: "success" });
 
     const maintenanceCase = makeCase();
-    render(
-      <MaintenanceScreen
-        actor={{ branchId: "branch-1", personId: "person-1", role: "manager" }}
-        branchOptions={[]}
-        capabilities={getMaintenanceCapabilities("manager")}
-        cases={[maintenanceCase]}
-        pagination={{
-          from: 1,
-          page: 1,
-          pageSize: 25,
-          to: 1,
-          totalCount: 1,
-          totalPages: 1,
-        }}
-        propertyOptions={[{ id: "property-1", label: "Riverside House" }]}
-        staffOptions={[]}
-        summary={makeSummary()}
-        surfaceVariant="board"
-        title="Cases"
-        unitOptions={[]}
-        vendorOptions={[]}
-        viewQuery={viewQuery}
-      />,
-    );
+    render(makeMaintenanceStatusScreen([maintenanceCase]));
 
     const transitionButton = await screen.findByRole("button", {
       name: "Move case to scheduled",
@@ -194,9 +171,88 @@ describe("maintenance status recovery", () => {
     fireEvent.click(screen.getByRole("button", { name: "Move case to scheduled" }));
     await waitFor(() => expect(maintenanceActions.updateStatus).toHaveBeenCalledTimes(2));
   });
+
+  it("reconciles a successful optimistic status with newer canonical cases", async () => {
+    let resolveTransition: (value: { message: string; status: "success" }) => void =
+      () => {};
+    const transition = new Promise<{ message: string; status: "success" }>(
+      (resolve) => {
+        resolveTransition = resolve;
+      },
+    );
+    maintenanceActions.updateStatus.mockReset().mockImplementationOnce(() => transition);
+
+    const { rerender } = render(makeMaintenanceStatusScreen([makeCase()]));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Move case to scheduled" }),
+    );
+
+    expect(maintenanceActions.updateStatus).toHaveBeenCalledWith("task-1", "scheduled");
+    await waitFor(() => {
+      const card = document.querySelector<HTMLElement>('[data-task-card="task-1"]');
+      expect(within(card!).getByText("Scheduled")).not.toBeNull();
+    });
+
+    await act(async () => {
+      resolveTransition({
+        message: "Maintenance status updated.",
+        status: "success",
+      });
+      await transition;
+    });
+
+    expect(await screen.findByRole("status")).not.toBeNull();
+    expect(navigation.refresh).toHaveBeenCalledTimes(1);
+    rerender(makeMaintenanceStatusScreen([makeCase("in_progress")]));
+
+    await waitFor(() => {
+      const card = document.querySelector<HTMLElement>('[data-task-card="task-1"]');
+      expect(within(card!).getByText("In Progress")).not.toBeNull();
+      expect(within(card!).queryByText("Scheduled")).toBeNull();
+    });
+    const inProgressColumn = document.querySelector<HTMLElement>(
+      '[data-status-column="in_progress"]',
+    );
+    expect(within(inProgressColumn!).getByRole("link", { name: "Repair sink" })).not.toBeNull();
+    expect(
+      within(
+        screen.getByRole("complementary", { name: "Repair sink Preview" }),
+      ).getAllByText("In Progress").length,
+    ).toBeGreaterThan(0);
+    expect(maintenanceActions.updateStatus).toHaveBeenCalledTimes(1);
+  });
 });
 
-function makeCase(): MaintenanceCase {
+function makeMaintenanceStatusScreen(cases: MaintenanceCase[]) {
+  return (
+    <MaintenanceScreen
+      actor={{ branchId: "branch-1", personId: "person-1", role: "manager" }}
+      branchOptions={[]}
+      capabilities={getMaintenanceCapabilities("manager")}
+      cases={cases}
+      pagination={{
+        from: cases.length ? 1 : 0,
+        page: 1,
+        pageSize: 25,
+        to: cases.length,
+        totalCount: cases.length,
+        totalPages: cases.length ? 1 : 0,
+      }}
+      propertyOptions={[{ id: "property-1", label: "Riverside House" }]}
+      staffOptions={[]}
+      summary={makeSummary()}
+      surfaceVariant="board"
+      title="Cases"
+      unitOptions={[]}
+      vendorOptions={[]}
+      viewQuery={viewQuery}
+    />
+  );
+}
+
+function makeCase(status: "in_progress" | "pending" = "pending"): MaintenanceCase {
+  const statusLabel = status === "in_progress" ? "In Progress" : "Pending";
+
   return {
     activity: [],
     actualCostAmount: 0,
@@ -227,7 +283,7 @@ function makeCase(): MaintenanceCase {
       priority: "high",
       propertyId: "property-1",
       recurrenceFrequency: "none",
-      status: "pending",
+      status,
       title: "Repair sink",
       vendorPersonId: "vendor-1",
     },
@@ -242,7 +298,7 @@ function makeCase(): MaintenanceCase {
     priority: "high",
     priorityLabel: "High",
     priorityTone: "warning",
-    progressLabel: "Pending",
+    progressLabel: statusLabel,
     progressState: "open",
     progressTone: "neutral",
     propertyId: "property-1",
@@ -251,9 +307,9 @@ function makeCase(): MaintenanceCase {
     recurrenceLabel: "One-time",
     reminderLabel: "No reminder",
     requestId: "request-task-1",
-    status: "pending",
-    statusLabel: "Pending",
-    statusTone: "neutral",
+    status,
+    statusLabel,
+    statusTone: status === "in_progress" ? "accent" : "neutral",
     title: "Repair sink",
     unitLabel: "Unit 2A",
     vendorLabel: "Rapid Repairs",
