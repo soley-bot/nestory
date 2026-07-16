@@ -221,6 +221,58 @@ describe("maintenance status recovery", () => {
     ).toBeGreaterThan(0);
     expect(maintenanceActions.updateStatus).toHaveBeenCalledTimes(1);
   });
+
+  it("waits for a post-success cases prop before reconciling an optimistic status", async () => {
+    let resolveTransition: (value: { message: string; status: "success" }) => void =
+      () => {};
+    const transition = new Promise<{ message: string; status: "success" }>(
+      (resolve) => {
+        resolveTransition = resolve;
+      },
+    );
+    maintenanceActions.updateStatus.mockReset().mockImplementationOnce(() => transition);
+
+    const { rerender } = render(makeMaintenanceStatusScreen([makeCase()]));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Move case to scheduled" }),
+    );
+
+    await waitFor(() => {
+      const card = document.querySelector<HTMLElement>('[data-task-card="task-1"]');
+      expect(within(card!).getByText("Scheduled")).not.toBeNull();
+    });
+
+    rerender(makeMaintenanceStatusScreen([makeCase()]));
+    expect(
+      within(
+        document.querySelector<HTMLElement>('[data-task-card="task-1"]')!,
+      ).getByText("Scheduled"),
+    ).not.toBeNull();
+
+    await act(async () => {
+      resolveTransition({
+        message: "Maintenance status updated.",
+        status: "success",
+      });
+      await transition;
+    });
+
+    expect(await screen.findByRole("status")).not.toBeNull();
+    expect(navigation.refresh).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      const card = document.querySelector<HTMLElement>('[data-task-card="task-1"]');
+      expect(within(card!).getByText("Scheduled")).not.toBeNull();
+      expect(within(card!).queryByText("Pending")).toBeNull();
+    });
+
+    rerender(makeMaintenanceStatusScreen([makeCase("in_progress")]));
+    await waitFor(() => {
+      const card = document.querySelector<HTMLElement>('[data-task-card="task-1"]');
+      expect(within(card!).getByText("In Progress")).not.toBeNull();
+      expect(within(card!).queryByText("Scheduled")).toBeNull();
+    });
+    expect(maintenanceActions.updateStatus).toHaveBeenCalledTimes(1);
+  });
 });
 
 function makeMaintenanceStatusScreen(cases: MaintenanceCase[]) {

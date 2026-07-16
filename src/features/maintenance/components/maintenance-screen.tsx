@@ -263,17 +263,23 @@ export function MaintenanceScreen({
   });
 
   useEffect(() => {
-    if (previousCasesRef.current === cases || statusChangePending) {
+    if (previousCasesRef.current === cases) {
+      return;
+    }
+
+    const previousCasesValue = previousCasesRef.current;
+    previousCasesRef.current = cases;
+
+    if (statusChangePending) {
       return;
     }
 
     const previousCases = new Map(
-      previousCasesRef.current.map((maintenanceCase) => [
+      previousCasesValue.map((maintenanceCase) => [
         maintenanceCase.id,
         maintenanceCase,
       ]),
     );
-    previousCasesRef.current = cases;
     const canonicalCases = new Map(
       cases.map((maintenanceCase) => [maintenanceCase.id, maintenanceCase]),
     );
