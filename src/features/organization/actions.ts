@@ -213,10 +213,6 @@ function revalidateSettings() {
 }
 
 function organizationErrorMessage(message: string) {
-  if (message.includes("Cannot demote the last administrator")) {
-    return "Add another administrator before changing this role.";
-  }
-
   if (
     message.includes("add_existing_organization_member") ||
     message.includes("Could not find the function")
