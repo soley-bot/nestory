@@ -1,18 +1,23 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createBranchAction, createTeamAction } = vi.hoisted(() => ({
+const { createBranchAction, createTeamAction, navigation } = vi.hoisted(() => ({
   createBranchAction: vi.fn(),
   createTeamAction: vi.fn(),
+  navigation: { push: vi.fn() },
 }));
 
 vi.mock("@/features/organization/actions", () => ({
   createBranchAction,
   createTeamAction,
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => navigation,
 }));
 
 import { SettingsWorkspace } from "@/features/organization/components/settings-workspace";
@@ -55,15 +60,38 @@ const defaultProps = {
 beforeEach(() => {
   createBranchAction.mockReset();
   createTeamAction.mockReset();
+  navigation.push.mockReset();
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
     return 1;
+  });
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: {
+      configurable: true,
+      value: () => false,
+    },
+    releasePointerCapture: {
+      configurable: true,
+      value: () => undefined,
+    },
+    scrollIntoView: {
+      configurable: true,
+      value: () => undefined,
+    },
+    setPointerCapture: {
+      configurable: true,
+      value: () => undefined,
+    },
   });
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
 });
 
 describe("SettingsWorkspace navigation and layout", () => {
@@ -127,6 +155,62 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect(screen.queryByRole("button", { name: /save/i })).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
+
+  it.each([
+    ["branches", "Teams", "/settings?section=teams"],
+    ["teams", "Branches", "/settings?section=branches"],
+  ] as const)(
+    "guards a dirty %s draft on a real section link and navigates once after confirmation",
+    async (section, destinationLabel, destinationHref) => {
+      const user = userEvent.setup();
+      render(<SettingsWorkspace {...defaultProps} section={section} />);
+
+      const name = screen.getByRole("textbox", { name: "Name" });
+      const destination = screen.getByRole("link", { name: destinationLabel });
+      await user.type(name, "Pending draft");
+      await user.click(destination);
+
+      expect(navigation.push).not.toHaveBeenCalled();
+      expect((name as HTMLInputElement).value).toBe("Pending draft");
+      expect(
+        screen.getByRole("dialog", { name: `Open ${destinationLabel}?` }),
+      ).not.toBeNull();
+      expect(screen.getByTestId("settings-navigation-actions").className).toContain(
+        "grid",
+      );
+      expect(
+        screen
+          .getByRole("button", { name: `Discard and open ${destinationLabel}` })
+          .className.includes("w-full"),
+      ).toBe(true);
+
+      await user.click(screen.getByRole("button", { name: "Keep editing" }));
+      expect(
+        screen.queryByRole("dialog", { name: `Open ${destinationLabel}?` }),
+      ).toBeNull();
+      expect(document.activeElement).toBe(destination);
+      expect((name as HTMLInputElement).value).toBe("Pending draft");
+
+      await user.click(destination);
+      await user.click(
+        screen.getByRole("button", { name: `Discard and open ${destinationLabel}` }),
+      );
+
+      expect(navigation.push).toHaveBeenCalledOnce();
+      expect(navigation.push).toHaveBeenCalledWith(destinationHref);
+      expect((name as HTMLInputElement).value).toBe("");
+    },
+  );
+
+  it("keeps a clean section link as ordinary navigation without a discard prompt", async () => {
+    const user = userEvent.setup();
+    render(<SettingsWorkspace {...defaultProps} section="branches" />);
+
+    await user.click(screen.getByRole("link", { name: "Teams" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
 });
 
 describe("SettingsWorkspace drafts", () => {
@@ -172,6 +256,20 @@ describe("SettingsWorkspace drafts", () => {
     expect((code as HTMLInputElement).value).toBe("");
   });
 
+  it("trims and uppercases the branch code in the consequence preview", async () => {
+    const user = userEvent.setup();
+    render(<SettingsWorkspace {...defaultProps} section="branches" />);
+
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
+    await user.type(screen.getByRole("textbox", { name: "Code" }), " hkt ");
+
+    expect(
+      within(screen.getByRole("region", { name: "Branch impact" })).getByText(
+        "Phuket (HKT)",
+      ),
+    ).not.toBeNull();
+  });
+
   it("focuses the first invalid field and keeps visible labels free of tutorial copy", async () => {
     const user = userEvent.setup();
     render(<SettingsWorkspace {...defaultProps} section="branches" />);
@@ -188,33 +286,65 @@ describe("SettingsWorkspace drafts", () => {
     expect(createBranchAction).not.toHaveBeenCalled();
   });
 
-  it("keeps a failed draft editable and clears stale errors after a new change", async () => {
+  it("focuses one safe server-error summary, stays retryable, and clears it on success", async () => {
     const user = userEvent.setup();
     createTeamAction.mockResolvedValueOnce({
       message: "That code or team name is already in use.",
       status: "error",
     });
+    createTeamAction.mockResolvedValueOnce({
+      message: "Team added.",
+      status: "success",
+    });
     render(<SettingsWorkspace {...defaultProps} section="teams" />);
 
     const impact = screen.getByRole("region", { name: "Team impact" });
-    expect(within(impact).getByText("Affected users")).not.toBeNull();
-    expect(within(impact).getByText("0 users")).not.toBeNull();
+    expect(within(impact).getByText("Affected records")).not.toBeNull();
+    expect(within(impact).getByText("1 team")).not.toBeNull();
+    expect(within(impact).getByText("Manager link")).not.toBeNull();
+    expect(within(impact).getAllByText("None")).toHaveLength(2);
+    expect(within(impact).getByText("Access changes")).not.toBeNull();
+    expect(within(impact).queryByText("Affected users")).toBeNull();
 
     const name = screen.getByRole("textbox", { name: "Name" });
     await user.type(name, "Field Operations");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(
-      await screen.findByText("That code or team name is already in use."),
-    ).not.toBeNull();
-    expect(screen.getByText("Team not saved")).not.toBeNull();
+    const alert = await screen.findByRole("alert");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(alert.textContent).toContain(
+      "Team not saved: That code or team name is already in use.",
+    );
+    expect(document.activeElement).toBe(alert);
     expect((name as HTMLInputElement).value).toBe("Field Operations");
+    expect(screen.getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(
+      false,
+    );
 
     await user.type(name, " East");
     expect(screen.getByText("Unsaved changes")).not.toBeNull();
-    expect(
-      screen.queryByText("That code or team name is already in use."),
-    ).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Team added.")).not.toBeNull();
+    expect(screen.getByText("Team saved")).not.toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("shows a staff manager as a link only and never implies an access mutation", async () => {
+    const user = userEvent.setup();
+    render(<SettingsWorkspace {...defaultProps} section="teams" />);
+
+    await user.click(screen.getByRole("combobox", { name: "Manager" }));
+    await user.click(await screen.findByRole("option", { name: "Mina Chen" }));
+
+    const impact = screen.getByRole("region", { name: "Team impact" });
+    expect(within(impact).getByText("Manager link")).not.toBeNull();
+    expect(within(impact).getByText("Mina Chen")).not.toBeNull();
+    expect(within(impact).getByText("Access changes")).not.toBeNull();
+    expect(within(impact).getByText("None")).not.toBeNull();
+    expect(within(impact).queryByText(/affected users/i)).toBeNull();
+    expect(within(impact).queryByText(/access (added|updated|removed)/i)).toBeNull();
   });
 
   it("cancels or confirms discard without leaking the draft into another section", async () => {
@@ -260,7 +390,9 @@ describe("SettingsWorkspace drafts", () => {
     view.rerender(<SettingsWorkspace {...defaultProps} section="teams" />);
     pending.resolve({ message: "Branch added.", status: "success" });
 
-    await Promise.resolve();
+    await waitFor(() => {
+      expect(screen.queryByText("Branch added.")).toBeNull();
+    });
     expect(screen.queryByText("Branch added.")).toBeNull();
     expect(
       within(screen.getByTestId("draft-action-bar")).getByText("No changes"),

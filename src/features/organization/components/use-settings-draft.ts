@@ -38,6 +38,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
   const activeSubmission = useRef(0);
   const alive = useRef(true);
   const revision = useRef(0);
+  const submitting = useRef(false);
 
   useEffect(() => {
     alive.current = true;
@@ -45,12 +46,14 @@ export function useSettingsDraft<TValues extends DraftValues>({
     return () => {
       alive.current = false;
       activeSubmission.current += 1;
+      submitting.current = false;
     };
   }, []);
 
   function discard() {
     activeSubmission.current += 1;
     revision.current += 1;
+    submitting.current = false;
     setErrors({});
     setResultMessage(undefined);
     setStatus("clean");
@@ -93,6 +96,12 @@ export function useSettingsDraft<TValues extends DraftValues>({
       requestAnimationFrame(() => onInvalid(firstInvalid));
       return;
     }
+
+    if (submitting.current) {
+      return;
+    }
+
+    submitting.current = true;
 
     const submission = activeSubmission.current + 1;
     const submittedRevision = revision.current;
@@ -137,6 +146,10 @@ export function useSettingsDraft<TValues extends DraftValues>({
       setResultMessage("The setting could not be saved.");
       setStatus("error");
       setStatusMessage(errorMessage);
+    } finally {
+      if (activeSubmission.current === submission) {
+        submitting.current = false;
+      }
     }
   }
 

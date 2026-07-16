@@ -1,6 +1,11 @@
 "use client";
 
-import { useRef } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
 import { UsersRound } from "lucide-react";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DraftActionBar } from "@/components/ui/draft-action-bar";
@@ -14,6 +19,8 @@ import type {
   OrganizationTeam,
 } from "@/features/organization/data";
 import { useSettingsDraft } from "@/features/organization/components/use-settings-draft";
+import type { DraftStatus } from "@/components/ui/draft-action-bar";
+import type { SettingsEditorHandle } from "@/features/organization/components/branch-editor";
 
 type TeamDraft = {
   branchId: string;
@@ -27,19 +34,27 @@ const initialTeamDraft: TeamDraft = {
   managerPersonId: "",
 };
 
-export function TeamEditor({
-  branches,
-  canManageStructure,
-  organizationName,
-  staff,
-  teams,
-}: {
+type TeamEditorProps = {
   branches: OrganizationBranch[];
   canManageStructure: boolean;
+  onDraftStatusChange: (status: DraftStatus) => void;
   organizationName: string;
   staff: OrganizationPersonOption[];
   teams: OrganizationTeam[];
-}) {
+};
+
+export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
+  function TeamEditor(
+    {
+      branches,
+      canManageStructure,
+      onDraftStatusChange,
+      organizationName,
+      staff,
+      teams,
+    },
+    controllerRef,
+  ) {
   const formRef = useRef<HTMLFormElement>(null);
   const draft = useSettingsDraft({
     action: createTeamAction,
@@ -57,6 +72,25 @@ export function TeamEditor({
   );
   const selectedManager = staff.find(
     (person) => person.id === draft.values.managerPersonId,
+  );
+  const serverError =
+    draft.status === "error" && draft.resultMessage
+      ? `Team not saved: ${draft.resultMessage}`
+      : undefined;
+
+  useImperativeHandle(
+    controllerRef,
+    () => ({ discard: draft.discard }),
+    [draft.discard],
+  );
+  useEffect(() => {
+    onDraftStatusChange(draft.status);
+  }, [draft.status, onDraftStatusChange]);
+  useEffect(
+    () => () => {
+      onDraftStatusChange("clean");
+    },
+    [onDraftStatusChange],
   );
 
   return (
@@ -175,14 +209,8 @@ export function TeamEditor({
                 />
               </label>
             </div>
-            {draft.resultMessage ? (
-              <p
-                className={
-                  draft.status === "error"
-                    ? "text-sm text-danger"
-                    : "text-sm text-success"
-                }
-              >
+            {draft.status === "saved" && draft.resultMessage ? (
+              <p className="text-sm text-success">
                 {draft.resultMessage}
               </p>
             ) : null}
@@ -193,11 +221,12 @@ export function TeamEditor({
           <DraftActionBar
             describedBy="team-impact"
             disabledReason={permissionReason}
+            focusOnError={Boolean(serverError)}
             onDiscard={draft.discard}
             onSave={() => formRef.current?.requestSubmit()}
             saveLabel="Save"
             status={draft.status}
-            statusMessage={draft.statusMessage}
+            statusMessage={serverError ?? draft.statusMessage}
           />
         </div>
       </section>
@@ -211,20 +240,19 @@ export function TeamEditor({
           rows={[
             { label: "Scope", value: selectedBranch?.name ?? organizationName },
             { label: "Team", value: draft.values.name.trim() || "New team" },
-            { label: "Manager", value: selectedManager?.label ?? "Not assigned" },
-            {
-              label: "Affected users",
-              value: selectedManager ? "1 user" : "0 users",
-            },
+            { label: "Affected records", value: "1 team" },
+            { label: "Manager link", value: selectedManager?.label ?? "None" },
+            { label: "Access changes", value: "None" },
             { label: "Draft", value: draftStatusLabel(draft.status) },
           ]}
-          summary="Saving adds one team record. Existing teams and member access remain unchanged."
+          summary="Saving adds one team record and an optional manager link. Existing teams and access remain unchanged."
           title="Team impact"
         />
       </aside>
     </>
   );
-}
+  },
+);
 
 function validateTeam(values: TeamDraft) {
   return values.name.trim().length < 2

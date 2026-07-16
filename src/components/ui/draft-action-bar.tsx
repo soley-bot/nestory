@@ -18,6 +18,7 @@ type DraftActionBarProps = {
   describedBy?: string;
   disabledReason?: string;
   discardLabel?: string;
+  focusOnError?: boolean;
   onDiscard: () => void;
   onSave: () => void;
   saveLabel?: string;
@@ -74,6 +75,7 @@ export function DraftActionBar({
   describedBy,
   disabledReason,
   discardLabel = "Discard",
+  focusOnError = false,
   onDiscard,
   onSave,
   saveLabel = "Save changes",
@@ -128,6 +130,16 @@ export function DraftActionBar({
       statusRef.current?.focus();
     });
   }, [focusStatusAfterInvalidation]);
+
+  useEffect(() => {
+    if (!focusOnError || status !== "error") {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      statusRef.current?.focus();
+    });
+  }, [focusOnError, status, statusMessage]);
 
   function handleConfirmDiscard() {
     setConfirmationFocused(false);

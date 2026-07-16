@@ -1,6 +1,11 @@
 "use client";
 
-import { useRef } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
 import { Building2 } from "lucide-react";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DraftActionBar } from "@/components/ui/draft-action-bar";
@@ -9,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { createBranchAction } from "@/features/organization/actions";
 import type { OrganizationBranch } from "@/features/organization/data";
 import { useSettingsDraft } from "@/features/organization/components/use-settings-draft";
+import type { DraftStatus } from "@/components/ui/draft-action-bar";
 
 type BranchDraft = {
   address: string;
@@ -22,15 +28,22 @@ const initialBranchDraft: BranchDraft = {
   address: "",
 };
 
-export function BranchEditor({
-  branches,
-  canManageStructure,
-  organizationName,
-}: {
+type BranchEditorProps = {
   branches: OrganizationBranch[];
   canManageStructure: boolean;
+  onDraftStatusChange: (status: DraftStatus) => void;
   organizationName: string;
-}) {
+};
+
+export type SettingsEditorHandle = {
+  discard: () => void;
+};
+
+export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
+  function BranchEditor(
+    { branches, canManageStructure, onDraftStatusChange, organizationName },
+    controllerRef,
+  ) {
   const formRef = useRef<HTMLFormElement>(null);
   const draft = useSettingsDraft({
     action: createBranchAction,
@@ -47,8 +60,27 @@ export function BranchEditor({
   const draftCode = draft.values.code.trim();
   const branchLabel =
     draftName && draftCode
-      ? `${draftName} (${draftCode})`
-      : draftName || draftCode || "New branch";
+      ? `${draftName} (${draftCode.toUpperCase()})`
+      : draftName || draftCode.toUpperCase() || "New branch";
+  const serverError =
+    draft.status === "error" && draft.resultMessage
+      ? `Branch not saved: ${draft.resultMessage}`
+      : undefined;
+
+  useImperativeHandle(
+    controllerRef,
+    () => ({ discard: draft.discard }),
+    [draft.discard],
+  );
+  useEffect(() => {
+    onDraftStatusChange(draft.status);
+  }, [draft.status, onDraftStatusChange]);
+  useEffect(
+    () => () => {
+      onDraftStatusChange("clean");
+    },
+    [onDraftStatusChange],
+  );
 
   return (
     <>
@@ -130,14 +162,8 @@ export function BranchEditor({
               onChange={(value) => draft.setField("address", value)}
               value={draft.values.address}
             />
-            {draft.resultMessage ? (
-              <p
-                className={
-                  draft.status === "error"
-                    ? "text-sm text-danger"
-                    : "text-sm text-success"
-                }
-              >
+            {draft.status === "saved" && draft.resultMessage ? (
+              <p className="text-sm text-success">
                 {draft.resultMessage}
               </p>
             ) : null}
@@ -148,11 +174,12 @@ export function BranchEditor({
           <DraftActionBar
             describedBy="branch-impact"
             disabledReason={permissionReason}
+            focusOnError={Boolean(serverError)}
             onDiscard={draft.discard}
             onSave={() => formRef.current?.requestSubmit()}
             saveLabel="Save"
             status={draft.status}
-            statusMessage={draft.statusMessage}
+            statusMessage={serverError ?? draft.statusMessage}
           />
         </div>
       </section>
@@ -175,7 +202,8 @@ export function BranchEditor({
       </aside>
     </>
   );
-}
+  },
+);
 
 function Field({
   disabled,
