@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { Archive, Pencil, RotateCcw } from "lucide-react";
+import { Archive, ArrowRight, Pencil, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
@@ -55,6 +57,14 @@ export function UnitDetailScreen({
             </Button>
           ) : (
             <>
+              <Link
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-foreground px-2.5 text-sm font-medium text-background outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={unit.repairAction.href}
+                prefetch={false}
+              >
+                {unit.repairAction.label}
+                <ArrowRight size={14} />
+              </Link>
               <Button
                 onClick={() => {
                   setStatusMessage(null);
@@ -76,9 +86,13 @@ export function UnitDetailScreen({
             </>
           )
         }
-        description={`${unit.propertyCode} / ${unit.propertyName} / ${
-          unit.isArchived ? "Archived" : unit.statusLabel
-        }`}
+        context={
+          <div className="flex items-center gap-2">
+            <Badge tone={unit.statusTone}>{unit.statusLabel}</Badge>
+            {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
+          </div>
+        }
+        description={`${unit.propertyCode} / ${unit.propertyName}`}
         title={`Unit ${unit.unitNumber}`}
       />
 

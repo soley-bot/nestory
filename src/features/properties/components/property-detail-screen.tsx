@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { Archive, Pencil, RotateCcw } from "lucide-react";
+import { Archive, ArrowRight, Pencil, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import {
@@ -48,6 +50,14 @@ export function PropertyDetailScreen({
             </Button>
           ) : (
             <>
+              <Link
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-foreground px-2.5 text-sm font-medium text-background outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={property.nextAction.href}
+                prefetch={false}
+              >
+                {property.nextAction.label}
+                <ArrowRight size={14} />
+              </Link>
               <Button
                 onClick={() => {
                   setStatusMessage(null);
@@ -69,9 +79,13 @@ export function PropertyDetailScreen({
             </>
           )
         }
-        description={`${property.code} / ${property.type} / ${
-          property.isArchived ? "Archived" : property.status
-        }`}
+        context={
+          <div className="flex items-center gap-2">
+            <Badge tone={property.statusTone}>{property.status}</Badge>
+            {property.isArchived ? <Badge tone="warning">Archived</Badge> : null}
+          </div>
+        }
+        description={`${property.code} / ${property.type}`}
         title={property.name}
       />
 

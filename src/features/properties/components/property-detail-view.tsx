@@ -148,13 +148,11 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="break-words text-base font-semibold">
-                    {property.code} / {property.name}
+                    Property context
                   </h2>
-                  <Badge tone={property.statusTone}>{property.status}</Badge>
-                  {property.isArchived ? <Badge tone="warning">Archived</Badge> : null}
                 </div>
                 <p className="mt-1 break-words text-sm text-muted">
-                  {property.type} / {property.address}
+                  {property.address}
                 </p>
               </div>
             </div>

@@ -145,13 +145,11 @@ export function UnitDetailView({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="break-words text-base font-semibold">
-                    {unit.propertyCode} / Unit {unit.unitNumber}
+                    Unit context
                   </h2>
-                  <Badge tone={unit.statusTone}>{unit.statusLabel}</Badge>
-                  {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
                 </div>
                 <p className="mt-1 break-words text-sm text-muted">
-                  {unit.propertyName} / Floor {unit.floorLabel} / {unit.sizeLabel}
+                  Floor {unit.floorLabel} / {unit.sizeLabel}
                 </p>
               </div>
             </div>

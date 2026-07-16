@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import {
   Archive,
   ArrowLeft,
+  ArrowRight,
   CalendarDays,
   Download,
   ExternalLink,
@@ -97,6 +98,14 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
             </Button>
           ) : (
             <>
+              <Link
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-foreground px-2.5 text-sm font-medium text-background outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={person.nextAction.href}
+                prefetch={false}
+              >
+                {person.nextAction.label}
+                <ArrowRight size={14} />
+              </Link>
               <Button
                 onClick={() => {
                   setStatusMessage(null);
@@ -118,9 +127,13 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
             </>
           )
         }
-        description={`${person.roleLabel} / ${person.partyTypeLabel} / ${
-          person.isArchived ? "Archived" : person.statusLabel
-        }`}
+        context={
+          <div className="flex items-center gap-2">
+            <Badge tone={person.statusTone}>{person.statusLabel}</Badge>
+            {person.isArchived ? <Badge tone="warning">Archived</Badge> : null}
+          </div>
+        }
+        description={`${person.roleLabel} / ${person.partyTypeLabel}`}
         title={person.displayName}
       />
 
@@ -152,21 +165,20 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
         <div className="min-h-0 flex-1 overflow-auto pr-1">
           <div className="space-y-3">
             <section
+              aria-labelledby="person-tab-overview"
               className={cn(
                 "rounded-md border border-border bg-surface p-4",
                 activeSection !== "overview" && "hidden",
               )}
+              id="person-overview"
+              role="tabpanel"
             >
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="break-words text-base font-semibold">
-                      {person.displayName}
+                      Contact and relationships
                     </h2>
-                    <Badge tone={person.statusTone}>{person.statusLabel}</Badge>
-                    {person.isArchived ? (
-                      <Badge tone="warning">Archived</Badge>
-                    ) : null}
                   </div>
                   <p className="mt-1 break-words text-sm text-muted">
                     {person.legalName ?? person.partyTypeLabel}
@@ -216,10 +228,13 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
             </section>
 
             <section
+              aria-labelledby="person-tab-links"
               className={cn(
                 "rounded-md border border-border bg-surface",
                 activeSection !== "links" && "hidden",
               )}
+              id="person-links"
+              role="tabpanel"
             >
               <SectionTitle
                 description={getLinkedSummary(person)}
@@ -278,10 +293,13 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
             </section>
 
             <section
+              aria-labelledby="person-tab-photos"
               className={cn(
                 "rounded-md border border-border bg-surface",
                 activeSection !== "photos" && "hidden",
               )}
+              id="person-photos"
+              role="tabpanel"
             >
               <SectionTitle
                 description="Profile media"
@@ -313,10 +331,13 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
             </section>
 
             <section
+              aria-labelledby="person-tab-documents"
               className={cn(
                 "rounded-md border border-border bg-surface",
                 activeSection !== "documents" && "hidden",
               )}
+              id="person-documents"
+              role="tabpanel"
             >
               <SectionTitle
                 description={`${person.documents.length} related document${
@@ -341,10 +362,13 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
             </section>
 
             <section
+              aria-labelledby="person-tab-reports"
               className={cn(
                 "rounded-md border border-border bg-surface",
                 activeSection !== "reports" && "hidden",
               )}
+              id="person-reports"
+              role="tabpanel"
             >
               <SectionTitle
                 description="People-domain report packets"
@@ -386,10 +410,13 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
             </section>
 
             <section
+              aria-labelledby="person-tab-timeline"
               className={cn(
                 "rounded-md border border-border bg-surface",
                 activeSection !== "timeline" && "hidden",
               )}
+              id="person-timeline"
+              role="tabpanel"
             >
               <SectionTitle
                 description={`${person.activity.length} recent change${
@@ -475,24 +502,31 @@ function PersonRecordNav({
   onSectionChange: (section: PersonRecordSection) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-md border border-border bg-surface px-3 py-2">
-      <div className="flex min-w-max items-center gap-1">
+    <nav
+      aria-label="Person record sections"
+      className="overflow-x-auto rounded-md border border-border bg-surface px-3 py-2"
+    >
+      <div className="flex min-w-max items-center gap-1.5" role="tablist">
         {personRecordSections.map((section) => (
           <button
+            aria-controls={`person-${section.id}`}
+            aria-selected={activeSection === section.id}
             className={cn(
-              "h-9 rounded-md px-3 text-sm font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
               activeSection === section.id &&
-                "bg-accent-soft text-foreground shadow-[inset_0_0_0_1px_var(--foreground)]",
+                "bg-accent-soft text-foreground",
             )}
+            id={`person-tab-${section.id}`}
             key={section.id}
             onClick={() => onSectionChange(section.id)}
+            role="tab"
             type="button"
           >
             {section.label}
           </button>
         ))}
       </div>
-    </div>
+    </nav>
   );
 }
 

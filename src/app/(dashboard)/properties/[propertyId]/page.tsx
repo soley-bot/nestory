@@ -1,10 +1,10 @@
-import { notFound } from "next/navigation";
 import { PropertyDetailScreen } from "@/features/properties/components/property-detail-screen";
 import {
   getPropertyDetail,
   getPropertyOwnerOptions,
 } from "@/features/properties/data/properties";
 import { requireAdminContext } from "@/lib/auth/context";
+import PropertyNotFound from "./not-found";
 
 type PropertyPageProps = {
   params: Promise<{ propertyId: string }>;
@@ -19,7 +19,7 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
   ]);
 
   if (!property) {
-    notFound();
+    return <PropertyNotFound />;
   }
 
   return (

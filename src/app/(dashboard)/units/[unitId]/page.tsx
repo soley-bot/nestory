@@ -1,10 +1,10 @@
-import { notFound } from "next/navigation";
 import { UnitDetailScreen } from "@/features/units/components/unit-detail-screen";
 import { getPropertySummaries } from "@/features/properties/data/properties";
 import { getUnitDetail } from "@/features/units/data/units";
 import { parseUnitDetailQuery } from "@/features/units/unit-detail-route";
 import type { UnitPropertyOption } from "@/features/units/unit.types";
 import { requireAdminContext } from "@/lib/auth/context";
+import UnitNotFound from "./not-found";
 
 type UnitPageProps = {
   params: Promise<{ unitId: string }>;
@@ -21,7 +21,7 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
   ]);
 
   if (!unit) {
-    notFound();
+    return <UnitNotFound />;
   }
 
   return (

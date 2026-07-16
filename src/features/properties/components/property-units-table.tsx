@@ -28,7 +28,7 @@ export function PropertyUnitsTable({
               </div>
               <UnitStatusBadges unit={unit} />
             </div>
-            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
+            <dl className="mt-4">
               <Detail
                 label="Current rent"
                 value={
@@ -39,7 +39,6 @@ export function PropertyUnitsTable({
                   )
                 }
               />
-              <Detail label="Status" value={unit.status} alignRight />
             </dl>
           </article>
         ))}
@@ -49,11 +48,10 @@ export function PropertyUnitsTable({
         <div className="overflow-auto">
           <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-[13px]">
             <colgroup>
-              <col className="w-[28%]" />
-              <col className="w-[12%]" />
+              <col className="w-[34%]" />
               <col className="w-[16%]" />
               <col className="w-[24%]" />
-              <col className="w-[20%]" />
+              <col className="w-[26%]" />
             </colgroup>
             <thead className="bg-surface-muted text-[11px] uppercase tracking-[0] text-muted">
               <tr>
@@ -63,7 +61,6 @@ export function PropertyUnitsTable({
                 <th className="px-2 py-2.5 text-right font-semibold">
                   Current rent
                 </th>
-                <th className="px-2 py-2.5 font-semibold">Archive</th>
               </tr>
             </thead>
             <tbody>
@@ -82,7 +79,10 @@ export function PropertyUnitsTable({
                     {unit.floor}
                   </td>
                   <td className="px-2 py-2">
-                    <StatusBadge status={unit.status} />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <StatusBadge status={unit.status} />
+                      {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
+                    </div>
                   </td>
                   <td className="px-2 py-2">
                     {unit.currentRentDisplay ? (
@@ -94,13 +94,6 @@ export function PropertyUnitsTable({
                       <span className="block text-right font-medium">
                         {unit.currentRent}
                       </span>
-                    )}
-                  </td>
-                  <td className="px-2 py-2">
-                    {unit.isArchived ? (
-                      <Badge tone="warning">Archived</Badge>
-                    ) : (
-                      <span className="text-muted">Active</span>
                     )}
                   </td>
                 </tr>
