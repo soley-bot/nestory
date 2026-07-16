@@ -1,9 +1,11 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DatePickerField } from "@/components/ui/date-picker-field";
+import { FormSection } from "@/components/ui/form-section";
 import { NumberInput } from "@/components/ui/number-input";
+import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   createLeaseAction,
@@ -64,8 +66,15 @@ export function LeaseForm({
   const [selectedPropertyId, setSelectedPropertyId] = useState(
     defaults.propertyId,
   );
+  const [selectedStatus, setSelectedStatus] = useState(defaults.status);
+  const [selectedTenantId, setSelectedTenantId] = useState(
+    defaults.tenantPersonId,
+  );
   const [selectedUnitId, setSelectedUnitId] = useState(defaults.unitId);
-  const propertyOptions = ensureSelectedProperty(properties, selectedPropertyId);
+  const propertyOptions = ensureSelectedProperty(
+    properties,
+    selectedPropertyId,
+  );
   const unitOptions = useMemo(
     () =>
       ensureSelectedUnit(
@@ -81,7 +90,7 @@ export function LeaseForm({
   );
   const tenantOptions = ensureSelectedTenant(
     tenants,
-    defaults.tenantPersonId,
+    selectedTenantId,
     defaults.tenantName,
   );
   const formUnitId =
@@ -92,7 +101,12 @@ export function LeaseForm({
   const selectedPropertyOption = properties.find(
     (property) => property.id === selectedPropertyId,
   );
-  const showVacancyContext = Boolean(initialValues?.unitId && selectedUnitOption);
+  const selectedTenantOption = tenantOptions.find(
+    (tenant) => tenant.id === selectedTenantId,
+  );
+  const selectedStatusOption = normalizedStatusOptions.find(
+    (status) => status.value === selectedStatus,
+  );
 
   useEffect(() => {
     if (state.status === "success") {
@@ -102,209 +116,205 @@ export function LeaseForm({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
-        {state.message ? (
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role={state.status === "error" ? "alert" : "status"}
+    <RecordForm
+      action={action}
+      ariaLabel={isEditMode ? "Edit lease form" : "Add lease form"}
+      onCancel={onClose}
+      pending={pending}
+      saveLabel={isEditMode ? "Save changes" : "Add lease"}
+      savingLabel={isEditMode ? "Saving lease" : "Adding lease"}
+      state={{
+        ...state,
+        fieldErrors: state.fieldErrors ? { ...state.fieldErrors } : undefined,
+      }}
+    >
+      {isEditMode && lease ? (
+        <input name="leaseId" type="hidden" value={lease.id} />
+      ) : null}
+
+      <ConsequencePanel
+        rows={[
+          {
+            label: "Tenant",
+            value: selectedTenantOption?.label ?? "Select tenant",
+          },
+          {
+            label: "Property",
+            value: selectedPropertyOption?.label ?? "Select property",
+          },
+          {
+            label: "Unit",
+            value: selectedUnitOption?.label ?? "No unit assigned",
+          },
+          {
+            label: "Status",
+            value: selectedStatusOption?.label ?? selectedStatus,
+          },
+        ]}
+        summary={
+          initialValues?.unitId
+            ? "Saving links this tenant to the selected vacancy. Open lease statuses affect unit occupancy."
+            : "Saving links this tenant, property, and optional unit. Open lease statuses affect unit occupancy."
+        }
+        title="Tenancy effect"
+      />
+
+      <FormSection title="Lease party">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
+          <RecordField
+            error={state.fieldErrors?.tenantPersonId?.[0]}
+            label="Tenant"
+            name="tenantPersonId"
+            required
           >
-            {state.message}
-          </p>
-        ) : null}
+            <SelectControl
+              ariaLabel="Tenant"
+              name="tenantPersonId"
+              onValueChange={setSelectedTenantId}
+              options={[
+                { label: "Select tenant", value: "" },
+                ...tenantOptions.map((tenant) => ({
+                  label: tenant.label,
+                  value: tenant.id,
+                })),
+              ]}
+              required
+              value={selectedTenantId}
+            />
+          </RecordField>
 
-        {isEditMode && lease ? (
-          <input name="leaseId" type="hidden" value={lease.id} />
-        ) : null}
-
-        {showVacancyContext ? (
-          <div className="rounded-md border border-warning/30 bg-warning-soft/30 px-3 py-2 text-sm">
-            <p className="font-medium text-foreground">Filling vacancy</p>
-            <p className="mt-1 text-foreground-muted">
-              {selectedUnitOption?.label}
-              {selectedPropertyOption ? ` / ${selectedPropertyOption.label}` : ""}
-            </p>
-          </div>
-        ) : null}
-
-        <FormSection title="Lease party">
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
-            <Field label="Tenant" error={state.fieldErrors?.tenantPersonId?.[0]}>
-              <SelectControl
-                ariaLabel="Tenant"
-                defaultValue={defaults.tenantPersonId}
-                name="tenantPersonId"
-                options={[
-                  { label: "Select tenant", value: "" },
-                  ...tenantOptions.map((tenant) => ({
-                    label: tenant.label,
-                    value: tenant.id,
-                  })),
-                ]}
-                required
-              />
-            </Field>
-
-            <Field label="Status" error={state.fieldErrors?.status?.[0]}>
-              <SelectControl
-                ariaLabel="Status"
-                defaultValue={defaults.status}
-                name="status"
-                options={normalizedStatusOptions}
-                required
-              />
-            </Field>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
-              <SelectControl
-                ariaLabel="Property"
-                name="propertyId"
-                onValueChange={(value) => {
-                  setSelectedPropertyId(value);
-                  setSelectedUnitId("");
-                }}
-                options={[
-                  { label: "Select property", value: "" },
-                  ...propertyOptions.map((property) => ({
-                    label: property.label,
-                    value: property.id,
-                  })),
-                ]}
-                required
-                value={selectedPropertyId}
-              />
-            </Field>
-
-            <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
-              <SelectControl
-                ariaLabel="Unit"
-                disabled={!selectedPropertyId}
-                name="unitId"
-                onValueChange={setSelectedUnitId}
-                options={[
-                  { label: "No unit assigned", value: "" },
-                  ...unitOptions.map((unit) => ({
-                    label: formatUnitSelectLabel(unit.label),
-                    value: unit.id,
-                  })),
-                ]}
-                value={formUnitId}
-              />
-            </Field>
-          </div>
-        </FormSection>
-
-        <FormSection title="Term and money">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Start date"
-              error={state.fieldErrors?.leaseStartDate?.[0]}
-            >
-              <DatePickerField
-                ariaLabel="Lease start date"
-                defaultValue={defaults.leaseStartDate}
-                name="leaseStartDate"
-                required
-              />
-            </Field>
-
-            <Field label="End date" error={state.fieldErrors?.leaseEndDate?.[0]}>
-              <DatePickerField
-                ariaLabel="Lease end date"
-                defaultValue={defaults.leaseEndDate}
-                name="leaseEndDate"
-                required
-              />
-            </Field>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Monthly rent"
-              error={state.fieldErrors?.monthlyRentAmount?.[0]}
-            >
-              <NumberInput
-                defaultValue={defaults.monthlyRentAmount}
-                min="0"
-                name="monthlyRentAmount"
-                placeholder="0.00"
-                required
-                step="0.01"
-              />
-            </Field>
-
-            <Field label="Deposit" error={state.fieldErrors?.depositAmount?.[0]}>
-              <NumberInput
-                defaultValue={defaults.depositAmount}
-                min="0"
-                name="depositAmount"
-                placeholder="0.00"
-                step="0.01"
-              />
-            </Field>
-          </div>
-        </FormSection>
-      </div>
-
-      <div className="border-t border-border bg-surface px-5 py-4">
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
-            Cancel
-          </Button>
-          <Button
-            className="w-full sm:w-auto"
-            disabled={pending}
-            type="submit"
-            variant="primary"
+          <RecordField
+            error={state.fieldErrors?.status?.[0]}
+            label="Status"
+            name="status"
+            required
           >
-            {isEditMode
-              ? pending
-                ? "Saving..."
-                : "Save changes"
-              : pending
-                ? "Adding..."
-                : "Add lease"}
-          </Button>
+            <SelectControl
+              ariaLabel="Status"
+              name="status"
+              onValueChange={(value) =>
+                setSelectedStatus(value as LeaseStatusValue)
+              }
+              options={normalizedStatusOptions}
+              required
+              value={selectedStatus}
+            />
+          </RecordField>
         </div>
-      </div>
-    </form>
-  );
-}
 
-function FormSection({
-  children,
-  title,
-}: {
-  children: React.ReactNode;
-  title: string;
-}) {
-  return (
-    <section className="space-y-4">
-      <h3 className="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
-}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RecordField
+            error={state.fieldErrors?.propertyId?.[0]}
+            label="Property"
+            name="propertyId"
+            required
+          >
+            <SelectControl
+              ariaLabel="Property"
+              name="propertyId"
+              onValueChange={(value) => {
+                setSelectedPropertyId(value);
+                setSelectedUnitId("");
+              }}
+              options={[
+                { label: "Select property", value: "" },
+                ...propertyOptions.map((property) => ({
+                  label: property.label,
+                  value: property.id,
+                })),
+              ]}
+              required
+              value={selectedPropertyId}
+            />
+          </RecordField>
 
-function Field({
-  children,
-  error,
-  label,
-}: {
-  children: React.ReactNode;
-  error?: string;
-  label: string;
-}) {
-  return (
-    <label className="block min-w-0 text-sm font-medium">
-      {label}
-      <div className="mt-2">{children}</div>
-      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
-    </label>
+          <RecordField
+            error={state.fieldErrors?.unitId?.[0]}
+            label="Unit"
+            name="unitId"
+          >
+            <SelectControl
+              ariaLabel="Unit"
+              disabled={!selectedPropertyId}
+              name="unitId"
+              onValueChange={setSelectedUnitId}
+              options={[
+                { label: "No unit assigned", value: "" },
+                ...unitOptions.map((unit) => ({
+                  label: formatUnitSelectLabel(unit.label),
+                  value: unit.id,
+                })),
+              ]}
+              value={formUnitId}
+            />
+          </RecordField>
+        </div>
+      </FormSection>
+
+      <FormSection title="Term and money">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RecordField
+            label="Start date"
+            name="leaseStartDate"
+            error={state.fieldErrors?.leaseStartDate?.[0]}
+            required
+          >
+            <DatePickerField
+              ariaLabel="Lease start date"
+              defaultValue={defaults.leaseStartDate}
+              name="leaseStartDate"
+              required
+            />
+          </RecordField>
+
+          <RecordField
+            error={state.fieldErrors?.leaseEndDate?.[0]}
+            label="End date"
+            name="leaseEndDate"
+            required
+          >
+            <DatePickerField
+              ariaLabel="Lease end date"
+              defaultValue={defaults.leaseEndDate}
+              name="leaseEndDate"
+              required
+            />
+          </RecordField>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RecordField
+            label="Monthly rent"
+            name="monthlyRentAmount"
+            error={state.fieldErrors?.monthlyRentAmount?.[0]}
+            required
+          >
+            <NumberInput
+              defaultValue={defaults.monthlyRentAmount}
+              min="0"
+              name="monthlyRentAmount"
+              placeholder="0.00"
+              required
+              step="0.01"
+            />
+          </RecordField>
+
+          <RecordField
+            error={state.fieldErrors?.depositAmount?.[0]}
+            label="Deposit"
+            name="depositAmount"
+          >
+            <NumberInput
+              defaultValue={defaults.depositAmount}
+              min="0"
+              name="depositAmount"
+              placeholder="0.00"
+              step="0.01"
+            />
+          </RecordField>
+        </div>
+      </FormSection>
+    </RecordForm>
   );
 }
 
@@ -355,7 +365,10 @@ function ensureSelectedUnit(
   allUnits: LeaseUnitOption[],
   selectedUnitId: string,
 ) {
-  if (!selectedUnitId || scopedUnits.some((unit) => unit.id === selectedUnitId)) {
+  if (
+    !selectedUnitId ||
+    scopedUnits.some((unit) => unit.id === selectedUnitId)
+  ) {
     return scopedUnits;
   }
 
@@ -386,14 +399,17 @@ function ensureSelectedTenant(
 }
 
 function formatUnitSelectLabel(label: string) {
-  return label.includes(" / ") ? label.split(" / ").at(-1) ?? label : label;
+  return label.includes(" / ") ? (label.split(" / ").at(-1) ?? label) : label;
 }
 
 function ensureSelectedStatus(
   options: { label: string; value: string }[],
   selectedStatus: string,
 ) {
-  if (!selectedStatus || options.some((option) => option.value === selectedStatus)) {
+  if (
+    !selectedStatus ||
+    options.some((option) => option.value === selectedStatus)
+  ) {
     return options;
   }
 

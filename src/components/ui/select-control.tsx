@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDrawerPortalContainer } from "@/components/ui/side-drawer";
 
 const EMPTY_VALUE = "__nestory_empty_value__";
 
@@ -14,6 +15,10 @@ export type SelectControlOption = {
 };
 
 type SelectControlProps = {
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "false" | "true";
+  "aria-labelledby"?: string;
+  "aria-required"?: boolean | "false" | "true";
   ariaLabel?: string;
   className?: string;
   defaultValue?: string;
@@ -26,7 +31,12 @@ type SelectControlProps = {
   value?: string;
 };
 
-export function SelectControl({
+export function SelectControl(props: SelectControlProps) {
+  const {
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-required": ariaRequired,
   ariaLabel,
   className,
   defaultValue = "",
@@ -37,11 +47,25 @@ export function SelectControl({
   placeholder = "Select",
   required = false,
   value,
-}: SelectControlProps) {
+  } = props;
   const [uncontrolledValue, setUncontrolledValue] = useState(defaultValue);
+  const hiddenInputRef = useRef<HTMLInputElement>(null);
   const selectedValue = value ?? uncontrolledValue;
+  const previousValueRef = useRef(selectedValue);
+  const portalContainer = useDrawerPortalContainer();
   const hasEmptyOption = options.some((option) => option.value === "");
   const radixValue = toRadixValue(selectedValue, hasEmptyOption);
+
+  useEffect(() => {
+    if (previousValueRef.current === selectedValue) {
+      return;
+    }
+
+    previousValueRef.current = selectedValue;
+    hiddenInputRef.current?.dispatchEvent(
+      new Event("input", { bubbles: true }),
+    );
+  }, [selectedValue]);
 
   return (
     <>
@@ -49,6 +73,7 @@ export function SelectControl({
         <input
           disabled={disabled}
           name={name}
+          ref={hiddenInputRef}
           required={required}
           type="hidden"
           value={selectedValue}
@@ -66,7 +91,11 @@ export function SelectControl({
         value={radixValue}
       >
         <Select.Trigger
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid}
           aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
+          aria-required={ariaRequired ?? required}
           className={cn(
             "flex h-8 w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-md border border-border bg-surface px-2.5 text-left text-sm shadow-sm outline-none transition-colors data-[placeholder]:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
             className,
@@ -80,10 +109,11 @@ export function SelectControl({
             <ChevronDown className="shrink-0 text-muted" size={14} />
           </Select.Icon>
         </Select.Trigger>
-        <Select.Portal>
+        <Select.Portal container={portalContainer ?? undefined}>
           <Select.Content
             className="z-[80] max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-md border border-border bg-surface shadow-lg"
             position="popper"
+            onEscapeKeyDown={(event) => event.stopPropagation()}
             sideOffset={4}
           >
             <Select.Viewport className="p-1">

@@ -15,13 +15,17 @@ import { cn } from "@/lib/utils";
 export type DraftStatus = "clean" | "dirty" | "saving" | "saved" | "error";
 
 type DraftActionBarProps = {
+  allowDiscardWhenClean?: boolean;
+  allowSaveWhenClean?: boolean;
   describedBy?: string;
+  confirmDiscard?: boolean;
   disabledReason?: string;
   discardLabel?: string;
   focusOnError?: boolean;
   onDiscard: () => void;
   onSave: () => void;
   saveLabel?: string;
+  showSave?: boolean;
   status: DraftStatus;
   statusMessage?: string;
 };
@@ -72,13 +76,17 @@ function joinIds(...ids: Array<string | undefined>) {
 }
 
 export function DraftActionBar({
+  allowDiscardWhenClean = false,
+  allowSaveWhenClean = false,
   describedBy,
+  confirmDiscard = true,
   disabledReason,
   discardLabel = "Discard",
   focusOnError = false,
   onDiscard,
   onSave,
   saveLabel = "Save changes",
+  showSave = true,
   status,
   statusMessage,
 }: DraftActionBarProps) {
@@ -96,8 +104,12 @@ export function DraftActionBar({
   const isDiscardActionable = discardActionableStatuses.has(status);
   const confirmingDiscard =
     confirmingStatus === status && isDiscardActionable;
-  const actionsDisabled = !isDiscardActionable || isPending;
-  const saveDisabled = actionsDisabled || Boolean(disabledReason);
+  const discardDisabled =
+    isPending || (!isDiscardActionable && !allowDiscardWhenClean);
+  const saveDisabled =
+    isPending ||
+    Boolean(disabledReason) ||
+    (!isDiscardActionable && !allowSaveWhenClean);
   const saveDescribedBy = joinIds(describedBy, disabledReason ? reasonId : undefined);
 
   if (confirmingStatus !== null && confirmingStatus !== status) {
@@ -163,6 +175,11 @@ export function DraftActionBar({
   }
 
   function handleRequestDiscard() {
+    if ((!isDiscardActionable && allowDiscardWhenClean) || !confirmDiscard) {
+      onDiscard();
+      return;
+    }
+
     setConfirmationFocused(false);
     setFocusStatusAfterInvalidation(false);
     setRestoreDiscardFocus(false);
@@ -245,22 +262,24 @@ export function DraftActionBar({
           <div className="flex items-center justify-end gap-2">
             <Button
               data-discard-control="trigger"
-              disabled={actionsDisabled}
+              disabled={discardDisabled}
               onClick={handleRequestDiscard}
               type="button"
               variant="ghost"
             >
               {discardLabel}
             </Button>
-            <Button
-              aria-describedby={saveDescribedBy}
-              disabled={saveDisabled}
-              onClick={onSave}
-              type="button"
-              variant="primary"
-            >
-              {saveLabel}
-            </Button>
+            {showSave ? (
+              <Button
+                aria-describedby={saveDescribedBy}
+                disabled={saveDisabled}
+                onClick={onSave}
+                type="button"
+                variant="primary"
+              >
+                {saveLabel}
+              </Button>
+            ) : null}
           </div>
         )}
       </div>

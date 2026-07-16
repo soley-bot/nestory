@@ -1,13 +1,15 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import {
   DOCUMENT_FILE_ACCEPT,
   FileDropzoneField,
 } from "@/components/ui/file-dropzone-field";
+import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
+import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   createUnitAction,
@@ -67,32 +69,30 @@ export function UnitForm({
   }, [isEditMode, onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
-        {state.message ? (
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role={state.status === "error" ? "alert" : "status"}
-          >
-            {state.message}
-          </p>
-        ) : null}
+    <RecordForm
+      action={action}
+      ariaLabel={isEditMode ? "Edit unit form" : "Add unit form"}
+      hideSaveOnSuccess={!isEditMode}
+      onCancel={onClose}
+      pending={pending}
+      saveLabel={isEditMode ? "Save changes" : "Add unit"}
+      savingLabel={isEditMode ? "Saving unit" : "Adding unit"}
+      state={state}
+    >
+      {isEditMode && unit ? (
+        <input name="unitId" type="hidden" value={unit.id} />
+      ) : null}
 
-        {isEditMode && unit ? (
-          <input name="unitId" type="hidden" value={unit.id} />
-        ) : null}
-
+      <FormSection title="Placement">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.propertyId?.[0]}
+            label="Property"
+            name="propertyId"
+            required
+          >
             {isEditMode ? (
-              <>
-                <input
-                  name="propertyId"
-                  type="hidden"
-                  value={defaults.propertyId}
-                />
-                <ReadOnlyValue>{propertyLabel}</ReadOnlyValue>
-              </>
+              <ReadOnlyValue>{propertyLabel}</ReadOnlyValue>
             ) : (
               <SelectControl
                 ariaLabel="Property"
@@ -108,9 +108,21 @@ export function UnitForm({
                 required
               />
             )}
-          </Field>
+            {isEditMode ? (
+              <input
+                name="propertyId"
+                type="hidden"
+                value={defaults.propertyId}
+              />
+            ) : null}
+          </RecordField>
 
-          <Field label="Status" error={state.fieldErrors?.status?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.status?.[0]}
+            label="Status"
+            name="status"
+            required
+          >
             <SelectControl
               ariaLabel="Status"
               defaultValue={selectedStatus}
@@ -118,11 +130,29 @@ export function UnitForm({
               options={normalizedStatusOptions}
               required
             />
-          </Field>
+          </RecordField>
         </div>
 
+        <ConsequencePanel
+          rows={[
+            {
+              label: "Property",
+              value: isEditMode ? "Remains on the current property" : "Fixed after creation",
+            },
+            { label: "Status", value: "Updates vacancy and occupancy views" },
+          ]}
+          title="Placement effects"
+        />
+      </FormSection>
+
+      <FormSection title="Unit details">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_128px_140px]">
-          <Field label="Unit number" error={state.fieldErrors?.unitNumber?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.unitNumber?.[0]}
+            label="Unit number"
+            name="unitNumber"
+            required
+          >
             <Input
               defaultValue={defaults.unitNumber}
               name="unitNumber"
@@ -130,18 +160,26 @@ export function UnitForm({
               required
               type="text"
             />
-          </Field>
+          </RecordField>
 
-          <Field label="Floor" error={state.fieldErrors?.floor?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.floor?.[0]}
+            label="Floor"
+            name="floor"
+          >
             <Input
               defaultValue={defaults.floor}
               name="floor"
               placeholder="12"
               type="text"
             />
-          </Field>
+          </RecordField>
 
-          <Field label="Size sqm" error={state.fieldErrors?.sizeSqm?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.sizeSqm?.[0]}
+            label="Size sqm"
+            name="sizeSqm"
+          >
             <NumberInput
               defaultValue={defaults.sizeSqm}
               min="0"
@@ -149,12 +187,15 @@ export function UnitForm({
               placeholder="55.25"
               step="0.01"
             />
-          </Field>
+          </RecordField>
         </div>
+      </FormSection>
 
+      <FormSection title="Rent">
         <div className="grid gap-4">
-          <Field
+          <RecordField
             label="Current rent"
+            name="currentRentAmount"
             error={state.fieldErrors?.currentRentAmount?.[0]}
           >
             <NumberInput
@@ -164,90 +205,53 @@ export function UnitForm({
               placeholder="0.00"
               step="0.01"
             />
-          </Field>
+          </RecordField>
         </div>
+      </FormSection>
 
-        <InlineDocumentField
-          defaultCategory="Unit evidence"
+      <FormSection title="Documents and evidence">
+        <RecordField
           error={state.fieldErrors?.document?.[0]}
-        />
-      </div>
-
-      <div className="border-t border-border px-4 py-4 sm:px-5">
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
-            {state.status === "success" && !isEditMode ? "Close" : "Cancel"}
-          </Button>
-          {state.status === "success" && !isEditMode ? null : (
-            <Button
-              className="w-full sm:w-auto"
-              disabled={pending}
-              type="submit"
-              variant="primary"
-            >
-              {isEditMode
-                ? pending
-                  ? "Saving..."
-                  : "Save changes"
-                : pending
-                  ? "Adding..."
-                  : "Add unit"}
-            </Button>
-          )}
-        </div>
-      </div>
-    </form>
+          label="Supporting file"
+          name="document"
+        >
+          <InlineDocumentField defaultCategory="Unit evidence" />
+        </RecordField>
+      </FormSection>
+    </RecordForm>
   );
 }
 
 function InlineDocumentField({
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-required": ariaRequired,
   defaultCategory,
-  error,
 }: {
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "false" | "true";
+  "aria-labelledby"?: string;
+  "aria-required"?: boolean | "false" | "true";
   defaultCategory: string;
-  error?: string;
 }) {
   return (
     <section className="rounded-md border border-border bg-surface-muted p-3">
-      <p className="text-sm font-semibold">Documents and evidence</p>
-      <p className="mt-1 text-xs leading-5 text-muted">
+      <p className="text-xs leading-5 text-muted">
         Optional. Upload a supporting file and it will be linked to this unit.
       </p>
       <input name="documentCategory" type="hidden" value={defaultCategory} />
       <FileDropzoneField
         accept={DOCUMENT_FILE_ACCEPT}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
+        aria-labelledby={ariaLabelledBy}
+        aria-required={ariaRequired}
         className="mt-3"
         description="PDF, JPG, PNG, or WebP up to 10 MB."
         name="document"
       />
-      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
     </section>
-  );
-}
-
-function Field({
-  children,
-  className,
-  error,
-  label,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  error?: string;
-  label: string;
-}) {
-  return (
-    <label
-      className={
-        className
-          ? `block min-w-0 text-sm font-medium ${className}`
-          : "block min-w-0 text-sm font-medium"
-      }
-    >
-      {label}
-      <div className="mt-2">{children}</div>
-      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
-    </label>
   );
 }
 

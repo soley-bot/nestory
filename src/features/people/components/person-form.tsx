@@ -1,9 +1,11 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { CheckboxControl } from "@/components/ui/checkbox-control";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
+import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
+import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -55,23 +57,31 @@ export function PersonForm({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
-        {state.message ? (
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role={state.status === "error" ? "alert" : "status"}
-          >
-            {state.message}
-          </p>
-        ) : null}
+    <RecordForm
+      action={action}
+      ariaLabel={isEditMode ? "Edit person form" : "Add person form"}
+      onCancel={onClose}
+      pending={pending}
+      saveLabel={
+        isEditMode
+          ? "Save changes"
+          : `Add ${roleContext ? formatRole(roleContext).toLowerCase() : "person"}`
+      }
+      savingLabel={isEditMode ? "Saving person" : "Adding person"}
+      state={state}
+    >
+      {isEditMode && person ? (
+        <input name="personId" type="hidden" value={person.id} />
+      ) : null}
 
-        {isEditMode && person ? (
-          <input name="personId" type="hidden" value={person.id} />
-        ) : null}
-
+      <FormSection title="Identity">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
-          <Field label="Display name" error={state.fieldErrors?.displayName?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.displayName?.[0]}
+            label="Display name"
+            name="displayName"
+            required
+          >
             <Input
               defaultValue={defaults.displayName}
               name="displayName"
@@ -79,9 +89,14 @@ export function PersonForm({
               required
               type="text"
             />
-          </Field>
+          </RecordField>
 
-          <Field label="Party type" error={state.fieldErrors?.partyType?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.partyType?.[0]}
+            label="Party type"
+            name="partyType"
+            required
+          >
             <SelectControl
               ariaLabel="Party type"
               defaultValue={defaults.partyType}
@@ -92,38 +107,54 @@ export function PersonForm({
               ]}
               required
             />
-          </Field>
+          </RecordField>
         </div>
 
-        <Field label="Legal name" error={state.fieldErrors?.legalName?.[0]}>
+        <RecordField
+          error={state.fieldErrors?.legalName?.[0]}
+          label="Legal name"
+          name="legalName"
+        >
           <Input
             defaultValue={defaults.legalName}
             name="legalName"
             placeholder="Optional registered name"
             type="text"
           />
-        </Field>
+        </RecordField>
+      </FormSection>
 
+      <FormSection title="Contact">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Primary email" error={state.fieldErrors?.primaryEmail?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.primaryEmail?.[0]}
+            label="Primary email"
+            name="primaryEmail"
+          >
             <Input
               defaultValue={defaults.primaryEmail}
               name="primaryEmail"
               placeholder="name@example.com"
               type="email"
             />
-          </Field>
+          </RecordField>
 
-          <Field label="Primary phone" error={state.fieldErrors?.primaryPhone?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.primaryPhone?.[0]}
+            label="Primary phone"
+            name="primaryPhone"
+          >
             <Input
               defaultValue={defaults.primaryPhone}
               name="primaryPhone"
               placeholder="+855 ..."
               type="tel"
             />
-          </Field>
+          </RecordField>
         </div>
+      </FormSection>
 
+      <FormSection title="Roles">
         {roleContext ? (
           <LockedRoleField
             error={state.fieldErrors?.roles?.[0]}
@@ -131,7 +162,12 @@ export function PersonForm({
             roles={defaults.roles}
           />
         ) : (
-          <Field label="Roles" error={state.fieldErrors?.roles?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.roles?.[0]}
+            label="Operational roles"
+            name="roles"
+            required
+          >
             <div className="grid gap-2 sm:grid-cols-3">
               {roleOptions.map((role) => (
                 <RoleCheckbox
@@ -141,50 +177,43 @@ export function PersonForm({
                 />
               ))}
             </div>
-          </Field>
+          </RecordField>
         )}
 
-        <Field label="Tax identifier" error={state.fieldErrors?.taxIdentifier?.[0]}>
+        <ConsequencePanel
+          summary="Roles determine where this record appears in People workflows. They do not grant workspace access."
+          title="Role effect"
+        />
+      </FormSection>
+
+      <FormSection title="Administration">
+        <RecordField
+          error={state.fieldErrors?.taxIdentifier?.[0]}
+          label="Tax identifier"
+          name="taxIdentifier"
+        >
           <Input
             defaultValue={defaults.taxIdentifier}
             name="taxIdentifier"
             placeholder="Optional"
             type="text"
           />
-        </Field>
+        </RecordField>
 
-        <Field label="Notes" error={state.fieldErrors?.notes?.[0]}>
+        <RecordField
+          error={state.fieldErrors?.notes?.[0]}
+          label="Internal notes"
+          name="notes"
+        >
           <Textarea
             className="min-h-28 resize-y"
             defaultValue={defaults.notes}
             name="notes"
             placeholder="Internal relationship, billing, or access notes"
           />
-        </Field>
-      </div>
-
-      <div className="border-t border-border px-4 py-4 sm:px-5">
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
-            Cancel
-          </Button>
-          <Button
-            className="w-full sm:w-auto"
-            disabled={pending}
-            type="submit"
-            variant="primary"
-          >
-            {isEditMode
-              ? pending
-                ? "Saving..."
-                : "Save changes"
-              : pending
-                ? "Adding..."
-                : `Add ${roleContext ? formatRole(roleContext).toLowerCase() : "person"}`}
-          </Button>
-        </div>
-      </div>
-    </form>
+        </RecordField>
+      </FormSection>
+    </RecordForm>
   );
 }
 
@@ -200,7 +229,15 @@ function LockedRoleField({
   const submittedRoles = roles.length > 0 ? roles : [role];
 
   return (
-    <Field label="Record type" error={error}>
+    <RecordField
+      error={error}
+      label="Record type"
+      name="roles"
+      required
+    >
+      <div className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm font-medium">
+        {formatRole(role)}
+      </div>
       {submittedRoles.map((submittedRole) => (
         <input
           key={submittedRole}
@@ -209,28 +246,7 @@ function LockedRoleField({
           value={submittedRole}
         />
       ))}
-      <div className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm font-medium">
-        {formatRole(role)}
-      </div>
-    </Field>
-  );
-}
-
-function Field({
-  children,
-  error,
-  label,
-}: {
-  children: React.ReactNode;
-  error?: string;
-  label: string;
-}) {
-  return (
-    <label className="block min-w-0 text-sm font-medium">
-      {label}
-      <div className="mt-2">{children}</div>
-      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
-    </label>
+    </RecordField>
   );
 }
 

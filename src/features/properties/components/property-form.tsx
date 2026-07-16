@@ -5,12 +5,15 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { ImageIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import {
   FileDropzoneField,
   PHOTO_FILE_ACCEPT,
 } from "@/components/ui/file-dropzone-field";
 import { DatePickerField } from "@/components/ui/date-picker-field";
+import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
+import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -69,12 +72,6 @@ export function PropertyForm({
       value: owner.id,
     })),
   ];
-  const flowState = getPropertyFormFlowState({
-    isEditMode,
-    pending,
-    status: state.status,
-  });
-
   useEffect(() => {
     return () => {
       if (photoPreview) {
@@ -109,36 +106,37 @@ export function PropertyForm({
   };
 
   return (
-    <form
+    <RecordForm
       action={action}
-      className="flex h-full flex-col"
-      data-flow-state={flowState}
+      ariaLabel={isEditMode ? "Edit property form" : "Add property form"}
+      hideSaveOnSuccess={!isEditMode}
+      onCancel={onClose}
+      pending={pending}
+      saveLabel={isEditMode ? "Save changes" : "Add property"}
+      savingLabel={isEditMode ? "Saving property" : "Adding property"}
+      state={state}
     >
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
-        {state.message ? (
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role={state.status === "error" ? "alert" : "status"}
-          >
-            {state.message}
-          </p>
-        ) : null}
-        {state.status === "success" && !isEditMode && state.propertyId ? (
-          <CreateSuccessActions propertyId={state.propertyId} />
-        ) : null}
+      {state.status === "success" && !isEditMode && state.propertyId ? (
+        <CreateSuccessActions propertyId={state.propertyId} />
+      ) : null}
+      {isEditMode && property ? (
+        <input name="propertyId" type="hidden" value={property.id} />
+      ) : null}
+      <input
+        name="hasPhoto"
+        type="hidden"
+        value={property?.thumbnailUrl ? "true" : "false"}
+      />
+      <input name="owner" type="hidden" value={defaults.owner ?? ""} />
 
-        {isEditMode && property ? (
-          <input name="propertyId" type="hidden" value={property.id} />
-        ) : null}
-        <input
-          name="hasPhoto"
-          type="hidden"
-          value={property?.thumbnailUrl ? "true" : "false"}
-        />
-        <input name="owner" type="hidden" value={defaults.owner ?? ""} />
-
+      <FormSection title="Identity">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_132px]">
-          <Field label="Property name" error={state.fieldErrors?.name?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.name?.[0]}
+            label="Property name"
+            name="name"
+            required
+          >
             <Input
               defaultValue={defaults.name}
               maxLength={120}
@@ -147,9 +145,14 @@ export function PropertyForm({
               required
               type="text"
             />
-          </Field>
+          </RecordField>
 
-          <Field label="Code" error={state.fieldErrors?.code?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.code?.[0]}
+            label="Code"
+            name="code"
+            required
+          >
             <Input
               autoCapitalize="characters"
               defaultValue={defaults.code}
@@ -159,13 +162,15 @@ export function PropertyForm({
               required
               type="text"
             />
-          </Field>
+          </RecordField>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field
+          <RecordField
             label="Property type"
+            name="propertyType"
             error={state.fieldErrors?.propertyType?.[0]}
+            required
           >
             <Input
               defaultValue={defaults.propertyType}
@@ -175,9 +180,14 @@ export function PropertyForm({
               required
               type="text"
             />
-          </Field>
+          </RecordField>
 
-          <Field label="Status" error={state.fieldErrors?.status?.[0]}>
+          <RecordField
+            error={state.fieldErrors?.status?.[0]}
+            label="Status"
+            name="status"
+            required
+          >
             <SelectControl
               ariaLabel="Status"
               defaultValue={defaults.status}
@@ -185,12 +195,15 @@ export function PropertyForm({
               options={statusOptions}
               required
             />
-          </Field>
+          </RecordField>
         </div>
+      </FormSection>
 
+      <FormSection title="Ownership and location">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
-          <Field
+          <RecordField
             label="Current owner link"
+            name="ownerPersonId"
             error={state.fieldErrors?.ownerPersonId?.[0]}
           >
             <SelectControl
@@ -214,10 +227,11 @@ export function PropertyForm({
                 Create owner
               </Link>
             </div>
-          </Field>
+          </RecordField>
 
-          <Field
+          <RecordField
             label="Acquisition date"
+            name="acquisitionDate"
             error={state.fieldErrors?.acquisitionDate?.[0]}
           >
             <DatePickerField
@@ -225,10 +239,14 @@ export function PropertyForm({
               defaultValue={defaults.acquisitionDate ?? ""}
               name="acquisitionDate"
             />
-          </Field>
+          </RecordField>
         </div>
 
-        <Field label="Address" error={state.fieldErrors?.address?.[0]}>
+        <RecordField
+          error={state.fieldErrors?.address?.[0]}
+          label="Address"
+          name="address"
+        >
           <Input
             defaultValue={defaults.address ?? ""}
             maxLength={240}
@@ -236,84 +254,51 @@ export function PropertyForm({
             placeholder="Street, district, city"
             type="text"
           />
-        </Field>
+        </RecordField>
 
-        <InlinePropertyPhotoField
-          dropzoneKey={dropzoneKey}
-          error={state.fieldErrors?.photo?.[0]}
-          onChange={changePhotoPreview}
-          onClear={clearPhotoPreview}
-          onFile={handlePhotoFile}
-          openRef={openPhotoPickerRef}
-          preview={photoPreview}
+        <ConsequencePanel
+          rows={[
+            { label: "Owner link", value: "Updates ownership reporting" },
+            { label: "History", value: "Existing property history stays linked" },
+          ]}
+          summary="Ownership changes update the current relationship without replacing the property record."
+          title="Linked record effects"
         />
+      </FormSection>
 
-        <Field label="Notes" error={state.fieldErrors?.notes?.[0]}>
+      <FormSection title="Photo">
+        <RecordField
+          error={state.fieldErrors?.photo?.[0]}
+          label="Property photo"
+          name="photo"
+        >
+          <InlinePropertyPhotoField
+            dropzoneKey={dropzoneKey}
+            onChange={changePhotoPreview}
+            onClear={clearPhotoPreview}
+            onFile={handlePhotoFile}
+            openRef={openPhotoPickerRef}
+            preview={photoPreview}
+          />
+        </RecordField>
+      </FormSection>
+
+      <FormSection title="Notes">
+        <RecordField
+          error={state.fieldErrors?.notes?.[0]}
+          label="Internal notes"
+          name="notes"
+        >
           <Textarea
             defaultValue={defaults.notes ?? ""}
             maxLength={800}
             name="notes"
             placeholder="Internal operating notes"
           />
-        </Field>
-      </div>
-
-      <div className="border-t border-border px-4 py-4 sm:px-5">
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
-            {flowState === "created" ? "Close" : "Cancel"}
-          </Button>
-          {flowState === "created" ? null : (
-            <Button
-              className="w-full sm:w-auto"
-              disabled={pending}
-              type="submit"
-              variant="primary"
-            >
-              {getPropertySubmitLabel(flowState, isEditMode)}
-            </Button>
-          )}
-        </div>
-      </div>
-    </form>
+        </RecordField>
+      </FormSection>
+    </RecordForm>
   );
-}
-
-type PropertyFormFlowState = "created" | "editing" | "idle" | "invalid" | "saving";
-
-function getPropertyFormFlowState({
-  isEditMode,
-  pending,
-  status,
-}: {
-  isEditMode: boolean;
-  pending: boolean;
-  status?: PropertyActionState["status"];
-}): PropertyFormFlowState {
-  if (pending) {
-    return "saving";
-  }
-
-  if (status === "error") {
-    return "invalid";
-  }
-
-  if (status === "success" && !isEditMode) {
-    return "created";
-  }
-
-  return isEditMode ? "editing" : "idle";
-}
-
-function getPropertySubmitLabel(
-  flowState: PropertyFormFlowState,
-  isEditMode: boolean,
-) {
-  if (flowState === "saving") {
-    return isEditMode ? "Saving..." : "Adding...";
-  }
-
-  return isEditMode ? "Save changes" : "Add property";
 }
 
 function CreateSuccessActions({ propertyId }: { propertyId: string }) {
@@ -339,16 +324,22 @@ function CreateSuccessActions({ propertyId }: { propertyId: string }) {
 }
 
 function InlinePropertyPhotoField({
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-required": ariaRequired,
   dropzoneKey,
-  error,
   onChange,
   onClear,
   onFile,
   openRef,
   preview,
 }: {
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "false" | "true";
+  "aria-labelledby"?: string;
+  "aria-required"?: boolean | "false" | "true";
   dropzoneKey: number;
-  error?: string;
   onChange: () => void;
   onClear: () => void;
   onFile: (file: File) => void;
@@ -357,12 +348,15 @@ function InlinePropertyPhotoField({
 }) {
   return (
     <section className="rounded-md border border-border bg-surface-muted p-3">
-      <p className="text-sm font-semibold">Property photo</p>
       <p className="mt-1 text-xs leading-5 text-muted">
         Optional. Upload a cover or identification image for the Photos tab.
       </p>
       <FileDropzoneField
         accept={PHOTO_FILE_ACCEPT}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
+        aria-labelledby={ariaLabelledBy}
+        aria-required={ariaRequired}
         className="mt-3"
         description="JPG, PNG, or WebP up to 10 MB."
         displayFileName={preview?.name}
@@ -378,7 +372,6 @@ function InlinePropertyPhotoField({
           preview={preview}
         />
       ) : null}
-      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
     </section>
   );
 }
@@ -432,24 +425,6 @@ function SelectedPropertyPhotoPreview({
         </div>
       </div>
     </article>
-  );
-}
-
-function Field({
-  children,
-  error,
-  label,
-}: {
-  children: React.ReactNode;
-  error?: string;
-  label: string;
-}) {
-  return (
-    <label className="block min-w-0 text-sm font-medium">
-      {label}
-      <div className="mt-2">{children}</div>
-      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
-    </label>
   );
 }
 

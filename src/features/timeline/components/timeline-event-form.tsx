@@ -12,10 +12,12 @@ import type {
   TimelinePropertyOption,
   TimelineUnitOption,
 } from "@/features/timeline/timeline.types";
-import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DatePickerField } from "@/components/ui/date-picker-field";
+import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
+import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -57,6 +59,10 @@ export function TimelineEventForm({
     () => units.filter((unit) => unit.propertyId === selectedPropertyId),
     [selectedPropertyId, units],
   );
+  const selectedProperty = properties.find(
+    (property) => property.id === selectedPropertyId,
+  );
+  const selectedUnit = units.find((unit) => unit.id === selectedUnitId);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -66,158 +72,171 @@ export function TimelineEventForm({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="space-y-5 py-5">
-      {state.message ? (
-        <p
-          className="mx-4 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm sm:mx-5"
-          role={state.status === "error" ? "alert" : "status"}
-        >
-          {state.message}
-        </p>
-      ) : null}
-
+    <RecordForm
+      action={action}
+      ariaLabel={
+        isEditMode ? "Edit timeline event form" : "Add timeline event form"
+      }
+      onCancel={onClose}
+      pending={pending}
+      saveLabel={isEditMode ? "Save changes" : "Add event"}
+      savingLabel={
+        isEditMode ? "Saving timeline event" : "Adding timeline event"
+      }
+      state={{
+        ...state,
+        fieldErrors: state.fieldErrors ? { ...state.fieldErrors } : undefined,
+      }}
+    >
       {isEditMode && event ? (
         <input name="eventId" type="hidden" value={event.id} />
       ) : null}
 
-      <div className="grid gap-4 px-4 sm:grid-cols-2 sm:px-5">
-        <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
-          <SelectControl
-            ariaLabel="Property"
+      <ConsequencePanel
+        rows={[
+          {
+            label: "Property",
+            value: selectedProperty?.label ?? "Select property",
+          },
+          {
+            label: "Unit",
+            value: selectedUnit?.label ?? "Property level",
+          },
+        ]}
+        summary="This selection controls which operating record shows the event. Cost remains timeline context and does not post to the ledger."
+        title="Record link"
+      />
+
+      <FormSection title="Record link">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RecordField
+            error={state.fieldErrors?.propertyId?.[0]}
+            label="Property"
             name="propertyId"
-            onValueChange={(value) => {
-              setSelectedPropertyId(value);
-              setSelectedUnitId("");
-            }}
-            options={[
-              { label: "Select property", value: "" },
-              ...properties.map((property) => ({
-                label: property.label,
-                value: property.id,
-              })),
-            ]}
             required
-            value={selectedPropertyId}
-          />
-        </Field>
+          >
+            <SelectControl
+              ariaLabel="Property"
+              name="propertyId"
+              onValueChange={(value) => {
+                setSelectedPropertyId(value);
+                setSelectedUnitId("");
+              }}
+              options={[
+                { label: "Select property", value: "" },
+                ...properties.map((property) => ({
+                  label: property.label,
+                  value: property.id,
+                })),
+              ]}
+              required
+              value={selectedPropertyId}
+            />
+          </RecordField>
 
-        <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
-          <SelectControl
-            ariaLabel="Unit"
-            disabled={!selectedPropertyId}
+          <RecordField
+            error={state.fieldErrors?.unitId?.[0]}
+            label="Unit"
             name="unitId"
-            onValueChange={setSelectedUnitId}
-            options={[
-              { label: "Property level", value: "" },
-              ...availableUnits.map((unit) => ({
-                label: unit.label,
-                value: unit.id,
-              })),
-            ]}
-            value={selectedUnitId}
-          />
-        </Field>
+          >
+            <SelectControl
+              ariaLabel="Unit"
+              disabled={!selectedPropertyId}
+              name="unitId"
+              onValueChange={setSelectedUnitId}
+              options={[
+                { label: "Property level", value: "" },
+                ...availableUnits.map((unit) => ({
+                  label: unit.label,
+                  value: unit.id,
+                })),
+              ]}
+              value={selectedUnitId}
+            />
+          </RecordField>
+        </div>
+      </FormSection>
 
-        <Field label="Event type" error={state.fieldErrors?.eventType?.[0]}>
-          <SelectControl
-            ariaLabel="Event type"
-            defaultValue={event?.eventType ?? eventTypes[0]}
+      <FormSection title="Event detail">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RecordField
+            error={state.fieldErrors?.eventType?.[0]}
+            label="Event type"
             name="eventType"
-            options={eventTypes.map((eventType) => ({
-              label: eventType,
-              value: eventType,
-            }))}
             required
-          />
-        </Field>
+          >
+            <SelectControl
+              ariaLabel="Event type"
+              defaultValue={event?.eventType ?? eventTypes[0]}
+              name="eventType"
+              options={eventTypes.map((eventType) => ({
+                label: eventType,
+                value: eventType,
+              }))}
+              required
+            />
+          </RecordField>
 
-        <Field label="Event date" error={state.fieldErrors?.eventDate?.[0]}>
-          <DatePickerField
-            ariaLabel="Event date"
-            defaultValue={event?.eventDate ?? ""}
+          <RecordField
+            error={state.fieldErrors?.eventDate?.[0]}
+            label="Event date"
             name="eventDate"
             required
-          />
-        </Field>
-      </div>
+          >
+            <DatePickerField
+              ariaLabel="Event date"
+              defaultValue={event?.eventDate ?? ""}
+              name="eventDate"
+              required
+            />
+          </RecordField>
+        </div>
 
-      <div className="grid gap-4 px-4 sm:grid-cols-[minmax(0,1fr)_128px] sm:px-5">
-        <Field label="Title" error={state.fieldErrors?.title?.[0]}>
-          <Input
-            defaultValue={event?.title ?? ""}
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_128px]">
+          <RecordField
+            error={state.fieldErrors?.title?.[0]}
+            label="Title"
             name="title"
-            placeholder="Short record title"
             required
-            type="text"
-          />
-        </Field>
+          >
+            <Input
+              defaultValue={event?.title ?? ""}
+              name="title"
+              placeholder="Short record title"
+              required
+              type="text"
+            />
+          </RecordField>
 
-          <Field label="Cost" error={state.fieldErrors?.costAmount?.[0]}>
-          <NumberInput
-            defaultValue={event?.cost ?? ""}
-            min="0"
+          <RecordField
+            error={state.fieldErrors?.costAmount?.[0]}
+            label="Cost"
             name="costAmount"
-            placeholder="0.00"
-            step="0.01"
-          />
-        </Field>
-      </div>
+          >
+            <NumberInput
+              defaultValue={event?.cost ?? ""}
+              min="0"
+              name="costAmount"
+              placeholder="0.00"
+              step="0.01"
+            />
+          </RecordField>
+        </div>
+      </FormSection>
 
-      <Field
-        className="px-4 sm:px-5"
-        label="Description"
-        error={state.fieldErrors?.description?.[0]}
-      >
-        <Textarea
-          defaultValue={event?.description ?? ""}
+      <FormSection title="Notes">
+        <RecordField
+          error={state.fieldErrors?.description?.[0]}
+          label="Description"
           name="description"
-          placeholder="Operational notes"
-        />
-      </Field>
-
-      <div className="flex flex-col-reverse gap-2 border-t border-border px-4 py-4 sm:flex-row sm:justify-end sm:px-5">
-        <Button className="w-full sm:w-auto" onClick={onClose} type="button">
-          Cancel
-        </Button>
-        <Button
-          className="w-full sm:w-auto"
-          disabled={pending}
-          type="submit"
-          variant="primary"
         >
-          {pending
-            ? isEditMode
-              ? "Saving..."
-              : "Adding..."
-            : isEditMode
-              ? "Save changes"
-              : "Add event"}
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-function Field({
-  children,
-  className,
-  error,
-  label,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  error?: string;
-  label: string;
-}) {
-  return (
-    <label
-      className={
-        className ? `block min-w-0 text-sm font-medium ${className}` : "block min-w-0 text-sm font-medium"
-      }
-    >
-      {label}
-      <div className="mt-2">{children}</div>
-      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
-    </label>
+          <Textarea
+            defaultValue={event?.description ?? ""}
+            name="description"
+            placeholder="Operational notes"
+          />
+        </RecordField>
+      </FormSection>
+    </RecordForm>
   );
 }

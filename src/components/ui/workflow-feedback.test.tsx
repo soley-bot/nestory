@@ -511,12 +511,15 @@ describe("drawer workflow slots", () => {
       "drawer-content",
       "drawer-summary",
       "drawer-footer",
+      "drawer-portals",
     ]);
     expect(content?.className).toContain("overflow-y-auto");
     expect(content?.contains(screen.getByText("3 people gain access"))).toBe(false);
     expect(content?.contains(screen.getByRole("button", { name: "Apply changes" }))).toBe(false);
     expect(summary?.className).toContain("shrink-0");
     expect(footer?.className).toContain("shrink-0");
+    expect(dialog.querySelector('[data-slot="drawer-portals"]')?.className)
+      .toContain("contents");
   });
 
   it("forwards summary and footer slots through RecordPreviewDrawer", () => {

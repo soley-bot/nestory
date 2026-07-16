@@ -1,14 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DayPicker } from "@daypicker/react";
 import * as Popover from "@radix-ui/react-popover";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
+import { useDrawerPortalContainer } from "@/components/ui/side-drawer";
 
 type DatePickerFieldProps = {
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "false" | "true";
+  "aria-labelledby"?: string;
+  "aria-required"?: boolean | "false" | "true";
   ariaLabel?: string;
   className?: string;
   defaultValue?: string;
@@ -16,27 +21,57 @@ type DatePickerFieldProps = {
   required?: boolean;
 };
 
-export function DatePickerField({
+export function DatePickerField(props: DatePickerFieldProps) {
+  const {
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-required": ariaRequired,
   ariaLabel,
   className,
   defaultValue = "",
   name,
   required = false,
-}: DatePickerFieldProps) {
+  } = props;
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(defaultValue);
+  const hiddenInputRef = useRef<HTMLInputElement>(null);
+  const previousValueRef = useRef(value);
+  const portalContainer = useDrawerPortalContainer();
   const [visibleMonth, setVisibleMonth] = useState(() =>
     getVisibleMonth(defaultValue),
   );
   const selectedDate = useMemo(() => parseDateValue(value), [value]);
 
+  useEffect(() => {
+    if (previousValueRef.current === value) {
+      return;
+    }
+
+    previousValueRef.current = value;
+    hiddenInputRef.current?.dispatchEvent(
+      new Event("input", { bubbles: true }),
+    );
+  }, [value]);
+
   return (
     <>
-      <input name={name} required={required} type="hidden" value={value} />
+      <input
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
+        aria-required={ariaRequired ?? required}
+        name={name}
+        ref={hiddenInputRef}
+        required={required}
+        type="hidden"
+        value={value}
+      />
       <Popover.Root onOpenChange={setOpen} open={open}>
         <Popover.Trigger asChild>
           <button
+            aria-describedby={ariaDescribedBy}
             aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledBy}
             className={cn(
               "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 text-left text-sm shadow-sm outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring",
               className,
@@ -49,10 +84,11 @@ export function DatePickerField({
             <CalendarDays className="shrink-0 text-muted" size={16} />
           </button>
         </Popover.Trigger>
-        <Popover.Portal>
+        <Popover.Portal container={portalContainer ?? undefined}>
           <Popover.Content
             align="start"
             className="z-[80] w-[312px] rounded-md border border-border bg-surface p-3 shadow-lg"
+            onEscapeKeyDown={(event) => event.stopPropagation()}
             sideOffset={4}
           >
             <div className="flex items-center justify-between gap-2">

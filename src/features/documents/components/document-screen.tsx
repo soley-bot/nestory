@@ -11,7 +11,6 @@ import {
   Pencil,
   Plus,
   RotateCcw,
-  Upload,
 } from "lucide-react";
 import {
   previewRowClassName,
@@ -37,7 +36,9 @@ import {
   DOCUMENT_FILE_ACCEPT,
   FileDropzoneField,
 } from "@/components/ui/file-dropzone-field";
+import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
+import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -121,7 +122,7 @@ export function DocumentScreen({
   const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedDocument = initialDocumentId
-    ? documents.find((document) => document.id === initialDocumentId) ?? null
+    ? (documents.find((document) => document.id === initialDocumentId) ?? null)
     : null;
   const focusedDocumentId = focusedDocument?.id;
   const selectedDocument = getSelectedRecord({
@@ -235,19 +236,18 @@ export function DocumentScreen({
 
   return (
     <WorkspacePage
-      header={<PageHeader
-        actions={
-          <Button
-            onClick={openCreate}
-            variant="primary"
-          >
-            <Plus size={15} />
-            Upload document
-          </Button>
-        }
-        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "document" : "documents"}`}
-        title="Documents"
-      />}
+      header={
+        <PageHeader
+          actions={
+            <Button onClick={openCreate} variant="primary">
+              <Plus size={15} />
+              Upload document
+            </Button>
+          }
+          context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "document" : "documents"}`}
+          title="Documents"
+        />
+      }
       toolbar={
         <DocumentFilters
           properties={propertyOptions}
@@ -257,68 +257,67 @@ export function DocumentScreen({
       }
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
+        {statusMessage ? (
+          <div className="shrink-0 px-4 pt-3 sm:px-6">
+            <p
+              className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+              role="status"
+            >
+              {statusMessage}
+            </p>
+          </div>
+        ) : null}
 
-      {statusMessage ? (
-        <div className="shrink-0 px-4 pt-3 sm:px-6">
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role="status"
-          >
-            {statusMessage}
-          </p>
-        </div>
-      ) : null}
-
-      {reviewContext ? (
-        <DocumentReviewStrip
-          context={reviewContext}
-          count={pagination.totalCount}
-        />
-      ) : null}
-
-      <div className="min-h-0 min-w-0 flex-1">
-        {documentInspector && selectedDocument ? (
-          <WorkspaceSplitView
-            inspector={documentInspector}
-            inspectorLabel={`${selectedDocument.fileName} document inspector`}
-            inspectorOpen={isWideWorkspace || compactInspectorOpen}
-            list={documentList}
-            onInspectorOpenChange={setCompactInspectorOpen}
+        {reviewContext ? (
+          <DocumentReviewStrip
+            context={reviewContext}
+            count={pagination.totalCount}
           />
-        ) : (
-          <WorkspaceSplitView list={documentList} />
-        )}
-      </div>
+        ) : null}
 
-      {drawer ? (
-        <SideDrawer
-          description={getDrawerDescription(drawer)}
-          onClose={() => setDrawer(null)}
-          open
-          title={getDrawerTitle(drawer)}
-        >
-          {drawer.mode === "archive" || drawer.mode === "restore" ? (
-            <DocumentArchivePanel
-              document={drawer.document}
-              mode={drawer.mode}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
+        <div className="min-h-0 min-w-0 flex-1">
+          {documentInspector && selectedDocument ? (
+            <WorkspaceSplitView
+              inspector={documentInspector}
+              inspectorLabel={`${selectedDocument.fileName} document inspector`}
+              inspectorOpen={isWideWorkspace || compactInspectorOpen}
+              list={documentList}
+              onInspectorOpenChange={setCompactInspectorOpen}
             />
           ) : (
-            <DocumentForm
-              document={drawer.mode === "edit" ? drawer.document : undefined}
-              initialValues={
-                drawer.mode === "create" ? drawer.initialValues : undefined
-              }
-              mode={drawer.mode}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-              properties={propertyOptions}
-              units={unitOptions}
-            />
+            <WorkspaceSplitView list={documentList} />
           )}
-        </SideDrawer>
-      ) : null}
+        </div>
+
+        {drawer ? (
+          <SideDrawer
+            description={getDrawerDescription(drawer)}
+            onClose={() => setDrawer(null)}
+            open
+            title={getDrawerTitle(drawer)}
+          >
+            {drawer.mode === "archive" || drawer.mode === "restore" ? (
+              <DocumentArchivePanel
+                document={drawer.document}
+                mode={drawer.mode}
+                onClose={() => setDrawer(null)}
+                onSuccess={setStatusMessage}
+              />
+            ) : (
+              <DocumentForm
+                document={drawer.mode === "edit" ? drawer.document : undefined}
+                initialValues={
+                  drawer.mode === "create" ? drawer.initialValues : undefined
+                }
+                mode={drawer.mode}
+                onClose={() => setDrawer(null)}
+                onSuccess={setStatusMessage}
+                properties={propertyOptions}
+                units={unitOptions}
+              />
+            )}
+          </SideDrawer>
+        ) : null}
       </div>
     </WorkspacePage>
   );
@@ -371,60 +370,58 @@ function DocumentFilters({
   };
 
   return (
-      <div className="grid w-full gap-2 md:grid-cols-[minmax(0,1.4fr)_150px_minmax(170px,220px)_minmax(170px,220px)]">
-        <SearchCombo
-          ariaLabel="Search documents"
-          onQueryChange={(value) =>
-            setQueryState({
-              source: viewQuery.query,
-              value,
-            })
-          }
-          onSubmit={(event) => {
-            event.preventDefault();
-            replaceParam("query", query);
-          }}
-          placeholder="Search file name or category"
-          query={query}
-          submitLabel="Search documents"
-        />
-        <SelectControl
-          ariaLabel="Archive state"
-          onValueChange={(value) =>
-            replaceParam("archiveState", value, "active")
-          }
-          options={[
-            { label: "Active", value: "active" },
-            { label: "Archived", value: "archived" },
-            { label: "All", value: "all" },
-          ]}
-          value={viewQuery.archiveState}
-        />
-        <SelectControl
-          ariaLabel="Property"
-          onValueChange={(value) => replaceParam("propertyId", value, "all")}
-          options={[
-            { label: "All properties", value: "all" },
-            ...properties.map((property) => ({
-              label: property.label,
-              value: property.id,
-            })),
-          ]}
-          value={viewQuery.propertyId}
-        />
-        <SelectControl
-          ariaLabel="Unit"
-          onValueChange={(value) => replaceParam("unitId", value, "all")}
-          options={[
-            { label: "All units", value: "all" },
-            ...visibleUnits.map((unit) => ({
-              label: unit.label,
-              value: unit.id,
-            })),
-          ]}
-          value={viewQuery.unitId}
-        />
-      </div>
+    <div className="grid w-full gap-2 md:grid-cols-[minmax(0,1.4fr)_150px_minmax(170px,220px)_minmax(170px,220px)]">
+      <SearchCombo
+        ariaLabel="Search documents"
+        onQueryChange={(value) =>
+          setQueryState({
+            source: viewQuery.query,
+            value,
+          })
+        }
+        onSubmit={(event) => {
+          event.preventDefault();
+          replaceParam("query", query);
+        }}
+        placeholder="Search file name or category"
+        query={query}
+        submitLabel="Search documents"
+      />
+      <SelectControl
+        ariaLabel="Archive state"
+        onValueChange={(value) => replaceParam("archiveState", value, "active")}
+        options={[
+          { label: "Active", value: "active" },
+          { label: "Archived", value: "archived" },
+          { label: "All", value: "all" },
+        ]}
+        value={viewQuery.archiveState}
+      />
+      <SelectControl
+        ariaLabel="Property"
+        onValueChange={(value) => replaceParam("propertyId", value, "all")}
+        options={[
+          { label: "All properties", value: "all" },
+          ...properties.map((property) => ({
+            label: property.label,
+            value: property.id,
+          })),
+        ]}
+        value={viewQuery.propertyId}
+      />
+      <SelectControl
+        ariaLabel="Unit"
+        onValueChange={(value) => replaceParam("unitId", value, "all")}
+        options={[
+          { label: "All units", value: "all" },
+          ...visibleUnits.map((unit) => ({
+            label: unit.label,
+            value: unit.id,
+          })),
+        ]}
+        value={viewQuery.unitId}
+      />
+    </div>
   );
 }
 
@@ -489,7 +486,9 @@ function DocumentTable({
               <th className="px-1.5 py-2.5 text-right font-semibold">Size</th>
               <th className="px-1.5 py-2.5 font-semibold">Linked to</th>
               <th className="px-1.5 py-2.5 font-semibold">Uploaded</th>
-              <th className="px-1.5 py-2.5 text-right font-semibold">Preview</th>
+              <th className="px-1.5 py-2.5 text-right font-semibold">
+                Preview
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -527,7 +526,10 @@ function DocumentTable({
                   >
                     {document.fileName}
                   </Link>
-                  <p className="mt-0.5 truncate text-xs text-muted" title={document.category}>
+                  <p
+                    className="mt-0.5 truncate text-xs text-muted"
+                    title={document.category}
+                  >
                     {document.category}
                   </p>
                   {document.isArchived ? (
@@ -545,8 +547,13 @@ function DocumentTable({
                 <td className="px-1.5 py-2">
                   {document.linkedRecords[0] ? (
                     <>
-                      <p className="truncate font-medium">{document.linkedRecords[0].type}</p>
-                      <p className="mt-0.5 truncate text-xs text-muted" title={document.linkedRecords[0].label}>
+                      <p className="truncate font-medium">
+                        {document.linkedRecords[0].type}
+                      </p>
+                      <p
+                        className="mt-0.5 truncate text-xs text-muted"
+                        title={document.linkedRecords[0].label}
+                      >
                         {document.linkedRecords[0].label}
                       </p>
                     </>
@@ -638,7 +645,11 @@ function DocumentInspector({
         <DocumentLinkedRecords records={document.linkedRecords} />
 
         <div className="grid grid-cols-2 gap-2">
-          <Button aria-label="Edit document" onClick={() => onEdit(document)} type="button">
+          <Button
+            aria-label="Edit document"
+            onClick={() => onEdit(document)}
+            type="button"
+          >
             <Pencil size={15} />
             Edit
           </Button>
@@ -713,6 +724,13 @@ function DocumentForm({
     "Select a property";
   const unitLabel =
     units.find((unit) => unit.id === unitId)?.label ?? "Property level";
+  const hiddenLinkError =
+    state.fieldErrors?.leaseId?.[0] ?? state.fieldErrors?.taskId?.[0];
+  const presentedState = {
+    ...state,
+    fieldErrors: state.fieldErrors ? { ...state.fieldErrors } : undefined,
+    message: state.message ?? hiddenLinkError,
+  };
 
   useEffect(() => {
     if (state.status === "success") {
@@ -722,41 +740,60 @@ function DocumentForm({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form
+    <RecordForm
       action={action}
-      className="flex h-full flex-col"
+      ariaLabel={
+        mode === "create" ? "Upload document form" : "Edit document form"
+      }
+      onCancel={onClose}
+      pending={pending}
+      saveLabel={mode === "create" ? "Upload document" : "Save changes"}
+      savingLabel={mode === "create" ? "Uploading document" : "Saving document"}
+      state={presentedState}
     >
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5">
-        {document ? (
-          <input name="documentId" type="hidden" value={document.id} />
+      {document ? (
+        <input name="documentId" type="hidden" value={document.id} />
+      ) : null}
+      {defaults.leaseId ? (
+        <input name="leaseId" type="hidden" value={defaults.leaseId} />
+      ) : null}
+      {defaults.taskId ? (
+        <input name="taskId" type="hidden" value={defaults.taskId} />
+      ) : null}
+      <ConsequencePanel
+        rows={[
+          { label: "File", value: "PDF, JPG, PNG, or WebP up to 10 MB" },
+          { label: "Property", value: propertyLabel },
+          { label: "Unit", value: unitLabel },
+        ]}
+        summary={
+          defaults.leaseId
+            ? "The saved document stays linked to the selected property and lease."
+            : defaults.taskId
+              ? "The saved document stays linked to the selected property and maintenance case."
+              : "The saved document appears in the selected property or unit record."
+        }
+        title="Document link and file limits"
+      >
+        {hiddenLinkError ? (
+          <p className="text-danger">{hiddenLinkError}</p>
         ) : null}
-        {defaults.leaseId ? (
-          <input name="leaseId" type="hidden" value={defaults.leaseId} />
-        ) : null}
-        {defaults.taskId ? (
-          <input name="taskId" type="hidden" value={defaults.taskId} />
-        ) : null}
-        <ConsequencePanel
-          rows={[
-            { label: "File", value: "PDF, JPG, PNG, or WebP up to 10 MB" },
-            { label: "Property", value: propertyLabel },
-            { label: "Unit", value: unitLabel },
-          ]}
-          summary={
-            defaults.leaseId
-              ? "The saved document stays linked to the selected property and lease."
-              : defaults.taskId
-                ? "The saved document stays linked to the selected property and maintenance case."
-                : "The saved document appears in the selected property or unit record."
-          }
-          title="Document link and file limits"
-        />
-        <Field label="Category" error={state.fieldErrors?.category?.[0]}>
+      </ConsequencePanel>
+
+      <FormSection title="File details">
+        <RecordField
+          error={state.fieldErrors?.category?.[0]}
+          label="Category"
+          name="category"
+          required
+        >
           <Input defaultValue={defaults.category} name="category" required />
-        </Field>
-        <Field
+        </RecordField>
+        <RecordField
           label={mode === "create" ? "File" : "Replace file"}
+          name="document"
           error={state.fieldErrors?.document?.[0]}
+          required={mode === "create"}
         >
           <FileDropzoneField
             accept={DOCUMENT_FILE_ACCEPT}
@@ -769,8 +806,16 @@ function DocumentForm({
               Leave empty to keep the current file.
             </p>
           ) : null}
-        </Field>
-        <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
+        </RecordField>
+      </FormSection>
+
+      <FormSection title="Record link">
+        <RecordField
+          error={state.fieldErrors?.propertyId?.[0]}
+          label="Property"
+          name="propertyId"
+          required
+        >
           <SelectControl
             ariaLabel="Property"
             name="propertyId"
@@ -788,8 +833,12 @@ function DocumentForm({
             required
             value={propertyId}
           />
-        </Field>
-        <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
+        </RecordField>
+        <RecordField
+          error={state.fieldErrors?.unitId?.[0]}
+          label="Unit"
+          name="unitId"
+        >
           <SelectControl
             ariaLabel="Unit"
             disabled={!propertyId}
@@ -804,33 +853,9 @@ function DocumentForm({
             ]}
             value={unitId}
           />
-        </Field>
-        {state.message ? (
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role={state.status === "error" ? "alert" : "status"}
-          >
-            {state.message}
-          </p>
-        ) : null}
-      </div>
-      <div className="border-t border-border px-4 py-4 sm:px-5">
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button className="w-full sm:w-auto" onClick={onClose} type="button">
-            Cancel
-          </Button>
-          <Button
-            className="w-full sm:w-auto"
-            disabled={pending}
-            type="submit"
-            variant="primary"
-          >
-            <Upload size={15} />
-            {pending ? "Saving..." : mode === "create" ? "Upload" : "Save"}
-          </Button>
-        </div>
-      </div>
-    </form>
+        </RecordField>
+      </FormSection>
+    </RecordForm>
   );
 }
 
@@ -1007,7 +1032,8 @@ function getDocumentReviewContext(
   if (focusedState.hasFocusedDocument) {
     return {
       countLabel: "in this document view",
-      description: "Opened from an exact document link with archived records included.",
+      description:
+        "Opened from an exact document link with archived records included.",
       nextStep: "The focused document is selected for preview review.",
     };
   }
@@ -1054,24 +1080,6 @@ function getDocumentReviewContext(
   }
 
   return null;
-}
-
-function Field({
-  children,
-  error,
-  label,
-}: {
-  children: React.ReactNode;
-  error?: string;
-  label: string;
-}) {
-  return (
-    <label className="block text-sm font-medium">
-      {label}
-      <div className="mt-2">{children}</div>
-      {error ? <p className="mt-1 text-xs text-danger">{error}</p> : null}
-    </label>
-  );
 }
 
 function getDocumentCreateInitialValues(

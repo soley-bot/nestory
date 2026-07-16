@@ -1,9 +1,52 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { DraftStatus } from "@/components/ui/draft-action-bar";
+
+type DrawerDraftGuard = {
+  onDiscard?: () => void;
+  status: DraftStatus;
+};
+
+type DrawerDismissalContextValue = {
+  portalContainer: HTMLElement | null;
+  registerDraftGuard: (guard: DrawerDraftGuard) => () => void;
+  requestClose: () => void;
+};
+
+const DrawerDismissalContext = createContext<DrawerDismissalContextValue | null>(
+  null,
+);
+
+export function useDrawerDraftGuard(guard: DrawerDraftGuard) {
+  const context = useContext(DrawerDismissalContext);
+
+  useEffect(() => {
+    return context?.registerDraftGuard(guard);
+  }, [context, guard]);
+}
+
+export function useDrawerCloseRequest(fallback: () => void) {
+  const context = useContext(DrawerDismissalContext);
+
+  return context?.requestClose ?? fallback;
+}
+
+export function useDrawerPortalContainer() {
+  return useContext(DrawerDismissalContext)?.portalContainer ?? null;
+}
 
 type SideDrawerProps = {
   children: React.ReactNode;
@@ -27,9 +70,45 @@ export function SideDrawer({
   title,
 }: SideDrawerProps) {
   const drawerRef = useRef<HTMLElement>(null);
+  const draftGuardRef = useRef<DrawerDraftGuard | null>(null);
   const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
+  const [dismissalDecision, setDismissalDecision] = useState<
+    "dirty" | "saving" | null
+  >(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(
+    null,
+  );
   const titleId = useId();
   const descriptionId = useId();
+  const registerDraftGuard = useCallback((guard: DrawerDraftGuard) => {
+    draftGuardRef.current = guard;
+
+    return () => {
+      if (draftGuardRef.current === guard) {
+        draftGuardRef.current = null;
+      }
+    };
+  }, []);
+  const requestClose = useCallback(() => {
+    const guard = draftGuardRef.current;
+
+    if (guard?.status === "saving") {
+      setDismissalDecision("saving");
+      return;
+    }
+
+    if (guard?.status === "dirty" || guard?.status === "error") {
+      setDismissalDecision("dirty");
+      return;
+    }
+
+    setDismissalDecision(null);
+    onClose();
+  }, [onClose]);
+  const dismissalContext = useMemo(
+    () => ({ portalContainer, registerDraftGuard, requestClose }),
+    [portalContainer, registerDraftGuard, requestClose],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -86,7 +165,11 @@ export function SideDrawer({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        if (dismissalDecision) {
+          setDismissalDecision(null);
+        } else {
+          requestClose();
+        }
         return;
       }
 
@@ -134,14 +217,15 @@ export function SideDrawer({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose, open]);
+  }, [dismissalDecision, open, requestClose]);
 
   if (!open) {
     return null;
   }
 
   return (
-    <div
+    <DrawerDismissalContext.Provider value={dismissalContext}>
+      <div
       aria-labelledby={titleId}
       aria-modal="true"
       className="fixed bottom-0 left-0 top-0 z-50 flex justify-end bg-background/70 backdrop-blur-[2px]"
@@ -152,7 +236,7 @@ export function SideDrawer({
       <button
         aria-hidden="true"
         className="absolute inset-0 cursor-default"
-        onClick={onClose}
+        onClick={requestClose}
         tabIndex={-1}
         type="button"
       />
@@ -186,7 +270,7 @@ export function SideDrawer({
           <Button
             aria-label="Close drawer"
             className="h-8 w-8 shrink-0 px-0"
-            onClick={onClose}
+            onClick={requestClose}
             type="button"
             variant="ghost"
           >
@@ -207,6 +291,50 @@ export function SideDrawer({
             {summary}
           </div>
         ) : null}
+        {dismissalDecision ? (
+          <div
+            aria-live={dismissalDecision === "saving" ? "polite" : undefined}
+            className="shrink-0 border-t border-border bg-surface-raised px-5 py-3 text-sm"
+            data-slot="drawer-dismissal"
+            aria-label={dismissalDecision === "dirty" ? "Unsaved changes" : undefined}
+            role={dismissalDecision === "dirty" ? "alertdialog" : "status"}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="font-medium text-foreground">
+                {dismissalDecision === "dirty"
+                  ? "Discard unsaved changes?"
+                  : "Saving is still in progress."}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  autoFocus
+                  onClick={() => setDismissalDecision(null)}
+                  type="button"
+                  variant="ghost"
+                >
+                  {dismissalDecision === "dirty" ? "Keep editing" : "Continue waiting"}
+                </Button>
+                {dismissalDecision === "dirty" ? (
+                  <Button
+                    onClick={() => {
+                      const onDiscard = draftGuardRef.current?.onDiscard;
+
+                      setDismissalDecision(null);
+                      if (onDiscard) {
+                        onDiscard();
+                      } else {
+                        onClose();
+                      }
+                    }}
+                    type="button"
+                  >
+                    Discard changes
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
         {footer ? (
           <footer
             className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-surface px-5 py-3 text-sm"
@@ -215,7 +343,13 @@ export function SideDrawer({
             {footer}
           </footer>
         ) : null}
+        <div
+          className="contents"
+          data-slot="drawer-portals"
+          ref={setPortalContainer}
+        />
       </aside>
-    </div>
+      </div>
+    </DrawerDismissalContext.Provider>
   );
 }

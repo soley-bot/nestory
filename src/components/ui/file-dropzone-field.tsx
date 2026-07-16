@@ -23,6 +23,10 @@ export const CSV_FILE_ACCEPT: Accept = {
 };
 
 type FileDropzoneFieldProps = {
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "false" | "true";
+  "aria-labelledby"?: string;
+  "aria-required"?: boolean | "false" | "true";
   accept: Accept;
   className?: string;
   description?: string;
@@ -33,7 +37,12 @@ type FileDropzoneFieldProps = {
   required?: boolean;
 };
 
-export function FileDropzoneField({
+export function FileDropzoneField(props: FileDropzoneFieldProps) {
+  const {
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-required": ariaRequired,
   accept,
   className,
   description,
@@ -42,7 +51,7 @@ export function FileDropzoneField({
   onFile,
   openRef,
   required = false,
-}: FileDropzoneFieldProps) {
+  } = props;
   const [fileName, setFileName] = useState("");
   const { getInputProps, getRootProps, isDragActive, open } = useDropzone({
     accept,
@@ -90,6 +99,8 @@ export function FileDropzoneField({
   return (
     <div
       {...getRootProps({
+        "aria-describedby": ariaDescribedBy,
+        "aria-labelledby": ariaLabelledBy,
         onClick(event) {
           event.preventDefault();
           handleOpen();
@@ -104,7 +115,13 @@ export function FileDropzoneField({
         ),
       })}
     >
-      <input {...getInputProps({ name })} aria-required={required} />
+      <input
+        {...getInputProps({ name })}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
+        aria-required={ariaRequired ?? required}
+        required={required}
+      />
       <UploadCloud className="text-muted" size={18} />
       <span className="mt-2 font-medium text-foreground">
         {displayLabel}
