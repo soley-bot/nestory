@@ -13,6 +13,8 @@ npm run lint
 npx tsc --noEmit
 npm run test
 npm run build
+npm run test:ui-coverage
+npm run test:ui-copy
 ```
 
 Focused variants are fine for narrow work:
@@ -68,6 +70,50 @@ $env:E2E_PASSWORD='local fixture password'
 npm run test:ui-redesign
 ```
 
+The manifest-backed runner covers every page in
+`config/ui-route-coverage.json` at 1440x900, 1024x768, and 390x844. It also
+checks manager, member, and anonymous access outcomes, exact legacy redirect
+destinations, and query preservation. `npm run test:ui-a11y` adds serious and
+critical axe checks. Both commands fail on application errors, document-level
+overflow, unreachable actions, blocked mutations, or route/query mismatches.
+
+Use `--route=<manifest-route>` for a focused diagnostic run. This option cannot
+write the full evidence document. A successful full run may write evidence with:
+
+```powershell
+$env:BASE_URL='http://127.0.0.1:3000'
+$env:E2E_EMAIL='local admin fixture email'
+$env:E2E_PASSWORD='local fixture password'
+npm run test:ui-a11y -- --write-evidence
+```
+
+The generated document lives at
+`docs/verification/ui-redesign-evidence.md`; screenshots and JSON summaries stay
+under ignored `artifacts/ui-redesign/` paths.
+
+### Full local UI gate
+
+Build and start the production app with the confirmed local Supabase variables,
+then run:
+
+```powershell
+$env:BASE_URL='http://127.0.0.1:3000'
+$env:E2E_EMAIL='local admin fixture email'
+$env:E2E_PASSWORD='local fixture password'
+npm run test:ui-redesign
+npm run test:ui-a11y
+
+$env:NESTORY_BASE_URL='http://127.0.0.1:3000'
+$env:NESTORY_TEST_EMAIL='local admin fixture email'
+$env:NESTORY_TEST_PASSWORD='local fixture password'
+npm run test:properties-flow
+npm run test:maintenance-mobile
+```
+
+The retained role fixtures are `manager@nestory.com` and
+`member@nestory.com`, using `E2E_ROLE_PASSWORD` when set or the admin fixture
+password otherwise. These are disposable local accounts, not hosted credentials.
+
 For authenticated UI, start from the route an operator would use, not only a
 deep component state.
 
@@ -79,6 +125,8 @@ deep component state.
 - Manager/member task access should remain role-limited.
 - Links from reports, recent changes, property/unit detail, and maintenance
   drawers should preserve focused IDs through URL params.
+- `npm run test:ui-coverage` must report the filesystem and all 46 current page
+  routes in agreement, with exactly one evidence row per manifest entry.
 
 ## Handoff Expectations
 

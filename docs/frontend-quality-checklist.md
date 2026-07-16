@@ -35,6 +35,17 @@ Use this for authenticated operational screens before calling a flow ready.
 - Review filters should explain why the records are shown and the next action.
 - Keep first screens sparse; push full history into detail records.
 
+## Shared Workspace Anatomy
+
+- Keep a compact title and one instinctive primary action at the top.
+- Keep filters/search/view state URL-backed in the workspace tools zone.
+- Use the shared record surface and responsive inspector; open the inspector as
+  a focus-managed drawer when there is not enough width for a useful split view.
+- Use the shared side drawer for create, edit, archive, restore, upload, and
+  other focused record work.
+- Settings pages keep local navigation, active workspace, and draft actions as
+  three distinct zones with one save/discard/status model.
+
 ## Accessibility And Recovery
 
 - Brevity must preserve accessibility: form controls keep visible labels,
@@ -58,5 +69,11 @@ Use this for authenticated operational screens before calling a flow ready.
   serious or critical axe findings, uncaught browser errors, horizontal
   overflow, and routes without a reachable action. Any third-party exception
   must name the exact rule, route, reason, and owner.
+- Run `npm run test:ui-coverage`; every filesystem page must have roles, states,
+  a concrete smoke path, query/redirect behavior, workflow evidence, and one
+  generated evidence row.
+- For platform-wide changes, run the read-only redesign and accessibility
+  sweeps against the built app, plus `test:properties-flow` and
+  `test:maintenance-mobile` for their owned interaction contracts.
 - Run lint and type checks for changed files, then expand to build when route,
   auth, schema, or shared UI behavior changed.

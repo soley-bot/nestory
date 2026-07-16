@@ -69,6 +69,22 @@ These rules are grounded in the current implementation.
 - Authenticated pages are working software, not marketing pages.
 - Use neutral dense layouts, compact headers, tables, filters, inspectors,
   drawers, badges, and clear record links.
+- Keep list workspaces structurally consistent: compact title/primary action,
+  URL-backed tools, record content, responsive inspector, then a side drawer
+  for create/edit/lifecycle work.
+- On wide layouts, keep the inspector beside the list without shrinking the
+  record surface below usefulness. On compact layouts, use the shared drawer,
+  trap focus, support Escape, and return focus to the opener.
+- Keep one global `Search or jump` command surface. Navigation actions may be
+  client-known; entity results must remain organization/role scoped through the
+  server search boundary. Do not expose raw UUIDs in results or URLs shown as
+  labels.
+- Settings uses three zones: local settings navigation, the active workspace,
+  and the shared draft action/status area. Do not create a separate save model
+  for individual settings pages.
+- Label ordinary actions directly. Add explanation only for risk, consequence,
+  permission, unfamiliar domain meaning, or handoff. Consequential actions must
+  identify the affected record/scope and the operational effect before submit.
 - Dashboard pages may summarize; module pages should prioritize actual records.
 - Keep raw UUIDs out of normal operator views.
 - Keep long text wrapped or truncated deliberately.
@@ -76,6 +92,9 @@ These rules are grounded in the current implementation.
   labels/titles.
 - Do not introduce decorative gradients, oversized cards, or landing-page
   composition into authenticated surfaces.
+- Use shared loading, empty, filtered-empty, error/retry, permission, draft,
+  saving, and success primitives. Every route state declared in
+  `config/ui-route-coverage.json` must name concrete evidence.
 
 ## Reports And Exports
 

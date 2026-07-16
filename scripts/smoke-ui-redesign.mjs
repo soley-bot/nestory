@@ -669,10 +669,28 @@ async function followExpectedRedirect({
       .replace(/^(?:"|')|(?:"|')$/g, "");
 
     if (refreshTarget) {
-      await page.goto(new URL(refreshTarget, currentUrl).toString(), {
-        timeout: 30_000,
-        waitUntil: "domcontentloaded",
-      });
+      const targetUrl = new URL(refreshTarget, currentUrl).toString();
+      const followedAutomatically = await page
+        .waitForURL((url) => url.toString() === targetUrl, { timeout: 750 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!followedAutomatically) {
+        try {
+          await page.goto(targetUrl, {
+            timeout: 30_000,
+            waitUntil: "domcontentloaded",
+          });
+        } catch (error) {
+          if (!String(error).includes("net::ERR_ABORTED")) {
+            throw error;
+          }
+
+          await page.waitForURL((url) => url.toString() === targetUrl, {
+            timeout: 5_000,
+          });
+        }
+      }
       continue;
     }
 
@@ -778,7 +796,6 @@ function renderEvidenceDocument(summary) {
     "## Known limitation",
     "",
     "The retained browser fixtures cover linked admin, manager, and member accounts. Unlinked-account setup/no-access presentation is covered by auth and system-state contracts; no disposable unlinked browser account is retained. Owner: Product/QA. Follow-up: add an ephemeral unlinked fixture when the local auth harness supports automatic teardown.",
-    "",
   );
 
   return `${lines.join("\n")}\n`;

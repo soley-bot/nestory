@@ -1,6 +1,6 @@
 # Current State
 
-Last rebuilt from code inventory on 2026-07-10. This file describes what is
+Last rebuilt from code inventory on 2026-07-16. This file describes what is
 implemented now. It is not a roadmap or early-stage plan.
 
 ## Product Baseline
@@ -9,7 +9,7 @@ Nestory is a multi-module property operations app. The implemented core covers:
 
 - Workspace auth, setup, organization membership, roles, and subdomain-aware
   workspace lookup.
-- Desktop-first authenticated shell with role-aware navigation.
+- Responsive authenticated shell with role-aware navigation and global search.
 - Overview with domain lenses and module workspaces.
 - Property and unit operating records.
 - People directory split into tenants, owners, vendors, and staff.
@@ -32,6 +32,26 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - Traceable reports and CSV/PDF endpoints.
 - Organization branches, teams, users, roles, and access management.
 
+## Interface Model
+
+- The authenticated shell keeps global navigation, account/theme controls, and
+  one `Search or jump` command trigger consistent across modules. Command search
+  covers safe navigation actions plus property, unit, and person results; it
+  keeps role scope on the server and does not expose raw identifiers.
+- Operational list pages use the same anatomy: compact title and primary action,
+  URL-backed workspace tools, record content, responsive inspector, and a side
+  drawer for create/edit/lifecycle work. Wide layouts keep the inspector beside
+  the list; compact layouts open it as a drawer and return focus to the opener.
+- Settings uses three zones: local settings navigation, the active settings
+  workspace, and a persistent draft action area for save/discard/status. Access
+  management follows the same draft and consequence conventions.
+- Copy names ordinary controls directly. Extra explanation is reserved for
+  risk, consequence, permission, unfamiliar domain meaning, or a handoff. Archive,
+  restore, import, and other consequential actions show record scope and effect
+  before submission and a specific outcome afterward.
+- Shared loading, empty, filtered-empty, error/retry, permission, draft, saving,
+  and success states use the same state primitives across route families.
+
 ## Route Map
 
 Public and auth:
@@ -46,13 +66,17 @@ Public and auth:
 
 Core dashboard shell:
 
+- The shell command palette searches navigation actions immediately and queries
+  organization-scoped properties, units, and people after the minimum search
+  length. Keyboard focus is trapped while open and restored on close.
 - `/overview` provides cash-basis property performance with Portfolio,
   Property finance, Leasing, Maintenance, and Records lenses. Portfolio ranks
   properties by cash income, paid property expenses, net cash, collection
   rate, arrears, management fees, and reporting readiness. Period, property,
   review, and Property finance subview state is URL-backed.
 - `/property-dashboard`, `/finance-dashboard`, and `/maintenance-dashboard`
-  redirect to the consolidated Overview lenses for legacy links.
+  redirect to the consolidated Overview lenses for legacy links and preserve
+  incoming query values unless the destination reserves that key.
 
 Property and units:
 
@@ -168,7 +192,8 @@ Documents, imports, and reports:
 
 Settings and access:
 
-- `/settings` manages organization structure: branches and teams.
+- `/settings` uses the three-zone settings layout to manage organization
+  structure, branches, and teams with explicit draft/save/discard feedback.
 - `/users-roles` manages software access, roles, staff/person links, branches,
   and existing-user access invites.
 - `/account` shows the signed-in user's workspace profile.
@@ -264,3 +289,9 @@ the maintenance manager/member/reviewer workflow boundary.
 Compatibility database tests still cover the accounting schema and security
 boundary, balanced/idempotent posting, period locks and reversals, historical
 backfill, transaction rollback, and seeded ledger-to-journal parity.
+
+The UI route manifest currently covers all 46 page routes. Local redesign
+verification captures every route at 1440x900, 1024x768, and 390x844, audits
+admin/manager/member/anonymous access outcomes, and rejects serious/critical
+axe findings, application errors, document overflow, unreachable actions,
+blocked mutations, or lost query contracts.

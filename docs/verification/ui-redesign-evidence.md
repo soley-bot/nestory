@@ -128,4 +128,3 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 ## Known limitation
 
 The retained browser fixtures cover linked admin, manager, and member accounts. Unlinked-account setup/no-access presentation is covered by auth and system-state contracts; no disposable unlinked browser account is retained. Owner: Product/QA. Follow-up: add an ephemeral unlinked fixture when the local auth harness supports automatic teardown.
-

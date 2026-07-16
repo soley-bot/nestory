@@ -102,8 +102,10 @@ try {
   await page.waitForSelector("text=missing a property photo");
 
   await page.getByRole("button", { name: /add property/i }).click();
-  await page.waitForSelector('form[data-flow-state="idle"]');
-  const codeMaxLength = await page.getByLabel("Code").getAttribute("maxlength");
+  await page.getByRole("form", { name: "Add property form" }).waitFor();
+  const codeMaxLength = await page
+    .getByRole("textbox", { name: /Code/ })
+    .getAttribute("maxlength");
   if (codeMaxLength !== "24") {
     throw new Error(`Expected property code maxlength 24, got ${codeMaxLength}`);
   }
@@ -120,7 +122,9 @@ try {
   if (createOwnerHref !== "/owners?action=create") {
     throw new Error(`Expected create owner href, got ${createOwnerHref}`);
   }
-  await page.getByLabel("Current owner link").click();
+  await page
+    .getByRole("combobox", { name: "Current owner link" })
+    .click();
   const ownerMenuText = await page
     .locator("[data-radix-popper-content-wrapper]")
     .last()
@@ -150,6 +154,16 @@ try {
     throw new Error("Cancel upload should clear the selected photo preview.");
   }
   await page.keyboard.press("Escape");
+  const unsavedGuard = page.getByRole("alertdialog", {
+    name: "Unsaved changes",
+  });
+  await unsavedGuard.waitFor();
+  await unsavedGuard
+    .getByRole("button", { name: "Discard changes" })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Add property" })
+    .waitFor({ state: "hidden" });
 
   const rowActionCount = await page
     .getByRole("button", { name: /open actions for/i })
@@ -197,7 +211,9 @@ async function renamePropertyCard({ fromName, toName }) {
 
   const drawer = page.getByRole("dialog", { name: "Edit property" });
   await drawer.waitFor();
-  await drawer.getByLabel("Property name").fill(toName);
+  await drawer
+    .getByRole("textbox", { name: /Property name/ })
+    .fill(toName);
   await drawer.getByRole("button", { name: "Save changes" }).click();
   await drawer.waitFor({ state: "hidden" });
   await page.getByText("Property updated.").waitFor();
