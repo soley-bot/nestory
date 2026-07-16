@@ -105,11 +105,13 @@ function AccessWorkspace({
     const statuses = Array.from(controllers.current.values(), (draft) => draft.status);
     const aggregate = statuses.includes("saving")
       ? "saving"
-      : statuses.includes("dirty") || statuses.includes("error")
-        ? "dirty"
-        : statuses.includes("saved")
-          ? "saved"
-          : "clean";
+      : statuses.includes("error")
+        ? "error"
+        : statuses.includes("dirty")
+          ? "dirty"
+          : statuses.includes("saved")
+            ? "saved"
+            : "clean";
     guard?.setDraftStatus(aggregate);
   }, [draftVersion, guard]);
 
@@ -185,6 +187,7 @@ function InviteUserForm({
   onDraftChange: (id: string, controller: AccessDraftController | null) => void;
   people: OrganizationPersonOption[];
 }) {
+  const guard = useSettingsNavigationGuard();
   const emailId = useId();
   const initial = {
     branchId: "",
@@ -269,7 +272,9 @@ function InviteUserForm({
         </div>
         <div className="order-1 xl:order-2">
           <DraftActionBar
-            focusOnError={draft.errorKind === "server"}
+            focusOnError={
+              draft.errorKind === "server" && !guard?.suppressErrorFocus
+            }
             onDiscard={draft.discard}
             onSave={() => void draft.submit(() => emailRef.current?.focus())}
             saveLabel="Add access"
@@ -297,6 +302,7 @@ function MemberAccessForm({
   onDraftChange: (id: string, controller: AccessDraftController | null) => void;
   people: OrganizationPersonOption[];
 }) {
+  const guard = useSettingsNavigationGuard();
   const draft = useAccessDraft({
     action: updateMemberAccessAction,
     initialValues: {
@@ -379,7 +385,9 @@ function MemberAccessForm({
               ? "Add another administrator before changing this role."
               : undefined
           }
-          focusOnError={draft.errorKind === "server"}
+          focusOnError={
+            draft.errorKind === "server" && !guard?.suppressErrorFocus
+          }
           onDiscard={draft.discard}
           onSave={() => void draft.submit()}
           saveLabel="Save access"

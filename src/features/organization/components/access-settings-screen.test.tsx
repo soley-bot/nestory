@@ -292,6 +292,37 @@ describe("AccessSettingsScreen", () => {
     expect(screen.getByRole("button", { name: "Discard and open Workspace" })).toBeTruthy();
   });
 
+  it("closes a pending navigation and focuses the submitted draft when saving fails", async () => {
+    const user = userEvent.setup();
+    let resolveAction: (value: { status: "error"; message: string }) => void = () => undefined;
+    addAccess.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveAction = resolve;
+      }),
+    );
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person]}
+      />,
+    );
+
+    const addForm = screen.getByTestId("add-access-form");
+    fireEvent.change(within(addForm).getByLabelText("Email"), {
+      target: { value: "new@example.com" },
+    });
+    fireEvent.click(within(addForm).getByRole("button", { name: "Add access" }));
+    await user.click(screen.getByRole("link", { name: "Workspace" }));
+    expect(screen.getByRole("dialog").textContent).toContain("save is still in progress");
+
+    resolveAction({ status: "error", message: "Access could not be added." });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const alert = within(addForm).getByRole("alert");
+    await waitFor(() => expect(document.activeElement).toBe(alert));
+    expect(alert.textContent).toContain("Access could not be added.");
+  });
+
   it("guards the Workspace link while an add draft is dirty and restores its focus", async () => {
     const user = userEvent.setup();
     render(
