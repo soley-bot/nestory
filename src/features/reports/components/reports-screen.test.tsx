@@ -97,6 +97,40 @@ describe("Reports workspace", () => {
     expect(
       container.querySelector('[data-report-trace="true"]')?.className,
     ).toContain("print:block");
+    expect(
+      container.querySelector('[data-report-builder-layout="true"]')?.className,
+    ).toContain("lg:grid-cols-[minmax(0,1fr)_320px]");
+  });
+
+  it("blocks an invalid owner-statement unit scope without presenting trusted totals as ready", () => {
+    const { container } = renderReportBuilder({
+      report: {
+        ...ownerStatementReadinessReport(),
+        rows: [],
+        scopeValidation: {
+          code: "owner_statement_unit_scope",
+          message:
+            "Owner Statements are property-level reports. Clear the unit filter to continue.",
+        },
+      },
+      viewQuery: reportQuery({
+        report: "owner-statement",
+        unitId: "8b3a08d2-0898-4de3-9495-994eaf7a08dc",
+      }),
+    });
+
+    const preview = screen.getByRole("region", {
+      name: "Report preview unavailable",
+    });
+    expect(within(preview).getByText("Preview unavailable")).toBeTruthy();
+    expect(within(preview).queryByText("Preview ready")).toBeNull();
+    expect(container.querySelector('[data-report-stage="blocked"]')).toBeTruthy();
+    expect(container.querySelectorAll('[data-kind="error"]')).toHaveLength(1);
+    expect(container.querySelector('[data-report-summary="true"]')).toBeNull();
+    expect(container.querySelector('[data-report-trace="true"]')).toBeNull();
+    expect(screen.queryByRole("region", { name: "Export report" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Export CSV" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Export PDF" })).toBeNull();
   });
 
   it("recovers from a filtered empty preview without changing report kind or month", () => {
@@ -129,6 +163,41 @@ describe("Reports workspace", () => {
         .getByRole("link", { name: "Report library" })
         .getAttribute("href"),
     ).toBe("/reports");
+  });
+
+  it("ignores stale status and owner params when they do not filter the selected report", () => {
+    const { container } = renderReportBuilder({
+      report: {
+        ...reportFixture({ rows: [] }),
+        kind: "income-expense",
+        title: "Income & Expense",
+      },
+      viewQuery: reportQuery({
+        ownerPersonId: ownerOneId,
+        ownerPersonIdInvalid: true,
+        report: "income-expense",
+        status: "vacant",
+      }),
+    });
+
+    const emptyState = container.querySelector('[data-kind="empty"]');
+    expect(emptyState).not.toBeNull();
+    expect(container.querySelector('[data-kind="filtered"]')).toBeNull();
+    expect(
+      within(emptyState as HTMLElement)
+        .getByRole("link", { name: "Report library" })
+        .getAttribute("href"),
+    ).toBe("/reports");
+  });
+
+  it("treats status as an active empty-state filter for status-aware reports", () => {
+    const { container } = renderReportBuilder({
+      report: reportFixture({ rows: [] }),
+      viewQuery: reportQuery({ status: "vacant" }),
+    });
+
+    expect(container.querySelector('[data-kind="filtered"]')).not.toBeNull();
+    expect(container.querySelector('[data-kind="empty"]')).toBeNull();
   });
 });
 

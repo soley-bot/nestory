@@ -118,6 +118,7 @@ export function ReportBuilderScreen({
   const isPreviewLimited = reportRowCount > trustedReport.rows.length;
   const selectedReport = getReportCatalogItem(viewQuery.report);
   const isOwnerStatement = trustedReport.kind === "owner-statement";
+  const isPreviewUnavailable = Boolean(trustedReport.scopeValidation);
 
   if (
     isOwnerStatement &&
@@ -186,7 +187,10 @@ export function ReportBuilderScreen({
       </div>
 
       <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4 print:p-0">
-        <section className="grid gap-4 print:hidden xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section
+          className="grid gap-4 print:hidden lg:grid-cols-[minmax(0,1fr)_320px]"
+          data-report-builder-layout="true"
+        >
           <SelectedReportPanel
             report={selectedReport}
             trustedReport={trustedReport}
@@ -200,18 +204,38 @@ export function ReportBuilderScreen({
         </section>
 
         <section
-          aria-label="Report preview"
+          aria-label={
+            isPreviewUnavailable
+              ? "Report preview unavailable"
+              : "Report preview"
+          }
           className="space-y-3"
-          data-report-stage="preview"
+          data-report-stage={isPreviewUnavailable ? "blocked" : "preview"}
           role="region"
         >
-          <div className="flex items-center justify-between gap-3 border-y border-border bg-surface px-3 py-2 text-[13px] print:hidden">
-            <p className="font-semibold text-foreground">Preview ready</p>
+          <div
+            className={cn(
+              "flex items-center justify-between gap-3 border-y border-border bg-surface px-3 py-2 text-[13px] print:hidden",
+              isPreviewUnavailable && "border-warning/30 bg-warning-soft/30",
+            )}
+          >
+            <p
+              className={cn(
+                "font-semibold text-foreground",
+                isPreviewUnavailable && "text-warning",
+              )}
+            >
+              {isPreviewUnavailable ? "Preview unavailable" : "Preview ready"}
+            </p>
             <p className="truncate text-foreground-muted">
-              {reportRowCount} {reportRowCount === 1 ? "row" : "rows"} · {trustedReport.scopeLabel}
+              {isPreviewUnavailable
+                ? "Update the report scope to generate results"
+                : `${reportRowCount} ${reportRowCount === 1 ? "row" : "rows"} · ${trustedReport.scopeLabel}`}
             </p>
           </div>
-          <ReportSummaryGrid report={trustedReport} />
+          {isPreviewUnavailable ? null : (
+            <ReportSummaryGrid report={trustedReport} />
+          )}
           <TrustedReportTable
             organizationName={organizationName}
             report={trustedReport}
@@ -638,6 +662,27 @@ function TrustedReportTable({
   const totalRowCount = report.totalRowCount ?? report.rows.length;
   const isPreviewLimited = totalRowCount > report.rows.length;
 
+  if (report.scopeValidation) {
+    return (
+      <section className="overflow-hidden rounded-md border border-warning/30 bg-surface shadow-sm">
+        <EmptyState
+          action={
+            <Link
+              className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href={buildClearReportFiltersHref(viewQuery)}
+              prefetch={false}
+            >
+              Clear filters
+            </Link>
+          }
+          body={report.scopeValidation.message}
+          kind="error"
+          title="Report scope is not available"
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="overflow-hidden rounded-md border border-border bg-surface shadow-sm print:rounded-none print:border-0 print:bg-white print:shadow-none">
       <div className="relative border-b border-border px-4 py-4 sm:px-5 print:block print:border-0 print:px-0 print:pb-3 print:pt-0 print:text-center">
@@ -680,30 +725,20 @@ function TrustedReportTable({
             <Link
               className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
               href={
-                hasActiveReportFilters(viewQuery) || report.scopeValidation
+                hasActiveReportFilters(viewQuery)
                   ? buildClearReportFiltersHref(viewQuery)
                   : "/reports"
               }
               prefetch={false}
             >
-              {hasActiveReportFilters(viewQuery) || report.scopeValidation
+              {hasActiveReportFilters(viewQuery)
                 ? "Clear filters"
                 : "Report library"}
             </Link>
           }
-          body={report.scopeValidation?.message ?? report.emptyDescription}
-          kind={
-            report.scopeValidation
-              ? "error"
-              : hasActiveReportFilters(viewQuery)
-                ? "filtered"
-                : "empty"
-          }
-          title={
-            report.scopeValidation
-              ? "Report scope is not available"
-              : report.emptyTitle
-          }
+          body={report.emptyDescription}
+          kind={hasActiveReportFilters(viewQuery) ? "filtered" : "empty"}
+          title={report.emptyTitle}
         />
       ) : (
         <div className="max-h-[min(560px,calc(100vh-430px))] overflow-auto print:max-h-none print:overflow-visible">
@@ -868,10 +903,11 @@ function shouldExplainAccountingScope(kind: TrustedReport["kind"]) {
 function hasActiveReportFilters(query: ReportsViewQuery) {
   return (
     query.propertyId !== "all" ||
-    query.unitId !== "all" ||
-    query.status !== "all" ||
-    query.ownerPersonId !== "all" ||
-    query.ownerPersonIdInvalid === true
+    (query.report !== "owner-statement" && query.unitId !== "all") ||
+    ((query.report === "rent-roll" || query.report === "vacancy-risk") &&
+      query.status !== "all") ||
+    (query.report === "owner-statement" &&
+      (query.ownerPersonId !== "all" || query.ownerPersonIdInvalid === true))
   );
 }
 
