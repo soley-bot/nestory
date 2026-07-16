@@ -94,8 +94,7 @@ export function TimelineFilters({
   }
 
   return (
-    <div className="border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-6">
-      <div className="space-y-2.5">
+      <div className="w-full space-y-2.5">
         <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
             <SearchCombo
               ariaLabel="Search timeline records"
@@ -249,6 +248,5 @@ export function TimelineFilters({
           </div>
         ) : null}
       </div>
-    </div>
   );
 }

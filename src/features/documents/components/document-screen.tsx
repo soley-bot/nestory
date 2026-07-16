@@ -5,6 +5,8 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
+  Download,
+  Eye,
   ExternalLink,
   FileText,
   Pencil,
@@ -22,15 +24,21 @@ import {
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import {
+  useWideWorkspace,
+  WorkspaceSplitView,
+} from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { removeSearchParams } from "@/lib/url/href";
 import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   DOCUMENT_FILE_ACCEPT,
   FileDropzoneField,
 } from "@/components/ui/file-dropzone-field";
 import { Input } from "@/components/ui/input";
-import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -41,6 +49,11 @@ import {
   restoreDocumentAction,
   updateDocumentAction,
 } from "@/features/documents/actions";
+import {
+  formatFileSize,
+  formatFileType,
+} from "@/features/documents/components/document-list";
+import { DEFAULT_DOCUMENT_PAGE_SIZE } from "@/features/documents/document.filters";
 import type {
   DocumentPagination,
   DocumentPropertyOption,
@@ -105,7 +118,8 @@ export function DocumentScreen({
   const [selectedDocumentId, setSelectedDocumentId] = useState(() =>
     getInitialRecordId(documents, initialDocumentId),
   );
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
+  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedDocument = initialDocumentId
     ? documents.find((document) => document.id === initialDocumentId) ?? null
@@ -128,7 +142,6 @@ export function DocumentScreen({
 
     queueMicrotask(() => {
       setSelectedDocumentId(focusedDocumentId);
-      setPreviewOpen(true);
     });
   }, [focusedDocumentId]);
 
@@ -146,39 +159,113 @@ export function DocumentScreen({
     });
   }, [createInitialValues, pathname, router, searchParams]);
   const openDocumentAction = (nextDrawer: DrawerState) => {
-    setPreviewOpen(false);
+    if (!isWideWorkspace) {
+      setCompactInspectorOpen(false);
+    }
     setStatusMessage(null);
     setDrawer(nextDrawer);
   };
   const previewDocument = (documentId: string) => {
     setSelectedDocumentId(documentId);
-    setPreviewOpen(true);
+    setCompactInspectorOpen(true);
   };
 
+  const hasFilters =
+    viewQuery.archiveState !== "active" ||
+    viewQuery.leaseId !== "all" ||
+    viewQuery.pageSize !== DEFAULT_DOCUMENT_PAGE_SIZE ||
+    viewQuery.propertyId !== "all" ||
+    viewQuery.query.trim() !== "" ||
+    viewQuery.taskId !== "all" ||
+    viewQuery.unitId !== "all";
+  const openCreate = () =>
+    openDocumentAction({
+      initialValues: createInitialValues,
+      mode: "create",
+    });
+  const documentList = (
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+      {documents.length === 0 ? (
+        <EmptyState
+          action={
+            hasFilters ? (
+              <Link
+                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={pathname}
+                scroll={false}
+              >
+                Clear filters
+              </Link>
+            ) : (
+              <Button onClick={openCreate} variant="primary">
+                <Plus size={15} />
+                Upload document
+              </Button>
+            )
+          }
+          body={
+            hasFilters
+              ? "The current filters return no documents."
+              : "Upload the first file to this evidence library."
+          }
+          className="h-full"
+          kind={hasFilters ? "filtered" : "empty"}
+          title={hasFilters ? "No matching documents" : "No documents yet"}
+        />
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 p-3">
+            <DocumentTable
+              documents={documents}
+              onSelect={previewDocument}
+              selectedDocumentId={selectedDocument?.id ?? ""}
+            />
+          </div>
+          <PaginationControls attached pagination={pagination} />
+        </>
+      )}
+    </section>
+  );
+  const documentInspector = selectedDocument ? (
+    <DocumentInspector
+      document={selectedDocument}
+      onArchive={(document) =>
+        openDocumentAction({ document, mode: "archive" })
+      }
+      onEdit={(document) => openDocumentAction({ document, mode: "edit" })}
+      onRestore={(document) =>
+        openDocumentAction({ document, mode: "restore" })
+      }
+    />
+  ) : null;
+
   return (
-    <div className="min-h-screen">
-      <PageHeader
+    <WorkspacePage
+      header={<PageHeader
         actions={
           <Button
-            onClick={() => {
-              setStatusMessage(null);
-              openDocumentAction({
-                initialValues: createInitialValues,
-                mode: "create",
-              });
-            }}
+            onClick={openCreate}
             variant="primary"
           >
             <Plus size={15} />
             Upload document
           </Button>
         }
-        description="Operational documents linked to properties, units, leases, ledger entries, and timeline history."
+        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "document" : "documents"}`}
         title="Documents"
-      />
+      />}
+      toolbar={
+        <DocumentFilters
+          properties={propertyOptions}
+          units={unitOptions}
+          viewQuery={viewQuery}
+        />
+      }
+    >
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-6">
+        <div className="shrink-0 px-4 pt-3 sm:px-6">
           <p
             className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
             role="status"
@@ -188,12 +275,6 @@ export function DocumentScreen({
         </div>
       ) : null}
 
-      <DocumentFilters
-        properties={propertyOptions}
-        units={unitOptions}
-        viewQuery={viewQuery}
-      />
-
       {reviewContext ? (
         <DocumentReviewStrip
           context={reviewContext}
@@ -201,33 +282,19 @@ export function DocumentScreen({
         />
       ) : null}
 
-      <div className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4">
-        <div className="min-w-0 space-y-0">
-          <DocumentTable
-            documents={documents}
-            onSelect={previewDocument}
-            selectedDocumentId={selectedDocument?.id ?? ""}
+      <div className="min-h-0 min-w-0 flex-1">
+        {documentInspector && selectedDocument ? (
+          <WorkspaceSplitView
+            inspector={documentInspector}
+            inspectorLabel={`${selectedDocument.fileName} document inspector`}
+            inspectorOpen={isWideWorkspace || compactInspectorOpen}
+            list={documentList}
+            onInspectorOpenChange={setCompactInspectorOpen}
           />
-          <PaginationControls attached pagination={pagination} />
-        </div>
+        ) : (
+          <WorkspaceSplitView list={documentList} />
+        )}
       </div>
-
-      <RecordPreviewDrawer
-        onClose={() => setPreviewOpen(false)}
-        open={previewOpen && Boolean(selectedDocument)}
-        title="Document preview"
-      >
-        <DocumentInspector
-          document={selectedDocument}
-          onArchive={(document) =>
-            openDocumentAction({ document, mode: "archive" })
-          }
-          onEdit={(document) => openDocumentAction({ document, mode: "edit" })}
-          onRestore={(document) =>
-            openDocumentAction({ document, mode: "restore" })
-          }
-        />
-      </RecordPreviewDrawer>
 
       {drawer ? (
         <SideDrawer
@@ -258,7 +325,8 @@ export function DocumentScreen({
           )}
         </SideDrawer>
       ) : null}
-    </div>
+      </div>
+    </WorkspacePage>
   );
 }
 
@@ -309,8 +377,7 @@ function DocumentFilters({
   };
 
   return (
-    <div className="border-b border-border px-4 py-3 sm:px-6 lg:px-6">
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_160px_220px_220px]">
+      <div className="grid w-full gap-2 md:grid-cols-[minmax(0,1.4fr)_150px_minmax(170px,220px)_minmax(170px,220px)]">
         <SearchCombo
           ariaLabel="Search documents"
           onQueryChange={(value) =>
@@ -364,7 +431,6 @@ function DocumentFilters({
           value={viewQuery.unitId}
         />
       </div>
-    </div>
   );
 }
 
@@ -413,31 +479,29 @@ function DocumentTable({
   return (
     <div className="overflow-hidden rounded-md border border-border bg-surface">
       <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-        <table className="w-full min-w-[720px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
             <col />
-            <col className="w-[150px]" />
-            <col className="w-[112px]" />
+            <col className="w-[88px]" />
+            <col className="w-[92px]" />
+            <col className="w-[190px]" />
             <col className="w-[124px]" />
+            <col className="w-[74px]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-2.5 py-2.5 font-semibold">Document</th>
-              <th className="px-1.5 py-2.5 font-semibold">Category</th>
-              <th className="px-1.5 py-2.5 text-center font-semibold">Links</th>
+              <th className="px-1.5 py-2.5 font-semibold">Type</th>
+              <th className="px-1.5 py-2.5 text-right font-semibold">Size</th>
+              <th className="px-1.5 py-2.5 font-semibold">Linked to</th>
               <th className="px-1.5 py-2.5 font-semibold">Uploaded</th>
+              <th className="px-1.5 py-2.5 text-right font-semibold">Preview</th>
             </tr>
           </thead>
           <tbody>
-            {documents.length === 0 ? (
-              <tr>
-                <td className="px-4 py-8 text-center text-muted" colSpan={4}>
-                  No documents found.
-                </td>
-              </tr>
-            ) : null}
             {documents.map((document) => (
               <tr
+                aria-selected={selectedDocumentId === document.id}
                 className={cn(
                   previewRowClassName,
                   selectedDocumentId === document.id &&
@@ -445,8 +509,14 @@ function DocumentTable({
                   document.isArchived && "text-muted",
                 )}
                 key={document.id}
-                onClick={() => onSelect(document.id)}
+                onClick={(event) => {
+                  event.currentTarget.focus();
+                  onSelect(document.id);
+                }}
                 onKeyDown={(event) => {
+                  if (event.currentTarget !== event.target) {
+                    return;
+                  }
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     onSelect(document.id);
@@ -455,8 +525,16 @@ function DocumentTable({
                 tabIndex={0}
               >
                 <td className="px-2.5 py-2">
-                  <p className="truncate font-medium" title={document.fileName}>
+                  <Link
+                    className="block truncate rounded-sm font-medium text-accent outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                    href={document.hrefs.document}
+                    onClick={(event) => event.stopPropagation()}
+                    title={document.fileName}
+                  >
                     {document.fileName}
+                  </Link>
+                  <p className="mt-0.5 truncate text-xs text-muted" title={document.category}>
+                    {document.category}
                   </p>
                   {document.isArchived ? (
                     <Badge className="mt-1 px-2 text-xs" tone="warning">
@@ -465,19 +543,40 @@ function DocumentTable({
                   ) : null}
                 </td>
                 <td className="px-1.5 py-2">
-                  <p className="truncate" title={document.category}>
-                    {document.category}
-                  </p>
+                  {formatFileType(document.mimeType)}
                 </td>
-                <td className="px-1.5 py-2 text-center">
-                  <Badge
-                    tone={document.linkedRecords.length > 0 ? "success" : "warning"}
-                  >
-                    {document.linkedRecords.length}
-                  </Badge>
+                <td className="px-1.5 py-2 text-right tabular-nums">
+                  {formatFileSize(document.sizeBytes)}
+                </td>
+                <td className="px-1.5 py-2">
+                  {document.linkedRecords[0] ? (
+                    <>
+                      <p className="truncate font-medium">{document.linkedRecords[0].type}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted" title={document.linkedRecords[0].label}>
+                        {document.linkedRecords[0].label}
+                      </p>
+                    </>
+                  ) : (
+                    <Badge tone="warning">No links</Badge>
+                  )}
                 </td>
                 <td className="px-1.5 py-2">
                   {formatDate(document.uploadedAt)}
+                </td>
+                <td className="px-1.5 py-2 text-right">
+                  <Button
+                    aria-label={`Preview ${document.fileName}`}
+                    aria-pressed={selectedDocumentId === document.id}
+                    className="h-8 w-8 px-0"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect(document.id);
+                    }}
+                    title={`Preview ${document.fileName}`}
+                    variant="ghost"
+                  >
+                    <Eye size={15} />
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -500,18 +599,11 @@ function DocumentInspector({
   onRestore: (document: DocumentSummary) => void;
 }) {
   if (!document) {
-    return (
-      <aside className="bg-surface p-4">
-        <h2 className="text-base font-semibold">No document selected</h2>
-        <p className="mt-2 text-sm leading-6 text-muted">
-          Select a document to inspect links, evidence state, and activity.
-        </p>
-      </aside>
-    );
+    return null;
   }
 
   return (
-    <aside className="bg-surface">
+    <div className="bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -532,8 +624,14 @@ function DocumentInspector({
           <CompactFact label="Uploaded">
             {formatDate(document.uploadedAt)}
           </CompactFact>
+          <CompactFact label="Type">
+            {formatFileType(document.mimeType)}
+          </CompactFact>
+          <CompactFact label="Size">
+            {formatFileSize(document.sizeBytes)}
+          </CompactFact>
           <CompactFact label="Links">
-            {document.linkedRecords.length || "None"}
+            {document.linkedRecords.length}
           </CompactFact>
         </div>
 
@@ -545,8 +643,8 @@ function DocumentInspector({
 
         <DocumentLinkedRecords records={document.linkedRecords} />
 
-        <div className="grid grid-cols-3 gap-2">
-          <Button onClick={() => onEdit(document)} type="button">
+        <div className="grid grid-cols-2 gap-2">
+          <Button aria-label="Edit document" onClick={() => onEdit(document)} type="button">
             <Pencil size={15} />
             Edit
           </Button>
@@ -561,18 +659,39 @@ function DocumentInspector({
               Archive
             </Button>
           )}
-          <Link
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium transition-colors hover:bg-surface-muted"
-            href={document.url ?? document.hrefs.document}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <ExternalLink size={15} />
-            Open
-          </Link>
+          {document.url ? (
+            <>
+              <a
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={document.url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <ExternalLink size={15} />
+                Open file
+              </a>
+              <a
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                download
+                href={document.url}
+                rel="noreferrer"
+              >
+                <Download size={15} />
+                Download file
+              </a>
+            </>
+          ) : (
+            <Link
+              className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href={document.hrefs.document}
+            >
+              <ExternalLink size={15} />
+              Open document record
+            </Link>
+          )}
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -614,6 +733,11 @@ function DocumentForm({
   const [propertyId, setPropertyId] = useState(defaults.propertyId);
   const [unitId, setUnitId] = useState(defaults.unitId ?? "");
   const visibleUnits = units.filter((unit) => unit.propertyId === propertyId);
+  const propertyLabel =
+    properties.find((property) => property.id === propertyId)?.label ??
+    "Select a property";
+  const unitLabel =
+    units.find((unit) => unit.id === unitId)?.label ?? "Property level";
 
   useEffect(() => {
     if (state.status === "success") {
@@ -637,6 +761,21 @@ function DocumentForm({
         {defaults.taskId ? (
           <input name="taskId" type="hidden" value={defaults.taskId} />
         ) : null}
+        <ConsequencePanel
+          rows={[
+            { label: "File", value: "PDF, JPG, PNG, or WebP up to 10 MB" },
+            { label: "Property", value: propertyLabel },
+            { label: "Unit", value: unitLabel },
+          ]}
+          summary={
+            defaults.leaseId
+              ? "The saved document stays linked to the selected property and lease."
+              : defaults.taskId
+                ? "The saved document stays linked to the selected property and maintenance case."
+                : "The saved document appears in the selected property or unit record."
+          }
+          title="Document link and file limits"
+        />
         <Field label="Category" error={state.fieldErrors?.category?.[0]}>
           <Input defaultValue={defaults.category} name="category" required />
         </Field>
@@ -860,6 +999,7 @@ function DocumentLinkedRecords({
         <div className="space-y-1.5">
           {records.map((record) => (
             <Link
+              aria-label={record.label}
               className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-surface px-2.5 py-2 text-sm transition-colors hover:bg-surface-muted"
               href={record.href}
               key={`${record.type}-${record.href}`}

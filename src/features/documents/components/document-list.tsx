@@ -35,7 +35,7 @@ function DocumentListItem({ document }: { document: LinkedDocument }) {
           {document.fileName}
         </span>
         <span className="mt-1 block text-xs text-muted">
-          {document.category} - {formatFileSize(document.sizeBytes)} -{" "}
+          {document.category} - {formatFileType(document.mimeType)} - {formatFileSize(document.sizeBytes)} -{" "}
           {formatDate(document.uploadedAt)}
         </span>
       </span>
@@ -50,6 +50,7 @@ function DocumentListItem({ document }: { document: LinkedDocument }) {
   if (document.url) {
     return (
       <a
+        aria-label={`Open ${document.fileName}`}
         className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
         href={document.url}
         rel="noreferrer"
@@ -67,10 +68,30 @@ function DocumentListItem({ document }: { document: LinkedDocument }) {
   );
 }
 
-function formatFileSize(sizeBytes: number) {
+export function formatFileSize(sizeBytes: number) {
   if (sizeBytes < 1024 * 1024) {
     return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
   }
 
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function formatFileType(mimeType: string) {
+  if (mimeType === "application/pdf") {
+    return "PDF";
+  }
+
+  if (mimeType === "image/jpeg") {
+    return "JPG";
+  }
+
+  if (mimeType === "image/png") {
+    return "PNG";
+  }
+
+  if (mimeType === "image/webp") {
+    return "WebP";
+  }
+
+  return mimeType;
 }

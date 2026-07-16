@@ -8,8 +8,6 @@ export default async function PropertyTimelinePage({
   searchParams,
 }: PropertyTimelinePageProps) {
   return renderTimelineRoute({
-    description:
-      "Review property and unit history with property-first filters and evidence.",
     scope: "property",
     searchParams,
     title: "Property Timeline",

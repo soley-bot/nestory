@@ -5,14 +5,12 @@ import type { TimelineScope } from "@/features/timeline/timeline.types";
 import { requireAdminContext } from "@/lib/auth/context";
 
 type TimelineRouteProps = {
-  description: string;
   scope: TimelineScope;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
   title: string;
 };
 
 export async function renderTimelineRoute({
-  description,
   scope,
   searchParams,
   title,
@@ -27,8 +25,8 @@ export async function renderTimelineRoute({
   return (
     <TimelineScreen
       {...data}
-      description={description}
       initialEventId={viewQuery.eventId ?? undefined}
+      scope={scope}
       title={title}
     />
   );

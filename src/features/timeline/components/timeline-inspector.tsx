@@ -11,6 +11,7 @@ import {
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DocumentList } from "@/features/documents/components/document-list";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
 import type { TimelineEvent } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
@@ -34,15 +35,7 @@ export function TimelineInspector({
   onRestore,
 }: TimelineInspectorProps) {
   if (!event) {
-    return (
-      <aside className="bg-surface p-4">
-        <h2 className="text-base font-semibold tracking-tight">No record selected</h2>
-        <p className="mt-2 text-sm leading-6 text-muted">
-          Select a timeline record to inspect its property, unit, cost, and linked
-          records.
-        </p>
-      </aside>
-    );
+    return null;
   }
 
   const isLedgerLinked = Boolean(event.ledgerEntryId);
@@ -50,7 +43,7 @@ export function TimelineInspector({
   const isDisabled = event.isLocked || archiveDisabled;
 
   return (
-    <aside className="bg-surface">
+    <div className="bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -83,6 +76,45 @@ export function TimelineInspector({
             )}
           </CompactFact>
         </div>
+
+        <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <p className="mb-2 font-semibold">Record context</p>
+          <div className="space-y-1.5">
+            <Link
+              className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-surface px-2.5 py-2 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href={event.hrefs.property}
+            >
+              <span className="min-w-0 truncate">{event.propertyName}</span>
+              <span className="shrink-0 text-xs text-muted">{event.propertyCode}</span>
+            </Link>
+            {event.hrefs.unit && event.unitNumber ? (
+              <Link
+                className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-surface px-2.5 py-2 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                href={event.hrefs.unit}
+              >
+                <span>Unit {event.unitNumber}</span>
+                <ExternalLink className="shrink-0 text-accent" size={13} />
+              </Link>
+            ) : null}
+            <Link
+              className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-surface px-2.5 py-2 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href={event.hrefs.timeline}
+            >
+              <span>Open timeline event</span>
+              <ExternalLink className="shrink-0 text-accent" size={13} />
+            </Link>
+          </div>
+        </div>
+
+        <section aria-label="Attachments" className="rounded-md border border-border p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h3 className="font-semibold">Attachments</h3>
+            <Badge tone={event.documents.length > 0 ? "success" : "neutral"}>
+              {event.documents.length}
+            </Badge>
+          </div>
+          <DocumentList documents={event.documents} emptyLabel="No attachments" />
+        </section>
 
         <AttentionNote
           href={event.nextAction.href}
@@ -172,7 +204,7 @@ export function TimelineInspector({
           )}
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 

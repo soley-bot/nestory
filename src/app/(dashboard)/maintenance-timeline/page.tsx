@@ -8,8 +8,6 @@ export default async function MaintenanceTimelinePage({
   searchParams,
 }: MaintenanceTimelinePageProps) {
   return renderTimelineRoute({
-    description:
-      "Track maintenance, repairs, renovations, and inspections across the portfolio.",
     scope: "maintenance",
     searchParams,
     title: "Maintenance Timeline",

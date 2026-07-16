@@ -1,10 +1,12 @@
-import { FileText, Lock } from "lucide-react";
+import Link from "next/link";
+import { Eye, FileText, Lock } from "lucide-react";
 import {
   previewRowClassName,
   selectedPreviewRowClassName,
 } from "@/components/data/interactive-table";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
 import type {
   TimelineEvent,
@@ -42,13 +44,14 @@ export function TimelineTable({
         </div>
       </div>
       <div className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]">
-        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
             <col className="w-[108px]" />
             <col className="w-[126px]" />
             <col />
             <col className="w-[156px]" />
             <col className="w-[132px]" />
+            <col className="w-[74px]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
             <tr>
@@ -57,16 +60,10 @@ export function TimelineTable({
               <th className="px-4 py-2.5 font-semibold">Record</th>
               <th className="px-3 py-2.5 font-semibold">Property</th>
               <th className="px-3 py-2.5 text-right font-semibold">Cost</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Preview</th>
             </tr>
           </thead>
           <tbody>
-            {events.length === 0 ? (
-              <tr className="border-t border-border">
-                <td className="px-4 py-8 text-center text-muted" colSpan={5}>
-                  No timeline records match the current filters.
-                </td>
-              </tr>
-            ) : null}
             {events.map((event) => (
               <tr
                 aria-selected={selectedEventId === event.id}
@@ -76,8 +73,14 @@ export function TimelineTable({
                   event.archivedAt && "text-muted",
                 )}
                 key={event.id}
-                onClick={() => onSelectEvent(event.id)}
+                onClick={(clickEvent) => {
+                  clickEvent.currentTarget.focus();
+                  onSelectEvent(event.id);
+                }}
                 onKeyDown={(keyEvent) => {
+                  if (keyEvent.currentTarget !== keyEvent.target) {
+                    return;
+                  }
                   if (keyEvent.key === "Enter" || keyEvent.key === " ") {
                     keyEvent.preventDefault();
                     onSelectEvent(event.id);
@@ -93,9 +96,13 @@ export function TimelineTable({
                 </td>
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-2.5">
-                    <p className="min-w-0 truncate font-medium text-foreground">
+                    <Link
+                      className="min-w-0 truncate rounded-sm font-medium text-accent outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      href={event.hrefs.timeline}
+                      onClick={(linkEvent) => linkEvent.stopPropagation()}
+                    >
                       {event.title}
-                    </p>
+                    </Link>
                     {event.hasAttachment ? (
                       <FileText
                         className="shrink-0 text-muted"
@@ -141,6 +148,21 @@ export function TimelineTable({
                         />
                       )
                     : "-"}
+                </td>
+                <td className="px-3 py-2 text-right align-middle">
+                  <Button
+                    aria-label={`Preview ${event.title}`}
+                    aria-pressed={selectedEventId === event.id}
+                    className="h-8 w-8 px-0"
+                    onClick={(buttonEvent) => {
+                      buttonEvent.stopPropagation();
+                      onSelectEvent(event.id);
+                    }}
+                    title={`Preview ${event.title}`}
+                    variant="ghost"
+                  >
+                    <Eye size={15} />
+                  </Button>
                 </td>
               </tr>
             ))}
