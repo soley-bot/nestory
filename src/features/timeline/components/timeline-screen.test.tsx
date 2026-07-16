@@ -152,7 +152,8 @@ describe("TimelineScreen workspace contract", () => {
     renderTimeline([], {}, { scope: "property", title: "Property Timeline" });
     const emptyState = screen.getByText("No timeline events yet").closest("section")!;
     expect(emptyState.getAttribute("data-kind")).toBe("empty");
-    expect(within(emptyState).getByRole("button", { name: "Add event" })).not.toBeNull();
+    expect(within(emptyState).queryByRole("button", { name: "Add event" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Add event" })).toHaveLength(1);
   });
 
   it("keeps URL-backed filters stable and clears focus-only parameters", async () => {

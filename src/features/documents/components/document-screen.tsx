@@ -5,7 +5,6 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
-  Download,
   Eye,
   ExternalLink,
   FileText,
@@ -196,12 +195,7 @@ export function DocumentScreen({
               >
                 Clear filters
               </Link>
-            ) : (
-              <Button onClick={openCreate} variant="primary">
-                <Plus size={15} />
-                Upload document
-              </Button>
-            )
+            ) : undefined
           }
           body={
             hasFilters
@@ -660,35 +654,16 @@ function DocumentInspector({
             </Button>
           )}
           {document.url ? (
-            <>
-              <a
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
-                href={document.url}
-                rel="noreferrer"
-                target="_blank"
-              >
-                <ExternalLink size={15} />
-                Open file
-              </a>
-              <a
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
-                download
-                href={document.url}
-                rel="noreferrer"
-              >
-                <Download size={15} />
-                Download file
-              </a>
-            </>
-          ) : (
-            <Link
+            <a
               className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
-              href={document.hrefs.document}
+              href={document.url}
+              rel="noreferrer"
+              target="_blank"
             >
               <ExternalLink size={15} />
-              Open document record
-            </Link>
-          )}
+              Open file
+            </a>
+          ) : null}
         </div>
       </div>
     </div>

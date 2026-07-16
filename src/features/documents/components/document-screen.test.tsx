@@ -56,11 +56,11 @@ describe("DocumentScreen workspace contract", () => {
       name: "lease.pdf document inspector",
     });
     const open = within(inspector).getByRole("link", { name: "Open file" });
-    const download = within(inspector).getByRole("link", { name: "Download file" });
     expect(open.getAttribute("href")).toBe("https://example.test/lease.pdf?token=private");
+    expect(open.getAttribute("target")).toBe("_blank");
     expect(open.getAttribute("rel")).toBe("noreferrer");
-    expect(download.getAttribute("href")).toBe(open.getAttribute("href"));
-    expect(download.hasAttribute("download")).toBe(true);
+    expect(within(inspector).getAllByRole("link", { name: "Open file" })).toHaveLength(1);
+    expect(within(inspector).queryByRole("link", { name: "Download file" })).toBeNull();
     expect(within(inspector).getByRole("link", { name: "HOME / Home" })).not.toBeNull();
     expect(screen.queryByText(/select a document/i)).toBeNull();
   });
@@ -136,9 +136,7 @@ describe("DocumentScreen workspace contract", () => {
 
     expect(within(inspector).queryByRole("link", { name: "Open file" })).toBeNull();
     expect(within(inspector).queryByRole("link", { name: "Download file" })).toBeNull();
-    expect(
-      within(inspector).getByRole("link", { name: "Open document record" }).getAttribute("href"),
-    ).toBe("/documents?archiveState=all&documentId=document-unavailable");
+    expect(within(inspector).queryByRole("link", { name: "Open document record" })).toBeNull();
   });
 
   it("distinguishes filtered-empty from a true-empty document library", () => {
@@ -153,7 +151,8 @@ describe("DocumentScreen workspace contract", () => {
     renderDocuments([]);
     const emptyState = screen.getByText("No documents yet").closest("section")!;
     expect(emptyState.getAttribute("data-kind")).toBe("empty");
-    expect(within(emptyState).getByRole("button", { name: "Upload document" })).not.toBeNull();
+    expect(within(emptyState).queryByRole("button", { name: "Upload document" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Upload document" })).toHaveLength(1);
   });
 
   it("keeps search and link-scope filters URL-backed", async () => {

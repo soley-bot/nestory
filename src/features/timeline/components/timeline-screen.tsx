@@ -188,12 +188,7 @@ export function TimelineScreen({
               >
                 Clear filters
               </Link>
-            ) : (
-              <Button onClick={openCreate} variant="primary">
-                <Plus size={15} />
-                Add event
-              </Button>
-            )
+            ) : undefined
           }
           body={
             hasFilters
