@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Download, Eye, FileText } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Badge } from "@/components/ui/badge";
+import { PeopleWorkspaceNavigation } from "@/features/people/components/people-workspace-navigation";
 import { getPeopleReportHubData } from "@/features/people/data/people-reports";
 import {
   getPeopleInsights,
@@ -18,16 +20,25 @@ export default async function PeopleReportsPage() {
   const insights = getPeopleInsights(data.people, data.pagination.totalCount);
 
   return (
-    <div>
-      <PageHeader
-        description="People-domain reports for tenant, owner, vendor, and staff readiness."
-        title="People Reports"
-      />
-      <main className="space-y-4 px-4 py-4 sm:px-6 lg:px-6">
-        <section className="grid gap-3 md:grid-cols-4">
+    <WorkspacePage
+      header={
+        <PageHeader
+          context={`${peopleReportOptions.length} People report types`}
+          title="People Reports"
+        />
+      }
+      localNav={<PeopleWorkspaceNavigation reports />}
+    >
+      <main className="h-full space-y-4 overflow-y-auto px-4 py-4 sm:px-6 lg:px-6">
+        <section
+          aria-label="People report summary"
+          className="flex min-w-0 gap-2 overflow-x-auto"
+          data-mobile-summary-strip="people-report-metrics"
+          role="region"
+        >
           {insights.metrics.map((metric) => (
             <Link
-              className="rounded-md border border-border bg-surface px-3 py-3 transition-colors hover:bg-surface-muted"
+              className="min-w-[180px] flex-1 rounded-md border border-border bg-surface px-3 py-2.5 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
               href={metric.href}
               key={metric.label}
               prefetch={false}
@@ -46,10 +57,11 @@ export default async function PeopleReportsPage() {
         <section className="rounded-md border border-border bg-surface">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
             <div>
-              <h2 className="text-sm font-semibold">Report packets</h2>
+              <h2 className="text-sm font-semibold">Generate reports</h2>
               <p className="mt-1 text-xs text-muted">
-                Exports use the first {data.reportLimit} active people records
-                currently available to the People module.
+                {data.reportLimit} of {data.pagination.totalCount} active records
+                in this report window. Role reports keep their existing People
+                scope.
               </p>
             </div>
             <Badge className="px-2 text-xs" tone="neutral">
@@ -57,10 +69,11 @@ export default async function PeopleReportsPage() {
             </Badge>
           </div>
 
-          <div className="grid gap-3 p-4 lg:grid-cols-2 xl:grid-cols-3">
+          <div className="divide-y divide-border">
             {peopleReportOptions.map((report) => (
-              <article
-                className="flex min-h-[184px] flex-col rounded-md border border-border bg-surface-muted/35 p-3"
+              <div
+                className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                data-people-report-item="true"
                 key={report.kind}
               >
                 <div className="flex items-start gap-3">
@@ -69,49 +82,56 @@ export default async function PeopleReportsPage() {
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-[15px] font-semibold">{report.title}</h3>
-                    <p className="mt-1 line-clamp-3 text-[13px] leading-5 text-muted">
-                      {report.description}
-                    </p>
+                    <p className="mt-0.5 text-xs text-muted">Active People records</p>
                   </div>
                 </div>
 
-                <div className="mt-auto grid grid-cols-3 gap-2 pt-4">
-                  <ReportLink href={report.href} label="Preview">
+                <div className="grid grid-cols-3 gap-2" data-report-stage="preview-export">
+                  <ReportLink
+                    ariaLabel={`Preview ${report.title}`}
+                    href={report.href}
+                    label="Preview"
+                  >
                     <Eye size={14} />
                   </ReportLink>
                   <ReportLink
+                    ariaLabel={`Export ${report.title} CSV`}
                     href={getPeopleReportExportHref(report.kind, "csv")}
                     label="CSV"
                   >
                     <Download size={14} />
                   </ReportLink>
                   <ReportLink
+                    ariaLabel={`Export ${report.title} PDF`}
                     href={getPeopleReportExportHref(report.kind, "pdf")}
                     label="PDF"
                   >
                     <Download size={14} />
                   </ReportLink>
                 </div>
-              </article>
+              </div>
             ))}
           </div>
         </section>
       </main>
-    </div>
+    </WorkspacePage>
   );
 }
 
 function ReportLink({
+  ariaLabel,
   children,
   href,
   label,
 }: {
+  ariaLabel: string;
   children: ReactNode;
   href: string;
   label: string;
 }) {
   return (
     <Link
+      aria-label={ariaLabel}
       className={cn(
         "inline-flex h-8 items-center justify-center gap-1.5 rounded-md",
         "border border-border bg-surface px-2 text-[13px] font-medium",

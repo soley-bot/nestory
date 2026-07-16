@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Pencil, Plus } from "lucide-react";
@@ -10,7 +10,6 @@ import {
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { PageHeader } from "@/components/layout/page-header";
-import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -30,6 +29,7 @@ import { PeopleCommandCenter } from "@/features/people/components/people-command
 import { PeopleFilters } from "@/features/people/components/people-filters";
 import { PeopleInspector } from "@/features/people/components/people-inspector";
 import { PeopleTable } from "@/features/people/components/people-table";
+import { PeopleWorkspaceNavigation } from "@/features/people/components/people-workspace-navigation";
 import { formatRole } from "@/features/people/people.labels";
 import type { PeopleInsights } from "@/features/people/people.insights";
 import type {
@@ -54,6 +54,7 @@ type PeopleScreenProps = {
   description?: string;
   initialPersonId?: string;
   insights?: PeopleInsights;
+  localNavigation?: ReactNode;
   lockedRole?: PersonRoleValue;
   pagination: PeoplePagination;
   people: PeopleSummary[];
@@ -69,6 +70,7 @@ export function PeopleScreen({
   createRole,
   initialPersonId,
   insights,
+  localNavigation,
   lockedRole,
   pagination,
   people,
@@ -240,7 +242,11 @@ export function PeopleScreen({
         description={reviewContext?.description}
         title={title}
       />}
-      localNav={<PeopleLensNavigation activeRole={lockedRole} />}
+      localNav={
+        localNavigation ?? (
+          <PeopleWorkspaceNavigation activeRole={lockedRole} />
+        )
+      }
       toolbar={<PeopleFilters
         displayMode={displayMode}
         lockedRole={lockedRole}
@@ -394,21 +400,6 @@ function getPeopleReviewContext(
   }
 
   return null;
-}
-
-function PeopleLensNavigation({ activeRole }: { activeRole?: PersonRoleValue }) {
-  return (
-    <LocalWorkspaceNav
-      items={[
-        { active: !activeRole, href: "/people", label: "All" },
-        { active: activeRole === "owner", href: "/owners", label: "Owners" },
-        { active: activeRole === "staff", href: "/staff", label: "Staff" },
-        { active: activeRole === "tenant", href: "/tenants", label: "Tenants" },
-        { active: activeRole === "vendor", href: "/vendors", label: "Vendors" },
-      ]}
-      label="People views"
-    />
-  );
 }
 
 function hasActivePeopleFilters(

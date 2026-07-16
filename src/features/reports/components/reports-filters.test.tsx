@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
@@ -9,6 +9,27 @@ import type { ReportsViewQuery } from "@/features/reports/reports.types";
 afterEach(cleanup);
 
 describe("ReportsFilters", () => {
+  it("shows visible scope labels and names the preview action", () => {
+    render(
+      <ReportsFilters
+        action="/reports/rent-roll"
+        propertyOptions={[
+          { id: "52b1ed33-0ac8-4c3d-9d9d-631e9f557014", label: "P1" },
+        ]}
+        showReportSelect={false}
+        viewQuery={query("rent-roll")}
+      />,
+    );
+
+    expect(screen.getByText("Property")).toBeTruthy();
+    expect(screen.getByText("Month")).toBeTruthy();
+    expect(screen.getByText("Status")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Filter report by property" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Report month" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Filter units by status" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Generate preview" })).toBeTruthy();
+  });
+
   it("omits stale unit scope for Owner Statements", () => {
     const { container } = render(
       <ReportsFilters

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { PeopleScreen } from "@/features/people/components/people-screen";
 import { PeopleScreenSkeleton } from "@/features/people/components/people-screen-skeleton";
+import { PeopleWorkspaceNavigation } from "@/features/people/components/people-workspace-navigation";
 import { getAccessByPersonId } from "@/features/organization/data";
 import { getPeopleInsightsData } from "@/features/people/data/people-insights";
 import { getPeopleScreenData } from "@/features/people/data/people";
@@ -74,6 +75,7 @@ async function PeopleModulePageContent({
       initialPersonId={initialPersonId}
       insights={insights}
       key={initialPersonId ?? config.role ?? "people"}
+      localNavigation={<PeopleWorkspaceNavigation activeRole={config.role} />}
       lockedRole={config.role}
       pagination={pagination}
       people={people}

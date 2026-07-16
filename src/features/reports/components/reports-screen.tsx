@@ -8,8 +8,11 @@ import {
   Layers,
   PackageCheck,
 } from "lucide-react";
+import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PrintButton } from "@/features/reports/components/print-button";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import { formatLongReportDate } from "@/features/reports/data/report-format";
@@ -46,73 +49,62 @@ export function ReportsLibraryScreen({
   });
 
   return (
-    <div className="min-h-screen bg-background">
-      <PageHeader
-        description="Choose a report, then build the scoped preview and export from its report builder."
-        title="Reports"
-      />
-      <main className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-6">
+    <WorkspacePage
+      header={
+        <PageHeader
+          context={`${reportCatalog.length} available reports`}
+          title="Reports"
+        />
+      }
+      localNav={<ReportFamilyNavigation viewQuery={viewQuery} />}
+    >
+      <main className="grid h-full min-h-0 gap-4 overflow-y-auto px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-6">
         <section className="rounded-md border border-border bg-surface">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">
-                Report library
-              </h2>
-              <p className="mt-1 text-xs text-muted">
-                Pick the business question first. Builder controls live on the
-                selected report page.
-              </p>
-            </div>
+            <h2 className="text-sm font-semibold text-foreground">
+              Report library
+            </h2>
             <Badge className="px-2 text-xs" tone="neutral">
               {reportCatalog.length} reports
             </Badge>
           </div>
 
-          <div className="grid gap-4 p-4 xl:grid-cols-2">
+          <div
+            className="divide-y divide-border"
+            data-report-picker="index"
+          >
             {reportCategories.map((category) => (
-              <div className="space-y-2" key={category}>
-                <div className="flex items-center gap-2 px-1">
+              <section
+                className="grid gap-2 px-3 py-3 sm:grid-cols-[120px_minmax(0,1fr)]"
+                key={category}
+              >
+                <div className="flex items-center gap-2 self-start px-1 py-2">
                   <Layers className="text-muted" size={14} />
                   <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-muted">
                     {category}
                   </h3>
                 </div>
-                <div className="space-y-2">
+                <div className="divide-y divide-border/70 overflow-hidden rounded-md border border-border">
                   {reportCatalog
                     .filter((report) => report.category === category)
                     .map((report) => (
-                      <ReportCatalogCard
+                      <ReportCatalogRow
                         key={report.kind}
                         report={report}
                         viewQuery={viewQuery}
                       />
                     ))}
                 </div>
-              </div>
+              </section>
             ))}
           </div>
         </section>
 
-        <aside className="space-y-3">
+        <aside className="space-y-3" aria-label="Report shortcuts">
           <ReportPackets packets={packets} />
-          <section className="rounded-md border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-foreground">
-              What a report contains
-            </h2>
-            <div className="mt-3 space-y-3 text-[13px] leading-5 text-foreground-muted">
-              <p>
-                Each builder creates a scoped preview from live Nestory source
-                records, then exports the same rows to CSV or PDF.
-              </p>
-              <p>
-                PDF exports include the report purpose, scope, period, summary
-                metrics, source trace, and the supporting table.
-              </p>
-            </div>
-          </section>
         </aside>
       </main>
-    </div>
+    </WorkspacePage>
   );
 }
 
@@ -158,14 +150,19 @@ export function ReportBuilderScreen({
         <PageHeader
           actions={
             trustedReport.scopeValidation ? undefined : (
-              <>
+              <div
+                aria-label="Export report"
+                className="flex flex-wrap items-center gap-2"
+                data-report-stage="export"
+                role="region"
+              >
                 {isOwnerStatement ? null : (
                   <a
                     className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
                     href={buildPdfHref(viewQuery)}
                   >
                     <Download size={14} />
-                    Download PDF
+                    Export PDF
                   </a>
                 )}
                 <a
@@ -176,24 +173,19 @@ export function ReportBuilderScreen({
                   Export CSV
                 </a>
                 {isOwnerStatement || isPreviewLimited ? null : <PrintButton />}
-              </>
+              </div>
             )
           }
-          description={isOwnerStatement ? trustedReport.description : selectedReport.description}
+          context={`${trustedReport.scopeLabel} · ${trustedReport.periodLabel}`}
           title={isOwnerStatement ? trustedReport.title : selectedReport.title}
+        />
+        <ReportFamilyNavigation
+          activeCategory={selectedReport.category}
+          viewQuery={viewQuery}
         />
       </div>
 
       <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6 lg:py-4 print:p-0">
-        <Link
-          className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground print:hidden"
-          href="/reports"
-          prefetch={false}
-        >
-          <ArrowLeft size={14} />
-          Report library
-        </Link>
-
         <section className="grid gap-4 print:hidden xl:grid-cols-[minmax(0,1fr)_360px]">
           <SelectedReportPanel
             report={selectedReport}
@@ -207,12 +199,25 @@ export function ReportBuilderScreen({
           />
         </section>
 
-        <ReportSummaryGrid report={trustedReport} />
-        <TrustedReportTable
-          organizationName={organizationName}
-          report={trustedReport}
-          viewQuery={viewQuery}
-        />
+        <section
+          aria-label="Report preview"
+          className="space-y-3"
+          data-report-stage="preview"
+          role="region"
+        >
+          <div className="flex items-center justify-between gap-3 border-y border-border bg-surface px-3 py-2 text-[13px] print:hidden">
+            <p className="font-semibold text-foreground">Preview ready</p>
+            <p className="truncate text-foreground-muted">
+              {reportRowCount} {reportRowCount === 1 ? "row" : "rows"} · {trustedReport.scopeLabel}
+            </p>
+          </div>
+          <ReportSummaryGrid report={trustedReport} />
+          <TrustedReportTable
+            organizationName={organizationName}
+            report={trustedReport}
+            viewQuery={viewQuery}
+          />
+        </section>
       </main>
     </div>
   );
@@ -234,19 +239,28 @@ function OwnerStatementRecipientScreen({
       <div className="print:hidden">
         <PageHeader
           actions={
-            <>
+            <div
+              aria-label="Export report"
+              className="flex flex-wrap items-center gap-2"
+              data-report-stage="export"
+              role="region"
+            >
               <a
                 className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-foreground bg-foreground px-2.5 text-[13px] font-medium text-background transition-colors hover:bg-foreground/90"
                 href={buildPdfHref(viewQuery)}
               >
                 <Download size={14} />
-                Download PDF
+                Export PDF
               </a>
               <PrintButton autoPrint={viewQuery.print === true} />
-            </>
+            </div>
           }
-          description={report.description}
+          context={`${report.scopeLabel} · ${report.periodLabel}`}
           title="Owner Statement"
+        />
+        <ReportFamilyNavigation
+          activeCategory="Finance"
+          viewQuery={viewQuery}
         />
       </div>
 
@@ -318,8 +332,12 @@ function OwnerStatementValidationScreen({
   return (
     <div className="min-h-screen bg-background">
       <PageHeader
-        description="Choose a ready property and owner recipient to continue."
+        context="Owner statement recipient"
         title="Owner Statement"
+      />
+      <ReportFamilyNavigation
+        activeCategory="Finance"
+        viewQuery={viewQuery}
       />
       <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6">
         <Link
@@ -436,7 +454,7 @@ function OwnerStatementRowActions({
   );
 }
 
-function ReportCatalogCard({
+function ReportCatalogRow({
   report,
   viewQuery,
 }: {
@@ -445,35 +463,63 @@ function ReportCatalogCard({
 }) {
   return (
     <Link
+      aria-label={`Open ${report.title}`}
       className={cn(
-        "block rounded-md border border-border bg-surface-muted/35 p-3 transition-colors",
-        "hover:border-foreground hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
+        "group grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 bg-surface px-3 py-2.5 transition-colors",
+        "hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring",
       )}
+      data-report-picker-item="true"
       href={buildCatalogCardHref(report.kind, viewQuery)}
       prefetch={false}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(140px,0.8fr)] sm:items-center sm:gap-4">
         <div className="min-w-0">
           <h4 className="truncate text-sm font-semibold text-foreground">
             {report.title}
           </h4>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-foreground-muted">
-            {report.description}
+          <p className="mt-0.5 truncate text-xs text-foreground-muted">
+            {report.bestFor}
           </p>
         </div>
-        <ArrowRight className="mt-0.5 shrink-0 text-muted" size={15} />
+        <p className="mt-1 truncate text-xs text-muted sm:mt-0">
+          {report.sources}
+        </p>
       </div>
-      <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-        <div className="min-w-0">
-          <dt className="font-medium text-muted">Best for</dt>
-          <dd className="truncate text-foreground">{report.bestFor}</dd>
-        </div>
-        <div className="min-w-0">
-          <dt className="font-medium text-muted">Sources</dt>
-          <dd className="truncate text-foreground">{report.sources}</dd>
-        </div>
-      </dl>
+      <ArrowRight
+        className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5"
+        size={15}
+      />
     </Link>
+  );
+}
+
+function ReportFamilyNavigation({
+  activeCategory,
+  viewQuery,
+}: {
+  activeCategory?: ReportCatalogItem["category"];
+  viewQuery: ReportsViewQuery;
+}) {
+  return (
+    <LocalWorkspaceNav
+      items={[
+        { active: !activeCategory, href: "/reports", label: "All reports" },
+        ...reportCategories.map((category) => {
+          const firstReport = reportCatalog.find(
+            (report) => report.category === category,
+          );
+
+          return {
+            active: activeCategory === category,
+            href: firstReport
+              ? buildCatalogCardHref(firstReport.kind, viewQuery)
+              : "/reports",
+            label: category,
+          };
+        }),
+      ]}
+      label="Report families"
+    />
   );
 }
 
@@ -499,9 +545,11 @@ function SelectedReportPanel({
           <h2 className="mt-1 truncate text-base font-semibold text-foreground">
             {report.title}
           </h2>
-          <p className="mt-1 text-[13px] leading-5 text-foreground-muted">
-            {trustedReport.description}
-          </p>
+          {shouldExplainAccountingScope(trustedReport.kind) ? (
+            <p className="mt-1 text-[13px] leading-5 text-foreground-muted">
+              {trustedReport.description}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -553,21 +601,24 @@ function ReportPackets({ packets }: { packets: ReportPacket[] }) {
 
 function ReportSummaryGrid({ report }: { report: TrustedReport }) {
   return (
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 print:hidden">
+    <div
+      className="grid grid-cols-2 gap-2 md:grid-cols-4 print:grid print:grid-cols-4 print:gap-2"
+      data-report-summary="true"
+    >
       {report.summary.map((metric) => (
         <div
-          className="rounded-md border border-border bg-surface px-3 py-2"
+          className="rounded-md border border-border bg-surface px-3 py-2 print:break-inside-avoid print:border-black print:bg-white print:text-black"
           key={metric.label}
           title={`${metric.detail}. Source count: ${metric.sourceCount}`}
         >
-          <p className="text-xs font-medium text-foreground-muted">
+          <p className="text-xs font-medium text-foreground-muted print:text-black">
             {metric.label}
           </p>
-          <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">
+          <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground print:text-black">
             {metric.value}
           </p>
-          <p className="mt-1 truncate text-[11px] text-muted">
-            {metric.sourceCount} source rows
+          <p className="mt-1 truncate text-[11px] text-muted print:text-black">
+            {metric.sourceCount} source records
           </p>
         </div>
       ))}
@@ -614,51 +665,75 @@ function TrustedReportTable({
         </div>
       </div>
 
-      <div className="border-b border-border bg-surface-muted/60 px-4 py-2.5 text-[13px] text-foreground-muted print:hidden">
+      <div
+        className="border-b border-border bg-surface-muted/60 px-4 py-2.5 text-[13px] text-foreground-muted print:block print:border-black print:bg-white print:px-0 print:text-black"
+        data-report-trace="true"
+      >
         {isPreviewLimited
           ? `Showing first ${report.rows.length} of ${totalRowCount} rows. Export CSV for the full report.`
           : report.totalsTraceLabel}
       </div>
 
-      <div className="max-h-[min(560px,calc(100vh-430px))] overflow-auto print:max-h-none print:overflow-visible">
-        <table
-          aria-label={`${report.title} report`}
-          className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-[13px] print:min-w-0 print:border print:border-black print:text-[10px] print:text-black print:[&_td]:border print:[&_td]:border-black print:[&_td]:px-1.5 print:[&_td]:py-1.5 print:[&_th]:border print:[&_th]:border-black print:[&_th]:px-1.5 print:[&_th]:py-1 print:[&_thead_tr]:bg-white"
-        >
-          <thead className="sticky top-0 z-10 print:static">
-            <tr className="bg-surface-muted text-[11px] font-semibold text-foreground-muted">
-              <th className="border-b border-border px-3 py-2">Record</th>
-              {report.columns.map((column) => (
-                <th
-                  className={cn(
-                    "border-b border-border px-3 py-2",
-                    column.align === "right" && "text-right",
-                  )}
-                  key={column.key}
-                >
-                  {column.label}
+      {report.rows.length === 0 ? (
+        <EmptyState
+          action={
+            <Link
+              className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href={
+                hasActiveReportFilters(viewQuery) || report.scopeValidation
+                  ? buildClearReportFiltersHref(viewQuery)
+                  : "/reports"
+              }
+              prefetch={false}
+            >
+              {hasActiveReportFilters(viewQuery) || report.scopeValidation
+                ? "Clear filters"
+                : "Report library"}
+            </Link>
+          }
+          body={report.scopeValidation?.message ?? report.emptyDescription}
+          kind={
+            report.scopeValidation
+              ? "error"
+              : hasActiveReportFilters(viewQuery)
+                ? "filtered"
+                : "empty"
+          }
+          title={
+            report.scopeValidation
+              ? "Report scope is not available"
+              : report.emptyTitle
+          }
+        />
+      ) : (
+        <div className="max-h-[min(560px,calc(100vh-430px))] overflow-auto print:max-h-none print:overflow-visible">
+          <table
+            aria-label={`${report.title} report`}
+            className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-[13px] print:min-w-0 print:border print:border-black print:text-[10px] print:text-black print:[&_td]:border print:[&_td]:border-black print:[&_td]:px-1.5 print:[&_td]:py-1.5 print:[&_th]:border print:[&_th]:border-black print:[&_th]:px-1.5 print:[&_th]:py-1 print:[&_thead_tr]:bg-white"
+          >
+            <thead className="sticky top-0 z-10 print:static">
+              <tr className="bg-surface-muted text-[11px] font-semibold text-foreground-muted">
+                <th className="border-b border-border px-3 py-2">Record</th>
+                {report.columns.map((column) => (
+                  <th
+                    className={cn(
+                      "border-b border-border px-3 py-2",
+                      column.align === "right" && "text-right",
+                    )}
+                    key={column.key}
+                  >
+                    {column.label}
+                  </th>
+                ))}
+                <th className="border-b border-border px-3 py-2">
+                  {report.kind === "owner-statement"
+                    ? "Actions / sources"
+                    : "Sources"}
                 </th>
-              ))}
-              <th className="border-b border-border px-3 py-2">
-                {report.kind === "owner-statement" ? "Actions / sources" : "Sources"}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.rows.length === 0 ? (
-              <tr>
-                <td
-                  className="px-3 py-8 text-center text-muted"
-                  colSpan={report.columns.length + 2}
-                >
-                  <strong className="block text-foreground">
-                    {report.emptyTitle}
-                  </strong>
-                  <span className="mt-1 block">{report.emptyDescription}</span>
-                </td>
               </tr>
-            ) : (
-              report.rows.map((row) => (
+            </thead>
+            <tbody>
+              {report.rows.map((row) => (
                 <TrustedReportTableRow
                   columns={report.columns}
                   key={row.id}
@@ -666,11 +741,11 @@ function TrustedReportTable({
                   row={row}
                   viewQuery={viewQuery}
                 />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
@@ -783,6 +858,27 @@ function ReportMeta({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] font-medium text-foreground-muted">{label}</p>
       <p className="mt-0.5 truncate font-semibold text-foreground">{value}</p>
     </div>
+  );
+}
+
+function shouldExplainAccountingScope(kind: TrustedReport["kind"]) {
+  return kind === "income-expense" || kind === "owner-statement";
+}
+
+function hasActiveReportFilters(query: ReportsViewQuery) {
+  return (
+    query.propertyId !== "all" ||
+    query.unitId !== "all" ||
+    query.status !== "all" ||
+    query.ownerPersonId !== "all" ||
+    query.ownerPersonIdInvalid === true
+  );
+}
+
+function buildClearReportFiltersHref(query: ReportsViewQuery) {
+  return buildReportBuilderHref(
+    query.report,
+    new URLSearchParams({ month: query.month }),
   );
 }
 

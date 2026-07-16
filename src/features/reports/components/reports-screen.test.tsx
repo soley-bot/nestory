@@ -3,7 +3,11 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ReportBuilderScreen } from "@/features/reports/components/reports-screen";
+import {
+  ReportBuilderScreen,
+  ReportsLibraryScreen,
+} from "@/features/reports/components/reports-screen";
+import { reportCatalog } from "@/features/reports/report-catalog";
 import type {
   ReportsScreenData,
   ReportsViewQuery,
@@ -20,6 +24,114 @@ const propertyTwoId = "ea96fb00-f92d-4c85-92bc-396fe9f60083";
 const ownerOneId = "c304facd-1caa-4f98-9d43-cf44f65ac32f";
 const ownerTwoId = "67de948d-ae16-4d98-9b2a-469a72444e1d";
 
+describe("Reports workspace", () => {
+  it("uses a dense report index and marks one local report family current", () => {
+    const { container } = render(
+      <ReportsLibraryScreen viewQuery={reportQuery()} />,
+    );
+
+    const navigation = screen.getByRole("navigation", {
+      name: "Report families",
+    });
+    expect(
+      within(navigation)
+        .getAllByRole("link")
+        .filter((link) => link.getAttribute("aria-current") === "page"),
+    ).toHaveLength(1);
+    expect(
+      within(navigation)
+        .getByRole("link", { name: "All reports" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      container.querySelectorAll('[data-report-picker-item="true"]'),
+    ).toHaveLength(reportCatalog.length);
+    expect(container.querySelectorAll("article")).toHaveLength(0);
+    expect(
+      screen.getByRole("link", { name: "Open Income & Expense" }),
+    ).toBeTruthy();
+    expect(screen.queryByText(reportCatalog[0]!.description)).toBeNull();
+    expect(screen.queryByText("What a report contains")).toBeNull();
+  });
+
+  it("makes scope, generation, preview, export, totals, and sources explicit", () => {
+    const { container } = renderReportBuilder();
+
+    const navigation = screen.getByRole("navigation", {
+      name: "Report families",
+    });
+    expect(
+      within(navigation)
+        .getByRole("link", { name: "Leasing" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      within(navigation)
+        .getAllByRole("link")
+        .filter((link) => link.getAttribute("aria-current") === "page"),
+    ).toHaveLength(1);
+    const scope = container.querySelector('[data-report-stage="generate"]');
+    expect(scope).not.toBeNull();
+    expect(within(scope as HTMLElement).getByText("Property")).toBeTruthy();
+    expect(within(scope as HTMLElement).getByText("Month")).toBeTruthy();
+    expect(within(scope as HTMLElement).getByText("Status")).toBeTruthy();
+    expect(
+      within(scope as HTMLElement).getByRole("button", {
+        name: "Generate preview",
+      }),
+    ).toBeTruthy();
+
+    const exportRegion = screen.getByRole("region", { name: "Export report" });
+    expect(within(exportRegion).getByRole("link", { name: "Export PDF" })).toBeTruthy();
+    expect(within(exportRegion).getByRole("link", { name: "Export CSV" })).toBeTruthy();
+    expect(within(exportRegion).getByRole("button", { name: "Print / PDF" })).toBeTruthy();
+
+    const preview = screen.getByRole("region", { name: "Report preview" });
+    expect(within(preview).getByText("Preview ready")).toBeTruthy();
+    expect(within(preview).getAllByText("USD 1,234.00")).toHaveLength(2);
+    expect(within(preview).getByText("2 source records")).toBeTruthy();
+    expect(within(preview).getByText("Cash receipts only.")).toBeTruthy();
+    expect(
+      container.querySelector('[data-report-summary="true"]')?.className,
+    ).toContain("print:grid");
+    expect(
+      container.querySelector('[data-report-trace="true"]')?.className,
+    ).toContain("print:block");
+  });
+
+  it("recovers from a filtered empty preview without changing report kind or month", () => {
+    const { container } = renderReportBuilder({
+      report: reportFixture({ rows: [] }),
+      viewQuery: reportQuery({
+        propertyId: propertyOneId,
+        status: "vacant",
+      }),
+    });
+
+    const emptyState = container.querySelector('[data-kind="filtered"]');
+    expect(emptyState).not.toBeNull();
+    expect(
+      within(emptyState as HTMLElement)
+        .getByRole("link", { name: "Clear filters" })
+        .getAttribute("href"),
+    ).toBe("/reports/rent-roll?month=2026-07");
+  });
+
+  it("gives a true-empty preview a direct path back to the report library", () => {
+    const { container } = renderReportBuilder({
+      report: reportFixture({ rows: [] }),
+    });
+
+    const emptyState = container.querySelector('[data-kind="empty"]');
+    expect(emptyState).not.toBeNull();
+    expect(
+      within(emptyState as HTMLElement)
+        .getByRole("link", { name: "Report library" })
+        .getAttribute("href"),
+    ).toBe("/reports");
+  });
+});
+
 describe("Owner Statement report workflow", () => {
   it("keeps the all-properties surface as an internal readiness workspace", () => {
     renderOwnerStatement();
@@ -31,7 +143,7 @@ describe("Owner Statement report workflow", () => {
       ).length,
     ).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Export CSV" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Download PDF" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Export PDF" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Print / PDF" })).toBeNull();
 
     const previewLinks = screen.getAllByRole("link", { name: "Preview" });
@@ -81,7 +193,7 @@ describe("Owner Statement report workflow", () => {
     expect(screen.queryByText("Ready with warning")).toBeNull();
     expect(screen.queryByText("9 evidence lines")).toBeNull();
     expect(screen.getByRole("link", { name: "Back to readiness" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Download PDF" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Export PDF" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Print / PDF" })).toBeTruthy();
   });
 
@@ -98,7 +210,7 @@ describe("Owner Statement report workflow", () => {
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Print / PDF" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Download PDF" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Export PDF" })).toBeNull();
   });
 
   it("does not expose print or PDF controls for a blocked selected property", () => {
@@ -113,7 +225,7 @@ describe("Owner Statement report workflow", () => {
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Print / PDF" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Download PDF" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Export PDF" })).toBeNull();
   });
 
   it("opens the print dialog only from a ready recipient print URL", () => {
@@ -257,5 +369,87 @@ function ownerStatementReadinessReport(): TrustedReport {
     ],
     title: "Owner Statement readiness",
     totalsTraceLabel: "Ready properties only.",
+  };
+}
+
+function renderReportBuilder({
+  report = reportFixture(),
+  viewQuery = reportQuery(),
+}: {
+  report?: TrustedReport;
+  viewQuery?: ReportsViewQuery;
+} = {}) {
+  return render(
+    <ReportBuilderScreen
+      organizationName="Demo Organization"
+      propertyOptions={[
+        { id: propertyOneId, label: "P1 - Property One" },
+      ]}
+      trustedReport={report}
+      viewQuery={viewQuery}
+    />,
+  );
+}
+
+function reportQuery(
+  overrides: Partial<ReportsViewQuery> = {},
+): ReportsViewQuery {
+  return {
+    month: "2026-07",
+    ownerPersonId: "all",
+    propertyId: "all",
+    report: "rent-roll",
+    status: "all",
+    unitId: "all",
+    ...overrides,
+  };
+}
+
+function reportFixture({
+  rows = [
+    {
+      cells: { rent: "USD 1,234.00", status: "Occupied" },
+      href: "/units/unit-1",
+      id: "unit-1",
+      sourceCount: 2,
+      sourceLinks: [
+        {
+          href: "/units/unit-1",
+          id: "unit-1",
+          label: "Unit 101",
+          recordType: "unit" as const,
+        },
+      ],
+      sourceSummary: "2 linked source records",
+      title: "Unit 101",
+    },
+  ],
+}: {
+  rows?: TrustedReport["rows"];
+} = {}): TrustedReport {
+  return {
+    columns: [
+      { key: "status", label: "Status" },
+      { align: "right", key: "rent", label: "Rent" },
+    ],
+    description: "Current unit rent roll.",
+    emptyDescription: "No units match the selected report scope.",
+    emptyTitle: "No rent roll rows",
+    exportFilenameBase: "rent-roll",
+    generatedAt: "2026-07-31T00:00:00.000Z",
+    kind: "rent-roll",
+    periodLabel: "July 2026",
+    rows,
+    scopeLabel: "All properties",
+    summary: [
+      {
+        detail: "Trusted occupied rent total",
+        label: "Scheduled rent",
+        sourceCount: 2,
+        value: "USD 1,234.00",
+      },
+    ],
+    title: "Rent Roll",
+    totalsTraceLabel: "Cash receipts only.",
   };
 }

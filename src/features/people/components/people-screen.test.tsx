@@ -114,6 +114,7 @@ describe("People route family redesign contract", () => {
       "Staff",
       "Tenants",
       "Vendors",
+      "Reports",
     ]);
     expect(within(lenses).getByRole("link", { name: "All" }).getAttribute("aria-current")).toBe("page");
 
