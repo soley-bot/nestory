@@ -4,367 +4,2024 @@
     "source": "src/app/workspace/page.tsx",
     "phase": 2,
     "surface": "workspace",
-    "roles": ["admin", "staff", "maintenance"],
-    "states": ["populated", "permission-blocked"]
+    "roles": [
+      "admin",
+      "staff",
+      "maintenance"
+    ],
+    "states": [
+      "populated",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/workspace/page.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/workspace/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/properties",
     "source": "src/app/(dashboard)/properties/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/properties/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/properties/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/properties/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/properties/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/properties/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/properties/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/properties/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/properties/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/properties/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/units",
     "source": "src/app/(dashboard)/units/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/units/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/units/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/units/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/units/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/units/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/units/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/units/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/units/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/units/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/people",
     "source": "src/app/(dashboard)/people/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "error", "permission-blocked"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/people/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/people/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/people/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/people/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/people/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/owners",
     "source": "src/app/(dashboard)/owners/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/owners/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/owners/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/owners/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/owners/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/owners/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/owners/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/owners/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/owners/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/owners/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/staff",
     "source": "src/app/(dashboard)/staff/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/staff/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/staff/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/staff/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/staff/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/staff/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/staff/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/staff/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/staff/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/staff/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/tenants",
     "source": "src/app/(dashboard)/tenants/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/tenants/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/tenants/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/tenants/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/tenants/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/tenants/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/tenants/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/tenants/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/tenants/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/tenants/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/vendors",
     "source": "src/app/(dashboard)/vendors/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/vendors/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/vendors/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/vendors/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/vendors/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/vendors/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/vendors/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/vendors/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/vendors/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/vendors/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/leases",
     "source": "src/app/(dashboard)/leases/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/leases/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/leases/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/leases/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/leases/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/leases/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/leases/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/leases/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/leases/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/leases/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/rent-income",
     "source": "src/app/(dashboard)/rent-income/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/rent-income/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/rent-income/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/rent-income/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/rent-income/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/rent-income/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/rent-income/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/rent-income/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/rent-income/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/rent-income/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/bills-expenses",
     "source": "src/app/(dashboard)/bills-expenses/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/bills-expenses/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/bills-expenses/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/bills-expenses/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/bills-expenses/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/bills-expenses/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/bills-expenses/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/bills-expenses/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/bills-expenses/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/bills-expenses/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/ledger",
     "source": "src/app/(dashboard)/ledger/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/ledger/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/ledger/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/ledger/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/ledger/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/ledger/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/ledger/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/ledger/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/ledger/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/ledger/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/petty-cash",
     "source": "src/app/(dashboard)/petty-cash/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/petty-cash/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/petty-cash/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/petty-cash/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/petty-cash/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/petty-cash/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/petty-cash/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/petty-cash/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/petty-cash/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/petty-cash/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/maintenance",
     "source": "src/app/(dashboard)/maintenance/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin", "staff", "maintenance"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin",
+      "staff",
+      "maintenance"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/maintenance/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/maintenance/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/maintenance/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/maintenance/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/maintenance/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/maintenance/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/maintenance/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/maintenance/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/maintenance/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/tasks",
     "source": "src/app/(dashboard)/tasks/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin", "staff", "maintenance"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin",
+      "staff",
+      "maintenance"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/tasks/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/tasks/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/tasks/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/tasks/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/tasks/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/tasks/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/tasks/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/tasks/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/tasks/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/recurring-tasks",
     "source": "src/app/(dashboard)/recurring-tasks/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin", "staff", "maintenance"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin",
+      "staff",
+      "maintenance"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/inspections",
     "source": "src/app/(dashboard)/inspections/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin", "staff", "maintenance"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin",
+      "staff",
+      "maintenance"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/inspections/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/inspections/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/inspections/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/inspections/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/inspections/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/inspections/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/inspections/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/inspections/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/inspections/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/work-orders",
     "source": "src/app/(dashboard)/work-orders/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin", "staff", "maintenance"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin",
+      "staff",
+      "maintenance"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/work-orders/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/work-orders/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/work-orders/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/work-orders/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/work-orders/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/work-orders/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/work-orders/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/work-orders/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/work-orders/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/timeline",
     "source": "src/app/(dashboard)/timeline/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/timeline/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/timeline/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/timeline/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/timeline/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/timeline/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/timeline/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/timeline/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/timeline/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/timeline/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/financial-timeline",
     "source": "src/app/(dashboard)/financial-timeline/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/financial-timeline/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/financial-timeline/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/financial-timeline/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/financial-timeline/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/financial-timeline/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/financial-timeline/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/financial-timeline/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/financial-timeline/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/financial-timeline/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/maintenance-timeline",
     "source": "src/app/(dashboard)/maintenance-timeline/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/property-timeline",
     "source": "src/app/(dashboard)/property-timeline/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/property-timeline/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/property-timeline/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/property-timeline/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/property-timeline/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/property-timeline/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/property-timeline/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/property-timeline/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/property-timeline/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/property-timeline/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/documents",
     "source": "src/app/(dashboard)/documents/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/documents/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/documents/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/documents/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/documents/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/documents/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/documents/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/documents/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/documents/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/documents/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/reports",
     "source": "src/app/(dashboard)/reports/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/reports/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/reports/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/reports/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/reports/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/reports/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/reports/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/reports/[reportKind]",
     "source": "src/app/(dashboard)/reports/[reportKind]/page.tsx",
     "phase": 3,
     "surface": "detail",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/reports/[reportKind]/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/reports/[reportKind]/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/reports/[reportKind]/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/reports/[reportKind]/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/reports/[reportKind]/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/reports/[reportKind]/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/people-reports",
     "source": "src/app/(dashboard)/people-reports/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/people-reports/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/people-reports/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/people-reports/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/people-reports/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/people-reports/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/people-reports/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/settings",
     "source": "src/app/(dashboard)/settings/page.tsx",
     "phase": 4,
     "surface": "settings",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/settings/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/settings/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/settings/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/settings/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/settings/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/settings/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/settings/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/settings/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/users-roles",
     "source": "src/app/(dashboard)/users-roles/page.tsx",
     "phase": 4,
     "surface": "settings",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/users-roles/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/users-roles/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/users-roles/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/users-roles/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/users-roles/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/users-roles/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/users-roles/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/users-roles/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/account",
     "source": "src/app/(dashboard)/account/page.tsx",
     "phase": 4,
     "surface": "settings",
-    "roles": ["admin", "staff", "maintenance"],
-    "states": ["loading", "populated", "error", "permission-blocked"]
+    "roles": [
+      "admin",
+      "staff",
+      "maintenance"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/account/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/account/page.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/account/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/account/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/import",
     "source": "src/app/(dashboard)/import/page.tsx",
     "phase": 4,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/import/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/import/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/import/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/import/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/import/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/import/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/import/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/import/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/import/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/overview",
     "source": "src/app/(dashboard)/overview/page.tsx",
     "phase": 5,
     "surface": "workspace",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/overview/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/overview/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/overview/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/overview/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/overview/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/overview/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/properties/[propertyId]",
     "source": "src/app/(dashboard)/properties/[propertyId]/page.tsx",
     "phase": 5,
     "surface": "detail",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/units/[unitId]",
     "source": "src/app/(dashboard)/units/[unitId]/page.tsx",
     "phase": 5,
     "surface": "detail",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/people/[personId]",
     "source": "src/app/(dashboard)/people/[personId]/page.tsx",
     "phase": 5,
     "surface": "detail",
-    "roles": ["admin"],
-    "states": ["loading", "populated", "empty", "filtered-empty", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "filtered-empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/people/[personId]/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/people/[personId]/page.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/people/[personId]/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "filtered-empty": [
+        "src/app/(dashboard)/people/[personId]/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/people/[personId]/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/people/[personId]/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/people/[personId]/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/people/[personId]/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/people/[personId]/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/",
     "source": "src/app/page.tsx",
     "phase": 6,
     "surface": "public",
-    "roles": ["public"],
-    "states": ["populated"]
+    "roles": [
+      "public"
+    ],
+    "states": [
+      "populated"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/page.tsx"
+      ]
+    }
   },
   {
     "route": "/login",
     "source": "src/app/(auth)/login/page.tsx",
     "phase": 6,
     "surface": "auth",
-    "roles": ["public"],
-    "states": ["draft", "saving", "error", "success"]
+    "roles": [
+      "public"
+    ],
+    "states": [
+      "draft",
+      "saving",
+      "error",
+      "success"
+    ],
+    "evidence": {
+      "draft": [
+        "src/app/(auth)/login/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(auth)/login/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "error": [
+        "src/app/(auth)/login/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "success": [
+        "src/app/(auth)/login/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/signup",
     "source": "src/app/(auth)/signup/page.tsx",
     "phase": 6,
     "surface": "auth",
-    "roles": ["public"],
-    "states": ["draft", "saving", "error", "success"]
+    "roles": [
+      "public"
+    ],
+    "states": [
+      "draft",
+      "saving",
+      "error",
+      "success"
+    ],
+    "evidence": {
+      "draft": [
+        "src/app/(auth)/signup/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(auth)/signup/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "error": [
+        "src/app/(auth)/signup/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "success": [
+        "src/app/(auth)/signup/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/setup",
     "source": "src/app/setup/page.tsx",
     "phase": 6,
     "surface": "auth",
-    "roles": ["unlinked"],
-    "states": ["loading", "error", "permission-blocked", "draft", "saving", "success"]
+    "roles": [
+      "unlinked"
+    ],
+    "states": [
+      "loading",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/setup/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "error": [
+        "src/app/setup/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/setup/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/setup/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/setup/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/setup/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/no-access",
     "source": "src/app/no-access/page.tsx",
     "phase": 6,
     "surface": "auth",
-    "roles": ["unlinked"],
-    "states": ["permission-blocked"]
+    "roles": [
+      "unlinked"
+    ],
+    "states": [
+      "permission-blocked"
+    ],
+    "evidence": {
+      "permission-blocked": [
+        "src/app/no-access/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    }
   },
   {
     "route": "/property-dashboard",
     "source": "src/app/(dashboard)/property-dashboard/page.tsx",
     "phase": 6,
     "surface": "redirect",
-    "roles": ["admin"],
-    "states": []
+    "roles": [
+      "admin"
+    ],
+    "states": [],
+    "evidence": {}
   },
   {
     "route": "/finance-dashboard",
     "source": "src/app/(dashboard)/finance-dashboard/page.tsx",
     "phase": 6,
     "surface": "redirect",
-    "roles": ["admin"],
-    "states": []
+    "roles": [
+      "admin"
+    ],
+    "states": [],
+    "evidence": {}
   },
   {
     "route": "/maintenance-dashboard",
     "source": "src/app/(dashboard)/maintenance-dashboard/page.tsx",
     "phase": 6,
     "surface": "redirect",
-    "roles": ["admin"],
-    "states": []
+    "roles": [
+      "admin"
+    ],
+    "states": [],
+    "evidence": {}
   },
   {
     "route": "/payments",
     "source": "src/app/(dashboard)/payments/page.tsx",
     "phase": 6,
     "surface": "redirect",
-    "roles": ["admin"],
-    "states": []
+    "roles": [
+      "admin"
+    ],
+    "states": [],
+    "evidence": {}
   },
   {
     "route": "/invoices",
     "source": "src/app/(dashboard)/invoices/page.tsx",
     "phase": 6,
     "surface": "redirect",
-    "roles": ["admin"],
-    "states": []
+    "roles": [
+      "admin"
+    ],
+    "states": [],
+    "evidence": {}
   },
   {
     "route": "/schedule",
     "source": "src/app/(dashboard)/schedule/page.tsx",
     "phase": 6,
     "surface": "redirect",
-    "roles": ["admin", "staff", "maintenance"],
-    "states": []
+    "roles": [
+      "admin",
+      "staff",
+      "maintenance"
+    ],
+    "states": [],
+    "evidence": {}
   },
   {
     "route": "/team",
     "source": "src/app/(dashboard)/team/page.tsx",
     "phase": 6,
     "surface": "redirect",
-    "roles": ["admin"],
-    "states": []
+    "roles": [
+      "admin"
+    ],
+    "states": [],
+    "evidence": {}
   }
 ]

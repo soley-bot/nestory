@@ -8,15 +8,26 @@ export function ModuleLoading({ kind = "list", title }: ModuleLoadingProps) {
   const isReport = kind === "report";
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="border-b border-border bg-surface px-4 py-4 sm:px-6">
+    <div
+      aria-busy="true"
+      className="min-h-screen bg-background"
+      data-loading-kind={kind}
+    >
+      <div
+        className="border-b border-border bg-surface px-4 py-4 sm:px-6"
+        data-slot="loading-header"
+      >
         <div className="h-3 w-24 animate-pulse rounded-sm bg-surface-muted" />
         <div className="mt-3 h-6 w-52 animate-pulse rounded-sm bg-surface-muted" />
         <p aria-live="polite" className="sr-only" role="status">
           {title} is loading
         </p>
       </div>
-      <main aria-hidden="true" className="space-y-3 px-4 py-4 sm:px-6 lg:px-6">
+      <main
+        aria-hidden="true"
+        className="space-y-3 px-4 py-4 sm:px-6 lg:px-6"
+        data-slot="loading-workspace"
+      >
         {isDashboard ? <DashboardSkeleton /> : null}
         {isReport ? <ReportSkeleton /> : null}
         {!isDashboard && !isReport ? <ListSkeleton /> : null}
