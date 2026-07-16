@@ -21,7 +21,9 @@ vi.mock("@/features/organization/data", () => ({
 }));
 
 vi.mock("@/features/organization/components/organization-settings-screen", () => ({
-  OrganizationSettingsScreen: () => <div>Organization settings</div>,
+  OrganizationSettingsScreen: ({ section }: { section: string }) => (
+    <div>Organization settings: {section}</div>
+  ),
 }));
 
 import SettingsPage from "@/app/(dashboard)/settings/page";
@@ -47,10 +49,19 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("requires an admin context before rendering organization controls", async () => {
-    const html = renderToStaticMarkup(await SettingsPage());
+  it.each([
+    ["organization", "organization"],
+    ["branches", "branches"],
+    ["teams", "teams"],
+    ["future", "organization"],
+  ])("requires admin context and normalizes section %s", async (section, expected) => {
+    const html = renderToStaticMarkup(
+      await SettingsPage({
+        searchParams: Promise.resolve({ section }),
+      }),
+    );
 
-    expect(html).toContain("Organization settings");
+    expect(html).toContain(`Organization settings: ${expected}`);
     expect(requireAdminContext).toHaveBeenCalledOnce();
     expect(requireWorkspaceContext).not.toHaveBeenCalled();
   });

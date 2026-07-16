@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const settingsTabs = [
-  { href: "/settings", label: "Organization" },
+  { href: "/settings", label: "Workspace" },
   { href: "/users-roles", label: "Users & Roles" },
 ];
 

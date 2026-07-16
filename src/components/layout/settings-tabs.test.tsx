@@ -21,7 +21,7 @@ describe("SettingsTabs", () => {
       );
 
       expect(links.map((link) => link.textContent)).toEqual([
-        "Organization",
+        "Workspace",
         "Users & Roles",
       ]);
       expect(current).toHaveLength(1);

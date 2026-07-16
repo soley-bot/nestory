@@ -1,0 +1,321 @@
+/* @vitest-environment jsdom */
+
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { createBranchAction, createTeamAction } = vi.hoisted(() => ({
+  createBranchAction: vi.fn(),
+  createTeamAction: vi.fn(),
+}));
+
+vi.mock("@/features/organization/actions", () => ({
+  createBranchAction,
+  createTeamAction,
+}));
+
+import { SettingsWorkspace } from "@/features/organization/components/settings-workspace";
+
+const branches = [
+  {
+    address: "12 River Road",
+    code: "BKK",
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "Bangkok",
+    status: "active",
+  },
+];
+
+const staff = [
+  {
+    id: "22222222-2222-4222-8222-222222222222",
+    label: "Mina Chen",
+  },
+];
+
+const teams = [
+  {
+    branchId: branches[0].id,
+    id: "33333333-3333-4333-8333-333333333333",
+    managerPersonId: staff[0].id,
+    name: "Field Operations",
+  },
+];
+
+const defaultProps = {
+  branches,
+  canManageStructure: true,
+  organizationName: "Nestory Test",
+  organizationSlug: "nestory-test",
+  staff,
+  teams,
+} as const;
+
+beforeEach(() => {
+  createBranchAction.mockReset();
+  createTeamAction.mockReset();
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+describe("SettingsWorkspace navigation and layout", () => {
+  it.each([
+    ["organization", "Organization"],
+    ["branches", "Branches"],
+    ["teams", "Teams"],
+  ] as const)("keeps %s URL-backed and exactly current", (section, label) => {
+    render(<SettingsWorkspace {...defaultProps} section={section} />);
+
+    const rail = screen.getByRole("navigation", {
+      name: "Organization settings sections",
+    });
+    const links = within(rail).getAllByRole("link");
+    const current = links.filter(
+      (link) => link.getAttribute("aria-current") === "page",
+    );
+
+    expect(links.map((link) => link.textContent)).toEqual([
+      "Organization",
+      "Branches",
+      "Teams",
+    ]);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/settings?section=organization",
+      "/settings?section=branches",
+      "/settings?section=teams",
+    ]);
+    expect(current).toHaveLength(1);
+    expect(current[0]?.textContent).toBe(label);
+  });
+
+  it("declares three wide zones, a two-zone compact layout, and mobile-safe rail", () => {
+    render(<SettingsWorkspace {...defaultProps} section="branches" />);
+
+    const workspace = screen.getByTestId("settings-workspace");
+    const rail = screen.getByRole("navigation", {
+      name: "Organization settings sections",
+    });
+
+    expect(workspace.className).toContain(
+      "lg:grid-cols-[180px_minmax(0,1fr)]",
+    );
+    expect(workspace.className).toContain(
+      "xl:grid-cols-[180px_minmax(0,1fr)_300px]",
+    );
+    expect(workspace.className).toContain("min-w-0");
+    expect(rail.className).toContain("overflow-x-auto");
+    expect(screen.getByTestId("settings-editor").className).toContain("min-w-0");
+    expect(screen.getByTestId("settings-summary").className).toContain(
+      "lg:col-start-2",
+    );
+  });
+
+  it("shows only supported organization identity without a fake edit control", () => {
+    render(<SettingsWorkspace {...defaultProps} section="organization" />);
+
+    expect(screen.getByRole("heading", { name: "Organization identity" })).not.toBeNull();
+    expect(screen.getAllByText("Nestory Test")).toHaveLength(2);
+    expect(screen.getByText("nestory-test")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /save/i })).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+});
+
+describe("SettingsWorkspace drafts", () => {
+  it("moves from clean through dirty and saving to saved with a truthful branch consequence", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<{ message: string; status: "success" }>();
+    createBranchAction.mockReturnValueOnce(pending.promise);
+    render(<SettingsWorkspace {...defaultProps} section="branches" />);
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+    const code = screen.getByRole("textbox", { name: "Code" });
+    const address = screen.getByRole("textbox", { name: "Address" });
+    const save = screen.getByRole("button", { name: "Save" });
+
+    expect(
+      within(screen.getByTestId("draft-action-bar")).getByText("No changes"),
+    ).not.toBeNull();
+    expect(save.hasAttribute("disabled")).toBe(true);
+
+    await user.type(name, "Chiang Mai");
+    await user.type(code, "CNX");
+    await user.type(address, "8 Old City Road");
+
+    expect(screen.getByText("Unsaved changes")).not.toBeNull();
+    expect(save.hasAttribute("disabled")).toBe(false);
+    const impact = screen.getByRole("region", { name: "Branch impact" });
+    expect(within(impact).getByText("Nestory Test")).not.toBeNull();
+    expect(within(impact).getByText("Chiang Mai (CNX)")).not.toBeNull();
+    expect(within(impact).getByText("New branch only")).not.toBeNull();
+
+    await user.click(save);
+    expect(screen.getByText("Adding branch")).not.toBeNull();
+    expect(createBranchAction).toHaveBeenCalledOnce();
+    const submitted = createBranchAction.mock.calls[0]?.[1] as FormData;
+    expect(submitted.get("name")).toBe("Chiang Mai");
+    expect(submitted.get("code")).toBe("CNX");
+    expect(submitted.get("address")).toBe("8 Old City Road");
+
+    pending.resolve({ message: "Branch added.", status: "success" });
+    expect(await screen.findByText("Branch added.")).not.toBeNull();
+    expect(screen.getByText("Branch saved")).not.toBeNull();
+    expect((name as HTMLInputElement).value).toBe("");
+    expect((code as HTMLInputElement).value).toBe("");
+  });
+
+  it("focuses the first invalid field and keeps visible labels free of tutorial copy", async () => {
+    const user = userEvent.setup();
+    render(<SettingsWorkspace {...defaultProps} section="branches" />);
+
+    await user.type(screen.getByRole("textbox", { name: "Address" }), "A");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+    expect(document.activeElement).toBe(name);
+    expect(screen.getByText("Name must be at least 2 characters.")).not.toBeNull();
+    expect(screen.getByText("Name", { selector: "label" }).textContent).toBe("Name");
+    expect(screen.queryByText(/enter your/i)).toBeNull();
+    expect(screen.queryByText(/select a/i)).toBeNull();
+    expect(createBranchAction).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed draft editable and clears stale errors after a new change", async () => {
+    const user = userEvent.setup();
+    createTeamAction.mockResolvedValueOnce({
+      message: "That code or team name is already in use.",
+      status: "error",
+    });
+    render(<SettingsWorkspace {...defaultProps} section="teams" />);
+
+    const impact = screen.getByRole("region", { name: "Team impact" });
+    expect(within(impact).getByText("Affected users")).not.toBeNull();
+    expect(within(impact).getByText("0 users")).not.toBeNull();
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+    await user.type(name, "Field Operations");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText("That code or team name is already in use."),
+    ).not.toBeNull();
+    expect(screen.getByText("Team not saved")).not.toBeNull();
+    expect((name as HTMLInputElement).value).toBe("Field Operations");
+
+    await user.type(name, " East");
+    expect(screen.getByText("Unsaved changes")).not.toBeNull();
+    expect(
+      screen.queryByText("That code or team name is already in use."),
+    ).toBeNull();
+  });
+
+  it("cancels or confirms discard without leaking the draft into another section", async () => {
+    const user = userEvent.setup();
+    const view = render(<SettingsWorkspace {...defaultProps} section="branches" />);
+    const branchName = screen.getByRole("textbox", { name: "Name" });
+    await user.type(branchName, "Phuket");
+
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect((branchName as HTMLInputElement).value).toBe("Phuket");
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Discard" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((branchName as HTMLInputElement).value).toBe("");
+    expect(
+      within(screen.getByTestId("draft-action-bar")).getByText("No changes"),
+    ).not.toBeNull();
+
+    await user.type(branchName, "Pattaya");
+    view.rerender(<SettingsWorkspace {...defaultProps} section="teams" />);
+    expect((screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement).value)
+      .toBe("");
+    expect(
+      within(screen.getByTestId("draft-action-bar")).getByText("No changes"),
+    ).not.toBeNull();
+  });
+
+  it("ignores a stale branch result after the active section changes", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<{ message: string; status: "success" }>();
+    createBranchAction.mockReturnValueOnce(pending.promise);
+    const view = render(<SettingsWorkspace {...defaultProps} section="branches" />);
+
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
+    await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByText("Adding branch")).not.toBeNull();
+
+    view.rerender(<SettingsWorkspace {...defaultProps} section="teams" />);
+    pending.resolve({ message: "Branch added.", status: "success" });
+
+    await Promise.resolve();
+    expect(screen.queryByText("Branch added.")).toBeNull();
+    expect(
+      within(screen.getByTestId("draft-action-bar")).getByText("No changes"),
+    ).not.toBeNull();
+  });
+
+  it("accepts the current save result after a Strict Mode effect replay", async () => {
+    const user = userEvent.setup();
+    createBranchAction.mockResolvedValueOnce({
+      message: "Branch added.",
+      status: "success",
+    });
+    render(
+      <StrictMode>
+        <SettingsWorkspace {...defaultProps} section="branches" />
+      </StrictMode>,
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
+    await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Branch added.")).not.toBeNull();
+    expect(screen.getByText("Branch saved")).not.toBeNull();
+  });
+
+  it("blocks supported controls with a permission reason when capability is absent", async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsWorkspace
+        {...defaultProps}
+        canManageStructure={false}
+        section="branches"
+      />,
+    );
+
+    const name = screen.getByRole("textbox", { name: "Name" });
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(name.hasAttribute("disabled")).toBe(true);
+    expect(save.hasAttribute("disabled")).toBe(true);
+    expect(
+      screen.getByText("Only administrators can add organization structure."),
+    ).not.toBeNull();
+
+    await user.type(name, "Blocked");
+    expect((name as HTMLInputElement).value).toBe("");
+    expect(createBranchAction).not.toHaveBeenCalled();
+  });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+
+  return { promise, resolve };
+}
