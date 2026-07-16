@@ -189,6 +189,19 @@ describe("RentIncomeScreen", () => {
         .value,
     ).toBe("400");
   });
+
+  it("states the official ledger effect before posting received income", () => {
+    renderIncome("all");
+
+    fireEvent.click(screen.getByRole("button", { name: "Post" }));
+
+    const consequence = screen.getByRole("region", {
+      name: "Posting consequence",
+    });
+    expect(consequence.textContent).toContain(
+      "ResultOfficial income ledger entry",
+    );
+  });
 });
 
 function renderIncome(

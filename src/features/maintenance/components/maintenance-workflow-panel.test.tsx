@@ -85,11 +85,16 @@ describe("MaintenanceInspector role-safe workflow", () => {
     );
 
     expect(screen.getByRole("button", { name: /start coordinated work/i })).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Starting marks the case in progress. Manager coordination remains responsible.",
-      ),
-    ).toBeTruthy();
+    const consequence = screen.getByRole("region", {
+      name: "Start coordinated work consequence",
+    });
+    expect(consequence.textContent).toContain(
+      "Starting marks the case in progress. Manager coordination remains responsible.",
+    );
+    expect(consequence.textContent).toContain("VendorOffline vendor");
+    expect(consequence.textContent).toContain(
+      "NotificationNo automatic message",
+    );
   });
 
   it("shows the member submission handoff without manager-only controls", () => {
@@ -110,11 +115,16 @@ describe("MaintenanceInspector role-safe workflow", () => {
     );
 
     expect(screen.getByRole("button", { name: /submit for review/i })).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Submission keeps the case open and hands completion review to a manager.",
-      ),
-    ).toBeTruthy();
+    const consequence = screen.getByRole("region", {
+      name: "Submit for review consequence",
+    });
+    expect(consequence.textContent).toContain(
+      "Submission keeps the case open and hands completion review to a manager.",
+    );
+    expect(consequence.textContent).toContain("ResponsiblePich");
+    expect(consequence.textContent).toContain(
+      "NotificationWorkspace handoff only",
+    );
     expect(screen.queryByText("Completion review")).toBeNull();
   });
 

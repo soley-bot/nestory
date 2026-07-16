@@ -988,6 +988,7 @@ function PostPettyCashPanel({
             { label: "Expense", value: entry.category },
             { label: "Property", value: entry.unitNumber ? `${entry.propertyCode} / Unit ${entry.unitNumber}` : `${entry.propertyCode} / Property` },
             { label: "Ledger amount", value: formatMoneyDisplay(entry.outAmount, entry.currency).primary },
+            { label: "Result", value: "Ledger expense and linked timeline event" },
           ]}
           summary="Creates one ledger expense and its linked timeline event. Cash advances remain reconciliation movements."
           title="Posting consequence"

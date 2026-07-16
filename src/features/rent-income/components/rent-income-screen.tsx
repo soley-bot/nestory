@@ -746,6 +746,7 @@ function PostIncomePanel({
           rows={[
             { label: "Payer", value: item.payerLabel },
             { label: "Ledger amount", value: item.amountReceivedDisplay.primary },
+            { label: "Result", value: "Official income ledger entry" },
           ]}
           summary="Creates the official income ledger entry for this received amount."
           title="Posting consequence"

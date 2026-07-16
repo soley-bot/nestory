@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, CornerUpLeft, Pause, Play, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { Textarea } from "@/components/ui/textarea";
 import {
   executeAssignedMaintenanceTaskAction,
@@ -111,14 +112,24 @@ function CoordinatedExecutionPanel({
         </p>
       </div>
       {availableActions.includes("start") ? (
-        <ActionConsequence text="Starting marks the case in progress. Manager coordination remains responsible.">
+        <ActionConsequence
+          maintenanceCase={maintenanceCase}
+          notification="No automatic message"
+          text="Starting marks the case in progress. Manager coordination remains responsible."
+          title="Start coordinated work consequence"
+        >
           <CoordinatedButton action={action} actionName="start" disabled={pending} taskId={maintenanceCase.id}>
             <Play size={14} /> Start coordinated work
           </CoordinatedButton>
         </ActionConsequence>
       ) : null}
       {availableActions.includes("resume") ? (
-        <ActionConsequence text="Resuming clears the blocker and returns the case to in-progress manager coordination.">
+        <ActionConsequence
+          maintenanceCase={maintenanceCase}
+          notification="No automatic message"
+          text="Resuming clears the blocker and returns the case to in-progress manager coordination."
+          title="Resume coordinated work consequence"
+        >
           <CoordinatedButton action={action} actionName="resume" disabled={pending} taskId={maintenanceCase.id}>
             <Play size={14} /> Resume coordinated work
           </CoordinatedButton>
@@ -140,9 +151,11 @@ function CoordinatedExecutionPanel({
               placeholder="What prevents coordinated work from continuing?"
               required
             />
-            <p className="text-xs text-foreground-muted">
-              Blocking pauses coordinated execution and keeps the case open.
-            </p>
+            <TransitionConsequence
+              maintenanceCase={maintenanceCase}
+              summary="Blocking pauses coordinated execution and keeps the case open."
+              title="Block coordinated work consequence"
+            />
             <Button disabled={pending} type="submit">
               <Pause size={14} /> Mark coordinated work blocked
             </Button>
@@ -161,9 +174,11 @@ function CoordinatedExecutionPanel({
               placeholder="What was completed and by whom?"
               required
             />
-            <p className="text-xs text-foreground-muted">
-              Completion closes the task and its request without posting a ledger effect.
-            </p>
+            <TransitionConsequence
+              maintenanceCase={maintenanceCase}
+              summary="Completion closes the task and its request without posting a ledger effect."
+              title="Complete coordinated work consequence"
+            />
             <Button disabled={pending} type="submit" variant="primary">
               <CheckCircle2 size={14} /> Complete coordinated work
             </Button>
@@ -212,14 +227,24 @@ function MemberExecutionPanel({
     <div className="space-y-3 border-t border-border pt-3">
       <p className="text-sm font-semibold">Your work</p>
       {maintenanceCase.status === "pending" || maintenanceCase.status === "scheduled" ? (
-        <ActionConsequence text="Starting moves the task to in progress and keeps you responsible for execution.">
+        <ActionConsequence
+          maintenanceCase={maintenanceCase}
+          notification="No automatic message"
+          text="Starting moves the task to in progress and keeps you responsible for execution."
+          title="Start work consequence"
+        >
           <ExecutionButton action={action} actionName="start" disabled={pending} taskId={maintenanceCase.id}>
             <Play size={14} /> Start work
           </ExecutionButton>
         </ActionConsequence>
       ) : null}
       {maintenanceCase.status === "blocked" ? (
-        <ActionConsequence text="Resuming clears the recorded blocker and returns the task to in progress.">
+        <ActionConsequence
+          maintenanceCase={maintenanceCase}
+          notification="No automatic message"
+          text="Resuming clears the recorded blocker and returns the task to in progress."
+          title="Resume work consequence"
+        >
           <ExecutionButton action={action} actionName="resume" disabled={pending} taskId={maintenanceCase.id}>
             <Play size={14} /> Resume work
           </ExecutionButton>
@@ -251,12 +276,20 @@ function MemberExecutionPanel({
             <label className="block text-sm font-medium" htmlFor={`blocked-${maintenanceCase.id}`}>Blocker</label>
             <Textarea id={`blocked-${maintenanceCase.id}`} maxLength={500} minLength={3} name="blockedReason" placeholder="What prevents the work from continuing?" required />
             {state.fieldErrors?.blockedReason?.[0] ? <p className="text-xs text-danger">{state.fieldErrors.blockedReason[0]}</p> : null}
-            <p className="text-xs text-foreground-muted">
-              Blocking pauses execution and hands resolution to a manager.
-            </p>
+            <TransitionConsequence
+              maintenanceCase={maintenanceCase}
+              notification="Workspace handoff only"
+              summary="Blocking pauses execution and hands resolution to a manager."
+              title="Block work consequence"
+            />
             <Button disabled={pending} type="submit"><AlertTriangle size={14} /> Mark blocked</Button>
           </form>
-          <ActionConsequence text="Submission keeps the case open and hands completion review to a manager.">
+          <ActionConsequence
+            maintenanceCase={maintenanceCase}
+            notification="Workspace handoff only"
+            text="Submission keeps the case open and hands completion review to a manager."
+            title="Submit for review consequence"
+          >
             <ExecutionButton action={action} actionName="submit_for_review" disabled={pending} taskId={maintenanceCase.id} primary>
               <Send size={14} /> Submit for review
             </ExecutionButton>
@@ -292,12 +325,13 @@ function CompletionReviewPanel({
   return (
     <form action={action} className="space-y-3 border-t border-border pt-3">
       <input name="taskId" type="hidden" value={maintenanceCase.id} />
-      <div>
-        <p className="text-sm font-semibold">Completion review</p>
-        <p className="mt-1 text-xs text-muted">
-          Approval completes the task and closes its request. Returning work reopens execution and records the review note.
-        </p>
-      </div>
+      <p className="text-sm font-semibold">Completion review</p>
+      <TransitionConsequence
+        maintenanceCase={maintenanceCase}
+        notification="Workspace handoff only"
+        summary="Approval completes the task and closes its request. Returning work reopens execution and records the review note."
+        title="Completion review consequence"
+      />
       {warnings.length > 0 ? (
         <ul className="space-y-1 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs">
           {warnings.map((warning) => <li key={warning.code}>• {warning.label}</li>)}
@@ -354,15 +388,61 @@ function WorkflowFact({ label, value }: { label: string; value: string }) {
 
 function ActionConsequence({
   children,
+  maintenanceCase,
+  notification,
   text,
+  title,
 }: {
   children: React.ReactNode;
+  maintenanceCase: MaintenanceCase;
+  notification: string;
   text: string;
+  title: string;
 }) {
   return (
-    <div className="space-y-2 rounded-md border border-border bg-surface p-3">
-      <p className="text-xs leading-5 text-foreground-muted">{text}</p>
+    <ConsequencePanel
+      rows={maintenanceConsequenceRows(maintenanceCase, notification)}
+      summary={text}
+      title={title}
+    >
       {children}
-    </div>
+    </ConsequencePanel>
   );
+}
+
+function TransitionConsequence({
+  maintenanceCase,
+  notification = "No automatic message",
+  summary,
+  title,
+}: {
+  maintenanceCase: MaintenanceCase;
+  notification?: string;
+  summary: string;
+  title: string;
+}) {
+  return (
+    <ConsequencePanel
+      rows={maintenanceConsequenceRows(maintenanceCase, notification)}
+      summary={summary}
+      title={title}
+    />
+  );
+}
+
+function maintenanceConsequenceRows(
+  maintenanceCase: MaintenanceCase,
+  notification: string,
+) {
+  return [
+    {
+      label: "Responsible",
+      value:
+        maintenanceCase.executionMode === "member_assigned"
+          ? maintenanceCase.assigneeLabel
+          : "Manager coordination",
+    },
+    { label: "Vendor", value: maintenanceCase.vendorLabel },
+    { label: "Notification", value: notification },
+  ];
 }

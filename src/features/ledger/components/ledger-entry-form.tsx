@@ -7,6 +7,7 @@ import {
   updateLedgerEntryAction,
 } from "@/features/ledger/actions";
 import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
@@ -48,6 +49,9 @@ export function LedgerEntryForm({
   const [selectedUnitId, setSelectedUnitId] = useState(
     entry?.unitId ?? initialValues?.unitId ?? "",
   );
+  const [selectedDirection, setSelectedDirection] = useState(
+    entry?.direction ?? initialValues?.direction ?? "income",
+  );
   const [state, action, pending] = useActionState(
     isEditMode ? updateLedgerEntryAction : createLedgerEntryAction,
     initialState,
@@ -56,6 +60,12 @@ export function LedgerEntryForm({
     () => units.filter((unit) => unit.propertyId === selectedPropertyId),
     [selectedPropertyId, units],
   );
+  const selectedPropertyLabel =
+    properties.find((property) => property.id === selectedPropertyId)?.label ??
+    "Select property";
+  const selectedUnitLabel =
+    availableUnits.find((unit) => unit.id === selectedUnitId)?.label ??
+    "Property level";
 
   useEffect(() => {
     if (state.status === "success") {
@@ -79,6 +89,23 @@ export function LedgerEntryForm({
         {isEditMode && entry ? (
           <input name="entryId" type="hidden" value={entry.id} />
         ) : null}
+
+        <ConsequencePanel
+          rows={[
+            { label: "Property", value: selectedPropertyLabel },
+            { label: "Allocation", value: selectedUnitLabel },
+            {
+              label: "Direction",
+              value: selectedDirection === "expense" ? "Expense" : "Income",
+            },
+          ]}
+          summary={
+            isEditMode
+              ? `Updates one official ${selectedDirection} ledger row and recalculates its property and unit totals.`
+              : `Adds one official ${selectedDirection} ledger row and changes its property and unit totals immediately.`
+          }
+          title="Ledger consequence"
+        />
 
         <FormSection title="Allocation">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -126,15 +153,16 @@ export function LedgerEntryForm({
             <Field label="Direction" error={state.fieldErrors?.direction?.[0]}>
               <SelectControl
                 ariaLabel="Direction"
-                defaultValue={
-                  entry?.direction ?? initialValues?.direction ?? "income"
-                }
                 name="direction"
+                onValueChange={(value) =>
+                  setSelectedDirection(value === "expense" ? "expense" : "income")
+                }
                 options={[
                   { label: "Income", value: "income" },
                   { label: "Expense", value: "expense" },
                 ]}
                 required
+                value={selectedDirection}
               />
             </Field>
 

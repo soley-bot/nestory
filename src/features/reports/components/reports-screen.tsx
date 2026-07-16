@@ -218,6 +218,7 @@ export function ReportBuilderScreen({
               "flex items-center justify-between gap-3 border-y border-border bg-surface px-3 py-2 text-[13px] print:hidden",
               isPreviewUnavailable && "border-warning/30 bg-warning-soft/30",
             )}
+            role={isPreviewUnavailable ? "alert" : "status"}
           >
             <p
               className={cn(

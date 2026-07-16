@@ -807,6 +807,7 @@ function PostExpensePanel({
             { label: "Payee", value: item.vendorLabel },
             { label: "Cash payment", value: item.outstandingAmountDisplay.primary },
             { label: "Remaining after payment", value: formatMoneyDisplay(0, item.currency).primary },
+            { label: "Ledger effect", value: "Payment and settlement allocation" },
           ]}
           summary={`Records the remaining property payment of ${item.outstandingAmountDisplay.primary} and its settlement allocation.`}
           title="Payment consequence"

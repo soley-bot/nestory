@@ -185,6 +185,9 @@ describe("BillsExpensesScreen", () => {
       const consequence = screen.getByRole("region", { name: "Payment consequence" });
       expect(consequence.textContent).toContain("USD 150.00");
       expect(consequence.textContent).toContain("Remaining after paymentUSD 0.00");
+      expect(consequence.textContent).toContain(
+        "Ledger effectPayment and settlement allocation",
+      );
       const paymentDialog = screen.getByRole("dialog", { name: "Record payment" });
       expect((paymentDialog.querySelector('input[name="expenseItemId"]') as HTMLInputElement).value).toBe(
         "expense-1",

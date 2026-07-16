@@ -87,7 +87,8 @@ describe("Reports workspace", () => {
     expect(within(exportRegion).getByRole("button", { name: "Print / PDF" })).toBeTruthy();
 
     const preview = screen.getByRole("region", { name: "Report preview" });
-    expect(within(preview).getByText("Preview ready")).toBeTruthy();
+    const result = within(preview).getByRole("status");
+    expect(within(result).getByText("Preview ready")).toBeTruthy();
     expect(within(preview).getAllByText("USD 1,234.00")).toHaveLength(2);
     expect(within(preview).getByText("2 source records")).toBeTruthy();
     expect(within(preview).getByText("Cash receipts only.")).toBeTruthy();

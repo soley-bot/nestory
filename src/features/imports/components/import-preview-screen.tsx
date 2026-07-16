@@ -17,6 +17,7 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import {
   CSV_FILE_ACCEPT,
   FileDropzoneField,
@@ -101,6 +102,10 @@ export function ImportPreviewScreen({
     [mapping, parsedFile, referenceData, selectedType],
   );
   const stats = getGenericImportStats(rows);
+  const importConsequences = useMemo(
+    () => summarizeImportConsequences(rows),
+    [rows],
+  );
   const cleanupItems = getGenericImportCleanupItems(selectedType, rows);
   const blockedRows = rows.filter((row) =>
     row.issues.some((issue) => issue.level === "error"),
@@ -486,6 +491,24 @@ export function ImportPreviewScreen({
             </div>
           </div>
 
+          {rows.length > 0 ? (
+            <div className="border-b border-border p-4">
+              <ConsequencePanel
+                rows={[
+                  { label: "Create", value: importConsequences.create },
+                  { label: "Update", value: importConsequences.update },
+                  {
+                    label: "Create or update",
+                    value: importConsequences.createOrUpdate,
+                  },
+                  { label: "Skip", value: importConsequences.skip },
+                ]}
+                summary="Only ready rows are written. Blocked rows stay in this import run for correction."
+                title="Import consequence"
+              />
+            </div>
+          ) : null}
+
           {!isStagedCurrent && stagedRunId && parsedFile ? (
             <p className="border-b border-border px-4 py-2 text-sm text-warning sm:px-5">
               Column matches or file data changed after saving. Save the
@@ -548,6 +571,36 @@ export function ImportPreviewScreen({
         <ImportRunHistory runs={recentRuns} />
       </main>
     </div>
+  );
+}
+
+export function summarizeImportConsequences(
+  rows: GenericImportPreviewRow[],
+): {
+  create: number;
+  createOrUpdate: number;
+  skip: number;
+  update: number;
+} {
+  return rows.reduce(
+    (summary, row) => {
+      const blocked =
+        row.actionLabel === "Needs review" ||
+        row.issues.some((issue) => issue.level === "error");
+
+      if (blocked) {
+        summary.skip += 1;
+      } else if (row.actionLabel === "Create") {
+        summary.create += 1;
+      } else if (row.actionLabel === "Update") {
+        summary.update += 1;
+      } else {
+        summary.createOrUpdate += 1;
+      }
+
+      return summary;
+    },
+    { create: 0, createOrUpdate: 0, skip: 0, update: 0 },
   );
 }
 

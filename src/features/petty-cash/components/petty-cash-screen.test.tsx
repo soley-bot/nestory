@@ -104,6 +104,9 @@ describe("PettyCashScreen finance workspace contract", () => {
       const consequence = screen.getByRole("region", { name: "Posting consequence" });
       expect(consequence.textContent).toContain("USD 90.00");
       expect(consequence.textContent).toContain("one ledger expense");
+      expect(consequence.textContent).toContain(
+        "ResultLedger expense and linked timeline event",
+      );
       expect((document.querySelector('input[name="entryId"]') as HTMLInputElement).value).toBe(
         "cash-1",
       );
