@@ -618,8 +618,10 @@ function LeaseCommandStrip({
       role="region"
     >
       <div
-        className="flex min-w-0 overflow-x-auto rounded-md border border-border bg-surface-muted/25"
+        aria-label="Lease metrics"
+        className="flex min-w-0 overflow-x-auto rounded-md border border-border bg-surface-muted/25 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
         data-mobile-summary-strip="lease-metrics"
+        tabIndex={0}
       >
         <div className="flex min-w-[84px] shrink-0 items-center border-r border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
           This page

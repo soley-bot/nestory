@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:ui-copy": "node scripts/verify-ui-copy.mjs",
     "test:ui-coverage": "node scripts/verify-ui-route-coverage.mjs",
+    "test:ui-a11y": "node scripts/smoke-ui-redesign.mjs --axe",
     "test:ui-redesign": "node scripts/smoke-ui-redesign.mjs",
     "test:maintenance-mobile": "node scripts/smoke-maintenance-mobile.mjs",
     "test:properties-flow": "node scripts/smoke-properties-flow.mjs",

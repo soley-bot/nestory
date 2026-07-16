@@ -40,8 +40,13 @@ Use this for authenticated operational screens before calling a flow ready.
 - Brevity must preserve accessibility: form controls keep visible labels,
   keyboard-only interactions keep instructions, and icon-only actions keep
   accessible names for screen readers.
+- Keep heading levels in document order, mark the current global and local
+  destination with `aria-current`, and announce loading, errors, and success.
 - Each drawer should have one announced close button.
-- Focus, Escape, keyboard submit, and disabled states must work.
+- Dialogs and drawers must trap focus, close with Escape, and return focus to
+  the control that opened them.
+- Focus, keyboard submit, and disabled states must work at 200% zoom and at
+  1440x900, 1024x768, and 390x844 without document-level horizontal overflow.
 - Empty, loading, error, blocked, and success states should be visible and
   specific to the operator task.
 
@@ -49,5 +54,9 @@ Use this for authenticated operational screens before calling a flow ready.
 
 - Add a focused browser smoke for create/edit/archive/restore drawer changes.
 - Prefer no-mutation smokes unless the test also owns cleanup.
+- Run `npm run test:ui-a11y` against a local fixture workspace. It rejects
+  serious or critical axe findings, uncaught browser errors, horizontal
+  overflow, and routes without a reachable action. Any third-party exception
+  must name the exact rule, route, reason, and owner.
 - Run lint and type checks for changed files, then expand to build when route,
   auth, schema, or shared UI behavior changed.

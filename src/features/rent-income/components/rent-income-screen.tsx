@@ -262,8 +262,9 @@ function RentIncomeFilters({
         defaultValue={viewQuery.month}
         name="month"
       />
-      <SelectControl defaultValue={viewQuery.incomeScope} name="incomeScope" options={[{ label: "All income", value: "all" }, { label: "Management fees", value: "management-fees" }]} />
+      <SelectControl ariaLabel="Income scope" defaultValue={viewQuery.incomeScope} name="incomeScope" options={[{ label: "All income", value: "all" }, { label: "Management fees", value: "management-fees" }]} />
       <SelectControl
+        ariaLabel="Income status"
         defaultValue={viewQuery.status}
         name="status"
         options={incomeStatusOptions.map((option) => ({
@@ -272,6 +273,7 @@ function RentIncomeFilters({
         }))}
       />
       <SelectControl
+        ariaLabel="Property"
         defaultValue={viewQuery.propertyId}
         name="propertyId"
         options={[
@@ -283,6 +285,7 @@ function RentIncomeFilters({
         ]}
       />
       <SelectControl
+        ariaLabel="Unit"
         defaultValue={viewQuery.unitId}
         name="unitId"
         options={[
@@ -294,6 +297,7 @@ function RentIncomeFilters({
         ]}
       />
       <Input
+        aria-label="Search income"
         defaultValue={viewQuery.query}
         name="query"
         placeholder="Search payer, ref, note"
@@ -305,7 +309,7 @@ function RentIncomeFilters({
 
 function RentIncomeSummaryStrip({ summary }: { summary: RentIncomeSummary }) {
   return (
-    <section aria-label="Global income summary" className="grid grid-flow-col auto-cols-[minmax(156px,1fr)] gap-3 overflow-x-auto border-b border-border px-4 py-3 sm:px-6 lg:grid-flow-row lg:grid-cols-5 lg:auto-cols-auto">
+    <section aria-label="Global income summary" className="grid grid-flow-col auto-cols-[minmax(156px,1fr)] gap-3 overflow-x-auto border-b border-border px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6 lg:grid-flow-row lg:grid-cols-5 lg:auto-cols-auto" tabIndex={0}>
       <SummaryCard label="Expected" value={<MoneyDisplay value={summary.receivableTotal} />} />
       <SummaryCard label="Received" value={<MoneyDisplay value={summary.receivedTotal} />} />
       <SummaryCard label="Open rows" value={summary.openCount} />

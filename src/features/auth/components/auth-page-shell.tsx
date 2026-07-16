@@ -105,14 +105,14 @@ export function AuthPageShell({
           >
             {contextLabel}
           </p>
-          <h2
+          <p
             className={cn(
               "mt-5 font-display text-3xl font-semibold leading-[1.12]",
               visualSrc ? "text-[var(--auth-page-fg)]" : "text-foreground",
             )}
           >
             {contextTitle}
-          </h2>
+          </p>
           <p
             className={cn(
               "mt-5 max-w-md text-sm leading-6",

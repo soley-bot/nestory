@@ -78,7 +78,9 @@ describe("LeaseScreen redesign contract", () => {
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
     const summary = screen.getByRole("region", { name: "Lease summary" });
-    expect(summary.querySelector('[data-mobile-summary-strip="lease-metrics"]')?.className).toContain("overflow-x-auto");
+    const summaryStrip = summary.querySelector('[data-mobile-summary-strip="lease-metrics"]');
+    expect(summaryStrip?.className).toContain("overflow-x-auto");
+    expect(summaryStrip?.getAttribute("tabindex")).toBe("0");
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");

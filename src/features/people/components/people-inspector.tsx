@@ -199,6 +199,7 @@ function AccessStatusNote({
           </p>
         </div>
         <Link
+          aria-label={`Add login access for ${person.displayName}`}
           className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted"
           href={getInviteHref(person)}
         >

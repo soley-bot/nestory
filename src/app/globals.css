@@ -23,7 +23,7 @@
   --background: var(--surface-canvas);
   --foreground: #17211f;
   --foreground-muted: #52605c;
-  --foreground-subtle: #64716c;
+  --foreground-subtle: #5d6a66;
   --surface: var(--surface-work);
   --surface-muted: var(--surface-canvas);
   --border: var(--border-neutral);
@@ -65,7 +65,7 @@
   --background: var(--surface-canvas);
   --foreground: #edf3f0;
   --foreground-muted: #bdc9c5;
-  --foreground-subtle: #8f9d98;
+  --foreground-subtle: #93a19c;
   --surface: var(--surface-work);
   --surface-muted: var(--surface-canvas);
   --border: var(--border-neutral);

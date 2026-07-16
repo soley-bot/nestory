@@ -35,6 +35,7 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
     const summaryRegion = screen.getByRole("region", { name: "Petty cash summary" });
     expect(summaryRegion.className).toContain("overflow-x-auto");
+    expect(summaryRegion.getAttribute("tabindex")).toBe("0");
     expect(summaryRegion.textContent).toContain(
       "USD 500.00",
     );

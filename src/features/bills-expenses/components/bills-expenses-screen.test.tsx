@@ -37,6 +37,7 @@ describe("BillsExpensesScreen", () => {
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
     const summaryRegion = screen.getByRole("region", { name: "Global expense summary" });
     expect(summaryRegion.className).toContain("overflow-x-auto");
+    expect(summaryRegion.getAttribute("tabindex")).toBe("0");
     expect(summaryRegion.textContent).toContain(
       "USD 200.00",
     );
@@ -44,7 +45,17 @@ describe("BillsExpensesScreen", () => {
       "USD 0.00",
     );
 
-    const filterForm = container.querySelector('form[action="/bills-expenses"]')!;
+    const filterForm = container.querySelector<HTMLElement>('form[action="/bills-expenses"]')!;
+    for (const name of [
+      "Expense date basis",
+      "Expense type",
+      "Expense status",
+      "Property",
+      "Unit",
+    ]) {
+      expect(within(filterForm).getByRole("combobox", { name })).not.toBeNull();
+    }
+    expect(within(filterForm).getByRole("textbox", { name: "Search expenses" })).not.toBeNull();
     expect((filterForm.querySelector('[name="month"]') as HTMLInputElement).value).toBe(
       "2026-07",
     );

@@ -12,9 +12,11 @@ export function ModuleLoading({ kind = "list", title }: ModuleLoadingProps) {
       <div className="border-b border-border bg-surface px-4 py-4 sm:px-6">
         <div className="h-3 w-24 animate-pulse rounded-sm bg-surface-muted" />
         <div className="mt-3 h-6 w-52 animate-pulse rounded-sm bg-surface-muted" />
-        <p className="sr-only">{title} is loading</p>
+        <p aria-live="polite" className="sr-only" role="status">
+          {title} is loading
+        </p>
       </div>
-      <main className="space-y-3 px-4 py-4 sm:px-6 lg:px-6">
+      <main aria-hidden="true" className="space-y-3 px-4 py-4 sm:px-6 lg:px-6">
         {isDashboard ? <DashboardSkeleton /> : null}
         {isReport ? <ReportSkeleton /> : null}
         {!isDashboard && !isReport ? <ListSkeleton /> : null}

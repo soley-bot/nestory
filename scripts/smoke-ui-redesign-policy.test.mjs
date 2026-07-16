@@ -53,7 +53,23 @@ describe("createReadOnlyRequestPolicy", () => {
     expect(policy.evaluate(request).allowed).toBe(false);
   });
 
-  it("blocks a login POST without Next-Action", () => {
+  it("allows the one same-origin Next 16 multipart login submission", () => {
+    const policy = createPolicy();
+    const request = {
+      headers: {
+        "content-type": "multipart/form-data; boundary=login-boundary",
+        origin: "http://localhost:3000",
+        referer: "http://localhost:3000/login",
+      },
+      method: "POST",
+      url: "http://localhost:3000/login",
+    };
+
+    expect(policy.evaluate(request).allowed).toBe(true);
+    expect(policy.evaluate(request).allowed).toBe(false);
+  });
+
+  it("blocks a login POST without a recognized server-action signature", () => {
     const policy = createPolicy();
 
     expect(

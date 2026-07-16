@@ -49,12 +49,20 @@ export function createReadOnlyRequestPolicy({ baseUrl }) {
         return { allowed: false, reason: "invalid request URL" };
       }
 
+      const nextAction = readHeader(headers, "next-action")?.trim();
+      const contentType = readHeader(headers, "content-type")?.toLowerCase();
+      const origin = readHeader(headers, "origin");
+      const referer = readHeader(headers, "referer");
+      const isNativeLoginSubmission =
+        contentType?.startsWith("multipart/form-data;") &&
+        origin === baseOrigin &&
+        isLoginReferer(referer, baseOrigin);
       const isLoginServerAction =
         authenticationRequestAvailable &&
         normalizedMethod === "POST" &&
         requestUrl.origin === baseOrigin &&
         requestUrl.pathname === "/login" &&
-        Boolean(readHeader(headers, "next-action")?.trim());
+        (Boolean(nextAction) || isNativeLoginSubmission);
 
       if (isLoginServerAction) {
         authenticationRequestAvailable = false;
@@ -64,6 +72,19 @@ export function createReadOnlyRequestPolicy({ baseUrl }) {
       return { allowed: false, reason: "non-read request" };
     },
   };
+}
+
+function isLoginReferer(value, baseOrigin) {
+  if (!value) {
+    return false;
+  }
+
+  try {
+    const referer = new URL(value);
+    return referer.origin === baseOrigin && referer.pathname === "/login";
+  } catch {
+    return false;
+  }
 }
 
 function readHeader(headers, name) {

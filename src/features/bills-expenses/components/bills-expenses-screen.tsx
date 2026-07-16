@@ -281,6 +281,7 @@ function BillsExpensesFilters({
         name="month"
       />
       <SelectControl
+        ariaLabel="Expense date basis"
         defaultValue={viewQuery.dateBasis}
         name="dateBasis"
         options={[
@@ -288,8 +289,9 @@ function BillsExpensesFilters({
           { label: "Paid date", value: "paid" },
         ]}
       />
-      <SelectControl defaultValue={viewQuery.expenseType} name="expenseType" options={[{ label: "All expense types", value: "all" }, ...expenseTypeOptions.map((option) => ({ label: option.label, value: option.value }))]} />
+      <SelectControl ariaLabel="Expense type" defaultValue={viewQuery.expenseType} name="expenseType" options={[{ label: "All expense types", value: "all" }, ...expenseTypeOptions.map((option) => ({ label: option.label, value: option.value }))]} />
       <SelectControl
+        ariaLabel="Expense status"
         defaultValue={viewQuery.status}
         name="status"
         options={expenseStatusOptions.map((option) => ({
@@ -298,6 +300,7 @@ function BillsExpensesFilters({
         }))}
       />
       <SelectControl
+        ariaLabel="Property"
         defaultValue={viewQuery.propertyId}
         name="propertyId"
         options={[
@@ -309,6 +312,7 @@ function BillsExpensesFilters({
         ]}
       />
       <SelectControl
+        ariaLabel="Unit"
         defaultValue={viewQuery.unitId}
         name="unitId"
         options={[
@@ -320,6 +324,7 @@ function BillsExpensesFilters({
         ]}
       />
       <Input
+        aria-label="Search expenses"
         defaultValue={viewQuery.query}
         name="query"
         placeholder="Search vendor, category, ref"
@@ -335,7 +340,7 @@ function BillsExpensesSummaryStrip({
   summary: BillsExpensesSummary;
 }) {
   return (
-    <section aria-label="Global expense summary" className="grid grid-flow-col auto-cols-[minmax(156px,1fr)] gap-3 overflow-x-auto border-b border-border px-4 py-3 sm:px-6 lg:grid-flow-row lg:grid-cols-5 lg:auto-cols-auto">
+    <section aria-label="Global expense summary" className="grid grid-flow-col auto-cols-[minmax(156px,1fr)] gap-3 overflow-x-auto border-b border-border px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6 lg:grid-flow-row lg:grid-cols-5 lg:auto-cols-auto" tabIndex={0}>
       <SummaryCard label="Approved" value={summary.approvedCount} />
       <SummaryCard label="Draft" value={summary.draftCount} />
       <SummaryCard label="Overdue" value={summary.overdueCount} />
@@ -355,7 +360,8 @@ function PaidBillsExpensesSummaryStrip({
   return (
     <section
       aria-label="Paid expense summary"
-      className="grid grid-flow-col auto-cols-[minmax(156px,220px)] gap-3 overflow-x-auto border-b border-border px-4 py-3 sm:px-6"
+      className="grid grid-flow-col auto-cols-[minmax(156px,220px)] gap-3 overflow-x-auto border-b border-border px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6"
+      tabIndex={0}
     >
       <SummaryCard label="Event count" value={eventCount} />
       <SummaryCard label="Net payments" value={<MoneyDisplay value={netPayments} />} />

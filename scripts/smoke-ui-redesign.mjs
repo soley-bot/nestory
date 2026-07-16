@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
+import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright";
 import {
   createReadOnlyRequestPolicy,
@@ -13,6 +14,7 @@ if (!baseUrlValue) {
 }
 
 const baseUrl = validateLocalBaseUrl(baseUrlValue);
+const axeEnabled = process.argv.includes("--axe");
 const email = process.env.E2E_EMAIL?.trim();
 const password = process.env.E2E_PASSWORD;
 
@@ -60,6 +62,7 @@ const summaryPath = resolve(runDirectory, "summary.json");
 const blockedMutationRequests = [];
 const results = [];
 const requestPolicy = createReadOnlyRequestPolicy({ baseUrl });
+const knownAxeExceptions = [];
 
 await mkdir(runDirectory, { recursive: true });
 
@@ -103,7 +106,13 @@ try {
 
     page.on("console", (message) => {
       if (message.type() === "error") {
-        activeErrors?.consoleErrors.push(message.text());
+        const messageText = message.text();
+
+        if (isExpectedDevServerConsoleError(messageText)) {
+          activeErrors?.ignoredConsoleErrors.push(messageText);
+        } else {
+          activeErrors?.consoleErrors.push(messageText);
+        }
       }
     });
     page.on("pageerror", (error) => {
@@ -111,9 +120,10 @@ try {
     });
 
     for (const route of routes) {
-      activeErrors = { consoleErrors: [], pageErrors: [] };
+      activeErrors = { consoleErrors: [], ignoredConsoleErrors: [], pageErrors: [] };
       results.push(
         await captureRoute({
+          axeEnabled,
           errors: activeErrors,
           page,
           route,
@@ -128,6 +138,7 @@ try {
   }
 
   const summary = {
+    axeEnabled,
     baseUrl,
     blockedMutationRequests,
     completedAt: new Date().toISOString(),
@@ -139,9 +150,11 @@ try {
 
   await writeFile(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
 
-  if (blockedMutationRequests.length > 0) {
+  const failures = collectFailures(results, blockedMutationRequests);
+
+  if (failures.length > 0) {
     throw new Error(
-      `Blocked ${blockedMutationRequests.length} non-read request(s); inspect ${toArtifactPath(summaryPath)}`,
+      `UI verification found ${failures.length} failure(s); inspect ${toArtifactPath(summaryPath)}\n${failures.slice(0, 12).join("\n")}`,
     );
   }
 
@@ -184,6 +197,7 @@ async function authenticate(browserContext) {
 }
 
 async function captureRoute({
+  axeEnabled,
   errors,
   page,
   route,
@@ -213,6 +227,16 @@ async function captureRoute({
       hasOverflow: null,
     }),
   );
+  const primaryActions = await measurePrimaryActions(page).catch((error) => ({
+    error: error instanceof Error ? error.message : String(error),
+    reachable: null,
+  }));
+  const accessibility = axeEnabled
+    ? await runAxe(page, route).catch((error) => ({
+        error: error instanceof Error ? error.message : String(error),
+        violations: [],
+      }))
+    : null;
 
   try {
     await page.screenshot({
@@ -233,17 +257,127 @@ async function captureRoute({
       requestedRoute: route,
       responseStatus,
     }),
+    accessibility,
     consoleErrors: errors.consoleErrors,
     finalUrl,
     horizontalOverflow,
+    ignoredConsoleErrors: errors.ignoredConsoleErrors,
     navigationError,
     pageErrors: errors.pageErrors,
     pageTitle: await page.title().catch(() => ""),
+    primaryActions,
     responseStatus,
     route,
     screenshotPath: toArtifactPath(screenshotPath),
     viewport: viewport.name,
   };
+}
+
+function isExpectedDevServerConsoleError(message) {
+  return /^WebSocket connection to 'ws:\/\/(?:127\.0\.0\.1|localhost):\d+\/_next\/webpack-hmr\?id=[^']+' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE$/.test(
+    message,
+  );
+}
+
+async function runAxe(page, route) {
+  const analysis = await new AxeBuilder({ page }).analyze();
+  const violations = analysis.violations
+    .filter((violation) => ["critical", "serious"].includes(violation.impact))
+    .filter(
+      (violation) =>
+        !knownAxeExceptions.some(
+          (exception) =>
+            exception.route === route && exception.rule === violation.id,
+        ),
+    )
+    .map((violation) => ({
+      help: violation.help,
+      id: violation.id,
+      impact: violation.impact,
+      nodes: violation.nodes.slice(0, 10).map((node) => ({
+        failureSummary: node.failureSummary,
+        target: node.target,
+      })),
+    }));
+
+  return { error: null, violations };
+}
+
+async function measurePrimaryActions(page) {
+  return page.evaluate(() => {
+    const root =
+      document.querySelector('[data-slot="app-shell-content"]') ??
+      document.querySelector("main") ??
+      document.body;
+    const candidates = Array.from(
+      root.querySelectorAll("a[href], button, input[type='submit']"),
+    ).filter((element) => {
+      if (!(element instanceof HTMLElement)) {
+        return false;
+      }
+
+      const style = getComputedStyle(element);
+      const bounds = element.getBoundingClientRect();
+      return (
+        !element.hasAttribute("disabled") &&
+        element.getAttribute("aria-hidden") !== "true" &&
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        bounds.width > 0 &&
+        bounds.height > 0
+      );
+    });
+
+    return {
+      count: candidates.length,
+      reachable: candidates.length > 0,
+      sample: candidates.slice(0, 5).map((element) =>
+        (
+          element.getAttribute("aria-label") ||
+          element.textContent ||
+          element.getAttribute("value") ||
+          element.tagName
+        ).trim(),
+      ),
+    };
+  });
+}
+
+function collectFailures(routeResults, blockedRequests) {
+  const failures = blockedRequests.map(
+    (request) =>
+      `blocked request: ${request.method} ${request.url} (${request.reason})`,
+  );
+
+  for (const result of routeResults) {
+    const prefix = `${result.viewport} ${result.route}`;
+
+    if (["navigation-error", "http-error"].includes(result.accessResult)) {
+      failures.push(`${prefix}: ${result.accessResult}`);
+    }
+    if (result.consoleErrors.length > 0) {
+      failures.push(`${prefix}: ${result.consoleErrors.length} console error(s)`);
+    }
+    if (result.pageErrors.length > 0) {
+      failures.push(`${prefix}: ${result.pageErrors.length} page error(s)`);
+    }
+    if (result.horizontalOverflow.error || result.horizontalOverflow.hasOverflow) {
+      failures.push(`${prefix}: horizontal overflow check failed`);
+    }
+    if (result.primaryActions.error || result.primaryActions.reachable !== true) {
+      failures.push(`${prefix}: no reachable primary action`);
+    }
+    if (result.accessibility?.error) {
+      failures.push(`${prefix}: axe scan failed`);
+    }
+    if (result.accessibility?.violations.length > 0) {
+      failures.push(
+        `${prefix}: ${result.accessibility.violations.length} serious/critical axe violation(s)`,
+      );
+    }
+  }
+
+  return failures;
 }
 
 async function measureHorizontalOverflow(page) {

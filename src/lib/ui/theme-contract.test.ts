@@ -322,6 +322,7 @@ describe("authenticated theme contract", () => {
         "--surface-canvas",
         "--surface-work",
         "--surface-raised",
+        "--state-selected",
       ]) {
         expect(
           getContrastRatio(

@@ -306,7 +306,7 @@ function PettyCashSummaryStrip({
   summary: PettyCashSummary;
 }) {
   return (
-    <section aria-label="Petty cash summary" className="overflow-x-auto border-b border-border bg-surface-muted/35 px-4 py-3 sm:px-6">
+    <section aria-label="Petty cash summary" className="overflow-x-auto border-b border-border bg-surface-muted/35 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6" tabIndex={0}>
       <div className="grid min-w-[920px] grid-cols-[minmax(190px,1.45fr)_repeat(6,minmax(106px,1fr))] gap-3 lg:min-w-0">
         <div className="min-w-0 rounded-md border border-border bg-surface px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
