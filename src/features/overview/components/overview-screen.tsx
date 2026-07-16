@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Building2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { OverviewAttentionQueue } from "@/features/overview/components/overview-attention-queue";
 import { OverviewHeader } from "@/features/overview/components/overview-header";
 import { OverviewLensWorkspace } from "@/features/overview/components/overview-lens-workspace";
 import { PortfolioWorkspace } from "@/features/overview/components/portfolio-workspace";
@@ -13,8 +14,9 @@ export function OverviewScreen({ data, query }: { data: OverviewScreenData; quer
   return (
     <main className="min-h-screen bg-background px-4 py-3 sm:px-5">
       <div className="space-y-3">
-        <OverviewHeader query={resolvedQuery} />
+        <OverviewHeader attentionTotal={data.attentionTotal} query={resolvedQuery} />
         {!isBaseSetupComplete(data.workspaceSetup) ? <SetupProgressPanel data={data} /> : null}
+        <OverviewAttentionQueue items={data.attentionItems} />
         {resolvedQuery.lens === "all" ? (
           <PortfolioWorkspace data={data} query={resolvedQuery} />
         ) : resolvedQuery.lens === "finance" ? (

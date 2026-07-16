@@ -39,13 +39,19 @@ describe("getOverviewScreenData", () => {
       "11111111-1111-4111-8111-111111111111",
     );
 
-    expect(data.attentionItems).toContainEqual({
-      count: 2,
-      helper: "Open cases",
-      href: "/maintenance?review=open",
-      label: "Open maintenance",
-      tone: "warning",
-    });
+    expect(data.attentionItems).toContainEqual(
+      expect.objectContaining({
+        actionLabel: "Review maintenance",
+        count: 2,
+        helper: "Open cases",
+        href: "/maintenance?review=open",
+        id: "open-maintenance",
+        kind: "urgent-maintenance",
+        label: "Open maintenance",
+        priority: 70,
+        tone: "warning",
+      }),
+    );
     expect(data.attentionTotal).toBe(2);
     expect(data.dashboardSummary.actionHref).toBe("#focus-now");
     expect(data.workspaceSetup.hasAnyOperatingData).toBe(true);
@@ -71,13 +77,19 @@ describe("getOverviewScreenData", () => {
       "11111111-1111-4111-8111-111111111111",
     );
 
-    expect(data.attentionItems).toContainEqual({
-      count: 1,
-      helper: "No People tenant link",
-      href: "/leases?status=current&tenantStatus=missing",
-      label: "Leases missing tenant link",
-      tone: "warning",
-    });
+    expect(data.attentionItems).toContainEqual(
+      expect.objectContaining({
+        actionLabel: "Link tenants",
+        count: 1,
+        helper: "No People tenant link",
+        href: "/leases?status=current&tenantStatus=missing",
+        id: "missing-tenant-links",
+        kind: "data-quality",
+        label: "Leases missing tenant link",
+        priority: 100,
+        tone: "warning",
+      }),
+    );
     expect(data.dashboardSummary.actionHref).toBe(
       "/leases?status=current&tenantStatus=missing",
     );

@@ -16,6 +16,14 @@ export type OverviewReview =
   | "bills"
   | "statement-blocked";
 
+export type OverviewAttentionKind =
+  | "overdue-rent"
+  | "urgent-maintenance"
+  | "expiring-lease"
+  | "missing-document"
+  | "unreconciled-finance"
+  | "data-quality";
+
 export type OverviewViewQuery = {
   financeView: OverviewFinanceView;
   lens: OverviewLens;
@@ -41,10 +49,14 @@ export type OverviewDashboardSummary = {
 };
 
 export type OverviewAttentionItem = {
+  actionLabel: string;
   count: number;
   helper: string;
   href: string;
+  id: string;
+  kind: OverviewAttentionKind;
   label: string;
+  priority: number;
   tone: OverviewMetricTone;
 };
 

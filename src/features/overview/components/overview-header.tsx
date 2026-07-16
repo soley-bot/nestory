@@ -14,7 +14,13 @@ const lenses: Array<{ label: string; value: OverviewLens }> = [
   { label: "Records", value: "records" },
 ];
 
-export function OverviewHeader({ query }: { query: OverviewViewQuery }) {
+export function OverviewHeader({
+  attentionTotal,
+  query,
+}: {
+  attentionTotal: number;
+  query: OverviewViewQuery;
+}) {
   return (
     <header className="rounded-lg border border-border bg-surface">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
@@ -24,6 +30,11 @@ export function OverviewHeader({ query }: { query: OverviewViewQuery }) {
             {formatMonth(query.month)}
           </p>
         </div>
+        <Badge tone={attentionTotal > 0 ? "warning" : "success"}>
+          {attentionTotal > 0
+            ? `${attentionTotal} open ${attentionTotal === 1 ? "check" : "checks"}`
+            : "No open checks"}
+        </Badge>
         <Badge tone="neutral">Cash basis</Badge>
       </div>
       <nav

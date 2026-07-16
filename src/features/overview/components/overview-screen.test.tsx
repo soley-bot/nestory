@@ -140,6 +140,40 @@ describe("OverviewScreen", () => {
     expect(screen.queryByText("Company P&L")).toBeNull();
   });
 
+  it("places a direct-action attention queue before portfolio analytics", () => {
+    render(
+      <OverviewScreen data={operatingWorkspaceData} query={portfolioQuery} />,
+    );
+
+    const queue = screen.getByRole("region", { name: "Needs attention" });
+    const performance = screen.getByRole("heading", {
+      name: "Property performance",
+    });
+    expect(
+      queue.compareDocumentPosition(performance) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      within(queue)
+        .getByRole("link", { name: /Review maintenance/ })
+        .getAttribute("href"),
+    ).toBe("/maintenance?review=open");
+    expect(screen.getByText("3 open checks")).toBeTruthy();
+  });
+
+  it("states honestly when current operating checks are clear", () => {
+    render(
+      <OverviewScreen
+        data={{ ...operatingWorkspaceData, attentionItems: [], attentionTotal: 0 }}
+        query={portfolioQuery}
+      />,
+    );
+
+    expect(screen.getByText("No operating checks need attention.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open timeline" }).getAttribute("href")).toBe(
+      "/timeline",
+    );
+  });
+
   it("exposes scorecard facts in labeled mobile card markup", () => {
     render(
       <OverviewScreen data={operatingWorkspaceData} query={portfolioQuery} />,
@@ -328,17 +362,25 @@ const operatingWorkspaceData: OverviewScreenData = {
   ...emptyWorkspaceData,
   attentionItems: [
     {
+      actionLabel: "Review expenses",
       count: 2,
       helper: "Last 30 days above review threshold",
       href: "/ledger?expenseBand=large",
+      id: "large-recent-expenses",
+      kind: "unreconciled-finance",
       label: "Large expenses, 30d",
+      priority: 140,
       tone: "warning",
     },
     {
+      actionLabel: "Review maintenance",
       count: 1,
       helper: "Open cases",
       href: "/maintenance?review=open",
+      id: "open-maintenance",
+      kind: "urgent-maintenance",
       label: "Open maintenance",
+      priority: 70,
       tone: "warning",
     },
   ],

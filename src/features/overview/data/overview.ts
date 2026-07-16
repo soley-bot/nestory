@@ -945,134 +945,200 @@ function buildAttentionItems({
     return `/overview?${params.toString()}`;
   };
 
-  return [
+  const items: Array<OverviewAttentionItem | null> = [
     negativeNetProperties.length > 0
       ? {
+          actionLabel: "Review cash",
           count: negativeNetProperties.length,
           helper: "Selected-month property cash is below zero",
           href: overviewReviewHref("negative"),
+          id: "negative-net-cash",
+          kind: "unreconciled-finance",
           label: "Properties with negative net cash",
+          priority: 10,
           tone: "danger",
         }
       : null,
     arrearsPropertyCount > 0
       ? {
+          actionLabel: "Review arrears",
           count: arrearsPropertyCount,
           helper: "Selected-month rent remains uncollected",
           href: overviewReviewHref("arrears"),
+          id: "rent-arrears",
+          kind: "overdue-rent",
           label: "Properties with rent arrears",
+          priority: 20,
           tone: "warning",
         }
       : null,
     openBillCount > 0
       ? {
+          actionLabel: "Review bills",
           count: openBillCount,
           helper: "Draft or approved property bills",
           href: overviewReviewHref("bills"),
+          id: "open-property-bills",
+          kind: "unreconciled-finance",
           label: "Open property bills",
+          priority: 30,
           tone: "warning",
         }
       : null,
     missingReceiptCount > 0
       ? {
+          actionLabel: "Find receipts",
           count: missingReceiptCount,
           helper: "Paid property costs without evidence",
           href: `/ledger?direction=expense&receipt=missing&period=${overviewQuery.month}`,
+          id: "missing-receipts",
+          kind: "missing-document",
           label: "Properties missing receipts",
+          priority: 40,
           tone: "warning",
         }
       : null,
     statementBlockerCount > 0
       ? {
+          actionLabel: "Resolve blockers",
           count: statementBlockerCount,
           helper: "Owner statement checks are unresolved",
           href: overviewReviewHref("statement-blocked"),
+          id: "statement-blockers",
+          kind: "unreconciled-finance",
           label: "Statement blockers",
+          priority: 50,
           tone: "warning",
         }
       : null,
     leasesEndingSoon.length > 0
       ? {
+          actionLabel: "Review expiries",
           count: leasesEndingSoon.length,
           helper: "Next 60 days",
           href: "/leases?status=current&endsWithin=60d&sort=end_asc",
+          id: "expiring-leases",
+          kind: "expiring-lease",
           label: "Leases ending in 60d",
+          priority: 60,
           tone: "warning",
         }
       : null,
     openMaintenanceCount > 0
       ? {
+          actionLabel: "Review maintenance",
           count: openMaintenanceCount,
           helper: "Open cases",
           href: "/maintenance?review=open",
+          id: "open-maintenance",
+          kind: "urgent-maintenance",
           label: "Open maintenance",
+          priority: 70,
           tone: "warning",
         }
       : null,
     vacantUnits.length > 0
       ? {
+          actionLabel: "Review vacancies",
           count: vacantUnits.length,
           helper: "Marked vacant",
           href: "/units?status=vacant",
+          id: "vacant-units",
+          kind: "data-quality",
           label: "Vacant units",
+          priority: 80,
           tone: "warning",
         }
       : null,
     leaseGapUnits.length > 0
       ? {
+          actionLabel: "Link leases",
           count: leaseGapUnits.length,
           helper: "No active lease link",
           href: "/units?leaseStatus=missing",
+          id: "lease-gaps",
+          kind: "data-quality",
           label: "Lease gaps",
+          priority: 90,
           tone: "warning",
         }
       : null,
     missingTenantLeases.length > 0
       ? {
+          actionLabel: "Link tenants",
           count: missingTenantLeases.length,
           helper: "No People tenant link",
           href: "/leases?status=current&tenantStatus=missing",
+          id: "missing-tenant-links",
+          kind: "data-quality",
           label: "Leases missing tenant link",
+          priority: 100,
           tone: "warning",
         }
       : null,
     missingOwnerLinks.length > 0
       ? {
+          actionLabel: "Link owners",
           count: missingOwnerLinks.length,
           helper: "Needs ownership relationship",
           href: "/properties?ownerStatus=missing",
+          id: "missing-owner-links",
+          kind: "data-quality",
           label: "Properties without owner link",
+          priority: 110,
           tone: "warning",
         }
       : null,
     peopleMissingContacts.length > 0
       ? {
+          actionLabel: "Add contact details",
           count: peopleMissingContacts.length,
           helper: "No primary contact value",
           href: "/people?status=missing_contact",
+          id: "missing-contact-details",
+          kind: "data-quality",
           label: "People missing contact",
+          priority: 120,
           tone: "warning",
         }
       : null,
     peopleWithoutRoles.length > 0
       ? {
+          actionLabel: "Assign roles",
           count: peopleWithoutRoles.length,
           helper: "Needs tenant, owner, vendor, or staff role",
           href: "/people?status=no_role",
+          id: "people-without-role",
+          kind: "data-quality",
           label: "People without role",
+          priority: 130,
           tone: "danger",
         }
       : null,
     largeRecentExpenses.length > 0
       ? {
+          actionLabel: "Review expenses",
           count: largeRecentExpenses.length,
           helper: "Last 30 days above review threshold",
           href: largeExpenseReviewHref,
+          id: "large-recent-expenses",
+          kind: "unreconciled-finance",
           label: "Large expenses, 30d",
+          priority: 140,
           tone: "warning",
         }
       : null,
-  ].filter((item): item is OverviewAttentionItem => Boolean(item));
+  ];
+
+  return items
+    .filter((item): item is OverviewAttentionItem => Boolean(item))
+    .toSorted(
+      (left, right) =>
+        left.priority - right.priority ||
+        left.label.localeCompare(right.label) ||
+        left.id.localeCompare(right.id),
+    )
+    .slice(0, 12);
 }
 
 function buildOccupancyByProperty({
