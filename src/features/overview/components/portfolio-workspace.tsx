@@ -1,13 +1,11 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { buildOverviewHref } from "@/features/overview/components/overview-header";
-import { PropertyPerformanceDetail } from "@/features/overview/components/property-performance-detail";
 import { PropertyScorecard } from "@/features/overview/components/property-scorecard";
 import type {
   OverviewScreenData,
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
-import { formatMoneyDisplay } from "@/lib/money/format";
 
 export function PortfolioWorkspace({
   data,
@@ -16,94 +14,24 @@ export function PortfolioWorkspace({
   data: OverviewScreenData;
   query: OverviewViewQuery;
 }) {
-  const selected = data.propertyPerformance.rows.find(
-    (row) => row.propertyId === query.propertyId,
-  );
   const summary = data.propertyPerformance.summary;
-  const metrics = [
-    [
-      "Net cash",
-      formatMoneyDisplay(summary.netCashAmount, data.ledgerCurrency).primary,
-    ],
-    ["Rent collected", `${summary.collectionRate}%`],
-    [
-      "Cash income",
-      formatMoneyDisplay(summary.cashIncomeAmount, data.ledgerCurrency).primary,
-    ],
-    [
-      "Expenses paid",
-      formatMoneyDisplay(summary.cashExpensesAmount, data.ledgerCurrency)
-        .primary,
-    ],
-    [
-      "Arrears",
-      formatMoneyDisplay(summary.arrearsAmount, data.ledgerCurrency).primary,
-    ],
-  ];
   return (
-    <div className="space-y-3">
-      <section
-        aria-label="Portfolio cash metrics"
-        className="grid overflow-hidden rounded-lg border border-border bg-surface sm:grid-cols-2 xl:grid-cols-5"
-      >
-        {metrics.map(([label, value]) => (
-          <div
-            className="border-b border-border px-3 py-2.5 last:border-b-0 sm:border-r xl:border-b-0"
-            key={label}
-          >
-            <p className="text-xs text-foreground-muted">{label}</p>
-            <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">
-              {value}
-            </p>
-          </div>
-        ))}
+    <div className="space-y-2.5">
+      <PropertyScorecard query={query} rows={data.propertyPerformance.rows} />
+      <section className="flex flex-wrap items-center gap-2 border-y border-border px-1 py-2">
+        <span className="text-xs font-semibold text-foreground">Statement readiness</span>
+        <Badge tone={summary.statementReadiness.blockedCount > 0 ? "warning" : "success"}>
+          {summary.statementReadiness.readyCount} ready
+        </Badge>
+        <span className="text-xs text-foreground-muted">of {summary.statementReadiness.totalCount}</span>
+        <Link
+          className="ml-auto inline-flex h-7 items-center gap-1.5 px-2.5 text-xs font-medium text-foreground-muted hover:text-foreground"
+          href={`/overview/readiness?month=${query.month}`}
+        >
+          Review readiness
+          <ArrowRight aria-hidden="true" size={13} />
+        </Link>
       </section>
-      <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <PropertyScorecard query={query} rows={data.propertyPerformance.rows} />
-        <aside className="rounded-lg border border-border bg-surface p-3">
-          <h2 className="text-sm font-semibold text-foreground">
-            Statement readiness
-          </h2>
-          <div className="mt-3 flex items-center gap-2">
-            <Badge
-              tone={
-                summary.statementReadiness.blockedCount > 0
-                  ? "warning"
-                  : "success"
-              }
-            >
-              {summary.statementReadiness.readyCount} ready
-            </Badge>
-            <span className="text-xs text-foreground-muted">
-              of {summary.statementReadiness.totalCount}
-            </span>
-          </div>
-          <p className="mt-3 text-xs leading-5 text-foreground-muted">
-            {summary.statementReadiness.blockedCount > 0
-              ? `${summary.statementReadiness.blockedCount} properties need review before statements are ready.`
-              : "All visible properties pass the current readiness checks."}
-          </p>
-          <Link
-            className="mt-3 inline-block text-xs font-medium text-foreground underline-offset-2 hover:underline"
-            href={buildOverviewHref(query, { review: "statement-blocked" })}
-          >
-            Review blockers
-          </Link>
-        </aside>
-      </div>
-      {selected ? (
-        <PropertyPerformanceDetail
-          currency={data.ledgerCurrency}
-          query={query}
-          row={selected}
-        />
-      ) : (
-        <section className="rounded-lg border border-border bg-surface px-3 py-5 text-center">
-          <p className="text-sm text-foreground-muted">
-            Select a property to explain its cash result.
-          </p>
-        </section>
-      )}
     </div>
   );
 }

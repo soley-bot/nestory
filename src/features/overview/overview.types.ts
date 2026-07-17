@@ -15,6 +15,14 @@ export type OverviewReview =
   | "arrears"
   | "bills"
   | "statement-blocked";
+export type OverviewPropertySort =
+  | "property-asc"
+  | "property-desc"
+  | "collected-desc"
+  | "income-desc"
+  | "expenses-desc"
+  | "net-desc"
+  | "fee-desc";
 
 export type OverviewAttentionKind =
   | "overdue-rent"
@@ -28,8 +36,10 @@ export type OverviewViewQuery = {
   financeView: OverviewFinanceView;
   lens: OverviewLens;
   month: string;
+  propertyQuery?: string;
   propertyId: string;
   review: OverviewReview;
+  sort?: OverviewPropertySort;
 };
 
 

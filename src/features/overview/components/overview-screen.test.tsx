@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { OverviewDetailPage } from "@/features/overview/components/overview-detail-page";
 import { afterEach, describe, expect, it } from "vitest";
 import { OverviewScreen } from "@/features/overview/components/overview-screen";
 import { PropertyFinanceWorkspace, rankFinanceRows } from "@/features/overview/components/property-finance-workspace";
@@ -65,7 +66,8 @@ describe("OverviewScreen", () => {
 
   it("opens the parser-backed management fee family with month and property state", () => {
     render(<PropertyFinanceWorkspace data={operatingWorkspaceData} query={{ ...selectedPortfolioQuery, lens: "finance", financeView: "management-fees" }} />);
-    expect(screen.getAllByRole("link", { name: /Satomi/ })[0].getAttribute("href")).toBe("/rent-income?incomeScope=management-fees&month=2026-07&propertyId=prop-1");
+    fireEvent.click(screen.getByRole("button", { name: /Satomi/ }));
+    expect(screen.getByRole("link", { name: /Open management fees/ }).getAttribute("href")).toBe("/rent-income?incomeScope=management-fees&month=2026-07&propertyId=prop-1");
   });
 
   it("ranks finance rows according to each subview", () => {
@@ -118,7 +120,7 @@ describe("OverviewScreen", () => {
     expect(screen.queryByText("Company P&L")).toBeNull();
   });
 
-  it("shows a cash-basis property scorecard with URL-backed selection", () => {
+  it("opens a cash-basis property preview with a canonical record link", () => {
     render(
       <OverviewScreen data={operatingWorkspaceData} query={portfolioQuery} />,
     );
@@ -126,52 +128,85 @@ describe("OverviewScreen", () => {
     expect(
       screen.getByRole("heading", { name: "Property performance" }),
     ).toBeTruthy();
+    fireEvent.click(
+      within(screen.getByRole("table")).getByRole("button", {
+        name: /Satomi Dimitroff-Guorguieff/,
+      }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "CTR / Satomi Dimitroff-Guorguieff",
+    });
     expect(
-      screen
-        .getAllByRole("link", { name: /Satomi Dimitroff-Guorguieff/ })
-        .some(
-          (link) =>
-            link.getAttribute("href") ===
-            "/overview?month=2026-07&propertyId=prop-1",
-        ),
-    ).toBe(true);
+      within(dialog)
+        .getByRole("link", { name: /Open full property record/ })
+        .getAttribute("href"),
+    ).toBe("/properties/prop-1");
     expect(screen.getAllByText("USD 827.40").length).toBeGreaterThan(0);
-    expect(screen.getByText("Cash basis")).toBeTruthy();
+    expect(screen.queryByText("Cash basis")).toBeNull();
     expect(screen.queryByText("Company P&L")).toBeNull();
   });
 
-  it("places a direct-action attention queue before portfolio analytics", () => {
+  it("summarizes attention, income, and expense in three compact cards", () => {
     render(
       <OverviewScreen data={operatingWorkspaceData} query={portfolioQuery} />,
     );
 
-    const queue = screen.getByRole("region", { name: "Needs attention" });
+    const summary = screen.getByRole("region", { name: "Overview summary" });
     const performance = screen.getByRole("heading", {
       name: "Property performance",
     });
     expect(
-      queue.compareDocumentPosition(performance) & Node.DOCUMENT_POSITION_FOLLOWING,
+      summary.compareDocumentPosition(performance) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(
-      within(queue)
-        .getByRole("link", { name: /Review maintenance/ })
-        .getAttribute("href"),
-    ).toBe("/maintenance?review=open");
-    expect(screen.getByText("3 open checks")).toBeTruthy();
+    expect(within(summary).getByRole("button", { name: /Needs attention/ })).toBeTruthy();
+    expect(within(summary).getByRole("button", { name: /Income/ })).toBeTruthy();
+    expect(within(summary).getByRole("button", { name: /Expense/ })).toBeTruthy();
+    expect(within(summary).getByText("3 open checks")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Portfolio cash metrics" })).toBeNull();
   });
 
-  it("states honestly when current operating checks are clear", () => {
+  it("moves finance attention context into the property preview modal", () => {
     render(
-      <OverviewScreen
-        data={{ ...operatingWorkspaceData, attentionItems: [], attentionTotal: 0 }}
-        query={portfolioQuery}
+      <PropertyFinanceWorkspace
+        data={operatingWorkspaceData}
+        query={{
+          ...selectedPortfolioQuery,
+          financeView: "collections",
+          lens: "finance",
+        }}
       />,
     );
 
-    expect(screen.getByText("No operating checks need attention.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Open timeline" }).getAttribute("href")).toBe(
-      "/timeline",
+    expect(
+      screen.queryByRole("heading", { name: "Attention and readiness" }),
+    ).toBeNull();
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /Satomi Dimitroff-Guorguieff/ })[0],
     );
+
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByRole("heading", { name: "Attention and readiness" }),
+    ).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: /Review arrears/ }).getAttribute("href")).toBe(
+      "/overview?lens=finance&financeView=collections&month=2026-07&propertyId=prop-1&review=arrears",
+    );
+  });
+
+  it("opens summary detail in a modal and retains a full breadcrumb workspace link", () => {
+    render(
+      <OverviewScreen data={operatingWorkspaceData} query={portfolioQuery} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Needs attention/ }));
+    const dialog = screen.getByRole("dialog", { name: "Needs attention" });
+    expect(within(dialog).getByText("Review maintenance")).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: /Open full workspace/ }).getAttribute("href")).toBe(
+      "/overview/attention?month=2026-07",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close modal" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("exposes scorecard facts in labeled mobile card markup", () => {
@@ -190,49 +225,36 @@ describe("OverviewScreen", () => {
     expect(mobileCards.textContent).toContain("Not set");
   });
 
-  it("requires explicit property selection before showing cash detail", () => {
+  it("does not render a property inspector or detail modal on the dashboard", () => {
     render(
       <OverviewScreen data={operatingWorkspaceData} query={portfolioQuery} />,
     );
 
-    expect(
-      screen.getByText("Select a property to explain its cash result."),
-    ).toBeTruthy();
-    expect(screen.queryByText("Selected property cash detail")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("link", { name: "Open owner statement" })).toBeNull();
   });
 
-  it("shows supported property-finance detail links for an explicit selection", () => {
+  it("uses property search for an instant preview without filtering the table", () => {
     render(
       <OverviewScreen
         data={operatingWorkspaceData}
-        query={selectedPortfolioQuery}
+        query={portfolioQuery}
       />,
     );
 
-    expect(screen.getByText("Selected property cash detail")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Cash income" }).getAttribute("href")).toBe(
-      "/overview?lens=finance&financeView=collections&month=2026-07&propertyId=prop-1",
-    );
-    expect(
-      screen.getByRole("link", { name: "Property expenses paid" }).getAttribute("href"),
-    ).toBe(
-      "/overview?lens=finance&financeView=expenses&month=2026-07&propertyId=prop-1",
-    );
-    expect(screen.getByRole("link", { name: "Management fee" }).getAttribute("href")).toBe(
-      "/overview?lens=finance&financeView=management-fees&month=2026-07&propertyId=prop-1",
-    );
-    expect(screen.getByRole("link", { name: "Arrears" }).getAttribute("href")).toBe(
-      "/overview?lens=finance&financeView=collections&month=2026-07&propertyId=prop-1&review=arrears",
-    );
-    expect(
-      screen.getByRole("link", { name: "Open owner statement" }).getAttribute("href"),
-    ).toBe("/reports/owner-statement?month=2026-07&propertyId=prop-1");
-    expect(screen.getByText("Security deposit held")).toBeTruthy();
-    expect(screen.getByText("Held tenant funds are separate from income and net cash.")).toBeTruthy();
+    const table = screen.getByRole("table");
+    const rowCount = within(table).getAllByRole("row").length;
+    fireEvent.change(screen.getByPlaceholderText("Find a property…"), {
+      target: { value: "Satomi" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search properties" }));
+    expect(screen.getByRole("dialog", { name: "CTR / Satomi Dimitroff-Guorguieff" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(within(table).getAllByRole("row")).toHaveLength(rowCount);
   });
 
-  it("preserves selected property state when opening statement blockers", () => {
+  it("opens statement readiness as a dedicated Overview page", () => {
     render(
       <OverviewScreen
         data={operatingWorkspaceData}
@@ -240,9 +262,23 @@ describe("OverviewScreen", () => {
       />,
     );
 
-    expect(screen.getByRole("link", { name: "Review blockers" }).getAttribute("href")).toBe(
-      "/overview?month=2026-07&propertyId=prop-1&review=statement-blocked",
+    expect(screen.getByRole("link", { name: /Review readiness/ }).getAttribute("href")).toBe(
+      "/overview/readiness?month=2026-07",
     );
+  });
+
+  it.each([
+    ["attention", "Needs attention", "Review maintenance"],
+    ["readiness", "Statement readiness", "CTR / Satomi Dimitroff-Guorguieff"],
+  ] as const)("renders the %s workspace as a breadcrumb detail page", (view, title, action) => {
+    render(<OverviewDetailPage data={operatingWorkspaceData} query={portfolioQuery} view={view} />);
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(breadcrumb).getByRole("link", { name: "Overview" }).getAttribute("href")).toBe(
+      "/overview?month=2026-07",
+    );
+    expect(within(breadcrumb).getByText(title)).toBeTruthy();
+    expect(screen.getByText(action)).toBeTruthy();
   });
 
   it("keeps desktop and mobile scorecard facts and status equivalent", () => {
@@ -281,9 +317,12 @@ describe("OverviewScreen", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Expenses by property" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Attention and readiness" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Attention and readiness" })).toBeNull();
     expect(screen.getByText("Expenses paid")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Open property expenses" }).getAttribute("href")).toBe("/bills-expenses?dateBasis=paid&status=paid&month=2026-07&propertyId=prop-1");
+    fireEvent.click(screen.getByRole("button", { name: /Satomi/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Expenses paid")).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: /Open property expenses/ }).getAttribute("href")).toBe("/bills-expenses?dateBasis=paid&status=paid&month=2026-07&propertyId=prop-1");
 
     const expectedViews = {
       Collections: "collections",

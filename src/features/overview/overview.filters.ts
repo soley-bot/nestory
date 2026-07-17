@@ -1,6 +1,7 @@
 import type {
   OverviewFinanceView,
   OverviewLens,
+  OverviewPropertySort,
   OverviewReview,
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
@@ -25,6 +26,15 @@ const overviewReviews: OverviewReview[] = [
   "bills",
   "statement-blocked",
 ];
+const propertySorts: OverviewPropertySort[] = [
+  "property-asc",
+  "property-desc",
+  "collected-desc",
+  "income-desc",
+  "expenses-desc",
+  "net-desc",
+  "fee-desc",
+];
 export function parseOverviewSearchParams(
   params: Record<string, SearchParamValue>,
   currentDate = new Date(),
@@ -39,9 +49,22 @@ export function parseOverviewSearchParams(
         ? "all"
         : normalizeOverviewLens(params.lens),
     month: parseMonth(params.month, currentDate),
+    propertyQuery: normalizePropertyQuery(params.propertyQuery),
     propertyId: getUuidOrAllSearchParam(params.propertyId),
     review: parseReview(params.review),
+    sort: parsePropertySort(params.sort),
   };
+}
+
+function normalizePropertyQuery(value: SearchParamValue) {
+  return getFirstSearchParam(value)?.trim().slice(0, 80) ?? "";
+}
+
+function parsePropertySort(value: SearchParamValue): OverviewPropertySort {
+  const firstValue = getFirstSearchParam(value);
+  return propertySorts.includes(firstValue as OverviewPropertySort)
+    ? (firstValue as OverviewPropertySort)
+    : "property-asc";
 }
 
 export function getOverviewMonthScope(month: string) {
@@ -60,6 +83,25 @@ export function getOverviewMonthScope(month: string) {
     from: `${month}-01`,
     before: `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`,
   };
+}
+
+export function buildOverviewHref(
+  query: OverviewViewQuery,
+  updates: Partial<OverviewViewQuery>,
+) {
+  const next = { ...query, ...updates };
+  const params = new URLSearchParams();
+  if (next.lens === "finance") {
+    params.set("lens", next.lens);
+    params.set("financeView", next.financeView);
+  } else if (next.lens !== "all") {
+    params.set("lens", next.lens);
+  }
+  params.set("month", next.month);
+  if (next.propertyId !== "all") params.set("propertyId", next.propertyId);
+  if (next.review !== "all") params.set("review", next.review);
+  if (next.sort && next.sort !== "property-asc") params.set("sort", next.sort);
+  return `/overview?${params.toString()}`;
 }
 
 function normalizeFinanceView(value: string | undefined): OverviewFinanceView {

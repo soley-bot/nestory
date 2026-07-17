@@ -340,6 +340,27 @@ describe("AppShell viewport contract", () => {
     ).toHaveLength(1);
   });
 
+  it("keeps desktop account and theme controls beside the command entry", () => {
+    const { container } = render(
+      <AppShell role="admin" userEmail="operator@nestory.com">
+        <div>Workspace</div>
+      </AppShell>,
+    );
+
+    const commandEntry = container.querySelector<HTMLElement>(
+      '[data-slot="workspace-command-entry"]',
+    );
+    const desktopNavigation = screen.getByRole("navigation", {
+      name: "Global navigation",
+    });
+
+    expect(commandEntry).not.toBeNull();
+    expect(within(commandEntry!).getByRole("button", { name: "Toggle color theme" })).toBeTruthy();
+    expect(within(commandEntry!).getByRole("button", { name: "Open profile menu" })).toBeTruthy();
+    expect(within(desktopNavigation).queryByRole("button", { name: "Toggle color theme" })).toBeNull();
+    expect(within(desktopNavigation).queryByRole("button", { name: "Open profile menu" })).toBeNull();
+  });
+
   it("bounds authenticated content while preserving an internal legacy-page scroller", () => {
     const { container } = render(
       <AppShell>

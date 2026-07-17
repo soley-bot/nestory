@@ -14,7 +14,7 @@ import {
 import type { WorkspaceRole } from "@/lib/auth/context";
 import { cn } from "@/lib/utils";
 
-const SEARCH_DEBOUNCE_MS = 150;
+const SEARCH_DEBOUNCE_MS = 500;
 const SEARCH_QUERY_MAX_LENGTH = 120;
 
 const RESULT_GROUPS = [
@@ -80,9 +80,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
   const localActions = useMemo(() => {
     const actions = getWorkspaceSearchActions(role);
 
-    if (!normalizedQuery) {
-      return actions;
-    }
+    if (!normalizedQuery) return [];
 
     return actions.filter((action) => {
       const searchableText = normalizeSearchText(
@@ -340,16 +338,12 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
     <>
       <button
         aria-label="Search or jump"
-        className="flex h-10 w-full max-w-xl items-center gap-2 rounded-md border border-border bg-surface-raised px-3 text-left text-sm text-foreground-muted shadow-sm outline-none transition-colors hover:border-accent hover:text-foreground focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring lg:h-9"
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
         onClick={openFromTrigger}
         ref={triggerRef}
         type="button"
       >
-        <Search className="shrink-0 text-foreground-subtle" size={15} />
-        <span className="min-w-0 flex-1 truncate">Search or jump…</span>
-        <kbd className="hidden rounded border border-border bg-surface px-1.5 py-0.5 font-mono text-[10px] text-foreground-subtle sm:inline">
-          Ctrl K
-        </kbd>
+        <Search aria-hidden="true" size={16} />
       </button>
 
       {isOpen && typeof document !== "undefined"
@@ -377,8 +371,8 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                   <input
                     aria-activedescendant={activeOptionId}
                     aria-autocomplete="list"
-                    aria-controls={listboxId}
-                    aria-expanded="true"
+                    aria-controls={normalizedQuery ? listboxId : undefined}
+                    aria-expanded={Boolean(normalizedQuery)}
                     aria-label="Search or jump"
                     autoComplete="off"
                     className="h-10 min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-foreground outline-none placeholder:text-foreground-subtle"
@@ -423,6 +417,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                 <div
                   aria-label="Search results"
                   className="min-h-0 flex-1 overflow-y-auto p-2"
+                  hidden={!normalizedQuery}
                   id={listboxId}
                   role="listbox"
                 >
@@ -497,7 +492,10 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                   ) : null}
                 </div>
 
-                <div className="shrink-0 border-t border-border bg-surface px-4 py-2">
+                <div
+                  className="shrink-0 border-t border-border bg-surface px-4 py-2"
+                  hidden={!normalizedQuery}
+                >
                   <p
                     aria-live={searchState === "error" ? "assertive" : "polite"}
                     className={cn(

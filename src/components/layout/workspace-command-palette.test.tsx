@@ -33,7 +33,7 @@ function openPalette() {
 
 async function advanceSearch() {
   await act(async () => {
-    vi.advanceTimersByTime(150);
+    vi.advanceTimersByTime(500);
     await Promise.resolve();
   });
 }
@@ -121,6 +121,9 @@ describe("Workspace command palette access", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Search or jump" });
     const input = within(dialog).getByRole("combobox", { name: "Search or jump" });
+    expect(within(dialog).queryByRole("listbox", { name: "Search results" })).toBeNull();
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.change(input, { target: { value: "t" } });
     const listbox = within(dialog).getByRole("listbox", { name: "Search results" });
     const navigationGroup = within(listbox).getByRole("group", {
       name: "Navigation",
@@ -149,6 +152,7 @@ describe("Workspace command palette access", () => {
     renderPalette("manager");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
+    fireEvent.change(input, { target: { value: "t" } });
     const closeButton = screen.getByRole("button", { name: "Close search" });
     const initialActiveOption = input.getAttribute("aria-activedescendant");
 
@@ -179,6 +183,7 @@ describe("Workspace command palette access", () => {
     renderPalette("manager");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
+    fireEvent.change(input, { target: { value: "t" } });
     const initialActiveOption = input.getAttribute("aria-activedescendant");
 
     fireEvent.keyDown(input, { isComposing: true, key: "ArrowDown" });
@@ -234,6 +239,10 @@ describe("Workspace command palette results", () => {
     renderPalette("member");
     openPalette();
 
+    expect(screen.queryByRole("listbox", { name: "Search results" })).toBeNull();
+    fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
+      target: { value: "t" },
+    });
     expect(screen.getByRole("option", { name: /Tasks/ })).toBeTruthy();
     expect(screen.queryByRole("option", { name: /Properties/ })).toBeNull();
     expect(screen.queryByRole("option", { name: /Cases/ })).toBeNull();
@@ -244,7 +253,7 @@ describe("Workspace command palette results", () => {
     expect(screen.queryByRole("option", { name: /Properties/ })).toBeNull();
   });
 
-  it("debounces entity search for 150ms with private same-origin fetch options", async () => {
+  it("debounces entity search for 500ms with private same-origin fetch options", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ results: [] }));
     vi.stubGlobal("fetch", fetchMock);
     renderPalette();
@@ -258,7 +267,7 @@ describe("Workspace command palette results", () => {
     expect(screen.getByRole("status").textContent).toMatch(/Searching/);
     expect(screen.queryByText("No results")).toBeNull();
     await act(async () => {
-      vi.advanceTimersByTime(149);
+      vi.advanceTimersByTime(499);
       await Promise.resolve();
     });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -328,6 +337,7 @@ describe("Workspace command palette results", () => {
     renderPalette("manager");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
+    fireEvent.change(input, { target: { value: "t" } });
     const options = screen.getAllByRole("option");
 
     expect(input.getAttribute("aria-activedescendant")).toBe(options[0].id);
@@ -350,6 +360,7 @@ describe("Workspace command palette results", () => {
       renderPalette();
       openPalette();
       const input = screen.getByRole("combobox", { name: "Search or jump" });
+      fireEvent.change(input, { target: { value: "t" } });
       scrollIntoView.mockClear();
 
       for (let index = 0; index < 12; index += 1) {

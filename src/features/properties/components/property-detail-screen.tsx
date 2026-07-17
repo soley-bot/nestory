@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Archive, ArrowRight, Pencil, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -78,6 +79,12 @@ export function PropertyDetailScreen({
               </Button>
             </>
           )
+        }
+        breadcrumb={
+          <PageBreadcrumb
+            current={property.name}
+            items={[{ href: "/properties", label: "Properties" }]}
+          />
         }
         context={
           <div className="flex items-center gap-2">

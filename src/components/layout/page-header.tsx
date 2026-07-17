@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 type PageHeaderProps = {
+  breadcrumb?: ReactNode;
   title: string;
   description?: string;
   context?: ReactNode;
@@ -8,6 +9,7 @@ type PageHeaderProps = {
 };
 
 export function PageHeader({
+  breadcrumb,
   title,
   description,
   context,
@@ -15,6 +17,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <header className="border-b border-border bg-surface px-4 py-3 sm:px-6">
+      {breadcrumb ? <div className="mb-2">{breadcrumb}</div> : null}
       <h1 className="text-base font-semibold leading-6 text-foreground">
         {title}
       </h1>

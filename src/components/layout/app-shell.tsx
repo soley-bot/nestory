@@ -228,7 +228,7 @@ export function AppShell({
       <aside
         className={cn(
           "fixed inset-y-0 left-0 hidden border-r border-border bg-surface text-foreground transition-[width] duration-200 print:hidden lg:flex",
-          sidebarCollapsed ? "w-12" : "w-[244px]",
+          sidebarCollapsed ? "w-12" : "w-[208px]",
         )}
       >
         {sidebarCollapsed ? (
@@ -236,22 +236,16 @@ export function AppShell({
             activeDestinationId={activeDestinationId}
             destinations={globalDestinations}
             onExpand={expandDesktopSidebar}
-            onThemeToggle={toggleTheme}
-            organizationName={organizationName}
             role={role}
             toggleRef={expandToggleRef}
-            userEmail={userEmail}
           />
         ) : (
           <ExpandedDesktopSidebar
             activeDestinationId={activeDestinationId}
             destinations={globalDestinations}
             onCollapse={collapseDesktopSidebar}
-            onThemeToggle={toggleTheme}
-            organizationName={organizationName}
             role={role}
             toggleRef={collapseToggleRef}
-            userEmail={userEmail}
           />
         )}
       </aside>
@@ -259,7 +253,7 @@ export function AppShell({
       <main
         className={cn(
           "flex h-dvh min-h-0 flex-col overflow-hidden transition-[margin-left] duration-200 print:ml-0 print:block print:h-auto print:overflow-visible",
-          sidebarCollapsed ? "lg:ml-12" : "lg:ml-[244px]",
+          sidebarCollapsed ? "lg:ml-12" : "lg:ml-[208px]",
         )}
       >
         <div
@@ -315,10 +309,19 @@ export function AppShell({
           </div>
         </div>
         <div
-          className="flex shrink-0 justify-center border-b border-border bg-surface px-4 py-2 print:hidden"
+          className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-surface px-3 print:hidden"
           data-slot="workspace-command-entry"
         >
+          <div className="flex min-w-0 flex-1 items-center" id="workspace-page-tools" />
           <WorkspaceCommandPalette role={role} />
+          <div className="hidden shrink-0 items-center gap-1 lg:flex">
+            <ThemeToggle onToggle={toggleTheme} />
+            <ProfileMenu
+              email={userEmail}
+              organizationName={organizationName}
+              role={role}
+            />
+          </div>
         </div>
         <div
           className="min-h-0 min-w-0 flex-1 overflow-y-auto print:overflow-visible"
@@ -335,20 +338,14 @@ function ExpandedDesktopSidebar({
   activeDestinationId,
   destinations,
   onCollapse,
-  onThemeToggle,
-  organizationName,
   role,
   toggleRef,
-  userEmail,
 }: {
   activeDestinationId?: GlobalDestination["id"];
   destinations: readonly GlobalDestination[];
   onCollapse: () => void;
-  onThemeToggle: () => void;
-  organizationName: string;
   role: WorkspaceRole;
   toggleRef: RefObject<HTMLButtonElement | null>;
-  userEmail?: string;
 }) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
@@ -379,12 +376,9 @@ function ExpandedDesktopSidebar({
 
       <nav
         aria-label="Global navigation"
-        className="flex-1 overflow-y-auto px-3 py-3"
+        className="flex-1 overflow-y-auto px-2 py-2"
       >
-        <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground-subtle">
-          Workspace
-        </p>
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {destinations.map((destination) => (
             <GlobalDestinationLink
               destination={destination}
@@ -395,20 +389,6 @@ function ExpandedDesktopSidebar({
         </div>
       </nav>
 
-      <div className="flex h-12 shrink-0 items-center justify-end border-t border-border px-3">
-        <ThemeToggle onToggle={onThemeToggle} />
-      </div>
-
-      <footer className="flex h-16 shrink-0 items-center border-t border-border px-3">
-        <ProfileMenu
-          email={userEmail}
-          menuClassName="w-56"
-          menuSide="top"
-          organizationName={organizationName}
-          role={role}
-          variant="sidebar"
-        />
-      </footer>
     </div>
   );
 }
@@ -417,20 +397,14 @@ function CollapsedDesktopSidebar({
   activeDestinationId,
   destinations,
   onExpand,
-  onThemeToggle,
-  organizationName,
   role,
   toggleRef,
-  userEmail,
 }: {
   activeDestinationId?: GlobalDestination["id"];
   destinations: readonly GlobalDestination[];
   onExpand: () => void;
-  onThemeToggle: () => void;
-  organizationName: string;
   role: WorkspaceRole;
   toggleRef: RefObject<HTMLButtonElement | null>;
-  userEmail?: string;
 }) {
   return (
     <div className="flex h-full w-12 flex-col items-center">
@@ -483,17 +457,6 @@ function CollapsedDesktopSidebar({
         })}
       </nav>
 
-      <div className="flex w-full shrink-0 flex-col items-center gap-1 border-t border-border py-2">
-        <ThemeToggle onToggle={onThemeToggle} />
-        <ProfileMenu
-          email={userEmail}
-          menuAlign="end"
-          menuClassName="w-56"
-          menuSide="right"
-          organizationName={organizationName}
-          role={role}
-        />
-      </div>
     </div>
   );
 }
@@ -511,7 +474,7 @@ function GlobalDestinationLink({
     <Link
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
         isActive && "bg-accent-soft font-semibold text-foreground",
       )}
       href={destination.href}

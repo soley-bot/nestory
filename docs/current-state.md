@@ -74,6 +74,9 @@ Core dashboard shell:
   properties by cash income, paid property expenses, net cash, collection
   rate, arrears, management fees, and reporting readiness. Period, property,
   review, and Property finance subview state is URL-backed.
+- `/overview/attention` and `/overview/readiness` are breadcrumb detail pages
+  reached from the compact dashboard summaries. Overview drill-downs use full
+  pages instead of modal, drawer, or inspector overlays.
 - `/property-dashboard`, `/finance-dashboard`, and `/maintenance-dashboard`
   redirect to the consolidated Overview lenses for legacy links and preserve
   incoming query values unless the destination reserves that key.
@@ -290,7 +293,7 @@ Compatibility database tests still cover the accounting schema and security
 boundary, balanced/idempotent posting, period locks and reversals, historical
 backfill, transaction rollback, and seeded ledger-to-journal parity.
 
-The UI route manifest currently covers all 46 page routes. Local redesign
+The UI route manifest currently covers all 47 page routes. Local redesign
 verification captures every route at 1440x900, 1024x768, and 390x844, audits
 admin/manager/member/anonymous access outcomes, and rejects serious/critical
 axe findings, application errors, document overflow, unreachable actions,

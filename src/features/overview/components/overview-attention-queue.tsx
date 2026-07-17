@@ -1,71 +1,56 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CircleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { OverviewAttentionItem } from "@/features/overview/overview.types";
 
 export function OverviewAttentionQueue({
   items,
+  month,
 }: {
   items: OverviewAttentionItem[];
+  month: string;
 }) {
+  if (items.length === 0) {
+    return (
+      <section
+        aria-labelledby="overview-attention-heading"
+        className="flex flex-wrap items-center gap-2 border-y border-border px-1 py-2.5"
+        role="region"
+      >
+        <h2 className="text-sm font-semibold text-foreground" id="overview-attention-heading">
+          Needs attention
+        </h2>
+        <p className="mr-auto text-sm text-foreground-muted">No operating checks need attention.</p>
+        <Link className="text-xs font-medium text-foreground underline-offset-2 hover:underline" href="/timeline">
+          Open timeline
+        </Link>
+      </section>
+    );
+  }
+
   return (
     <section
       aria-labelledby="overview-attention-heading"
-      className="overflow-hidden rounded-lg border border-border bg-surface"
+      className="flex flex-wrap items-center gap-3 rounded-md border border-warning/25 bg-warning-soft/10 px-3 py-2.5"
       role="region"
     >
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <h2
-          className="mr-auto text-sm font-semibold text-foreground"
-          id="overview-attention-heading"
-        >
+      <CircleAlert className="shrink-0 text-warning" size={16} />
+      <div className="mr-auto min-w-0">
+        <h2 className="text-sm font-semibold text-foreground" id="overview-attention-heading">
           Needs attention
         </h2>
-        <Badge tone={items.length > 0 ? "warning" : "success"}>
-          {items.length > 0 ? `${items.length} queues` : "Clear"}
-        </Badge>
+        <p className="text-xs text-foreground-muted">
+          {items.length} operating {items.length === 1 ? "queue needs" : "queues need"} review.
+        </p>
       </div>
-      {items.length > 0 ? (
-        <ul className="grid divide-y divide-border md:grid-cols-2 md:divide-y-0">
-          {items.map((item) => (
-            <li
-              className="border-border md:border-b md:odd:border-r"
-              key={item.id}
-            >
-              <Link
-                className="group flex min-h-16 items-center gap-3 px-3 py-2.5 hover:bg-background"
-                href={item.href}
-              >
-                <Badge tone={item.tone}>{item.count}</Badge>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium text-foreground">
-                    {item.label}
-                  </span>
-                  <span className="block truncate text-xs text-foreground-muted">
-                    {item.helper}
-                  </span>
-                </span>
-                <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-foreground">
-                  {item.actionLabel}
-                  <ArrowRight aria-hidden="true" size={13} />
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2 px-3 py-3">
-          <p className="mr-auto text-sm text-foreground-muted">
-            No operating checks need attention.
-          </p>
-          <Link
-            className="text-xs font-medium text-foreground underline-offset-2 hover:underline"
-            href="/timeline"
-          >
-            Open timeline
-          </Link>
-        </div>
-      )}
+      <Badge tone="warning">{items.length} queues</Badge>
+      <Link
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-foreground hover:bg-surface-muted"
+        href={`/overview/attention?month=${month}`}
+      >
+        Review queues
+        <ArrowRight aria-hidden="true" size={13} />
+      </Link>
     </section>
   );
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
-import { buildOverviewHref } from "@/features/overview/components/overview-header";
+import { buildOverviewHref } from "@/features/overview/overview.filters";
 import type {
   OverviewPropertyPerformanceRow,
   OverviewViewQuery,

@@ -10,7 +10,7 @@ import type {
   OverviewScreenData,
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
-import { buildOverviewHref } from "@/features/overview/components/overview-header";
+import { buildOverviewHref } from "@/features/overview/overview.filters";
 
 type OperatingLens = Exclude<OverviewLens, "all" | "finance">;
 

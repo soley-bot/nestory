@@ -15,8 +15,10 @@ describe("parseOverviewSearchParams", () => {
       financeView: "collections",
       lens: "all",
       month: "2026-07",
+      propertyQuery: "",
       propertyId: "all",
       review: "all",
+      sort: "property-asc",
     });
   });
 
@@ -57,5 +59,14 @@ describe("parseOverviewSearchParams", () => {
       before: "2027-01-01",
       from: "2026-12-01",
     });
+  });
+
+  it("normalizes property search and rejects unknown scorecard sorts", () => {
+    expect(
+      parseOverviewSearchParams(
+        { propertyQuery: "  Central Residence  ", sort: "unknown" },
+        new Date("2026-07-10"),
+      ),
+    ).toMatchObject({ propertyQuery: "Central Residence", sort: "property-asc" });
   });
 });

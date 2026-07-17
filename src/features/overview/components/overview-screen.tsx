@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { ArrowRight, Building2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { OverviewAttentionQueue } from "@/features/overview/components/overview-attention-queue";
 import { OverviewHeader } from "@/features/overview/components/overview-header";
 import { OverviewLensWorkspace } from "@/features/overview/components/overview-lens-workspace";
+import { OverviewSummaryCards } from "@/features/overview/components/overview-summary-cards";
 import { PortfolioWorkspace } from "@/features/overview/components/portfolio-workspace";
 import { PropertyFinanceWorkspace } from "@/features/overview/components/property-finance-workspace";
 import type { OverviewScreenData, OverviewViewQuery } from "@/features/overview/overview.types";
@@ -13,10 +13,10 @@ export function OverviewScreen({ data, query }: { data: OverviewScreenData; quer
   const resolvedQuery = query ?? defaultQuery();
   return (
     <main className="min-h-screen bg-background px-4 py-3 sm:px-5">
-      <div className="space-y-3">
-        <OverviewHeader attentionTotal={data.attentionTotal} query={resolvedQuery} />
+      <div className="space-y-2.5">
+        <OverviewHeader query={resolvedQuery} />
         {!isBaseSetupComplete(data.workspaceSetup) ? <SetupProgressPanel data={data} /> : null}
-        <OverviewAttentionQueue items={data.attentionItems} />
+        {resolvedQuery.lens === "all" ? <OverviewSummaryCards data={data} query={resolvedQuery} /> : null}
         {resolvedQuery.lens === "all" ? (
           <PortfolioWorkspace data={data} query={resolvedQuery} />
         ) : resolvedQuery.lens === "finance" ? (

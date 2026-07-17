@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { buildOverviewHref } from "@/features/overview/components/overview-header";
+import { buildOverviewHref } from "@/features/overview/overview.filters";
+import { FinancePropertyPreviewList } from "@/features/overview/components/finance-property-preview-list";
 import { PropertyScorecard } from "@/features/overview/components/property-scorecard";
 import type {
   OverviewFinanceView,
@@ -26,6 +27,7 @@ export function PropertyFinanceWorkspace({
 }) {
   return (
     <div className="space-y-3">
+      <FinanceMetricStrip data={data} />
       <nav
         aria-label="Property finance views"
         className="flex min-w-0 gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-1"
@@ -49,16 +51,17 @@ export function PropertyFinanceWorkspace({
           </Link>
         ))}
       </nav>
-      <FinanceMetricStrip data={data} />
       {query.financeView === "collections" ? (
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
-          <PropertyScorecard query={query} rows={rankFinanceRows(data.propertyPerformance.rows, "collections")} />
-          <aside className="rounded-lg border border-border bg-surface p-3">
-            <h2 className="text-sm font-semibold">Attention and readiness</h2>
-            <p className="mt-3 text-xs leading-5 text-foreground-muted">{formatMoneyDisplay(data.propertyPerformance.summary.arrearsAmount, data.ledgerCurrency).primary} remains uncollected across visible properties.</p>
-            <Link className="mt-3 inline-block text-xs font-medium underline-offset-2 hover:underline" href={buildOverviewHref(query, { review: "arrears" })}>Review arrears</Link>
-          </aside>
-        </div>
+        <PropertyScorecard
+          previewContext={{
+            actionHref: buildOverviewHref(query, { review: "arrears" }),
+            actionLabel: "Review arrears",
+            description: `${formatMoneyDisplay(data.propertyPerformance.summary.arrearsAmount, data.ledgerCurrency).primary} remains uncollected across visible properties.`,
+            title: "Attention and readiness",
+          }}
+          query={query}
+          rows={rankFinanceRows(data.propertyPerformance.rows, "collections")}
+        />
       ) : <FinanceQueue data={data} query={query} />}
     </div>
   );
@@ -76,46 +79,44 @@ function FinanceMetricStrip({ data }: { data: OverviewScreenData }) {
 function FinanceQueue({ data, query }: { data: OverviewScreenData; query: OverviewViewQuery }) {
   const content: Record<
     Exclude<OverviewFinanceView, "collections">,
-    { description: string; href: string; label: string }
+    { description: string; href: string }
   > = {
     expenses: {
       description:
         "Review paid property costs and open bills for the selected month.",
       href: "/bills-expenses?dateBasis=paid&status=paid",
-      label: "Open property expenses",
     },
     "management-fees": {
       description:
         "Track earned, received, and outstanding management fees as property operating costs.",
       href: "/rent-income?incomeScope=management-fees",
-      label: "Open management fees",
     },
     "owner-statements": {
       description:
         "Review readiness and prepare cash-basis statements for property owners.",
       href: "/reports/owner-statement",
-      label: "Open owner statements",
     },
     transactions: {
       description:
         "Inspect source property receipts and payments without company ledger framing.",
       href: "/ledger",
-      label: "Open property transactions",
     },
   };
   if (query.financeView === "collections") return null;
   const item = content[query.financeView];
-  const params = new URLSearchParams({ month: query.month });
-  if (query.propertyId !== "all") params.set("propertyId", query.propertyId);
-  const valueForRow = (row: OverviewScreenData["propertyPerformance"]["rows"][number]) => query.financeView === "expenses" ? row.cashExpenses.primary : query.financeView === "management-fees" ? row.managementFeeEarned.primary : query.financeView === "owner-statements" ? `${row.statementBlockers} blockers` : row.netCash.primary;
   const rows = rankFinanceRows(data.propertyPerformance.rows, query.financeView);
-  return <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
-    <section className="overflow-hidden rounded-lg border border-border bg-surface">
-      <div className="border-b border-border px-3 py-2.5"><h2 className="text-sm font-semibold">{views.find((view) => view.value === query.financeView)?.label} by property</h2><p className="mt-0.5 text-xs text-foreground-muted">{item.description}</p></div>
-      <div className="divide-y divide-border">{rows.map((row) => <Link className="flex items-center justify-between gap-3 px-3 py-3 hover:bg-surface-muted" href={financeDestinationHref(item.href, query.month, row.propertyId)} key={row.propertyId}><span className="truncate text-sm font-medium">{row.label}</span><span className="shrink-0 text-xs font-semibold tabular-nums">{valueForRow(row)}</span></Link>)}</div>
-    </section>
-    <aside className="rounded-lg border border-border bg-surface p-3"><h2 className="text-sm font-semibold">Attention and readiness</h2><p className="mt-3 text-xs leading-5 text-foreground-muted">{data.propertyPerformance.summary.statementReadiness.blockedCount} statement blockers and {formatMoneyDisplay(data.propertyPerformance.summary.arrearsAmount, data.ledgerCurrency).primary} in arrears need review.</p><Link className="mt-3 inline-block text-xs font-medium underline-offset-2 hover:underline" href={`${item.href}${item.href.includes("?") ? "&" : "?"}${params.toString()}`}>{item.label}</Link></aside>
-  </div>;
+  return (
+    <FinancePropertyPreviewList
+      currency={data.ledgerCurrency}
+      description={item.description}
+      items={rows.map((row) => ({
+        actionHref: financeDestinationHref(item.href, query.month, row.propertyId),
+        row,
+      }))}
+      month={query.month}
+      view={query.financeView}
+    />
+  );
 }
 
 export function rankFinanceRows(rows: OverviewScreenData["propertyPerformance"]["rows"], view: OverviewFinanceView) {

@@ -2209,6 +2209,55 @@
     }
   },
   {
+    "route": "/overview/[view]",
+    "source": "src/app/(dashboard)/overview/[view]/page.tsx",
+    "phase": 5,
+    "surface": "detail",
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/overview/[view]/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/overview/[view]/page.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/overview/[view]/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/overview/[view]/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/overview/attention?month=2026-07",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/overview/[view]/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
     "route": "/properties/[propertyId]",
     "source": "src/app/(dashboard)/properties/[propertyId]/page.tsx",
     "phase": 5,

@@ -76,6 +76,8 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 | /import | /import | /import | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/overview -->
 | /overview | /overview | /overview | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked | 3/3 pass | not-applicable | None |
+<!-- route-evidence:/overview/[view] -->
+| /overview/[view] | /overview/attention?month=2026-07 | /overview/attention?month=2026-07 | not rerun (expected permission-blocked) | not rerun (expected permission-blocked) | not rerun (expected login-required) | loading, populated, error, permission-blocked | admin desktop checked this turn | preserved | Added after the retained full-browser evidence; role and responsive matrix not rerun. |
 <!-- route-evidence:/properties/[propertyId] -->
 | /properties/[propertyId] | /properties/10000000-0000-0000-0000-000000000001 | /properties/10000000-0000-0000-0000-000000000001 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/units/[unitId] -->
