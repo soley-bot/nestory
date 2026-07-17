@@ -360,8 +360,15 @@ describe("authenticated theme contract", () => {
       ).toBeGreaterThanOrEqual(4.5);
     }
     expect(workspaceSource).toContain(
-      "border-[var(--workspace-arrival-action-border)]",
+      "shadow-[inset_0_0_0_1px_var(--workspace-arrival-action-border)]",
     );
+    expect(workspaceSource).toContain(
+      "bg-[var(--workspace-arrival-action)] px-4 text-sm",
+    );
+    expect(workspaceSource).not.toContain(
+      "border border-[var(--workspace-arrival-action-border)]",
+    );
+    expect(workspaceSource).not.toContain("px-[15px]");
     expect(workspaceSource).toContain(
       "bg-[var(--workspace-arrival-action)]",
     );
