@@ -42,7 +42,7 @@ export default async function WorkspacePage() {
             {context.organizationName}
           </h1>
           <Link
-            className="mt-6 inline-flex h-10 items-center justify-center rounded-md border border-[var(--workspace-arrival-action-border)] bg-[var(--workspace-arrival-action)] px-4 text-sm font-semibold text-[var(--workspace-arrival-action-fg)] outline-none transition-colors duration-200 hover:bg-[var(--workspace-arrival-action-hover)] focus-visible:ring-2 focus-visible:ring-[var(--workspace-arrival-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--workspace-arrival-bg)]"
+            className="mt-6 inline-flex h-10 items-center justify-center rounded-md border border-[var(--workspace-arrival-action-border)] bg-[var(--workspace-arrival-action)] px-[15px] text-sm font-semibold text-[var(--workspace-arrival-action-fg)] outline-none transition-colors duration-200 hover:bg-[var(--workspace-arrival-action-hover)] focus-visible:ring-2 focus-visible:ring-[var(--workspace-arrival-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--workspace-arrival-bg)]"
             href={entryPath}
             prefetch={false}
           >
