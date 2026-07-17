@@ -342,27 +342,33 @@ describe("authenticated theme contract", () => {
     expect(workspacePalette).toMatchObject({
       "--workspace-arrival-bg": "#0a1622",
       "--workspace-arrival-fg": "#f4f7fa",
-      "--workspace-arrival-action": "#8fb8ff",
-      "--workspace-arrival-action-fg": "#0a1622",
+      "--workspace-arrival-action": "rgb(244 247 250 / 8%)",
+      "--workspace-arrival-action-hover": "rgb(244 247 250 / 14%)",
+      "--workspace-arrival-action-border": "rgb(244 247 250 / 18%)",
+      "--workspace-arrival-action-fg": "#f4f7fa",
     });
-    expect(
-      getContrastRatio(
-        workspacePalette["--workspace-arrival-fg"],
-        workspacePalette["--workspace-arrival-bg"],
-      ),
-    ).toBeGreaterThanOrEqual(4.5);
-    expect(
-      getContrastRatio(
-        workspacePalette["--workspace-arrival-action-fg"],
-        workspacePalette["--workspace-arrival-action"],
-      ),
-    ).toBeGreaterThanOrEqual(4.5);
+    for (const foregroundToken of [
+      "--workspace-arrival-fg",
+      "--workspace-arrival-action-fg",
+    ]) {
+      expect(
+        getContrastRatio(
+          workspacePalette[foregroundToken],
+          workspacePalette["--workspace-arrival-bg"],
+        ),
+        `${foregroundToken} contrast on workspace arrival background`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(workspaceSource).toContain(
+      "border-[var(--workspace-arrival-action-border)]",
+    );
     expect(workspaceSource).toContain(
       "bg-[var(--workspace-arrival-action)]",
     );
     expect(workspaceSource).toContain(
       "text-[var(--workspace-arrival-action-fg)]",
     );
+    expect(workspaceSource).not.toContain("hover:-translate-y-0.5");
   });
 
   it("keeps workspace arrival motion atmospheric and motion-safe", () => {

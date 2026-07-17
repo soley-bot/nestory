@@ -61,5 +61,11 @@ describe("WorkspacePage", () => {
     expect(html).toContain("workspace-arrival-card");
     expect(html).toContain("login-property-building-blue-hour.png");
     expect(html).toContain('alt=""');
+    expect(html).toContain(
+      "border-[var(--workspace-arrival-action-border)]",
+    );
+    expect(html).toContain("transition-colors");
+    expect(html).not.toContain("hover:-translate-y-0.5");
+    expect(html).not.toContain("transition-[transform,background-color]");
   });
 });

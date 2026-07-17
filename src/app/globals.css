@@ -126,9 +126,10 @@
   --workspace-arrival-muted: rgb(244 247 250 / 68%);
   --workspace-arrival-line: rgb(244 247 250 / 16%);
   --workspace-arrival-card: rgb(10 22 34 / 78%);
-  --workspace-arrival-action: #8fb8ff;
-  --workspace-arrival-action-hover: #a7c8ff;
-  --workspace-arrival-action-fg: #0a1622;
+  --workspace-arrival-action: rgb(244 247 250 / 8%);
+  --workspace-arrival-action-hover: rgb(244 247 250 / 14%);
+  --workspace-arrival-action-border: rgb(244 247 250 / 18%);
+  --workspace-arrival-action-fg: #f4f7fa;
   --workspace-arrival-focus: #f4f7fa;
   --workspace-arrival-scrim:
     linear-gradient(90deg, rgb(4 11 19 / 18%) 0%, rgb(4 11 19 / 36%) 48%, rgb(4 11 19 / 80%) 100%),
