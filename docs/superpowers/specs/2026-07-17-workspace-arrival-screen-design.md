@@ -26,7 +26,7 @@ to Nestory's role as the operating layer behind real properties.
 - Slate: `#153047`
 - Warm window amber: `#d6a35d`
 - Frost: `#f4f7fa`
-- Restrained blue: `#8fb8ff`
+- Frost glass: `rgb(244 247 250 / 8%)`
 
 Retain the existing Inter typography and established Nestory type scale. Do not
 add another font for this one-page treatment.
@@ -70,9 +70,13 @@ Keep the existing content and routing behavior:
 Do not change authentication, workspace lookup, role formatting, link target,
 or prefetch behavior. The action remains the only interactive control.
 
-The link receives a restrained hover lift or tonal change and a clear keyboard
-focus ring. Its label remains `Open workspace` so the action language stays
-consistent with the existing flow and tests.
+The link uses the same quiet material language as the card: a translucent
+frost surface, a low-contrast frost border, and frost-white text. It must not
+introduce a saturated accent color or float upward on hover. Hover feedback is
+limited to a small increase in the glass-surface opacity, while keyboard focus
+retains a clear frost ring. Its size, position, label, and radius remain
+unchanged so the action language and layout stay consistent with the existing
+flow and tests.
 
 ## Motion
 
@@ -112,6 +116,7 @@ Implementation is complete when:
    the background crop remains intentional.
 5. Light theme, dark theme, keyboard focus, and reduced-motion behavior remain
    readable and usable.
-6. The touched page and styles pass the focused lint/test checks required by
+6. The action renders with frost glass, a quiet frost border, and frost text;
+   hover changes only surface opacity and does not translate the control.
+7. The touched page and styles pass the focused lint/test checks required by
    `docs/verification.md`.
-
