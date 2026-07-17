@@ -52,6 +52,7 @@ const paletteScopes = new Set([
   '[data-theme="dark"]',
   ".landing-page",
   '[data-theme="dark"] .landing-page',
+  ".workspace-arrival-page",
   ".auth-photo-page",
   '[data-theme="dark"] .auth-photo-page',
 ]);
@@ -78,16 +79,6 @@ function getCustomProperties(block: string): Record<string, string> {
       match[2].trim(),
     ]),
   );
-}
-
-function resolveThemeColor(
-  theme: Record<string, string>,
-  token: string,
-): string {
-  const value = theme[token];
-  const alias = value?.match(/^var\((--[\w-]+)\)$/)?.[1];
-
-  return alias ? resolveThemeColor(theme, alias) : value;
 }
 
 function getSource(path: string): string {
@@ -342,23 +333,36 @@ describe("authenticated theme contract", () => {
     }
   });
 
-  it("keeps the workspace CTA semantic and readable in both themes", () => {
+  it("keeps the workspace arrival palette isolated and readable", () => {
+    const workspacePalette = getCustomProperties(
+      getBlock(globalsCss, ".workspace-arrival-page"),
+    );
     const workspaceSource = getSource("src/app/workspace/page.tsx");
 
-    expect(workspaceSource).toMatch(/bg-accent[^"\n]*text-background/);
-    expect(workspaceSource).not.toMatch(/bg-accent[^"\n]*text-white/);
-
-    for (const selector of [":root", '[data-theme="dark"]']) {
-      const theme = getCustomProperties(getBlock(globalsCss, selector));
-
-      expect(
-        getContrastRatio(
-          resolveThemeColor(theme, "--background"),
-          resolveThemeColor(theme, "--accent"),
-        ),
-        `${selector} workspace CTA contrast`,
-      ).toBeGreaterThanOrEqual(4.5);
-    }
+    expect(workspacePalette).toMatchObject({
+      "--workspace-arrival-bg": "#0a1622",
+      "--workspace-arrival-fg": "#f4f7fa",
+      "--workspace-arrival-action": "#8fb8ff",
+      "--workspace-arrival-action-fg": "#0a1622",
+    });
+    expect(
+      getContrastRatio(
+        workspacePalette["--workspace-arrival-fg"],
+        workspacePalette["--workspace-arrival-bg"],
+      ),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      getContrastRatio(
+        workspacePalette["--workspace-arrival-action-fg"],
+        workspacePalette["--workspace-arrival-action"],
+      ),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(workspaceSource).toContain(
+      "bg-[var(--workspace-arrival-action)]",
+    );
+    expect(workspaceSource).toContain(
+      "text-[var(--workspace-arrival-action-fg)]",
+    );
   });
 
   it("exports every semantic token through the Tailwind theme", () => {

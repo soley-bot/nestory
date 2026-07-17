@@ -120,6 +120,25 @@
   --landing-inverse-accent: rgb(248 250 252 / 72%);
 }
 
+.workspace-arrival-page {
+  --workspace-arrival-bg: #0a1622;
+  --workspace-arrival-fg: #f4f7fa;
+  --workspace-arrival-muted: rgb(244 247 250 / 68%);
+  --workspace-arrival-line: rgb(244 247 250 / 16%);
+  --workspace-arrival-card: rgb(10 22 34 / 78%);
+  --workspace-arrival-action: #8fb8ff;
+  --workspace-arrival-action-hover: #a7c8ff;
+  --workspace-arrival-action-fg: #0a1622;
+  --workspace-arrival-focus: #f4f7fa;
+  --workspace-arrival-scrim:
+    linear-gradient(90deg, rgb(4 11 19 / 18%) 0%, rgb(4 11 19 / 36%) 48%, rgb(4 11 19 / 80%) 100%),
+    linear-gradient(0deg, rgb(4 11 19 / 38%) 0%, rgb(4 11 19 / 8%) 55%, rgb(4 11 19 / 24%) 100%);
+}
+
+.workspace-arrival-scrim {
+  background: var(--workspace-arrival-scrim);
+}
+
 .auth-photo-page {
   --auth-page-fg: #0f172a;
   --auth-page-muted: rgb(15 23 42 / 74%);

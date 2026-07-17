@@ -46,4 +46,20 @@ describe("WorkspacePage", () => {
     expect(html).not.toContain("<nav");
     expect(html).not.toContain("Dashboard");
   });
+
+  it("renders the approved cinematic workspace arrival composition", async () => {
+    requireWorkspaceContext.mockResolvedValue({
+      organizationName: "Riverside Operations",
+      role: "admin",
+    });
+
+    const html = renderToStaticMarkup(await WorkspacePage());
+
+    expect(html).toContain("workspace-arrival-page");
+    expect(html).toContain("workspace-arrival-image");
+    expect(html).toContain("workspace-arrival-scrim");
+    expect(html).toContain("workspace-arrival-card");
+    expect(html).toContain("login-property-building-blue-hour.png");
+    expect(html).toContain('alt=""');
+  });
 });
