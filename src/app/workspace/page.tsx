@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { ThemeToggle } from "@/components/theme-toggle";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 import { getWorkspaceEntryPath } from "@/lib/auth/workspace-entry";
 
@@ -27,10 +28,16 @@ export default async function WorkspacePage() {
         className="workspace-arrival-scrim absolute inset-0 -z-10"
       />
 
+      <header className="absolute inset-x-0 top-0 z-20">
+        <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-end px-6 pt-7 sm:px-10 lg:px-14">
+          <ThemeToggle className="text-[var(--workspace-arrival-muted)] hover:bg-[var(--workspace-arrival-action)] hover:text-[var(--workspace-arrival-fg)]" />
+        </div>
+      </header>
+
       <div className="grid w-full max-w-[1180px] place-items-center px-4 py-10 sm:px-8 lg:grid-cols-[minmax(0,1fr)_430px] lg:gap-16 lg:px-14">
         <section
           aria-labelledby="workspace-entry-title"
-          className="workspace-arrival-card w-full max-w-md rounded-lg border border-[var(--workspace-arrival-line)] bg-[var(--workspace-arrival-card)] p-6 shadow-[0_24px_80px_rgb(0_0_0/0.42)] backdrop-blur-xl lg:col-start-2"
+          className="workspace-arrival-card w-full max-w-md rounded-lg border border-[var(--workspace-arrival-line)] bg-[var(--workspace-arrival-card)] p-6 shadow-[0_20px_70px_var(--workspace-arrival-shadow)] backdrop-blur-xl lg:col-start-2"
         >
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--workspace-arrival-muted)]">
             {formatRole(context.role)} workspace

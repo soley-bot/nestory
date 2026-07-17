@@ -2,7 +2,13 @@
 
 import { Moon, Sun } from "lucide-react";
 
-export function AuthThemeToggle() {
+import { cn } from "@/lib/utils";
+
+type ThemeToggleProps = {
+  className?: string;
+};
+
+export function ThemeToggle({ className }: ThemeToggleProps) {
   function toggleTheme() {
     const currentTheme =
       document.documentElement.dataset.theme === "dark" ? "dark" : "light";
@@ -15,7 +21,10 @@ export function AuthThemeToggle() {
   return (
     <button
       aria-label="Toggle color theme"
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[var(--auth-page-subtle)] outline-none transition-colors hover:bg-[var(--auth-page-line)] hover:text-[var(--auth-page-fg)] focus-visible:ring-2 focus-visible:ring-focus-ring"
+      className={cn(
+        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
+        className,
+      )}
       onClick={toggleTheme}
       title="Toggle color theme"
       type="button"

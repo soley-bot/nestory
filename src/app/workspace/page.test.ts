@@ -43,7 +43,8 @@ describe("WorkspacePage", () => {
     expect(html).toContain("Manager workspace");
     expect(html.match(/<h1/g)).toHaveLength(1);
     expect(html.match(/<a\b/g)).toHaveLength(1);
-    expect(html.match(/<button\b/g) ?? []).toHaveLength(0);
+    expect(html.match(/<button\b/g) ?? []).toHaveLength(1);
+    expect(html).toContain('aria-label="Toggle color theme"');
     expect(html).not.toContain("<aside");
     expect(html).not.toContain("<nav");
     expect(html).not.toContain("Dashboard");
@@ -61,6 +62,7 @@ describe("WorkspacePage", () => {
     expect(html).toContain("workspace-arrival-image");
     expect(html).toContain("workspace-arrival-scrim");
     expect(html).toContain("workspace-arrival-card");
+    expect(html).toContain("<header");
     expect(html).toContain("login-property-building-blue-hour.png");
     expect(html).toContain('alt=""');
     expect(html).toContain(

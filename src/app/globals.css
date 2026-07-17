@@ -44,11 +44,11 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --surface-canvas: #0e1413;
-  --surface-work: #141c1a;
-  --surface-raised: #1b2522;
-  --state-selected: #203a34;
-  --state-selected-strong: #86bfb0;
+  --surface-canvas: #111314;
+  --surface-work: #17191a;
+  --surface-raised: #202324;
+  --state-selected: #2b2f30;
+  --state-selected-strong: #b5bbb8;
   --state-attention: #d6a85f;
   --state-attention-foreground: #d6a85f;
   --state-attention-soft: #332414;
@@ -56,16 +56,16 @@
   --state-danger-soft: #381b20;
   --state-success: #7ccf9b;
   --state-success-soft: #163323;
-  --focus-ring: #9fd7c8;
+  --focus-ring: #b5bbb8;
   --record-spine: var(--state-selected-strong);
-  --border-neutral: #30403b;
+  --border-neutral: #343839;
   --type-body: 14px;
   --type-table: 13px;
   --type-table-header: 11px;
   --background: var(--surface-canvas);
-  --foreground: #edf3f0;
-  --foreground-muted: #bdc9c5;
-  --foreground-subtle: #93a19c;
+  --foreground: #eef0ef;
+  --foreground-muted: #b8bdba;
+  --foreground-subtle: #a1a7a4;
   --surface: var(--surface-work);
   --surface-muted: var(--surface-canvas);
   --border: var(--border-neutral);
@@ -80,8 +80,8 @@
   --success: var(--state-success);
   --success-soft: var(--state-success-soft);
   --chart-accent: var(--state-selected-strong);
-  --chart-neutral: #7f8a96;
-  --chart-track: #26332f;
+  --chart-neutral: #858b88;
+  --chart-track: #2b2f30;
 }
 
 .landing-page {
@@ -121,6 +121,23 @@
 }
 
 .workspace-arrival-page {
+  --workspace-arrival-bg: #f3f5f4;
+  --workspace-arrival-fg: #17211f;
+  --workspace-arrival-muted: #5d6a66;
+  --workspace-arrival-line: rgb(226 232 240 / 88%);
+  --workspace-arrival-card: rgb(243 245 244 / 90%);
+  --workspace-arrival-action: #17211f;
+  --workspace-arrival-action-hover: rgb(23 33 31 / 90%);
+  --workspace-arrival-action-border: #17211f;
+  --workspace-arrival-action-fg: #f3f5f4;
+  --workspace-arrival-focus: #2f7d71;
+  --workspace-arrival-shadow: rgb(0 0 0 / 18%);
+  --workspace-arrival-scrim:
+    linear-gradient(90deg, rgb(239 241 238 / 80%) 0%, rgb(239 241 238 / 64%) 48%, rgb(239 241 238 / 40%) 100%),
+    linear-gradient(0deg, rgb(239 241 238 / 6%), rgb(239 241 238 / 6%));
+}
+
+[data-theme="dark"] .workspace-arrival-page {
   --workspace-arrival-bg: #0a1622;
   --workspace-arrival-fg: #f4f7fa;
   --workspace-arrival-muted: rgb(244 247 250 / 68%);
@@ -131,6 +148,7 @@
   --workspace-arrival-action-border: rgb(244 247 250 / 18%);
   --workspace-arrival-action-fg: #f4f7fa;
   --workspace-arrival-focus: #f4f7fa;
+  --workspace-arrival-shadow: rgb(0 0 0 / 42%);
   --workspace-arrival-scrim:
     linear-gradient(90deg, rgb(4 11 19 / 18%) 0%, rgb(4 11 19 / 36%) 48%, rgb(4 11 19 / 80%) 100%),
     linear-gradient(0deg, rgb(4 11 19 / 38%) 0%, rgb(4 11 19 / 8%) 55%, rgb(4 11 19 / 24%) 100%);
@@ -142,21 +160,37 @@
 
 .auth-photo-page {
   --auth-page-fg: #0f172a;
-  --auth-page-muted: rgb(15 23 42 / 74%);
-  --auth-page-subtle: rgb(15 23 42 / 58%);
+  --auth-page-muted: #34413d;
+  --auth-page-subtle: #4a5753;
   --auth-page-line: rgb(15 23 42 / 13%);
+  --auth-page-card-bg: rgb(243 245 244 / 90%);
   --auth-page-card-border: rgb(226 232 240 / 88%);
+  --auth-page-input-bg: #ffffff;
+  --auth-page-input-border: #d7ddda;
   --auth-page-scrim:
-    linear-gradient(90deg, rgb(246 247 248 / 94%) 0%, rgb(246 247 248 / 82%) 48%, rgb(246 247 248 / 62%) 100%),
-    linear-gradient(0deg, rgb(246 247 248 / 10%), rgb(246 247 248 / 10%));
+    linear-gradient(90deg, rgb(239 241 238 / 80%) 0%, rgb(239 241 238 / 64%) 48%, rgb(239 241 238 / 40%) 100%),
+    linear-gradient(0deg, rgb(239 241 238 / 6%), rgb(239 241 238 / 6%));
 }
 
 [data-theme="dark"] .auth-photo-page {
+  --background: #111314;
+  --foreground: #eef0ef;
+  --foreground-muted: #b7bcba;
+  --foreground-subtle: #8f9694;
+  --surface: #1b1e1f;
+  --surface-muted: #141617;
+  --border: #363b3c;
+  --muted: #8f9694;
+  --accent: #b4bcba;
+  --focus-ring: #b4bcba;
   --auth-page-fg: #f8fafc;
   --auth-page-muted: rgb(248 250 252 / 74%);
   --auth-page-subtle: rgb(248 250 252 / 58%);
   --auth-page-line: rgb(248 250 252 / 16%);
-  --auth-page-card-border: rgb(148 163 184 / 22%);
+  --auth-page-card-bg: rgb(22 24 25 / 94%);
+  --auth-page-card-border: rgb(148 163 184 / 18%);
+  --auth-page-input-bg: #1b1e1f;
+  --auth-page-input-border: #363b3c;
   --auth-page-scrim:
     linear-gradient(90deg, rgb(15 20 27 / 91%) 0%, rgb(15 20 27 / 76%) 48%, rgb(15 20 27 / 58%) 100%),
     linear-gradient(0deg, rgb(15 20 27 / 18%), rgb(15 20 27 / 18%));
@@ -242,6 +276,11 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+.auth-photo-page .auth-shell-card input {
+  background: var(--auth-page-input-bg);
+  border-color: var(--auth-page-input-border);
 }
 
 .auth-photo-page .auth-shell-context {

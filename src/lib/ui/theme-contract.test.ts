@@ -53,6 +53,7 @@ const paletteScopes = new Set([
   ".landing-page",
   '[data-theme="dark"] .landing-page',
   ".workspace-arrival-page",
+  '[data-theme="dark"] .workspace-arrival-page',
   ".auth-photo-page",
   '[data-theme="dark"] .auth-photo-page',
 ]);
@@ -215,14 +216,18 @@ describe("authenticated theme contract", () => {
       "--type-table-header": "11px",
     });
     expect(darkTheme).toMatchObject({
-      "--surface-canvas": "#0e1413",
-      "--surface-work": "#141c1a",
-      "--surface-raised": "#1b2522",
-      "--state-selected": "#203a34",
-      "--state-selected-strong": "#86bfb0",
+      "--surface-canvas": "#111314",
+      "--surface-work": "#17191a",
+      "--surface-raised": "#202324",
+      "--state-selected": "#2b2f30",
+      "--state-selected-strong": "#b5bbb8",
       "--state-attention": "#d6a85f",
       "--state-danger": "#ff8a80",
-      "--focus-ring": "#9fd7c8",
+      "--focus-ring": "#b5bbb8",
+      "--border-neutral": "#343839",
+      "--foreground": "#eef0ef",
+      "--foreground-muted": "#b8bdba",
+      "--foreground-subtle": "#a1a7a4",
       "--record-spine": "var(--state-selected-strong)",
       "--type-body": "14px",
       "--type-table": "13px",
@@ -334,29 +339,80 @@ describe("authenticated theme contract", () => {
   });
 
   it("keeps the workspace arrival palette isolated and readable", () => {
-    const workspacePalette = getCustomProperties(
+    const lightWorkspacePalette = getCustomProperties(
       getBlock(globalsCss, ".workspace-arrival-page"),
+    );
+    const darkWorkspacePalette = getCustomProperties(
+      getBlock(globalsCss, '[data-theme="dark"] .workspace-arrival-page'),
     );
     const workspaceSource = getSource("src/app/workspace/page.tsx");
 
-    expect(workspacePalette).toMatchObject({
+    expect(lightWorkspacePalette).toMatchObject({
+      "--workspace-arrival-bg": "#f3f5f4",
+      "--workspace-arrival-fg": "#17211f",
+      "--workspace-arrival-action": "#17211f",
+      "--workspace-arrival-action-fg": "#f3f5f4",
+      "--workspace-arrival-card": "rgb(243 245 244 / 90%)",
+      "--workspace-arrival-line": "rgb(226 232 240 / 88%)",
+    });
+    expect(darkWorkspacePalette).toMatchObject({
       "--workspace-arrival-bg": "#0a1622",
       "--workspace-arrival-fg": "#f4f7fa",
       "--workspace-arrival-action": "rgb(244 247 250 / 8%)",
-      "--workspace-arrival-action-hover": "rgb(244 247 250 / 14%)",
-      "--workspace-arrival-action-border": "rgb(244 247 250 / 18%)",
       "--workspace-arrival-action-fg": "#f4f7fa",
     });
+    const authPhotoPalette = getCustomProperties(
+      getBlock(globalsCss, ".auth-photo-page"),
+    );
+    expect(authPhotoPalette).toMatchObject({
+      "--auth-page-card-bg": "rgb(243 245 244 / 90%)",
+      "--auth-page-input-bg": "#ffffff",
+      "--auth-page-input-border": "#d7ddda",
+      "--auth-page-muted": "#34413d",
+      "--auth-page-subtle": "#4a5753",
+    });
+    const darkAuthPhotoPalette = getCustomProperties(
+      getBlock(globalsCss, '[data-theme="dark"] .auth-photo-page'),
+    );
+    expect(darkAuthPhotoPalette).toMatchObject({
+      "--auth-page-card-bg": "rgb(22 24 25 / 94%)",
+      "--auth-page-input-bg": "#1b1e1f",
+      "--auth-page-input-border": "#363b3c",
+      "--background": "#111314",
+      "--border": "#363b3c",
+      "--foreground": "#eef0ef",
+      "--surface": "#1b1e1f",
+    });
+    expect(lightWorkspacePalette["--workspace-arrival-scrim"]).toBe(
+      authPhotoPalette["--auth-page-scrim"],
+    );
+    expect(lightWorkspacePalette["--workspace-arrival-scrim"]).toContain(
+      "rgb(239 241 238 / 80%)",
+    );
+    expect(
+      getContrastRatio(
+        lightWorkspacePalette["--workspace-arrival-fg"],
+        lightWorkspacePalette["--workspace-arrival-bg"],
+      ),
+      "light workspace text contrast",
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      getContrastRatio(
+        lightWorkspacePalette["--workspace-arrival-action-fg"],
+        lightWorkspacePalette["--workspace-arrival-action"],
+      ),
+      "light workspace action contrast",
+    ).toBeGreaterThanOrEqual(4.5);
     for (const foregroundToken of [
       "--workspace-arrival-fg",
       "--workspace-arrival-action-fg",
     ]) {
       expect(
         getContrastRatio(
-          workspacePalette[foregroundToken],
-          workspacePalette["--workspace-arrival-bg"],
+          darkWorkspacePalette[foregroundToken],
+          darkWorkspacePalette["--workspace-arrival-bg"],
         ),
-        `${foregroundToken} contrast on workspace arrival background`,
+        `${foregroundToken} contrast on dark workspace background`,
       ).toBeGreaterThanOrEqual(4.5);
     }
     expect(workspaceSource).toContain(

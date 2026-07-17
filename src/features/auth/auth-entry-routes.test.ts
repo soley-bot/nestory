@@ -72,7 +72,7 @@ describe("entry experience contracts", () => {
     const login = readSource("src/app/(auth)/login/page.tsx");
     const shell = readSource("src/features/auth/components/auth-page-shell.tsx");
     const themeToggle = readSource(
-      "src/features/auth/components/auth-theme-toggle.tsx",
+      "src/components/theme-toggle.tsx",
     );
     const setup = readSource(
       "src/features/auth/components/setup-organization-form.tsx",
@@ -82,8 +82,8 @@ describe("entry experience contracts", () => {
     expect(login).toContain('contextTitle="See the full record."');
     expect(login).toContain("history stay connected to each property");
     expect(shell).not.toContain("contextItems.map");
-    expect(shell).toContain("bg-surface-muted/90");
-    expect(shell).toContain("<AuthThemeToggle />");
+    expect(shell).toContain("bg-[var(--auth-page-card-bg)]");
+    expect(shell).toContain("<ThemeToggle");
     expect(themeToggle).toContain('localStorage.setItem("nestory-theme"');
     expect(setup).not.toContain("After setup");
   });

@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { NestoryLogo } from "@/components/brand/nestory-logo";
-import { AuthThemeToggle } from "@/features/auth/components/auth-theme-toggle";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 type AuthPageShellProps = {
@@ -94,7 +94,7 @@ export function AuthPageShell({
             >
               {switchLabel ?? "Home"}
             </Link>
-            <AuthThemeToggle />
+            <ThemeToggle className="text-[var(--auth-page-subtle)] hover:bg-[var(--auth-page-line)] hover:text-[var(--auth-page-fg)]" />
           </div>
         </div>
       </header>
@@ -119,7 +119,7 @@ export function AuthPageShell({
           </p>
           <p
             className={cn(
-              "mt-5 max-w-md text-sm leading-6",
+              "mt-5 max-w-md text-sm font-medium leading-6",
               visualSrc ? "text-[var(--auth-page-muted)]" : "text-foreground-muted",
             )}
           >
@@ -143,7 +143,7 @@ export function AuthPageShell({
             className={cn(
               "auth-shell-card box-border w-full rounded-lg border p-5 sm:p-6",
               visualSrc
-                ? "border-[color:var(--auth-page-card-border)] bg-surface-muted/90 shadow-[0_20px_70px_rgb(0_0_0/0.16)] backdrop-blur-xl"
+                ? "border-[color:var(--auth-page-card-border)] bg-[var(--auth-page-card-bg)] shadow-[0_20px_70px_rgb(0_0_0/0.16)] backdrop-blur-xl"
                 : "border-border bg-surface shadow-sm",
             )}
           >
