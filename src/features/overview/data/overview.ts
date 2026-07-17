@@ -5,6 +5,7 @@ import type {
   OverviewMaintenancePoint,
   OverviewMetric,
   OverviewOccupancyPoint,
+  OverviewRecordPoint,
   OverviewScreenData,
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
@@ -45,6 +46,7 @@ type LeaseRow = {
   lease_end_date: string;
   primary_tenant_person_id: string | null;
   unit_id: string | null;
+  units: { property_id: string } | null;
 };
 
 type LedgerWindowRow = {
@@ -599,6 +601,13 @@ export async function getOverviewScreenData(
       activeProperties,
       currentLeasedUnitIds,
       operationalUnits,
+    }),
+    recordsByProperty: buildRecordsByProperty({
+      activeProperties,
+      documents,
+      missingOwnerLinks,
+      missingTenantLeases,
+      performanceRows: portfolioPerformance.rows,
     }),
     quickActions: [
       { href: "/import", label: "Import data" },
@@ -1258,6 +1267,50 @@ function buildMaintenanceByProperty({
     );
 }
 
+function buildRecordsByProperty({
+  activeProperties,
+  documents,
+  missingOwnerLinks,
+  missingTenantLeases,
+  performanceRows,
+}: {
+  activeProperties: PropertyRow[];
+  documents: Array<{ property_id: string | null }>;
+  missingOwnerLinks: PropertyRow[];
+  missingTenantLeases: LeaseRow[];
+  performanceRows: OverviewScreenData["propertyPerformance"]["rows"];
+}): OverviewRecordPoint[] {
+  const documentCountByProperty = countBy(
+    documents.flatMap((document) => document.property_id ? [document.property_id] : []),
+  );
+  const missingTenantLinksByProperty = countBy(
+    missingTenantLeases.flatMap((lease) => lease.units?.property_id ? [lease.units.property_id] : []),
+  );
+  const missingOwnerIds = new Set(missingOwnerLinks.map((property) => property.id));
+  const performanceByProperty = new Map(performanceRows.map((row) => [row.propertyId, row]));
+
+  return activeProperties
+    .map((property) => {
+      const performance = performanceByProperty.get(property.id);
+      return {
+        documentCount: documentCountByProperty.get(property.id) ?? 0,
+        href: `/properties/${property.id}`,
+        label: `${property.code} / ${property.name}`,
+        missingTenantLinks: missingTenantLinksByProperty.get(property.id) ?? 0,
+        ownerLinked: !missingOwnerIds.has(property.id),
+        statementBlockers: performance?.statementBlockers ?? 0,
+        unitCount: performance?.unitCount ?? 0,
+      };
+    })
+    .toSorted(
+      (first, second) =>
+        second.statementBlockers - first.statementBlockers ||
+        Number(first.ownerLinked) - Number(second.ownerLinked) ||
+        second.missingTenantLinks - first.missingTenantLinks ||
+        first.label.localeCompare(second.label),
+    );
+}
+
 function compareMaintenanceTasks(first: MaintenanceTaskRow, second: MaintenanceTaskRow) {
   return (
     maintenancePriorityRank(second.priority) - maintenancePriorityRank(first.priority) ||
@@ -1272,6 +1325,12 @@ function maintenancePriorityRank(priority: string) {
   if (priority === "high") return 3;
   if (priority === "normal") return 2;
   return 1;
+}
+
+function countBy(values: string[]) {
+  const counts = new Map<string, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return counts;
 }
 
 function buildLedgerFlowChart({

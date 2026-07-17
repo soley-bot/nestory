@@ -444,7 +444,7 @@ function CollapsedDesktopSidebar({
               aria-label={destination.label}
               className={cn(
                 "grid h-8 w-8 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
-                isActive && "bg-accent-soft text-foreground",
+                isActive && "bg-surface-muted text-foreground",
               )}
               href={destination.href}
               key={destination.id}
@@ -475,7 +475,7 @@ function GlobalDestinationLink({
       aria-current={isActive ? "page" : undefined}
       className={cn(
         "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
-        isActive && "bg-accent-soft font-semibold text-foreground",
+        isActive && "bg-surface-muted font-semibold text-foreground",
       )}
       href={destination.href}
       prefetch={false}

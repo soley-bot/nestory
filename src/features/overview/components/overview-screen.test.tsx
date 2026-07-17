@@ -13,25 +13,21 @@ import type {
 afterEach(cleanup);
 
 describe("OverviewScreen", () => {
-  it.each([
-    ["records", "Records priorities", "Statement blockers", "Missing owner links"],
-  ] as const)("renders the %s lens with the shared operating grammar", (lens, queue, first, second) => {
-    render(
-      <OverviewScreen
-        data={operatingWorkspaceData}
-        query={{ ...portfolioQuery, lens }}
-      />,
-    );
+  it("uses real property record checks and moves readiness detail into a modal", () => {
+    render(<OverviewScreen data={operatingWorkspaceData} query={{ ...portfolioQuery, lens: "records" }} />);
 
-    expect(screen.getByRole("link", { name: "Portfolio" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Property finance" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: queue })).toBeTruthy();
-    expect(screen.getAllByText(first).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(second).length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "Attention and readiness" })).toBeTruthy();
-    expect(screen.queryByText("Company P&L")).toBeNull();
-    expect(screen.queryByText("Company costs")).toBeNull();
-    expect(screen.queryByText("Journal health")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Record readiness" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Attention and readiness" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Supporting evidence" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Central Residence/ }));
+
+    const dialog = screen.getByRole("dialog", { name: "Central Residence" });
+    expect(within(dialog).getByText("Owner linked").parentElement?.textContent).toContain("No");
+    expect(within(dialog).getByText("Missing tenant links").parentElement?.textContent).toContain("1");
+    expect(within(dialog).getByText("Documents").parentElement?.textContent).toContain("3");
+    expect(within(dialog).getByRole("link", { name: /Open property record/ }).getAttribute("href")).toBe(
+      "/properties/prop-1",
+    );
   });
 
   it("uses exact lens counts and preserves supported destination state", () => {
@@ -432,6 +428,7 @@ const emptyWorkspaceData: OverviewScreenData = {
   maintenanceByProperty: [],
   metrics: [],
   occupancyByProperty: [],
+  recordsByProperty: [],
   quickActions: [
     { href: "/import", label: "Import data" },
     { href: "/properties?action=create", label: "Add property" },
@@ -591,6 +588,17 @@ const operatingWorkspaceData: OverviewScreenData = {
       totalUnits: 10,
       unoccupiedUnits: 1,
       vacantUnits: 1,
+    },
+  ],
+  recordsByProperty: [
+    {
+      documentCount: 3,
+      href: "/properties/prop-1",
+      label: "Central Residence",
+      missingTenantLinks: 1,
+      ownerLinked: false,
+      statementBlockers: 0,
+      unitCount: 10,
     },
   ],
   quickActions: [

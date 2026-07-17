@@ -160,6 +160,16 @@ export type OverviewMaintenancePoint = {
   urgentCount: number;
 };
 
+export type OverviewRecordPoint = {
+  documentCount: number;
+  href: string;
+  label: string;
+  missingTenantLinks: number;
+  ownerLinked: boolean;
+  statementBlockers: number;
+  unitCount: number;
+};
+
 export type OverviewQuickAction = {
   href: string;
   label: string;
@@ -186,6 +196,7 @@ export type OverviewScreenData = {
   metrics: OverviewMetric[];
   occupancyByProperty: OverviewOccupancyPoint[];
   propertyPerformance: OverviewPropertyPerformance;
+  recordsByProperty: OverviewRecordPoint[];
   quickActions: OverviewQuickAction[];
   recentChanges: RecentChange[];
   workspaceSetup: OverviewWorkspaceSetup;
