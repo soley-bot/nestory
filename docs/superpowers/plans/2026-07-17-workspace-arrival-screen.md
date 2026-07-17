@@ -410,4 +410,3 @@ Report:
 - Exact commands run and their results.
 - Browser viewports checked and any limitation that could not be verified.
 - Branch name and the two implementation commit SHAs.
-
