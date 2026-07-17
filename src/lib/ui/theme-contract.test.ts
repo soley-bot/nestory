@@ -365,6 +365,20 @@ describe("authenticated theme contract", () => {
     );
   });
 
+  it("keeps workspace arrival motion atmospheric and motion-safe", () => {
+    expect(getBlock(globalsCss, ".workspace-arrival-image")).toMatch(
+      /animation:\s*nestory-workspace-drift 14s/,
+    );
+    expect(getBlock(globalsCss, ".workspace-arrival-card")).toMatch(
+      /animation:\s*nestory-workspace-card-in 680ms/,
+    );
+    expect(globalsCss).toContain("@keyframes nestory-workspace-drift");
+    expect(globalsCss).toContain("@keyframes nestory-workspace-card-in");
+    expect(globalsCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.workspace-arrival-image,[\s\S]*\.workspace-arrival-card[\s\S]*animation:\s*none !important/,
+    );
+  });
+
   it("exports every semantic token through the Tailwind theme", () => {
     expect(getCustomProperties(getBlock(globalsCss, "@theme inline"))).toMatchObject({
       "--color-surface-canvas": "var(--surface-canvas)",
