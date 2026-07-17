@@ -69,12 +69,22 @@ describe("entry experience contracts", () => {
   });
 
   it("keeps auth pages focused on the form instead of a label explainer", () => {
+    const login = readSource("src/app/(auth)/login/page.tsx");
     const shell = readSource("src/features/auth/components/auth-page-shell.tsx");
+    const themeToggle = readSource(
+      "src/features/auth/components/auth-theme-toggle.tsx",
+    );
     const setup = readSource(
       "src/features/auth/components/setup-organization-form.tsx",
     );
 
+    expect(login).toContain('contextLabel="Property operations"');
+    expect(login).toContain('contextTitle="See the full record."');
+    expect(login).toContain("history stay connected to each property");
     expect(shell).not.toContain("contextItems.map");
+    expect(shell).toContain("bg-surface-muted/90");
+    expect(shell).toContain("<AuthThemeToggle />");
+    expect(themeToggle).toContain('localStorage.setItem("nestory-theme"');
     expect(setup).not.toContain("After setup");
   });
 

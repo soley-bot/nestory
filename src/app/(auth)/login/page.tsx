@@ -4,8 +4,9 @@ import { LoginForm } from "@/features/auth/components/login-form";
 export default function LoginPage() {
   return (
     <AuthPageShell
-      contextText="Every lease, rent movement, maintenance case, and document stays tied to the property it belongs to."
-      contextTitle="Return to the record."
+      contextLabel="Property operations"
+      contextText="Leases, rent, maintenance, documents, and history stay connected to each property."
+      contextTitle="See the full record."
       description="Continue to your workspace."
       switchHref="/signup"
       switchLabel="Create workspace"
