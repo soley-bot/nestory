@@ -315,7 +315,7 @@ function PropertyPreviewButton({
       >
         {row.label}
       </button>
-      <span className="mt-0.5 block text-[11px] text-foreground-muted">
+      <span className="mt-0.5 block text-xs text-foreground-muted">
         Preview property
       </span>
     </div>

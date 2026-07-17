@@ -64,7 +64,7 @@ export function FinancePropertyPreviewList({
           <h2 className="text-sm font-semibold">{copy.title} by property</h2>
           <p className="mt-0.5 text-xs text-foreground-muted">{description}</p>
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_140px_200px_20px] gap-3 border-b border-border px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-foreground-muted max-md:hidden">
+        <div className="grid grid-cols-[minmax(0,1fr)_140px_200px_20px] gap-3 border-b border-border px-3 py-2 text-xs font-medium uppercase tracking-wide text-foreground-muted max-md:hidden">
           <span>Property</span>
           <span>{copy.metricLabel}</span>
           <span>Operating context</span>

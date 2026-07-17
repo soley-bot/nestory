@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { buildOverviewHref } from "@/features/overview/overview.filters";
+import { OverviewMonthPicker } from "@/features/overview/components/overview-month-picker";
 import type {
   OverviewLens,
   OverviewViewQuery,
@@ -29,11 +30,14 @@ export function OverviewHeader({
     () => true,
     () => false,
   );
-  const monthLabel = formatMonth(query.month);
+  const activeLensLabel = lenses.find((lens) => lens.value === query.lens)?.label ?? "Portfolio";
   const breadcrumb = (
     <PageBreadcrumb
-      current={monthLabel}
-      items={[{ href: `/overview?month=${query.month}`, label: "Overview" }]}
+      current={<OverviewMonthPicker query={query} />}
+      items={[
+        { href: `/overview?month=${query.month}`, label: "Overview" },
+        { href: buildLensHref(query, query.lens), label: activeLensLabel },
+      ]}
     />
   );
   const target = mounted ? document.getElementById("workspace-page-tools") : null;
@@ -72,13 +76,4 @@ export function OverviewHeader({
 
 function buildLensHref(query: OverviewViewQuery, lens: OverviewLens) {
   return buildOverviewHref(query, { lens });
-}
-
-function formatMonth(month: string) {
-  const [year, monthNumber] = month.split("-").map(Number);
-  return new Intl.DateTimeFormat("en", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }

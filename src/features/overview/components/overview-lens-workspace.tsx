@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import {
-  OverviewLeaseEndingDonut,
-  OverviewOccupancyBars,
-} from "@/features/overview/components/overview-charts";
+import { OverviewOccupancyBars } from "@/features/overview/components/overview-charts";
+import { LeasingPropertyPreviewList } from "@/features/overview/components/leasing-property-preview-list";
+import { MaintenancePropertyPreviewList } from "@/features/overview/components/maintenance-property-preview-list";
 import type {
   OverviewAttentionItem,
   OverviewLens,
@@ -26,7 +25,7 @@ export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenDat
   const config = getLensConfig(data, query, lens);
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <section aria-label={`${config.title} metrics`} className="grid overflow-hidden rounded-lg border border-border bg-surface sm:grid-cols-2 xl:grid-cols-4">
         {config.metrics.map((metric) => (
           <Link className="border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-surface-muted sm:border-r xl:border-b-0" href={metric.href} key={metric.label}>
@@ -36,60 +35,72 @@ export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenDat
         ))}
       </section>
 
-      <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface">
-          <div className="border-b border-border px-3 py-2.5">
-            <h2 className="text-sm font-semibold text-foreground">{config.title} priorities</h2>
-            <p className="mt-0.5 text-xs text-foreground-muted">Ranked operating work from current portfolio data.</p>
-          </div>
-          <div className="hidden divide-y divide-border sm:block">
-            {config.queue.map((item) => (
-              <Link className="grid gap-1 px-3 py-3 hover:bg-surface-muted sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" href={item.href} key={item.label}>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">{item.label}</p>
-                  <p className="mt-0.5 text-xs text-foreground-muted">{item.detail}</p>
-                </div>
-                <span className="text-xs font-semibold tabular-nums text-foreground">{item.value}</span>
-              </Link>
-            ))}
-          </div>
-          <ul
-            aria-label={`${config.title} priority cards`}
-            className="divide-y divide-border sm:hidden"
-          >
-            {config.queue.map((item) => (
-              <li key={item.label}>
-                <Link className="block px-3 py-3" href={item.href}>
-                  <p className="text-sm font-medium">{item.label}</p>
-                  <p className="mt-1 text-xs text-foreground-muted">
-                    {item.detail}
-                  </p>
-                  <p className="mt-1 text-xs font-semibold tabular-nums">
-                    {item.value}
-                  </p>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
+      {lens === "leasing" ? (
+        <LeasingPropertyPreviewList
+          expiringLeaseCount={data.leaseRiskCount}
+          month={query.month}
+          rows={data.occupancyByProperty}
+        />
+      ) : lens === "maintenance" ? (
+        <MaintenancePropertyPreviewList rows={data.maintenanceByProperty} />
+      ) : (
+        <>
+          <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
+            <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface">
+              <div className="border-b border-border px-3 py-2.5">
+                <h2 className="text-sm font-semibold text-foreground">{config.title} priorities</h2>
+                <p className="mt-0.5 text-xs text-foreground-muted">Ranked operating work from current portfolio data.</p>
+              </div>
+              <div className="hidden divide-y divide-border sm:block">
+                {config.queue.map((item) => (
+                  <Link className="grid gap-1 px-3 py-3 hover:bg-surface-muted sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" href={item.href} key={item.label}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{item.label}</p>
+                      <p className="mt-0.5 text-xs text-foreground-muted">{item.detail}</p>
+                    </div>
+                    <span className="text-xs font-semibold tabular-nums text-foreground">{item.value}</span>
+                  </Link>
+                ))}
+              </div>
+              <ul
+                aria-label={`${config.title} priority cards`}
+                className="divide-y divide-border sm:hidden"
+              >
+                {config.queue.map((item) => (
+                  <li key={item.label}>
+                    <Link className="block px-3 py-3" href={item.href}>
+                      <p className="text-sm font-medium">{item.label}</p>
+                      <p className="mt-1 text-xs text-foreground-muted">
+                        {item.detail}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold tabular-nums">
+                        {item.value}
+                      </p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
 
-        <aside className="rounded-lg border border-border bg-surface p-3">
-          <h2 className="text-sm font-semibold text-foreground">Attention and readiness</h2>
-          <div className="mt-3 flex items-center gap-2">
-            <Badge tone={config.attentionCount > 0 ? "warning" : "success"}>{config.attentionCount} open</Badge>
-            <span className="text-xs text-foreground-muted">current checks</span>
+            <aside className="rounded-lg border border-border bg-surface p-3">
+              <h2 className="text-sm font-semibold text-foreground">Attention and readiness</h2>
+              <div className="mt-3 flex items-center gap-2">
+                <Badge tone={config.attentionCount > 0 ? "warning" : "success"}>{config.attentionCount} open</Badge>
+                <span className="text-xs text-foreground-muted">current checks</span>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-foreground-muted">{config.readiness}</p>
+              <Link className="mt-3 inline-block text-xs font-medium text-foreground underline-offset-2 hover:underline" href={config.actionHref}>{config.actionLabel}</Link>
+            </aside>
           </div>
-          <p className="mt-3 text-xs leading-5 text-foreground-muted">{config.readiness}</p>
-          <Link className="mt-3 inline-block text-xs font-medium text-foreground underline-offset-2 hover:underline" href={config.actionHref}>{config.actionLabel}</Link>
-        </aside>
-      </div>
 
-      <section className="rounded-lg border border-border bg-surface p-3">
-        <h2 className="text-sm font-semibold text-foreground">Supporting evidence</h2>
-        <div className="mt-3 h-56">
-          {lens === "leasing" ? <OverviewLeaseEndingDonut points={data.leaseEndings} /> : <OverviewOccupancyBars points={data.occupancyByProperty} />}
-        </div>
-      </section>
+          <section className="rounded-lg border border-border bg-surface p-3">
+            <h2 className="text-sm font-semibold text-foreground">Supporting evidence</h2>
+            <div className="mt-3 h-56">
+              <OverviewOccupancyBars points={data.occupancyByProperty} />
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
@@ -118,9 +129,9 @@ function getLensConfig(data: OverviewScreenData, query: OverviewViewQuery, lens:
     actionHref: destinationHref("/maintenance?review=open", query, true), actionLabel: "Open maintenance work", attentionCount: maintenanceItem?.count ?? 0,
     metrics: [
       { href: destinationHref("/maintenance?review=open", query, true), label: "Open work", value: String(maintenanceItem?.count ?? 0) },
-      { href: destinationHref("/bills-expenses?expenseType=maintenance&status=paid&dateBasis=paid", query, true), label: "Paid maintenance cost", value: "Not calculated" },
-      { href: destinationHref("/bills-expenses?expenseType=maintenance", query, true), label: "Maintenance expenses", value: "Open module" },
-      { href: "/maintenance", label: "Properties with work", value: "Open module" },
+      { href: destinationHref("/maintenance?review=overdue", query, true), label: "Overdue", value: String(data.maintenanceByProperty.reduce((sum, row) => sum + row.overdueCount, 0)) },
+      { href: destinationHref("/maintenance?review=high_priority", query, true), label: "High priority", value: String(data.maintenanceByProperty.reduce((sum, row) => sum + row.urgentCount, 0)) },
+      { href: destinationHref("/maintenance?review=open", query, true), label: "Properties with work", value: String(data.maintenanceByProperty.length) },
     ],
     queue: maintenanceItem ? attentionQueue([maintenanceItem], { detail: "", href: "", label: "", value: "" }) : [{ detail: "No open work is visible in Overview data.", href: destinationHref("/maintenance?review=open", query, true), label: "Open work", value: "0" }],
     readiness: "Maintenance cost is not separated from other paid property expenses in Overview data; open the real expense module for exact records.", title: "Maintenance",

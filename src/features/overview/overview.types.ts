@@ -141,6 +141,25 @@ export type OverviewLeaseEndingPoint = {
   label: string;
 };
 
+export type OverviewMaintenanceCase = {
+  dueDate: string | null;
+  href: string;
+  id: string;
+  priority: string;
+  status: string;
+  title: string;
+};
+
+export type OverviewMaintenancePoint = {
+  blockedCount: number;
+  cases: OverviewMaintenanceCase[];
+  href: string;
+  label: string;
+  openCount: number;
+  overdueCount: number;
+  urgentCount: number;
+};
+
 export type OverviewQuickAction = {
   href: string;
   label: string;
@@ -163,6 +182,7 @@ export type OverviewScreenData = {
   leaseRiskCount: number;
   ledgerCurrency: CurrencyCode;
   ledgerFlow: OverviewLedgerPoint[];
+  maintenanceByProperty: OverviewMaintenancePoint[];
   metrics: OverviewMetric[];
   occupancyByProperty: OverviewOccupancyPoint[];
   propertyPerformance: OverviewPropertyPerformance;

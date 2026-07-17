@@ -14,8 +14,6 @@ afterEach(cleanup);
 
 describe("OverviewScreen", () => {
   it.each([
-    ["leasing", "Leasing priorities", "Vacancy and lease gaps", "Lease expiries"],
-    ["maintenance", "Maintenance priorities", "Open work", "Paid maintenance cost"],
     ["records", "Records priorities", "Statement blockers", "Missing owner links"],
   ] as const)("renders the %s lens with the shared operating grammar", (lens, queue, first, second) => {
     render(
@@ -40,20 +38,71 @@ describe("OverviewScreen", () => {
     const query = { ...selectedPortfolioQuery, lens: "maintenance" as const };
     render(<OverviewScreen data={operatingWorkspaceData} query={query} />);
     expect(screen.getAllByText("1").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: /Paid maintenance cost/ }).getAttribute("href")).toBe("/bills-expenses?expenseType=maintenance&status=paid&dateBasis=paid&month=2026-07&propertyId=prop-1");
-    expect(screen.getByRole("link", { name: /Maintenance expenses/ }).getAttribute("href")).toBe("/bills-expenses?expenseType=maintenance&month=2026-07&propertyId=prop-1");
-    expect(screen.getAllByText("Not calculated").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: /Overdue/ }).getAttribute("href")).toBe("/maintenance?review=overdue&month=2026-07&propertyId=prop-1");
+    expect(screen.getByRole("link", { name: /High priority/ }).getAttribute("href")).toBe("/maintenance?review=high_priority&month=2026-07&propertyId=prop-1");
+    expect(screen.getByRole("link", { name: /Properties with work/ }).getAttribute("href")).toBe("/maintenance?review=open&month=2026-07&propertyId=prop-1");
   });
 
-  it("uses the actual 60-day lease risk count and keeps mobile queue facts equivalent", () => {
+  it("uses real maintenance property rows and moves work detail into a modal", () => {
+    render(<OverviewScreen data={operatingWorkspaceData} query={{ ...selectedPortfolioQuery, lens: "maintenance" }} />);
+
+    expect(screen.getByRole("link", { name: /Open work/ }).textContent).toContain("1");
+    expect(screen.getByRole("link", { name: /Overdue/ }).textContent).toContain("1");
+    expect(screen.getByRole("link", { name: /High priority/ }).textContent).toContain("1");
+    expect(screen.queryByRole("heading", { name: "Attention and readiness" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Supporting evidence" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Central Residence/ }));
+    const dialog = screen.getByRole("dialog", { name: "Central Residence" });
+    expect(within(dialog).getByText("Leaking pipe")).toBeTruthy();
+    expect(within(dialog).getByText("Open cases").parentElement?.textContent).toContain("1");
+    expect(within(dialog).getByRole("link", { name: /Open property maintenance/ }).getAttribute("href")).toBe(
+      "/maintenance?review=open&propertyId=prop-1",
+    );
+    expect(within(dialog).getByRole("link", { name: /Leaking pipe/ }).getAttribute("href")).toBe(
+      "/maintenance?taskId=task-1",
+    );
+  });
+
+  it("shows the active lens in the breadcrumb and changes the reporting month from an explicit picker", () => {
+    const { rerender } = render(<OverviewScreen data={operatingWorkspaceData} query={{ ...portfolioQuery, lens: "leasing" }} />);
+
+    expect(screen.getAllByRole("link", { name: "Leasing" }).length).toBeGreaterThan(1);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Change reporting month, currently July 2026",
+      }),
+    );
+    expect(screen.getByText("2026")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Jun" }).getAttribute("href")).toBe(
+      "/overview?lens=leasing&month=2026-06",
+    );
+    expect(screen.getByRole("link", { name: "Jul" }).getAttribute("aria-current")).toBe("date");
+
+    rerender(<OverviewScreen data={operatingWorkspaceData} query={{ ...portfolioQuery, lens: "all" }} />);
+    expect(screen.getAllByRole("link", { name: "Overview" })).toHaveLength(1);
+    expect(
+      screen
+        .getAllByRole("link", { name: "Portfolio" })
+        .every((link) => link.getAttribute("href") === "/overview?month=2026-07"),
+    ).toBe(true);
+  });
+
+  it("uses the actual 60-day lease risk count and opens leasing detail without filtering the page", () => {
     render(<OverviewScreen data={operatingWorkspaceData} query={{ ...selectedPortfolioQuery, lens: "leasing" }} />);
     const expiry = screen.getByRole("link", { name: /Lease expiries/ });
     expect(expiry.textContent).toContain("2");
     expect(expiry.getAttribute("href")).toContain("propertyId=prop-1");
-    const cards = screen.getByLabelText("Leasing priority cards");
-    expect(cards.textContent).toContain("Central Residence");
-    expect(cards.textContent).toContain("90%");
-    expect(within(cards).getByRole("link", { name: /Central Residence/ }).getAttribute("href")).toBe("/properties/prop-1");
+    expect(screen.queryByRole("heading", { name: "Attention and readiness" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Central Residence/ }));
+    const dialog = screen.getByRole("dialog", { name: "Central Residence" });
+    expect(within(dialog).getByText("90%")).toBeTruthy();
+    expect(within(dialog).getByText("9 of 10")).toBeTruthy();
+    expect(within(dialog).getByRole("heading", { name: "Attention and readiness" })).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: /Open property record/ }).getAttribute("href")).toBe("/properties/prop-1");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close modal" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: /Central Residence/ })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Active leases/ }).getAttribute("href")).toBe("/leases?status=current&propertyId=prop-1");
     expect(screen.getByRole("link", { name: /Properties ranked/ }).getAttribute("href")).toBe("/overview?lens=leasing&month=2026-07&propertyId=prop-1");
   });
@@ -115,7 +164,7 @@ describe("OverviewScreen", () => {
 
   it("shows every URL-backed operating lens without company accounting copy", () => {
     render(<OverviewScreen data={operatingWorkspaceData} query={{ ...portfolioQuery, lens: "finance" }} />);
-    expect(screen.getByRole("link", { name: "Property finance" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getAllByRole("link", { name: "Property finance" }).some((link) => link.getAttribute("aria-current") === "page")).toBe(true);
     expect(screen.getByRole("link", { name: "Maintenance" }).getAttribute("href")).toContain("lens=maintenance");
     expect(screen.queryByText("Company P&L")).toBeNull();
   });
@@ -380,6 +429,7 @@ const emptyWorkspaceData: OverviewScreenData = {
   leaseRiskCount: 0,
   ledgerCurrency: "USD",
   ledgerFlow: [],
+  maintenanceByProperty: [],
   metrics: [],
   occupancyByProperty: [],
   quickActions: [
@@ -478,6 +528,26 @@ const operatingWorkspaceData: OverviewScreenData = {
       income: 1000,
       label: "Jul",
       net: 400,
+    },
+  ],
+  maintenanceByProperty: [
+    {
+      blockedCount: 0,
+      cases: [
+        {
+          dueDate: "2026-07-01",
+          href: "/maintenance?taskId=task-1",
+          id: "task-1",
+          priority: "urgent",
+          status: "in_progress",
+          title: "Leaking pipe",
+        },
+      ],
+      href: "/maintenance?review=open&propertyId=prop-1",
+      label: "Central Residence",
+      openCount: 1,
+      overdueCount: 1,
+      urgentCount: 1,
     },
   ],
   metrics: [

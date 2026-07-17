@@ -292,7 +292,7 @@ export function OverviewLeaseEndingDonut({
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-lg font-semibold tabular-nums">{total}</span>
-          <span className="text-[11px] text-foreground-subtle">endings</span>
+          <span className="text-xs text-foreground-subtle">endings</span>
         </div>
       </div>
       <ul className="min-w-0 space-y-2">

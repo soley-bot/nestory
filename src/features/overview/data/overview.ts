@@ -2,6 +2,7 @@ import { toRecentChange } from "@/features/activity/recent-changes";
 import type {
   OverviewAttentionItem,
   OverviewLedgerPoint,
+  OverviewMaintenancePoint,
   OverviewMetric,
   OverviewOccupancyPoint,
   OverviewScreenData,
@@ -95,6 +96,15 @@ type DepositEventRow = {
   property_id: string;
   reversal_of_id: string | null;
   reversed_event?: { event_type: string } | null;
+};
+
+type MaintenanceTaskRow = {
+  due_date: string | null;
+  id: string;
+  priority: string;
+  property_id: string;
+  status: string;
+  title: string;
 };
 
 type PagedQuery<T> = {
@@ -231,7 +241,7 @@ export async function getOverviewScreenData(
     .lt("event_date", monthScope.before);
   let openMaintenanceQuery = supabase
     .from("tasks")
-    .select("id", { count: "exact", head: true })
+    .select("id, property_id, title, status, priority, due_date")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .in("status", [...OPERATIONAL_OPEN_MAINTENANCE_STATUSES]);
@@ -331,7 +341,10 @@ export async function getOverviewScreenData(
       pageFactory<DepositEventRow>(depositEventsQuery),
       "overview deposit events",
     ),
-    openMaintenanceQuery,
+    loadAllRows(
+      pageFactory<MaintenanceTaskRow>(openMaintenanceQuery),
+      "overview maintenance",
+    ),
     loadAllRows(pageFactory(documentsQuery), "overview documents"),
     supabase
       .from("activity_logs")
@@ -422,7 +435,8 @@ export async function getOverviewScreenData(
     ledger_entry_id: string | null;
     property_id: string | null;
   }>;
-  const openMaintenanceCount = openMaintenanceResult.count ?? 0;
+  const openMaintenanceTasks = (openMaintenanceResult.data ?? []) as MaintenanceTaskRow[];
+  const openMaintenanceCount = openMaintenanceTasks.length;
   const activeProperties = properties;
   const currentLeasedUnitIds = new Set(
     currentLeases.flatMap((lease) => (lease.unit_id ? [lease.unit_id] : [])),
@@ -566,6 +580,11 @@ export async function getOverviewScreenData(
     ledgerFlow: buildLedgerFlowChart({
       ledgerRows,
       monthStart: ledgerStart,
+    }),
+    maintenanceByProperty: buildMaintenanceByProperty({
+      activeProperties,
+      businessToday,
+      tasks: openMaintenanceTasks,
     }),
     metrics: buildMetrics({
       activeLeaseCount: currentLeases.length,
@@ -1190,6 +1209,69 @@ function buildOccupancyByProperty({
         first.label.localeCompare(second.label),
     )
     .slice(0, 8);
+}
+
+function buildMaintenanceByProperty({
+  activeProperties,
+  businessToday,
+  tasks,
+}: {
+  activeProperties: PropertyRow[];
+  businessToday: string;
+  tasks: MaintenanceTaskRow[];
+}): OverviewMaintenancePoint[] {
+  const tasksByProperty = groupBy(tasks, (task) => task.property_id);
+
+  return activeProperties
+    .flatMap((property) => {
+      const propertyTasks = tasksByProperty.get(property.id) ?? [];
+      if (propertyTasks.length === 0) return [];
+
+      const sortedTasks = propertyTasks.toSorted(compareMaintenanceTasks);
+      return [{
+        blockedCount: propertyTasks.filter((task) => task.status === "blocked").length,
+        cases: sortedTasks.slice(0, 6).map((task) => ({
+          dueDate: task.due_date,
+          href: `/maintenance?taskId=${task.id}`,
+          id: task.id,
+          priority: task.priority,
+          status: task.status,
+          title: task.title,
+        })),
+        href: `/maintenance?review=open&propertyId=${property.id}`,
+        label: `${property.code} / ${property.name}`,
+        openCount: propertyTasks.length,
+        overdueCount: propertyTasks.filter(
+          (task) => task.due_date !== null && task.due_date < businessToday,
+        ).length,
+        urgentCount: propertyTasks.filter(
+          (task) => task.priority === "urgent" || task.priority === "high",
+        ).length,
+      }];
+    })
+    .toSorted(
+      (first, second) =>
+        second.overdueCount - first.overdueCount ||
+        second.urgentCount - first.urgentCount ||
+        second.openCount - first.openCount ||
+        first.label.localeCompare(second.label),
+    );
+}
+
+function compareMaintenanceTasks(first: MaintenanceTaskRow, second: MaintenanceTaskRow) {
+  return (
+    maintenancePriorityRank(second.priority) - maintenancePriorityRank(first.priority) ||
+    (first.due_date ?? "9999-12-31").localeCompare(second.due_date ?? "9999-12-31") ||
+    first.title.localeCompare(second.title) ||
+    first.id.localeCompare(second.id)
+  );
+}
+
+function maintenancePriorityRank(priority: string) {
+  if (priority === "urgent") return 4;
+  if (priority === "high") return 3;
+  if (priority === "normal") return 2;
+  return 1;
 }
 
 function buildLedgerFlowChart({

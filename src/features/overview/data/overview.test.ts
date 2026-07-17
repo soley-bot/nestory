@@ -32,7 +32,34 @@ describe("getOverviewScreenData", () => {
 
   it("surfaces open maintenance work as a dashboard attention item", async () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(
-      createSupabaseStub({ tasks: { count: 2, data: [] } }),
+      createSupabaseStub({
+        properties: {
+          data: [{ code: "CTR", id: "prop-1", name: "Central Residence" }],
+        },
+        property_owners: {
+          data: [{ property_id: "prop-1" }],
+        },
+        tasks: {
+          data: [
+            {
+              due_date: "2026-07-01",
+              id: "task-1",
+              priority: "urgent",
+              property_id: "prop-1",
+              status: "pending",
+              title: "Leaking pipe",
+            },
+            {
+              due_date: null,
+              id: "task-2",
+              priority: "normal",
+              property_id: "prop-1",
+              status: "scheduled",
+              title: "Inspect pump",
+            },
+          ],
+        },
+      }),
     );
 
     const data = await getOverviewScreenData(
@@ -55,6 +82,16 @@ describe("getOverviewScreenData", () => {
     expect(data.attentionTotal).toBe(2);
     expect(data.dashboardSummary.actionHref).toBe("#focus-now");
     expect(data.workspaceSetup.hasAnyOperatingData).toBe(true);
+    expect(data.maintenanceByProperty).toEqual([
+      expect.objectContaining({
+        label: "CTR / Central Residence",
+        openCount: 2,
+        urgentCount: 1,
+      }),
+    ]);
+    expect(data.maintenanceByProperty[0].cases[0]).toEqual(
+      expect.objectContaining({ title: "Leaking pipe" }),
+    );
   });
 
   it("links missing lease tenant records to the lease repair view", async () => {
