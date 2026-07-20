@@ -464,6 +464,12 @@ describe("getOverviewScreenData", () => {
       readyStatementCount: 1,
       totalPropertyCount: 2,
     });
+    expect(data.attentionItems).toContainEqual(
+      expect.objectContaining({
+        count: 1,
+        label: "Blocked properties",
+      }),
+    );
   });
 
   it.each([

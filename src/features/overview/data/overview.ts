@@ -533,7 +533,7 @@ export async function getOverviewScreenData(
     overviewQuery: effectiveQuery,
     peopleMissingContacts,
     peopleWithoutRoles,
-    statementBlockerCount:
+    blockedPropertyCount:
       portfolioPerformance.summary.statementReadiness.blockedPropertyCount,
     vacantUnits,
   });
@@ -890,7 +890,7 @@ function buildAttentionItems({
   overviewQuery,
   peopleMissingContacts,
   peopleWithoutRoles,
-  statementBlockerCount,
+  blockedPropertyCount,
   vacantUnits,
 }: {
   arrearsPropertyCount: number;
@@ -906,7 +906,7 @@ function buildAttentionItems({
   overviewQuery: OverviewViewQuery;
   peopleMissingContacts: PersonRow[];
   peopleWithoutRoles: PersonRow[];
-  statementBlockerCount: number;
+  blockedPropertyCount: number;
   vacantUnits: UnitRow[];
 }): OverviewAttentionItem[] {
   const overviewReviewHref = (review: OverviewViewQuery["review"]) => {
@@ -973,15 +973,15 @@ function buildAttentionItems({
           tone: "warning",
         }
       : null,
-    statementBlockerCount > 0
+    blockedPropertyCount > 0
       ? {
           actionLabel: "Resolve blockers",
-          count: statementBlockerCount,
-          helper: "Owner statement checks are unresolved",
+          count: blockedPropertyCount,
+          helper: "Owner statement checks block these properties",
           href: overviewReviewHref("statement-blocked"),
           id: "statement-blockers",
           kind: "unreconciled-finance",
-          label: "Statement blockers",
+          label: "Blocked properties",
           priority: 50,
           tone: "warning",
         }

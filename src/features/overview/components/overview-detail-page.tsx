@@ -18,7 +18,11 @@ export function OverviewDetailPage({
   query: OverviewViewQuery;
   view: OverviewDetailView;
 }) {
-  const overviewHref = `/overview?month=${query.month}`;
+  const overviewParams = new URLSearchParams({ month: query.month });
+  if (query.propertyId !== "all") {
+    overviewParams.set("propertyId", query.propertyId);
+  }
+  const overviewHref = `/overview?${overviewParams.toString()}`;
 
   return (
     <main className="min-h-screen bg-background px-4 py-3 sm:px-5">

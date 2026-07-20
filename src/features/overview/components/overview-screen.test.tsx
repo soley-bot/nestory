@@ -30,6 +30,34 @@ describe("OverviewScreen", () => {
     );
   });
 
+  it("keeps authoritative statement readiness independent from record-link quality", () => {
+    const data = {
+      ...operatingWorkspaceData,
+      recordsByProperty: [
+        {
+          ...operatingWorkspaceData.recordsByProperty[0],
+          missingTenantLinks: 0,
+          ownerLinked: false,
+          readyStatementCount: 1,
+          statementBlockers: 0,
+        },
+      ],
+    };
+    render(<OverviewScreen data={data} query={{ ...portfolioQuery, lens: "records" }} />);
+
+    expect(screen.getAllByText("1 owner statement ready").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Central Residence/ }));
+
+    const dialog = screen.getByRole("dialog", { name: "Central Residence" });
+    expect(within(dialog).getByText("Statement status").parentElement?.textContent).toContain(
+      "Ready",
+    );
+    expect(within(dialog).getByText("Record quality").parentElement?.textContent).toContain(
+      "Needs review",
+    );
+    expect(within(dialog).getByText(/Record-quality issue: link an owner/)).toBeTruthy();
+  });
+
   it("uses exact lens counts and preserves supported destination state", () => {
     const query = { ...selectedPortfolioQuery, lens: "maintenance" as const };
     render(<OverviewScreen data={operatingWorkspaceData} query={query} />);
@@ -310,8 +338,10 @@ describe("OverviewScreen", () => {
       />,
     );
 
+    expect(screen.getByText("1 ready property")).toBeTruthy();
+    expect(screen.getByText("1 total property")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Review readiness/ }).getAttribute("href")).toBe(
-      "/overview/readiness?month=2026-07",
+      "/overview/readiness?month=2026-07&propertyId=prop-1",
     );
   });
 
@@ -319,11 +349,11 @@ describe("OverviewScreen", () => {
     ["attention", "Needs attention", "Review maintenance"],
     ["readiness", "Statement readiness", "CTR / Satomi Dimitroff-Guorguieff"],
   ] as const)("renders the %s workspace as a breadcrumb detail page", (view, title, action) => {
-    render(<OverviewDetailPage data={operatingWorkspaceData} query={portfolioQuery} view={view} />);
+    render(<OverviewDetailPage data={operatingWorkspaceData} query={selectedPortfolioQuery} view={view} />);
 
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(within(breadcrumb).getByRole("link", { name: "Overview" }).getAttribute("href")).toBe(
-      "/overview?month=2026-07",
+      "/overview?month=2026-07&propertyId=prop-1",
     );
     expect(within(breadcrumb).getByText(title)).toBeTruthy();
     expect(screen.getByText(action)).toBeTruthy();
