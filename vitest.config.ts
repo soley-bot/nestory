@@ -10,5 +10,6 @@ export default defineConfig({
   test: {
     environment: "node",
     exclude: ["**/.worktrees/**", "**/node_modules/**", "**/dist/**", "**/.next/**"],
+    maxWorkers: 8,
   },
 });
