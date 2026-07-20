@@ -20,7 +20,7 @@ export function RecordsPropertyPreviewList({ rows }: { rows: OverviewRecordPoint
         </div>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_100px_160px_20px] gap-3 border-b border-border px-3 py-2 text-xs font-medium uppercase tracking-wide text-foreground-muted max-md:hidden">
           <span>Property</span>
-          <span>Blockers</span>
+          <span>Record issues</span>
           <span>Readiness</span>
           <span aria-hidden="true" />
         </div>
@@ -101,19 +101,22 @@ function totalBlockers(row: OverviewRecordPoint) {
 }
 
 function readinessSummary(row: OverviewRecordPoint) {
+  if (row.statementBlockers > 0) {
+    return `${row.statementBlockers} statement ${row.statementBlockers === 1 ? "blocker" : "blockers"}`;
+  }
   if (!row.ownerLinked) return "Owner link missing";
   if (row.missingTenantLinks > 0) {
     return `${row.missingTenantLinks} tenant ${row.missingTenantLinks === 1 ? "link" : "links"} missing`;
   }
-  if (row.statementBlockers > 0) {
-    return `${row.statementBlockers} statement ${row.statementBlockers === 1 ? "blocker" : "blockers"}`;
-  }
-  return "Ready for review";
+  return row.readyStatementCount === 1
+    ? "1 owner statement ready"
+    : `${row.readyStatementCount} owner statements ready`;
 }
 
 function modalFacts(row: OverviewRecordPoint): Array<[string, string]> {
   return [
     ["Statement blockers", String(row.statementBlockers)],
+    ["Owner statements ready", String(row.readyStatementCount)],
     ["Owner linked", row.ownerLinked ? "Yes" : "No"],
     ["Missing tenant links", String(row.missingTenantLinks)],
     ["Documents", String(row.documentCount)],

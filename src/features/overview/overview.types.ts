@@ -106,6 +106,7 @@ export type OverviewPropertyPerformanceRow = {
   netCash: MoneyDisplayValue;
   netCashAmount: number;
   propertyId: string;
+  readyStatementCount: number;
   securityDepositHeldAmount: number;
   statementBlockers: number;
   status: "healthy" | "attention" | "arrears" | "loss";
@@ -113,9 +114,10 @@ export type OverviewPropertyPerformanceRow = {
 };
 
 export type OverviewStatementReadiness = {
-  blockedCount: number;
-  readyCount: number;
-  totalCount: number;
+  blockedPropertyCount: number;
+  readyPropertyCount: number;
+  readyStatementCount: number;
+  totalPropertyCount: number;
 };
 
 export type OverviewPortfolioSummary = {
@@ -166,6 +168,7 @@ export type OverviewRecordPoint = {
   label: string;
   missingTenantLinks: number;
   ownerLinked: boolean;
+  readyStatementCount: number;
   statementBlockers: number;
   unitCount: number;
 };

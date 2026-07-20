@@ -20,10 +20,10 @@ export function PortfolioWorkspace({
       <PropertyScorecard query={query} rows={data.propertyPerformance.rows} />
       <section className="flex flex-wrap items-center gap-2 border-y border-border px-1 py-2">
         <span className="text-xs font-semibold text-foreground">Statement readiness</span>
-        <Badge tone={summary.statementReadiness.blockedCount > 0 ? "warning" : "success"}>
-          {summary.statementReadiness.readyCount} ready
+        <Badge tone={summary.statementReadiness.blockedPropertyCount > 0 ? "warning" : "success"}>
+          {summary.statementReadiness.readyPropertyCount} ready
         </Badge>
-        <span className="text-xs text-foreground-muted">of {summary.statementReadiness.totalCount}</span>
+        <span className="text-xs text-foreground-muted">of {summary.statementReadiness.totalPropertyCount}</span>
         <Link
           className="ml-auto inline-flex h-7 items-center gap-1.5 px-2.5 text-xs font-medium text-foreground-muted hover:text-foreground"
           href={`/overview/readiness?month=${query.month}`}

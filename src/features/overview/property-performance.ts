@@ -90,27 +90,29 @@ export type OverviewPropertyCountInputRow = {
   property_id: string;
 };
 
-export type OverviewStatementBlockerInputRow = {
+export type OverviewStatementReadinessInputRow = {
   blocker_count: number;
   property_id: string;
+  ready_statement_count: number;
+};
+
+export type OverviewStatementReadinessInput = {
+  properties: OverviewStatementReadinessInputRow[];
+  summary: OverviewPropertyPerformance["summary"]["statementReadiness"];
 };
 
 export type OverviewPropertyPerformanceInput = {
+  cashInput: PropertyCashInput;
   currency: CurrencyCode;
-  depositEvents: OverviewDepositEventInputRow[];
-  expenseItems: OverviewExpenseItemInputRow[];
-  incomeItems: OverviewIncomeItemInputRow[];
-  monthScope: OverviewMonthScope;
   openBills: OverviewPropertyCountInputRow[];
-  paymentAllocations: OverviewPaymentAllocationInputRow[];
   properties: OverviewPropertyInputRow[];
-  receiptAllocations: OverviewReceiptAllocationInputRow[];
-  statementBlockers: OverviewStatementBlockerInputRow[];
+  statementReadiness: OverviewStatementReadinessInput;
   units: OverviewUnitInputRow[];
 };
 
 type OverviewAttentionAccumulator = {
   openBillCount: number;
+  readyStatementCount: number;
   statementBlockers: number;
 };
 
@@ -125,7 +127,7 @@ export function buildOverviewPropertyPerformance(
   input: OverviewPropertyPerformanceInput,
   review: OverviewReview = "all",
 ): OverviewPropertyPerformance {
-  const cash = buildPropertyCash(toPropertyCashInput(input));
+  const cash = buildPropertyCash(input.cashInput);
   const cashByPropertyId = new Map(
     cash.properties.map((facts) => [facts.propertyId, facts]),
   );
@@ -140,9 +142,12 @@ export function buildOverviewPropertyPerformance(
     if (attention) attention.openBillCount += 1;
   }
 
-  for (const blocker of input.statementBlockers) {
-    const attention = attentionByPropertyId.get(blocker.property_id);
-    if (attention) attention.statementBlockers += blocker.blocker_count;
+  for (const readiness of input.statementReadiness.properties) {
+    const attention = attentionByPropertyId.get(readiness.property_id);
+    if (attention) {
+      attention.readyStatementCount = readiness.ready_statement_count;
+      attention.statementBlockers = readiness.blocker_count;
+    }
   }
 
   const unitCountByPropertyId = countByPropertyId(input.units);
@@ -161,7 +166,7 @@ export function buildOverviewPropertyPerformance(
       unitCount: unitCountByPropertyId.get(property.id) ?? 0,
     });
   });
-  const summary = buildSummary(allRows, cash.totals);
+  const summary = buildSummary(cash.totals, input.statementReadiness.summary);
   const rows = allRows
     .filter((row) =>
       matchesReview(row, attentionByPropertyId.get(row.propertyId), review),
@@ -171,55 +176,10 @@ export function buildOverviewPropertyPerformance(
   return { rows, summary };
 }
 
-function toPropertyCashInput(
-  input: OverviewPropertyPerformanceInput,
-): PropertyCashInput {
-  return {
-    depositEvents: input.depositEvents.map((event) => ({
-      amount: event.amount,
-      depositEventId: event.id,
-      eventDate: event.event_date,
-      eventType: event.event_type,
-      propertyId: event.property_id,
-      reversedEventType: event.reversed_event_type,
-    })),
-    expenseItems: input.expenseItems.map((item) => ({
-      economicScope: item.economic_scope,
-      expenseType: item.expense_type,
-      id: item.id,
-      propertyId: item.property_id,
-    })),
-    incomeItems: input.incomeItems.map((item) => ({
-      amountDue: item.amount_due,
-      dueDate: item.due_date,
-      id: item.id,
-      incomeType: item.income_type,
-      propertyId: item.property_id,
-    })),
-    monthScope: input.monthScope,
-    paymentAllocations: input.paymentAllocations.map((allocation) => ({
-      allocationId: allocation.allocation_id,
-      amount: allocation.amount,
-      expenseItemId: allocation.expense_item_id,
-      paidDate: allocation.paid_date,
-      paymentId: allocation.payment_id,
-      reversalOfId: allocation.reversal_of_id,
-    })),
-    propertyIds: input.properties.map((property) => property.id),
-    receiptAllocations: input.receiptAllocations.map((allocation) => ({
-      allocationId: allocation.allocation_id,
-      amount: allocation.amount,
-      incomeItemId: allocation.income_item_id,
-      receiptId: allocation.receipt_id,
-      receivedDate: allocation.received_date,
-      reversalOfId: allocation.reversal_of_id,
-    })),
-  };
-}
-
 function emptyAttentionAccumulator(): OverviewAttentionAccumulator {
   return {
     openBillCount: 0,
+    readyStatementCount: 0,
     statementBlockers: 0,
   };
 }
@@ -294,6 +254,7 @@ function toPerformanceRow({
     netCash: formatMoneyDisplay(netCashAmount, currency),
     netCashAmount,
     propertyId: property.id,
+    readyStatementCount: attention.readyStatementCount,
     securityDepositHeldAmount: centsToAmount(facts.securityDepositHeldCents),
     statementBlockers: attention.statementBlockers,
     status,
@@ -317,10 +278,9 @@ function getStatus({
 }
 
 function buildSummary(
-  rows: OverviewPropertyPerformanceRow[],
   totals: PropertyCashTotals,
+  statementReadiness: OverviewPropertyPerformance["summary"]["statementReadiness"],
 ) {
-  const blockedCount = rows.filter((row) => row.statementBlockers > 0).length;
   const { cashExpensesCents, netCashCents } =
     deriveOverviewCashPresentation(totals);
 
@@ -339,11 +299,7 @@ function buildSummary(
       totals.managementFeesReceivedCents,
     ),
     netCashAmount: centsToAmount(netCashCents),
-    statementReadiness: {
-      blockedCount,
-      readyCount: rows.length - blockedCount,
-      totalCount: rows.length,
-    },
+    statementReadiness,
   };
 }
 

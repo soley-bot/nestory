@@ -105,7 +105,10 @@ describe("OverviewScreen", () => {
 
   it("keeps records blockers separate and preserves internal review state", () => {
     render(<OverviewScreen data={operatingWorkspaceData} query={{ ...selectedPortfolioQuery, lens: "records" }} />);
-    expect(screen.getAllByRole("link", { name: /Statement blockers/ })[0].getAttribute("href")).toBe("/overview?lens=records&month=2026-07&propertyId=prop-1&review=statement-blocked");
+    expect(screen.getByRole("link", { name: /Blocked properties/ }).getAttribute("href")).toBe("/overview?lens=records&month=2026-07&propertyId=prop-1&review=statement-blocked");
+    expect(screen.getByRole("link", { name: /Owner statements ready/ }).getAttribute("href")).toBe(
+      "/reports/owner-statement?month=2026-07&propertyId=prop-1",
+    );
     expect(screen.getAllByText("Not calculated").length).toBeGreaterThan(0);
   });
 
@@ -418,7 +421,12 @@ const emptyWorkspaceData: OverviewScreenData = {
       managementFeeOutstandingAmount: 0,
       managementFeeReceivedAmount: 0,
       netCashAmount: 0,
-      statementReadiness: { blockedCount: 0, readyCount: 0, totalCount: 0 },
+      statementReadiness: {
+        blockedPropertyCount: 0,
+        readyPropertyCount: 0,
+        readyStatementCount: 0,
+        totalPropertyCount: 0,
+      },
     },
   },
   leaseEndings: [],
@@ -500,6 +508,7 @@ const operatingWorkspaceData: OverviewScreenData = {
         netCash: { primary: "USD 827.40" },
         netCashAmount: 827.4,
         propertyId: "prop-1",
+        readyStatementCount: 1,
         securityDepositHeldAmount: 1400,
         statementBlockers: 0,
         status: "arrears",
@@ -515,7 +524,12 @@ const operatingWorkspaceData: OverviewScreenData = {
       managementFeeOutstandingAmount: 0,
       managementFeeReceivedAmount: 112,
       netCashAmount: 827.4,
-      statementReadiness: { blockedCount: 0, readyCount: 1, totalCount: 1 },
+      statementReadiness: {
+        blockedPropertyCount: 0,
+        readyPropertyCount: 1,
+        readyStatementCount: 1,
+        totalPropertyCount: 1,
+      },
     },
   },
   ledgerFlow: [
@@ -597,6 +611,7 @@ const operatingWorkspaceData: OverviewScreenData = {
       label: "Central Residence",
       missingTenantLinks: 1,
       ownerLinked: false,
+      readyStatementCount: 1,
       statementBlockers: 0,
       unitCount: 10,
     },

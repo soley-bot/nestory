@@ -13,12 +13,19 @@ import { getOverviewMonthScope } from "@/features/overview/overview.filters";
 import { OPERATIONAL_OPEN_MAINTENANCE_STATUSES } from "@/features/maintenance/maintenance.constants";
 import {
   buildOverviewPropertyPerformance,
-  type OverviewDepositEventInputRow,
   type OverviewExpenseItemInputRow,
   type OverviewIncomeItemInputRow,
-  type OverviewPaymentAllocationInputRow,
-  type OverviewReceiptAllocationInputRow,
 } from "@/features/overview/property-performance";
+import {
+  buildOwnerStatement,
+  type OwnerStatementResult,
+} from "@/features/reports/data/owner-statement";
+import {
+  toOwnerStatementInput,
+  type OwnerStatementDepositEventRow,
+  type OwnerStatementOwnerLinkRow,
+  type OwnerStatementPersonRow,
+} from "@/features/reports/data/owner-statement-input";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { CurrencyCode } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
@@ -90,15 +97,7 @@ type PaymentAllocationRow = {
   id: string;
 };
 
-type DepositEventRow = {
-  amount: number;
-  event_date: string;
-  event_type: string;
-  id: string;
-  property_id: string;
-  reversal_of_id: string | null;
-  reversed_event?: { event_type: string } | null;
-};
+type DepositEventRow = OwnerStatementDepositEventRow;
 
 type MaintenanceTaskRow = {
   due_date: string | null;
@@ -121,11 +120,7 @@ type PagedQuery<T> = {
 
 type PageQueryFactory<T> = (from: number, to: number) => ReturnType<PagedQuery<T>["range"]>;
 
-type PersonRow = {
-  id: string;
-  primary_email: string | null;
-  primary_phone: string | null;
-};
+type PersonRow = OwnerStatementPersonRow;
 
 type PersonRoleRow = {
   person_id: string;
@@ -133,15 +128,12 @@ type PersonRoleRow = {
 };
 
 type PersonContactRow = {
-  contact_name: string | null;
   email: string | null;
   person_id: string;
   phone: string | null;
 };
 
-type PropertyOwnerRow = {
-  property_id: string;
-};
+type PropertyOwnerRow = OwnerStatementOwnerLinkRow;
 
 export async function getOverviewScreenData(
   organizationId: string,
@@ -198,11 +190,13 @@ export async function getOverviewScreenData(
     .is("archived_at", null);
   let propertyOwnersQuery = supabase
     .from("property_owners")
-    .select("property_id")
+    .select(
+      "id, property_id, person_id, ownership_percent, is_primary, started_on, ended_on, archived_at",
+    )
     .eq("organization_id", organizationId)
-    .eq("is_primary", true)
     .is("archived_at", null)
-    .is("ended_on", null);
+    .order("property_id", { ascending: true })
+    .order("id", { ascending: true });
   let incomeItemsQuery = supabase
     .from("finance_income_items")
     .select("id, property_id, due_date, income_type, amount_due")
@@ -226,6 +220,8 @@ export async function getOverviewScreenData(
       "id, amount, income_item_id, finance_receipts!finance_receipt_allocations_receipt_id_fkey!inner(id, received_date, reversal_of_id, reference, property_id), finance_income_items!finance_receipt_allocations_income_item_id_fkey!inner(id, property_id, due_date, income_type, amount_due)",
     )
     .eq("organization_id", organizationId)
+    .is("finance_income_items.archived_at", null)
+    .neq("finance_income_items.status", "void")
     .gte("finance_receipts.received_date", monthScope.from)
     .lt("finance_receipts.received_date", monthScope.before);
   let cashPaymentAllocationsQuery = supabase
@@ -234,6 +230,8 @@ export async function getOverviewScreenData(
       "id, amount, expense_item_id, finance_payments!finance_payment_allocations_payment_id_fkey!inner(id, paid_date, reversal_of_id, property_id), finance_expense_items!finance_payment_allocations_expense_item_id_fkey!inner(id, property_id, expense_type, economic_scope, ledger_entry_id)",
     )
     .eq("organization_id", organizationId)
+    .is("finance_expense_items.archived_at", null)
+    .neq("finance_expense_items.status", "void")
     .gte("finance_payments.paid_date", monthScope.from)
     .lt("finance_payments.paid_date", monthScope.before);
   let depositEventsQuery = supabase
@@ -254,7 +252,7 @@ export async function getOverviewScreenData(
     .is("archived_at", null);
   const peopleQuery = supabase
     .from("people")
-    .select("id, primary_email, primary_phone")
+    .select("id, display_name, primary_email, primary_phone")
     .eq("organization_id", organizationId)
     .is("archived_at", null);
   const rolesQuery = supabase
@@ -265,10 +263,10 @@ export async function getOverviewScreenData(
     .is("archived_at", null);
   const contactsQuery = supabase
     .from("person_contacts")
-    .select("person_id, contact_name, email, phone")
+    .select("person_id, email, phone")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
-    .or("contact_name.not.is.null,email.not.is.null,phone.not.is.null");
+    .or("email.not.is.null,phone.not.is.null");
 
   if (effectiveQuery.propertyId !== "all") {
     const propertyId = effectiveQuery.propertyId;
@@ -413,33 +411,28 @@ export async function getOverviewScreenData(
     historicalReceiptRows.push(...historicalReceiptAllocationsResult.data);
   }
 
-  const receiptRows = uniqueById([...cashReceiptRows, ...historicalReceiptRows]);
-  const receiptAllocations = receiptRows.flatMap(toReceiptAllocation);
-  const paymentAllocations = cashPaymentRows.flatMap(toPaymentAllocation);
-  const expenseItems = uniqueById(
-    cashPaymentRows.flatMap((row) =>
-      row.finance_expense_items ? [row.finance_expense_items] : [],
-    ),
-  );
   const depositEventRows = (depositEventsResult.data ?? []) as unknown as DepositEventRow[];
-  const depositEventTypeById = new Map(
-    depositEventRows.map((event) => [event.id, event.event_type]),
-  );
-  const depositEvents = depositEventRows.map((event) =>
-    toDepositEvent({
-      ...event,
-      reversed_event: event.reversal_of_id
-        ? { event_type: depositEventTypeById.get(event.reversal_of_id) ?? "" }
-        : null,
-    }),
-  );
+  const activeProperties = properties;
+  const ownerStatementInput = toOwnerStatementInput({
+    contactRows: contacts,
+    currentReceiptRows: cashReceiptRows,
+    depositRows: depositEventRows,
+    dueIncomeItems: incomeItems,
+    historicalReceiptRows,
+    monthScope,
+    ownerRows: propertyOwners,
+    paymentRows: cashPaymentRows,
+    personRows: activePeople,
+    propertyIds: activeProperties.map((property) => property.id),
+  });
+  const ownerStatementResult = buildOwnerStatement(ownerStatementInput);
+  const statementReadiness = projectOwnerStatementReadiness(ownerStatementResult);
   const documents = (documentsResult.data ?? []) as Array<{
     ledger_entry_id: string | null;
     property_id: string | null;
   }>;
   const openMaintenanceTasks = (openMaintenanceResult.data ?? []) as MaintenanceTaskRow[];
   const openMaintenanceCount = openMaintenanceTasks.length;
-  const activeProperties = properties;
   const currentLeasedUnitIds = new Set(
     currentLeases.flatMap((lease) => (lease.unit_id ? [lease.unit_id] : [])),
   );
@@ -458,7 +451,11 @@ export async function getOverviewScreenData(
   );
   const roleCounts = getRoleCounts(roles);
   const currentPropertyOwnerIds = new Set(
-    propertyOwners.map((owner) => owner.property_id),
+    propertyOwners.flatMap((owner) =>
+      owner.is_primary && !owner.archived_at && !owner.ended_on
+        ? [owner.property_id]
+        : [],
+    ),
   );
   const missingOwnerLinks = activeProperties.filter(
     (property) => !currentPropertyOwnerIds.has(property.id),
@@ -493,32 +490,12 @@ export async function getOverviewScreenData(
         : [];
     }),
   );
-  const statementBlockerCountByProperty = new Map<string, number>();
-  for (const property of missingOwnerLinks) increment(statementBlockerCountByProperty, property.id);
-  for (const bill of openBills) increment(statementBlockerCountByProperty, bill.property_id);
-  for (const propertyId of missingReceiptPropertyIds) increment(statementBlockerCountByProperty, propertyId);
   const propertyPerformanceInput = {
+    cashInput: ownerStatementInput.cashInput,
     currency: "USD" as const,
-    depositEvents,
-    expenseItems,
-    incomeItems: uniqueById([
-      ...incomeItems,
-      ...cashReceiptRows.flatMap((row) =>
-        row.finance_income_items ? [row.finance_income_items] : [],
-      ),
-    ]),
-    monthScope,
     openBills,
-    paymentAllocations,
     properties: activeProperties,
-    receiptAllocations,
-    statementBlockers: Array.from(
-      statementBlockerCountByProperty,
-      ([property_id, blocker_count]) => ({
-        blocker_count,
-        property_id,
-      }),
-    ),
+    statementReadiness,
     units: operationalUnits,
   };
   const portfolioPerformance = buildOverviewPropertyPerformance(
@@ -556,7 +533,8 @@ export async function getOverviewScreenData(
     overviewQuery: effectiveQuery,
     peopleMissingContacts,
     peopleWithoutRoles,
-    statementBlockerCount: portfolioPerformance.summary.statementReadiness.blockedCount,
+    statementBlockerCount:
+      portfolioPerformance.summary.statementReadiness.blockedPropertyCount,
     vacantUnits,
   });
 
@@ -603,11 +581,18 @@ export async function getOverviewScreenData(
       operationalUnits,
     }),
     recordsByProperty: buildRecordsByProperty({
-      activeProperties,
+      activeProperties:
+        effectiveQuery.review === "all"
+          ? activeProperties
+          : activeProperties.filter((property) =>
+              propertyPerformance.rows.some(
+                (performance) => performance.propertyId === property.id,
+              ),
+            ),
       documents,
       missingOwnerLinks,
       missingTenantLeases,
-      performanceRows: portfolioPerformance.rows,
+      performanceRows: propertyPerformance.rows,
     }),
     quickActions: [
       { href: "/import", label: "Import data" },
@@ -634,79 +619,6 @@ export async function getOverviewScreenData(
       unitCount: operationalUnits.length,
     },
   };
-}
-
-function toReceiptAllocation(
-  row: ReceiptAllocationRow,
-): OverviewReceiptAllocationInputRow[] {
-  if (!row.finance_receipts) return [];
-  return [{
-    allocation_id: row.id,
-    amount: Number(row.amount),
-    income_item_id: row.income_item_id,
-    receipt_id: row.finance_receipts.id,
-    received_date: row.finance_receipts.received_date,
-    reversal_of_id: row.finance_receipts.reversal_of_id,
-  }];
-}
-
-function toPaymentAllocation(
-  row: PaymentAllocationRow,
-): OverviewPaymentAllocationInputRow[] {
-  if (!row.finance_payments) return [];
-  return [{
-    allocation_id: row.id,
-    amount: Number(row.amount),
-    expense_item_id: row.expense_item_id,
-    paid_date: row.finance_payments.paid_date,
-    payment_id: row.finance_payments.id,
-    reversal_of_id: row.finance_payments.reversal_of_id,
-  }];
-}
-
-function toDepositEvent(row: DepositEventRow): OverviewDepositEventInputRow {
-  const common = {
-    amount: Number(row.amount),
-    event_date: row.event_date,
-    id: row.id,
-    property_id: row.property_id,
-  };
-
-  if (row.event_type === "reversed") {
-    const reversedEventType = row.reversed_event?.event_type;
-    if (!isDepositEventType(reversedEventType)) {
-      throw new Error(`Deposit reversal ${row.id} is missing its original event type`);
-    }
-    return {
-      ...common,
-      event_type: "reversed",
-      reversed_event_type: reversedEventType,
-    };
-  }
-
-  if (!isDepositEventType(row.event_type)) {
-    throw new Error(`Unsupported deposit event type: ${row.event_type}`);
-  }
-  return {
-    ...common,
-    event_type: row.event_type,
-    reversed_event_type: null,
-  };
-}
-
-function isDepositEventType(
-  value: string | undefined,
-): value is Exclude<OverviewDepositEventInputRow["event_type"], "reversed"> {
-  return (
-    value === "applied" ||
-    value === "received" ||
-    value === "refunded" ||
-    value === "retained"
-  );
-}
-
-function uniqueById<T extends { id: string }>(rows: T[]) {
-  return Array.from(new Map(rows.map((row) => [row.id, row])).values());
 }
 
 function chunk<T>(rows: T[], size: number) {
@@ -736,8 +648,43 @@ async function loadAllRows<T>(queryPage: PageQueryFactory<T>, label: string) {
   return { data: rows, error: null };
 }
 
-function increment(counts: Map<string, number>, propertyId: string) {
-  counts.set(propertyId, (counts.get(propertyId) ?? 0) + 1);
+function projectOwnerStatementReadiness(result: OwnerStatementResult) {
+  const properties = new Map<
+    string,
+    { blocker_count: number; property_id: string; ready_statement_count: number }
+  >();
+
+  for (const row of result.rows) {
+    if (row.status === "blocked") {
+      properties.set(row.propertyId, {
+        blocker_count: row.reasons.length,
+        property_id: row.propertyId,
+        ready_statement_count: 0,
+      });
+      continue;
+    }
+
+    const readiness = properties.get(row.propertyId) ?? {
+      blocker_count: 0,
+      property_id: row.propertyId,
+      ready_statement_count: 0,
+    };
+    readiness.ready_statement_count += 1;
+    properties.set(row.propertyId, readiness);
+  }
+
+  return {
+    properties: [...properties.values()].toSorted((first, second) =>
+      first.property_id.localeCompare(second.property_id),
+    ),
+    summary: {
+      blockedPropertyCount: result.summary.blockedPropertyCount,
+      readyPropertyCount: result.summary.readyPropertyCount,
+      readyStatementCount: result.summary.readyStatementCount,
+      totalPropertyCount:
+        result.summary.blockedPropertyCount + result.summary.readyPropertyCount,
+    },
+  };
 }
 
 function buildDashboardSummary({
@@ -1298,6 +1245,7 @@ function buildRecordsByProperty({
         label: `${property.code} / ${property.name}`,
         missingTenantLinks: missingTenantLinksByProperty.get(property.id) ?? 0,
         ownerLinked: !missingOwnerIds.has(property.id),
+        readyStatementCount: performance?.readyStatementCount ?? 0,
         statementBlockers: performance?.statementBlockers ?? 0,
         unitCount: performance?.unitCount ?? 0,
       };
@@ -1445,11 +1393,7 @@ function getUsableContactPersonIds(contacts: PersonContactRow[]) {
   const personIds = new Set<string>();
 
   for (const contact of contacts) {
-    if (
-      hasText(contact.email) ||
-      hasText(contact.phone) ||
-      hasText(contact.contact_name)
-    ) {
+    if (hasText(contact.email) || hasText(contact.phone)) {
       personIds.add(contact.person_id);
     }
   }

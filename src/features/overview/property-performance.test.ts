@@ -4,6 +4,7 @@ import {
   buildOverviewPropertyPerformance,
   type OverviewPropertyPerformanceInput,
 } from "@/features/overview/property-performance";
+import type { PropertyCashInput } from "@/features/finance/property-cash";
 
 const propertyId = "property-1";
 
@@ -194,11 +195,12 @@ describe("buildOverviewPropertyPerformance", () => {
   it("rejects a malformed deposit reversal instead of increasing held cash", () => {
     const malformedEvent = {
       amount: 700,
-      event_date: "2026-07-10",
-      event_type: "reversed",
-      property_id: propertyId,
-      reversed_event_type: null,
-    } as unknown as OverviewPropertyPerformanceInput["depositEvents"][number];
+      depositEventId: "malformed-reversal",
+      eventDate: "2026-07-10",
+      eventType: "reversed",
+      propertyId,
+      reversedEventType: null,
+    } as unknown as PropertyCashInput["depositEvents"][number];
 
     expect(() =>
       buildOverviewPropertyPerformance(fixture({ depositEvents: [malformedEvent] })),
@@ -232,7 +234,21 @@ describe("buildOverviewPropertyPerformance", () => {
         receipt("healthy-b-rent", 100),
         receipt("healthy-a-rent", 100),
       ],
-      statementBlockers: [{ blocker_count: 2, property_id: "blocked-property" }],
+      statementReadiness: {
+        properties: [
+          {
+            blocker_count: 2,
+            property_id: "blocked-property",
+            ready_statement_count: 0,
+          },
+        ],
+        summary: {
+          blockedPropertyCount: 1,
+          readyPropertyCount: 4,
+          readyStatementCount: 4,
+          totalPropertyCount: 5,
+        },
+      },
     });
 
     expect(
@@ -282,7 +298,26 @@ describe("buildOverviewPropertyPerformance", () => {
         receipt("two", 300),
         receipt("other", 100),
       ],
-      statementBlockers: [{ blocker_count: 1, property_id: "property-1" }],
+      statementReadiness: {
+        properties: [
+          {
+            blocker_count: 1,
+            property_id: "property-1",
+            ready_statement_count: 0,
+          },
+          {
+            blocker_count: 0,
+            property_id: "property-2",
+            ready_statement_count: 1,
+          },
+        ],
+        summary: {
+          blockedPropertyCount: 1,
+          readyPropertyCount: 1,
+          readyStatementCount: 1,
+          totalPropertyCount: 2,
+        },
+      },
     });
 
     const result = buildOverviewPropertyPerformance(input, "arrears");
@@ -292,27 +327,61 @@ describe("buildOverviewPropertyPerformance", () => {
       arrearsAmount: 50,
       cashIncomeAmount: 450,
       collectionRate: 88,
-      statementReadiness: { blockedCount: 1, readyCount: 1, totalCount: 2 },
+      statementReadiness: {
+        blockedPropertyCount: 1,
+        readyPropertyCount: 1,
+        readyStatementCount: 1,
+        totalPropertyCount: 2,
+      },
     });
   });
 });
 
-function fixture(
-  overrides: Partial<OverviewPropertyPerformanceInput> = {},
-): OverviewPropertyPerformanceInput {
+type FixtureOverrides = Partial<Omit<OverviewPropertyPerformanceInput, "cashInput">> &
+  Partial<PropertyCashInput>;
+
+function fixture(overrides: FixtureOverrides = {}): OverviewPropertyPerformanceInput {
+  const {
+    currency = "USD",
+    openBills = [],
+    properties = [{ code: "P1", id: propertyId, name: "Property One" }],
+    statementReadiness = {
+      properties: [
+        {
+          blocker_count: 0,
+          property_id: propertyId,
+          ready_statement_count: 1,
+        },
+      ],
+      summary: {
+        blockedPropertyCount: 0,
+        readyPropertyCount: 1,
+        readyStatementCount: 1,
+        totalPropertyCount: 1,
+      },
+    },
+    units = [{ id: "unit-1", property_id: propertyId }],
+    ...cashOverrides
+  } = overrides;
   return {
-    currency: "USD",
-    depositEvents: [],
-    expenseItems: [],
-    incomeItems: [],
-    monthScope: { before: "2026-08-01", from: "2026-07-01" },
-    openBills: [],
-    paymentAllocations: [],
-    properties: [{ code: "P1", id: propertyId, name: "Property One" }],
-    receiptAllocations: [],
-    statementBlockers: [],
-    units: [{ id: "unit-1", property_id: propertyId }],
-    ...overrides,
+    cashInput: {
+      depositEvents: cashOverrides.depositEvents ?? [],
+      expenseItems: cashOverrides.expenseItems ?? [],
+      incomeItems: cashOverrides.incomeItems ?? [],
+      monthScope: cashOverrides.monthScope ?? {
+        before: "2026-08-01",
+        from: "2026-07-01",
+      },
+      paymentAllocations: cashOverrides.paymentAllocations ?? [],
+      propertyIds:
+        cashOverrides.propertyIds ?? properties.map((property) => property.id),
+      receiptAllocations: cashOverrides.receiptAllocations ?? [],
+    },
+    currency,
+    openBills,
+    properties,
+    statementReadiness,
+    units,
   };
 }
 
@@ -324,11 +393,11 @@ function income(
   dueDate = "2026-07-15",
 ) {
   return {
-    amount_due: amountDue,
-    due_date: dueDate,
+    amountDue,
+    dueDate,
     id,
-    income_type: incomeType,
-    property_id: targetPropertyId,
+    incomeType,
+    propertyId: targetPropertyId,
   };
 }
 
@@ -339,12 +408,12 @@ function receipt(
   receivedDate = "2026-07-20",
 ) {
   return {
-    allocation_id: `allocation-${incomeItemId}-${receivedDate}-${isReversal}`,
+    allocationId: `allocation-${incomeItemId}-${receivedDate}-${isReversal}`,
     amount,
-    income_item_id: incomeItemId,
-    receipt_id: `receipt-${incomeItemId}-${receivedDate}-${isReversal}`,
-    received_date: receivedDate,
-    reversal_of_id: isReversal ? `original-${incomeItemId}` : null,
+    incomeItemId,
+    receiptId: `receipt-${incomeItemId}-${receivedDate}-${isReversal}`,
+    receivedDate,
+    reversalOfId: isReversal ? `original-${incomeItemId}` : null,
   };
 }
 
@@ -354,10 +423,10 @@ function expense(
   targetPropertyId = propertyId,
 ) {
   return {
-    economic_scope: economicScope,
-    expense_type: id,
+    economicScope,
+    expenseType: id,
     id,
-    property_id: targetPropertyId,
+    propertyId: targetPropertyId,
   };
 }
 
@@ -368,22 +437,22 @@ function payment(
   paidDate = "2026-07-21",
 ) {
   return {
-    allocation_id: `allocation-${expenseItemId}-${paidDate}-${isReversal}`,
+    allocationId: `allocation-${expenseItemId}-${paidDate}-${isReversal}`,
     amount,
-    expense_item_id: expenseItemId,
-    paid_date: paidDate,
-    payment_id: `payment-${expenseItemId}-${paidDate}-${isReversal}`,
-    reversal_of_id: isReversal ? `original-${expenseItemId}` : null,
+    expenseItemId,
+    paidDate,
+    paymentId: `payment-${expenseItemId}-${paidDate}-${isReversal}`,
+    reversalOfId: isReversal ? `original-${expenseItemId}` : null,
   };
 }
 
 function depositEvent(
   amount: number,
-  eventType: OverviewPropertyPerformanceInput["depositEvents"][number]["event_type"] =
+  eventType: PropertyCashInput["depositEvents"][number]["eventType"] =
     "received",
   reversedEventType: "applied" | "received" | "refunded" | "retained" | null = null,
   eventDate = "2026-07-10",
-): OverviewPropertyPerformanceInput["depositEvents"][number] {
+): PropertyCashInput["depositEvents"][number] {
   if (eventType === "reversed") {
     if (!reversedEventType) {
       throw new Error("Reversed test deposits require an original event type");
@@ -391,20 +460,20 @@ function depositEvent(
 
     return {
       amount,
-      event_date: eventDate,
-      event_type: "reversed",
-      id: `deposit-${eventType}-${reversedEventType}-${amount}-${eventDate}`,
-      property_id: propertyId,
-      reversed_event_type: reversedEventType,
+      depositEventId: `deposit-${eventType}-${reversedEventType}-${amount}-${eventDate}`,
+      eventDate,
+      eventType: "reversed",
+      propertyId,
+      reversedEventType,
     };
   }
 
   return {
     amount,
-    event_date: eventDate,
-    event_type: eventType,
-    id: `deposit-${eventType}-${amount}-${eventDate}`,
-    property_id: propertyId,
-    reversed_event_type: null,
+    depositEventId: `deposit-${eventType}-${amount}-${eventDate}`,
+    eventDate,
+    eventType,
+    propertyId,
+    reversedEventType: null,
   };
 }

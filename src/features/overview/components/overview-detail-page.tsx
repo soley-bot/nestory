@@ -84,10 +84,10 @@ function ReadinessWorkspace({ data }: { data: OverviewScreenData }) {
       <header className="border-b border-border pb-3">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="mr-auto text-lg font-semibold text-foreground">Statement readiness</h1>
-          <Badge tone={readiness.blockedCount > 0 ? "warning" : "success"}>
-            {readiness.readyCount} ready
+          <Badge tone={readiness.blockedPropertyCount > 0 ? "warning" : "success"}>
+            {readiness.readyPropertyCount} ready properties
           </Badge>
-          <span className="text-xs text-foreground-muted">of {readiness.totalCount}</span>
+          <span className="text-xs text-foreground-muted">of {readiness.totalPropertyCount}</span>
         </div>
         <p className="mt-1 text-sm text-foreground-muted">
           Review each property before preparing owner statements.
