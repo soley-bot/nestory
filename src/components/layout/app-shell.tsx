@@ -351,9 +351,9 @@ function ExpandedDesktopSidebar({
 
       <nav
         aria-label="Global navigation"
-        className="flex-1 overflow-y-auto px-2 py-2"
+        className="flex-1 overflow-y-auto px-2 py-3"
       >
-        <div className="space-y-0.5">
+        <div className="space-y-1">
           {destinations.map((destination) => (
             <GlobalDestinationLink
               destination={destination}
@@ -435,13 +435,13 @@ function GlobalDestinationLink({
     <Link
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
         isActive && "bg-surface-muted font-semibold text-foreground",
       )}
       href={destination.href}
       prefetch={false}
     >
-      <Icon className="shrink-0" size={14} />
+      <Icon className="shrink-0" size={15} />
       <span className="min-w-0 flex-1 truncate">{destination.label}</span>
     </Link>
   );

@@ -30,7 +30,7 @@ export default async function WorkspacePage() {
 
       <header className="absolute inset-x-0 top-0 z-20">
         <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-end px-6 pt-7 sm:px-10 lg:px-14">
-          <ThemeToggle className="text-[var(--workspace-arrival-muted)] hover:bg-[var(--workspace-arrival-action)] hover:text-[var(--workspace-arrival-fg)]" />
+          <ThemeToggle className="text-[var(--workspace-arrival-muted)] hover:bg-[var(--workspace-arrival-action-hover)] hover:text-[var(--workspace-arrival-action-fg)]" />
         </div>
       </header>
 

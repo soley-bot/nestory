@@ -58,7 +58,7 @@ export function EmptyState({
   return (
     <section
       className={cn(
-        "flex min-h-40 flex-col items-start justify-center px-5 py-6 text-sm",
+        "flex min-h-40 flex-col items-center justify-center px-5 py-6 text-center text-sm",
         className,
       )}
       data-kind={kind}

@@ -121,12 +121,13 @@ describe("Workspace command palette access", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Search or jump" });
     const input = within(dialog).getByRole("combobox", { name: "Search or jump" });
-    expect(within(dialog).queryByRole("listbox", { name: "Search results" })).toBeNull();
-    expect(input.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.change(input, { target: { value: "t" } });
+    const idleListbox = within(dialog).getByRole("listbox", { name: "Search results" });
+    expect(within(idleListbox).getByRole("group", { name: "Quick access" })).toBeTruthy();
+    expect(input.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.change(input, { target: { value: ">" } });
     const listbox = within(dialog).getByRole("listbox", { name: "Search results" });
     const navigationGroup = within(listbox).getByRole("group", {
-      name: "Navigation",
+      name: "Pages",
     });
     const options = within(navigationGroup).getAllByRole("option");
 
@@ -152,7 +153,7 @@ describe("Workspace command palette access", () => {
     renderPalette("manager");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
-    fireEvent.change(input, { target: { value: "t" } });
+    fireEvent.change(input, { target: { value: ">" } });
     const closeButton = screen.getByRole("button", { name: "Close search" });
     const initialActiveOption = input.getAttribute("aria-activedescendant");
 
@@ -183,7 +184,7 @@ describe("Workspace command palette access", () => {
     renderPalette("manager");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
-    fireEvent.change(input, { target: { value: "t" } });
+    fireEvent.change(input, { target: { value: ">" } });
     const initialActiveOption = input.getAttribute("aria-activedescendant");
 
     fireEvent.keyDown(input, { isComposing: true, key: "ArrowDown" });
@@ -217,7 +218,7 @@ describe("Workspace command palette results", () => {
     expect(screen.queryByText("No results")).toBeNull();
   });
 
-  it("discloses the record-search threshold alongside a short-query navigation match", async () => {
+  it("does not flood short queries with page matches", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     renderPalette("member");
@@ -228,9 +229,9 @@ describe("Workspace command palette results", () => {
     await advanceSearch();
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(screen.getByRole("option", { name: /Tasks/ })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /Tasks/ })).toBeNull();
     expect(screen.getByRole("status").textContent).toBe(
-      "1 navigation result. Type 2 characters to search records.",
+      "Type 2 characters to search records",
     );
     expect(screen.queryByText("No results")).toBeNull();
   });
@@ -239,18 +240,34 @@ describe("Workspace command palette results", () => {
     renderPalette("member");
     openPalette();
 
-    expect(screen.queryByRole("listbox", { name: "Search results" })).toBeNull();
+    expect(screen.getByRole("listbox", { name: "Search results" })).toBeTruthy();
     fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
-      target: { value: "t" },
+      target: { value: ">" },
     });
     expect(screen.getByRole("option", { name: /Tasks/ })).toBeTruthy();
     expect(screen.queryByRole("option", { name: /Properties/ })).toBeNull();
     expect(screen.queryByRole("option", { name: /Cases/ })).toBeNull();
 
     fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
-      target: { value: "prop" },
+      target: { value: "> prop" },
     });
     expect(screen.queryByRole("option", { name: /Properties/ })).toBeNull();
+  });
+
+  it("keeps explicit page mode local and ranks the closest page first", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderPalette();
+    openPalette();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
+      target: { value: "> prop" },
+    });
+    await advanceSearch();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getAllByRole("option")[0].textContent).toContain("Properties");
+    expect(screen.getByRole("status").textContent).toBe("2 pages");
   });
 
   it("debounces entity search for 500ms with private same-origin fetch options", async () => {
@@ -324,8 +341,7 @@ describe("Workspace command palette results", () => {
     });
 
     const listbox = screen.getByRole("listbox", { name: "Search results" });
-    expect(within(listbox).getByRole("group", { name: "Properties" })).toBeTruthy();
-    expect(within(listbox).getByRole("group", { name: "People" })).toBeTruthy();
+    expect(within(listbox).getByRole("group", { name: "Best matches" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain("2 results");
 
     fireEvent.click(screen.getByRole("option", { name: /Boiler House/ }));
@@ -333,11 +349,48 @@ describe("Workspace command palette results", () => {
     expect(screen.queryByRole("dialog", { name: "Search or jump" })).toBeNull();
   });
 
+  it("places record matches before a matching page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          results: [
+            {
+              href: "/properties/property-1",
+              id: "property-1",
+              kind: "property",
+              label: "Property One",
+              meta: "PR-001",
+            },
+          ],
+        }),
+      ),
+    );
+    renderPalette();
+    openPalette();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
+      target: { value: "property" },
+    });
+    await advanceSearch();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const groups = within(
+      screen.getByRole("listbox", { name: "Search results" }),
+    ).getAllByRole("group");
+    expect(groups[0].textContent).toContain("Best matches");
+    expect(groups[1].textContent).toContain("Pages");
+    expect(screen.getAllByRole("option")[0].textContent).toContain("Property One");
+  });
+
   it("moves through results with Arrow keys and activates the selected option with Enter", () => {
     renderPalette("manager");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
-    fireEvent.change(input, { target: { value: "t" } });
+    fireEvent.change(input, { target: { value: ">" } });
     const options = screen.getAllByRole("option");
 
     expect(input.getAttribute("aria-activedescendant")).toBe(options[0].id);
@@ -360,7 +413,7 @@ describe("Workspace command palette results", () => {
       renderPalette();
       openPalette();
       const input = screen.getByRole("combobox", { name: "Search or jump" });
-      fireEvent.change(input, { target: { value: "t" } });
+      fireEvent.change(input, { target: { value: ">" } });
       scrollIntoView.mockClear();
 
       for (let index = 0; index < 12; index += 1) {
@@ -556,8 +609,8 @@ describe("Workspace command palette results", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getAllByRole("option")).toHaveLength(20);
-    expect(screen.getByRole("status").textContent).toContain("20 results");
+    expect(screen.getAllByRole("option")).toHaveLength(8);
+    expect(screen.getByRole("status").textContent).toContain("Showing 8 of 20 results");
   });
 
   it("bounds the untrusted payload rows before validating them", async () => {
