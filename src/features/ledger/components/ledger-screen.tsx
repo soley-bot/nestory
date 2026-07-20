@@ -20,7 +20,6 @@ import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -236,9 +235,8 @@ export function LedgerScreen({
 
   return (
     <WorkspacePage
-      header={<PageHeader
-        actions={
-          <>
+      actions={
+        <>
             <RecentChangesPopover
               changes={recentChanges}
               onSelectChange={(change) => {
@@ -260,11 +258,11 @@ export function LedgerScreen({
               <Plus size={15} />
               Add entry
             </Button>
-          </>
-        }
-        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
-        title="Financial Ledger"
-      />}
+        </>
+      }
+      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+      contextHref="/ledger"
+      title="Financial Ledger"
       toolbar={
         <LedgerFilters
           properties={propertyOptions}

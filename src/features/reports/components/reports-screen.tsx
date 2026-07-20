@@ -50,13 +50,10 @@ export function ReportsLibraryScreen({
 
   return (
     <WorkspacePage
-      header={
-        <PageHeader
-          context={`${reportCatalog.length} available reports`}
-          title="Reports"
-        />
-      }
+      context={`${reportCatalog.length} available reports`}
+      contextHref="/reports"
       localNav={<ReportFamilyNavigation viewQuery={viewQuery} />}
+      title="Reports"
     >
       <main className="grid h-full min-h-0 gap-4 overflow-y-auto px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-6">
         <section className="rounded-md border border-border bg-surface">

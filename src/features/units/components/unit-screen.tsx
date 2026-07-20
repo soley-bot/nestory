@@ -9,7 +9,6 @@ import {
   getInitialRecordId,
   getSelectedRecord,
 } from "@/components/data/record-selection";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -256,9 +255,8 @@ export function UnitScreen({
 
   return (
     <WorkspacePage
-      header={<PageHeader
-        actions={
-          <>
+      actions={
+        <>
             {fillVacancyHref ? (
               <Link
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-soft px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-warning-soft/70"
@@ -283,18 +281,11 @@ export function UnitScreen({
                 Add unit
               </Button>
             ) : null}
-          </>
-        }
-        context={
-          <span className="tabular-nums">
-            {pagination.totalCount} {pagination.totalCount === 1 ? "record" : "records"}
-          </span>
-        }
-        description={
-          activeReview ? activeReview.description : undefined
-        }
-        title="Units"
-      />}
+        </>
+      }
+      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+      contextHref="/units"
+      title="Units"
       toolbar={
         <UnitFilters
           displayMode={displayMode}

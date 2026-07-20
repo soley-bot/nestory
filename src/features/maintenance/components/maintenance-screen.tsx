@@ -39,7 +39,6 @@ import {
 } from "@/components/data/record-selection";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -187,7 +186,6 @@ export function MaintenanceScreen({
   capabilities,
   cases,
   createButtonLabel = "New case",
-  description = "Open work orders, scheduled repairs, and unit/property maintenance history.",
   emptyLabel = "No maintenance cases found.",
   flowLabel = "Current scope",
   initialTaskId,
@@ -502,10 +500,8 @@ export function MaintenanceScreen({
 
   return (
     <WorkspacePage
-      header={
-        <PageHeader
-          actions={
-            <>
+      actions={
+        <>
               {showReportAction ? (
                 <LinkButton href={getMaintenanceReportHref(viewQuery)}>
                   <FileText size={15} />
@@ -518,13 +514,10 @@ export function MaintenanceScreen({
                   {createButtonLabel}
                 </Button>
               ) : null}
-            </>
-          }
-          context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
-          description={description}
-          title={title}
-        />
+        </>
       }
+      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+      contextHref={pathname}
       localNav={
         <LocalWorkspaceNav
           items={getMaintenanceWorkspaceNavItems(pathname)}
@@ -549,8 +542,9 @@ export function MaintenanceScreen({
             units={unitOptions}
             viewQuery={viewQuery}
           />
-        ) : undefined
+          ) : undefined
       }
+      title={title}
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
         {statusMessage ? (

@@ -6,7 +6,6 @@ import { useActionState, useEffect, useState } from "react";
 import { CheckCircle2, Eye, Plus, XCircle } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -161,16 +160,15 @@ export function BillsExpensesScreen({
 
   return (
     <WorkspacePage
-      header={<PageHeader
-        actions={
-          <Button onClick={openCreate} variant="primary">
-            <Plus size={15} />
-            Add bill
-          </Button>
-        }
-        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
-        title="Bills & Expenses"
-      />}
+      actions={
+        <Button onClick={openCreate} variant="primary">
+          <Plus size={15} />
+          Add bill
+        </Button>
+      }
+      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+      contextHref="/bills-expenses"
+      title="Bills & Expenses"
       toolbar={
         <BillsExpensesFilters
           propertyOptions={propertyOptions}

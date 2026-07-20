@@ -79,6 +79,21 @@ describe("AppShell workspace logo", () => {
     );
   });
 
+  it("places the desktop sidebar toggle in the workspace command bar", () => {
+    render(
+      <AppShell role="admin">
+        <div>Workspace</div>
+      </AppShell>,
+    );
+
+    const toggle = screen.getByRole("button", { name: "Collapse sidebar" });
+
+    expect(
+      toggle.closest('[data-slot="workspace-command-entry"]'),
+    ).not.toBeNull();
+    expect(toggle.getAttribute("data-slot")).toBe("workspace-sidebar-toggle");
+  });
+
   it("keeps managers out of admin-only settings navigation", () => {
     render(
       <AppShell role="manager">
