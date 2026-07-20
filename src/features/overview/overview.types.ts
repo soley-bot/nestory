@@ -1,4 +1,8 @@
 import type { RecentChange } from "@/features/activity/activity.types";
+import type {
+  MaintenancePriority,
+  MaintenanceStatus,
+} from "@/features/maintenance/maintenance.types";
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
 export type OverviewMetricTone = "neutral" | "success" | "warning" | "danger";
@@ -147,8 +151,8 @@ export type OverviewMaintenanceCase = {
   dueDate: string | null;
   href: string;
   id: string;
-  priority: string;
-  status: string;
+  priority: MaintenancePriority;
+  status: MaintenanceStatus;
   title: string;
 };
 

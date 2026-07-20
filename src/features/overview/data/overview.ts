@@ -12,6 +12,11 @@ import type {
 import { getOverviewMonthScope } from "@/features/overview/overview.filters";
 import { OPERATIONAL_OPEN_MAINTENANCE_STATUSES } from "@/features/maintenance/maintenance.constants";
 import {
+  getMaintenanceTaskFacts,
+  type MaintenanceTaskFacts,
+} from "@/features/maintenance/maintenance.facts";
+import type { MaintenancePriority } from "@/features/maintenance/maintenance.types";
+import {
   buildOverviewPropertyPerformance,
   type OverviewExpenseItemInputRow,
   type OverviewIncomeItemInputRow,
@@ -106,6 +111,11 @@ type MaintenanceTaskRow = {
   property_id: string;
   status: string;
   title: string;
+};
+
+type MaintenanceTaskWithFacts = {
+  facts: MaintenanceTaskFacts;
+  task: MaintenanceTaskRow;
 };
 
 type PagedQuery<T> = {
@@ -431,7 +441,21 @@ export async function getOverviewScreenData(
     ledger_entry_id: string | null;
     property_id: string | null;
   }>;
-  const openMaintenanceTasks = (openMaintenanceResult.data ?? []) as MaintenanceTaskRow[];
+  const openMaintenanceTasks = (
+    (openMaintenanceResult.data ?? []) as MaintenanceTaskRow[]
+  )
+    .map((task) => ({
+      facts: getMaintenanceTaskFacts(
+        {
+          dueDate: task.due_date,
+          priority: task.priority,
+          status: task.status,
+        },
+        businessToday,
+      ),
+      task,
+    }))
+    .filter(({ facts }) => facts.isOpen);
   const openMaintenanceCount = openMaintenanceTasks.length;
   const currentLeasedUnitIds = new Set(
     currentLeases.flatMap((lease) => (lease.unit_id ? [lease.unit_id] : [])),
@@ -563,7 +587,6 @@ export async function getOverviewScreenData(
     }),
     maintenanceByProperty: buildMaintenanceByProperty({
       activeProperties,
-      businessToday,
       tasks: openMaintenanceTasks,
     }),
     metrics: buildMetrics({
@@ -1169,14 +1192,12 @@ function buildOccupancyByProperty({
 
 function buildMaintenanceByProperty({
   activeProperties,
-  businessToday,
   tasks,
 }: {
   activeProperties: PropertyRow[];
-  businessToday: string;
-  tasks: MaintenanceTaskRow[];
+  tasks: MaintenanceTaskWithFacts[];
 }): OverviewMaintenancePoint[] {
-  const tasksByProperty = groupBy(tasks, (task) => task.property_id);
+  const tasksByProperty = groupBy(tasks, ({ task }) => task.property_id);
 
   return activeProperties
     .flatMap((property) => {
@@ -1185,24 +1206,20 @@ function buildMaintenanceByProperty({
 
       const sortedTasks = propertyTasks.toSorted(compareMaintenanceTasks);
       return [{
-        blockedCount: propertyTasks.filter((task) => task.status === "blocked").length,
-        cases: sortedTasks.slice(0, 6).map((task) => ({
+        blockedCount: propertyTasks.filter(({ facts }) => facts.isBlocked).length,
+        cases: sortedTasks.slice(0, 6).map(({ facts, task }) => ({
           dueDate: task.due_date,
           href: `/maintenance?taskId=${task.id}`,
           id: task.id,
-          priority: task.priority,
-          status: task.status,
+          priority: facts.priority,
+          status: facts.status,
           title: task.title,
         })),
         href: `/maintenance?review=open&propertyId=${property.id}`,
         label: `${property.code} / ${property.name}`,
         openCount: propertyTasks.length,
-        overdueCount: propertyTasks.filter(
-          (task) => task.due_date !== null && task.due_date < businessToday,
-        ).length,
-        urgentCount: propertyTasks.filter(
-          (task) => task.priority === "urgent" || task.priority === "high",
-        ).length,
+        overdueCount: propertyTasks.filter(({ facts }) => facts.isOverdue).length,
+        urgentCount: propertyTasks.filter(({ facts }) => facts.isHighPriority).length,
       }];
     })
     .toSorted(
@@ -1259,16 +1276,22 @@ function buildRecordsByProperty({
     );
 }
 
-function compareMaintenanceTasks(first: MaintenanceTaskRow, second: MaintenanceTaskRow) {
+function compareMaintenanceTasks(
+  first: MaintenanceTaskWithFacts,
+  second: MaintenanceTaskWithFacts,
+) {
   return (
-    maintenancePriorityRank(second.priority) - maintenancePriorityRank(first.priority) ||
-    (first.due_date ?? "9999-12-31").localeCompare(second.due_date ?? "9999-12-31") ||
-    first.title.localeCompare(second.title) ||
-    first.id.localeCompare(second.id)
+    maintenancePriorityRank(second.facts.priority) -
+      maintenancePriorityRank(first.facts.priority) ||
+    (first.task.due_date ?? "9999-12-31").localeCompare(
+      second.task.due_date ?? "9999-12-31",
+    ) ||
+    first.task.title.localeCompare(second.task.title) ||
+    first.task.id.localeCompare(second.task.id)
   );
 }
 
-function maintenancePriorityRank(priority: string) {
+function maintenancePriorityRank(priority: MaintenancePriority) {
   if (priority === "urgent") return 4;
   if (priority === "high") return 3;
   if (priority === "normal") return 2;
