@@ -19,6 +19,7 @@ import {
   type MaintenanceMemberIdentity,
 } from "@/features/maintenance/maintenance.execution";
 import { buildMaintenanceHrefs } from "@/features/maintenance/maintenance.hrefs";
+import { getMaintenanceTaskFacts } from "@/features/maintenance/maintenance.facts";
 import { getLatestMaintenanceReviewInstruction } from "@/features/maintenance/maintenance.workflow";
 import type {
   MaintenanceBadgeTone,
@@ -288,7 +289,7 @@ export async function getMaintenanceScreenData(
     })),
     pagination: pagedTasks.pagination,
     ...mutableOptions,
-    summary: buildMaintenanceSummary(summaryCases, today, viewQuery.month),
+    summary: buildMaintenanceSummary(summaryCases, viewQuery.month),
   };
 }
 
@@ -415,41 +416,6 @@ export async function getMaintenanceReminderNotifications(
   });
 }
 
-export function isOpenMaintenanceStatus(status: MaintenanceStatus) {
-  return OPERATIONAL_OPEN_MAINTENANCE_STATUSES.includes(
-    status as (typeof OPERATIONAL_OPEN_MAINTENANCE_STATUSES)[number],
-  );
-}
-
-export function getMaintenanceProgressState(
-  task: Pick<MaintenanceCase, "dueDate" | "status">,
-  today: string,
-): MaintenanceProgressState {
-  if (task.status === "completed") {
-    return "completed";
-  }
-
-  if (task.status === "cancelled") {
-    return "cancelled";
-  }
-
-  if (!task.dueDate) {
-    return task.status === "scheduled" ? "scheduled" : "open";
-  }
-
-  if (task.dueDate < today) {
-    return "overdue";
-  }
-
-  if (task.dueDate === today) {
-    return "due_today";
-  }
-
-  return diffDays(today, task.dueDate) <= MAINTENANCE_UPCOMING_WINDOW_DAYS
-    ? "upcoming"
-    : "scheduled";
-}
-
 export function maintenanceMatchesReview(
   maintenanceCase: MaintenanceCase,
   review: MaintenanceReviewFilter,
@@ -494,7 +460,7 @@ export function maintenanceMatchesReview(
   }
 
   if (review === "high_priority") {
-    return maintenanceCase.priority === "high" || maintenanceCase.priority === "urgent";
+    return maintenanceCase.isHighPriority;
   }
 
   if (review === "high_cost") {
@@ -518,7 +484,6 @@ export function maintenanceMatchesReview(
 
 export function buildMaintenanceSummary(
   cases: MaintenanceCase[],
-  today: string,
   month: string,
 ): MaintenanceSummary {
   const monthCases = cases.filter((maintenanceCase) =>
@@ -532,7 +497,7 @@ export function buildMaintenanceSummary(
       cases.reduce((total, maintenanceCase) => total + getActualCostAmount(maintenanceCase), 0),
       "USD",
     ),
-    blocked: cases.filter((maintenanceCase) => maintenanceCase.status === "blocked").length,
+    blocked: cases.filter((maintenanceCase) => maintenanceCase.isBlocked).length,
     categoryStats,
     completed: cases.filter((maintenanceCase) => maintenanceCase.status === "completed").length,
     estimateCostDisplay: formatMoneyDisplay(
@@ -540,10 +505,7 @@ export function buildMaintenanceSummary(
       "USD",
     ),
     highCost: cases.filter((maintenanceCase) => maintenanceCase.isHighCost).length,
-    highPriority: cases.filter(
-      (maintenanceCase) =>
-        maintenanceCase.priority === "high" || maintenanceCase.priority === "urgent",
-    ).length,
+    highPriority: cases.filter((maintenanceCase) => maintenanceCase.isHighPriority).length,
     inProgress: cases.filter((maintenanceCase) => maintenanceCase.status === "in_progress").length,
     open: openCases.length,
     overdue: cases.filter((maintenanceCase) => maintenanceCase.isOverdue).length,
@@ -557,7 +519,7 @@ export function buildMaintenanceSummary(
     repeatedIssues: buildRepeatedIssues(cases),
     scheduled: cases.filter((maintenanceCase) => maintenanceCase.status === "scheduled").length,
     total: cases.length,
-    upcoming: cases.filter((maintenanceCase) => isUpcomingCase(maintenanceCase, today)).length,
+    upcoming: cases.filter((maintenanceCase) => isUpcomingCase(maintenanceCase)).length,
     unitStats: buildUnitStats(cases),
   };
 }
@@ -1174,17 +1136,17 @@ function toMaintenanceCase({
   const vendorLabel = task.vendor_person_id
     ? vendor?.display_name ?? "Historical vendor"
     : "No vendor";
-  const status = normalizeMaintenanceStatus(task.status);
-  const priority = normalizeMaintenancePriority(task.priority);
-  const recurrenceFrequency = normalizeRecurrence(task.recurrence_frequency);
-  const checklist = parseMaintenanceChecklistValue(task.checklist);
-  const progressState = getMaintenanceProgressState(
+  const facts = getMaintenanceTaskFacts(
     {
-      dueDate: task.due_date ?? undefined,
-      status,
+      dueDate: task.due_date,
+      priority: task.priority,
+      status: task.status,
     },
     today,
   );
+  const { priority, progressState, status } = facts;
+  const recurrenceFrequency = normalizeRecurrence(task.recurrence_frequency);
+  const checklist = parseMaintenanceChecklistValue(task.checklist);
   const actualCostDisplay =
     task.actual_cost_amount !== null && task.actual_cost_currency
       ? formatMoneyDisplay(task.actual_cost_amount, task.actual_cost_currency)
@@ -1253,9 +1215,11 @@ function toMaintenanceCase({
     hrefs: buildMaintenanceHrefs(task, actor),
     id: task.id,
     isArchived: Boolean(task.archived_at),
+    isBlocked: facts.isBlocked,
     isHighCost: getRawCaseCost(task) >= HIGH_COST_AMOUNT,
-    isOpen: isOpenMaintenanceStatus(status),
-    isOverdue: progressState === "overdue",
+    isHighPriority: facts.isHighPriority,
+    isOpen: facts.isOpen,
+    isOverdue: facts.isOverdue,
     isReminderDue: isReminderDue(task, today, currentTime),
     isUpcoming:
       progressState === "upcoming" ||
@@ -1311,7 +1275,6 @@ function toLinkedDocument(document: DocumentRow): MaintenanceLinkedDocument {
 export function filterMaintenanceCases(
   cases: MaintenanceCase[],
   viewQuery: MaintenanceViewQuery,
-  today: string,
 ) {
   if (viewQuery.taskId !== "all") {
     return cases.filter((maintenanceCase) => maintenanceCase.id === viewQuery.taskId);
@@ -1346,7 +1309,7 @@ export function filterMaintenanceCases(
       (viewQuery.status === "all" || maintenanceCase.status === viewQuery.status) &&
       (viewQuery.priority === "all" ||
         maintenanceCase.priority === viewQuery.priority) &&
-      (viewQuery.review !== "upcoming" || isUpcomingCase(maintenanceCase, today))
+      (viewQuery.review !== "upcoming" || isUpcomingCase(maintenanceCase))
     );
   });
 }
@@ -1529,13 +1492,8 @@ function buildRepeatedIssues(cases: MaintenanceCase[]): MaintenanceRepeatedIssue
     .slice(0, 6);
 }
 
-function isUpcomingCase(maintenanceCase: MaintenanceCase, today: string) {
-  return (
-    maintenanceCase.isOpen &&
-    Boolean(maintenanceCase.dueDate) &&
-    maintenanceCase.dueDate! >= today &&
-    diffDays(today, maintenanceCase.dueDate!) <= MAINTENANCE_UPCOMING_WINDOW_DAYS
-  );
+function isUpcomingCase(maintenanceCase: MaintenanceCase) {
+  return maintenanceCase.isUpcoming;
 }
 
 function getMaintenanceMonthDate(maintenanceCase: MaintenanceCase) {
@@ -1558,7 +1516,10 @@ function getRawCaseCost(task: MaintenanceTaskRow) {
 }
 
 function isReminderDue(task: MaintenanceTaskRow, today: string, currentTime: string) {
-  const status = normalizeMaintenanceStatus(task.status);
+  const status = getMaintenanceTaskFacts(
+    { dueDate: task.due_date, priority: task.priority, status: task.status },
+    today,
+  ).status;
 
   if (
     !REMINDER_ACTIONABLE_MAINTENANCE_STATUSES.includes(
@@ -1578,33 +1539,6 @@ function isReminderDue(task: MaintenanceTaskRow, today: string, currentTime: str
   }
 
   return !task.reminder_time || normalizeTime(task.reminder_time)! <= currentTime;
-}
-
-function normalizeMaintenanceStatus(status: string): MaintenanceStatus {
-  const normalized = normalizeValue(status);
-
-  if (
-    normalized === "scheduled" ||
-    normalized === "in_progress" ||
-    normalized === "blocked" ||
-    normalized === "ready_for_review" ||
-    normalized === "completed" ||
-    normalized === "cancelled"
-  ) {
-    return normalized;
-  }
-
-  return "pending";
-}
-
-function normalizeMaintenancePriority(priority: string): MaintenancePriority {
-  const normalized = normalizeValue(priority);
-
-  if (normalized === "low" || normalized === "high" || normalized === "urgent") {
-    return normalized;
-  }
-
-  return "normal";
 }
 
 function normalizeRecurrence(value: string): MaintenanceRecurrenceFrequency {
@@ -1721,13 +1655,6 @@ function formatStoredLabel(value: string) {
 
 function normalizeValue(value: string) {
   return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
-}
-
-function diffDays(start: string, end: string) {
-  const startMs = Date.parse(`${start}T00:00:00.000Z`);
-  const endMs = Date.parse(`${end}T00:00:00.000Z`);
-
-  return Math.round((endMs - startMs) / 86_400_000);
 }
 
 function toIsoDate(date: Date) {

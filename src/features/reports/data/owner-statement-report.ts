@@ -1,13 +1,6 @@
 import { formatDate } from "@/lib/dates/format";
 import { formatMoney } from "@/lib/money/format";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import type {
-  PropertyCashDepositEvent,
-  PropertyCashExpenseItem,
-  PropertyCashIncomeItem,
-  PropertyCashPaymentAllocation,
-  PropertyCashReceiptAllocation,
-} from "@/features/finance/property-cash";
 import {
   getReportMonthRange,
   getReportScopeValidation,
@@ -21,7 +14,6 @@ import type {
   TrustedReportRow,
 } from "@/features/reports/reports.types";
 import type {
-  OwnerStatementDataIssue,
   OwnerStatementEvidenceLine,
   OwnerStatementPerson,
   OwnerStatementReadyRow,
@@ -29,8 +21,17 @@ import type {
 } from "@/features/reports/data/owner-statement";
 import {
   buildOwnerStatement,
-  type OwnerStatementOwnerLink,
 } from "@/features/reports/data/owner-statement";
+import {
+  toOwnerStatementInput,
+  type OwnerStatementDepositEventRow as DepositEventRow,
+  type OwnerStatementIncomeItemRow as IncomeItemRow,
+  type OwnerStatementOwnerLinkRow as OwnerLinkRow,
+  type OwnerStatementPaymentAllocationRow as PaymentAllocationRow,
+  type OwnerStatementPersonContactRow as PersonContactRow,
+  type OwnerStatementPersonRow as PersonRow,
+  type OwnerStatementReceiptAllocationRow as ReceiptAllocationRow,
+} from "@/features/reports/data/owner-statement-input";
 
 export type OwnerStatementReportProperty = {
   code: string;
@@ -39,78 +40,6 @@ export type OwnerStatementReportProperty = {
 };
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
-
-type IncomeItemRow = {
-  amount_due: number;
-  due_date: string;
-  id: string;
-  income_type: string;
-  property_id: string;
-};
-
-type ExpenseItemRow = {
-  economic_scope: string;
-  expense_type: string;
-  id: string;
-  property_id: string;
-};
-
-type ReceiptAllocationRow = {
-  amount: number;
-  finance_income_items?: IncomeItemRow | null;
-  finance_receipts: {
-    id: string;
-    received_date: string;
-    reversal_of_id: string | null;
-  } | null;
-  id: string;
-  income_item_id: string;
-};
-
-type PaymentAllocationRow = {
-  amount: number;
-  expense_item_id: string;
-  finance_expense_items: ExpenseItemRow | null;
-  finance_payments: {
-    id: string;
-    paid_date: string;
-    reversal_of_id: string | null;
-  } | null;
-  id: string;
-};
-
-type DepositEventRow = {
-  amount: number;
-  event_date: string;
-  event_type: string;
-  id: string;
-  property_id: string;
-  reversal_of_id: string | null;
-};
-
-type OwnerLinkRow = {
-  archived_at: string | null;
-  ended_on: string | null;
-  id: string;
-  is_primary: boolean;
-  ownership_percent: number | null;
-  person_id: string;
-  property_id: string;
-  started_on: string | null;
-};
-
-type PersonRow = {
-  display_name: string;
-  id: string;
-  primary_email: string | null;
-  primary_phone: string | null;
-};
-
-type PersonContactRow = {
-  email: string | null;
-  person_id: string;
-  phone: string | null;
-};
 
 const maxOwnerStatementSourceRows = 5_000;
 const ownerStatementSourceRangeEnd = maxOwnerStatementSourceRows - 1;
@@ -192,38 +121,22 @@ export async function getOwnerStatementReport({
     loadPeople(supabase, organizationId, personIds),
     loadPersonContacts(supabase, organizationId, personIds),
   ]);
-  const receiptRows = uniqueById([
-    ...currentReceiptRows,
-    ...historicalReceiptRows,
-  ]);
-  const people = toOwnerStatementPeople(personRows, contactRows);
-  const deposits = toDepositEvents(depositRows);
-  const result = buildOwnerStatement({
-    cashInput: {
-      depositEvents: deposits.events,
-      expenseItems: uniqueById(
-        paymentRows.flatMap((row) =>
-          row.finance_expense_items ? [row.finance_expense_items] : [],
-        ),
-      ).map(toExpenseItem),
-      incomeItems: uniqueById([
-        ...dueIncomeItems,
-        ...currentReceiptRows.flatMap((row) =>
-          row.finance_income_items ? [row.finance_income_items] : [],
-        ),
-      ]).map(toIncomeItem),
-      monthScope,
-      paymentAllocations: paymentRows.flatMap(toPaymentAllocation),
-      propertyIds,
-      receiptAllocations: receiptRows.flatMap(toReceiptAllocation),
-    },
-    dataIssues: deposits.issues,
-    ownerLinks: ownerRows.map(toOwnerLink),
-    people,
+  const input = toOwnerStatementInput({
+    contactRows,
+    currentReceiptRows,
+    depositRows,
+    dueIncomeItems,
+    historicalReceiptRows,
+    monthScope,
+    ownerRows,
+    paymentRows,
+    personRows,
+    propertyIds,
   });
+  const result = buildOwnerStatement(input);
 
   return buildOwnerStatementTrustedReport({
-    people,
+    people: input.people,
     properties,
     result,
     viewQuery,
@@ -943,196 +856,12 @@ async function loadRows<T>(
   return data;
 }
 
-function toOwnerLink(row: OwnerLinkRow): OwnerStatementOwnerLink {
-  return {
-    archivedAt: row.archived_at,
-    endedOn: row.ended_on,
-    id: row.id,
-    isPrimary: row.is_primary,
-    ownershipPercent: row.ownership_percent,
-    personId: row.person_id,
-    propertyId: row.property_id,
-    startedOn: row.started_on,
-  };
-}
-
-function toOwnerStatementPeople(
-  people: PersonRow[],
-  contacts: PersonContactRow[],
-): OwnerStatementPerson[] {
-  const contactPersonIds = new Set(
-    contacts.flatMap((contact) =>
-      hasText(contact.email) || hasText(contact.phone) ? [contact.person_id] : [],
-    ),
-  );
-  return people.map((person) => ({
-    displayName: person.display_name,
-    hasUsableContact:
-      hasText(person.primary_email) ||
-      hasText(person.primary_phone) ||
-      contactPersonIds.has(person.id),
-    id: person.id,
-  }));
-}
-
-function toIncomeItem(row: IncomeItemRow): PropertyCashIncomeItem {
-  return {
-    amountDue: row.amount_due,
-    dueDate: row.due_date,
-    id: row.id,
-    incomeType: row.income_type,
-    propertyId: row.property_id,
-  };
-}
-
-function toReceiptAllocation(
-  row: ReceiptAllocationRow,
-): PropertyCashReceiptAllocation[] {
-  if (!row.finance_receipts) return [];
-  return [
-    {
-      allocationId: row.id,
-      amount: row.amount,
-      incomeItemId: row.income_item_id,
-      receiptId: row.finance_receipts.id,
-      receivedDate: row.finance_receipts.received_date,
-      reversalOfId: row.finance_receipts.reversal_of_id,
-    },
-  ];
-}
-
-function toExpenseItem(row: ExpenseItemRow): PropertyCashExpenseItem {
-  return {
-    economicScope: row.economic_scope,
-    expenseType: row.expense_type,
-    id: row.id,
-    propertyId: row.property_id,
-  };
-}
-
-function toPaymentAllocation(
-  row: PaymentAllocationRow,
-): PropertyCashPaymentAllocation[] {
-  if (!row.finance_payments) return [];
-  return [
-    {
-      allocationId: row.id,
-      amount: row.amount,
-      expenseItemId: row.expense_item_id,
-      paidDate: row.finance_payments.paid_date,
-      paymentId: row.finance_payments.id,
-      reversalOfId: row.finance_payments.reversal_of_id,
-    },
-  ];
-}
-
-function toDepositEvents(rows: DepositEventRow[]): {
-  events: PropertyCashDepositEvent[];
-  issues: OwnerStatementDataIssue[];
-} {
-  const typesById = new Map(rows.map((row) => [row.id, row.event_type]));
-  const events: PropertyCashDepositEvent[] = [];
-  const issues: OwnerStatementDataIssue[] = [];
-
-  for (const row of rows) {
-    const common = {
-      amount: row.amount,
-      depositEventId: row.id,
-      eventDate: row.event_date,
-      propertyId: row.property_id,
-    };
-    if (row.event_type === "reversed") {
-      const reversedEventType = row.reversal_of_id
-        ? typesById.get(row.reversal_of_id)
-        : undefined;
-      if (!isDepositEventType(reversedEventType)) {
-        issues.push(
-          depositDataIssue(
-            row,
-            `Deposit reversal ${row.id} is missing its original event type`,
-          ),
-        );
-        continue;
-      }
-      events.push({
-        ...common,
-        eventType: "reversed",
-        reversedEventType,
-      });
-      continue;
-    }
-    if (!isDepositEventType(row.event_type)) {
-      issues.push(
-        depositDataIssue(
-          row,
-          `Deposit event ${row.id} has unsupported type ${row.event_type}`,
-        ),
-      );
-      continue;
-    }
-    events.push({
-      ...common,
-      eventType: row.event_type,
-      reversedEventType: null,
-    });
-  }
-
-  return { events, issues };
-}
-
-function depositDataIssue(
-  row: DepositEventRow,
-  reason: string,
-): OwnerStatementDataIssue {
-  return {
-    evidence: {
-      allocatedAmountCents: null,
-      allocationId: null,
-      classification: "security_deposit",
-      depositEventId: row.id,
-      eventDate: row.event_date,
-      expenseItemId: null,
-      incomeItemId: null,
-      ownerEndedOn: null,
-      ownerLinkId: null,
-      ownerPersonId: null,
-      ownerStartedOn: null,
-      paymentId: null,
-      propertyId: row.property_id,
-      receiptId: null,
-      signedAmountCents: null,
-      statementFact: "supporting_evidence",
-    },
-    propertyId: row.property_id,
-    reason,
-  };
-}
-
-function isDepositEventType(
-  value: string | undefined,
-): value is Exclude<PropertyCashDepositEvent["eventType"], "reversed"> {
-  return (
-    value === "applied" ||
-    value === "received" ||
-    value === "refunded" ||
-    value === "retained"
-  );
-}
-
-function uniqueById<T extends { id: string }>(rows: T[]) {
-  return [...new Map(rows.map((row) => [row.id, row])).values()];
-}
-
 function chunk<T>(rows: T[], size: number) {
   const chunks: T[][] = [];
   for (let index = 0; index < rows.length; index += size) {
     chunks.push(rows.slice(index, index + size));
   }
   return chunks;
-}
-
-function hasText(value: string | null) {
-  return Boolean(value?.trim());
 }
 
 function getMonthScope(month: string) {

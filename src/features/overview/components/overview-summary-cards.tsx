@@ -98,7 +98,7 @@ export function OverviewSummaryCards({ data, query }: { data: OverviewScreenData
                   ["Expenses paid", formatMoneyDisplay(summary.cashExpensesAmount, data.ledgerCurrency).primary],
                   ["Arrears", formatMoneyDisplay(summary.arrearsAmount, data.ledgerCurrency).primary],
                   ["Net cash", formatMoneyDisplay(summary.netCashAmount, data.ledgerCurrency).primary],
-                  ["Statement blockers", String(summary.statementReadiness.blockedCount)],
+                  ["Blocked properties", String(summary.statementReadiness.blockedPropertyCount)],
                 ]
             ).map(([label, value]) => (
               <div className="flex items-center justify-between gap-4 px-4 py-3" key={label}>

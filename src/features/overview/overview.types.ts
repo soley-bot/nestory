@@ -1,4 +1,8 @@
 import type { RecentChange } from "@/features/activity/activity.types";
+import type {
+  MaintenancePriority,
+  MaintenanceStatus,
+} from "@/features/maintenance/maintenance.types";
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
 export type OverviewMetricTone = "neutral" | "success" | "warning" | "danger";
@@ -106,6 +110,7 @@ export type OverviewPropertyPerformanceRow = {
   netCash: MoneyDisplayValue;
   netCashAmount: number;
   propertyId: string;
+  readyStatementCount: number;
   securityDepositHeldAmount: number;
   statementBlockers: number;
   status: "healthy" | "attention" | "arrears" | "loss";
@@ -113,9 +118,10 @@ export type OverviewPropertyPerformanceRow = {
 };
 
 export type OverviewStatementReadiness = {
-  blockedCount: number;
-  readyCount: number;
-  totalCount: number;
+  blockedPropertyCount: number;
+  readyPropertyCount: number;
+  readyStatementCount: number;
+  totalPropertyCount: number;
 };
 
 export type OverviewPortfolioSummary = {
@@ -145,8 +151,8 @@ export type OverviewMaintenanceCase = {
   dueDate: string | null;
   href: string;
   id: string;
-  priority: string;
-  status: string;
+  priority: MaintenancePriority;
+  status: MaintenanceStatus;
   title: string;
 };
 
@@ -166,6 +172,7 @@ export type OverviewRecordPoint = {
   label: string;
   missingTenantLinks: number;
   ownerLinked: boolean;
+  readyStatementCount: number;
   statementBlockers: number;
   unitCount: number;
 };
