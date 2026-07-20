@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   buildMaintenanceSummary,
   filterMaintenanceCases,
-  getMaintenanceProgressState,
   getLatestReviewInstructionByTaskId,
   maintenanceMatchesReview,
   scopeMaintenanceMutableOptions,
 } from "@/features/maintenance/data/maintenance";
+import {
+  getMaintenanceProgressState,
+  getMaintenanceTaskFacts,
+} from "@/features/maintenance/maintenance.facts";
 import { buildMaintenanceHrefs } from "@/features/maintenance/maintenance.hrefs";
 import type {
   MaintenanceCase,
@@ -53,7 +56,9 @@ function makeCase(
     executionMode: "manager_coordinated",
     id: "task-1",
     isArchived: false,
+    isBlocked: false,
     isHighCost: false,
+    isHighPriority: false,
     isOpen: true,
     isOverdue: false,
     isReminderDue: false,
@@ -115,6 +120,7 @@ describe("maintenance progress helpers", () => {
       costEstimateAmount: 1_200,
       dueDate: "2026-06-30",
       isHighCost: true,
+      isHighPriority: true,
       isOverdue: true,
       isReminderDue: true,
       priority: "urgent",
@@ -146,7 +152,6 @@ describe("maintenance progress helpers", () => {
       filterMaintenanceCases(
         [makeCase({ id: "task-open" }), completedCase],
         makeViewQuery({ taskId: "task-completed" }),
-        "2026-06-28",
       ),
     ).toEqual([completedCase]);
   });
@@ -252,6 +257,35 @@ describe("maintenance role-safe loading", () => {
 });
 
 describe("buildMaintenanceSummary", () => {
+  it("counts blocked, high-priority, open, and overdue work from Maintenance facts", () => {
+    const rawTasks = [
+      { dueDate: "2026-06-20", priority: "urgent", status: "blocked" },
+      { dueDate: "2026-06-20", priority: "high", status: "completed" },
+      { dueDate: null, priority: "unsupported", status: "unsupported" },
+    ];
+    const cases = rawTasks.map((task, index) => {
+      const facts = getMaintenanceTaskFacts(task, "2026-06-28");
+      return makeCase({
+        dueDate: task.dueDate ?? undefined,
+        id: `task-${index + 1}`,
+        isBlocked: facts.isBlocked,
+        isHighPriority: facts.isHighPriority,
+        isOpen: facts.isOpen,
+        isOverdue: facts.isOverdue,
+        priority: facts.priority,
+        progressState: facts.progressState,
+        status: facts.status,
+      });
+    });
+
+    expect(buildMaintenanceSummary(cases, "2026-06")).toMatchObject({
+      blocked: 1,
+      highPriority: 2,
+      open: 2,
+      overdue: 1,
+    });
+  });
+
   it("builds report inputs for category mix, repeated issues, costs, and progress", () => {
     const cases = [
       makeCase({
@@ -296,7 +330,7 @@ describe("buildMaintenanceSummary", () => {
         status: "ready_for_review",
       }),
     ];
-    const summary = buildMaintenanceSummary(cases, "2026-06-28", "2026-06");
+    const summary = buildMaintenanceSummary(cases, "2026-06");
 
     expect(summary).toMatchObject({
       actualCostDisplay: { primary: "USD 250.00" },

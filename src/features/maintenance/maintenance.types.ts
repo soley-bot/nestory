@@ -158,7 +158,9 @@ export type MaintenanceCase = {
   hrefs: MaintenanceCaseHrefs;
   id: string;
   isArchived: boolean;
+  isBlocked: boolean;
   isHighCost: boolean;
+  isHighPriority: boolean;
   isOpen: boolean;
   isOverdue: boolean;
   isReminderDue: boolean;

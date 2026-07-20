@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { getMaintenanceTaskFacts } from "@/features/maintenance/maintenance.facts";
 import { getOverviewScreenData } from "@/features/overview/data/overview";
 import { buildOwnerStatement } from "@/features/reports/data/owner-statement";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -93,6 +94,129 @@ describe("getOverviewScreenData", () => {
     expect(data.maintenanceByProperty[0].cases[0]).toEqual(
       expect.objectContaining({ title: "Leaking pipe" }),
     );
+  });
+
+  it("uses Maintenance facts for terminal exclusion and raw-value normalization", async () => {
+    const tasks = [
+      {
+        due_date: "2000-01-01",
+        id: "task-completed",
+        priority: "urgent",
+        property_id: "prop-1",
+        status: "completed",
+        title: "Closed emergency",
+      },
+      {
+        due_date: null,
+        id: "task-unknown",
+        priority: "unsupported",
+        property_id: "prop-1",
+        status: "unsupported",
+        title: "Normalize imported task",
+      },
+      {
+        due_date: "2000-01-02",
+        id: "task-review",
+        priority: "HIGH",
+        property_id: "prop-1",
+        status: "ready-for-review",
+        title: "Review completed work",
+      },
+      {
+        due_date: null,
+        id: "task-blocked",
+        priority: "low",
+        property_id: "prop-1",
+        status: "blocked",
+        title: "Coordinate access",
+      },
+    ];
+    const openFacts = tasks
+      .map((task) =>
+        getMaintenanceTaskFacts(
+          {
+            dueDate: task.due_date,
+            priority: task.priority,
+            status: task.status,
+          },
+          "2026-07-20",
+        ),
+      )
+      .filter((facts) => facts.isOpen);
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        properties: {
+          data: [{ code: "CTR", id: "prop-1", name: "Central Residence" }],
+        },
+        tasks: { data: tasks },
+      }),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+    );
+
+    expect(data.attentionItems).toContainEqual(
+      expect.objectContaining({ id: "open-maintenance", count: 3 }),
+    );
+    expect(data.maintenanceByProperty).toEqual([
+      expect.objectContaining({
+        blockedCount: openFacts.filter((facts) => facts.isBlocked).length,
+        openCount: openFacts.length,
+        overdueCount: openFacts.filter((facts) => facts.isOverdue).length,
+        urgentCount: openFacts.filter((facts) => facts.isHighPriority).length,
+      }),
+    ]);
+    expect(data.maintenanceByProperty[0].cases.map((item) => item.id)).toEqual([
+      "task-review",
+      "task-unknown",
+      "task-blocked",
+    ]);
+    expect(data.maintenanceByProperty[0].cases[0]).toEqual(
+      expect.objectContaining({ priority: "high", status: "ready_for_review" }),
+    );
+    expect(data.maintenanceByProperty[0].cases[1]).toEqual(
+      expect.objectContaining({ priority: "normal", status: "pending" }),
+    );
+  });
+
+  it("keeps Overview property ranking and preview ordering deterministic", async () => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        properties: {
+          data: [
+            { code: "ALP", id: "prop-a", name: "Alpha" },
+            { code: "BET", id: "prop-b", name: "Beta" },
+            { code: "GAM", id: "prop-c", name: "Gamma" },
+          ],
+        },
+        tasks: {
+          data: [
+            maintenanceTask("a-overdue", "prop-a", "normal", "2000-01-01"),
+            maintenanceTask("b-normal", "prop-b", "normal", "2099-01-03"),
+            maintenanceTask("b-urgent", "prop-b", "urgent", "2099-01-02"),
+            maintenanceTask("b-high", "prop-b", "high", "2099-01-01"),
+            maintenanceTask("c-one", "prop-c", "normal", "2099-01-01"),
+            maintenanceTask("c-two", "prop-c", "normal", "2099-01-02"),
+          ],
+        },
+      }),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+    );
+
+    expect(data.maintenanceByProperty.map((item) => item.label)).toEqual([
+      "ALP / Alpha",
+      "BET / Beta",
+      "GAM / Gamma",
+    ]);
+    expect(data.maintenanceByProperty[1].cases.map((item) => item.id)).toEqual([
+      "b-urgent",
+      "b-high",
+      "b-normal",
+    ]);
   });
 
   it("links missing lease tenant records to the lease repair view", async () => {
@@ -747,6 +871,22 @@ function receiptAllocation(id: string, incomeItemId: string, amount: number) {
     },
     id,
     income_item_id: incomeItemId,
+  };
+}
+
+function maintenanceTask(
+  id: string,
+  propertyId: string,
+  priority: string,
+  dueDate: string | null,
+) {
+  return {
+    due_date: dueDate,
+    id,
+    priority,
+    property_id: propertyId,
+    status: "pending",
+    title: id,
   };
 }
 
