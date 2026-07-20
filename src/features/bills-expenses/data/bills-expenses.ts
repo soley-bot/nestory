@@ -1,4 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  formatPropertyOptionLabel,
+  formatUnitOptionLabel,
+} from "@/lib/entity-option-labels";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import {
@@ -384,7 +388,7 @@ function buildBillsExpensesSummary(
 function toPropertyOptions(properties: PropertyRow[]): BillsExpenseOption[] {
   return properties.map((property) => ({
     id: property.id,
-    label: `${property.code} / ${property.name}`,
+    label: formatPropertyOptionLabel(property),
   }));
 }
 
@@ -394,7 +398,10 @@ function toUnitOptions(
 ): BillsExpenseUnitOption[] {
   return units.map((unit) => ({
     id: unit.id,
-    label: `${propertiesById.get(unit.property_id)?.code ?? "Property"} / ${unit.unit_number}`,
+    label: formatUnitOptionLabel({
+      propertyCode: propertiesById.get(unit.property_id)?.code,
+      unitNumber: unit.unit_number,
+    }),
     propertyId: unit.property_id,
   }));
 }

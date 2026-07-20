@@ -1,4 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  formatPropertyOptionLabel,
+  formatUnitOptionLabel,
+} from "@/lib/entity-option-labels";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import type { CurrencyCode } from "@/lib/money/format";
 import type {
@@ -133,7 +137,7 @@ export async function getPettyCashScreenData(
     period: selectedPeriod,
     propertyOptions: properties.map((property): PettyCashPropertyOption => ({
       id: property.id,
-      label: `${property.code} - ${property.name}`,
+      label: formatPropertyOptionLabel(property),
     })),
     selectedAccount,
     summary: buildSummary(selectedPeriod, entries),
@@ -142,7 +146,10 @@ export async function getPettyCashScreenData(
 
       return {
         id: unit.id,
-        label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+        label: formatUnitOptionLabel({
+          propertyCode: property?.code,
+          unitNumber: unit.unit_number,
+        }),
         propertyId: unit.property_id,
       };
     }),

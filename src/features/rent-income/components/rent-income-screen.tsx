@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { useActionState, useEffect, useState } from "react";
-import { Coins, Eye, Plus, Send, XCircle } from "lucide-react";
+import type { FormEvent, ReactNode } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Coins, Eye, Plus, RotateCcw, Send, XCircle } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -16,12 +17,15 @@ import { Button } from "@/components/ui/button";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { SearchCombo } from "@/components/ui/search-combo";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterPopover } from "@/components/ui/filter-popover";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
+import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
   createRentIncomeItemAction,
   postRentIncomeItemAction,
@@ -98,7 +102,8 @@ export function RentIncomeScreen({
   };
 
   const hasFilters =
-    viewQuery.incomeScope !== "all" ||
+    viewQuery.incomeGroup !== "all" ||
+    viewQuery.incomeType !== "all" ||
     viewQuery.propertyId !== "all" ||
     viewQuery.query.trim() !== "" ||
     viewQuery.status !== "all" ||
@@ -165,6 +170,7 @@ export function RentIncomeScreen({
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/rent-income"
+      localNav={<FinanceWorkspaceNavigation activeRoute="/rent-income" />}
       title="Rent & Income"
       toolbar={
         <RentIncomeFilters
@@ -184,7 +190,14 @@ export function RentIncomeScreen({
         </div>
       ) : null}
 
-      {viewQuery.incomeScope === "all" ? <RentIncomeSummaryStrip summary={summary} /> : <ScopedSummary label="Management fees" totalCount={pagination.totalCount} />}
+      {viewQuery.incomeGroup === "all" && viewQuery.incomeType === "all" ? (
+        <RentIncomeSummaryStrip summary={summary} />
+      ) : (
+        <ScopedSummary
+          label={getScopedSummaryLabel(viewQuery)}
+          totalCount={pagination.totalCount}
+        />
+      )}
 
       <div className="min-h-0 min-w-0 flex-1">
         {incomeInspector && selectedItem ? (
@@ -250,59 +263,136 @@ function RentIncomeFilters({
   unitOptions: RentIncomeUnitOption[];
   viewQuery: RentIncomeViewQuery;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const [query, setQuery] = useState(viewQuery.query);
+  const activeFilterCount = [
+    viewQuery.incomeGroup !== "all",
+    viewQuery.incomeType !== "all",
+    viewQuery.status !== "all",
+    viewQuery.propertyId !== "all",
+    viewQuery.unitId !== "all",
+  ].filter(Boolean).length;
+  const visibleUnitOptions =
+    viewQuery.propertyId === "all"
+      ? unitOptions
+      : unitOptions.filter(
+          (unit) => unit.propertyId === viewQuery.propertyId || unit.id === viewQuery.unitId,
+        );
+
+  function replaceParam(name: string, value: string, defaultValue: string) {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    if (value === defaultValue || value.trim() === "") {
+      nextParams.delete(name);
+    } else {
+      nextParams.set(name, value);
+    }
+    if (name === "incomeGroup") nextParams.delete("incomeScope");
+    nextParams.delete("page");
+    if (name === "propertyId") nextParams.delete("unitId");
+    const nextQuery = nextParams.toString();
+    startTransition(() => router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false }));
+  }
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    replaceParam("query", query.trim(), "");
+  }
+
   return (
-    <form
-      action="/rent-income"
-      className="grid w-full gap-2 lg:grid-cols-[150px_160px_180px_minmax(160px,1fr)_minmax(160px,1fr)_minmax(180px,1.2fr)_auto]"
-    >
-      <MonthPickerField
-        ariaLabel="Income month"
-        defaultValue={viewQuery.month}
-        name="month"
-      />
-      <SelectControl ariaLabel="Income scope" defaultValue={viewQuery.incomeScope} name="incomeScope" options={[{ label: "All income", value: "all" }, { label: "Management fees", value: "management-fees" }]} />
-      <SelectControl
-        ariaLabel="Income status"
-        defaultValue={viewQuery.status}
-        name="status"
-        options={incomeStatusOptions.map((option) => ({
-          label: option.label,
-          value: option.value,
-        }))}
-      />
-      <SelectControl
-        ariaLabel="Property"
-        defaultValue={viewQuery.propertyId}
-        name="propertyId"
-        options={[
-          { label: "All properties", value: "all" },
-          ...propertyOptions.map((option) => ({
-            label: option.label,
-            value: option.id,
-          })),
-        ]}
-      />
-      <SelectControl
-        ariaLabel="Unit"
-        defaultValue={viewQuery.unitId}
-        name="unitId"
-        options={[
-          { label: "All units", value: "all" },
-          ...unitOptions.map((option) => ({
-            label: option.label,
-            value: option.id,
-          })),
-        ]}
-      />
-      <Input
-        aria-label="Search income"
-        defaultValue={viewQuery.query}
-        name="query"
-        placeholder="Search payer, ref, note"
-      />
-      <Button type="submit">Apply</Button>
-    </form>
+    <div className="w-full space-y-2" data-filter-surface="rent-income">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="w-full sm:w-[160px] sm:shrink-0">
+          <MonthPickerField
+            ariaLabel="Income month"
+            defaultValue={viewQuery.month}
+            name="month"
+            onValueChange={(value) => replaceParam("month", value, "")}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <SearchCombo
+            ariaLabel="Search income"
+            disabled={isPending}
+            onQueryChange={setQuery}
+            onSubmit={submitSearch}
+            placeholder="Search payer, reference, or note"
+            query={query}
+            submitLabel="Search income"
+          />
+        </div>
+        <div className="shrink-0">
+          <FilterPopover
+            activeCount={activeFilterCount}
+            description="Narrow this month by workflow state or record."
+            id="income-advanced-filters"
+            title="Filter income"
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FilterField label="Income group">
+                <SelectControl
+                  ariaLabel="Income group"
+                  onValueChange={(value) => replaceParam("incomeGroup", value, "all")}
+                  options={[
+                    { label: "All income", value: "all" },
+                    { label: "Management-company income", value: "management-company" },
+                  ]}
+                  value={viewQuery.incomeGroup}
+                />
+              </FilterField>
+              <FilterField label="Income type">
+                <SelectControl
+                  ariaLabel="Income type"
+                  onValueChange={(value) => replaceParam("incomeType", value, "all")}
+                  options={[
+                    { label: "All income types", value: "all" },
+                    ...incomeTypeOptions.map((option) => ({
+                      label: option.label,
+                      value: option.value,
+                    })),
+                  ]}
+                  value={viewQuery.incomeType}
+                />
+              </FilterField>
+              <FilterField label="Status"><SelectControl ariaLabel="Income status" onValueChange={(value) => replaceParam("status", value, "all")} options={incomeStatusOptions.map((option) => ({ label: option.label, value: option.value }))} value={viewQuery.status} /></FilterField>
+              <FilterField label="Property"><SelectControl ariaLabel="Property" onValueChange={(value) => replaceParam("propertyId", value, "all")} options={[{ label: "All properties", value: "all" }, ...propertyOptions.map((option) => ({ label: option.label, value: option.id }))]} value={viewQuery.propertyId} /></FilterField>
+              <FilterField label="Unit"><SelectControl ariaLabel="Unit" onValueChange={(value) => replaceParam("unitId", value, "all")} options={[{ label: "All units", value: "all" }, ...visibleUnitOptions.map((option) => ({ label: option.label, value: option.id }))]} value={viewQuery.unitId} /></FilterField>
+            </div>
+          </FilterPopover>
+        </div>
+        <Link
+          aria-label="Reset income filters"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+          href="/rent-income"
+          title="Reset filters"
+        >
+          <RotateCcw size={14} />
+        </Link>
+      </div>
+    </div>
   );
+}
+
+function FilterField({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <label className="grid gap-1.5 text-xs font-medium text-muted">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function getScopedSummaryLabel(viewQuery: RentIncomeViewQuery) {
+  if (viewQuery.incomeType !== "all") {
+    return (
+      incomeTypeOptions.find((option) => option.value === viewQuery.incomeType)
+        ?.label ?? "Selected income type"
+    );
+  }
+
+  return "Management-company income";
 }
 
 function RentIncomeSummaryStrip({ summary }: { summary: RentIncomeSummary }) {

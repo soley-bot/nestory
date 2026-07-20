@@ -9,6 +9,19 @@ import {
   unitMatchesLeaseStatusFilter,
   unitMatchesOccupancyFilter,
 } from "@/features/units/data/units";
+import { UNIT_STATUS_OPTIONS } from "@/features/units/unit.types";
+
+describe("unit status options", () => {
+  it("uses one operational order across forms, filters, and reports", () => {
+    expect(UNIT_STATUS_OPTIONS).toEqual([
+      { label: "Occupied", value: "occupied" },
+      { label: "Vacant", value: "vacant" },
+      { label: "Reserved", value: "reserved" },
+      { label: "Maintenance", value: "maintenance" },
+      { label: "Inactive", value: "inactive" },
+    ]);
+  });
+});
 
 describe("parseUnitSearchParams", () => {
   it("normalizes default unit filters", () => {

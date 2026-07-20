@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
+import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -188,6 +189,7 @@ export function PettyCashScreen({
       }
       context={selectedAccount ? `${selectedAccount.accountNumber} / ${selectedAccount.name}` : "Cash register"}
       contextHref="/petty-cash"
+      localNav={<FinanceWorkspaceNavigation activeRoute="/petty-cash" />}
       title="Petty Cash"
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">

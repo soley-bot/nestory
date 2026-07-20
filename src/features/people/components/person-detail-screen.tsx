@@ -5,7 +5,6 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import {
   Archive,
-  ArrowLeft,
   ArrowRight,
   CalendarDays,
   Download,
@@ -19,6 +18,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -127,6 +127,14 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
             </>
           )
         }
+        breadcrumb={
+          <PageBreadcrumb
+            current={person.displayName}
+            items={[
+              { href: getBackHref(person), label: getBackLabel(person) },
+            ]}
+          />
+        }
         context={
           <div className="flex items-center gap-2">
             <Badge tone={person.statusTone}>{person.statusLabel}</Badge>
@@ -149,14 +157,6 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
       ) : null}
 
       <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
-        <Link
-          className="inline-flex w-fit items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-accent"
-          href={getBackHref(person)}
-        >
-          <ArrowLeft size={15} />
-          {getBackLabel(person)}
-        </Link>
-
         <PersonRecordNav
           activeSection={activeSection}
           onSectionChange={setActiveSection}

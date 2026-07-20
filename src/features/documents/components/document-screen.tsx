@@ -66,6 +66,12 @@ import { cn } from "@/lib/utils";
 
 const initialState: DocumentActionState = {};
 
+export const DOCUMENT_ARCHIVE_OPTIONS = [
+  { label: "Active records", value: "active" },
+  { label: "Archived", value: "archived" },
+  { label: "All records", value: "all" },
+];
+
 type DrawerState =
   | {
       initialValues?: Partial<
@@ -386,11 +392,7 @@ function DocumentFilters({
       <SelectControl
         ariaLabel="Archive state"
         onValueChange={(value) => replaceParam("archiveState", value, "active")}
-        options={[
-          { label: "Active", value: "active" },
-          { label: "Archived", value: "archived" },
-          { label: "All", value: "all" },
-        ]}
+        options={DOCUMENT_ARCHIVE_OPTIONS}
         value={viewQuery.archiveState}
       />
       <SelectControl

@@ -18,6 +18,10 @@ import type {
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  formatPropertyOptionLabel,
+  formatUnitOptionLabel,
+} from "@/lib/entity-option-labels";
 import type { CurrencyCode } from "@/lib/money/format";
 import { buildHref } from "@/lib/url/href";
 
@@ -366,7 +370,7 @@ export async function getTimelineScreenData(
     propertyOptions: (propertiesResult.data ?? []).map(
       (property): TimelinePropertyOption => ({
         id: property.id,
-        label: `${property.code} - ${property.name}`,
+        label: formatPropertyOptionLabel(property),
       }),
     ),
     recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
@@ -375,7 +379,10 @@ export async function getTimelineScreenData(
 
       return {
         id: unit.id,
-        label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+        label: formatUnitOptionLabel({
+          propertyCode: property?.code,
+          unitNumber: unit.unit_number,
+        }),
         propertyId: unit.property_id,
       };
     }),

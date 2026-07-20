@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeSearchParams } from "@/lib/url/href";
+import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
   ArchiveLeasePanel,
   RestoreLeasePanel,
@@ -273,6 +274,7 @@ export function LeaseScreen({
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/leases"
+      localNav={<FinanceWorkspaceNavigation activeRoute="/leases" />}
       title="Leases"
       toolbar={<LeaseFilters
         properties={propertyOptions}

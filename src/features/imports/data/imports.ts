@@ -4,6 +4,10 @@ import type {
   ImportSavedMapping,
   ImportType,
 } from "@/features/imports/import.types";
+import {
+  formatPropertyOptionLabel,
+  formatUnitOptionLabel,
+} from "@/lib/entity-option-labels";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 const importTypes: ImportType[] = ["properties", "units", "people", "leases"];
@@ -126,7 +130,7 @@ export async function getImportReferenceData(
   const properties = propertyRows.map((property) => ({
     code: property.code,
     id: property.id,
-    label: `${property.code} - ${property.name}`,
+    label: formatPropertyOptionLabel(property),
     name: property.name,
   }));
   const propertyById = new Map(
@@ -174,9 +178,10 @@ export async function getImportReferenceData(
 
       return {
         id: unit.id,
-        label: property
-          ? `${property.code} - ${unit.unit_number}`
-          : unit.unit_number,
+        label: formatUnitOptionLabel({
+          propertyCode: property?.code,
+          unitNumber: unit.unit_number,
+        }),
         propertyCode: property?.code ?? "",
         propertyId: unit.property_id,
         unitNumber: unit.unit_number,

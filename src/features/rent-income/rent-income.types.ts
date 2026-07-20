@@ -15,7 +15,7 @@ export const incomeTypeOptions = [
 ] as const;
 
 export const incomeStatusOptions = [
-  { label: "All active", value: "all" },
+  { label: "All statuses", value: "all" },
   { label: "Open", value: "open" },
   { label: "Partial", value: "partially_received" },
   { label: "Received", value: "received" },
@@ -34,10 +34,12 @@ export type RentIncomeStatusFilter =
   | Exclude<RentIncomeStatus, "void">;
 
 export type RentIncomeType = (typeof incomeTypeOptions)[number]["value"];
-export type RentIncomeScope = "all" | "management-fees";
+export type RentIncomeGroup = "all" | "management-company";
+export type RentIncomeTypeFilter = "all" | RentIncomeType;
 
 export type RentIncomeViewQuery = {
-  incomeScope: RentIncomeScope;
+  incomeGroup: RentIncomeGroup;
+  incomeType: RentIncomeTypeFilter;
   month: string;
   page: number;
   pageSize: number;

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { WorkspaceHeaderPortal } from "@/components/layout/workspace-header-portal";
 
 type PageHeaderProps = {
   breadcrumb?: ReactNode;
@@ -17,7 +18,11 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <header className="border-b border-border bg-surface px-4 py-3 sm:px-6">
-      {breadcrumb ? <div className="mb-2">{breadcrumb}</div> : null}
+      {breadcrumb ? (
+        <WorkspaceHeaderPortal>
+          <div className="min-w-0">{breadcrumb}</div>
+        </WorkspaceHeaderPortal>
+      ) : null}
       <h1 className="text-base font-semibold leading-6 text-foreground">
         {title}
       </h1>

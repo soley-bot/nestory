@@ -5,16 +5,79 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RentIncomeScreen } from "./rent-income-screen";
-import type { RentIncomeItem } from "../rent-income.types";
+import { incomeTypeOptions, type RentIncomeItem } from "../rent-income.types";
 
-beforeEach(() => installMatchMedia(1440));
+const navigation = vi.hoisted(() => ({
+  replace: vi.fn(),
+  searchParams: new URLSearchParams(),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/rent-income",
+  useRouter: () => ({ replace: navigation.replace }),
+  useSearchParams: () => navigation.searchParams,
+}));
+
+beforeEach(() => {
+  navigation.replace.mockReset();
+  navigation.searchParams = new URLSearchParams();
+  installMatchMedia(1440);
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
+});
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
 });
 
 describe("RentIncomeScreen", () => {
+  it("submits search independently and resets pagination in the URL", () => {
+    navigation.searchParams = new URLSearchParams("page=3&status=open");
+    renderIncome("all");
+
+    const search = screen.getByRole("textbox", { name: "Search income" });
+    fireEvent.change(search, { target: { value: "  tenant  " } });
+    fireEvent.submit(search.closest("form")!);
+
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      "/rent-income?status=open&query=tenant",
+      { scroll: false },
+    );
+  });
+
+  it("dismisses the filter popover with Escape and returns focus", async () => {
+    const user = userEvent.setup();
+    const { container } = renderIncome("all");
+    const filterSurface = container.querySelector<HTMLElement>(
+      '[data-filter-surface="rent-income"]',
+    )!;
+    const trigger = within(filterSurface).getByRole("button", {
+      name: "Filters",
+    });
+
+    await user.click(trigger);
+    expect(
+      screen.getByRole("combobox", { name: "Income type" }),
+    ).not.toBeNull();
+
+    await user.keyboard("{Escape}");
+
+    expect(
+      screen.queryByRole("combobox", { name: "Income type" }),
+    ).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it("uses the finance workspace anatomy without changing totals or filter values", () => {
     const postedIncome = {
       ...partialIncome,
@@ -43,23 +106,16 @@ describe("RentIncomeScreen", () => {
       "USD 100.00",
     );
 
-    const filterForm = container.querySelector<HTMLElement>('form[action="/rent-income"]')!;
-    for (const name of ["Income scope", "Income status", "Property", "Unit"]) {
-      expect(within(filterForm).getByRole("combobox", { name })).not.toBeNull();
+    const filterForm = container.querySelector<HTMLElement>('[data-filter-surface="rent-income"]')!;
+    expect(
+      screen.getByRole("navigation", { name: "Finance workspace" }),
+    ).not.toBeNull();
+    fireEvent.click(within(filterForm).getByRole("button", { name: "Filters" }));
+    for (const name of ["Income group", "Income type", "Income status", "Property", "Unit"]) {
+      expect(screen.getByRole("combobox", { name })).not.toBeNull();
     }
     expect(within(filterForm).getByRole("textbox", { name: "Search income" })).not.toBeNull();
-    expect((filterForm.querySelector('[name="month"]') as HTMLInputElement).value).toBe(
-      "2026-07",
-    );
-    expect((filterForm.querySelector('[name="incomeScope"]') as HTMLSelectElement).value).toBe(
-      "all",
-    );
-    expect((filterForm.querySelector('[name="status"]') as HTMLSelectElement).value).toBe(
-      "all",
-    );
-    expect((filterForm.querySelector('[name="propertyId"]') as HTMLSelectElement).value).toBe(
-      "all",
-    );
+    expect((filterForm.querySelector('[name="month"]') as HTMLInputElement).value).toBe("2026-07");
 
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
@@ -72,6 +128,63 @@ describe("RentIncomeScreen", () => {
     expect(within(rows[0]!).getByRole("button", { name: "Preview Tenant" })).not.toBeNull();
     expect(within(rows[1]!).getByText("Posted")).not.toBeNull();
     expect(container.querySelectorAll("[data-money-cell='true']").length).toBeGreaterThan(0);
+  });
+
+  it("offers every supported income type plus the all-types choice", async () => {
+    const user = userEvent.setup();
+    renderIncome("all");
+
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Income type" }));
+
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "All income types",
+      ...incomeTypeOptions.map((option) => option.label),
+    ]);
+  });
+
+  it("writes income type to the URL and resets pagination", async () => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams("page=4&status=open");
+    renderIncome("all", [partialIncome], { status: "open" });
+
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Income type" }));
+    await user.click(screen.getByRole("option", { name: "Late fee" }));
+
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      "/rent-income?status=open&incomeType=late_fee",
+      { scroll: false },
+    );
+  });
+
+  it("replaces the legacy management-fee URL with the canonical income group", async () => {
+    const user = userEvent.setup();
+    navigation.searchParams = new URLSearchParams(
+      "page=2&incomeScope=management-fees&status=open",
+    );
+    renderIncome("management-company", [partialIncome], { status: "open" });
+
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Income group" }));
+    await user.click(screen.getByRole("option", { name: "All income" }));
+
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      "/rent-income?status=open",
+      { scroll: false },
+    );
+  });
+
+  it("counts group and type independently and provides a full reset", () => {
+    renderIncome("management-company", [partialIncome], {
+      incomeType: "management_fee",
+      status: "open",
+    });
+
+    expect(screen.getByRole("button", { name: "Filters (3)" })).not.toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Reset income filters" }).getAttribute("href"),
+    ).toBe("/rent-income");
   });
 
   it("keeps nested links independent while row keys and Preview state select records", () => {
@@ -151,9 +264,9 @@ describe("RentIncomeScreen", () => {
     expect(within(emptyState).getByRole("button", { name: "Add income" })).not.toBeNull();
   });
 
-  it("shows a truthful filtered count instead of global money summaries for management fees", () => {
-    renderIncome("management-fees");
-    expect(screen.getAllByText("Management fees").length).toBeGreaterThan(0);
+  it("shows a truthful filtered count instead of global money summaries for management-company income", () => {
+    renderIncome("management-company");
+    expect(screen.getAllByText("Management-company income").length).toBeGreaterThan(0);
     expect(screen.getByText("1 filtered row")).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Global income summary" })).toBeNull();
     expect(screen.getByRole("region", { name: "Scoped income summary" })).toBeTruthy();
@@ -174,8 +287,9 @@ describe("RentIncomeScreen", () => {
           unpostedCount: "1",
         }}
         unitOptions={[]}
-      viewQuery={{
-        incomeScope: "all",
+        viewQuery={{
+          incomeGroup: "all",
+          incomeType: "all",
           month: "2026-07",
           page: 1,
           pageSize: 25,
@@ -210,11 +324,11 @@ describe("RentIncomeScreen", () => {
 });
 
 function renderIncome(
-  incomeScope: "all" | "management-fees",
+  incomeGroup: "all" | "management-company",
   incomeItems: RentIncomeItem[] = [partialIncome],
   viewQuery: Partial<ComponentProps<typeof RentIncomeScreen>["viewQuery"]> = {},
 ) {
-  return render(<RentIncomeScreen incomeItems={incomeItems} leaseOptions={[]} pagination={{ from: incomeItems.length ? 1 : 0, page: 1, pageSize: 25, to: incomeItems.length, totalCount: incomeItems.length, totalPages: incomeItems.length ? 1 : 0 }} propertyOptions={[{ id: "property-1", label: "HOME / Home" }]} summary={{ openCount: "1", overdueCount: "0", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" }, unpostedCount: "1" }} unitOptions={[]} viewQuery={{ incomeScope, month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all", ...viewQuery }} />);
+  return render(<RentIncomeScreen incomeItems={incomeItems} leaseOptions={[]} pagination={{ from: incomeItems.length ? 1 : 0, page: 1, pageSize: 25, to: incomeItems.length, totalCount: incomeItems.length, totalPages: incomeItems.length ? 1 : 0 }} propertyOptions={[{ id: "property-1", label: "HOME / Home" }]} summary={{ openCount: "1", overdueCount: "0", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" }, unpostedCount: "1" }} unitOptions={[]} viewQuery={{ incomeGroup, incomeType: "all", month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all", ...viewQuery }} />);
 }
 
 const partialIncome: RentIncomeItem = {
@@ -264,4 +378,10 @@ function installMatchMedia(width: number) {
       };
     }),
   });
+}
+
+class ResizeObserverStub {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
 }

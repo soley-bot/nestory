@@ -11,7 +11,7 @@ export const expenseTypeOptions = [
 ] as const;
 
 export const expenseStatusOptions = [
-  { label: "All active", value: "all" },
+  { label: "All statuses", value: "all" },
   { label: "Draft", value: "draft" },
   { label: "Approved", value: "approved" },
   { label: "Posted", value: "posted" },

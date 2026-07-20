@@ -5,11 +5,12 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
 
 describe("getRentIncomeScreenData", () => {
-  it("applies the management-fee family as a server-side income type filter", async () => {
+  it("composes the management-company group and individual income type filters", async () => {
     const inCalls: Array<[string, unknown[]]> = [];
+    const eqCalls: Array<[string, unknown]> = [];
     const query = () => {
       const chain = {
-        eq: () => chain, gte: () => chain, is: () => chain, limit: () => chain,
+        eq: (column: string, value: unknown) => { eqCalls.push([column, value]); return chain; }, gte: () => chain, is: () => chain, limit: () => chain,
         lt: () => chain, or: () => chain, order: () => chain, range: () => chain,
         select: () => chain,
         in: (column: string, values: unknown[]) => { inCalls.push([column, values]); return chain; },
@@ -23,10 +24,11 @@ describe("getRentIncomeScreenData", () => {
     } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
 
     await getRentIncomeScreenData("org-1", {
-      incomeScope: "management-fees", month: "2026-07", page: 1, pageSize: 25,
+      incomeGroup: "management-company", incomeType: "service_fee", month: "2026-07", page: 1, pageSize: 25,
       propertyId: "all", query: "", status: "all", unitId: "all",
     });
 
     expect(inCalls).toContainEqual(["income_type", ["management_fee", "leasing_commission", "service_fee", "maintenance_markup"]]);
+    expect(eqCalls).toContainEqual(["income_type", "service_fee"]);
   });
 });

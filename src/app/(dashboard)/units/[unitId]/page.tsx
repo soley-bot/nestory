@@ -4,6 +4,7 @@ import { getUnitDetail } from "@/features/units/data/units";
 import { parseUnitDetailQuery } from "@/features/units/unit-detail-route";
 import type { UnitPropertyOption } from "@/features/units/unit.types";
 import { requireAdminContext } from "@/lib/auth/context";
+import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import UnitNotFound from "./not-found";
 
 type UnitPageProps = {
@@ -39,6 +40,6 @@ function toPropertyOptions(
 ): UnitPropertyOption[] {
   return properties.map((property) => ({
     id: property.id,
-    label: `${property.code} - ${property.name}`,
+    label: formatPropertyOptionLabel(property),
   }));
 }

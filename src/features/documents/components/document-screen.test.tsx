@@ -3,7 +3,10 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DocumentScreen } from "@/features/documents/components/document-screen";
+import {
+  DOCUMENT_ARCHIVE_OPTIONS,
+  DocumentScreen,
+} from "@/features/documents/components/document-screen";
 import type {
   DocumentSummary,
   DocumentViewQuery,
@@ -33,6 +36,14 @@ afterEach(() => {
 });
 
 describe("DocumentScreen workspace contract", () => {
+  it("uses the established document lifecycle vocabulary", () => {
+    expect(DOCUMENT_ARCHIVE_OPTIONS).toEqual([
+      { label: "Active records", value: "active" },
+      { label: "Archived", value: "archived" },
+      { label: "All records", value: "all" },
+    ]);
+  });
+
   it("keeps documents dense, selected, directly linked, metadata-rich, and docked at 1280+", () => {
     const { container } = renderDocuments();
     const table = screen.getByRole("table");

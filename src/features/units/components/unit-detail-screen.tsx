@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Archive, ArrowRight, Pencil, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -13,7 +14,10 @@ import {
 } from "@/features/units/components/unit-drawer-panels";
 import { UnitDetailView } from "@/features/units/components/unit-detail-view";
 import { UnitForm } from "@/features/units/components/unit-form";
-import type { UnitRecordSection } from "@/features/units/unit-detail-route";
+import {
+  getUnitRecordReturnLink,
+  type UnitRecordSection,
+} from "@/features/units/unit-detail-route";
 import type {
   UnitDetail,
   UnitPropertyOption,
@@ -39,6 +43,7 @@ export function UnitDetailScreen({
 }: UnitDetailScreenProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const returnLink = getUnitRecordReturnLink(sourceTaskId);
 
   return (
     <div className="min-h-screen lg:flex lg:h-screen lg:flex-col lg:overflow-hidden">
@@ -85,6 +90,12 @@ export function UnitDetailScreen({
               </Button>
             </>
           )
+        }
+        breadcrumb={
+          <PageBreadcrumb
+            current={`Unit ${unit.unitNumber}`}
+            items={[{ href: returnLink.href, label: returnLink.label }]}
+          />
         }
         context={
           <div className="flex items-center gap-2">

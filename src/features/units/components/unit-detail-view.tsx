@@ -3,7 +3,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
-  ArrowLeft,
   Building2,
   CalendarDays,
   CheckCircle2,
@@ -23,7 +22,6 @@ import { PhotoGallery } from "@/features/photos/components/photo-gallery";
 import { formatUnitTimelineContext } from "@/features/units/data/unit-summary";
 import {
   buildUnitRecordHref,
-  getUnitRecordReturnLink,
   type UnitRecordSection,
 } from "@/features/units/unit-detail-route";
 import type {
@@ -114,18 +112,8 @@ export function UnitDetailView({
   unit: UnitDetail;
 }) {
   const reportMonth = getBusinessMonthValue();
-  const returnLink = getUnitRecordReturnLink(sourceTaskId);
-
   return (
     <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
-      <Link
-        className="inline-flex w-fit items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-accent"
-        href={returnLink.href}
-        prefetch={false}
-      >
-        <ArrowLeft size={15} />
-        {returnLink.label}
-      </Link>
       <UnitRecordNav
         activeSection={activeSection}
         sourceTaskId={sourceTaskId}

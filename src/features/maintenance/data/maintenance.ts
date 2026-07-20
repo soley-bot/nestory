@@ -46,6 +46,10 @@ import type {
 } from "@/features/maintenance/maintenance.types";
 import type { Json } from "@/types/database";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  formatPropertyOptionLabel,
+  formatUnitOptionLabel,
+} from "@/lib/entity-option-labels";
 import { formatDate } from "@/lib/dates/format";
 import { buildHref } from "@/lib/url/href";
 import {
@@ -1668,7 +1672,7 @@ function toIsoTime(date: Date) {
 function toPropertyOptions(properties: PropertyRow[]): MaintenancePropertyOption[] {
   return properties.map((property) => ({
     id: property.id,
-    label: `${property.code} - ${property.name}`,
+    label: formatPropertyOptionLabel(property),
   }));
 }
 
@@ -1688,7 +1692,10 @@ function toUnitOptions(
 
     return {
       id: unit.id,
-      label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+      label: formatUnitOptionLabel({
+        propertyCode: property?.code,
+        unitNumber: unit.unit_number,
+      }),
       propertyId: unit.property_id,
     };
   });

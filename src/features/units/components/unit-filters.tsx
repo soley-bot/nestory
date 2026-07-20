@@ -19,10 +19,11 @@ import {
   DEFAULT_UNIT_SORT,
   UNIT_PAGE_SIZE_OPTIONS,
 } from "@/features/units/unit.filters";
-import type {
-  UnitDisplayMode,
-  UnitPropertyOption,
-  UnitViewQuery,
+import {
+  UNIT_STATUS_OPTIONS,
+  type UnitDisplayMode,
+  type UnitPropertyOption,
+  type UnitViewQuery,
 } from "@/features/units/unit.types";
 import { cn } from "@/lib/utils";
 
@@ -168,11 +169,7 @@ export function UnitFilters({
                       onValueChange={(value) => replaceParam("status", value, "all")}
                       options={[
                         { label: "All statuses", value: "all" },
-                        { label: "Occupied", value: "occupied" },
-                        { label: "Vacant", value: "vacant" },
-                        { label: "Reserved", value: "reserved" },
-                        { label: "Maintenance", value: "maintenance" },
-                        { label: "Inactive", value: "inactive" },
+                        ...UNIT_STATUS_OPTIONS,
                       ]}
                       value={viewQuery.status}
                       />
@@ -186,7 +183,7 @@ export function UnitFilters({
                         replaceParam("occupancy", value, "all")
                       }
                       options={[
-                        { label: "All occupancy", value: "all" },
+                        { label: "All occupancy states", value: "all" },
                         { label: "Not occupied", value: "unoccupied" },
                       ]}
                       value={viewQuery.occupancy}

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { SelectControl } from "@/components/ui/select-control";
 import { REPORT_OPTIONS } from "@/features/reports/data/trusted-report";
+import { UNIT_STATUS_OPTIONS } from "@/features/units/unit.types";
 import type {
   ReportPropertyOption,
   ReportsViewQuery,
@@ -90,11 +91,7 @@ export function ReportsFilters({
               name="status"
               options={[
                 { label: "All statuses", value: "all" },
-                { label: "Vacant", value: "vacant" },
-                { label: "Occupied", value: "occupied" },
-                { label: "Reserved", value: "reserved" },
-                { label: "Maintenance", value: "maintenance" },
-                { label: "Inactive", value: "inactive" },
+                ...UNIT_STATUS_OPTIONS,
               ]}
             />
           </ScopeField>

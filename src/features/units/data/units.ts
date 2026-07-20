@@ -30,6 +30,7 @@ import type {
   UnitSummary,
   UnitViewQuery,
 } from "@/features/units/unit.types";
+import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 
 const unitSelect =
   "id, property_id, unit_number, floor, size_sqm, status, current_rent_amount, current_rent_currency, archived_at";
@@ -115,7 +116,7 @@ export async function getUnitPropertyOptions(
 
   return (propertiesResult.data ?? []).map((property) => ({
     id: property.id,
-    label: `${property.code} - ${property.name}`,
+    label: formatPropertyOptionLabel(property),
   }));
 }
 

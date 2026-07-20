@@ -26,6 +26,7 @@ import {
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
+import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
 import { RecentChangesPopover } from "@/features/activity/components/recent-changes-popover";
 import type { RecentChange } from "@/features/activity/activity.types";
@@ -262,6 +263,7 @@ export function LedgerScreen({
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/ledger"
+      localNav={<FinanceWorkspaceNavigation activeRoute="/ledger" />}
       title="Financial Ledger"
       toolbar={
         <LedgerFilters

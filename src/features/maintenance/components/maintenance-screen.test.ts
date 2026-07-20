@@ -3,10 +3,47 @@ import {
   getMaintenanceListHref,
   getMaintenanceReportHref,
 } from "@/features/maintenance/maintenance.hrefs";
-import { getMaintenanceWorkspaceNavItems } from "@/features/maintenance/components/maintenance-screen";
+import {
+  getMaintenanceWorkspaceNavItems,
+  MAINTENANCE_ATTENTION_FILTER_OPTIONS,
+  MAINTENANCE_PRIORITY_FILTER_OPTIONS,
+  MAINTENANCE_STATUS_FILTER_OPTIONS,
+} from "@/features/maintenance/components/maintenance-screen";
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
 
 describe("maintenance screen report links", () => {
+  it("keeps canonical aggregate vocabulary and filter option order", () => {
+    expect(MAINTENANCE_PRIORITY_FILTER_OPTIONS.map((option) => option.label)).toEqual([
+      "All priorities",
+      "Urgent",
+      "High",
+      "Normal",
+      "Low",
+    ]);
+    expect(MAINTENANCE_STATUS_FILTER_OPTIONS.map((option) => option.label)).toEqual([
+      "All statuses",
+      "Pending",
+      "Scheduled",
+      "In progress",
+      "Blocked",
+      "Ready for review",
+      "Completed",
+      "Cancelled",
+    ]);
+    expect(MAINTENANCE_ATTENTION_FILTER_OPTIONS.map((option) => option.value)).toEqual([
+      "open",
+      "work_orders",
+      "scheduled",
+      "inspections",
+      "reminders",
+      "high_priority",
+      "high_cost",
+      "recurring",
+      "review_completion",
+      "all",
+    ]);
+  });
+
   it("opens the maintenance cost report for the current month and property scope", () => {
     expect(
       getMaintenanceReportHref({ month: "2026-06", propertyId: "all" }),

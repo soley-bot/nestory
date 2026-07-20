@@ -1,5 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
+import {
+  formatPropertyOptionLabel,
+  formatUnitOptionLabel,
+} from "@/lib/entity-option-labels";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import {
   buildRentIncomePagination,
@@ -98,13 +102,17 @@ export async function getRentIncomeScreenData(
       query = query.eq("status", viewQuery.status);
     }
 
-    if (viewQuery.incomeScope === "management-fees") {
+    if (viewQuery.incomeGroup === "management-company") {
       query = query.in("income_type", [
         "management_fee",
         "leasing_commission",
         "service_fee",
         "maintenance_markup",
       ]);
+    }
+
+    if (viewQuery.incomeType !== "all") {
+      query = query.eq("income_type", viewQuery.incomeType);
     }
 
     if (viewQuery.propertyId !== "all") {
@@ -259,7 +267,7 @@ function buildRentIncomeSummary(
 function toPropertyOptions(properties: PropertyRow[]): RentIncomeOption[] {
   return properties.map((property) => ({
     id: property.id,
-    label: `${property.code} / ${property.name}`,
+    label: formatPropertyOptionLabel(property),
   }));
 }
 
@@ -269,7 +277,10 @@ function toUnitOptions(
 ): RentIncomeUnitOption[] {
   return units.map((unit) => ({
     id: unit.id,
-    label: `${propertiesById.get(unit.property_id)?.code ?? "Property"} / ${unit.unit_number}`,
+    label: formatUnitOptionLabel({
+      propertyCode: propertiesById.get(unit.property_id)?.code,
+      unitNumber: unit.unit_number,
+    }),
     propertyId: unit.property_id,
   }));
 }

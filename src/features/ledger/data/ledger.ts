@@ -1,4 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  formatPropertyOptionLabel,
+  formatUnitOptionLabel,
+} from "@/lib/entity-option-labels";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
   getFinanceCloseMonth,
@@ -290,7 +294,7 @@ export async function getLedgerScreenData(
     periodLocks,
     propertyOptions: properties.map((property): LedgerPropertyOption => ({
       id: property.id,
-      label: `${property.code} - ${property.name}`,
+      label: formatPropertyOptionLabel(property),
     })),
     recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
     unitOptions: units.map((unit): LedgerUnitOption => {
@@ -298,7 +302,10 @@ export async function getLedgerScreenData(
 
       return {
         id: unit.id,
-        label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+        label: formatUnitOptionLabel({
+          propertyCode: property?.code,
+          unitNumber: unit.unit_number,
+        }),
         propertyId: unit.property_id,
       };
     }),

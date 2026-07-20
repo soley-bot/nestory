@@ -5,10 +5,13 @@ import {
   getUuidOrAllSearchParam,
   type SearchParamValue,
 } from "@/lib/validation/search-params";
-import type {
-  RentIncomePagination,
-  RentIncomeStatusFilter,
-  RentIncomeViewQuery,
+import {
+  incomeTypeOptions,
+  type RentIncomeGroup,
+  type RentIncomePagination,
+  type RentIncomeStatusFilter,
+  type RentIncomeTypeFilter,
+  type RentIncomeViewQuery,
 } from "@/features/rent-income/rent-income.types";
 
 export const RENT_INCOME_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
@@ -21,7 +24,8 @@ export function parseRentIncomeSearchParams(
   currentDate = new Date(),
 ): RentIncomeViewQuery {
   return {
-    incomeScope: getFirstSearchParam(params.incomeScope) === "management-fees" ? "management-fees" : "all",
+    incomeGroup: parseIncomeGroup(params.incomeGroup, params.incomeScope),
+    incomeType: parseIncomeType(params.incomeType),
     month: parseMonth(params.month, currentDate),
     page: getPositiveIntegerSearchParam(params.page, 1),
     pageSize: parsePageSize(params.pageSize),
@@ -30,6 +34,25 @@ export function parseRentIncomeSearchParams(
     status: parseStatus(params.status),
     unitId: getUuidOrAllSearchParam(params.unitId),
   };
+}
+
+function parseIncomeGroup(
+  value: SearchParamValue,
+  legacyValue: SearchParamValue,
+): RentIncomeGroup {
+  const candidate = getFirstSearchParam(value) ?? getFirstSearchParam(legacyValue);
+
+  return candidate === "management-company" || candidate === "management-fees"
+    ? "management-company"
+    : "all";
+}
+
+function parseIncomeType(value: SearchParamValue): RentIncomeTypeFilter {
+  const candidate = getFirstSearchParam(value);
+
+  return incomeTypeOptions.some((option) => option.value === candidate)
+    ? (candidate as RentIncomeTypeFilter)
+    : "all";
 }
 
 export function buildRentIncomePagination({

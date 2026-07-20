@@ -48,6 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckboxControl } from "@/components/ui/checkbox-control";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterPopover } from "@/components/ui/filter-popover";
 import { Input } from "@/components/ui/input";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
@@ -119,6 +120,29 @@ const MAINTENANCE_STATUS_OPTIONS: Array<{
   { label: "Ready for review", value: "ready_for_review" },
   { label: "Completed", value: "completed" },
   { label: "Cancelled", value: "cancelled" },
+];
+export const MAINTENANCE_PRIORITY_FILTER_OPTIONS: SelectControlOption[] = [
+  { label: "All priorities", value: "all" },
+  { label: "Urgent", value: "urgent" },
+  { label: "High", value: "high" },
+  { label: "Normal", value: "normal" },
+  { label: "Low", value: "low" },
+];
+export const MAINTENANCE_STATUS_FILTER_OPTIONS: SelectControlOption[] = [
+  { label: "All statuses", value: "all" },
+  ...MAINTENANCE_STATUS_OPTIONS,
+];
+export const MAINTENANCE_ATTENTION_FILTER_OPTIONS: SelectControlOption[] = [
+  { label: "Open queue", value: "open" },
+  { label: "Work orders", value: "work_orders" },
+  { label: "Scheduled", value: "scheduled" },
+  { label: "Inspections", value: "inspections" },
+  { label: "Due reminders", value: "reminders" },
+  { label: "High priority", value: "high_priority" },
+  { label: "High cost", value: "high_cost" },
+  { label: "Recurring", value: "recurring" },
+  { label: "Review completion", value: "review_completion" },
+  { label: "All attention", value: "all" },
 ];
 const DatePickerField = dynamic(
   () =>
@@ -648,7 +672,6 @@ function MaintenanceCasesCommandBar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const advancedFilterCount = getAdvancedFilterCount(viewQuery, "open");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [queryState, setQueryState] = useState({
     source: viewQuery.query,
     value: viewQuery.query,
@@ -755,14 +778,50 @@ function MaintenanceCasesCommandBar({
             query={query}
             submitLabel={`Search ${listLabel}`}
           />
-          <Button
-            aria-expanded={advancedOpen}
-            onClick={() => setAdvancedOpen((current) => !current)}
-            type="button"
+          <FilterPopover
+            activeCount={advancedFilterCount}
+            contentClassName="w-[min(760px,calc(100vw-2rem))]"
+            description={`Narrow ${listLabel} by scope, priority, status, attention, or month.`}
+            title="Filter maintenance"
           >
-            <SlidersHorizontal size={14} />
-            Filters{advancedFilterCount > 0 ? ` ${advancedFilterCount}` : ""}
-          </Button>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(180px,1fr)_160px_160px_160px]">
+              <SelectControl
+                ariaLabel="Maintenance scope"
+                onValueChange={replaceScope}
+                options={scopeOptions}
+                value={getScopeValue(viewQuery)}
+              />
+              <SelectControl
+                ariaLabel="Priority"
+                onValueChange={(value) => replaceParam("priority", value, "all")}
+                options={MAINTENANCE_PRIORITY_FILTER_OPTIONS}
+                value={viewQuery.priority}
+              />
+              <SelectControl
+                ariaLabel="Status"
+                onValueChange={(value) => replaceParam("status", value, "all")}
+                options={MAINTENANCE_STATUS_FILTER_OPTIONS}
+                value={viewQuery.status}
+              />
+              <SelectControl
+                ariaLabel="Attention filter"
+                onValueChange={(value) => replaceParam("review", value, "open")}
+                options={MAINTENANCE_ATTENTION_FILTER_OPTIONS}
+                value={viewQuery.review}
+              />
+              <MonthPickerField
+                ariaLabel="Report month"
+                defaultValue={viewQuery.month}
+                name="month"
+                onValueChange={(value) => replaceParam("month", value)}
+              />
+              <div className="flex justify-end lg:col-span-4">
+                <LinkButton href={buildClearFiltersHref(pathname, searchParams)}>
+                  Clear filters
+                </LinkButton>
+              </div>
+            </div>
+          </FilterPopover>
         </div>
 
         <div className="inline-flex h-8 shrink-0 overflow-hidden rounded-md border border-border bg-surface">
@@ -787,72 +846,6 @@ function MaintenanceCasesCommandBar({
           ))}
         </div>
       </div>
-
-      {advancedOpen ? (
-        <div className="absolute right-0 top-[calc(100%+6px)] z-30 grid w-[min(760px,calc(100vw-2rem))] gap-2 rounded-md border border-border bg-surface p-3 shadow-lg lg:grid-cols-[minmax(180px,1fr)_160px_160px_160px]">
-          <SelectControl
-            ariaLabel="Maintenance scope"
-            onValueChange={replaceScope}
-            options={scopeOptions}
-            value={getScopeValue(viewQuery)}
-          />
-          <SelectControl
-            ariaLabel="Priority"
-            onValueChange={(value) => replaceParam("priority", value, "all")}
-            options={[
-              { label: "All priority", value: "all" },
-              { label: "Urgent", value: "urgent" },
-              { label: "High", value: "high" },
-              { label: "Normal", value: "normal" },
-              { label: "Low", value: "low" },
-            ]}
-            value={viewQuery.priority}
-          />
-          <SelectControl
-            ariaLabel="Status"
-            onValueChange={(value) => replaceParam("status", value, "all")}
-            options={[
-              { label: "All status", value: "all" },
-              { label: "Pending", value: "pending" },
-              { label: "Scheduled", value: "scheduled" },
-              { label: "In progress", value: "in_progress" },
-              { label: "Blocked", value: "blocked" },
-              { label: "Ready for review", value: "ready_for_review" },
-              { label: "Completed", value: "completed" },
-              { label: "Cancelled", value: "cancelled" },
-            ]}
-            value={viewQuery.status}
-          />
-          <SelectControl
-            ariaLabel="Attention filter"
-            onValueChange={(value) => replaceParam("review", value, "open")}
-            options={[
-              { label: "Open queue", value: "open" },
-              { label: "Work orders", value: "work_orders" },
-              { label: "Scheduled", value: "scheduled" },
-              { label: "Inspections", value: "inspections" },
-              { label: "Due reminders", value: "reminders" },
-              { label: "High priority", value: "high_priority" },
-              { label: "High cost", value: "high_cost" },
-              { label: "Recurring", value: "recurring" },
-              { label: "Review completion", value: "review_completion" },
-              { label: "All attention", value: "all" },
-            ]}
-            value={viewQuery.review}
-          />
-          <MonthPickerField
-            ariaLabel="Report month"
-            defaultValue={viewQuery.month}
-            name="month"
-            onValueChange={(value) => replaceParam("month", value)}
-          />
-          <div className="flex justify-end lg:col-span-4">
-            <LinkButton href={buildClearFiltersHref(pathname, searchParams)}>
-              Clear filters
-            </LinkButton>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -997,45 +990,19 @@ function MaintenanceFilters({
           <SelectControl
             ariaLabel="Priority"
             onValueChange={(value) => replaceParam("priority", value, "all")}
-            options={[
-              { label: "All priority", value: "all" },
-              { label: "Urgent", value: "urgent" },
-              { label: "High", value: "high" },
-              { label: "Normal", value: "normal" },
-              { label: "Low", value: "low" },
-            ]}
+            options={MAINTENANCE_PRIORITY_FILTER_OPTIONS}
             value={viewQuery.priority}
           />
           <SelectControl
             ariaLabel="Status"
             onValueChange={(value) => replaceParam("status", value, "all")}
-            options={[
-              { label: "All status", value: "all" },
-              { label: "Pending", value: "pending" },
-              { label: "Scheduled", value: "scheduled" },
-              { label: "In progress", value: "in_progress" },
-              { label: "Blocked", value: "blocked" },
-              { label: "Ready for review", value: "ready_for_review" },
-              { label: "Completed", value: "completed" },
-              { label: "Cancelled", value: "cancelled" },
-            ]}
+            options={MAINTENANCE_STATUS_FILTER_OPTIONS}
             value={viewQuery.status}
           />
           <SelectControl
             ariaLabel="Attention filter"
             onValueChange={(value) => replaceParam("review", value, "open")}
-            options={[
-              { label: "Open queue", value: "open" },
-              { label: "Work orders", value: "work_orders" },
-              { label: "Scheduled", value: "scheduled" },
-              { label: "Inspections", value: "inspections" },
-              { label: "Due reminders", value: "reminders" },
-              { label: "High priority", value: "high_priority" },
-              { label: "High cost", value: "high_cost" },
-              { label: "Recurring", value: "recurring" },
-              { label: "Review completion", value: "review_completion" },
-              { label: "All attention", value: "all" },
-            ]}
+            options={MAINTENANCE_ATTENTION_FILTER_OPTIONS}
             value={viewQuery.review}
           />
           <MonthPickerField

@@ -1,9 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { FormEvent, ReactNode } from "react";
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
-import { CheckCircle2, Eye, Plus, XCircle } from "lucide-react";
+import { useActionState, useEffect, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { CheckCircle2, Eye, Plus, RotateCcw, XCircle } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -16,12 +17,15 @@ import { Button } from "@/components/ui/button";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { SearchCombo } from "@/components/ui/search-combo";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterPopover } from "@/components/ui/filter-popover";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
+import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
   approveBillsExpenseItemAction,
   createBillsExpenseItemAction,
@@ -168,6 +172,7 @@ export function BillsExpensesScreen({
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/bills-expenses"
+      localNav={<FinanceWorkspaceNavigation activeRoute="/bills-expenses" />}
       title="Bills & Expenses"
       toolbar={
         <BillsExpensesFilters
@@ -268,67 +273,83 @@ function BillsExpensesFilters({
   unitOptions: BillsExpenseUnitOption[];
   viewQuery: BillsExpensesViewQuery;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const [query, setQuery] = useState(viewQuery.query);
+  const activeFilterCount = [
+    viewQuery.dateBasis !== "invoice",
+    viewQuery.expenseType !== "all",
+    viewQuery.status !== "all",
+    viewQuery.propertyId !== "all",
+    viewQuery.unitId !== "all",
+  ].filter(Boolean).length;
+  const visibleUnitOptions =
+    viewQuery.propertyId === "all"
+      ? unitOptions
+      : unitOptions.filter(
+          (unit) => unit.propertyId === viewQuery.propertyId || unit.id === viewQuery.unitId,
+        );
+
+  function replaceParam(name: string, value: string, defaultValue: string) {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    if (value === defaultValue || value.trim() === "") {
+      nextParams.delete(name);
+    } else {
+      nextParams.set(name, value);
+    }
+    nextParams.delete("page");
+    if (name === "propertyId") nextParams.delete("unitId");
+    const nextQuery = nextParams.toString();
+    startTransition(() => router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false }));
+  }
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    replaceParam("query", query.trim(), "");
+  }
+
   return (
-    <form
-      action="/bills-expenses"
-      className="grid w-full gap-2 lg:grid-cols-[150px_160px_180px_minmax(160px,1fr)_minmax(160px,1fr)_minmax(180px,1.2fr)_auto]"
-    >
-      <MonthPickerField
-        ariaLabel="Expense month"
-        defaultValue={viewQuery.month}
-        name="month"
-      />
-      <SelectControl
-        ariaLabel="Expense date basis"
-        defaultValue={viewQuery.dateBasis}
-        name="dateBasis"
-        options={[
-          { label: "Invoice date", value: "invoice" },
-          { label: "Paid date", value: "paid" },
-        ]}
-      />
-      <SelectControl ariaLabel="Expense type" defaultValue={viewQuery.expenseType} name="expenseType" options={[{ label: "All expense types", value: "all" }, ...expenseTypeOptions.map((option) => ({ label: option.label, value: option.value }))]} />
-      <SelectControl
-        ariaLabel="Expense status"
-        defaultValue={viewQuery.status}
-        name="status"
-        options={expenseStatusOptions.map((option) => ({
-          label: option.label,
-          value: option.value,
-        }))}
-      />
-      <SelectControl
-        ariaLabel="Property"
-        defaultValue={viewQuery.propertyId}
-        name="propertyId"
-        options={[
-          { label: "All properties", value: "all" },
-          ...propertyOptions.map((option) => ({
-            label: option.label,
-            value: option.id,
-          })),
-        ]}
-      />
-      <SelectControl
-        ariaLabel="Unit"
-        defaultValue={viewQuery.unitId}
-        name="unitId"
-        options={[
-          { label: "All units", value: "all" },
-          ...unitOptions.map((option) => ({
-            label: option.label,
-            value: option.id,
-          })),
-        ]}
-      />
-      <Input
-        aria-label="Search expenses"
-        defaultValue={viewQuery.query}
-        name="query"
-        placeholder="Search vendor, category, ref"
-      />
-      <Button type="submit">Apply</Button>
-    </form>
+    <div className="w-full space-y-2" data-filter-surface="bills-expenses">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="w-full sm:w-[160px] sm:shrink-0">
+          <MonthPickerField ariaLabel="Expense month" defaultValue={viewQuery.month} name="month" onValueChange={(value) => replaceParam("month", value, "")} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <SearchCombo ariaLabel="Search expenses" disabled={isPending} onQueryChange={setQuery} onSubmit={submitSearch} placeholder="Search vendor, category, or reference" query={query} submitLabel="Search expenses" />
+        </div>
+        <div className="shrink-0">
+          <FilterPopover
+            activeCount={activeFilterCount}
+            contentClassName="w-[min(620px,calc(100vw-2rem))]"
+            description="Narrow this month by date basis, workflow state, or record."
+            id="expense-advanced-filters"
+            title="Filter bills and expenses"
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FilterField label="Date basis"><SelectControl ariaLabel="Expense date basis" onValueChange={(value) => replaceParam("dateBasis", value, "invoice")} options={[{ label: "Invoice date", value: "invoice" }, { label: "Paid date", value: "paid" }]} value={viewQuery.dateBasis} /></FilterField>
+              <FilterField label="Expense type"><SelectControl ariaLabel="Expense type" onValueChange={(value) => replaceParam("expenseType", value, "all")} options={[{ label: "All expense types", value: "all" }, ...expenseTypeOptions.map((option) => ({ label: option.label, value: option.value }))]} value={viewQuery.expenseType} /></FilterField>
+              <FilterField label="Status"><SelectControl ariaLabel="Expense status" onValueChange={(value) => replaceParam("status", value, "all")} options={expenseStatusOptions.map((option) => ({ label: option.label, value: option.value }))} value={viewQuery.status} /></FilterField>
+              <FilterField label="Property"><SelectControl ariaLabel="Property" onValueChange={(value) => replaceParam("propertyId", value, "all")} options={[{ label: "All properties", value: "all" }, ...propertyOptions.map((option) => ({ label: option.label, value: option.id }))]} value={viewQuery.propertyId} /></FilterField>
+              <FilterField label="Unit"><SelectControl ariaLabel="Unit" onValueChange={(value) => replaceParam("unitId", value, "all")} options={[{ label: "All units", value: "all" }, ...visibleUnitOptions.map((option) => ({ label: option.label, value: option.id }))]} value={viewQuery.unitId} /></FilterField>
+            </div>
+          </FilterPopover>
+        </div>
+        <Link aria-label="Reset expense filters" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground" href="/bills-expenses" title="Reset filters">
+          <RotateCcw size={14} />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function FilterField({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <label className="grid gap-1.5 text-xs font-medium text-muted">
+      <span>{label}</span>
+      {children}
+    </label>
   );
 }
 

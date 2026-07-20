@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import {
   formatLeaseStatus,
   formatUnitStatus,
@@ -356,7 +357,7 @@ function normalizeUnitStatus(
 function toPropertyOptions(properties: PropertyRow[]): ReportPropertyOption[] {
   return properties.map((property) => ({
     id: property.id,
-    label: `${property.code} - ${property.name}`,
+    label: formatPropertyOptionLabel(property),
   }));
 }
 

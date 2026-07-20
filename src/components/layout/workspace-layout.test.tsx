@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { useState, type ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
@@ -106,6 +107,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document.querySelectorAll("#workspace-page-tools").forEach((node) => node.remove());
   vi.unstubAllGlobals();
 });
 
@@ -132,6 +134,33 @@ describe("shared workspace anatomy", () => {
       true,
     );
     expect(metaRow?.className).toContain("text-sm");
+  });
+
+  it("moves detail breadcrumbs into the global workspace bar", () => {
+    const pageTools = document.createElement("div");
+    pageTools.id = "workspace-page-tools";
+    document.body.append(pageTools);
+
+    render(
+      <PageHeader
+        breadcrumb={
+          <PageBreadcrumb
+            current="Bassac Garden Apartments"
+            items={[{ href: "/properties", label: "Properties" }]}
+          />
+        }
+        title="Bassac Garden Apartments"
+      />,
+    );
+
+    const breadcrumb = within(pageTools).getByRole("navigation", {
+      name: "Breadcrumb",
+    });
+    expect(within(breadcrumb).getByRole("link", { name: "Properties" })).toBeTruthy();
+    expect(within(breadcrumb).getByText("Bassac Garden Apartments")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Bassac Garden Apartments" }),
+    ).toBeTruthy();
   });
 
   it("shows one visible active item in local workspace navigation", () => {

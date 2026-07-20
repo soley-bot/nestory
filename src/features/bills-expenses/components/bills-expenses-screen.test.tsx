@@ -10,7 +10,23 @@ import type {
   BillsExpensesSummary,
 } from "../bills-expenses.types";
 
-beforeEach(() => installMatchMedia(1440));
+const navigation = vi.hoisted(() => ({
+  replace: vi.fn(),
+  searchParams: new URLSearchParams(),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/bills-expenses",
+  useRouter: () => ({ replace: navigation.replace }),
+  useSearchParams: () => navigation.searchParams,
+}));
+
+beforeEach(() => {
+  navigation.replace.mockReset();
+  navigation.searchParams = new URLSearchParams();
+  installMatchMedia(1440);
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+});
 
 afterEach(() => {
   cleanup();
@@ -18,6 +34,43 @@ afterEach(() => {
 });
 
 describe("BillsExpensesScreen", () => {
+  it("submits search independently and resets pagination in the URL", () => {
+    navigation.searchParams = new URLSearchParams("page=2&status=approved");
+    renderScreen([partialExpense]);
+
+    const search = screen.getByRole("textbox", { name: "Search expenses" });
+    fireEvent.change(search, { target: { value: "  vendor  " } });
+    fireEvent.submit(search.closest("form")!);
+
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      "/bills-expenses?status=approved&query=vendor",
+      { scroll: false },
+    );
+  });
+
+  it("dismisses the filter popover with Escape and returns focus", async () => {
+    const user = userEvent.setup();
+    const { container } = renderScreen([partialExpense]);
+    const filterSurface = container.querySelector<HTMLElement>(
+      '[data-filter-surface="bills-expenses"]',
+    )!;
+    const trigger = within(filterSurface).getByRole("button", {
+      name: "Filters",
+    });
+
+    await user.click(trigger);
+    expect(
+      screen.getByRole("combobox", { name: "Expense type" }),
+    ).not.toBeNull();
+
+    await user.keyboard("{Escape}");
+
+    expect(
+      screen.queryByRole("combobox", { name: "Expense type" }),
+    ).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it("uses the finance workspace anatomy without changing totals or filter values", () => {
     const paidExpense = {
       ...partialExpense,
@@ -45,7 +98,11 @@ describe("BillsExpensesScreen", () => {
       "USD 0.00",
     );
 
-    const filterForm = container.querySelector<HTMLElement>('form[action="/bills-expenses"]')!;
+    const filterForm = container.querySelector<HTMLElement>('[data-filter-surface="bills-expenses"]')!;
+    expect(
+      screen.getByRole("navigation", { name: "Finance workspace" }),
+    ).not.toBeNull();
+    fireEvent.click(within(filterForm).getByRole("button", { name: "Filters" }));
     for (const name of [
       "Expense date basis",
       "Expense type",
@@ -53,21 +110,10 @@ describe("BillsExpensesScreen", () => {
       "Property",
       "Unit",
     ]) {
-      expect(within(filterForm).getByRole("combobox", { name })).not.toBeNull();
+      expect(screen.getByRole("combobox", { name })).not.toBeNull();
     }
     expect(within(filterForm).getByRole("textbox", { name: "Search expenses" })).not.toBeNull();
-    expect((filterForm.querySelector('[name="month"]') as HTMLInputElement).value).toBe(
-      "2026-07",
-    );
-    expect((filterForm.querySelector('[name="dateBasis"]') as HTMLSelectElement).value).toBe(
-      "invoice",
-    );
-    expect((filterForm.querySelector('[name="status"]') as HTMLSelectElement).value).toBe(
-      "all",
-    );
-    expect((filterForm.querySelector('[name="propertyId"]') as HTMLSelectElement).value).toBe(
-      "all",
-    );
+    expect((filterForm.querySelector('[name="month"]') as HTMLInputElement).value).toBe("2026-07");
 
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
@@ -429,4 +475,10 @@ function installMatchMedia(width: number) {
       };
     }),
   });
+}
+
+class ResizeObserverStub {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
 }

@@ -16,22 +16,14 @@ import {
   type UnitActionState,
   updateUnitAction,
 } from "@/features/units/actions";
-import type {
-  UnitDetail,
-  UnitPropertyOption,
-  UnitStatusValue,
-  UnitSummary,
+import {
+  UNIT_STATUS_OPTIONS,
+  type UnitDetail,
+  type UnitPropertyOption,
+  type UnitSummary,
 } from "@/features/units/unit.types";
 
 const initialState: UnitActionState = {};
-
-const statusOptions: { label: string; value: UnitStatusValue }[] = [
-  { label: "Vacant", value: "vacant" },
-  { label: "Occupied", value: "occupied" },
-  { label: "Reserved", value: "reserved" },
-  { label: "Maintenance", value: "maintenance" },
-  { label: "Inactive", value: "inactive" },
-];
 
 type UnitFormProps = {
   mode?: "create" | "edit";
@@ -59,7 +51,10 @@ export function UnitForm({
   const propertyOptions = ensureSelectedProperty(properties, defaults.propertyId);
   const propertyLabel = getPropertyLabel(propertyOptions, defaults.propertyId);
   const selectedStatus = defaults.status || "vacant";
-  const normalizedStatusOptions = ensureSelectedStatus(statusOptions, selectedStatus);
+  const normalizedStatusOptions = ensureSelectedStatus(
+    UNIT_STATUS_OPTIONS,
+    selectedStatus,
+  );
 
   useEffect(() => {
     if (state.status === "success" && isEditMode) {

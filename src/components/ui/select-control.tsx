@@ -111,7 +111,7 @@ export function SelectControl(props: SelectControlProps) {
         </Select.Trigger>
         <Select.Portal container={portalContainer ?? undefined}>
           <Select.Content
-            className="z-[80] max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-md border border-border bg-surface shadow-lg"
+            className="z-[80] max-h-72 min-w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border border-border bg-surface shadow-lg"
             position="popper"
             onEscapeKeyDown={(event) => event.stopPropagation()}
             sideOffset={4}
@@ -120,12 +120,16 @@ export function SelectControl(props: SelectControlProps) {
               <Select.Group>
                 {options.map((option) => (
                   <Select.Item
-                    className="relative flex min-h-8 cursor-default select-none items-center rounded-md px-2 pr-8 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-surface-muted data-[highlighted]:text-foreground"
+                    className="relative flex min-h-8 max-w-[min(28rem,calc(100vw-2rem))] cursor-default select-none items-center rounded-md px-2 py-1.5 pr-8 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-surface-muted data-[highlighted]:text-foreground"
                     disabled={option.disabled}
                     key={`${option.value}-${option.label}`}
                     value={toRadixItemValue(option.value)}
                   >
-                    <Select.ItemText>{option.label}</Select.ItemText>
+                    <Select.ItemText asChild>
+                      <span className="min-w-0 whitespace-normal break-words leading-5">
+                        {option.label}
+                      </span>
+                    </Select.ItemText>
                     <Select.ItemIndicator className="absolute right-2 inline-flex items-center">
                       <Check size={14} />
                     </Select.ItemIndicator>

@@ -11,6 +11,10 @@ import type {
   LinkedDocument,
 } from "@/features/documents/document.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  formatPropertyOptionLabel,
+  formatUnitOptionLabel,
+} from "@/lib/entity-option-labels";
 
 type DocumentRow = {
   archived_at: string | null;
@@ -188,14 +192,17 @@ export async function getDocumentsScreenData(
     }),
     propertyOptions: (propertiesResult.data ?? []).map((property) => ({
       id: property.id,
-      label: `${property.code} - ${property.name}`,
+      label: formatPropertyOptionLabel(property),
     })),
     unitOptions: (unitsResult.data ?? []).map((unit) => {
       const property = propertiesById.get(unit.property_id);
 
       return {
         id: unit.id,
-        label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+        label: formatUnitOptionLabel({
+          propertyCode: property?.code,
+          unitNumber: unit.unit_number,
+        }),
         propertyId: unit.property_id,
       };
     }),

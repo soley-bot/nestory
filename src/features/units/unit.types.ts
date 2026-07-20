@@ -24,6 +24,17 @@ export type UnitStatusValue =
   | "maintenance"
   | "inactive";
 
+export const UNIT_STATUS_OPTIONS: Array<{
+  label: string;
+  value: UnitStatusValue;
+}> = [
+  { label: "Occupied", value: "occupied" },
+  { label: "Vacant", value: "vacant" },
+  { label: "Reserved", value: "reserved" },
+  { label: "Maintenance", value: "maintenance" },
+  { label: "Inactive", value: "inactive" },
+];
+
 export type UnitStatusFilter = UnitStatusValue | "all";
 
 export type UnitLeaseStatusFilter = "missing" | "all";

@@ -4,14 +4,16 @@ import {
   getRentIncomeMonthScope,
   parseRentIncomeSearchParams,
 } from "@/features/rent-income/rent-income.filters";
+import { incomeTypeOptions } from "@/features/rent-income/rent-income.types";
 
 describe("parseRentIncomeSearchParams", () => {
   it("normalizes supported route filters", () => {
     expect(
       parseRentIncomeSearchParams(
         {
+          incomeGroup: "management-company",
+          incomeType: "late_fee",
           month: "2026-07",
-          incomeScope: "management-fees",
           page: "2",
           pageSize: "100",
           propertyId: "9f4b27bd-5bb5-4d80-a10b-26b5d7b2bd21",
@@ -22,7 +24,8 @@ describe("parseRentIncomeSearchParams", () => {
         new Date("2026-01-15T00:00:00.000Z"),
       ),
     ).toEqual({
-      incomeScope: "management-fees",
+      incomeGroup: "management-company",
+      incomeType: "late_fee",
       month: "2026-07",
       page: 2,
       pageSize: 100,
@@ -31,6 +34,21 @@ describe("parseRentIncomeSearchParams", () => {
       status: "received",
       unitId: "all",
     });
+  });
+
+  it("keeps legacy management-fee URLs working as the management-company group", () => {
+    expect(
+      parseRentIncomeSearchParams({ incomeScope: "management-fees" }),
+    ).toMatchObject({
+      incomeGroup: "management-company",
+      incomeType: "all",
+    });
+  });
+
+  it.each(incomeTypeOptions)("accepts the $label income type", ({ value }) => {
+    expect(parseRentIncomeSearchParams({ incomeType: value }).incomeType).toBe(
+      value,
+    );
   });
 
   it("falls back to the business month and safe defaults", () => {
@@ -45,7 +63,8 @@ describe("parseRentIncomeSearchParams", () => {
         new Date("2026-07-06T00:00:00.000Z"),
       ),
     ).toMatchObject({
-      incomeScope: "all",
+      incomeGroup: "all",
+      incomeType: "all",
       month: "2026-07",
       page: 1,
       pageSize: 50,

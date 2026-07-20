@@ -26,6 +26,10 @@ import type {
   LeaseUnitOption,
   LeaseViewQuery,
 } from "@/features/leases/lease.types";
+import {
+  formatPropertyOptionLabel,
+  formatUnitOptionLabel,
+} from "@/lib/entity-option-labels";
 
 const leaseSelect =
   "id, property_id, unit_id, tenant_name, primary_tenant_person_id, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, deposit_amount, deposit_currency, status, archived_at";
@@ -712,7 +716,7 @@ function toPropertyOptions(
 ): LeasePropertyOption[] {
   return properties.map((property) => ({
     id: property.id,
-    label: `${property.code} - ${property.name}${
+    label: `${formatPropertyOptionLabel(property)}${
       property.archived_at ? " (archived)" : ""
     }`,
   }));
@@ -724,11 +728,13 @@ function toUnitOptions(
 ): LeaseUnitOption[] {
   return units.map((unit) => {
     const property = propertiesById.get(unit.property_id);
-    const propertyCode = property?.code ?? "Property";
 
     return {
       id: unit.id,
-      label: `${propertyCode} / Unit ${unit.unit_number}${
+      label: `${formatUnitOptionLabel({
+        propertyCode: property?.code,
+        unitNumber: unit.unit_number,
+      })}${
         unit.archived_at ? " (archived)" : ""
       }`,
       propertyId: unit.property_id,
