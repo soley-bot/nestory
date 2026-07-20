@@ -21,7 +21,6 @@ import {
   getInitialRecordId,
   getSelectedRecord,
 } from "@/components/data/record-selection";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -236,18 +235,15 @@ export function DocumentScreen({
 
   return (
     <WorkspacePage
-      header={
-        <PageHeader
-          actions={
-            <Button onClick={openCreate} variant="primary">
-              <Plus size={15} />
-              Upload document
-            </Button>
-          }
-          context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "document" : "documents"}`}
-          title="Documents"
-        />
+      actions={
+        <Button onClick={openCreate} variant="primary">
+          <Plus size={15} />
+          Upload document
+        </Button>
       }
+      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "document" : "documents"}`}
+      contextHref="/documents"
+      title="Documents"
       toolbar={
         <DocumentFilters
           properties={propertyOptions}

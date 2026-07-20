@@ -13,7 +13,6 @@ import {
   getInitialRecordId,
   getSelectedRecord,
 } from "@/components/data/record-selection";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -175,6 +174,26 @@ export function PropertyScreen({
   const openCreateProperty = () => {
     openPropertyAction({ mode: "create" });
   };
+  const workspaceActions = (
+    <>
+      {reviewContext && selectedProperty ? (
+        <Button
+          onClick={() =>
+            openPropertyAction({ mode: "edit", property: selectedProperty })
+          }
+        >
+          <Pencil size={15} />
+          Edit selected
+        </Button>
+      ) : null}
+      {canCreate ? (
+        <Button onClick={openCreateProperty} variant="primary">
+          <Plus size={15} />
+          Add property
+        </Button>
+      ) : null}
+    </>
+  );
   const propertyList = (
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
       {properties.length === 0 ? (
@@ -238,37 +257,10 @@ export function PropertyScreen({
 
   return (
     <WorkspacePage
-      header={<PageHeader
-        actions={
-          <>
-            {reviewContext && selectedProperty ? (
-              <Button
-                onClick={() =>
-                  openPropertyAction({ mode: "edit", property: selectedProperty })
-                }
-              >
-                <Pencil size={15} />
-                Edit selected
-              </Button>
-            ) : null}
-            {canCreate ? (
-              <Button onClick={openCreateProperty} variant="primary">
-                <Plus size={15} />
-                Add property
-              </Button>
-            ) : null}
-          </>
-        }
-        context={
-          <span className="tabular-nums">
-            {pagination.totalCount} {pagination.totalCount === 1 ? "record" : "records"}
-          </span>
-        }
-        description={
-          reviewContext ? reviewContext.description : undefined
-        }
-        title="Properties"
-      />}
+      actions={workspaceActions}
+      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+      contextHref="/properties"
+      title="Properties"
       toolbar={
         <PropertyFilters
           onDisplayModeChange={changeDisplayMode}

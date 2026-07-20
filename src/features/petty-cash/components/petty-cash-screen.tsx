@@ -15,7 +15,6 @@ import {
   Wallet,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -153,10 +152,9 @@ export function PettyCashScreen({
 
   return (
     <WorkspacePage
-      header={<PageHeader
-        actions={
-          !schemaStatus.isReady ? undefined : (
-            <div className="flex flex-wrap gap-2">
+      actions={
+        !schemaStatus.isReady ? undefined : (
+          <div className="flex flex-wrap gap-2">
               <Button onClick={() => openDrawer({ mode: "account" })}>
                 <Wallet size={15} />
                 Add account
@@ -185,12 +183,12 @@ export function PettyCashScreen({
                   </Button>
                 </>
               ) : null}
-            </div>
-          )
-        }
-        context={selectedAccount ? `${selectedAccount.accountNumber} / ${selectedAccount.name}` : undefined}
-        title="Petty Cash"
-      />}
+          </div>
+        )
+      }
+      context={selectedAccount ? `${selectedAccount.accountNumber} / ${selectedAccount.name}` : "Cash register"}
+      contextHref="/petty-cash"
+      title="Petty Cash"
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
 

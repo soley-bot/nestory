@@ -9,7 +9,6 @@ import {
   getInitialRecordId,
   getSelectedRecord,
 } from "@/components/data/record-selection";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -252,9 +251,8 @@ export function LeaseScreen({
 
   return (
     <WorkspacePage
-      header={<PageHeader
-        actions={
-          <div className="flex flex-wrap gap-2">
+      actions={
+        <div className="flex flex-wrap gap-2">
             {canGenerateRent ? (
               <form action={generateRent}>
                 <Button disabled={generatingRent} type="submit">
@@ -271,12 +269,11 @@ export function LeaseScreen({
                 Add lease
               </Button>
             ) : null}
-          </div>
-        }
-        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
-        description={reviewContext?.description}
-        title="Leases"
-      />}
+        </div>
+      }
+      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+      contextHref="/leases"
+      title="Leases"
       toolbar={<LeaseFilters
         properties={propertyOptions}
         units={unitOptions}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import {
   Building2,
@@ -183,26 +183,11 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const collapseToggleRef = useRef<HTMLButtonElement>(null);
-  const expandToggleRef = useRef<HTMLButtonElement>(null);
-  const pendingSidebarFocusRef = useRef<"collapse" | "expand" | null>(null);
   const globalDestinations = getGlobalDestinations(role);
   const activeDestinationId = getActiveDestinationId(
     pathname,
     globalDestinations,
   );
-
-  useEffect(() => {
-    const pendingFocus = pendingSidebarFocusRef.current;
-
-    if (pendingFocus === "expand" && sidebarCollapsed) {
-      expandToggleRef.current?.focus();
-      pendingSidebarFocusRef.current = null;
-    } else if (pendingFocus === "collapse" && !sidebarCollapsed) {
-      collapseToggleRef.current?.focus();
-      pendingSidebarFocusRef.current = null;
-    }
-  }, [sidebarCollapsed]);
 
   function toggleTheme() {
     const currentTheme =
@@ -214,12 +199,10 @@ export function AppShell({
   }
 
   function expandDesktopSidebar() {
-    pendingSidebarFocusRef.current = "collapse";
     setSidebarCollapsed(false);
   }
 
   function collapseDesktopSidebar() {
-    pendingSidebarFocusRef.current = "expand";
     setSidebarCollapsed(true);
   }
 
@@ -235,17 +218,13 @@ export function AppShell({
           <CollapsedDesktopSidebar
             activeDestinationId={activeDestinationId}
             destinations={globalDestinations}
-            onExpand={expandDesktopSidebar}
             role={role}
-            toggleRef={expandToggleRef}
           />
         ) : (
           <ExpandedDesktopSidebar
             activeDestinationId={activeDestinationId}
             destinations={globalDestinations}
-            onCollapse={collapseDesktopSidebar}
             role={role}
-            toggleRef={collapseToggleRef}
           />
         )}
       </aside>
@@ -312,6 +291,16 @@ export function AppShell({
           className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-surface px-3 print:hidden"
           data-slot="workspace-command-entry"
         >
+          <button
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="hidden h-8 w-8 shrink-0 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring lg:grid"
+            data-slot="workspace-sidebar-toggle"
+            onClick={sidebarCollapsed ? expandDesktopSidebar : collapseDesktopSidebar}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            type="button"
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+          </button>
           <div className="flex min-w-0 flex-1 items-center" id="workspace-page-tools" />
           <WorkspaceCommandPalette role={role} />
           <div className="hidden shrink-0 items-center gap-1 lg:flex">
@@ -337,15 +326,11 @@ export function AppShell({
 function ExpandedDesktopSidebar({
   activeDestinationId,
   destinations,
-  onCollapse,
   role,
-  toggleRef,
 }: {
   activeDestinationId?: GlobalDestination["id"];
   destinations: readonly GlobalDestination[];
-  onCollapse: () => void;
   role: WorkspaceRole;
-  toggleRef: RefObject<HTMLButtonElement | null>;
 }) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
@@ -362,16 +347,6 @@ function ExpandedDesktopSidebar({
             textClassName="text-foreground"
           />
         </Link>
-        <button
-          aria-label="Collapse sidebar"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
-          onClick={onCollapse}
-          ref={toggleRef}
-          title="Collapse sidebar"
-          type="button"
-        >
-          <PanelLeftClose size={14} />
-        </button>
       </header>
 
       <nav
@@ -396,19 +371,15 @@ function ExpandedDesktopSidebar({
 function CollapsedDesktopSidebar({
   activeDestinationId,
   destinations,
-  onExpand,
   role,
-  toggleRef,
 }: {
   activeDestinationId?: GlobalDestination["id"];
   destinations: readonly GlobalDestination[];
-  onExpand: () => void;
   role: WorkspaceRole;
-  toggleRef: RefObject<HTMLButtonElement | null>;
 }) {
   return (
     <div className="flex h-full w-12 flex-col items-center">
-      <div className="flex h-24 shrink-0 flex-col items-center justify-center gap-2 border-b border-border">
+      <div className="flex h-14 shrink-0 items-center justify-center border-b border-border">
         <Link
           aria-label="Nestory workspace"
           className="grid h-8 w-8 place-items-center overflow-hidden rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -418,16 +389,6 @@ function CollapsedDesktopSidebar({
         >
           <NestoryLogo markClassName="h-8 w-8" showText={false} />
         </Link>
-        <button
-          aria-label="Expand sidebar"
-          className="grid h-8 w-8 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
-          onClick={onExpand}
-          ref={toggleRef}
-          title="Expand sidebar"
-          type="button"
-        >
-          <PanelLeftOpen size={14} />
-        </button>
       </div>
 
       <nav

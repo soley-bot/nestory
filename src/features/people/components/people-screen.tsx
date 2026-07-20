@@ -9,7 +9,6 @@ import {
   getInitialRecordId,
   getSelectedRecord,
 } from "@/components/data/record-selection";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -214,9 +213,8 @@ export function PeopleScreen({
 
   return (
     <WorkspacePage
-      header={<PageHeader
-        actions={
-          <>
+      actions={
+        <>
             {reviewContext && selectedPerson ? (
               <Button
                 onClick={() =>
@@ -236,12 +234,10 @@ export function PeopleScreen({
                 {addButtonLabel}
               </Button>
             ) : null}
-          </>
-        }
-        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
-        description={reviewContext?.description}
-        title={title}
-      />}
+        </>
+      }
+      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+      contextHref={pathname}
       localNav={
         localNavigation ?? (
           <PeopleWorkspaceNavigation activeRole={lockedRole} />
@@ -254,6 +250,7 @@ export function PeopleScreen({
         searchPlaceholder={searchPlaceholder}
         viewQuery={viewQuery}
       />}
+      title={title}
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
 

@@ -58,6 +58,26 @@ afterEach(() => {
 });
 
 describe("PropertyScreen redesign contract", () => {
+  it("uses the Overview top context and keeps the primary action with workspace tools", () => {
+    const pageTools = document.createElement("div");
+    pageTools.id = "workspace-page-tools";
+    document.body.append(pageTools);
+
+    const { container } = renderProperties();
+
+    const breadcrumb = within(pageTools).getByRole("navigation", {
+      name: "Breadcrumb",
+    });
+    expect(within(breadcrumb).getByRole("link", { name: "Properties" })).toBeTruthy();
+    expect(within(breadcrumb).getByText("2 records")).toBeTruthy();
+
+    const toolbar = container.querySelector<HTMLElement>(
+      '[data-slot="workspace-toolbar"]',
+    );
+    expect(toolbar).not.toBeNull();
+    expect(within(toolbar!).getByRole("button", { name: "Add property" })).toBeTruthy();
+  });
+
   it("uses the shared dense workspace, one selected row, direct links, and URL-backed sorting", () => {
     const { container } = renderProperties();
 

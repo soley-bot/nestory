@@ -16,7 +16,6 @@ import {
   FileDropzoneField,
 } from "@/components/ui/file-dropzone-field";
 import { SideDrawer } from "@/components/ui/side-drawer";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -228,9 +227,8 @@ export function TimelineScreen({
 
   return (
     <WorkspacePage
-      header={<PageHeader
-        actions={
-          <>
+      actions={
+        <>
             <RecentChangesPopover
               changes={recentChanges}
               onSelectChange={(change) => {
@@ -244,11 +242,11 @@ export function TimelineScreen({
               <Plus size={15} />
               Add event
             </Button>
-          </>
-        }
-        context={<><span>{getTimelineScopeLabel(scope)}</span><span className="mx-2 text-foreground-subtle">/</span><span>{pagination.totalCount} {pagination.totalCount === 1 ? "event" : "events"}</span></>}
-        title={title}
-      />}
+        </>
+      }
+      context={<><span>{getTimelineScopeLabel(scope)}</span><span className="mx-2 text-foreground-subtle">/</span><span>{pagination.totalCount} {pagination.totalCount === 1 ? "event" : "events"}</span></>}
+      contextHref={pathname}
+      title={title}
       toolbar={
         <TimelineFilters
           eventTypes={eventTypes}

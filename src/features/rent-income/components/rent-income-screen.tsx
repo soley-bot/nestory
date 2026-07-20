@@ -6,7 +6,6 @@ import { useActionState, useEffect, useState } from "react";
 import { Coins, Eye, Plus, Send, XCircle } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
-import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   useWideWorkspace,
@@ -158,16 +157,15 @@ export function RentIncomeScreen({
 
   return (
     <WorkspacePage
-      header={<PageHeader
-        actions={
-          <Button onClick={openCreate} variant="primary">
-            <Plus size={15} />
-            Add income
-          </Button>
-        }
-        context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
-        title="Rent & Income"
-      />}
+      actions={
+        <Button onClick={openCreate} variant="primary">
+          <Plus size={15} />
+          Add income
+        </Button>
+      }
+      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+      contextHref="/rent-income"
+      title="Rent & Income"
       toolbar={
         <RentIncomeFilters
           propertyOptions={propertyOptions}

@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -216,6 +216,37 @@ describe("shared workspace anatomy", () => {
     );
     expect(page?.className).toContain("min-w-0");
     expect(page?.className).toContain("overflow-x-hidden");
+  });
+
+  it("moves list context into the app bar and keeps actions with workspace tools", () => {
+    const pageTools = document.createElement("div");
+    pageTools.id = "workspace-page-tools";
+    document.body.append(pageTools);
+
+    render(
+      <WorkspacePage
+        actions={<button type="button">Add lease</button>}
+        context="24 records"
+        contextHref="/leases"
+        title="Leases"
+        toolbar={<button type="button">Filter leases</button>}
+      >
+        <div>Lease list</div>
+      </WorkspacePage>,
+    );
+
+    const breadcrumb = within(pageTools).getByRole("navigation", {
+      name: "Breadcrumb",
+    });
+    expect(within(breadcrumb).getByRole("link", { name: "Leases" })).toBeTruthy();
+    expect(within(breadcrumb).getByText("24 records")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Leases" }).className,
+    ).toContain("sr-only");
+
+    const toolbar = screen.getByRole("toolbar", { name: "Workspace tools" });
+    expect(within(toolbar).getByRole("button", { name: "Filter leases" })).toBeTruthy();
+    expect(within(toolbar).getByRole("button", { name: "Add lease" })).toBeTruthy();
   });
 
   it("keeps a wide inspector between 280px and 320px with the record spine", () => {
