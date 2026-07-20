@@ -15,12 +15,12 @@ export function RecordsPropertyPreviewList({ rows }: { rows: OverviewRecordPoint
         <div className="border-b border-border px-3 py-2.5">
           <h2 className="text-sm font-semibold">Record readiness</h2>
           <p className="mt-0.5 text-xs text-foreground-muted">
-            Properties ranked by statement blockers and missing record links.
+            Properties ranked by statement readiness and record-link issues.
           </p>
         </div>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_100px_160px_20px] gap-3 border-b border-border px-3 py-2 text-xs font-medium uppercase tracking-wide text-foreground-muted max-md:hidden">
           <span>Property</span>
-          <span>Blockers</span>
+          <span>Record issues</span>
           <span>Readiness</span>
           <span aria-hidden="true" />
         </div>
@@ -39,7 +39,7 @@ export function RecordsPropertyPreviewList({ rows }: { rows: OverviewRecordPoint
                     {readinessSummary(row)}
                   </span>
                 </span>
-                <span className="text-sm font-semibold tabular-nums">{totalBlockers(row)}</span>
+                <span className="text-sm font-semibold tabular-nums">{recordIssueCount(row)}</span>
                 <span className="hidden truncate text-xs text-foreground-muted md:block">
                   {readinessSummary(row)}
                 </span>
@@ -96,46 +96,58 @@ export function RecordsPropertyPreviewList({ rows }: { rows: OverviewRecordPoint
   );
 }
 
-function totalBlockers(row: OverviewRecordPoint) {
-  return row.statementBlockers + row.missingTenantLinks;
+function recordIssueCount(row: OverviewRecordPoint) {
+  return Number(!row.ownerLinked) + row.missingTenantLinks;
 }
 
 function readinessSummary(row: OverviewRecordPoint) {
-  if (!row.ownerLinked) return "Owner link missing";
-  if (row.missingTenantLinks > 0) {
-    return `${row.missingTenantLinks} tenant ${row.missingTenantLinks === 1 ? "link" : "links"} missing`;
-  }
   if (row.statementBlockers > 0) {
     return `${row.statementBlockers} statement ${row.statementBlockers === 1 ? "blocker" : "blockers"}`;
   }
-  return "Ready for review";
+  if (row.readyStatementCount > 0) {
+    return row.readyStatementCount === 1
+      ? "1 owner statement ready"
+      : `${row.readyStatementCount} owner statements ready`;
+  }
+  return "No owner statement ready";
 }
 
 function modalFacts(row: OverviewRecordPoint): Array<[string, string]> {
   return [
     ["Statement blockers", String(row.statementBlockers)],
+    ["Owner statements ready", String(row.readyStatementCount)],
     ["Owner linked", row.ownerLinked ? "Yes" : "No"],
     ["Missing tenant links", String(row.missingTenantLinks)],
     ["Documents", String(row.documentCount)],
     ["Units", String(row.unitCount)],
-    ["Status", totalBlockers(row) === 0 && row.ownerLinked ? "Ready" : "Needs review"],
+    ["Statement status", statementIsReady(row) ? "Ready" : "Needs review"],
+    ["Record quality", recordIssueCount(row) === 0 ? "Clear" : "Needs review"],
   ];
 }
 
 function readinessDetail(row: OverviewRecordPoint) {
-  const issues = [
+  const recordIssues = [
     !row.ownerLinked ? "link an owner" : null,
     row.missingTenantLinks > 0
       ? `repair ${row.missingTenantLinks} tenant ${row.missingTenantLinks === 1 ? "link" : "links"}`
       : null,
-    row.statementBlockers > 0
-      ? `resolve ${row.statementBlockers} statement ${row.statementBlockers === 1 ? "blocker" : "blockers"}`
-      : null,
   ].filter((issue): issue is string => issue !== null);
+  const statementDetail =
+    row.statementBlockers > 0
+      ? `Resolve ${row.statementBlockers} statement ${row.statementBlockers === 1 ? "blocker" : "blockers"}.`
+      : row.readyStatementCount > 0
+        ? `${readinessSummary(row)}.`
+        : "No owner statement is ready.";
 
-  return issues.length > 0
-    ? `Before statement review, ${joinIssues(issues)}.`
-    : "Owner, tenant, and statement checks are ready for review.";
+  if (recordIssues.length === 0) {
+    return `${statementDetail} No owner or tenant link issues.`;
+  }
+
+  return `${statementDetail} Record-quality ${recordIssues.length === 1 ? "issue" : "issues"}: ${joinIssues(recordIssues)}.`;
+}
+
+function statementIsReady(row: OverviewRecordPoint) {
+  return row.statementBlockers === 0 && row.readyStatementCount > 0;
 }
 
 function joinIssues(issues: string[]) {

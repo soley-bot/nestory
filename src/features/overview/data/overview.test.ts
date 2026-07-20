@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { getOverviewScreenData } from "@/features/overview/data/overview";
+import { buildOwnerStatement } from "@/features/reports/data/owner-statement";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 vi.mock("@/lib/db/server", () => ({
@@ -37,7 +38,7 @@ describe("getOverviewScreenData", () => {
           data: [{ code: "CTR", id: "prop-1", name: "Central Residence" }],
         },
         property_owners: {
-          data: [{ property_id: "prop-1" }],
+          data: [ownerLinkRow()],
         },
         tasks: {
           data: [
@@ -343,6 +344,374 @@ describe("getOverviewScreenData", () => {
       expect.objectContaining({ count: 1_001, label: "Open property bills" }),
     );
   });
+
+  it("matches authoritative readiness for one single-owner and one 60/40 property", async () => {
+    const properties = [
+      { code: "ONE", id: "property-one", name: "Single Owner" },
+      { code: "TWO", id: "property-two", name: "Shared Owners" },
+    ];
+    const ownerLinks = [
+      ownerLinkRow({ id: "link-one", person_id: "person-one", property_id: "property-one" }),
+      ownerLinkRow({
+        id: "link-two-a",
+        ownership_percent: 60,
+        person_id: "person-two",
+        property_id: "property-two",
+      }),
+      ownerLinkRow({
+        id: "link-two-b",
+        is_primary: false,
+        ownership_percent: 40,
+        person_id: "person-three",
+        property_id: "property-two",
+      }),
+    ];
+    const people = [
+      personRow("person-one", "Owner One"),
+      personRow("person-two", "Owner Two"),
+      personRow("person-three", "Owner Three"),
+    ];
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        people: { data: people },
+        properties: { data: properties },
+        property_owners: { data: ownerLinks },
+      }),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+      overviewQuery(),
+    );
+    const authoritative = buildOwnerStatement({
+      cashInput: {
+        depositEvents: [],
+        expenseItems: [],
+        incomeItems: [],
+        monthScope: { before: "2026-08-01", from: "2026-07-01" },
+        paymentAllocations: [],
+        propertyIds: properties.map((property) => property.id),
+        receiptAllocations: [],
+      },
+      ownerLinks: ownerLinks.map(toDomainOwnerLink),
+      people: people.map((person) => ({
+        displayName: person.display_name,
+        hasUsableContact: true,
+        id: person.id,
+      })),
+    });
+
+    expect(authoritative.summary).toMatchObject({
+      blockedPropertyCount: 0,
+      readyPropertyCount: 2,
+      readyStatementCount: 3,
+    });
+    expect(data.propertyPerformance.summary.statementReadiness).toEqual({
+      blockedPropertyCount: authoritative.summary.blockedPropertyCount,
+      readyPropertyCount: authoritative.summary.readyPropertyCount,
+      readyStatementCount: authoritative.summary.readyStatementCount,
+      totalPropertyCount: 2,
+    });
+    expect(data.recordsByProperty).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "ONE / Single Owner",
+          readyStatementCount: 1,
+          statementBlockers: 0,
+        }),
+        expect.objectContaining({
+          label: "TWO / Shared Owners",
+          readyStatementCount: 2,
+          statementBlockers: 0,
+        }),
+      ]),
+    );
+  });
+
+  it("filters Records rows to blocked properties without narrowing portfolio readiness", async () => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        people: { data: [personRow("person-ready", "Ready Owner")] },
+        properties: {
+          data: [
+            { code: "BAD", id: "property-blocked", name: "Blocked" },
+            { code: "GOOD", id: "property-ready", name: "Ready" },
+          ],
+        },
+        property_owners: {
+          data: [
+            ownerLinkRow({
+              id: "owner-link-ready",
+              person_id: "person-ready",
+              property_id: "property-ready",
+            }),
+          ],
+        },
+      }),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+      overviewQuery({ review: "statement-blocked" }),
+    );
+
+    expect(data.recordsByProperty.map((row) => row.label)).toEqual([
+      "BAD / Blocked",
+    ]);
+    expect(data.propertyPerformance.summary.statementReadiness).toEqual({
+      blockedPropertyCount: 1,
+      readyPropertyCount: 1,
+      readyStatementCount: 1,
+      totalPropertyCount: 2,
+    });
+    expect(data.attentionItems).toContainEqual(
+      expect.objectContaining({
+        count: 1,
+        label: "Blocked properties",
+      }),
+    );
+  });
+
+  it.each([
+    {
+      label: "has a current primary link that starts after the period begins",
+      links: [ownerLinkRow({ started_on: "2026-07-15" })],
+    },
+    {
+      label: "has overlapping links for the same owner",
+      links: [
+        ownerLinkRow(),
+        ownerLinkRow({ id: "owner-link-overlap", started_on: "2026-07-10" }),
+      ],
+    },
+  ])("blocks a property whose dated ownership roster $label", async ({ links }) => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        people: { data: [personRow("owner-person-1", "Owner One")] },
+        properties: {
+          data: [{ code: "P1", id: "prop-1", name: "Property One" }],
+        },
+        property_owners: { data: links },
+      }),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+      overviewQuery(),
+    );
+
+    expect(data.recordsByProperty[0]).toMatchObject({
+      ownerLinked: true,
+      readyStatementCount: 0,
+      statementBlockers: 1,
+    });
+    expect(data.propertyPerformance.summary.statementReadiness).toMatchObject({
+      blockedPropertyCount: 1,
+      readyPropertyCount: 0,
+      readyStatementCount: 0,
+    });
+  });
+
+  it.each(["contribution", "payout"] as const)(
+    "surfaces an ambiguous owner %s as an authoritative statement blocker",
+    async (transfer) => {
+      const ownerLinks = [
+        ownerLinkRow({ ownership_percent: 60 }),
+        ownerLinkRow({
+          id: "owner-link-2",
+          is_primary: false,
+          ownership_percent: 40,
+          person_id: "owner-person-2",
+        }),
+      ];
+      const transferItem = {
+        economic_scope: "property_expense",
+        expense_type: "owner_payout",
+        id: "transfer",
+        ledger_entry_id: null,
+        property_id: "prop-1",
+        status: "paid",
+      };
+      vi.mocked(createSupabaseServerClient).mockResolvedValue(
+        createSupabaseStub({
+          finance_expense_items: {
+            data: transfer === "payout" ? [transferItem] : [],
+          },
+          finance_income_items: {
+            data:
+              transfer === "contribution"
+                ? [
+                    {
+                      amount_due: 100,
+                      due_date: "2026-07-01",
+                      id: "transfer",
+                      income_type: "owner_contribution",
+                      property_id: "prop-1",
+                    },
+                  ]
+                : [],
+          },
+          finance_payment_allocations: {
+            data:
+              transfer === "payout"
+                ? [
+                    {
+                      ...paymentAllocation(
+                        "payment-allocation-transfer",
+                        "transfer",
+                        100,
+                        "2026-07-20",
+                      ),
+                      finance_expense_items: transferItem,
+                    },
+                  ]
+                : [],
+          },
+          finance_receipt_allocations: {
+            data:
+              transfer === "contribution"
+                ? [receiptAllocation("receipt-allocation-transfer", "transfer", 100)]
+                : [],
+          },
+          people: {
+            data: [
+              personRow("owner-person-1", "Owner One"),
+              personRow("owner-person-2", "Owner Two"),
+            ],
+          },
+          properties: {
+            data: [{ code: "P1", id: "prop-1", name: "Property One" }],
+          },
+          property_owners: { data: ownerLinks },
+        }),
+      );
+
+      const data = await getOverviewScreenData(
+        "11111111-1111-4111-8111-111111111111",
+        overviewQuery(),
+      );
+
+      expect(data.recordsByProperty[0]).toMatchObject({
+        readyStatementCount: 0,
+        statementBlockers: 1,
+      });
+    },
+  );
+
+  it("isolates a malformed deposit to one property and keeps a missing-contact owner ready", async () => {
+    const properties = [
+      { code: "BAD", id: "property-bad", name: "Bad Deposit" },
+      { code: "WARN", id: "property-warning", name: "Missing Contact" },
+      { code: "GOOD", id: "property-good", name: "Ready" },
+    ];
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        lease_deposit_events: {
+          data: [
+            {
+              amount: 100,
+              event_date: "2026-07-22",
+              event_type: "reversed",
+              id: "deposit-reversal-bad",
+              property_id: "property-bad",
+              reversal_of_id: "missing-deposit-event",
+            },
+          ],
+        },
+        people: {
+          data: [
+            personRow("person-bad", "Owner Bad"),
+            personRow("person-warning", "Owner Warning", null),
+            personRow("person-good", "Owner Good"),
+          ],
+        },
+        properties: { data: properties },
+        property_owners: {
+          data: [
+            ownerLinkRow({ id: "link-bad", person_id: "person-bad", property_id: "property-bad" }),
+            ownerLinkRow({ id: "link-warning", person_id: "person-warning", property_id: "property-warning" }),
+            ownerLinkRow({ id: "link-good", person_id: "person-good", property_id: "property-good" }),
+          ],
+        },
+      }),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+      overviewQuery(),
+    );
+    const rowsByLabel = new Map(data.recordsByProperty.map((row) => [row.label, row]));
+
+    expect(rowsByLabel.get("BAD / Bad Deposit")).toMatchObject({
+      readyStatementCount: 0,
+      statementBlockers: 1,
+    });
+    expect(rowsByLabel.get("WARN / Missing Contact")).toMatchObject({
+      readyStatementCount: 1,
+      statementBlockers: 0,
+    });
+    expect(rowsByLabel.get("GOOD / Ready")).toMatchObject({
+      readyStatementCount: 1,
+      statementBlockers: 0,
+    });
+    expect(data.propertyPerformance.summary.statementReadiness).toEqual({
+      blockedPropertyCount: 1,
+      readyPropertyCount: 2,
+      readyStatementCount: 2,
+      totalPropertyCount: 3,
+    });
+  });
+
+  it("uses the selected month and property scope for the same readiness as Owner Statement", async () => {
+    const queryCalls: QueryCall[] = [];
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub(
+        {
+          people: { data: [personRow("owner-person-1", "Owner One")] },
+          properties: {
+            data: [{ code: "P1", id: "prop-1", name: "Property One" }],
+          },
+          property_owners: {
+            data: [ownerLinkRow({ started_on: "2026-08-01" })],
+          },
+        },
+        queryCalls,
+      ),
+    );
+
+    const july = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+      overviewQuery({ month: "2026-07", propertyId: "prop-1" }),
+    );
+    const august = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+      overviewQuery({ month: "2026-08", propertyId: "prop-1" }),
+    );
+
+    expect(july.propertyPerformance.summary.statementReadiness).toMatchObject({
+      blockedPropertyCount: 1,
+      readyPropertyCount: 0,
+    });
+    expect(august.propertyPerformance.summary.statementReadiness).toMatchObject({
+      blockedPropertyCount: 0,
+      readyPropertyCount: 1,
+      readyStatementCount: 1,
+    });
+    for (const table of [
+      "properties",
+      "property_owners",
+      "finance_income_items",
+      "lease_deposit_events",
+    ]) {
+      expect(queryCalls).toContainEqual(
+        expect.objectContaining({
+          args: [table === "properties" ? "id" : "property_id", "prop-1"],
+          method: "eq",
+          table,
+        }),
+      );
+    }
+  });
 });
 
 type SupabaseResult = {
@@ -442,4 +811,58 @@ function createQuery(result: SupabaseResult, table = "", calls?: QueryCall[]) {
   };
 
   return query;
+}
+
+function overviewQuery(
+  overrides: Partial<NonNullable<Parameters<typeof getOverviewScreenData>[1]>> = {},
+) {
+  return {
+    financeView: "collections" as const,
+    lens: "records" as const,
+    month: "2026-07",
+    propertyId: "all",
+    review: "all" as const,
+    ...overrides,
+  };
+}
+
+function ownerLinkRow(
+  overrides: Partial<ReturnType<typeof ownerLinkRowShape>> = {},
+) {
+  return { ...ownerLinkRowShape(), ...overrides };
+}
+
+function ownerLinkRowShape() {
+  return {
+    archived_at: null as string | null,
+    ended_on: null as string | null,
+    id: "owner-link-1",
+    is_primary: true,
+    ownership_percent: null as number | null,
+    person_id: "owner-person-1",
+    property_id: "prop-1",
+    started_on: null as string | null,
+  };
+}
+
+function personRow(id: string, displayName: string, email: string | null = `${id}@example.com`) {
+  return {
+    display_name: displayName,
+    id,
+    primary_email: email,
+    primary_phone: null,
+  };
+}
+
+function toDomainOwnerLink(row: ReturnType<typeof ownerLinkRow>) {
+  return {
+    archivedAt: row.archived_at,
+    endedOn: row.ended_on,
+    id: row.id,
+    isPrimary: row.is_primary,
+    ownershipPercent: row.ownership_percent,
+    personId: row.person_id,
+    propertyId: row.property_id,
+    startedOn: row.started_on,
+  };
 }

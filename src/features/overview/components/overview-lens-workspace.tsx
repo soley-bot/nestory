@@ -46,7 +46,7 @@ function getLensConfig(data: OverviewScreenData, query: OverviewViewQuery, lens:
   const maintenanceItem = attentionByLabel(data.attentionItems, "Open maintenance");
   const missingOwners = attentionByLabel(data.attentionItems, "Properties without owner link");
   const missingLeaseLinks = attentionByLabel(data.attentionItems, "Leases missing tenant link");
-  const statementBlockers = data.propertyPerformance.summary.statementReadiness.blockedCount;
+  const statementReadiness = data.propertyPerformance.summary.statementReadiness;
   const vacant = data.occupancyByProperty.reduce((sum, row) => sum + row.unoccupiedUnits, 0);
   const expiring = data.leaseRiskCount;
 
@@ -72,9 +72,9 @@ function getLensConfig(data: OverviewScreenData, query: OverviewViewQuery, lens:
 
   return {
     metrics: [
-      { href: buildOverviewHref(query, { lens: "records", review: "statement-blocked" }), label: "Statement blockers", value: String(statementBlockers) },
+      { href: buildOverviewHref(query, { lens: "records", review: "statement-blocked" }), label: "Blocked properties", value: String(statementReadiness.blockedPropertyCount) },
       { href: destinationHref("/properties?ownerStatus=missing", query, false), label: "Missing owner links", value: missingOwners ? String(missingOwners.count) : "Not calculated" },
-      { href: "/reports", label: "Statements ready", value: String(data.propertyPerformance.summary.statementReadiness.readyCount) },
+      { href: destinationHref("/reports/owner-statement", query, true), label: "Owner statements ready", value: String(statementReadiness.readyStatementCount) },
       { href: destinationHref("/leases?status=current&tenantStatus=missing", query, false), label: "Missing lease links", value: missingLeaseLinks ? String(missingLeaseLinks.count) : "Not calculated" },
     ],
     title: "Records",
