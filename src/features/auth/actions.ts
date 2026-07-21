@@ -1,8 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { getAuthCallbackUrl } from "@/lib/auth/callback-url";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -49,21 +49,6 @@ function invalidFormState(error: z.ZodError): AuthActionState {
   };
 }
 
-async function getAuthCallbackUrl(nextPath?: string, route = "/auth/callback") {
-  const requestHeaders = await headers();
-  const origin =
-    requestHeaders.get("origin") ??
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000");
-
-  const callbackUrl = new URL(route, origin);
-  if (nextPath) {
-    callbackUrl.searchParams.set("next", nextPath);
-  }
-  return callbackUrl.toString();
-}
-
 export async function loginAction(
   _state: AuthActionState,
   formData: FormData,
@@ -104,7 +89,7 @@ export async function requestPasswordRecoveryAction(
 
   const supabase = await createSupabaseServerClient();
   await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: await getAuthCallbackUrl("/update-password", "/auth/confirm"),
+    redirectTo: getAuthCallbackUrl("/auth/confirm", "/update-password"),
   });
 
   return {

@@ -3,21 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   adminInvite,
   adminOtp,
-  headers,
   revalidatePath,
   requireAdminContext,
   rpc,
 } = vi.hoisted(() => ({
   adminInvite: vi.fn(),
   adminOtp: vi.fn(),
-  headers: vi.fn(),
   revalidatePath: vi.fn(),
   requireAdminContext: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("next/headers", () => ({ headers }));
 vi.mock("@/lib/auth/context", () => ({ requireAdminContext }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({ rpc }),
@@ -44,11 +41,9 @@ describe("organization invitation actions", () => {
   beforeEach(() => {
     adminInvite.mockReset();
     adminOtp.mockReset();
-    headers.mockReset();
     revalidatePath.mockReset();
     requireAdminContext.mockReset();
     rpc.mockReset();
-    headers.mockResolvedValue(new Headers({ origin: "http://localhost:3000" }));
     requireAdminContext.mockResolvedValue({
       organizationId: "22222222-2222-4222-8222-222222222222",
       userId: "33333333-3333-4333-8333-333333333333",

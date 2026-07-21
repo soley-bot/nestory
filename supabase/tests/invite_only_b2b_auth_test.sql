@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(29);
+SELECT plan(32);
 
 SELECT has_table('public', 'organization_invitations', 'invitation domain exists');
 SELECT has_function(
@@ -123,6 +123,18 @@ VALUES
   '{"provider":"email","providers":["email"]}'::jsonb,
   '{}'::jsonb,
   now(), now()
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-000000000703',
+  'authenticated',
+  'authenticated',
+  'unverified@example.com',
+  extensions.crypt('123456789', extensions.gen_salt('bf')),
+  NULL, '', '', '', '', '', '',
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"email":"invitee@example.com"}'::jsonb,
+  now(), now()
 );
 
 CREATE TEMP TABLE invitation_test_state (
@@ -217,6 +229,17 @@ SELECT is(
   'only one active invitation exists per organization and email'
 );
 
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000703', true);
+SELECT throws_ok(
+  format(
+    'SELECT public.accept_organization_invitation(%L)',
+    (SELECT invitation_id FROM invitation_test_state)
+  ),
+  '42501',
+  'Verified email is required',
+  'unverified users cannot claim an invitation by spoofing user metadata'
+);
+
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000702', true);
 SELECT throws_ok(
   format(
@@ -250,6 +273,14 @@ SELECT is(
   1::bigint,
   'acceptance never duplicates membership'
 );
+
+SET LOCAL ROLE authenticated;
+SELECT is(
+  (SELECT count(*) FROM public.organizations WHERE id = '00000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'accepted membership grants access through organization RLS'
+);
+RESET ROLE;
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SELECT throws_ok(
@@ -287,6 +318,15 @@ SELECT is(
   0::bigint,
   'membership removal immediately removes membership-based access'
 );
+
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SET LOCAL ROLE authenticated;
+SELECT is(
+  (SELECT count(*) FROM public.organizations WHERE id = '00000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'removed membership immediately loses access through organization RLS'
+);
+RESET ROLE;
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 UPDATE invitation_test_state

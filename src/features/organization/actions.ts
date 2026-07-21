@@ -1,8 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { getAuthCallbackUrl } from "@/lib/auth/callback-url";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -374,14 +374,8 @@ function isExistingAuthUserError(message: string) {
 }
 
 async function getInvitationConfirmUrl(invitationId: string) {
-  const requestHeaders = await headers();
-  const origin =
-    requestHeaders.get("origin") ??
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000");
-
-  const url = new URL("/auth/confirm", origin);
-  url.searchParams.set("next", `/accept-invite?invitation=${invitationId}`);
-  return url.toString();
+  return getAuthCallbackUrl(
+    "/auth/confirm",
+    `/accept-invite?invitation=${invitationId}`,
+  );
 }

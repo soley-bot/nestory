@@ -1,16 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getUser, headers, redirect, resetPasswordForEmail, signOut, updateUser } =
+const { getUser, redirect, resetPasswordForEmail, signOut, updateUser } =
   vi.hoisted(() => ({
     getUser: vi.fn(),
-    headers: vi.fn(),
     redirect: vi.fn(),
     resetPasswordForEmail: vi.fn(),
     signOut: vi.fn(),
     updateUser: vi.fn(),
   }));
 
-vi.mock("next/headers", () => ({ headers }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({
@@ -26,12 +24,10 @@ import {
 describe("password recovery actions", () => {
   beforeEach(() => {
     getUser.mockReset();
-    headers.mockReset();
     redirect.mockReset();
     resetPasswordForEmail.mockReset();
     signOut.mockReset();
     updateUser.mockReset();
-    headers.mockResolvedValue(new Headers({ origin: "http://localhost:3000" }));
   });
 
   it("returns the same neutral response when the recovery provider rejects an email", async () => {
