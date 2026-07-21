@@ -190,17 +190,17 @@ export function LandingPage() {
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link
                 className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#090a0c] outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#090a0c]"
-                href="/login"
+                href="/request?intent=demo"
               >
-                Sign in
+                Request a demo
                 <ArrowRight size={15} />
               </Link>
-              <a
+              <Link
                 className="inline-flex h-11 items-center px-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-white/90 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-white"
-                href="#control"
+                href="/request?intent=information"
               >
-                See workspace
-              </a>
+                Request information
+              </Link>
             </div>
           </div>
         </div>
@@ -258,8 +258,8 @@ export function LandingPage() {
       <section className="px-6 py-24 sm:px-10 lg:px-14" data-landing-reveal id="control">
         <div className="mx-auto max-w-[1360px]">
           <SectionIntro
-            actionHref="/login"
-            actionLabel="Sign in"
+            actionHref="/request?intent=demo"
+            actionLabel="Request a demo"
             kicker=""
             subtitle="Occupied, owed, open, late, changing. Clear at a glance."
             title="Control"
@@ -273,8 +273,8 @@ export function LandingPage() {
       <section className="px-6 py-24 sm:px-10 lg:px-14" data-landing-reveal id="operations">
         <div className="mx-auto max-w-[1360px]">
           <SectionIntro
-            actionHref="/login"
-            actionLabel="Sign in"
+            actionHref="/request?intent=information"
+            actionLabel="Request information"
             kicker=""
             subtitle="A property, unit, lease, ledger row, repair, and document can stay in the same operating story."
             title="Operations"
@@ -363,9 +363,9 @@ export function LandingPage() {
             </div>
             <Link
               className="inline-flex items-center gap-2 justify-self-start text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-accent)] transition-opacity hover:opacity-70 lg:justify-self-end"
-              href="/login"
+              href="/request?intent=demo"
             >
-              Sign in
+              Request a demo
               <ArrowRight size={16} strokeWidth={1.7} />
             </Link>
           </div>
@@ -407,13 +407,21 @@ export function LandingPage() {
             </p>
           </div>
           <div className="lg:justify-self-end">
-            <Link
-              className="inline-flex h-14 items-center gap-3 rounded-full bg-[var(--landing-cta-bg)] px-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--landing-cta-fg)] transition-transform hover:-translate-y-0.5 hover:opacity-90"
-              href="/login"
-            >
-              Sign in
-              <ArrowRight size={17} strokeWidth={1.8} />
-            </Link>
+            <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+              <Link
+                className="inline-flex h-14 items-center gap-3 rounded-full bg-[var(--landing-cta-bg)] px-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--landing-cta-fg)] transition-transform hover:-translate-y-0.5 hover:opacity-90"
+                href="/request?intent=demo"
+              >
+                Request a demo
+                <ArrowRight size={17} strokeWidth={1.8} />
+              </Link>
+              <Link
+                className="inline-flex h-14 items-center px-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--landing-accent)] transition-opacity hover:opacity-70"
+                href="/request?intent=information"
+              >
+                Request information
+              </Link>
+            </div>
             <p className="mt-5 text-sm italic leading-6 text-[var(--landing-muted)]">
               Access is invite-only for client teams.
             </p>
@@ -467,6 +475,12 @@ export function LandingPage() {
                 </p>
                 <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/login">
                   Sign in
+                </Link>
+                <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/request?intent=information">
+                  Request information
+                </Link>
+                <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/request?intent=demo">
+                  Request a demo
                 </Link>
               </nav>
             </div>

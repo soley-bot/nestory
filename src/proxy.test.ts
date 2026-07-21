@@ -49,4 +49,15 @@ describe("proxy", () => {
       "http://localhost:3000/login",
     );
   });
+
+  it("keeps the public request route available without a session", async () => {
+    getClaims.mockResolvedValue({ data: { claims: null }, error: null });
+
+    const response = await proxy(
+      new NextRequest("http://localhost:3000/request?intent=demo"),
+    );
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.status).toBe(200);
+  });
 });

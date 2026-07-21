@@ -86,6 +86,8 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 | /people/[personId] | /people/80100000-0000-0000-0000-000000000001 | /people/80100000-0000-0000-0000-000000000001 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/ -->
 | / | / | /workspace | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | populated | 3/3 pass | not-applicable | None |
+<!-- route-evidence:/request -->
+| /request | /request?intent=demo | /request?intent=demo | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, error, success | focused browser check pending | preserved | Submissions are stored for follow-up; outbound email notification is not configured. |
 <!-- route-evidence:/login -->
 | /login | /login | /workspace | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | draft, saving, error, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/forgot-password -->

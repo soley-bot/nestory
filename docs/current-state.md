@@ -63,6 +63,9 @@ Nestory is a multi-module property operations app. The implemented core covers:
 Public and auth:
 
 - `/` renders the marketing/public entry.
+- `/request?intent=information|demo` is the public B2B intake route. It stores
+  validated requests for follow-up without creating a workspace; access stays
+  managed and invite-only.
 - `/login` provides password sign-in only. `/forgot-password` and
   `/update-password` use Supabase recovery sessions. `/accept-invite` reviews
   and accepts a Nestory invitation after Supabase verifies the invited email.
@@ -219,6 +222,10 @@ RPC write boundaries. Current table families include:
 
 - Access: `organizations`, `organization_members`, `organization_invitations`,
   `organization_branches`, `organization_teams`.
+- Public intake: `public_interest_requests` is RLS-enabled and unavailable to
+  anonymous or ordinary authenticated database roles. The public server action
+  writes through the service role and deduplicates an email/request type per
+  UTC day.
 - Property core: `properties`, `units`.
 - People and lease backbone: `people`, `person_roles`, `person_contacts`,
   `property_owners`, `vendor_profiles`, `leases`, `lease_parties`,

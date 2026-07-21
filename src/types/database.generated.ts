@@ -2959,6 +2959,48 @@ export type Database = {
           },
         ]
       }
+      public_interest_requests: {
+        Row: {
+          company_name: string
+          full_name: string
+          id: string
+          message: string | null
+          portfolio_size: string | null
+          request_type: string
+          status: string
+          submission_date: string
+          submitted_at: string
+          updated_at: string
+          work_email: string
+        }
+        Insert: {
+          company_name: string
+          full_name: string
+          id?: string
+          message?: string | null
+          portfolio_size?: string | null
+          request_type: string
+          status?: string
+          submission_date?: string
+          submitted_at?: string
+          updated_at?: string
+          work_email: string
+        }
+        Update: {
+          company_name?: string
+          full_name?: string
+          id?: string
+          message?: string | null
+          portfolio_size?: string | null
+          request_type?: string
+          status?: string
+          submission_date?: string
+          submitted_at?: string
+          updated_at?: string
+          work_email?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           actual_cost_amount: number | null

@@ -2517,6 +2517,63 @@
     }
   },
   {
+    "route": "/request",
+    "source": "src/app/request/page.tsx",
+    "phase": 6,
+    "surface": "public",
+    "roles": [
+      "public"
+    ],
+    "states": [
+      "draft",
+      "saving",
+      "error",
+      "success"
+    ],
+    "evidence": {
+      "draft": [
+        "src/app/request/page.tsx",
+        "src/features/marketing/components/public-interest-form.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/request/page.tsx",
+        "src/features/marketing/components/public-interest-form.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "error": [
+        "src/app/request/page.tsx",
+        "src/features/marketing/components/public-interest-form.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/features/marketing/request-actions.test.ts"
+      ],
+      "success": [
+        "src/app/request/page.tsx",
+        "src/features/marketing/components/public-interest-form.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/features/marketing/request-actions.test.ts"
+      ]
+    },
+    "smoke": {
+      "path": "/request?intent=demo",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "accessible"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/request/page.tsx",
+        "src/features/marketing/components/public-interest-form.tsx",
+        "src/features/marketing/request-actions.test.ts"
+      ],
+      "limitations": [
+        "Submissions are stored for follow-up; outbound email notification is not configured."
+      ]
+    }
+  },
+  {
     "route": "/login",
     "source": "src/app/(auth)/login/page.tsx",
     "phase": 6,
