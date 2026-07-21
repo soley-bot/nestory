@@ -2122,6 +2122,91 @@ export type Database = {
           },
         ]
       }
+      organization_invitations: {
+        Row: {
+          accepted_at: string | null
+          auth_user_id: string | null
+          branch_id: string | null
+          created_at: string
+          delivery_error: string | null
+          delivery_method: string | null
+          email: string
+          expires_at: string
+          id: string
+          invited_at: string
+          invited_by: string | null
+          last_sent_at: string | null
+          organization_id: string
+          person_id: string | null
+          revoked_at: string | null
+          role: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          auth_user_id?: string | null
+          branch_id?: string | null
+          created_at?: string
+          delivery_error?: string | null
+          delivery_method?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          invited_at?: string
+          invited_by?: string | null
+          last_sent_at?: string | null
+          organization_id: string
+          person_id?: string | null
+          revoked_at?: string | null
+          role: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          auth_user_id?: string | null
+          branch_id?: string | null
+          created_at?: string
+          delivery_error?: string | null
+          delivery_method?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_at?: string
+          invited_by?: string | null
+          last_sent_at?: string | null
+          organization_id?: string
+          person_id?: string | null
+          revoked_at?: string | null
+          role?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_invitations_branch_organization_fk"
+            columns: ["branch_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "organization_branches"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_person_organization_fk"
+            columns: ["person_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           branch_id: string | null
@@ -3392,14 +3477,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      add_existing_organization_member: {
-        Args: {
-          p_branch_id: string
-          p_email: string
-          p_organization_id: string
-          p_person_id: string
-          p_role: string
-        }
+      accept_organization_invitation: {
+        Args: { p_invitation_id: string }
         Returns: string
       }
       archive_asset_photo: {
@@ -3446,13 +3525,6 @@ export type Database = {
           p_task_id: string
         }
         Returns: string
-      }
-      bootstrap_admin_organization: {
-        Args: { organization_name: string; workspace_slug?: string }
-        Returns: {
-          membership_id: string
-          organization_id: string
-        }[]
       }
       commit_generic_import_run: {
         Args: { p_import_run_id: string; p_organization_id: string }
@@ -3599,6 +3671,16 @@ export type Database = {
           p_code: string
           p_name: string
           p_organization_id: string
+        }
+        Returns: string
+      }
+      create_organization_invitation: {
+        Args: {
+          p_branch_id: string
+          p_email: string
+          p_organization_id: string
+          p_person_id: string
+          p_role: string
         }
         Returns: string
       }
@@ -3833,6 +3915,31 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_organization_invitation_for_acceptance: {
+        Args: { p_invitation_id: string }
+        Returns: {
+          expires_at: string
+          invitation_id: string
+          invitation_status: string
+          invited_role: string
+          organization_name: string
+          password_required: boolean
+          scope_name: string
+          staff_name: string
+        }[]
+      }
+      mark_organization_invitation_delivery_failed: {
+        Args: { p_error: string; p_invitation_id: string }
+        Returns: string
+      }
+      mark_organization_invitation_sent: {
+        Args: {
+          p_auth_user_id: string
+          p_delivery_method: string
+          p_invitation_id: string
+        }
+        Returns: string
+      }
       open_next_petty_cash_period: {
         Args: {
           p_account_id: string
@@ -3873,6 +3980,17 @@ export type Database = {
         Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
       }
+      provision_client_workspace: {
+        Args: { p_admin_email: string; p_name: string; p_slug: string }
+        Returns: {
+          invitation_id: string
+          invitation_status: string
+          invited_email: string
+          organization_id: string
+          organization_name: string
+          workspace_slug: string
+        }[]
+      }
       record_finance_income_payment: {
         Args: {
           p_amount_received: number
@@ -3912,6 +4030,17 @@ export type Database = {
           p_organization_id: string
           p_reference?: string
         }
+        Returns: string
+      }
+      refresh_organization_invitation: {
+        Args: { p_invitation_id: string }
+        Returns: {
+          email: string
+          invitation_id: string
+        }[]
+      }
+      remove_organization_member_access: {
+        Args: { p_member_id: string; p_organization_id: string }
         Returns: string
       }
       restore_document: {
@@ -3989,6 +4118,10 @@ export type Database = {
           p_review_note?: string
           p_task_id: string
         }
+        Returns: string
+      }
+      revoke_organization_invitation: {
+        Args: { p_invitation_id: string }
         Returns: string
       }
       set_accounting_period_lock: {

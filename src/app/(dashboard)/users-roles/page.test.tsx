@@ -28,7 +28,7 @@ describe("UsersRolesPage", () => {
       role: "admin",
       userId: "user-1",
     });
-    getAccessSettingsData.mockResolvedValue({ branches: [], members: [], staff: [] });
+    getAccessSettingsData.mockResolvedValue({ branches: [], invitations: [], members: [], staff: [] });
   });
 
   it("loads access data only after admin authorization and identifies the current user", async () => {
@@ -40,7 +40,7 @@ describe("UsersRolesPage", () => {
     expect(requireAdminContext).toHaveBeenCalledOnce();
     expect(getAccessSettingsData).toHaveBeenCalledWith("organization-1");
     expect(screenSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ currentUserId: "user-1" }),
+      expect.objectContaining({ currentUserId: "user-1", invitations: [] }),
     );
   });
 });

@@ -3,21 +3,13 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import {
-  getCurrentUser,
-  getCurrentOrganizationSlug,
-  getWorkspaceMembershipForUser,
-} from "@/lib/auth/context";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
-type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
-
 type AuthFieldErrors = {
   email?: string[];
-  organizationName?: string[];
   password?: string[];
-  workspaceSlug?: string[];
+  passwordConfirm?: string[];
 };
 
 export type AuthActionState = {
@@ -31,34 +23,19 @@ const loginSchema = z.object({
   password: z.string().min(1, "Enter your password."),
 });
 
-const organizationSchema = z.object({
-  organizationName: z
-    .string()
-    .trim()
-    .min(2, "Enter the company name.")
-    .max(120, "Keep the company name under 120 characters."),
+const recoverySchema = z.object({
+  email: z.email("Enter a valid email address.").trim(),
 });
 
-const workspaceSlugSchema = z
-  .string()
-  .trim()
-  .min(3, "Use at least 3 characters.")
-  .max(63, "Keep the workspace URL under 63 characters.")
-  .regex(
-    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
-    "Use lowercase letters, numbers, and hyphens.",
-  )
-  .refine((value) => !["api", "app", "www"].includes(value), {
-    message: "That workspace URL is reserved.",
+const updatePasswordSchema = z
+  .object({
+    password: z.string().min(8, "Use at least 8 characters."),
+    passwordConfirm: z.string(),
+  })
+  .refine((value) => value.password === value.passwordConfirm, {
+    message: "Passwords do not match.",
+    path: ["passwordConfirm"],
   });
-
-const signupSchema = loginSchema.extend({
-  password: z.string().min(8, "Use at least 8 characters."),
-});
-
-const setupSchema = organizationSchema.extend({
-  workspaceSlug: workspaceSlugSchema,
-});
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -72,7 +49,7 @@ function invalidFormState(error: z.ZodError): AuthActionState {
   };
 }
 
-async function getAuthCallbackUrl() {
+async function getAuthCallbackUrl(nextPath?: string, route = "/auth/callback") {
   const requestHeaders = await headers();
   const origin =
     requestHeaders.get("origin") ??
@@ -80,49 +57,11 @@ async function getAuthCallbackUrl() {
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000");
 
-  return new URL("/auth/callback", origin).toString();
-}
-
-async function bootstrapAdminOrganization(
-  organizationName: string,
-  workspaceSlug: string,
-  client?: SupabaseServerClient,
-): Promise<AuthActionState | null> {
-  const supabase = client ?? (await createSupabaseServerClient());
-  const { error } = await supabase.rpc("bootstrap_admin_organization", {
-    organization_name: organizationName,
-    workspace_slug: workspaceSlug,
-  });
-
-  if (error) {
-    if (error.message.includes("Workspace URL is already taken")) {
-      return {
-        fieldErrors: {
-          workspaceSlug: ["That workspace URL is already taken."],
-        },
-        status: "error",
-      };
-    }
-
-    if (
-      error.message.includes("Workspace URL is invalid") ||
-      error.message.includes("Workspace URL is reserved")
-    ) {
-      return {
-        fieldErrors: {
-          workspaceSlug: ["Choose another workspace URL."],
-        },
-        status: "error",
-      };
-    }
-
-    return {
-      message: "We could not create the workspace. Please try again.",
-      status: "error",
-    };
+  const callbackUrl = new URL(route, origin);
+  if (nextPath) {
+    callbackUrl.searchParams.set("next", nextPath);
   }
-
-  return null;
+  return callbackUrl.toString();
 }
 
 export async function loginAction(
@@ -151,13 +90,12 @@ export async function loginAction(
   redirect(WORKSPACE_ENTRY_PATH);
 }
 
-export async function signupAction(
+export async function requestPasswordRecoveryAction(
   _state: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
-  const parsed = signupSchema.safeParse({
+  const parsed = recoverySchema.safeParse({
     email: readString(formData, "email"),
-    password: readString(formData, "password"),
   });
 
   if (!parsed.success) {
@@ -165,73 +103,52 @@ export async function signupAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const emailRedirectTo = await getAuthCallbackUrl();
-  const { data, error } = await supabase.auth.signUp({
-    email: parsed.data.email,
-    options: {
-      emailRedirectTo,
-    },
-    password: parsed.data.password,
+  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: await getAuthCallbackUrl("/update-password", "/auth/confirm"),
   });
 
-  if (error || !data.user) {
-    return {
-      message: "We could not create the account. Please try again.",
-      status: "error",
-    };
-  }
-
-  if (data.session) {
-    redirect("/setup");
-  }
-
   return {
-    message: "Account created. Confirm the email address to continue setup.",
+    message: "If that account exists, a password reset link has been sent.",
     status: "success",
   };
 }
 
-export async function setupOrganizationAction(
+export async function updatePasswordAction(
   _state: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const organizationSlug = await getCurrentOrganizationSlug();
-
-  if (organizationSlug) {
-    redirect("/no-access");
-  }
-
-  const parsed = setupSchema.safeParse({
-    organizationName: readString(formData, "organizationName"),
-    workspaceSlug: readString(formData, "workspaceSlug"),
+  const parsed = updatePasswordSchema.safeParse({
+    password: readString(formData, "password"),
+    passwordConfirm: readString(formData, "passwordConfirm"),
   });
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
   }
 
-  const existingMembership = await getWorkspaceMembershipForUser(user.id);
+  const supabase = await createSupabaseServerClient();
+  const { data, error: userError } = await supabase.auth.getUser();
 
-  if (existingMembership) {
-    redirect(WORKSPACE_ENTRY_PATH);
+  if (userError || !data.user) {
+    return {
+      message: "Open a fresh password recovery link and try again.",
+      status: "error",
+    };
   }
 
-  const bootstrapError = await bootstrapAdminOrganization(
-    parsed.data.organizationName,
-    parsed.data.workspaceSlug,
-  );
+  const { error } = await supabase.auth.updateUser({
+    password: parsed.data.password,
+  });
 
-  if (bootstrapError) {
-    return bootstrapError;
+  if (error) {
+    return {
+      message: "We could not update the password. Request a new recovery link.",
+      status: "error",
+    };
   }
 
-  redirect(WORKSPACE_ENTRY_PATH);
+  await supabase.auth.signOut();
+  redirect("/login?password=updated");
 }
 
 export async function signOutAction() {

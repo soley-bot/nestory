@@ -47,7 +47,8 @@ The pgTAP files under `supabase/tests/accounting_*.sql` provide these checks.
 
 Use a real browser smoke when a change affects:
 
-- Auth redirects, setup, workspace/no-access flows, or subdomain routing.
+- Auth redirects, invitation acceptance, recovery, workspace/no-access flows,
+  or subdomain routing.
 - Operational page layout or responsive behavior.
 - Create/edit/archive/restore drawers.
 - File upload or import flows.
@@ -120,12 +121,12 @@ deep component state.
 ## Route Checks
 
 - A public unauthenticated request to protected dashboard routes should redirect
-  to login/setup/no-access as appropriate.
+  to login. Authenticated accounts without membership should reach no-access.
 - Admin-only pages should reject non-admin users.
 - Manager/member task access should remain role-limited.
 - Links from reports, recent changes, property/unit detail, and maintenance
   drawers should preserve focused IDs through URL params.
-- `npm run test:ui-coverage` must report the filesystem and all 47 current page
+- `npm run test:ui-coverage` must report the filesystem and all 50 current page
   routes in agreement, with exactly one evidence row per manifest entry.
 
 ## Handoff Expectations

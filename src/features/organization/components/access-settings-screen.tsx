@@ -9,7 +9,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { UserPlus, UsersRound } from "lucide-react";
+import { MailPlus, UserPlus, UsersRound } from "lucide-react";
 import { SettingsNavigationGuardProvider, useSettingsNavigationGuard } from "@/components/layout/settings-navigation-guard";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { Badge } from "@/components/ui/badge";
@@ -17,12 +17,16 @@ import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DraftActionBar, type DraftStatus } from "@/components/ui/draft-action-bar";
 import { SelectControl } from "@/components/ui/select-control";
 import {
-  addExistingUserAccessAction,
+  inviteOrganizationUserAction,
+  removeMemberAccessAction,
+  resendOrganizationInvitationAction,
+  revokeOrganizationInvitationAction,
   updateMemberAccessAction,
   type OrganizationActionState,
 } from "@/features/organization/actions";
 import type {
   OrganizationBranch,
+  OrganizationInvitation,
   OrganizationMembership,
   OrganizationPersonOption,
 } from "@/features/organization/data";
@@ -42,6 +46,7 @@ export function AccessSettingsScreen({
   branches,
   currentUserId,
   inviteDefaults,
+  invitations = [],
   members,
   people,
 }: {
@@ -51,6 +56,7 @@ export function AccessSettingsScreen({
     email?: string;
     personId?: string;
   };
+  invitations?: OrganizationInvitation[];
   members: OrganizationMembership[];
   people: OrganizationPersonOption[];
 }) {
@@ -61,6 +67,7 @@ export function AccessSettingsScreen({
         branches={branches}
         currentUserId={currentUserId}
         inviteDefaults={inviteDefaults}
+        invitations={invitations}
         members={members}
         people={people}
       />
@@ -72,6 +79,7 @@ function AccessWorkspace({
   branches,
   currentUserId,
   inviteDefaults,
+  invitations = [],
   members,
   people,
 }: Parameters<typeof AccessSettingsScreen>[0]) {
@@ -122,9 +130,9 @@ function AccessWorkspace({
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <UserPlus aria-hidden="true" size={15} />
-              Add access
+              Invite user
             </h2>
-            <p className="mt-1 text-xs text-foreground-muted">Account, role, and scope</p>
+            <p className="mt-1 text-xs text-foreground-muted">Email, role, scope, and staff link</p>
           </div>
           <Link
             className="text-[13px] font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -141,37 +149,65 @@ function AccessWorkspace({
         />
       </section>
 
-      <section className="min-w-0 rounded-md border border-border bg-surface">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <UsersRound aria-hidden="true" size={15} />
-            Members
-          </h2>
-          <Badge tone="neutral">
-            {members.length} active {members.length === 1 ? "member" : "members"}
-          </Badge>
-        </div>
-        {members.length > 0 ? (
-          <div className="divide-y divide-border">
-            {members.map((member) => (
-              <MemberAccessForm
-                adminCount={adminCount}
-                branches={branches}
-                current={member.userId === currentUserId}
-                key={member.id}
-                member={member}
-                onDraftChange={registerDraft}
-                people={people}
-              />
-            ))}
+      <div className="min-w-0 space-y-4">
+        <section className="rounded-md border border-border bg-surface">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <MailPlus aria-hidden="true" size={15} />
+              Pending invitations
+            </h2>
+            <Badge tone="neutral">{invitations.length}</Badge>
           </div>
-        ) : (
-          <div className="px-4 py-8 text-center">
-            <p className="text-sm font-medium">No access members</p>
-            <p className="mt-1 text-sm text-foreground-muted">Add the first account from the access form.</p>
+          {invitations.length > 0 ? (
+            <div className="divide-y divide-border">
+              {invitations.map((invitation) => (
+                <PendingInvitationRow
+                  branches={branches}
+                  invitation={invitation}
+                  key={invitation.id}
+                  people={people}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="px-4 py-6 text-sm text-foreground-muted">
+              No pending invitations.
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-md border border-border bg-surface">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <UsersRound aria-hidden="true" size={15} />
+              Active members
+            </h2>
+            <Badge tone="neutral">
+              {members.length} active {members.length === 1 ? "member" : "members"}
+            </Badge>
           </div>
-        )}
-      </section>
+          {members.length > 0 ? (
+            <div className="divide-y divide-border">
+              {members.map((member) => (
+                <MemberAccessForm
+                  adminCount={adminCount}
+                  branches={branches}
+                  current={member.userId === currentUserId}
+                  key={member.id}
+                  member={member}
+                  onDraftChange={registerDraft}
+                  people={people}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="px-4 py-8 text-center">
+              <p className="text-sm font-medium">No active members</p>
+              <p className="mt-1 text-sm text-foreground-muted">Accepted invitations appear here.</p>
+            </div>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
@@ -202,7 +238,7 @@ function InviteUserForm({
     role: "member",
   };
   const draft = useAccessDraft({
-    action: addExistingUserAccessAction,
+    action: inviteOrganizationUserAction,
     baselineValues: clean,
     initialStatus: initial.email || initial.personId ? "dirty" : "clean",
     initialValues: initial,
@@ -277,13 +313,115 @@ function InviteUserForm({
             }
             onDiscard={draft.discard}
             onSave={() => void draft.submit(() => emailRef.current?.focus())}
-            saveLabel="Add access"
+            saveLabel="Invite user"
             status={draft.status}
             statusMessage={draft.message}
           />
         </div>
       </div>
     </form>
+  );
+}
+
+function PendingInvitationRow({
+  branches,
+  invitation,
+  people,
+}: {
+  branches: OrganizationBranch[];
+  invitation: OrganizationInvitation;
+  people: OrganizationPersonOption[];
+}) {
+  const submitting = useRef(false);
+  const [message, setMessage] = useState<string>();
+  const [status, setStatus] = useState<"error" | "saving" | "success">();
+
+  const runAction = async (
+    action: (state: OrganizationActionState, formData: FormData) => Promise<OrganizationActionState>,
+  ) => {
+    if (submitting.current) {
+      return;
+    }
+    submitting.current = true;
+    setMessage("Updating invitation");
+    setStatus("saving");
+    const formData = new FormData();
+    formData.set("invitationId", invitation.id);
+    try {
+      const result = await action({}, formData);
+      setMessage(result.message);
+      setStatus(result.status === "success" ? "success" : "error");
+    } catch {
+      setMessage("Invitation could not be updated.");
+      setStatus("error");
+    } finally {
+      submitting.current = false;
+    }
+  };
+
+  const statusLabel = invitation.status === "send_failed"
+    ? "Delivery failed"
+    : invitation.status === "expired"
+      ? "Expired"
+      : "Pending";
+  const statusTone = invitation.status === "pending" ? "accent" : "warning";
+
+  return (
+    <article
+      className="grid min-w-0 gap-4 px-4 py-4 xl:grid-cols-[minmax(180px,0.75fr)_minmax(0,1.5fr)_auto] xl:items-center"
+      data-testid={`access-invitation-${invitation.id}`}
+    >
+      <div className="min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <p className="truncate text-sm font-semibold">{invitation.email}</p>
+          <Badge tone={statusTone}>{statusLabel}</Badge>
+        </div>
+        <p className="mt-1 text-xs text-foreground-muted">
+          {invitation.lastSentAt
+            ? `Last sent ${formatAccessDate(invitation.lastSentAt)}`
+            : "Not delivered yet"}
+        </p>
+      </div>
+      <dl className="grid gap-3 text-sm sm:grid-cols-3">
+        <div>
+          <dt className="text-xs text-foreground-muted">Role</dt>
+          <dd className="mt-1 font-medium">{formatRole(invitation.role)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-foreground-muted">Scope</dt>
+          <dd className="mt-1 font-medium">{branchLabel(invitation.branchId ?? "", branches)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-foreground-muted">Staff link</dt>
+          <dd className="mt-1 font-medium">{personLabel(invitation.personId, people)}</dd>
+        </div>
+      </dl>
+      <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+        <button
+          className="h-8 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={status === "saving"}
+          onClick={() => void runAction(resendOrganizationInvitationAction)}
+          type="button"
+        >
+          Resend
+        </button>
+        <button
+          className="h-8 rounded-md border border-danger/30 px-3 text-sm font-medium text-danger transition-colors hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={status === "saving"}
+          onClick={() => void runAction(revokeOrganizationInvitationAction)}
+          type="button"
+        >
+          Revoke
+        </button>
+        <p
+          aria-live="polite"
+          className={status === "error" ? "w-full text-xs text-danger" : "w-full text-xs text-foreground-muted"}
+          role={status === "error" ? "alert" : undefined}
+        >
+          {message ?? `Expires ${formatAccessDate(invitation.expiresAt)}`}
+        </p>
+      </div>
+    </article>
   );
 }
 
@@ -303,6 +441,9 @@ function MemberAccessForm({
   people: OrganizationPersonOption[];
 }) {
   const guard = useSettingsNavigationGuard();
+  const removing = useRef(false);
+  const [removeMessage, setRemoveMessage] = useState<string>();
+  const [removeStatus, setRemoveStatus] = useState<"error" | "saving" | "success">();
   const draft = useAccessDraft({
     action: updateMemberAccessAction,
     initialValues: {
@@ -315,6 +456,27 @@ function MemberAccessForm({
   const lastAdministrator = member.role === "admin" && adminCount === 1;
   const blocksLastAdminDemotion = lastAdministrator && draft.values.role !== "admin";
   const accountLabel = member.email ?? personLabel(member.personId, people);
+
+  const removeAccess = async () => {
+    if (lastAdministrator || removing.current) {
+      return;
+    }
+    removing.current = true;
+    setRemoveMessage("Removing access");
+    setRemoveStatus("saving");
+    const formData = new FormData();
+    formData.set("memberId", member.id);
+    try {
+      const result = await removeMemberAccessAction({}, formData);
+      setRemoveMessage(result.message);
+      setRemoveStatus(result.status === "success" ? "success" : "error");
+    } catch {
+      setRemoveMessage("Access could not be removed.");
+      setRemoveStatus("error");
+    } finally {
+      removing.current = false;
+    }
+  };
 
   useRegisterAccessDraft(member.id, draft.status, draft.discard, onDraftChange);
 
@@ -394,6 +556,23 @@ function MemberAccessForm({
           status={draft.status}
           statusMessage={draft.message}
         />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+          <p
+            aria-live="polite"
+            className={removeStatus === "error" ? "text-sm text-danger" : "text-sm text-foreground-muted"}
+            role={removeStatus === "error" ? "alert" : undefined}
+          >
+            {removeMessage ?? "Removing access immediately signs this account out of the workspace."}
+          </p>
+          <button
+            className="h-8 rounded-md border border-danger/30 px-3 text-sm font-medium text-danger transition-colors hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={lastAdministrator || removeStatus === "saving"}
+            onClick={() => void removeAccess()}
+            type="button"
+          >
+            Remove access
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -587,6 +766,13 @@ function personLabel(personId: string | null, people: OrganizationPersonOption[]
 
 function formatRole(role: string) {
   return role === "admin" ? "Admin" : role === "manager" ? "Manager" : "Member";
+}
+
+function formatAccessDate(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function roleEffect(role: string, branchId: string, branches: OrganizationBranch[]) {

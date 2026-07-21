@@ -54,29 +54,98 @@ describe("successful auth entry routes", () => {
       "http://localhost:3000/workspace",
     );
   });
+
+  it("preserves only an allowlisted recovery destination", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    });
+
+    const response = await callbackGet(
+      new NextRequest(
+        "http://localhost:3000/auth/callback?code=valid&next=%2Fupdate-password",
+      ),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/update-password",
+    );
+  });
+
+  it("rejects external callback destinations", async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    });
+
+    const response = await callbackGet(
+      new NextRequest(
+        "http://localhost:3000/auth/callback?code=valid&next=https%3A%2F%2Fevil.example",
+      ),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/workspace",
+    );
+  });
+
+  it("preserves an invitation identifier after email verification", async () => {
+    verifyOtp.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    });
+
+    const response = await confirmGet(
+      new NextRequest(
+        "http://localhost:3000/auth/confirm?token_hash=valid&type=invite&next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111",
+      ),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/accept-invite?invitation=11111111-1111-4111-8111-111111111111",
+    );
+  });
 });
 
 describe("entry experience contracts", () => {
-  it("puts a direct workspace action in the landing hero", () => {
+  it("removes public workspace creation from the landing page", () => {
     const source = readSource("src/features/marketing/landing-page.tsx");
-    const hero = source.slice(
-      source.indexOf('className="landing-hero'),
-      source.indexOf('id="workspace"'),
+    const header = readSource(
+      "src/features/marketing/components/landing-header.tsx",
     );
 
-    expect(hero).toContain('href="/signup"');
-    expect(hero).toContain("Create workspace");
+    expect(source).not.toContain('href="/signup"');
+    expect(source).not.toContain("Create workspace");
+    expect(header).not.toContain('href="/signup"');
+    expect(header).not.toContain("Create workspace");
+  });
+
+  it("disables local public signup without disabling the email auth provider", () => {
+    const config = readSource("supabase/config.toml");
+    const authConfig = config.slice(
+      config.indexOf("[auth]"),
+      config.indexOf("[auth.rate_limit]"),
+    );
+    const emailConfig = config.slice(
+      config.indexOf("[auth.email]"),
+      config.indexOf("[auth.sms]"),
+    );
+
+    expect(authConfig).toContain("enable_signup = false");
+    expect(emailConfig).toContain("enable_signup = true");
   });
 
   it("keeps auth pages focused on the form instead of a label explainer", () => {
     const login = readSource("src/app/(auth)/login/page.tsx");
+    const loginForm = readSource(
+      "src/features/auth/components/login-form.tsx",
+    );
+    const signup = readSource("src/app/(auth)/signup/page.tsx");
     const shell = readSource("src/features/auth/components/auth-page-shell.tsx");
     const themeToggle = readSource(
       "src/components/theme-toggle.tsx",
     );
-    const setup = readSource(
-      "src/features/auth/components/setup-organization-form.tsx",
-    );
+    const setup = readSource("src/app/setup/page.tsx");
 
     expect(login).toContain('contextLabel="Property operations"');
     expect(login).toContain('contextTitle="See the full record."');
@@ -86,18 +155,52 @@ describe("entry experience contracts", () => {
     expect(shell).toContain('markTone={visualSrc ? "light" : "auto"}');
     expect(shell).toContain("<ThemeToggle");
     expect(themeToggle).toContain('localStorage.setItem("nestory-theme"');
-    expect(setup).not.toContain("After setup");
+    expect(login).not.toContain('switchHref="/signup"');
+    expect(login).not.toContain("Create workspace");
+    expect(loginForm).toContain('href="/forgot-password"');
+    expect(signup).toContain('redirect("/login")');
+    expect(setup).toContain('redirect("/no-access")');
+    expect(setup).not.toContain("SetupOrganizationForm");
   });
 
   it("associates auth validation with the affected fields", () => {
-    for (const path of [
-      "src/features/auth/components/login-form.tsx",
-      "src/features/auth/components/signup-form.tsx",
-    ]) {
+    for (const path of ["src/features/auth/components/login-form.tsx"]) {
       const source = readSource(path);
       expect(source).toContain("aria-invalid");
       expect(source).toContain("aria-describedby");
     }
+  });
+
+  it("provides focused recovery and password-update routes", () => {
+    const forgotPage = readSource("src/app/(auth)/forgot-password/page.tsx");
+    const updatePage = readSource("src/app/(auth)/update-password/page.tsx");
+    const forgotForm = readSource(
+      "src/features/auth/components/forgot-password-form.tsx",
+    );
+    const updateForm = readSource(
+      "src/features/auth/components/update-password-form.tsx",
+    );
+
+    expect(forgotPage).toContain("ForgotPasswordForm");
+    expect(forgotForm).toContain("requestPasswordRecoveryAction");
+    expect(forgotForm).toContain('autoComplete="email"');
+    expect(updatePage).toContain("UpdatePasswordForm");
+    expect(updateForm).toContain("updatePasswordAction");
+    expect(updateForm).toContain('autoComplete="new-password"');
+  });
+
+  it("provides an explicit invitation review and acceptance boundary", () => {
+    const page = readSource("src/app/accept-invite/page.tsx");
+    const form = readSource(
+      "src/features/auth/components/accept-invitation-form.tsx",
+    );
+
+    expect(page).toContain("getInvitationAcceptance");
+    expect(page).toContain("Use another account");
+    expect(page).toContain("InvitationSummary");
+    expect(form).toContain("acceptInvitationAction");
+    expect(form).toContain('name="invitationId"');
+    expect(form).toContain('autoComplete="new-password"');
   });
 
   it("keeps the no-access recovery honest and the preview attention-first", () => {

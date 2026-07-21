@@ -190,9 +190,9 @@ export function LandingPage() {
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link
                 className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#090a0c] outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#090a0c]"
-                href="/signup"
+                href="/login"
               >
-                Create workspace
+                Sign in
                 <ArrowRight size={15} />
               </Link>
               <a
@@ -258,8 +258,8 @@ export function LandingPage() {
       <section className="px-6 py-24 sm:px-10 lg:px-14" data-landing-reveal id="control">
         <div className="mx-auto max-w-[1360px]">
           <SectionIntro
-            actionHref="/signup"
-            actionLabel="Start"
+            actionHref="/login"
+            actionLabel="Sign in"
             kicker=""
             subtitle="Occupied, owed, open, late, changing. Clear at a glance."
             title="Control"
@@ -273,8 +273,8 @@ export function LandingPage() {
       <section className="px-6 py-24 sm:px-10 lg:px-14" data-landing-reveal id="operations">
         <div className="mx-auto max-w-[1360px]">
           <SectionIntro
-            actionHref="/signup"
-            actionLabel="Start"
+            actionHref="/login"
+            actionLabel="Sign in"
             kicker=""
             subtitle="A property, unit, lease, ledger row, repair, and document can stay in the same operating story."
             title="Operations"
@@ -363,9 +363,9 @@ export function LandingPage() {
             </div>
             <Link
               className="inline-flex items-center gap-2 justify-self-start text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-accent)] transition-opacity hover:opacity-70 lg:justify-self-end"
-              href="/signup"
+              href="/login"
             >
-              Create workspace
+              Sign in
               <ArrowRight size={16} strokeWidth={1.7} />
             </Link>
           </div>
@@ -395,26 +395,27 @@ export function LandingPage() {
         <div className="mx-auto grid max-w-[1360px] gap-8 border-t border-[var(--landing-border)] py-14 lg:grid-cols-[minmax(0,0.58fr)_minmax(280px,0.42fr)] lg:items-center">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--landing-subtle)]">
-              Start workspace
+              Managed access
             </p>
             <h2 className="mt-4 font-display max-w-4xl text-3xl font-semibold leading-[1.1] text-[var(--landing-heading)] sm:text-4xl">
               Bring the portfolio into one operating record.
             </h2>
             <p className="mt-5 max-w-2xl text-sm leading-6 text-[var(--landing-muted)]">
-              Start with the admin workspace, then connect properties, units,
-              leases, rent, maintenance, and files as the records come online.
+              Nestory provisions each client workspace and its first administrator.
+              Invited teams then connect properties, units, leases, rent,
+              maintenance, and files as the records come online.
             </p>
           </div>
           <div className="lg:justify-self-end">
             <Link
               className="inline-flex h-14 items-center gap-3 rounded-full bg-[var(--landing-cta-bg)] px-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--landing-cta-fg)] transition-transform hover:-translate-y-0.5 hover:opacity-90"
-              href="/signup"
+              href="/login"
             >
-              Create workspace
+              Sign in
               <ArrowRight size={17} strokeWidth={1.8} />
             </Link>
             <p className="mt-5 text-sm italic leading-6 text-[var(--landing-muted)]">
-              Start with one clean admin workspace.
+              Access is invite-only for client teams.
             </p>
           </div>
         </div>
@@ -467,8 +468,8 @@ export function LandingPage() {
                 <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/login">
                   Sign in
                 </Link>
-                <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/signup">
-                  Create workspace
+                <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/login">
+                  Sign in
                 </Link>
               </nav>
             </div>

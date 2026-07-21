@@ -21,7 +21,14 @@ These rules are grounded in the current implementation.
 - `requireWorkspaceContext` gates role-aware workspace surfaces.
 - Organization subdomain routing is resolved by `getOrganizationSlugFromHost`.
 - Localhost and reserved root/app/api/www hosts stay in fallback mode.
-- Do not bypass `/setup` or `/no-access` redirects for unlinked users.
+- Public signup and workspace setup are disabled. Unlinked authenticated users
+  go to `/no-access`; only the server-only provisioning command may create a
+  client organization and its pending first-admin invitation.
+- Supabase Auth owns identities, verified email, passwords, recovery, sessions,
+  and JWTs. Nestory owns invitation intent, role/scope/staff linkage,
+  acceptance, revocation, membership, and audit history.
+- Never create an active membership before a matching verified user explicitly
+  accepts the pending invitation.
 
 ## Data Loading
 

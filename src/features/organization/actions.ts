@@ -47,6 +47,8 @@ const userAccessSchema = z.object({
   personId: optionalUuidSchema,
   role: z.enum(["admin", "manager", "member"]),
 });
+const invitationIdSchema = z.object({ invitationId: uuidShapeSchema });
+const memberIdSchema = z.object({ memberId: uuidShapeSchema });
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -149,7 +151,7 @@ export async function updateMemberAccessAction(
   return { message: "Access updated.", status: "success" };
 }
 
-export async function addExistingUserAccessAction(
+export async function inviteOrganizationUserAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
@@ -166,43 +168,134 @@ export async function addExistingUserAccessAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  let { error } = await supabase.rpc("add_existing_organization_member", {
+  const createResult = await supabase.rpc("create_organization_invitation", {
     p_branch_id: parsed.data.branchId,
     p_email: parsed.data.email,
     p_organization_id: context.organizationId,
     p_person_id: parsed.data.personId,
     p_role: parsed.data.role,
   });
-  let invited = false;
 
-  if (error) {
-    if (error.message.includes("User account not found")) {
-      const inviteResult = await inviteAuthUser(parsed.data.email);
+  if (createResult.error || !createResult.data) {
+    return {
+      message: organizationErrorMessage(createResult.error?.message ?? "Invitation was not created"),
+      status: "error",
+    };
+  }
 
-      if (inviteResult.status === "error") {
-        return { message: inviteResult.message, status: "error" };
-      }
+  const delivery = await deliverInvitation(parsed.data.email, createResult.data);
+  const finalizeResult = delivery.error
+    ? await supabase.rpc("mark_organization_invitation_delivery_failed", {
+        p_error: delivery.error,
+        p_invitation_id: createResult.data,
+      })
+    : await supabase.rpc("mark_organization_invitation_sent", {
+        p_auth_user_id: delivery.authUserId,
+        p_delivery_method: delivery.method,
+        p_invitation_id: createResult.data,
+      });
 
-      invited = inviteResult.status === "invited";
-      ({ error } = await supabase.rpc("add_existing_organization_member", {
-        p_branch_id: parsed.data.branchId,
-        p_email: parsed.data.email,
-        p_organization_id: context.organizationId,
-        p_person_id: parsed.data.personId,
-        p_role: parsed.data.role,
-      }));
-    }
-
-    if (error) {
-      return { message: organizationErrorMessage(error.message), status: "error" };
-    }
+  if (finalizeResult.error) {
+    return { message: "Invitation state could not be finalized.", status: "error" };
   }
 
   revalidateSettings();
-  return {
-    message: invited ? "Invite sent and access added." : "User access added.",
-    status: "success",
-  };
+  return delivery.error
+    ? {
+        message: "Invitation saved, but email delivery failed. Retry from Pending invitations.",
+        status: "error",
+      }
+    : { message: "Invitation sent.", status: "success" };
+}
+
+export async function resendOrganizationInvitationAction(
+  _state: OrganizationActionState,
+  formData: FormData,
+): Promise<OrganizationActionState> {
+  await requireAdminContext();
+  const parsed = invitationIdSchema.safeParse({
+    invitationId: readString(formData, "invitationId"),
+  });
+  if (!parsed.success) {
+    return { message: "Choose a valid invitation.", status: "error" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const refreshResult = await supabase.rpc("refresh_organization_invitation", {
+    p_invitation_id: parsed.data.invitationId,
+  });
+  const invitation = refreshResult.data?.[0];
+  if (refreshResult.error || !invitation) {
+    return { message: "Invitation could not be refreshed.", status: "error" };
+  }
+
+  const delivery = await deliverInvitation(invitation.email, invitation.invitation_id);
+  const finalizeResult = delivery.error
+    ? await supabase.rpc("mark_organization_invitation_delivery_failed", {
+        p_error: delivery.error,
+        p_invitation_id: invitation.invitation_id,
+      })
+    : await supabase.rpc("mark_organization_invitation_sent", {
+        p_auth_user_id: delivery.authUserId,
+        p_delivery_method: delivery.method,
+        p_invitation_id: invitation.invitation_id,
+      });
+
+  if (finalizeResult.error || delivery.error) {
+    return { message: "Invitation email could not be resent.", status: "error" };
+  }
+
+  revalidateSettings();
+  return { message: "Invitation resent.", status: "success" };
+}
+
+export async function revokeOrganizationInvitationAction(
+  _state: OrganizationActionState,
+  formData: FormData,
+): Promise<OrganizationActionState> {
+  await requireAdminContext();
+  const parsed = invitationIdSchema.safeParse({
+    invitationId: readString(formData, "invitationId"),
+  });
+  if (!parsed.success) {
+    return { message: "Choose a valid invitation.", status: "error" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("revoke_organization_invitation", {
+    p_invitation_id: parsed.data.invitationId,
+  });
+  if (error) {
+    return { message: organizationErrorMessage(error.message), status: "error" };
+  }
+
+  revalidateSettings();
+  return { message: "Invitation revoked.", status: "success" };
+}
+
+export async function removeMemberAccessAction(
+  _state: OrganizationActionState,
+  formData: FormData,
+): Promise<OrganizationActionState> {
+  const context = await requireAdminContext();
+  const parsed = memberIdSchema.safeParse({
+    memberId: readString(formData, "memberId"),
+  });
+  if (!parsed.success) {
+    return { message: "Choose a valid membership.", status: "error" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("remove_organization_member_access", {
+    p_member_id: parsed.data.memberId,
+    p_organization_id: context.organizationId,
+  });
+  if (error) {
+    return { message: organizationErrorMessage(error.message), status: "error" };
+  }
+
+  revalidateSettings();
+  return { message: "Access removed.", status: "success" };
 }
 
 function revalidateSettings() {
@@ -213,15 +306,8 @@ function revalidateSettings() {
 }
 
 function organizationErrorMessage(message: string) {
-  if (
-    message.includes("add_existing_organization_member") ||
-    message.includes("Could not find the function")
-  ) {
-    return "The add-user database function is not deployed yet.";
-  }
-
-  if (message.includes("User account not found")) {
-    return "That email has not signed up yet.";
+  if (message.includes("final administrator")) {
+    return message;
   }
 
   if (message.includes("duplicate key")) {
@@ -239,33 +325,40 @@ function organizationErrorMessage(message: string) {
   return "We could not save the organization setting.";
 }
 
-async function inviteAuthUser(
-  email: string,
-): Promise<{ status: "error" | "invited" | "skipped"; message?: string }> {
+async function deliverInvitation(email: string, invitationId: string) {
   try {
-    const { error } = await createSupabaseAdminClient().auth.admin.inviteUserByEmail(
+    const adminClient = createSupabaseAdminClient();
+    const redirectTo = await getInvitationConfirmUrl(invitationId);
+    const { data, error } = await adminClient.auth.admin.inviteUserByEmail(
       email,
-      {
-        redirectTo: await getAuthCallbackUrl(),
-      },
+      { redirectTo },
     );
 
     if (!error) {
-      return { status: "invited" };
+      return { authUserId: data.user?.id ?? null, error: null, method: "invite" };
     }
 
     if (isExistingAuthUserError(error.message)) {
-      return { status: "skipped" };
+      const claimResult = await adminClient.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: redirectTo,
+          shouldCreateUser: false,
+        },
+      });
+      return {
+        authUserId: null,
+        error: claimResult.error?.message ?? null,
+        method: "magic_link",
+      };
     }
 
-    return { message: authAdminErrorMessage(error.message), status: "error" };
+    return { authUserId: null, error: error.message, method: "invite" };
   } catch (error) {
     return {
-      message:
-        error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY")
-          ? "Add SUPABASE_SERVICE_ROLE_KEY before sending invites."
-          : "We could not send the invite.",
-      status: "error",
+      authUserId: null,
+      error: error instanceof Error ? error.message : "Invite delivery failed",
+      method: "invite",
     };
   }
 }
@@ -280,15 +373,7 @@ function isExistingAuthUserError(message: string) {
   );
 }
 
-function authAdminErrorMessage(message: string) {
-  if (message.toLowerCase().includes("email")) {
-    return "Use a valid invite email.";
-  }
-
-  return "We could not send the invite.";
-}
-
-async function getAuthCallbackUrl() {
+async function getInvitationConfirmUrl(invitationId: string) {
   const requestHeaders = await headers();
   const origin =
     requestHeaders.get("origin") ??
@@ -296,5 +381,7 @@ async function getAuthCallbackUrl() {
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000");
 
-  return new URL("/auth/callback", origin).toString();
+  const url = new URL("/auth/confirm", origin);
+  url.searchParams.set("next", `/accept-invite?invitation=${invitationId}`);
+  return url.toString();
 }
