@@ -16,6 +16,24 @@ type WithArgs<Name extends keyof GeneratedFunctions, Args> = Omit<
 };
 
 type RpcFunctionOverrides = {
+  create_organization_invitation: WithArgs<
+    "create_organization_invitation",
+    {
+      p_branch_id: string | null;
+      p_email: string;
+      p_organization_id: string;
+      p_person_id: string | null;
+      p_role: string;
+    }
+  >;
+  mark_organization_invitation_sent: WithArgs<
+    "mark_organization_invitation_sent",
+    {
+      p_auth_user_id: string | null;
+      p_delivery_method: string;
+      p_invitation_id: string;
+    }
+  >;
   execute_coordinated_maintenance_task: {
     Args: {
       p_action: string;
@@ -34,16 +52,6 @@ type RpcFunctionOverrides = {
       person_id: string;
     }[];
   };
-  add_existing_organization_member: WithArgs<
-    "add_existing_organization_member",
-    {
-      p_branch_id: string | null;
-      p_email: string;
-      p_organization_id: string;
-      p_person_id: string | null;
-      p_role: string;
-    }
-  >;
   assign_maintenance_task: WithArgs<
     "assign_maintenance_task",
     {

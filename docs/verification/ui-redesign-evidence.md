@@ -88,10 +88,16 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 | / | / | /workspace | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | populated | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/login -->
 | /login | /login | /workspace | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | draft, saving, error, success | 3/3 pass | not-applicable | None |
+<!-- route-evidence:/forgot-password -->
+| /forgot-password | /forgot-password | /forgot-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | 3/3 pass | not-applicable | Recovery delivery is verified separately through local Mailpit. |
+<!-- route-evidence:/update-password -->
+| /update-password | /update-password | /update-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | 3/3 pass | not-applicable | Successful update requires a valid Supabase recovery session. |
+<!-- route-evidence:/accept-invite -->
+| /accept-invite | /accept-invite?invitation=11111111-1111-4111-8111-111111111111 | /accept-invite?invitation=11111111-1111-4111-8111-111111111111 | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error, permission-blocked | 3/3 pass | preserved | Acceptance requires a matching pending invitation and verified Supabase email session. |
 <!-- route-evidence:/signup -->
-| /signup | /signup | /workspace | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | draft, saving, error, success | 3/3 pass | not-applicable | None |
+| /signup | /signup | /login or /workspace | redirected (expected redirected) | redirected (expected redirected) | login-required (expected login-required) | redirect only | 3/3 pass | not-applicable | Public registration is retired; authenticated sessions continue through the auth proxy. |
 <!-- route-evidence:/setup -->
-| /setup | /setup | /workspace | redirected (expected redirected) | redirected (expected redirected) | login-required (expected login-required) | loading, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | Unlinked-account browser presentation is covered by unit and state contracts; the retained local fixtures represent linked roles. |
+| /setup | /setup | /no-access | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | not-applicable | Public workspace setup is retired; authenticated users continue to the no-access recovery page. |
 <!-- route-evidence:/no-access -->
 | /no-access | /no-access | /no-access | accessible (expected accessible) | accessible (expected accessible) | login-required (expected login-required) | permission-blocked | 3/3 pass | not-applicable | Unlinked-account browser presentation is covered by unit and state contracts; the retained local fixtures represent linked roles. |
 <!-- route-evidence:/property-dashboard -->

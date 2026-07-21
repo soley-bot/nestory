@@ -8,9 +8,6 @@ export default function LoginPage() {
       contextText="Leases, rent, maintenance, documents, and history stay connected to each property."
       contextTitle="See the full record."
       description="Continue to your workspace."
-      switchHref="/signup"
-      switchLabel="Create workspace"
-      switchText="New to Nestory?"
       title="Sign in"
       visualSrc="/marketing/login-property-building-blue-hour.png"
     >

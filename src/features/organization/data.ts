@@ -29,6 +29,18 @@ export type OrganizationMembership = {
   userId: string;
 };
 
+export type OrganizationInvitation = {
+  branchId: string | null;
+  email: string;
+  expiresAt: string;
+  id: string;
+  invitedAt: string;
+  lastSentAt: string | null;
+  personId: string | null;
+  role: OrganizationMembership["role"];
+  status: "expired" | "pending" | "send_failed";
+};
+
 export type OrganizationPersonAccessStatus = {
   email: string | null;
   role: OrganizationMembership["role"];
@@ -51,13 +63,14 @@ export async function getOrganizationSettingsData(organizationId: string) {
 export async function getAccessSettingsData(organizationId: string) {
   const supabase = await createSupabaseServerClient();
 
-  const [branches, members, staff] = await Promise.all([
+  const [branches, invitations, members, staff] = await Promise.all([
     loadBranches(supabase, organizationId),
+    loadInvitations(supabase, organizationId),
     loadMemberships(supabase, organizationId),
     loadStaffForOrganization(supabase, organizationId),
   ]);
 
-  return { branches, members, staff };
+  return { branches, invitations, members, staff };
 }
 
 export async function getAccessByPersonId(
@@ -164,6 +177,40 @@ async function loadMemberships(
     personId: member.person_id,
     role: normalizeRole(member.role),
     userId: member.user_id,
+  }));
+}
+
+async function loadInvitations(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+): Promise<OrganizationInvitation[]> {
+  const { data, error } = await supabase
+    .from("organization_invitations")
+    .select("id, email, role, branch_id, person_id, status, invited_at, last_sent_at, expires_at")
+    .eq("organization_id", organizationId)
+    .in("status", ["pending", "send_failed"])
+    .order("invited_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Could not load invitations: ${error.message}`);
+  }
+
+  const now = Date.now();
+  return (data ?? []).map((invitation) => ({
+    branchId: invitation.branch_id,
+    email: invitation.email,
+    expiresAt: invitation.expires_at,
+    id: invitation.id,
+    invitedAt: invitation.invited_at,
+    lastSentAt: invitation.last_sent_at,
+    personId: invitation.person_id,
+    role: normalizeRole(invitation.role),
+    status:
+      Date.parse(invitation.expires_at) <= now
+        ? "expired"
+        : invitation.status === "send_failed"
+          ? "send_failed"
+          : "pending",
   }));
 }
 

@@ -303,13 +303,6 @@ describe("authenticated theme contract", () => {
     expect(searchComboSource).toContain("focus-within:ring-focus-ring");
     expect(searchComboSource).not.toContain("ring-accent-soft");
 
-    const setupSource = getSource(
-      "src/features/auth/components/setup-organization-form.tsx",
-    );
-    expect(setupSource).toContain("focus-within:ring-focus-ring");
-    expect(setupSource).toContain("focus-visible:ring-focus-ring");
-    expect(setupSource).not.toMatch(/focus-(?:visible|within):ring-accent/);
-
     const maintenanceWorkSource = getSource(
       "src/features/maintenance/components/maintenance-work-surfaces.tsx",
     );
@@ -323,14 +316,15 @@ describe("authenticated theme contract", () => {
     );
     expect(maintenanceBoardSource).not.toContain("ring-accent-soft");
 
-    for (const path of [
-      "src/features/auth/components/login-form.tsx",
-      "src/features/auth/components/signup-form.tsx",
-    ]) {
+    for (const path of ["src/features/auth/components/login-form.tsx"]) {
       const source = getSource(path);
       expect(source, path).toContain("focus-visible:ring-focus-ring");
       expect(source, path).not.toContain("focus-visible:ring-accent");
     }
+
+    const inputSource = getSource("src/components/ui/input.tsx");
+    expect(inputSource).toContain("focus-visible:ring-focus-ring");
+    expect(inputSource).not.toContain("focus-visible:ring-accent");
   });
 
   it("keeps the landing workspace preview on the shared brand palette", () => {

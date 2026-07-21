@@ -27,6 +27,7 @@ export default async function UsersRolesPage({
           email: readParam(params.email),
           personId: readParam(params.personId),
         }}
+        invitations={data.invitations}
         members={data.members}
         people={data.staff}
       />

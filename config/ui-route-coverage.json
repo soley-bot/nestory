@@ -2567,8 +2567,8 @@
     }
   },
   {
-    "route": "/signup",
-    "source": "src/app/(auth)/signup/page.tsx",
+    "route": "/forgot-password",
+    "source": "src/app/(auth)/forgot-password/page.tsx",
     "phase": 6,
     "surface": "auth",
     "roles": [
@@ -2577,89 +2577,162 @@
     "states": [
       "draft",
       "saving",
-      "error",
-      "success"
+      "success",
+      "error"
     ],
     "evidence": {
       "draft": [
-        "src/app/(auth)/signup/page.tsx",
+        "src/app/(auth)/forgot-password/page.tsx",
         "src/components/ui/workflow-feedback.test.tsx"
       ],
       "saving": [
-        "src/app/(auth)/signup/page.tsx",
+        "src/app/(auth)/forgot-password/page.tsx",
         "src/components/ui/workflow-feedback.test.tsx"
       ],
-      "error": [
-        "src/app/(auth)/signup/page.tsx",
-        "src/components/ui/error-state.tsx"
-      ],
       "success": [
-        "src/app/(auth)/signup/page.tsx",
+        "src/app/(auth)/forgot-password/page.tsx",
         "src/components/ui/status-notice.tsx"
+      ],
+      "error": [
+        "src/app/(auth)/forgot-password/page.tsx",
+        "src/components/ui/error-state.tsx"
       ]
     },
     "smoke": {
-      "path": "/signup",
+      "path": "/forgot-password",
       "expectedAccess": {
-        "admin": "redirected",
-        "manager": "redirected",
-        "member": "redirected",
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
         "anonymous": "accessible"
       },
       "queryContract": "not-applicable",
       "workflowEvidence": [
-        "src/app/(auth)/signup/page.tsx",
-        "src/components/ui/workflow-feedback.test.tsx",
-        "src/components/ui/error-state.tsx",
-        "src/components/ui/status-notice.tsx"
+        "src/app/(auth)/forgot-password/page.tsx",
+        "src/features/auth/components/forgot-password-form.tsx",
+        "src/features/auth/auth-recovery-actions.test.ts"
       ],
       "limitations": []
     }
   },
   {
-    "route": "/setup",
-    "source": "src/app/setup/page.tsx",
+    "route": "/update-password",
+    "source": "src/app/(auth)/update-password/page.tsx",
     "phase": 6,
     "surface": "auth",
     "roles": [
-      "unlinked"
+      "public"
     ],
     "states": [
-      "loading",
-      "error",
-      "permission-blocked",
       "draft",
       "saving",
-      "success"
+      "success",
+      "error"
     ],
     "evidence": {
-      "loading": [
-        "src/app/setup/page.tsx",
-        "src/components/layout/module-loading.tsx"
-      ],
-      "error": [
-        "src/app/setup/page.tsx",
-        "src/components/ui/error-state.tsx"
-      ],
-      "permission-blocked": [
-        "src/app/setup/page.tsx",
-        "src/components/ui/status-notice.tsx"
-      ],
       "draft": [
-        "src/app/setup/page.tsx",
+        "src/app/(auth)/update-password/page.tsx",
         "src/components/ui/workflow-feedback.test.tsx"
       ],
       "saving": [
-        "src/app/setup/page.tsx",
+        "src/app/(auth)/update-password/page.tsx",
         "src/components/ui/workflow-feedback.test.tsx"
       ],
       "success": [
-        "src/app/setup/page.tsx",
+        "src/app/(auth)/update-password/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "error": [
+        "src/app/(auth)/update-password/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/update-password",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "accessible"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(auth)/update-password/page.tsx",
+        "src/features/auth/components/update-password-form.tsx",
+        "src/features/auth/auth-recovery-actions.test.ts"
+      ],
+      "limitations": [
+        "A valid Supabase recovery session is required for a successful password update."
+      ]
+    }
+  },
+  {
+    "route": "/accept-invite",
+    "source": "src/app/accept-invite/page.tsx",
+    "phase": 6,
+    "surface": "auth",
+    "roles": [
+      "public"
+    ],
+    "states": [
+      "draft",
+      "saving",
+      "success",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "draft": [
+        "src/app/accept-invite/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/accept-invite/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/accept-invite/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "error": [
+        "src/app/accept-invite/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/accept-invite/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
     },
     "smoke": {
-      "path": "/setup",
+      "path": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "accessible",
+        "member": "accessible",
+        "anonymous": "accessible"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/accept-invite/page.tsx",
+        "src/features/auth/invitation-acceptance.test.ts"
+      ],
+      "limitations": [
+        "A valid matching invitation and Supabase-authenticated email session are required for acceptance."
+      ]
+    }
+  },
+  {
+    "route": "/signup",
+    "source": "src/app/(auth)/signup/page.tsx",
+    "phase": 6,
+    "surface": "redirect",
+    "roles": [
+      "public"
+    ],
+    "states": [],
+    "evidence": {},
+    "smoke": {
+      "path": "/signup",
       "expectedAccess": {
         "admin": "redirected",
         "manager": "redirected",
@@ -2668,14 +2741,39 @@
       },
       "queryContract": "not-applicable",
       "workflowEvidence": [
-        "src/app/setup/page.tsx",
-        "src/components/layout/module-loading.tsx",
-        "src/components/ui/error-state.tsx",
-        "src/components/ui/status-notice.tsx",
-        "src/components/ui/workflow-feedback.test.tsx"
+        "src/app/(auth)/signup/page.tsx",
+        "src/features/auth/auth-entry-routes.test.ts"
       ],
       "limitations": [
-        "Unlinked-account browser presentation is covered by unit and state contracts; the retained local fixtures represent linked roles."
+        "Anonymous requests land on login; already-authenticated sessions continue through the auth proxy to workspace."
+      ]
+    }
+  },
+  {
+    "route": "/setup",
+    "source": "src/app/setup/page.tsx",
+    "phase": 6,
+    "surface": "redirect",
+    "roles": [
+      "unlinked"
+    ],
+    "states": [],
+    "evidence": {},
+    "smoke": {
+      "path": "/setup",
+      "expectedAccess": {
+        "admin": "permission-blocked",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/setup/page.tsx",
+        "src/app/setup/page.test.ts"
+      ],
+      "limitations": [
+        "The retired route redirects authenticated users to the no-access recovery page; anonymous users are intercepted by the auth proxy."
       ]
     }
   },

@@ -144,7 +144,7 @@ export const requireWorkspaceContext = cache(async () => {
   });
 
   if (!membership) {
-    redirect(organizationSlug ? "/no-access" : "/setup");
+    redirect("/no-access");
   }
 
   return {
@@ -162,7 +162,7 @@ export const requireAdminContext = cache(async () => {
   });
 
   if (!membership) {
-    redirect(organizationSlug ? "/no-access" : "/setup");
+    redirect("/no-access");
   }
 
   if (membership.role !== "admin") {

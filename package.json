@@ -14,6 +14,7 @@
     "test:ui-redesign": "node scripts/smoke-ui-redesign.mjs",
     "test:maintenance-mobile": "node scripts/smoke-maintenance-mobile.mjs",
     "test:properties-flow": "node scripts/smoke-properties-flow.mjs",
+    "workspace:provision": "node scripts/workspace-provision.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "db:lint": "supabase db lint",

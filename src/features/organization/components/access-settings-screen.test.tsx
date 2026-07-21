@@ -5,13 +5,22 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { addAccess, updateAccess } = vi.hoisted(() => ({
+const { addAccess, removeAccess, resendInvite, revokeInvite, signOut, updateAccess } = vi.hoisted(() => ({
   addAccess: vi.fn(),
+  removeAccess: vi.fn(),
+  resendInvite: vi.fn(),
+  revokeInvite: vi.fn(),
+  signOut: vi.fn(),
   updateAccess: vi.fn(),
 }));
 
+vi.mock("@/features/auth/actions", () => ({ signOutAction: signOut }));
+
 vi.mock("@/features/organization/actions", () => ({
-  addExistingUserAccessAction: addAccess,
+  inviteOrganizationUserAction: addAccess,
+  removeMemberAccessAction: removeAccess,
+  resendOrganizationInvitationAction: resendInvite,
+  revokeOrganizationInvitationAction: revokeInvite,
   updateMemberAccessAction: updateAccess,
 }));
 
@@ -43,11 +52,31 @@ const admin = {
   userId: "44444444-4444-4444-8444-444444444444",
 };
 
+const pendingInvitation = {
+  branchId: branch.id,
+  email: "pending@example.com",
+  expiresAt: "2026-07-21T12:00:00.000Z",
+  id: "77777777-7777-4777-8777-777777777777",
+  invitedAt: "2026-07-21T11:00:00.000Z",
+  lastSentAt: "2026-07-21T11:01:00.000Z",
+  personId: person.id,
+  role: "member" as const,
+  status: "pending" as const,
+};
+
 beforeEach(() => {
   addAccess.mockReset();
+  removeAccess.mockReset();
+  resendInvite.mockReset();
+  revokeInvite.mockReset();
+  signOut.mockReset();
   updateAccess.mockReset();
-  addAccess.mockResolvedValue({ status: "success", message: "User access added." });
+  addAccess.mockResolvedValue({ status: "success", message: "Invitation sent." });
+  removeAccess.mockResolvedValue({ status: "success", message: "Access removed." });
+  resendInvite.mockResolvedValue({ status: "success", message: "Invitation resent." });
+  revokeInvite.mockResolvedValue({ status: "success", message: "Invitation revoked." });
   updateAccess.mockResolvedValue({ status: "success", message: "Access updated." });
+  signOut.mockResolvedValue(undefined);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
     return 1;
@@ -79,8 +108,9 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Add access" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Members" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Invite user" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Pending invitations" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Active members" })).toBeTruthy();
     expect(screen.getByText("1 active member")).toBeTruthy();
     expect(screen.queryByText(/Full workspace access, settings/i)).toBeNull();
   });
@@ -99,6 +129,31 @@ describe("AccessSettingsScreen", () => {
     expect(within(member).getByText("Organization-wide")).toBeTruthy();
     expect(within(member).getAllByText("Mina Chen").length).toBeGreaterThan(0);
     expect(within(member).getByText("Full workspace access")).toBeTruthy();
+  });
+
+  it("keeps pending invitations separate with resend and revoke actions", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        invitations={[pendingInvitation]}
+        members={[admin]}
+        people={[person]}
+      />,
+    );
+
+    const invitation = screen.getByTestId(
+      `access-invitation-${pendingInvitation.id}`,
+    );
+    expect(within(invitation).getByText("pending@example.com")).toBeTruthy();
+    expect(within(invitation).getByText("Pending")).toBeTruthy();
+    expect(within(invitation).getByText("Bangkok")).toBeTruthy();
+    expect(within(invitation).getByText("Mina Chen")).toBeTruthy();
+
+    await user.click(within(invitation).getByRole("button", { name: "Resend" }));
+    expect(resendInvite).toHaveBeenCalledOnce();
+    await user.click(within(invitation).getByRole("button", { name: "Revoke" }));
+    expect(revokeInvite).toHaveBeenCalledOnce();
   });
 
   it("starts clean and exposes the authoritative last-admin protection", () => {
@@ -134,7 +189,7 @@ describe("AccessSettingsScreen", () => {
     expect(within(addForm).getAllByText("Role").length).toBeGreaterThan(0);
     expect(within(addForm).getAllByText("Scope").length).toBeGreaterThan(0);
     expect(
-      (within(addForm).getByRole("button", { name: "Add access" }) as HTMLButtonElement).disabled,
+      (within(addForm).getByRole("button", { name: "Invite user" }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
 
@@ -151,7 +206,7 @@ describe("AccessSettingsScreen", () => {
     const addForm = screen.getByTestId("add-access-form");
     expect((within(addForm).getByLabelText("Email") as HTMLInputElement).value).toBe("new@example.com");
     expect(
-      (within(addForm).getByRole("button", { name: "Add access" }) as HTMLButtonElement).disabled,
+      (within(addForm).getByRole("button", { name: "Invite user" }) as HTMLButtonElement).disabled,
     ).toBe(false);
   });
 
@@ -172,7 +227,7 @@ describe("AccessSettingsScreen", () => {
 
     expect((within(addForm).getByLabelText("Email") as HTMLInputElement).value).toBe("");
     expect(
-      (within(addForm).getByRole("button", { name: "Add access" }) as HTMLButtonElement).disabled,
+      (within(addForm).getByRole("button", { name: "Invite user" }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
 
@@ -187,7 +242,7 @@ describe("AccessSettingsScreen", () => {
     const addForm = screen.getByTestId("add-access-form");
     const email = within(addForm).getByLabelText("Email") as HTMLInputElement;
     fireEvent.change(email, { target: { value: "not-an-email" } });
-    fireEvent.click(within(addForm).getByRole("button", { name: "Add access" }));
+    fireEvent.click(within(addForm).getByRole("button", { name: "Invite user" }));
 
     await waitFor(() => expect(document.activeElement).toBe(email));
     expect(within(addForm).getAllByRole("alert")).toHaveLength(1);
@@ -213,7 +268,7 @@ describe("AccessSettingsScreen", () => {
     fireEvent.change(within(addForm).getByLabelText("Email"), {
       target: { value: "new@example.com" },
     });
-    const save = within(addForm).getByRole("button", { name: "Add access" });
+    const save = within(addForm).getByRole("button", { name: "Invite user" });
     fireEvent.click(save);
     fireEvent.click(save);
 
@@ -241,7 +296,7 @@ describe("AccessSettingsScreen", () => {
     const addForm = screen.getByTestId("add-access-form");
     const email = within(addForm).getByLabelText("Email") as HTMLInputElement;
     fireEvent.change(email, { target: { value: "new@example.com" } });
-    fireEvent.click(within(addForm).getByRole("button", { name: "Add access" }));
+    fireEvent.click(within(addForm).getByRole("button", { name: "Invite user" }));
 
     expect(email.disabled).toBe(true);
     expect(
@@ -281,7 +336,7 @@ describe("AccessSettingsScreen", () => {
     fireEvent.change(within(addForm).getByLabelText("Email"), {
       target: { value: "new@example.com" },
     });
-    fireEvent.click(within(addForm).getByRole("button", { name: "Add access" }));
+    fireEvent.click(within(addForm).getByRole("button", { name: "Invite user" }));
     await user.click(screen.getByRole("link", { name: "Workspace" }));
     expect(screen.getByRole("dialog").textContent).toContain("save is still in progress");
 
@@ -312,7 +367,7 @@ describe("AccessSettingsScreen", () => {
     fireEvent.change(within(addForm).getByLabelText("Email"), {
       target: { value: "new@example.com" },
     });
-    fireEvent.click(within(addForm).getByRole("button", { name: "Add access" }));
+    fireEvent.click(within(addForm).getByRole("button", { name: "Invite user" }));
     await user.click(screen.getByRole("link", { name: "Workspace" }));
     expect(screen.getByRole("dialog").textContent).toContain("save is still in progress");
 
@@ -395,5 +450,32 @@ describe("AccessSettingsScreen", () => {
       role: "manager",
     });
     expect(await within(member).findByText("Access updated.")).toBeTruthy();
+  });
+
+  it("signs out after removing the current administrator's own access", async () => {
+    const user = userEvent.setup();
+    const otherAdmin = {
+      ...admin,
+      email: "other@example.com",
+      id: "55555555-5555-4555-8555-555555555555",
+      userId: "66666666-6666-4666-8666-666666666666",
+    };
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        currentUserId={admin.userId}
+        members={[admin, otherAdmin]}
+        people={[person]}
+      />,
+    );
+
+    const member = screen.getByTestId(`access-member-${admin.id}`);
+    await user.click(within(member).getByRole("button", { name: "Remove access" }));
+
+    await waitFor(() => expect(removeAccess).toHaveBeenCalledTimes(1));
+    const submitted = removeAccess.mock.calls[0][1] as FormData;
+    expect(Object.fromEntries(submitted.entries())).toEqual({ memberId: admin.id });
+    await waitFor(() => expect(signOut).toHaveBeenCalledOnce());
+    expect(await within(member).findByText("Access removed. Signing out...")).toBeTruthy();
   });
 });

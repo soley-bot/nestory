@@ -10,7 +10,7 @@ const navItems = [
   { href: "#workspace", label: "Workspace" },
   { href: "#control", label: "Control" },
   { href: "#operations", label: "Operations" },
-  { href: "#start", label: "Start" },
+  { href: "#start", label: "Access" },
 ];
 
 export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
@@ -147,10 +147,10 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
               ))}
               <Link
                 className="font-display block rounded-sm pt-6 text-3xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-4xl lg:text-5xl"
-                href="/signup"
+                href="/login"
                 onClick={() => setIsOpen(false)}
               >
-                Create workspace
+                Sign in
               </Link>
             </div>
           </nav>

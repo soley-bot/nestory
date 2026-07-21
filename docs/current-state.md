@@ -7,8 +7,8 @@ implemented now. It is not a roadmap or early-stage plan.
 
 Nestory is a multi-module property operations app. The implemented core covers:
 
-- Workspace auth, setup, organization membership, roles, and subdomain-aware
-  workspace lookup.
+- Invite-only workspace auth, organization membership, roles, and
+  subdomain-aware workspace lookup.
 - Responsive authenticated shell with role-aware navigation, a collapsible
   desktop rail, and global search/jump behavior.
 - Overview with domain lenses and module workspaces.
@@ -63,11 +63,15 @@ Nestory is a multi-module property operations app. The implemented core covers:
 Public and auth:
 
 - `/` renders the marketing/public entry.
-- `/login`, `/signup`, `/setup`, `/no-access` handle auth and workspace access.
+- `/login` provides password sign-in only. `/forgot-password` and
+  `/update-password` use Supabase recovery sessions. `/accept-invite` reviews
+  and accepts a Nestory invitation after Supabase verifies the invited email.
+- `/signup` is a retired redirect to `/login`. `/setup` cannot provision a
+  workspace and sends authenticated users to `/no-access`.
 - `/workspace` is a concise authenticated organization entry surface with one
   role-aware continuation link to `/overview` for admins, `/maintenance` for
-  managers, or `/tasks` for members. Setup and no-access handling remains at
-  the workspace context boundary for users without a matching membership.
+  managers, or `/tasks` for members. Users without a matching membership go
+  to `/no-access`; they cannot create an organization from a public route.
 - `/auth/callback`, `/auth/confirm` handle Supabase auth callbacks.
 
 Core dashboard shell:
@@ -213,7 +217,7 @@ Settings and access:
 Supabase migrations define organization-scoped tables with RLS, indexes, and
 RPC write boundaries. Current table families include:
 
-- Access: `organizations`, `organization_members`,
+- Access: `organizations`, `organization_members`, `organization_invitations`,
   `organization_branches`, `organization_teams`.
 - Property core: `properties`, `units`.
 - People and lease backbone: `people`, `person_roles`, `person_contacts`,
@@ -247,7 +251,9 @@ RPC write boundaries. Current table families include:
 
 Implemented RPC families include:
 
-- Workspace bootstrap and access-member lookup/invites.
+- Service-role-only workspace provisioning; admin-checked invitation
+  create/resend/revoke; verified-email invitation acceptance; access lookup,
+  update, and removal with SQL-enforced final-administrator protection.
 - Property, unit, person, lease, document, ledger, timeline, and maintenance
   create/update/archive/restore.
 - Finance income and expense workflow creation, status changes, dated receipt
@@ -267,7 +273,7 @@ Implemented RPC families include:
 
 ## Feature Ownership
 
-- Auth and setup: `src/features/auth`, `src/lib/auth`.
+- Auth, recovery, and invitation acceptance: `src/features/auth`, `src/lib/auth`.
 - App shell and layout: `src/components/layout`.
 - Properties: `src/features/properties`.
 - Units: `src/features/units`.

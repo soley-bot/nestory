@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useId } from "react";
 import { loginAction, type AuthActionState } from "@/features/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,15 @@ export function LoginForm() {
         />
         <FieldError errors={state.fieldErrors?.password} id={passwordErrorId} />
       </label>
+
+      <div className="-mt-2 text-right">
+        <Link
+          className="text-sm font-semibold text-foreground-muted transition-colors hover:text-foreground"
+          href="/forgot-password"
+        >
+          Forgot password?
+        </Link>
+      </div>
 
       <Button
         className="box-border h-11 w-full border-foreground bg-foreground text-[12px] font-semibold uppercase tracking-[0.14em] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-70"
