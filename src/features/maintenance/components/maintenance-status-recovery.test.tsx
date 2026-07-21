@@ -214,9 +214,10 @@ describe("maintenance status recovery", () => {
       '[data-status-column="in_progress"]',
     );
     expect(within(inProgressColumn!).getByRole("link", { name: "Repair sink" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Preview Repair sink" }));
     expect(
       within(
-        screen.getByRole("complementary", { name: "Repair sink Preview" }),
+        screen.getByRole("dialog", { name: "Repair sink quick view" }),
       ).getAllByText("In Progress").length,
     ).toBeGreaterThan(0);
     expect(maintenanceActions.updateStatus).toHaveBeenCalledTimes(1);

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowRight, Building2, Upload } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { OverviewHeader } from "@/features/overview/components/overview-header";
 import { OverviewLensWorkspace } from "@/features/overview/components/overview-lens-workspace";
 import { OverviewSummaryCards } from "@/features/overview/components/overview-summary-cards";
@@ -31,37 +30,38 @@ export function OverviewScreen({ data, query }: { data: OverviewScreenData; quer
 
 function EmptyWorkspaceOnboarding({ data }: { data: OverviewScreenData }) {
   return (
-    <main className="min-h-screen bg-background px-4 py-3 sm:px-5">
-      <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="rounded-lg border border-border bg-surface">
-          <div className="border-b border-border p-4 sm:p-5">
-            <Badge tone="warning">Setup needed</Badge>
-            <h1 className="mt-2 text-xl font-semibold text-foreground">Start with your operating records.</h1>
-            <p className="mt-1 text-sm text-foreground-muted">Create the first property, then import units, people, and leases.</p>
-          </div>
-          <div className="space-y-3 p-4 sm:p-5">
-            <section className="rounded-md border border-border p-3">
+    <main className="min-h-screen bg-background px-4 py-5 sm:px-6 sm:py-7">
+      <section data-slot="empty-workspace-onboarding">
+        <header className="border-b border-border pb-5">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Start with your operating records.</h1>
+          <p className="mt-1.5 text-sm text-foreground-muted">Create the first property, then import units, people, and leases.</p>
+        </header>
+
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="grid border-b border-border md:grid-cols-2 md:divide-x md:divide-border xl:border-b-0">
+            <section className="border-b border-border py-5 md:border-b-0 md:pr-6">
               <h2 className="text-sm font-semibold">Setup plan</h2>
               <p className="mt-1 text-sm text-foreground-muted">Build the property shell before adding its linked operating records.</p>
-              <Link className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-xs font-semibold text-white" href="/properties?action=create">Add first property <ArrowRight size={14} /></Link>
+              <Link className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-xs font-semibold text-background transition-colors hover:bg-foreground/90" href="/properties?action=create">Add first property <ArrowRight size={14} /></Link>
             </section>
-            <section className="rounded-md border border-border p-3">
+            <section className="py-5 md:pl-6">
               <h2 className="text-sm font-semibold">Import center</h2>
               <p className="mt-1 text-sm text-foreground-muted">Properties, units, people, and leases.</p>
               <p className="mt-1 text-sm text-foreground-muted">500 valid rows per commit</p>
               <Link className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium" href="/import"><Upload size={14} /> Open imports</Link>
             </section>
           </div>
+
+          <aside className="border-t border-border py-5 xl:border-l xl:border-t-0 xl:pl-6">
+            <h2 className="text-sm font-semibold">Workspace counts</h2>
+            <dl className="mt-2 divide-y divide-border text-sm">
+              <Count label="Properties" value={data.workspaceSetup.propertyCount} />
+              <Count label="Units" value={data.workspaceSetup.unitCount} />
+              <Count label="People" value={data.workspaceSetup.peopleCount} />
+              <Count label="Leases" value={data.workspaceSetup.activeLeaseCount} />
+            </dl>
+          </aside>
         </div>
-        <aside className="rounded-lg border border-border bg-surface p-3">
-          <h2 className="text-sm font-semibold">Workspace counts</h2>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-foreground-muted">
-            <Count label="Properties" value={data.workspaceSetup.propertyCount} />
-            <Count label="Units" value={data.workspaceSetup.unitCount} />
-            <Count label="People" value={data.workspaceSetup.peopleCount} />
-            <Count label="Leases" value={data.workspaceSetup.activeLeaseCount} />
-          </div>
-        </aside>
       </section>
     </main>
   );
@@ -80,6 +80,6 @@ function SetupProgressPanel({ data }: { data: OverviewScreenData }) {
   );
 }
 
-function Count({ label, value }: { label: string; value: number }) { return <div className="rounded-md border border-border p-2"><p>{label}</p><p className="mt-1 text-base font-semibold tabular-nums text-foreground">{value}</p></div>; }
+function Count({ label, value }: { label: string; value: number }) { return <div className="flex items-center justify-between gap-4 py-2.5"><dt className="text-foreground-muted">{label}</dt><dd className="font-semibold tabular-nums text-foreground">{value}</dd></div>; }
 function isBaseSetupComplete(setup: OverviewScreenData["workspaceSetup"]) { return setup.propertyCount > 0 && setup.unitCount > 0 && setup.peopleCount > 0 && setup.activeLeaseCount > 0; }
 function defaultQuery(): OverviewViewQuery { return { financeView: "collections", lens: "all", month: new Date().toISOString().slice(0, 7), propertyId: "all", review: "all" }; }

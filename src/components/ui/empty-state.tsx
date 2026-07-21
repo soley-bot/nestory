@@ -14,7 +14,9 @@ type EmptyStateProps = {
   action?: ReactNode;
   body: ReactNode;
   className?: string;
+  icon?: LucideIcon;
   kind: EmptyStateKind;
+  prominent?: boolean;
   retry?: ReactNode;
   title: ReactNode;
 };
@@ -47,18 +49,20 @@ export function EmptyState({
   action,
   body,
   className,
+  icon,
   kind,
+  prominent = false,
   retry,
   title,
 }: EmptyStateProps) {
   const presentation = presentations[kind];
-  const StateIcon = presentation.icon;
+  const StateIcon = icon ?? presentation.icon;
   const isError = kind === "error";
 
   return (
     <section
       className={cn(
-        "flex min-h-40 flex-col items-start justify-center px-5 py-6 text-sm",
+        "flex min-h-40 flex-col items-center justify-center px-5 py-6 text-center text-sm",
         className,
       )}
       data-kind={kind}
@@ -66,12 +70,13 @@ export function EmptyState({
       <div
         aria-hidden="true"
         className={cn(
-          "mb-3 flex size-9 items-center justify-center rounded-md",
+          "mb-3 flex items-center justify-center rounded-md",
+          prominent ? "size-14" : "size-9",
           presentation.iconClassName,
         )}
         data-empty-state-icon="true"
       >
-        <StateIcon className="size-4" />
+        <StateIcon className={prominent ? "size-7" : "size-4"} />
       </div>
       <div
         aria-atomic="true"

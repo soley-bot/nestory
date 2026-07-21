@@ -72,7 +72,7 @@ afterEach(() => {
 });
 
 describe("LeaseScreen redesign contract", () => {
-  it("uses the shared dense lifecycle workspace with one selected row and direct context links", () => {
+  it("uses the shared dense lifecycle workspace with deliberate quick views and direct context links", () => {
     const { container } = renderLeases();
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
@@ -88,7 +88,7 @@ describe("LeaseScreen redesign contract", () => {
     expect(within(table).getByText("Payment / Deposit")).not.toBeNull();
 
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "Alice Tenant" }).getAttribute("href"),
     ).toContain("leaseId=lease-1");
@@ -99,23 +99,27 @@ describe("LeaseScreen redesign contract", () => {
     expect(within(rows[0]!).getByText("Riverside House")).not.toBeNull();
     expect(within(rows[0]!).getByText("Unit 2A")).not.toBeNull();
 
-    const firstInspector = screen.getByRole("complementary", { name: "Alice Tenant lease inspector" });
-    expect(within(firstInspector).getByText("USD 1,200.00 held")).not.toBeNull();
-    expect(within(firstInspector).getByText("Event type")).not.toBeNull();
-    expect(within(firstInspector).getByText("Event date")).not.toBeNull();
-    expect(within(firstInspector).getByText("Amount")).not.toBeNull();
-    expect(within(firstInspector).getByText("Reference")).not.toBeNull();
+    fireEvent.click(rows[0]!);
+    const firstQuickView = screen.getByRole("dialog", {
+      name: "Alice Tenant lease quick view",
+    });
+    expect(within(firstQuickView).getByText("USD 1,200.00 held")).not.toBeNull();
+    expect(within(firstQuickView).getByText("Event type")).not.toBeNull();
+    expect(within(firstQuickView).getByText("Event date")).not.toBeNull();
+    expect(within(firstQuickView).getByText("Amount")).not.toBeNull();
+    expect(within(firstQuickView).getByText("Reference")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
 
     fireEvent.click(rows[1]!);
     expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
     expect(
-      screen.getByRole("complementary", { name: "Ben Tenant lease inspector" }),
+      screen.getByRole("dialog", { name: "Ben Tenant lease quick view" }),
     ).not.toBeNull();
     expect(screen.queryByText(/select a lease row/i)).toBeNull();
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });
 
-  it.each([1024, 390])("uses one responsive preview drawer at %ipx and returns focus", async (width) => {
+  it.each([1024, 390])("uses one responsive quick-view dialog at %ipx and returns focus", async (width) => {
     installMatchMedia(width);
     const user = userEvent.setup();
     renderLeases();
@@ -124,13 +128,13 @@ describe("LeaseScreen redesign contract", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     await user.click(preview);
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByRole("dialog", { name: "Alice Tenant lease inspector" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "Alice Tenant lease quick view" })).not.toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    await user.click(screen.getByRole("button", { name: "Close quick view" }));
     expect(document.activeElement).toBe(preview);
   });
 
-  it("replaces the compact preview with one edit drawer", async () => {
+  it("replaces the quick view with one edit drawer", async () => {
     installMatchMedia(1024);
     const user = userEvent.setup();
     renderLeases();
@@ -141,7 +145,7 @@ describe("LeaseScreen redesign contract", () => {
 
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(screen.getByRole("dialog", { name: "Edit lease" })).not.toBeNull();
-    expect(screen.queryByRole("dialog", { name: "Alice Tenant lease inspector" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Alice Tenant lease quick view" })).toBeNull();
   });
 
   it("distinguishes filtered and true empty states and hides unauthorized actions", () => {

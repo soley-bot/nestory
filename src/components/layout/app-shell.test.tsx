@@ -285,6 +285,26 @@ describe("AppShell global navigation hierarchy", () => {
     expect(within(collapsedNavigation).queryByRole("button")).toBeNull();
   });
 
+  it("gives expanded destinations readable type and spacing", () => {
+    render(
+      <AppShell role="admin">
+        <div>Workspace</div>
+      </AppShell>,
+    );
+
+    const navigationElement = screen.getByRole("navigation", {
+      name: "Global navigation",
+    });
+    const overviewLink = within(navigationElement).getByRole("link", {
+      name: "Overview",
+    });
+
+    expect(navigationElement.className).toContain("py-3");
+    expect(overviewLink.className).toContain("h-8");
+    expect(overviewLink.className).toContain("gap-2.5");
+    expect(overviewLink.className).toContain("text-sm");
+  });
+
   it("keeps expanded, collapsed, and mobile navigation in native tab order", () => {
     const { container } = render(
       <AppShell role="admin">

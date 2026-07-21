@@ -278,68 +278,40 @@ describe("shared workspace anatomy", () => {
     expect(within(toolbar).getByRole("button", { name: "Add lease" })).toBeTruthy();
   });
 
-  it("keeps a wide inspector between 280px and 320px with the record spine", () => {
-    const matchMedia = installViewportMatchMedia(1440);
-    render(
-      <WorkspaceSplitView
-        inspector={<div>Lease details</div>}
-        inspectorLabel="Lease inspector"
-        inspectorOpen
-        list={<div>Lease list</div>}
-        onInspectorOpenChange={vi.fn()}
-      />,
-    );
-
-    expect(screen.getAllByText("Lease details")).toHaveLength(1);
-
-    const inspector = screen.getByRole("complementary", {
-      name: "Lease inspector",
-    });
-    expect(inspector.className).toContain("min-w-[280px]");
-    expect(inspector.className).toContain("max-w-[320px]");
-    expect(inspector.className).toContain("border-record-spine");
-
-    const splitView = screen.getByText("Lease list").closest(
-      '[data-slot="workspace-split-view"]',
-    );
-    expect(splitView?.className).toContain("min-w-0");
-    expect(splitView?.className).toContain("overflow-hidden");
-    expect(splitView?.className).toContain(
-      "xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]",
-    );
-    expect(matchMedia).toHaveBeenCalledWith("(min-width: 1280px)");
-  });
-
-  it.each([1024, 390])(
-    "uses a dismissable drawer instead of a docked inspector at %ipx",
+  it.each([1440, 1024, 390])(
+    "keeps the workspace full-width and uses the same quick view at %ipx",
     (width) => {
-      const matchMedia = installViewportMatchMedia(width);
+      installViewportMatchMedia(width);
 
       render(
         <WorkspaceSplitView
           inspector={<div>Selected unit</div>}
-          inspectorLabel="Unit inspector"
+          inspectorLabel="Unit quick view"
           inspectorOpen
           list={<div>Unit list</div>}
           onInspectorOpenChange={vi.fn()}
         />,
       );
 
-      expect(matchMedia).toHaveBeenCalledWith("(min-width: 1280px)");
-      expect(
-        screen.queryByRole("complementary", { name: "Unit inspector" }),
-      ).toBeNull();
-      expect(screen.getByRole("dialog", { name: "Unit inspector" })).not.toBeNull();
+      expect(screen.queryByRole("complementary")).toBeNull();
+      const dialog = screen.getByRole("dialog", { name: "Unit quick view" });
+      expect(dialog.className).toContain("max-w-[640px]");
+
+      const splitView = screen.getByText("Unit list").closest(
+        '[data-slot="workspace-split-view"]',
+      );
+      expect(splitView?.className).toContain("grid-cols-[minmax(0,1fr)]");
+      expect(splitView?.className).not.toContain("xl:grid-cols");
     },
   );
 
-  it("renders the inspector once while changing between wide and compact modes", () => {
+  it("renders one quick view while the viewport media state changes", () => {
     const media = installMatchMedia(true);
 
     render(
       <WorkspaceSplitView
         inspector={<div>Selected property</div>}
-        inspectorLabel="Property inspector"
+        inspectorLabel="Property quick view"
         inspectorOpen
         list={<div>Property list</div>}
         onInspectorOpenChange={vi.fn()}
@@ -347,16 +319,19 @@ describe("shared workspace anatomy", () => {
     );
 
     expect(screen.getAllByText("Selected property")).toHaveLength(1);
-    expect(screen.getByRole("complementary", { name: "Property inspector" })).not.toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "Property quick view" }),
+    ).not.toBeNull();
 
     act(() => media.setMatches(false));
 
     expect(screen.getAllByText("Selected property")).toHaveLength(1);
-    expect(screen.queryByRole("complementary", { name: "Property inspector" })).toBeNull();
-    expect(screen.getByRole("dialog", { name: "Property inspector" })).not.toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "Property quick view" }),
+    ).not.toBeNull();
   });
 
-  it("closes the compact inspector from its Close control and returns focus", async () => {
+  it("closes the quick view from its Close control and returns focus", async () => {
     installMatchMedia(false);
     const user = userEvent.setup();
     const onInspectorOpenChange = vi.fn();
@@ -372,7 +347,7 @@ describe("shared workspace anatomy", () => {
       return (
         <WorkspaceSplitView
           inspector={<button type="button">Review selection</button>}
-          inspectorLabel="Unit inspector"
+          inspectorLabel="Unit quick view"
           inspectorOpen={open}
           list={
             <button onClick={() => setOpen(true)} type="button">
@@ -389,17 +364,17 @@ describe("shared workspace anatomy", () => {
     const trigger = screen.getByRole("button", { name: "Open inspector" });
     await user.click(trigger);
 
-    expect(screen.getByRole("dialog", { name: "Unit inspector" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "Unit quick view" })).not.toBeNull();
     expect(screen.getAllByRole("button", { name: "Review selection" })).toHaveLength(1);
 
-    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    await user.click(screen.getByRole("button", { name: "Close quick view" }));
 
     expect(onInspectorOpenChange).toHaveBeenLastCalledWith(false);
-    expect(screen.queryByRole("dialog", { name: "Unit inspector" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Unit quick view" })).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
 
-  it("closes the compact inspector with Escape through the controlled callback", async () => {
+  it("closes the quick view with Escape through the controlled callback", async () => {
     installMatchMedia(false);
     const user = userEvent.setup();
     const onInspectorOpenChange = vi.fn();
@@ -415,7 +390,7 @@ describe("shared workspace anatomy", () => {
       return (
         <WorkspaceSplitView
           inspector={<div>Unit details</div>}
-          inspectorLabel="Unit inspector"
+          inspectorLabel="Unit quick view"
           inspectorOpen={open}
           list={
             <button onClick={() => setOpen(true)} type="button">
@@ -432,10 +407,10 @@ describe("shared workspace anatomy", () => {
     await user.keyboard("{Escape}");
 
     expect(onInspectorOpenChange).toHaveBeenLastCalledWith(false);
-    expect(screen.queryByRole("dialog", { name: "Unit inspector" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Unit quick view" })).toBeNull();
   });
 
-  it("closes the compact inspector from its backdrop through the controlled callback", async () => {
+  it("closes the quick view from its backdrop through the controlled callback", async () => {
     installMatchMedia(false);
     const user = userEvent.setup();
     const onInspectorOpenChange = vi.fn();
@@ -451,7 +426,7 @@ describe("shared workspace anatomy", () => {
       return (
         <WorkspaceSplitView
           inspector={<div>Unit details</div>}
-          inspectorLabel="Unit inspector"
+          inspectorLabel="Unit quick view"
           inspectorOpen={open}
           list={
             <button onClick={() => setOpen(true)} type="button">
@@ -467,13 +442,13 @@ describe("shared workspace anatomy", () => {
     await user.click(screen.getByRole("button", { name: "Open inspector" }));
 
     const backdrop = container.querySelector<HTMLElement>(
-      'button[aria-hidden="true"]',
+      '[data-slot="record-quick-view-backdrop"]',
     );
     expect(backdrop).not.toBeNull();
     await user.click(backdrop!);
 
     expect(onInspectorOpenChange).toHaveBeenLastCalledWith(false);
-    expect(screen.queryByRole("dialog", { name: "Unit inspector" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Unit quick view" })).toBeNull();
   });
 
   it("does not mount an undismissable compact modal from invalid JavaScript props", () => {

@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 describe("PettyCashScreen finance workspace contract", () => {
-  it("keeps register totals, cash states, links, and currency columns unchanged", () => {
+  it("keeps register totals, cash states, links, currency columns, and deliberate quick views", () => {
     const { container } = renderPettyCash();
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
@@ -47,7 +47,7 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(within(rows[0]!).getByRole("link", { name: "HOME" }).getAttribute("href")).toBe(
       "/properties/property-1",
     );
@@ -55,7 +55,8 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(within(rows[0]!).getByText("Cleared")).not.toBeNull();
     expect(within(rows[1]!).getByText("Posted")).not.toBeNull();
     expect(container.querySelectorAll("[data-money-cell='true']").length).toBeGreaterThan(0);
-    expect(screen.getByRole("complementary", { name: "Cleaning cash inspector" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Preview Cleaning" }));
+    expect(screen.getByRole("dialog", { name: "Cleaning cash quick view" })).not.toBeNull();
     expect(screen.queryByText(/select a row/i)).toBeNull();
   });
 
@@ -76,7 +77,7 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
 
     expect(fireEvent.keyDown(secondLink, { key: "Enter" })).toBe(true);
-    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("false");
     expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
     expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
 
@@ -97,7 +98,7 @@ describe("PettyCashScreen finance workspace contract", () => {
 
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
-      expect(screen.getByRole("dialog", { name: "Cleaning cash inspector" })).not.toBeNull();
+      expect(screen.getByRole("dialog", { name: "Cleaning cash quick view" })).not.toBeNull();
       await user.click(screen.getByRole("button", { name: "Post to ledger" }));
 
       expect(screen.getAllByRole("dialog")).toHaveLength(1);

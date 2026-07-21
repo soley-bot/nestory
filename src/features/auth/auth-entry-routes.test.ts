@@ -83,6 +83,7 @@ describe("entry experience contracts", () => {
     expect(login).toContain("history stay connected to each property");
     expect(shell).not.toContain("contextItems.map");
     expect(shell).toContain("bg-[var(--auth-page-card-bg)]");
+    expect(shell).toContain('markTone={visualSrc ? "light" : "auto"}');
     expect(shell).toContain("<ThemeToggle");
     expect(themeToggle).toContain('localStorage.setItem("nestory-theme"');
     expect(setup).not.toContain("After setup");

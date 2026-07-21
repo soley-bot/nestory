@@ -461,6 +461,8 @@ describe("EmptyState", () => {
       const message = screen.getByRole(role);
       const state = screen.getByRole("heading", { name: title }).closest("section");
       expect(state?.getAttribute("data-kind")).toBe(kind);
+      expect(state?.classList.contains("items-center")).toBe(true);
+      expect(state?.classList.contains("text-center")).toBe(true);
       expect(message.getAttribute("aria-live")).toBe(live);
       expect(within(message).getByRole("heading", { name: title })).not.toBeNull();
       expect(within(message).getByText(body)).not.toBeNull();

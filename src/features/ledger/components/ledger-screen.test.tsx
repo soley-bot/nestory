@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 describe("LedgerScreen finance workspace contract", () => {
-  it("keeps finance rows dense, selected, linked, and docked at 1280+", async () => {
+  it("keeps finance rows dense, linked, and available in a deliberate quick view", async () => {
     const user = userEvent.setup();
     const { container } = renderLedger();
 
@@ -43,13 +43,15 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(within(rows[0]!).getByRole("link", { name: "Home" }).getAttribute("href")).toBe(
       "/properties/property-1",
     );
     expect(within(rows[0]!).getByRole("button", { name: "Preview Rent" })).not.toBeNull();
     expect(container.querySelectorAll("[data-money-cell='true']").length).toBeGreaterThan(0);
-    expect(screen.getByRole("complementary", { name: "Rent ledger inspector" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Preview Rent" }));
+    expect(screen.getByRole("dialog", { name: "Rent ledger quick view" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Close quick view" }));
     await user.click(screen.getByRole("button", { name: "Filters" }));
     expect(screen.getByRole("combobox", { name: "Filter by property" })).not.toBeNull();
     expect(screen.getByRole("combobox", { name: "Filter by direction" })).not.toBeNull();
@@ -68,7 +70,7 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
 
     expect(fireEvent.keyDown(secondLink, { key: "Enter" })).toBe(true);
-    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("false");
     expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
     expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
 
@@ -89,7 +91,7 @@ describe("LedgerScreen finance workspace contract", () => {
 
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
-      expect(screen.getByRole("dialog", { name: "Rent ledger inspector" })).not.toBeNull();
+      expect(screen.getByRole("dialog", { name: "Rent ledger quick view" })).not.toBeNull();
       await user.click(screen.getByRole("button", { name: "Archive ledger entry" }));
 
       expect(screen.getAllByRole("dialog")).toHaveLength(1);

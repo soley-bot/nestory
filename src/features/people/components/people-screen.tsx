@@ -3,17 +3,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Pencil, Plus } from "lucide-react";
+import { CheckCircle2, Plus, UsersRound } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
-import {
-  getInitialRecordId,
-  getSelectedRecord,
-} from "@/components/data/record-selection";
 import { WorkspacePage } from "@/components/layout/workspace-page";
-import {
-  useWideWorkspace,
-  WorkspaceSplitView,
-} from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -26,7 +18,6 @@ import {
 import { PersonForm } from "@/features/people/components/person-form";
 import { PeopleCommandCenter } from "@/features/people/components/people-command-center";
 import { PeopleFilters } from "@/features/people/components/people-filters";
-import { PeopleInspector } from "@/features/people/components/people-inspector";
 import { PeopleTable } from "@/features/people/components/people-table";
 import { PeopleWorkspaceNavigation } from "@/features/people/components/people-workspace-navigation";
 import { formatRole } from "@/features/people/people.labels";
@@ -63,7 +54,6 @@ type PeopleScreenProps = {
 };
 
 export function PeopleScreen({
-  accessByPersonId,
   addButtonLabel = "Add person",
   canCreate = true,
   createRole,
@@ -87,40 +77,19 @@ export function PeopleScreen({
   );
   const [displayMode, setDisplayMode] = useState<PeopleDisplayMode>("table");
   const isTableMode = displayMode === "table";
-  const [selectedPersonId, setSelectedPersonId] = useState(() =>
-    getInitialRecordId(people, initialPersonId),
-  );
-  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
-    Boolean(initialPersonId) &&
-      (!canCreate || searchParams.get("action") !== "create"),
-  );
-  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedPerson = initialPersonId
     ? people.find((person) => person.id === initialPersonId) ?? null
     : null;
   const focusedPersonId = focusedPerson?.id;
-  const selectedPerson = getSelectedRecord({
-    focusedRecordId: initialPersonId,
-    records: people,
-    selectedRecordId: selectedPersonId,
-  });
   const reviewContext = getPeopleReviewContext(viewQuery, {
     hasFocusedPerson: Boolean(focusedPerson),
     hasFocusedPersonIntent: Boolean(initialPersonId),
   });
   const moduleRole = lockedRole ?? createRole;
-  const getPersonRecordHref = (personId: string) => `/people/${personId}`;
   const openPeopleAction = (nextDrawer: DrawerState) => {
-    if (!isWideWorkspace) {
-      setCompactInspectorOpen(false);
-    }
     setStatusMessage(null);
     setDrawer(nextDrawer);
-  };
-  const previewPerson = (personId: string) => {
-    setSelectedPersonId(personId);
-    setCompactInspectorOpen(true);
   };
 
   useEffect(() => {
@@ -128,11 +97,8 @@ export function PeopleScreen({
       return;
     }
 
-    queueMicrotask(() => {
-      setSelectedPersonId(focusedPersonId);
-      setCompactInspectorOpen(true);
-    });
-  }, [focusedPersonId]);
+    router.replace(`/people/${focusedPersonId}`, { scroll: false });
+  }, [focusedPersonId, router]);
 
   useEffect(() => {
     if (searchParams.get("action") !== "create") {
@@ -147,7 +113,6 @@ export function PeopleScreen({
     }
 
     queueMicrotask(() => {
-      setCompactInspectorOpen(false);
       setStatusMessage(null);
       setDrawer({ mode: "create" });
     });
@@ -177,9 +142,11 @@ export function PeopleScreen({
               </Button>
             ) : undefined
           }
-          body={hasFilters ? "No records match the active People filters." : "No People records are available in this workspace."}
+          body={hasFilters ? "No records match the active People filters." : "No people records are available in this workspace."}
           className="h-full"
+          icon={UsersRound}
           kind={hasFilters ? "filtered" : "empty"}
+          prominent={!hasFilters}
           title={hasFilters ? "No matching people" : "No people yet"}
         />
       ) : (
@@ -188,10 +155,8 @@ export function PeopleScreen({
             <PeopleTable
               archiveState={viewQuery.archiveState}
               displayMode={displayMode}
-              onSelectPerson={previewPerson}
               people={people}
               roleContext={lockedRole}
-              selectedPersonId={selectedPerson?.id ?? ""}
             />
           </div>
           <PaginationControls attached={isTableMode} pagination={pagination} />
@@ -199,32 +164,10 @@ export function PeopleScreen({
       )}
     </section>
   );
-  const peopleInspector = selectedPerson ? (
-    <PeopleInspector
-      onArchivePerson={(person) => openPeopleAction({ mode: "archive", person })}
-      onEditPerson={(person) => openPeopleAction({ mode: "edit", person })}
-      onRestorePerson={(person) => openPeopleAction({ mode: "restore", person })}
-      getPersonHref={getPersonRecordHref}
-      accessStatus={accessByPersonId?.[selectedPerson.id]}
-      person={selectedPerson}
-      showAccessStatus={moduleRole === "staff"}
-    />
-  ) : null;
-
   return (
     <WorkspacePage
       actions={
         <>
-            {reviewContext && selectedPerson ? (
-              <Button
-                onClick={() =>
-                  openPeopleAction({ mode: "edit", person: selectedPerson })
-                }
-              >
-                <Pencil size={15} />
-                Edit selected
-              </Button>
-            ) : null}
             {canCreate ? (
               <Button
                 onClick={() => openPeopleAction({ mode: "create" })}
@@ -275,17 +218,7 @@ export function PeopleScreen({
       ) : null}
 
         <div className="min-h-0 min-w-0 flex-1">
-          {peopleInspector && selectedPerson ? (
-            <WorkspaceSplitView
-              inspector={peopleInspector}
-              inspectorLabel={`${selectedPerson.displayName} inspector`}
-              inspectorOpen={isWideWorkspace || compactInspectorOpen}
-              list={peopleList}
-              onInspectorOpenChange={setCompactInspectorOpen}
-            />
-          ) : (
-            <WorkspaceSplitView list={peopleList} />
-          )}
+          {peopleList}
         </div>
       </div>
 

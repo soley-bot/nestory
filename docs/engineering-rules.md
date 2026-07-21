@@ -67,14 +67,16 @@ These rules are grounded in the current implementation.
 ## UI
 
 - Authenticated pages are working software, not marketing pages.
-- Use neutral dense layouts, compact headers, tables, filters, inspectors,
+- Use neutral dense layouts, compact headers, tables, filters, quick views,
   drawers, badges, and clear record links.
 - Keep list workspaces structurally consistent: compact title/primary action,
-  URL-backed tools, record content, responsive inspector, then a side drawer
-  for create/edit/lifecycle work.
-- On wide layouts, keep the inspector beside the list without shrinking the
-  record surface below usefulness. On compact layouts, use the shared drawer,
-  trap focus, support Escape, and return focus to the opener.
+  URL-backed tools, full-width record content, a compact record quick view,
+  then a side drawer for create/edit/lifecycle work.
+- Do not reserve persistent side-inspector space beside operational tables.
+  Single-click or Enter opens the shared modal quick view. Escape, backdrop,
+  and the close control dismiss it and return focus to the opener. Where a true
+  detail route exists, retain an explicit record link and allow double-click as
+  a pointer shortcut; do not invent detail routes for modules that lack one.
 - Keep one global `Search or jump` command surface. Navigation actions may be
   client-known; entity results must remain organization/role scoped through the
   server search boundary. Do not expose raw UUIDs in results or URLs shown as

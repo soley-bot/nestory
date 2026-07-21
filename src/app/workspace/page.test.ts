@@ -76,6 +76,12 @@ describe("WorkspacePage", () => {
     );
     expect(html).not.toContain("px-[15px]");
     expect(html).toContain("transition-colors");
+    expect(html).toContain(
+      "hover:bg-[var(--workspace-arrival-action-hover)]",
+    );
+    expect(html).toContain(
+      "hover:text-[var(--workspace-arrival-action-fg)]",
+    );
     expect(html).not.toContain("hover:-translate-y-0.5");
     expect(html).not.toContain("transition-[transform,background-color]");
   });

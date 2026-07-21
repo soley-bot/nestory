@@ -249,14 +249,14 @@ function CashMovementPanel() {
           <path
             className="nestory-preview-chart-fill"
             d="M0 88 C74 88 146 88 216 88 C254 88 282 58 320 10 L320 96 L0 96 Z"
-            fill="var(--preview-blue)"
+            fill="var(--preview-accent)"
             opacity="0.08"
           />
           <path
             className="nestory-preview-chart-line"
             d="M0 88 C74 88 146 88 216 88 C254 88 282 58 320 10"
             fill="none"
-            stroke="var(--preview-blue)"
+            stroke="var(--preview-accent)"
             strokeLinecap="round"
             strokeWidth="2.8"
           />
@@ -280,7 +280,7 @@ function LeaseEndingPanel() {
           className="relative size-20 rounded-full"
           style={{
             background:
-              "conic-gradient(var(--preview-blue) 0 37%, var(--preview-chart-muted) 37% 61%, var(--preview-warm) 61% 77%, var(--preview-danger) 77% 90%, var(--preview-track) 90% 100%)",
+              "conic-gradient(var(--preview-accent) 0 37%, var(--preview-chart-muted) 37% 61%, var(--preview-warm) 61% 77%, var(--preview-danger) 77% 90%, var(--preview-track) 90% 100%)",
           }}
         >
           <div className="absolute inset-4 grid place-items-center rounded-full bg-[var(--preview-panel)] text-center">
@@ -370,21 +370,21 @@ function ControlPreviewMotion() {
     <style>
       {`
         .nestory-control-preview {
-          --preview-active: #edf0f3;
-          --preview-blue: #1f4e8c;
-          --preview-border: #dde2e8;
+          --preview-active: #e2ebe7;
+          --preview-accent: #135e4b;
+          --preview-border: #d7ddda;
           --preview-card-shadow: 0 1px 5px rgb(15 23 42 / 0.06);
-          --preview-chart-muted: #9aa3af;
+          --preview-chart-muted: #9ca3af;
           --preview-danger: #c95151;
-          --preview-fg: #071324;
-          --preview-main: #f7f8fa;
-          --preview-muted: #465263;
+          --preview-fg: #17211f;
+          --preview-main: #fafbf9;
+          --preview-muted: #52605c;
           --preview-panel: #ffffff;
           --preview-shadow: 0 24px 90px rgb(15 23 42 / 0.10);
-          --preview-shell: #f4f6f8;
-          --preview-sidebar: #fbfbfc;
-          --preview-subtle: #687386;
-          --preview-track: #edf0f3;
+          --preview-shell: #f3f5f4;
+          --preview-sidebar: #fafbf9;
+          --preview-subtle: #5d6a66;
+          --preview-track: #e5e9e7;
           --preview-warm: #9b6a2b;
           --preview-warm-border: #e5cfa8;
           --preview-warm-ink: #8a5a16;
@@ -392,21 +392,21 @@ function ControlPreviewMotion() {
         }
 
         [data-theme="dark"] .nestory-control-preview {
-          --preview-active: #1f2833;
-          --preview-blue: #8fb8ff;
-          --preview-border: #28313c;
+          --preview-active: #1b332a;
+          --preview-accent: #4cb572;
+          --preview-border: #343839;
           --preview-card-shadow: 0 1px 5px rgb(0 0 0 / 0.24);
-          --preview-chart-muted: #74808e;
+          --preview-chart-muted: #858b88;
           --preview-danger: #d16d6d;
-          --preview-fg: #f4f6f8;
-          --preview-main: #111820;
-          --preview-muted: #b6c0cc;
-          --preview-panel: #151b22;
+          --preview-fg: #eef0ef;
+          --preview-main: #17191a;
+          --preview-muted: #b8bdba;
+          --preview-panel: #202324;
           --preview-shadow: 0 24px 90px rgb(0 0 0 / 0.34);
-          --preview-shell: #0f141b;
-          --preview-sidebar: #11161d;
-          --preview-subtle: #84909d;
-          --preview-track: #242d38;
+          --preview-shell: #111314;
+          --preview-sidebar: #17191a;
+          --preview-subtle: #a1a7a4;
+          --preview-track: #2b2f30;
           --preview-warm: #c58a4a;
           --preview-warm-border: #5c3f20;
           --preview-warm-ink: #f0bd80;

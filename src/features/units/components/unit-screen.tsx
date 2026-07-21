@@ -11,7 +11,6 @@ import {
 } from "@/components/data/record-selection";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
-  useWideWorkspace,
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
@@ -98,7 +97,6 @@ export function UnitScreen({
     Boolean(initialUnitId) &&
       (!canCreate || searchParams.get("action") !== "create"),
   );
-  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedUnit = initialUnitId
     ? units.find((unit) => unit.id === initialUnitId) ?? null
@@ -115,15 +113,16 @@ export function UnitScreen({
       : null;
   const fillLeaseLabel = isVacantReview ? "Fill vacancy" : "Add lease";
   const openUnitAction = (nextDrawer: DrawerState) => {
-    if (!isWideWorkspace) {
-      setCompactInspectorOpen(false);
-    }
+    setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawer(nextDrawer);
   };
   const previewUnit = (unitId: string) => {
     setSelectedUnitId(unitId);
     setCompactInspectorOpen(true);
+  };
+  const openUnitRecord = (unitId: string) => {
+    router.push(`/units/${unitId}`);
   };
   const changeSort = (sort: UnitSortKey) => {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -231,10 +230,11 @@ export function UnitScreen({
               displayMode={displayMode}
               onArchiveUnit={(unit) => openUnitAction({ mode: "archive", unit })}
               onEditUnit={(unit) => openUnitAction({ mode: "edit", unit })}
+              onOpenUnit={openUnitRecord}
               onRestoreUnit={(unit) => openUnitAction({ mode: "restore", unit })}
               onSelectUnit={previewUnit}
               onSortChange={changeSort}
-              selectedUnitId={selectedUnit?.id ?? ""}
+              selectedUnitId={compactInspectorOpen ? selectedUnit?.id ?? "" : ""}
               sort={viewQuery.sort}
               units={units}
             />
@@ -320,8 +320,8 @@ export function UnitScreen({
           {unitInspector && selectedUnit ? (
             <WorkspaceSplitView
               inspector={unitInspector}
-              inspectorLabel={`Unit ${selectedUnit.unitNumber} inspector`}
-              inspectorOpen={isWideWorkspace || compactInspectorOpen}
+              inspectorLabel={`Unit ${selectedUnit.unitNumber} quick view`}
+              inspectorOpen={compactInspectorOpen}
               list={unitList}
               onInspectorOpenChange={setCompactInspectorOpen}
             />

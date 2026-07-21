@@ -22,7 +22,6 @@ import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
-  useWideWorkspace,
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
@@ -111,7 +110,6 @@ export function LedgerScreen({
     getInitialRecordId(entries, initialEntryId),
   );
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
-  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const focusedEntry = initialEntryId
@@ -132,9 +130,7 @@ export function LedgerScreen({
     viewQuery.propertyId,
   );
   const openLedgerAction = (nextDrawer: DrawerState) => {
-    if (!isWideWorkspace) {
-      setCompactInspectorOpen(false);
-    }
+    setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawerState(nextDrawer);
   };
@@ -216,7 +212,7 @@ export function LedgerScreen({
             <LedgerTable
               entries={entries}
               onSelectEntry={previewEntry}
-              selectedEntryId={selectedEntry?.id ?? ""}
+              selectedEntryId={compactInspectorOpen ? selectedEntry?.id ?? "" : ""}
             />
           </div>
           <PaginationControls attached pagination={pagination} />
@@ -300,8 +296,8 @@ export function LedgerScreen({
         {ledgerInspector && selectedEntry ? (
           <WorkspaceSplitView
             inspector={ledgerInspector}
-            inspectorLabel={`${selectedEntry.category} ledger inspector`}
-            inspectorOpen={isWideWorkspace || compactInspectorOpen}
+            inspectorLabel={`${selectedEntry.category} ledger quick view`}
+            inspectorOpen={compactInspectorOpen}
             list={ledgerList}
             onInspectorOpenChange={setCompactInspectorOpen}
           />

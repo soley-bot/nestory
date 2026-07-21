@@ -1,7 +1,13 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PropertyScreen } from "@/features/properties/components/property-screen";
 import { buildPropertySummary } from "@/features/properties/data/property-summary";
@@ -78,7 +84,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(within(toolbar!).getByRole("button", { name: "Add property" })).toBeTruthy();
   });
 
-  it("uses the shared dense workspace, one selected row, direct links, and URL-backed sorting", () => {
+  it("uses the shared dense workspace, quick view, double-click navigation, and URL-backed sorting", async () => {
     const { container } = renderProperties();
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
@@ -89,23 +95,22 @@ describe("PropertyScreen redesign contract", () => {
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
 
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
-    expect(rows[0]?.getAttribute("aria-selected")).toBe("true");
     expect(
       within(rows[0]!).getByRole("link", { name: "Home Residence" }).getAttribute("href"),
     ).toBe("/properties/property-1");
 
     fireEvent.click(rows[1]!);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
-    expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
-    expect(
-      screen.getByRole("complementary", { name: "Riverside House inspector" }),
-    ).not.toBeNull();
-
-    const inspector = screen.getByRole("complementary", {
-      name: "Riverside House inspector",
+    await waitFor(() => {
+      expect(
+        screen.getByRole("dialog", { name: "Riverside House quick view" }),
+      ).toBeTruthy();
     });
-    expect(inspector.className).toContain("max-w-[320px]");
+    expect(navigation.push).not.toHaveBeenCalled();
+    expect(screen.queryByRole("complementary")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
+    fireEvent.doubleClick(rows[1]!);
+    expect(navigation.push).toHaveBeenLastCalledWith("/properties/property-2");
 
     fireEvent.click(screen.getByRole("button", { name: "Sort properties by net" }));
     expect(navigation.replace).toHaveBeenLastCalledWith(
@@ -117,133 +122,46 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });
 
-  it.each([1024, 390])(
-    "uses the inspector drawer after selection at %ipx",
-    async (width) => {
+  it.each([1440, 1024, 390])(
+    "keeps the property list inspector-free at %ipx",
+    (width) => {
     installMatchMedia(width);
-    const user = userEvent.setup();
     renderProperties();
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("complementary")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Preview Home Residence" }));
-
-    expect(
-      screen.getByRole("dialog", { name: "Home Residence inspector" }),
-    ).not.toBeNull();
-    expect(
-      screen.queryByRole("complementary", { name: "Home Residence inspector" }),
-    ).toBeNull();
     },
   );
 
-  it.each([
-    { action: "Edit", drawerName: "Edit property", width: 1024 },
-    { action: "Archive", drawerName: "Archive property", width: 1024 },
-    { action: "Edit", drawerName: "Edit property", width: 390 },
-  ])(
-    "replaces the compact preview with one $action drawer at $width px and returns focus",
-    async ({ action, drawerName, width }) => {
-      installMatchMedia(width);
-      const user = userEvent.setup();
-      renderProperties();
-      const preview = screen.getByRole("button", {
-        name: "Preview Home Residence",
-      });
-
-      await user.click(preview);
-      expect(screen.getAllByRole("dialog")).toHaveLength(1);
-
-      await user.click(
-        screen.getByRole("button", { name: `${action} Home Residence` }),
-      );
-
-      const dialogs = screen.getAllByRole("dialog");
-      expect(dialogs).toHaveLength(1);
-      expect(dialogs[0]?.getAttribute("aria-modal")).toBe("true");
-      expect(screen.getByRole("dialog", { name: drawerName })).not.toBeNull();
-      expect(
-        screen.queryByRole("dialog", { name: "Home Residence inspector" }),
-      ).toBeNull();
-
-      await user.click(screen.getByRole("button", { name: "Close drawer" }));
-      expect(document.activeElement).toBe(preview);
-    },
-  );
-
-  it("keeps the 1440px inspector docked while a mutation drawer opens", async () => {
-    installMatchMedia(1440);
-    const user = userEvent.setup();
-    renderProperties();
-    const inspector = screen.getByRole("complementary", {
-      name: "Home Residence inspector",
-    });
-    const edit = within(inspector).getByRole("button", {
-      name: "Edit Home Residence",
-    });
-
-    await user.click(edit);
-
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByRole("dialog", { name: "Edit property" })).not.toBeNull();
-    expect(
-      screen.getByRole("complementary", { name: "Home Residence inspector" }),
-    ).not.toBeNull();
-
-    await user.click(screen.getByRole("button", { name: "Close drawer" }));
-    expect(document.activeElement).toBe(edit);
-  });
-
-  it("announces card selection, keeps links separate, supports Enter and Space, and restores focus", async () => {
+  it("opens card records directly without preview state", () => {
     installMatchMedia(1024);
-    const user = userEvent.setup();
     const { container } = renderProperties();
     const cards = Array.from(container.querySelectorAll("article"));
-    const firstCard = cards[0]!;
-    const secondCard = cards[1]!;
-    const firstPreview = within(firstCard).getByRole("button", {
-      name: "Preview Home Residence",
-    });
-    const secondPreview = within(secondCard).getByRole("button", {
-      name: "Preview Riverside House",
-    });
+    fireEvent.click(
+      within(cards[1]!).getByRole("button", { name: "Open Riverside House" }),
+    );
 
-    expect(firstPreview.getAttribute("aria-pressed")).toBe("true");
-    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
-
-    const secondLink = within(secondCard).getByRole("link", {
-      name: "Riverside House",
-    });
-    secondLink.addEventListener("click", (event) => event.preventDefault(), {
-      once: true,
-    });
-    await user.click(secondLink);
-    expect(firstPreview.getAttribute("aria-pressed")).toBe("true");
-
-    secondPreview.focus();
-    await user.keyboard("{Enter}");
-    expect(secondPreview.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("dialog", { name: "Riverside House inspector" })).not.toBeNull();
-    await user.click(screen.getByRole("button", { name: "Close drawer" }));
-    expect(document.activeElement).toBe(secondPreview);
-
-    firstPreview.focus();
-    await user.keyboard(" ");
-    expect(firstPreview.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("dialog", { name: "Home Residence inspector" })).not.toBeNull();
+    expect(navigation.push).toHaveBeenLastCalledWith("/properties/property-2");
+    expect(screen.queryByText("Preview")).toBeNull();
   });
 
-  it("supports Enter and Space for table-row selection", () => {
+  it("supports Enter and Space for table-row quick views", () => {
     renderProperties();
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
 
     rows[1]!.focus();
     fireEvent.keyDown(rows[1]!, { key: "Enter" });
-    expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
+    expect(
+      screen.getByRole("dialog", { name: "Riverside House quick view" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
 
     rows[0]!.focus();
     fireEvent.keyDown(rows[0]!, { key: " " });
-    expect(rows[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(
+      screen.getByRole("dialog", { name: "Home Residence quick view" }),
+    ).toBeTruthy();
+    expect(navigation.push).not.toHaveBeenCalled();
   });
 
   it("offers Clear filters for a filtered empty result", () => {

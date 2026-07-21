@@ -17,7 +17,6 @@ import {
 import { MoneyDisplay } from "@/components/data/money-display";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
-  useWideWorkspace,
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
@@ -93,15 +92,12 @@ export function PettyCashScreen({
   const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState(entries[0]?.id ?? "");
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
-  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedEntry =
     entries.find((entry) => entry.id === selectedEntryId) ?? entries[0] ?? null;
 
   const openDrawer = (nextDrawer: DrawerState) => {
-    if (!isWideWorkspace) {
-      setCompactInspectorOpen(false);
-    }
+    setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawerState(nextDrawer);
   };
@@ -136,7 +132,7 @@ export function PettyCashScreen({
             <PettyCashTable
               entries={entries}
               onSelectEntry={previewEntry}
-              selectedEntryId={selectedEntry?.id ?? ""}
+              selectedEntryId={compactInspectorOpen ? selectedEntry?.id ?? "" : ""}
             />
           </div>
         </>
@@ -218,8 +214,8 @@ export function PettyCashScreen({
             {cashInspector && registerList ? (
               <WorkspaceSplitView
                 inspector={cashInspector}
-                inspectorLabel={`${selectedEntry.category} cash inspector`}
-                inspectorOpen={isWideWorkspace || compactInspectorOpen}
+                inspectorLabel={`${selectedEntry.category} cash quick view`}
+                inspectorOpen={compactInspectorOpen}
                 list={registerList}
                 onInspectorOpenChange={setCompactInspectorOpen}
               />

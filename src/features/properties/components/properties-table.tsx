@@ -1,5 +1,8 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown, PanelRightOpen } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ArrowUpRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
@@ -10,27 +13,55 @@ import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 const propertyRowClassName =
-  "cursor-pointer border-t border-border outline-none transition-colors hover:bg-surface-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring";
-const selectedPropertyRowClassName =
-  "bg-state-selected shadow-[inset_3px_0_0_var(--record-spine)]";
+  "cursor-pointer border-t border-border outline-none transition-colors hover:bg-state-selected/60 focus-visible:bg-state-selected/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring";
 
 type PropertiesTableProps = {
   displayMode: PropertyDisplayMode;
-  onSelectProperty: (id: string) => void;
+  onOpenProperty: (id: string) => void;
+  onPreviewProperty: (id: string) => void;
   onSortChange: (sort: PropertySortKey) => void;
   properties: PropertySummary[];
-  selectedPropertyId: string;
   sort: PropertySortKey;
 };
 
 export function PropertiesTable({
   displayMode,
-  onSelectProperty,
+  onOpenProperty,
+  onPreviewProperty,
   onSortChange,
   properties,
-  selectedPropertyId,
   sort,
 }: PropertiesTableProps) {
+  const pendingPreviewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pendingPreviewRef.current) {
+        clearTimeout(pendingPreviewRef.current);
+      }
+    };
+  }, []);
+
+  function schedulePropertyPreview(propertyId: string) {
+    if (pendingPreviewRef.current) {
+      clearTimeout(pendingPreviewRef.current);
+    }
+
+    pendingPreviewRef.current = setTimeout(() => {
+      pendingPreviewRef.current = null;
+      onPreviewProperty(propertyId);
+    }, 180);
+  }
+
+  function openPropertyRecord(propertyId: string) {
+    if (pendingPreviewRef.current) {
+      clearTimeout(pendingPreviewRef.current);
+      pendingPreviewRef.current = null;
+    }
+
+    onOpenProperty(propertyId);
+  }
+
   return (
     <div className="h-full min-h-0">
       <div
@@ -49,9 +80,8 @@ export function PropertiesTable({
         {properties.map((property) => (
           <PropertyCard
             key={property.id}
-            onSelectProperty={onSelectProperty}
+            onOpenProperty={onOpenProperty}
             property={property}
-            selected={selectedPropertyId === property.id}
           />
         ))}
       </div>
@@ -110,15 +140,13 @@ export function PropertiesTable({
                 ) : null}
                 {properties.map((property) => (
                   <tr
-                    aria-selected={selectedPropertyId === property.id}
                     className={cn(
                       propertyRowClassName,
-                      selectedPropertyId === property.id &&
-                        selectedPropertyRowClassName,
                       property.isArchived && "text-muted",
                     )}
                     key={property.id}
-                    onClick={() => onSelectProperty(property.id)}
+                    onClick={() => schedulePropertyPreview(property.id)}
+                    onDoubleClick={() => openPropertyRecord(property.id)}
                     onKeyDown={(event) => {
                       if (event.currentTarget !== event.target) {
                         return;
@@ -126,10 +154,11 @@ export function PropertiesTable({
 
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        onSelectProperty(property.id);
+                        onPreviewProperty(property.id);
                       }
                     }}
                     tabIndex={0}
+                    title="Click: quick view · Double-click: full record"
                   >
                     <td className="px-2.5 py-2">
                       <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
@@ -188,13 +217,11 @@ export function PropertiesTable({
 }
 
 function PropertyCard({
-  onSelectProperty,
+  onOpenProperty,
   property,
-  selected,
 }: {
-  onSelectProperty: (id: string) => void;
+  onOpenProperty: (id: string) => void;
   property: PropertySummary;
-  selected: boolean;
 }) {
   const attention = getPropertyCardAttention(property);
 
@@ -202,10 +229,8 @@ function PropertyCard({
     <article
       className={cn(
         "group min-w-0 overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-record-spine",
-        selected && "border-record-spine bg-state-selected",
         property.isArchived && "text-muted",
       )}
-      data-selected={selected ? "true" : "false"}
     >
       <PropertyThumbnail property={property} size="card" />
 
@@ -244,17 +269,13 @@ function PropertyCard({
         ) : null}
 
         <button
-          aria-label={`Preview ${property.name}`}
-          aria-pressed={selected}
-          className={cn(
-            "mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
-            selected && "border-record-spine bg-state-selected",
-          )}
-          onClick={() => onSelectProperty(property.id)}
+          aria-label={`Open ${property.name}`}
+          className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:border-accent/40 hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
+          onClick={() => onOpenProperty(property.id)}
           type="button"
         >
-          <PanelRightOpen aria-hidden="true" className="size-3.5" />
-          Preview
+          <ArrowUpRight aria-hidden="true" className="size-3.5" />
+          Open record
         </button>
       </div>
     </article>

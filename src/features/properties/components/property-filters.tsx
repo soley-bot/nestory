@@ -79,7 +79,7 @@ const sortFilterOptions = [
 type PropertyFiltersProps = {
   displayMode: PropertyDisplayMode;
   onDisplayModeChange: (mode: PropertyDisplayMode) => void;
-  onSelectProperty: (propertyId: string) => void;
+  onOpenProperty: (propertyId: string) => void;
   properties: PropertySummary[];
   viewQuery: PropertyViewQuery;
 };
@@ -87,7 +87,7 @@ type PropertyFiltersProps = {
 export function PropertyFilters({
   displayMode,
   onDisplayModeChange,
-  onSelectProperty,
+  onOpenProperty,
   properties,
   viewQuery,
 }: PropertyFiltersProps) {
@@ -158,7 +158,7 @@ export function PropertyFilters({
                 source: viewQuery.query,
                 value: property?.name ?? suggestion.label,
               });
-              onSelectProperty(suggestion.id);
+              onOpenProperty(suggestion.id);
             }}
             submitLabel="Search properties"
           />

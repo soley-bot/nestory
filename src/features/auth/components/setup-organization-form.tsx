@@ -84,7 +84,7 @@ export function SetupOrganizationForm({ rootDomain }: SetupOrganizationFormProps
         >
           Workspace URL
         </label>
-        <div className="mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-md border border-border bg-surface shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-focus-ring">
+        <div className="mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-md border border-control-border bg-surface shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-focus-ring">
           <Input
             aria-describedby={workspaceSlugHelpId}
             aria-invalid={Boolean(state.fieldErrors?.workspaceSlug?.length)}

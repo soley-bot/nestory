@@ -3,21 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  CheckCircle2,
-  Pencil,
-  Plus,
-} from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
-import {
-  getInitialRecordId,
-  getSelectedRecord,
-} from "@/components/data/record-selection";
 import { WorkspacePage } from "@/components/layout/workspace-page";
-import {
-  useWideWorkspace,
-  WorkspaceSplitView,
-} from "@/components/layout/workspace-split-view";
+import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -74,36 +63,28 @@ export function PropertyScreen({
   const [displayMode, setDisplayMode] = useState<PropertyDisplayMode>(() =>
     searchParams.get("view") === "cards" ? "cards" : "table",
   );
+  const [selectedPropertyId, setSelectedPropertyId] = useState(
+    initialPropertyId ?? properties[0]?.id ?? "",
+  );
+  const [quickViewOpen, setQuickViewOpen] = useState(Boolean(initialPropertyId));
   const isTableMode = displayMode === "table";
-  const [selectedPropertyId, setSelectedPropertyId] = useState(() =>
-    getInitialRecordId(properties, initialPropertyId),
-  );
-  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
-    Boolean(initialPropertyId) &&
-      (!canCreate || searchParams.get("action") !== "create"),
-  );
-  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const focusedProperty = initialPropertyId
-    ? properties.find((property) => property.id === initialPropertyId) ?? null
-    : null;
-  const focusedPropertyId = focusedProperty?.id;
-  const selectedProperty = getSelectedRecord({
-    focusedRecordId: initialPropertyId,
-    records: properties,
-    selectedRecordId: selectedPropertyId,
-  });
+  const selectedProperty =
+    properties.find((property) => property.id === selectedPropertyId) ??
+    properties[0] ??
+    null;
   const reviewContext = getPropertyReviewContext(viewQuery);
   const openPropertyAction = (nextDrawer: DrawerState) => {
-    if (!isWideWorkspace) {
-      setCompactInspectorOpen(false);
-    }
     setStatusMessage(null);
+    setQuickViewOpen(false);
     setDrawer(nextDrawer);
   };
   const previewProperty = (propertyId: string) => {
     setSelectedPropertyId(propertyId);
-    setCompactInspectorOpen(true);
+    setQuickViewOpen(true);
+  };
+  const openPropertyRecord = (propertyId: string) => {
+    router.push(`/properties/${propertyId}`);
   };
   const changeDisplayMode = (mode: PropertyDisplayMode) => {
     setDisplayMode(mode);
@@ -138,15 +119,6 @@ export function PropertyScreen({
   };
 
   useEffect(() => {
-    if (focusedPropertyId) {
-      queueMicrotask(() => {
-        setSelectedPropertyId(focusedPropertyId);
-        setCompactInspectorOpen(true);
-      });
-    }
-  }, [focusedPropertyId]);
-
-  useEffect(() => {
     if (searchParams.get("action") !== "create") {
       return;
     }
@@ -159,7 +131,6 @@ export function PropertyScreen({
     }
 
     queueMicrotask(() => {
-      setCompactInspectorOpen(false);
       setStatusMessage(null);
       setDrawer({ mode: "create" });
     });
@@ -176,16 +147,6 @@ export function PropertyScreen({
   };
   const workspaceActions = (
     <>
-      {reviewContext && selectedProperty ? (
-        <Button
-          onClick={() =>
-            openPropertyAction({ mode: "edit", property: selectedProperty })
-          }
-        >
-          <Pencil size={15} />
-          Edit selected
-        </Button>
-      ) : null}
       {canCreate ? (
         <Button onClick={openCreateProperty} variant="primary">
           <Plus size={15} />
@@ -228,10 +189,10 @@ export function PropertyScreen({
           <div className="min-h-0 flex-1 p-3">
             <PropertiesTable
               displayMode={displayMode}
-              onSelectProperty={previewProperty}
+              onOpenProperty={openPropertyRecord}
+              onPreviewProperty={previewProperty}
               onSortChange={changeSort}
               properties={properties}
-              selectedPropertyId={selectedProperty?.id ?? ""}
               sort={viewQuery.sort}
             />
           </div>
@@ -240,21 +201,6 @@ export function PropertyScreen({
       )}
     </section>
   );
-  const propertyInspector = selectedProperty ? (
-    <PropertyInspector
-      onArchiveProperty={(property) =>
-        openPropertyAction({ mode: "archive", property })
-      }
-      onEditProperty={(property) =>
-        openPropertyAction({ mode: "edit", property })
-      }
-      onRestoreProperty={(property) =>
-        openPropertyAction({ mode: "restore", property })
-      }
-      property={selectedProperty}
-    />
-  ) : null;
-
   return (
     <WorkspacePage
       actions={workspaceActions}
@@ -265,7 +211,7 @@ export function PropertyScreen({
         <PropertyFilters
           onDisplayModeChange={changeDisplayMode}
           displayMode={displayMode}
-          onSelectProperty={previewProperty}
+          onOpenProperty={openPropertyRecord}
           properties={properties}
           viewQuery={viewQuery}
         />
@@ -293,17 +239,30 @@ export function PropertyScreen({
       ) : null}
 
         <div className="min-h-0 min-w-0 flex-1">
-          {propertyInspector && selectedProperty ? (
-            <WorkspaceSplitView
-              inspector={propertyInspector}
-              inspectorLabel={`${selectedProperty.name} inspector`}
-              inspectorOpen={isWideWorkspace || compactInspectorOpen}
-              list={propertyList}
-              onInspectorOpenChange={setCompactInspectorOpen}
-            />
-          ) : (
-            <WorkspaceSplitView list={propertyList} />
-          )}
+          <WorkspaceSplitView
+            inspector={
+              <PropertyInspector
+                onArchiveProperty={(property) =>
+                  openPropertyAction({ mode: "archive", property })
+                }
+                onEditProperty={(property) =>
+                  openPropertyAction({ mode: "edit", property })
+                }
+                onRestoreProperty={(property) =>
+                  openPropertyAction({ mode: "restore", property })
+                }
+                property={selectedProperty}
+              />
+            }
+            inspectorLabel={
+              selectedProperty
+                ? `${selectedProperty.name} quick view`
+                : "Property quick view"
+            }
+            inspectorOpen={quickViewOpen && selectedProperty !== null}
+            list={propertyList}
+            onInspectorOpenChange={setQuickViewOpen}
+          />
         </div>
       </div>
 

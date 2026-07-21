@@ -119,7 +119,7 @@ describe("BillsExpensesScreen", () => {
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(within(rows[0]!).getByRole("link", { name: "Home" }).getAttribute("href")).toBe(
       "/properties/property-1",
     );
@@ -152,8 +152,11 @@ describe("BillsExpensesScreen", () => {
     expect(within(rows[1]!).getByText("Reversed")).not.toBeNull();
     expect(within(rows[1]!).getByText("Reversed 16 Jul 2026")).not.toBeNull();
 
-    let inspector = screen.getByRole("complementary", {
-      name: "Repair Vendor expense inspector",
+    fireEvent.click(
+      within(rows[0]!).getByRole("button", { name: "Preview Repair Vendor" }),
+    );
+    let inspector = screen.getByRole("dialog", {
+      name: "Repair Vendor expense quick view",
     });
     expect(within(inspector).getByText("Payment", { selector: "p" })).not.toBeNull();
     expect(within(inspector).getByText("Payment date")).not.toBeNull();
@@ -163,8 +166,8 @@ describe("BillsExpensesScreen", () => {
     fireEvent.click(
       within(rows[1]!).getByRole("button", { name: "Preview Repair Vendor" }),
     );
-    inspector = screen.getByRole("complementary", {
-      name: "Repair Vendor expense inspector",
+    inspector = screen.getByRole("dialog", {
+      name: "Repair Vendor expense quick view",
     });
     expect(within(inspector).getByText("Reversed", { selector: "p" })).not.toBeNull();
     expect(within(inspector).getByText("Reversed date")).not.toBeNull();
@@ -213,7 +216,7 @@ describe("BillsExpensesScreen", () => {
     expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
 
     expect(fireEvent.keyDown(secondLink, { key: "Enter" })).toBe(true);
-    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("false");
     expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
     expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
 
@@ -234,7 +237,7 @@ describe("BillsExpensesScreen", () => {
 
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
-      expect(screen.getByRole("dialog", { name: "Repair Vendor expense inspector" })).not.toBeNull();
+      expect(screen.getByRole("dialog", { name: "Repair Vendor expense quick view" })).not.toBeNull();
 
       await user.click(screen.getByRole("button", { name: "Record payment" }));
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -325,6 +328,7 @@ describe("BillsExpensesScreen", () => {
   it("submits and describes only the outstanding expense amount", () => {
     renderScreen([partialExpense]);
 
+    fireEvent.click(screen.getByRole("button", { name: "Preview Repair Vendor" }));
     fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
 
     expect(screen.getByText(/remaining property payment/i).textContent).toContain(

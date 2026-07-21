@@ -1,6 +1,13 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -75,7 +82,7 @@ describe("unit screen report links", () => {
 });
 
 describe("UnitScreen redesign contract", () => {
-  it("ports the property workspace anatomy, selection, links, and URL-backed sorting", () => {
+  it("ports the property workspace anatomy, quick view, links, double-click, and URL-backed sorting", async () => {
     navigation.searchParams = new URLSearchParams("status=vacant&page=2");
     const { container } = renderUnits({
       viewQuery: { ...defaultViewQuery, page: 2, status: "vacant" },
@@ -89,17 +96,24 @@ describe("UnitScreen redesign contract", () => {
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
 
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "Unit 1A" }).getAttribute("href"),
     ).toBe("/units/unit-1");
 
     fireEvent.click(rows[1]!);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("dialog", { name: "Unit 2B quick view" }),
+      ).toBeTruthy();
+    });
     expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
     expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
-    expect(
-      screen.getByRole("complementary", { name: "Unit 2B inspector" }),
-    ).not.toBeNull();
+    expect(screen.queryByRole("complementary")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
+    fireEvent.doubleClick(rows[1]!);
+    expect(navigation.push).toHaveBeenLastCalledWith("/units/unit-2");
 
     fireEvent.click(screen.getByRole("button", { name: "Sort units by rent" }));
     expect(navigation.replace).toHaveBeenLastCalledWith(
@@ -112,7 +126,7 @@ describe("UnitScreen redesign contract", () => {
   });
 
   it.each([1024, 390])(
-    "uses the inspector drawer after selection at %ipx",
+    "uses the same quick-view dialog after selection at %ipx",
     async (width) => {
     installMatchMedia(width);
     const user = userEvent.setup();
@@ -120,12 +134,10 @@ describe("UnitScreen redesign contract", () => {
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("complementary")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Preview unit 1A" }));
+    await user.click(screen.getByRole("button", { name: "Quick view unit 1A" }));
 
-    expect(screen.getByRole("dialog", { name: "Unit 1A inspector" })).not.toBeNull();
-    expect(
-      screen.queryByRole("complementary", { name: "Unit 1A inspector" }),
-    ).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Unit 1A quick view" })).not.toBeNull();
+    expect(screen.queryByRole("complementary")).toBeNull();
     },
   );
 
@@ -134,12 +146,12 @@ describe("UnitScreen redesign contract", () => {
     { actionName: "Archive unit 1A", drawerName: "Archive unit", width: 1024 },
     { actionName: "Edit unit 1A", drawerName: "Edit unit", width: 390 },
   ])(
-    "replaces the compact preview with one $drawerName drawer at $width px and returns focus",
+    "replaces the quick view with one $drawerName drawer at $width px and returns focus",
     async ({ actionName, drawerName, width }) => {
       installMatchMedia(width);
       const user = userEvent.setup();
       renderUnits();
-      const preview = screen.getByRole("button", { name: "Preview unit 1A" });
+      const preview = screen.getByRole("button", { name: "Quick view unit 1A" });
 
       await user.click(preview);
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -150,21 +162,23 @@ describe("UnitScreen redesign contract", () => {
       expect(dialogs).toHaveLength(1);
       expect(dialogs[0]?.getAttribute("aria-modal")).toBe("true");
       expect(screen.getByRole("dialog", { name: drawerName })).not.toBeNull();
-      expect(screen.queryByRole("dialog", { name: "Unit 1A inspector" })).toBeNull();
+      expect(screen.queryByRole("dialog", { name: "Unit 1A quick view" })).toBeNull();
 
       await user.click(screen.getByRole("button", { name: "Close drawer" }));
       expect(document.activeElement).toBe(preview);
     },
   );
 
-  it("keeps the 1440px inspector docked while a mutation drawer opens", async () => {
+  it("replaces the 1440px quick view when a mutation drawer opens", async () => {
     installMatchMedia(1440);
     const user = userEvent.setup();
     renderUnits();
-    const inspector = screen.getByRole("complementary", {
-      name: "Unit 1A inspector",
+    const preview = screen.getByRole("button", { name: "Quick view unit 1A" });
+    await user.click(preview);
+    const quickView = screen.getByRole("dialog", {
+      name: "Unit 1A quick view",
     });
-    const edit = within(inspector).getByRole("button", {
+    const edit = within(quickView).getByRole("button", {
       name: "Edit unit 1A",
     });
 
@@ -172,12 +186,10 @@ describe("UnitScreen redesign contract", () => {
 
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(screen.getByRole("dialog", { name: "Edit unit" })).not.toBeNull();
-    expect(
-      screen.getByRole("complementary", { name: "Unit 1A inspector" }),
-    ).not.toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Unit 1A quick view" })).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Close drawer" }));
-    expect(document.activeElement).toBe(edit);
+    expect(document.activeElement).toBe(preview);
   });
 
   it("announces card selection, keeps links separate, supports Enter and Space, and restores focus", async () => {
@@ -188,13 +200,13 @@ describe("UnitScreen redesign contract", () => {
     const firstCard = cards[0]!;
     const secondCard = cards[1]!;
     const firstPreview = within(firstCard).getByRole("button", {
-      name: "Preview unit 1A",
+      name: "Quick view unit 1A",
     });
     const secondPreview = within(secondCard).getByRole("button", {
-      name: "Preview unit 2B",
+      name: "Quick view unit 2B",
     });
 
-    expect(firstPreview.getAttribute("aria-pressed")).toBe("true");
+    expect(firstPreview.getAttribute("aria-pressed")).toBe("false");
     expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
 
     const secondLink = within(secondCard).getByRole("link", { name: "Unit 2B" });
@@ -202,19 +214,19 @@ describe("UnitScreen redesign contract", () => {
       once: true,
     });
     await user.click(secondLink);
-    expect(firstPreview.getAttribute("aria-pressed")).toBe("true");
+    expect(firstPreview.getAttribute("aria-pressed")).toBe("false");
 
     secondPreview.focus();
     await user.keyboard("{Enter}");
     expect(secondPreview.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("dialog", { name: "Unit 2B inspector" })).not.toBeNull();
-    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    expect(screen.getByRole("dialog", { name: "Unit 2B quick view" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Close quick view" }));
     expect(document.activeElement).toBe(secondPreview);
 
     firstPreview.focus();
     await user.keyboard(" ");
     expect(firstPreview.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("dialog", { name: "Unit 1A inspector" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "Unit 1A quick view" })).not.toBeNull();
   });
 
   it("supports Enter and Space for table-row selection", () => {

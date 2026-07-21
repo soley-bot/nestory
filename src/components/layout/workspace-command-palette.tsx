@@ -2,9 +2,23 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, Search, X } from "lucide-react";
+import {
+  Building2,
+  CheckSquare2,
+  FileKey2,
+  FileText,
+  LayoutGrid,
+  Search,
+  UserRound,
+  Wrench,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { getWorkspaceSearchActions } from "@/features/workspace-search/workspace-search.scopes";
+import {
+  getWorkspaceSearchActions,
+  type WorkspaceSearchAction,
+} from "@/features/workspace-search/workspace-search.scopes";
 import {
   WORKSPACE_SEARCH_MIN_QUERY_LENGTH,
   WORKSPACE_SEARCH_RESULT_LIMIT,
@@ -16,16 +30,23 @@ import { cn } from "@/lib/utils";
 
 const SEARCH_DEBOUNCE_MS = 500;
 const SEARCH_QUERY_MAX_LENGTH = 120;
+const MAX_VISIBLE_RESULTS = 8;
+const MAX_PAGE_RESULTS = 3;
 
 const RESULT_GROUPS = [
-  { kinds: ["action"], label: "Navigation" },
-  { kinds: ["property"], label: "Properties" },
-  { kinds: ["unit"], label: "Units" },
-  { kinds: ["person"], label: "People" },
-  { kinds: ["lease"], label: "Leases" },
-  { kinds: ["maintenance"], label: "Maintenance" },
-  { kinds: ["task"], label: "Tasks" },
-  { kinds: ["document"], label: "Documents" },
+  {
+    kinds: [
+      "property",
+      "unit",
+      "person",
+      "lease",
+      "maintenance",
+      "task",
+      "document",
+    ],
+    label: "Best matches",
+  },
+  { kinds: ["action"], label: "Pages" },
 ] as const satisfies readonly {
   kinds: readonly WorkspaceSearchResultKind[];
   label: string;
@@ -54,6 +75,20 @@ type ResultGroup = {
   results: WorkspaceSearchResult[];
 };
 
+const RESULT_KIND_PRESENTATION: Record<
+  WorkspaceSearchResultKind,
+  { icon: LucideIcon; label: string }
+> = {
+  action: { icon: LayoutGrid, label: "Page" },
+  document: { icon: FileText, label: "Document" },
+  lease: { icon: FileKey2, label: "Lease" },
+  maintenance: { icon: Wrench, label: "Case" },
+  person: { icon: UserRound, label: "Person" },
+  property: { icon: Building2, label: "Property" },
+  task: { icon: CheckSquare2, label: "Task" },
+  unit: { icon: LayoutGrid, label: "Unit" },
+};
+
 export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
   const router = useRouter();
   const componentId = useId();
@@ -76,19 +111,32 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
     results: [],
   });
   const normalizedQuery = normalizeSearchText(query);
+  const isPageMode = normalizedQuery.startsWith(">");
+  const pageQuery = isPageMode
+    ? normalizeSearchText(normalizedQuery.slice(1))
+    : normalizedQuery;
+  const isRecordQuery =
+    !isPageMode &&
+    Array.from(normalizedQuery).length >= WORKSPACE_SEARCH_MIN_QUERY_LENGTH;
+  const isShortRecordQuery =
+    normalizedQuery.length > 0 && !isPageMode && !isRecordQuery;
 
   const localActions = useMemo(() => {
     const actions = getWorkspaceSearchActions(role);
 
-    if (!normalizedQuery) return [];
+    if (!normalizedQuery) {
+      return getQuickAccessActions(actions, role);
+    }
 
-    return actions.filter((action) => {
-      const searchableText = normalizeSearchText(
-        [action.label, action.id, ...action.keywords].join(" "),
-      );
-      return searchableText.includes(normalizedQuery);
-    });
-  }, [normalizedQuery, role]);
+    if (!isPageMode && !isRecordQuery) {
+      return [];
+    }
+
+    return rankPageActions(actions, pageQuery).slice(
+      0,
+      isPageMode ? MAX_VISIBLE_RESULTS : MAX_PAGE_RESULTS,
+    );
+  }, [isPageMode, isRecordQuery, normalizedQuery, pageQuery, role]);
 
   const entityResults = useMemo(
     () =>
@@ -99,14 +147,27 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
         : [],
     [entityState, normalizedQuery, role],
   );
-  const groups = useMemo(
-    () => groupResults([...localActions, ...entityResults]),
-    [entityResults, localActions],
+  const availableResults = useMemo(
+    () => (isPageMode ? localActions : [...entityResults, ...localActions]),
+    [entityResults, isPageMode, localActions],
   );
+  const groups = useMemo(() => {
+    if (!normalizedQuery) {
+      return localActions.length > 0
+        ? [{ label: "Quick access", results: localActions }]
+        : [];
+    }
+
+    return limitResultGroups(
+      groupResults(availableResults),
+      MAX_VISIBLE_RESULTS,
+    );
+  }, [availableResults, localActions, normalizedQuery]);
   const orderedResults = useMemo(
     () => groups.flatMap((group) => group.results),
     [groups],
   );
+  const availableResultCount = availableResults.length;
   const resolvedActiveIndex =
     orderedResults.length === 0
       ? -1
@@ -120,11 +181,12 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
 
   useEffect(() => {
     function handleDocumentKeyDown(event: KeyboardEvent) {
+      const key = typeof event.key === "string" ? event.key : "";
       const isComposing =
         compositionActiveRef.current || isComposingKeyboardEvent(event);
 
       const opensPalette =
-        event.key.toLowerCase() === "k" &&
+        key.toLowerCase() === "k" &&
         (event.ctrlKey || event.metaKey) &&
         !event.altKey;
 
@@ -148,7 +210,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
         return;
       }
 
-      if (event.key === "Escape") {
+      if (key === "Escape") {
         if (isComposing) {
           return;
         }
@@ -158,7 +220,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
         return;
       }
 
-      if (event.key !== "Tab") {
+      if (key !== "Tab") {
         return;
       }
 
@@ -208,7 +270,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
     activeRequestRef.current?.abort();
     activeRequestRef.current = null;
 
-    if (Array.from(normalizedQuery).length < WORKSPACE_SEARCH_MIN_QUERY_LENGTH) {
+    if (!isRecordQuery) {
       return;
     }
 
@@ -252,7 +314,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [isOpen, normalizedQuery, role]);
+  }, [isOpen, isRecordQuery, normalizedQuery, role]);
 
   useEffect(() => {
     if (!isOpen || !activeOptionId) {
@@ -326,11 +388,11 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
   }
 
   const statusMessage = getStatusMessage({
-    isShortQuery:
-      normalizedQuery.length > 0 &&
-      Array.from(normalizedQuery).length < WORKSPACE_SEARCH_MIN_QUERY_LENGTH,
+    availableResultCount,
+    isPageMode,
+    isShortQuery: isShortRecordQuery,
     query,
-    resultCount: orderedResults.length,
+    visibleResultCount: orderedResults.length,
     searchState,
   });
 
@@ -349,7 +411,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
       {isOpen && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="fixed inset-0 z-[100] flex items-start justify-center bg-background/75 px-3 pt-[min(14vh,7rem)] backdrop-blur-[2px]"
+              className="fixed inset-0 z-[100] flex items-start justify-center bg-background/70 px-3 pt-[min(11vh,5.5rem)] backdrop-blur-[2px]"
               data-testid="workspace-command-palette-backdrop"
               onClick={(event) => {
                 if (event.currentTarget === event.target) {
@@ -360,31 +422,38 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
               <section
                 aria-labelledby={dialogTitleId}
                 aria-modal="true"
-                className="flex max-h-[min(72vh,620px)] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border bg-surface-raised shadow-xl"
+                className="flex max-h-[min(72vh,32rem)] w-full max-w-[38rem] flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-xl"
                 role="dialog"
               >
-                <div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-3 transition-shadow focus-within:border-accent focus-within:ring-2 focus-within:ring-focus-ring">
-                  <Search className="shrink-0 text-foreground-subtle" size={17} />
+                <div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-2.5 transition-shadow focus-within:border-accent focus-within:ring-2 focus-within:ring-focus-ring">
+                  <Search className="shrink-0 text-foreground-subtle" size={18} />
                   <h2 className="sr-only" id={dialogTitleId}>
                     Search or jump
                   </h2>
+                  {isPageMode ? (
+                    <span className="shrink-0 rounded-md bg-surface-muted px-2 py-1 text-xs font-semibold text-foreground-muted">
+                      Pages
+                    </span>
+                  ) : null}
                   <input
                     aria-activedescendant={activeOptionId}
                     aria-autocomplete="list"
-                    aria-controls={normalizedQuery ? listboxId : undefined}
-                    aria-expanded={Boolean(normalizedQuery)}
+                    aria-controls={listboxId}
+                    aria-expanded="true"
                     aria-label="Search or jump"
                     autoComplete="off"
-                    className="h-10 min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-foreground outline-none placeholder:text-foreground-subtle"
+                    className="h-10 min-w-0 flex-1 border-0 bg-transparent p-0 text-[15px] text-foreground outline-none placeholder:text-foreground-subtle"
                     id={inputId}
                     onChange={(event) => {
                       const nextQuery = event.target.value;
                       const nextNormalizedQuery = normalizeSearchText(nextQuery);
+                      const nextIsPageMode = nextNormalizedQuery.startsWith(">");
                       setQuery(nextQuery);
                       setActiveIndex(0);
                       setEntityState({ query: nextNormalizedQuery, results: [] });
                       setSearchState(
-                        Array.from(nextNormalizedQuery).length >=
+                        !nextIsPageMode &&
+                          Array.from(nextNormalizedQuery).length >=
                           WORKSPACE_SEARCH_MIN_QUERY_LENGTH
                           ? "loading"
                           : "idle",
@@ -397,7 +466,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                       compositionActiveRef.current = true;
                     }}
                     onKeyDown={handleInputKeyDown}
-                    placeholder="Search or jump…"
+                    placeholder="Search properties, units, people…"
                     ref={inputRef}
                     role="combobox"
                     type="search"
@@ -405,19 +474,19 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                   />
                   <button
                     aria-label="Close search"
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="grid h-8 shrink-0 place-items-center rounded-md px-2 text-foreground-subtle outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                     onClick={closePalette}
                     ref={closeButtonRef}
                     type="button"
                   >
-                    <X size={16} />
+                    <span className="hidden text-[11px] font-medium sm:inline">Esc</span>
+                    <X className="sm:hidden" size={16} />
                   </button>
                 </div>
 
                 <div
                   aria-label="Search results"
-                  className="min-h-0 flex-1 overflow-y-auto p-2"
-                  hidden={!normalizedQuery}
+                  className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5"
                   id={listboxId}
                   role="listbox"
                 >
@@ -426,12 +495,12 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                     return (
                       <div
                         aria-labelledby={groupId}
-                        className="py-1"
+                        className="py-1.5"
                         key={group.label}
                         role="group"
                       >
                         <p
-                          className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-subtle"
+                          className="px-2.5 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-subtle"
                           id={groupId}
                         >
                           {group.label}
@@ -440,6 +509,8 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                           {group.results.map((result) => {
                             const resultIndex = orderedResults.indexOf(result);
                             const isActive = resultIndex === resolvedActiveIndex;
+                            const presentation = RESULT_KIND_PRESENTATION[result.kind];
+                            const ResultIcon = presentation.icon;
                             const optionId = getOptionId(
                               componentId,
                               result,
@@ -450,9 +521,9 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                               <div
                                 aria-selected={isActive}
                                 className={cn(
-                                  "record-spine flex min-h-11 cursor-default items-center gap-3 rounded-md border-l-[3px] border-transparent px-3 py-2 text-sm text-foreground-muted outline-none",
+                                  "record-spine flex min-h-12 cursor-default items-center gap-3 rounded-lg border-l-2 border-transparent px-2.5 py-2 text-sm text-foreground-muted outline-none transition-colors",
                                   isActive &&
-                                    "border-accent bg-accent-soft text-foreground",
+                                    "border-accent bg-surface-muted text-foreground",
                                 )}
                                 id={optionId}
                                 key={`${result.kind}:${result.id}`}
@@ -460,21 +531,33 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                                 onMouseEnter={() => setActiveIndex(resultIndex)}
                                 role="option"
                               >
+                                <span
+                                  className={cn(
+                                    "grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-surface text-foreground-subtle",
+                                    isActive && "text-accent",
+                                  )}
+                                >
+                                  <ResultIcon aria-hidden="true" size={15} />
+                                </span>
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate font-medium text-foreground">
                                     {result.label}
                                   </span>
-                                  {result.meta ? (
-                                    <span className="mt-0.5 block truncate text-xs text-muted">
-                                      {result.meta}
-                                    </span>
-                                  ) : null}
+                                  <span className="mt-0.5 block truncate text-xs text-muted">
+                                    {presentation.label}
+                                    {result.kind !== "action" && result.meta
+                                      ? ` · ${result.meta}`
+                                      : ""}
+                                  </span>
                                 </span>
-                                <ArrowRight
-                                  aria-hidden="true"
-                                  className="shrink-0 text-foreground-subtle"
-                                  size={14}
-                                />
+                                {isActive ? (
+                                  <kbd
+                                    aria-hidden="true"
+                                    className="hidden shrink-0 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] font-medium text-foreground-subtle sm:inline"
+                                  >
+                                    Enter
+                                  </kbd>
+                                ) : null}
                               </div>
                             );
                           })}
@@ -483,19 +566,31 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                     );
                   })}
 
-                  {groups.length === 0 && searchState !== "loading" ? (
-                    <div className="px-3 py-10 text-center text-sm text-foreground-muted">
-                      {searchState === "error"
-                        ? "Search unavailable"
-                        : statusMessage}
+                  {groups.length === 0 ? (
+                    <div className="px-4 py-9 text-center">
+                      <p className="text-sm font-medium text-foreground">
+                        {searchState === "loading"
+                          ? "Searching records…"
+                          : searchState === "error"
+                            ? "Search unavailable"
+                            : normalizedQuery
+                              ? statusMessage
+                              : "Find a workspace record"}
+                      </p>
+                      <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-foreground-subtle">
+                        {searchState === "error"
+                          ? "Check your connection and try again."
+                          : isShortRecordQuery
+                            ? "Add one more character to search workspace records."
+                            : normalizedQuery
+                              ? "Try a more specific name, code, payer, or reference."
+                              : "Search across properties, units, people, leases, tasks, and documents."}
+                      </p>
                     </div>
                   ) : null}
                 </div>
 
-                <div
-                  className="shrink-0 border-t border-border bg-surface px-4 py-2"
-                  hidden={!normalizedQuery}
-                >
+                <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-surface px-3.5 py-2">
                   <p
                     aria-live={searchState === "error" ? "assertive" : "polite"}
                     className={cn(
@@ -506,6 +601,14 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                   >
                     {statusMessage}
                   </p>
+                  <div
+                    aria-hidden="true"
+                    className="hidden items-center gap-2 text-[11px] text-foreground-subtle sm:flex"
+                  >
+                    <span><kbd className="font-medium">↑↓</kbd> Navigate</span>
+                    <span><kbd className="font-medium">Enter</kbd> Open</span>
+                    <span><kbd className="font-medium">&gt;</kbd> Pages</span>
+                  </div>
                 </div>
               </section>
             </div>,
@@ -526,6 +629,84 @@ function groupResults(results: readonly WorkspaceSearchResult[]): ResultGroup[] 
     return groupResults.length > 0
       ? [{ label: group.label, results: groupResults }]
       : [];
+  });
+}
+
+function getQuickAccessActions(
+  actions: readonly WorkspaceSearchAction[],
+  role: WorkspaceRole,
+) {
+  const preferredIds =
+    role === "admin"
+      ? [
+          "action:properties",
+          "action:people",
+          "action:rent-income",
+          "action:maintenance",
+        ]
+      : role === "manager"
+        ? ["action:maintenance", "action:tasks"]
+        : ["action:tasks"];
+  const preferred = preferredIds.flatMap((id) => {
+    const action = actions.find((candidate) => candidate.id === id);
+    return action ? [action] : [];
+  });
+
+  return preferred.length > 0 ? preferred : actions.slice(0, 4);
+}
+
+function rankPageActions(
+  actions: readonly WorkspaceSearchAction[],
+  query: string,
+) {
+  if (!query) {
+    return [...actions];
+  }
+
+  return actions
+    .map((action, index) => {
+      const label = normalizeSearchText(action.label);
+      const keywords = action.keywords.map(normalizeSearchText);
+      const id = normalizeSearchText(action.id.replace(/^action:/u, ""));
+      const searchableText = [label, id, ...keywords].join(" ");
+
+      if (!searchableText.includes(query)) {
+        return null;
+      }
+
+      const score =
+        label === query
+          ? 0
+          : label.startsWith(query)
+            ? 1
+            : keywords.some((keyword) => keyword.startsWith(query))
+              ? 2
+              : 3;
+
+      return { action, index, score };
+    })
+    .filter(
+      (candidate): candidate is {
+        action: WorkspaceSearchAction;
+        index: number;
+        score: number;
+      } => candidate !== null,
+    )
+    .sort((left, right) => left.score - right.score || left.index - right.index)
+    .map(({ action }) => action);
+}
+
+function limitResultGroups(groups: readonly ResultGroup[], limit: number) {
+  let remaining = limit;
+
+  return groups.flatMap((group) => {
+    if (remaining === 0) {
+      return [];
+    }
+
+    const results = group.results.slice(0, remaining);
+    remaining -= results.length;
+    return results.length > 0 ? [{ ...group, results }] : [];
   });
 }
 
@@ -680,14 +861,18 @@ function slugify(value: string) {
 }
 
 function getStatusMessage({
+  availableResultCount,
+  isPageMode,
   isShortQuery,
   query,
-  resultCount,
+  visibleResultCount,
   searchState,
 }: {
+  availableResultCount: number;
+  isPageMode: boolean;
   isShortQuery: boolean;
   query: string;
-  resultCount: number;
+  visibleResultCount: number;
   searchState: SearchState;
 }) {
   if (searchState === "loading") {
@@ -699,18 +884,23 @@ function getStatusMessage({
   }
 
   if (isShortQuery) {
-    if (resultCount === 0) {
-      return "Type 2 characters to search records";
-    }
-
-    return `${resultCount} navigation ${resultCount === 1 ? "result" : "results"}. Type 2 characters to search records.`;
+    return "Type 2 characters to search records";
   }
 
-  if (query.trim() && resultCount === 0) {
+  if (!query.trim()) {
+    return "Type to search · Use > to jump to a page";
+  }
+
+  if (query.trim() && visibleResultCount === 0) {
     return "No results";
   }
 
-  return `${resultCount} ${resultCount === 1 ? "result" : "results"}`;
+  if (availableResultCount > visibleResultCount) {
+    return `Showing ${visibleResultCount} of ${availableResultCount} results`;
+  }
+
+  const noun = isPageMode ? "page" : "result";
+  return `${visibleResultCount} ${visibleResultCount === 1 ? noun : `${noun}s`}`;
 }
 
 function isComposingKeyboardEvent(event: {

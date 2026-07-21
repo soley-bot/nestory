@@ -134,21 +134,18 @@ describe("maintenance workspace redesign contract", () => {
     },
   );
 
-  it("uses the shared workspace anatomy and a 320px docked Preview at 1280px", () => {
+  it("uses the shared full-width workspace anatomy without a docked Preview at 1280px", () => {
     installMatchMedia(1280);
     const { container } = renderMaintenance();
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
-    const inspector = screen.getByRole("complementary", {
-      name: "Repair sink Preview",
-    });
-    expect(inspector.className).toContain("max-w-[320px]");
-    expect(inspector.className).toContain("border-record-spine");
+    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it.each([1024, 390])(
-    "opens one deliberate Preview drawer at %ipx and returns focus",
+    "opens one deliberate quick-view dialog at %ipx and returns focus",
     (width) => {
       installMatchMedia(width);
       renderMaintenance();
@@ -158,10 +155,10 @@ describe("maintenance workspace redesign contract", () => {
       fireEvent.click(row);
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
       expect(
-        screen.getByRole("dialog", { name: "Repair sink Preview" }),
+        screen.getByRole("dialog", { name: "Repair sink quick view" }),
       ).not.toBeNull();
 
-      fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
+      fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
       expect(document.activeElement).toBe(row);
     },
   );
@@ -172,7 +169,7 @@ describe("maintenance workspace redesign contract", () => {
     const row = within(screen.getByRole("table")).getAllByRole("row")[1]!;
 
     fireEvent.click(within(row).getByText("High"));
-    fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
 
     expect(document.activeElement).toBe(row);
   });
@@ -189,22 +186,21 @@ describe("maintenance workspace redesign contract", () => {
     expect(
       screen.getByRole("dialog", { name: "Edit maintenance case" }),
     ).not.toBeNull();
-    expect(screen.queryByRole("dialog", { name: "Repair sink Preview" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Repair sink quick view" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
     expect(document.activeElement).toBe(row);
   });
 
-  it("keeps the wide Preview docked while a mutation drawer opens", () => {
+  it("replaces the wide quick view while a mutation drawer opens", () => {
     installMatchMedia(1440);
     renderMaintenance();
 
+    fireEvent.click(within(screen.getByRole("table")).getAllByRole("row")[1]!);
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(
-      screen.getByRole("complementary", { name: "Repair sink Preview" }),
-    ).not.toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Repair sink quick view" })).toBeNull();
   });
 
   it("announces a drawer mutation error and keeps the recovery action available", async () => {
@@ -214,6 +210,7 @@ describe("maintenance workspace redesign contract", () => {
     });
     renderMaintenance();
 
+    fireEvent.click(within(screen.getByRole("table")).getAllByRole("row")[1]!);
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     fireEvent.click(screen.getByRole("button", { name: "Archive case" }));
 
@@ -294,7 +291,7 @@ describe("maintenance workspace redesign contract", () => {
     renderMaintenance({ cases: [makeCase(), makeCase("task-2", "Replace fan")] });
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
 
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     rows[1]!.focus();
     fireEvent.keyDown(rows[1]!, { key: "Enter" });
     expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
@@ -311,7 +308,7 @@ describe("maintenance workspace redesign contract", () => {
     expect(titleLink.getAttribute("href")).toBe("/maintenance?taskId=task-2");
     fireEvent.keyDown(titleLink, { key: "Enter" });
     fireEvent.click(titleLink);
-    expect(rows[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(rows[0]?.getAttribute("aria-selected")).toBe("false");
     expect(rows[1]?.getAttribute("aria-selected")).toBe("false");
 
     fireEvent.keyDown(rows[1]!, { key: "Enter" });
@@ -353,7 +350,7 @@ describe("maintenance workspace redesign contract", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open Preview" }));
 
     expect(
-      screen.getByRole("dialog", { name: "Repair sink Preview" }),
+      screen.getByRole("dialog", { name: "Repair sink quick view" }),
     ).not.toBeNull();
   });
 
@@ -426,7 +423,7 @@ describe("maintenance workspace redesign contract", () => {
       ).getByRole("button", { name: "Preview Inspect boiler" }),
     );
     expect(
-      screen.getByRole("dialog", { name: "Inspect boiler Preview" }),
+      screen.getByRole("dialog", { name: "Inspect boiler quick view" }),
     ).not.toBeNull();
   });
 });

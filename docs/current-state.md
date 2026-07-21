@@ -1,6 +1,6 @@
 # Current State
 
-Last rebuilt from code inventory on 2026-07-16. This file describes what is
+Last rebuilt from code inventory on 2026-07-21. This file describes what is
 implemented now. It is not a roadmap or early-stage plan.
 
 ## Product Baseline
@@ -9,7 +9,8 @@ Nestory is a multi-module property operations app. The implemented core covers:
 
 - Workspace auth, setup, organization membership, roles, and subdomain-aware
   workspace lookup.
-- Responsive authenticated shell with role-aware navigation and global search.
+- Responsive authenticated shell with role-aware navigation, a collapsible
+  desktop rail, and global search/jump behavior.
 - Overview with domain lenses and module workspaces.
 - Property and unit operating records.
 - People directory split into tenants, owners, vendors, and staff.
@@ -34,14 +35,19 @@ Nestory is a multi-module property operations app. The implemented core covers:
 
 ## Interface Model
 
-- The authenticated shell keeps global navigation, account/theme controls, and
-  one `Search or jump` command trigger consistent across modules. Command search
-  covers safe navigation actions plus property, unit, and person results; it
-  keeps role scope on the server and does not expose raw identifiers.
-- Operational list pages use the same anatomy: compact title and primary action,
-  URL-backed workspace tools, record content, responsive inspector, and a side
-  drawer for create/edit/lifecycle work. Wide layouts keep the inspector beside
-  the list; compact layouts open it as a drawer and return focus to the opener.
+- The authenticated shell keeps a collapsible global navigation rail,
+  account/theme controls, page context/tools, and one `Search or jump` command
+  trigger consistent across modules. Command search offers quick access and a
+  dedicated page-jump mode, then searches role-scoped properties, units,
+  people, leases, maintenance cases/tasks, and documents on the server without
+  exposing raw identifiers.
+- Operational list pages use the same anatomy: compact page context and primary
+  action in the shared command bar, URL-backed workspace tools, full-width
+  record content, a compact modal quick view for secondary context, and a side
+  drawer for create/edit/lifecycle work. List pages do not reserve a persistent
+  side inspector. Row click or Enter opens the quick view; Properties and Units
+  also use double-click as a shortcut to their existing detail routes while
+  retaining explicit record links for keyboard and touch access.
 - Settings uses three zones: local settings navigation, the active settings
   workspace, and a persistent draft action area for save/discard/status. Access
   management follows the same draft and consequence conventions.
@@ -84,12 +90,12 @@ Core dashboard shell:
 Property and units:
 
 - `/properties` is a server-loaded operational list with filters, table/card
-  selection, create/edit/archive/restore drawers, and inspector context.
+  quick view, create/edit/archive/restore drawers, and direct detail navigation.
 - `/properties/[propertyId]` is a detail record with photos, units, leases,
   ledger, timeline, documents, maintenance, owner history, health, and next
   actions.
-- `/units` is a server-loaded list with filters, table/card selection,
-  create/edit/archive/restore drawers, and inspector context.
+- `/units` is a server-loaded list with filters, table/card quick view,
+  create/edit/archive/restore drawers, and direct detail navigation.
 - `/units/[unitId]` is a detail record with photos, lease, ledger, timeline,
   documents, maintenance, health, financial summary, and next actions.
 
@@ -97,11 +103,12 @@ People and leases:
 
 - `/people`, `/tenants`, `/owners`, `/vendors`, and `/staff` reuse one dense
   People workspace with local relationship lenses, URL-backed filters,
-  table/card selection, a responsive inspector, direct person links, and
-  create/edit/archive/restore drawers. `/people` keeps the cross-role readiness
-  summary, while each alias opens its matching lens and create default; Staff
-  also shows software-access status. `/team` redirects to `/staff` for legacy
-  links.
+  direct table/card record links, and create/edit/archive/restore drawers. The
+  list workspace does not reserve a side inspector; full person context lives
+  on the person detail route. `/people` places its cross-role readiness summary
+  behind a compact overview popover, while each alias opens its matching lens
+  and create default; Staff also shows software-access status. `/team`
+  redirects to `/staff` for legacy links.
 - `/people-reports` is a People-domain report hub with CSV/PDF exports for
   relationship, tenant, owner, vendor, and staff readiness.
 - `/leases` supports lease list, filters, create/update/archive/restore, linked
@@ -221,7 +228,7 @@ RPC write boundaries. Current table families include:
   rows represent dated settlement activity used by cash reporting.
   Checked public RPCs record and reverse deposit events while private
   implementations and direct event-table writes remain unavailable to API
-  callers. The lease inspector shows held balance and immutable event history.
+  callers. The lease quick view shows held balance and immutable event history.
 - Bills & Expenses supports `dateBasis=invoice` (default) and
   `dateBasis=paid`; paid basis is a settlement-event drilldown over payments
   and allocations scoped by payment `paid_date`, so partial and multi-month
@@ -279,6 +286,18 @@ Implemented RPC families include:
 - Reports: `src/features/reports`.
 - Organization settings/access: `src/features/organization`.
 - Activity/recent changes: `src/features/activity`.
+
+## Local Runtime
+
+- The default local workflow runs Next.js directly against the Supabase CLI
+  stack using the repository scripts and local environment variables.
+- A Docker workflow is also implemented for the production Next.js runtime:
+  `Dockerfile` builds the Next.js standalone output on Node.js 24,
+  `compose.yaml` runs the non-root app container with a health check, and the
+  container reaches the host-managed local Supabase services through
+  `host.docker.internal`.
+- `docs/docker-local.md` documents start, status/log, and non-destructive stop
+  commands. `.env.docker` is local-only and ignored by Git.
 
 ## Test Coverage Areas
 

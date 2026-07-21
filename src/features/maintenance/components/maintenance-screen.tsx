@@ -41,7 +41,6 @@ import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
-  useWideWorkspace,
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
@@ -234,7 +233,6 @@ export function MaintenanceScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isWideWorkspace = useWideWorkspace();
   const createInitialValues = useMemo(
     () => getCreateInitialValues(viewQuery, propertyOptions, unitOptions),
     [propertyOptions, unitOptions, viewQuery],
@@ -345,9 +343,7 @@ export function MaintenanceScreen({
   }, [capabilities.canCreateCase, createInitialValues, pathname, router, searchParams]);
 
   function openDrawer(nextDrawer: DrawerState) {
-    if (!isWideWorkspace) {
-      setCompactInspectorOpen(false);
-    }
+    setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawer(nextDrawer);
   }
@@ -496,7 +492,7 @@ export function MaintenanceScreen({
               fillHeight
               onSelect={previewCase}
               recordLabel={recordLabel}
-              selectedTaskId={selectedCase?.id ?? ""}
+              selectedTaskId={compactInspectorOpen ? selectedCase?.id ?? "" : ""}
             />
           </div>
           <PaginationControls attached pagination={pagination} />
@@ -512,7 +508,7 @@ export function MaintenanceScreen({
             onStatusChange={capabilities.canManageCaseState ? moveMaintenanceStatus : undefined}
             onSelect={previewCase}
             pagination={pagination}
-            selectedTaskId={selectedCase?.id ?? ""}
+            selectedTaskId={compactInspectorOpen ? selectedCase?.id ?? "" : ""}
             statusChangePending={statusChangePending}
             variant={normalizedSurfaceVariant}
             waitingForReviewLabel={actor.role === "member"}
@@ -591,8 +587,8 @@ export function MaintenanceScreen({
           {maintenanceInspector && selectedCase ? (
             <WorkspaceSplitView
               inspector={maintenanceInspector}
-              inspectorLabel={`${selectedCase.title} Preview`}
-              inspectorOpen={isWideWorkspace || compactInspectorOpen}
+              inspectorLabel={`${selectedCase.title} quick view`}
+              inspectorOpen={compactInspectorOpen}
               list={maintenanceList}
               onInspectorOpenChange={setCompactInspectorOpen}
             />

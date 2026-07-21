@@ -179,6 +179,11 @@ describe("OverviewScreen", () => {
           (link) => link.getAttribute("href") === "/properties?action=create",
         ),
     ).toBe(true);
+    const addPropertyLink = screen.getByRole("link", {
+      name: /add first property/i,
+    });
+    expect(addPropertyLink.className).toContain("bg-foreground");
+    expect(addPropertyLink.className).toContain("text-background");
     expect(
       screen
         .getAllByRole("link", { name: /open imports/i })
@@ -186,6 +191,11 @@ describe("OverviewScreen", () => {
     ).toBe(true);
     expect(screen.getByText("Import center")).toBeTruthy();
     expect(screen.getByText("500 valid rows per commit")).toBeTruthy();
+    expect(screen.queryByText("Setup needed")).toBeNull();
+    const onboarding = document.querySelector(
+      '[data-slot="empty-workspace-onboarding"]',
+    );
+    expect(onboarding?.querySelector(".rounded-lg")).toBeNull();
     expect(screen.queryByText(/not people or leases/i)).toBeNull();
   });
 
