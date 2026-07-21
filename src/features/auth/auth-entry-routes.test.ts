@@ -8,6 +8,12 @@ const { exchangeCodeForSession, verifyOtp } = vi.hoisted(() => ({
   verifyOtp: vi.fn(),
 }));
 
+vi.mock("@/lib/auth/recovery-marker", () => ({
+  createRecoveryMarker: () => "signed-recovery-marker",
+  RECOVERY_MARKER_COOKIE: "nestory_recovery",
+  RECOVERY_MARKER_MAX_AGE_SECONDS: 600,
+}));
+
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({
     auth: { exchangeCodeForSession, verifyOtp },
@@ -70,6 +76,28 @@ describe("successful auth entry routes", () => {
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/update-password",
     );
+  });
+
+  it("marks only a verified recovery-token response for password updates", async () => {
+    verifyOtp.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    });
+
+    const response = await confirmGet(
+      new NextRequest(
+        "http://localhost:3000/auth/confirm?token_hash=valid&type=recovery&next=%2Fupdate-password",
+      ),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/update-password",
+    );
+    expect(response.headers.get("set-cookie")).toContain(
+      "nestory_recovery=signed-recovery-marker",
+    );
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=600");
   });
 
   it("rejects external callback destinations", async () => {

@@ -107,7 +107,10 @@ describe("workspace provisioning core", () => {
       .mockResolvedValueOnce({ data: null, error: null });
     const inviteUserByEmail = vi.fn().mockResolvedValue({
       data: { user: null },
-      error: { message: "A user with this email already exists" },
+      error: {
+        code: "user_already_exists",
+        message: "A user with this email already exists",
+      },
     });
     const signInWithOtp = vi.fn().mockResolvedValue({ error: null });
 

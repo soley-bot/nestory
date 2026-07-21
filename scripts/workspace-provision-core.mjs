@@ -70,7 +70,7 @@ export async function provisionWorkspace({ client, input, siteUrl }) {
 
   if (!inviteResult.error) {
     authUserId = inviteResult.data?.user?.id ?? null;
-  } else if (isExistingUserError(inviteResult.error.message)) {
+  } else if (isExistingUserError(inviteResult.error)) {
     deliveryMethod = "magic_link";
     const claimResult = await client.auth.signInWithOtp({
       email: provisioned.invited_email,
@@ -136,8 +136,12 @@ function validateSiteUrl(value) {
   return url.toString();
 }
 
-function isExistingUserError(message) {
-  const normalized = message.toLowerCase();
+function isExistingUserError(error) {
+  if (error.code) {
+    return error.code === "user_already_exists";
+  }
+
+  const normalized = error.message.toLowerCase();
   return (
     normalized.includes("already") ||
     normalized.includes("registered") ||

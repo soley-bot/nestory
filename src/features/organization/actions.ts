@@ -228,6 +228,7 @@ export async function resendOrganizationInvitationAction(
   if (refreshResult.error || !invitation) {
     return { message: "Invitation could not be refreshed.", status: "error" };
   }
+  revalidateSettings();
 
   const delivery = await deliverInvitation(invitation.email, invitation.invitation_id);
   const finalizeResult = delivery.error
@@ -245,7 +246,6 @@ export async function resendOrganizationInvitationAction(
     return { message: "Invitation email could not be resent.", status: "error" };
   }
 
-  revalidateSettings();
   return { message: "Invitation resent.", status: "success" };
 }
 
@@ -338,7 +338,7 @@ async function deliverInvitation(email: string, invitationId: string) {
       return { authUserId: data.user?.id ?? null, error: null, method: "invite" };
     }
 
-    if (isExistingAuthUserError(error.message)) {
+    if (isExistingAuthUserError(error)) {
       const claimResult = await adminClient.auth.signInWithOtp({
         email,
         options: {
@@ -363,8 +363,12 @@ async function deliverInvitation(email: string, invitationId: string) {
   }
 }
 
-function isExistingAuthUserError(message: string) {
-  const normalized = message.toLowerCase();
+function isExistingAuthUserError(error: { code?: string; message: string }) {
+  if (error.code) {
+    return error.code === "user_already_exists";
+  }
+
+  const normalized = error.message.toLowerCase();
 
   return (
     normalized.includes("already") ||

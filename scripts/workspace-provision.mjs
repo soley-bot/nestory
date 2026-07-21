@@ -9,10 +9,11 @@ async function main() {
     process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secretKey =
     process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const siteUrl = process.env.NESTORY_APP_URL;
 
-  if (!supabaseUrl || !secretKey) {
+  if (!supabaseUrl || !secretKey || !siteUrl) {
     throw new Error(
-      "Set SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY).",
+      "Set SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL), SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY), and NESTORY_APP_URL.",
     );
   }
 
@@ -26,7 +27,7 @@ async function main() {
   const result = await provisionWorkspace({
     client,
     input: parseProvisionArgs(process.argv.slice(2)),
-    siteUrl: process.env.NESTORY_APP_URL ?? "http://localhost:3000",
+    siteUrl,
   });
 
   console.log(

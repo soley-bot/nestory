@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DraftActionBar, type DraftStatus } from "@/components/ui/draft-action-bar";
 import { SelectControl } from "@/components/ui/select-control";
+import { signOutAction } from "@/features/auth/actions";
 import {
   inviteOrganizationUserAction,
   removeMemberAccessAction,
@@ -468,6 +469,12 @@ function MemberAccessForm({
     formData.set("memberId", member.id);
     try {
       const result = await removeMemberAccessAction({}, formData);
+      if (result.status === "success" && current) {
+        setRemoveMessage("Access removed. Signing out...");
+        setRemoveStatus("success");
+        await signOutAction();
+        return;
+      }
       setRemoveMessage(result.message);
       setRemoveStatus(result.status === "success" ? "success" : "error");
     } catch {

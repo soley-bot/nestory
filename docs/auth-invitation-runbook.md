@@ -72,7 +72,7 @@ merely to remove one organization membership.
   Nestory, then use **Resend** after the identity is confirmed; Nestory will
   deliver the matching existing-user claim link and invitation identifier.
 - **Forgotten password:** use `/forgot-password`. Responses are neutral whether
-  or not the address exists. The recipient must establish a valid Supabase
+  the address exists. The recipient must establish a valid Supabase
   recovery session before `/update-password` succeeds.
 - **Break-glass membership repair:** direct database repair is an exceptional,
   reviewed operation. Preserve the final-admin invariant, organization scope,

@@ -5,13 +5,16 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { addAccess, removeAccess, resendInvite, revokeInvite, updateAccess } = vi.hoisted(() => ({
+const { addAccess, removeAccess, resendInvite, revokeInvite, signOut, updateAccess } = vi.hoisted(() => ({
   addAccess: vi.fn(),
   removeAccess: vi.fn(),
   resendInvite: vi.fn(),
   revokeInvite: vi.fn(),
+  signOut: vi.fn(),
   updateAccess: vi.fn(),
 }));
+
+vi.mock("@/features/auth/actions", () => ({ signOutAction: signOut }));
 
 vi.mock("@/features/organization/actions", () => ({
   inviteOrganizationUserAction: addAccess,
@@ -66,12 +69,14 @@ beforeEach(() => {
   removeAccess.mockReset();
   resendInvite.mockReset();
   revokeInvite.mockReset();
+  signOut.mockReset();
   updateAccess.mockReset();
   addAccess.mockResolvedValue({ status: "success", message: "Invitation sent." });
   removeAccess.mockResolvedValue({ status: "success", message: "Access removed." });
   resendInvite.mockResolvedValue({ status: "success", message: "Invitation resent." });
   revokeInvite.mockResolvedValue({ status: "success", message: "Invitation revoked." });
   updateAccess.mockResolvedValue({ status: "success", message: "Access updated." });
+  signOut.mockResolvedValue(undefined);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
     return 1;
@@ -447,7 +452,7 @@ describe("AccessSettingsScreen", () => {
     expect(await within(member).findByText("Access updated.")).toBeTruthy();
   });
 
-  it("removes an active member through the guarded access action", async () => {
+  it("signs out after removing the current administrator's own access", async () => {
     const user = userEvent.setup();
     const otherAdmin = {
       ...admin,
@@ -458,6 +463,7 @@ describe("AccessSettingsScreen", () => {
     render(
       <AccessSettingsScreen
         branches={[branch]}
+        currentUserId={admin.userId}
         members={[admin, otherAdmin]}
         people={[person]}
       />,
@@ -469,6 +475,7 @@ describe("AccessSettingsScreen", () => {
     await waitFor(() => expect(removeAccess).toHaveBeenCalledTimes(1));
     const submitted = removeAccess.mock.calls[0][1] as FormData;
     expect(Object.fromEntries(submitted.entries())).toEqual({ memberId: admin.id });
-    expect(await within(member).findByText("Access removed.")).toBeTruthy();
+    await waitFor(() => expect(signOut).toHaveBeenCalledOnce());
+    expect(await within(member).findByText("Access removed. Signing out...")).toBeTruthy();
   });
 });

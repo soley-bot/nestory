@@ -1,8 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { z } from "zod";
 import { getAuthCallbackUrl } from "@/lib/auth/callback-url";
+import {
+  RECOVERY_MARKER_COOKIE,
+  verifyRecoveryMarker,
+} from "@/lib/auth/recovery-marker";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -24,7 +29,7 @@ const loginSchema = z.object({
 });
 
 const recoverySchema = z.object({
-  email: z.email("Enter a valid email address.").trim(),
+  email: z.string().trim().pipe(z.email("Enter a valid email address.")),
 });
 
 const updatePasswordSchema = z
@@ -121,6 +126,23 @@ export async function updatePasswordAction(
     };
   }
 
+  const cookieStore = await cookies();
+  let recoveryMarkerValid = false;
+  try {
+    recoveryMarkerValid = verifyRecoveryMarker(
+      cookieStore.get(RECOVERY_MARKER_COOKIE)?.value,
+      data.user.id,
+    );
+  } catch {
+    recoveryMarkerValid = false;
+  }
+  if (!recoveryMarkerValid) {
+    return {
+      message: "Open a fresh password recovery link and try again.",
+      status: "error",
+    };
+  }
+
   const { error } = await supabase.auth.updateUser({
     password: parsed.data.password,
   });
@@ -132,6 +154,7 @@ export async function updatePasswordAction(
     };
   }
 
+  cookieStore.delete(RECOVERY_MARKER_COOKIE);
   await supabase.auth.signOut();
   redirect("/login?password=updated");
 }

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { AuthActionState } from "@/features/auth/actions";
+import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 const invitationIdSchema = z.uuid();
@@ -113,6 +114,7 @@ export async function acceptInvitationAction(
     return { message: "This invitation is not available for this account.", status: "error" };
   }
 
+  let newPassword: string | null = null;
   if (invitation.password_required) {
     const parsedPassword = invitationPasswordSchema.safeParse({
       password: formData.get("password"),
@@ -124,15 +126,7 @@ export async function acceptInvitationAction(
         status: "error",
       };
     }
-    const { error: passwordError } = await supabase.auth.updateUser({
-      password: parsedPassword.data.password,
-    });
-    if (passwordError) {
-      return {
-        message: "The password could not be set. Open a fresh invitation link and try again.",
-        status: "error",
-      };
-    }
+    newPassword = parsedPassword.data.password;
   }
 
   const { error: acceptanceError } = await supabase.rpc(
@@ -146,5 +140,17 @@ export async function acceptInvitationAction(
     };
   }
 
-  redirect("/workspace");
+  if (newPassword) {
+    const { error: passwordError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (passwordError) {
+      return {
+        message: "Access was granted, but the password could not be set. Use password recovery to sign in.",
+        status: "error",
+      };
+    }
+  }
+
+  redirect(WORKSPACE_ENTRY_PATH);
 }

@@ -468,9 +468,6 @@ export function LandingPage() {
                 <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/login">
                   Sign in
                 </Link>
-                <Link className="block text-[var(--landing-inverse-muted)] transition-colors hover:text-[var(--landing-inverse-fg)]" href="/login">
-                  Sign in
-                </Link>
               </nav>
             </div>
           </div>

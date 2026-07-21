@@ -86,7 +86,7 @@ describe("organization invitation actions", () => {
       .mockResolvedValueOnce({ data: invitationId, error: null });
     adminInvite.mockResolvedValue({
       data: { user: null },
-      error: { message: "User already registered" },
+      error: { code: "user_already_exists", message: "User already registered" },
     });
     adminOtp.mockResolvedValue({ error: null });
 
@@ -141,6 +141,30 @@ describe("organization invitation actions", () => {
     expect(rpc.mock.calls[0][0]).toBe("refresh_organization_invitation");
     expect(adminInvite).toHaveBeenCalledOnce();
     expect(result).toEqual({ message: "Invitation resent.", status: "success" });
+  });
+
+  it("revalidates settings after refresh even when resend delivery fails", async () => {
+    rpc
+      .mockResolvedValueOnce({
+        data: [{ email: "invitee@example.com", invitation_id: invitationId }],
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: invitationId, error: null });
+    adminInvite.mockResolvedValue({
+      data: { user: null },
+      error: { code: "over_email_send_rate_limit", message: "Rate limited" },
+    });
+    const formData = new FormData();
+    formData.set("invitationId", invitationId);
+
+    const result = await resendOrganizationInvitationAction({}, formData);
+
+    expect(result).toEqual({
+      message: "Invitation email could not be resent.",
+      status: "error",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/settings");
+    expect(revalidatePath).toHaveBeenCalledWith("/users-roles");
   });
 
   it("revokes pending invitations and removes active membership separately", async () => {

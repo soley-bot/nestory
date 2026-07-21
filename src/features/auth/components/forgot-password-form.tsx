@@ -26,7 +26,7 @@ export function ForgotPasswordForm() {
               ? "rounded-md border border-success/25 bg-success-soft px-3.5 py-3 text-sm leading-5 text-success"
               : "rounded-md border border-danger/25 bg-danger-soft px-3.5 py-3 text-sm leading-5 text-danger"
           }
-          role="status"
+          role={state.status === "success" ? "status" : "alert"}
         >
           {state.message}
         </p>

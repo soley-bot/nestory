@@ -1,15 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getUser, redirect, resetPasswordForEmail, signOut, updateUser } =
+const {
+  cookieDelete,
+  cookieGet,
+  getUser,
+  redirect,
+  resetPasswordForEmail,
+  signOut,
+  updateUser,
+  verifyRecoveryMarker,
+} =
   vi.hoisted(() => ({
+    cookieDelete: vi.fn(),
+    cookieGet: vi.fn(),
     getUser: vi.fn(),
     redirect: vi.fn(),
     resetPasswordForEmail: vi.fn(),
     signOut: vi.fn(),
     updateUser: vi.fn(),
+    verifyRecoveryMarker: vi.fn(),
   }));
 
 vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/headers", () => ({
+  cookies: () => ({ delete: cookieDelete, get: cookieGet }),
+}));
+vi.mock("@/lib/auth/recovery-marker", () => ({
+  RECOVERY_MARKER_COOKIE: "nestory_recovery",
+  verifyRecoveryMarker,
+}));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({
     auth: { getUser, resetPasswordForEmail, signOut, updateUser },
@@ -23,11 +42,16 @@ import {
 
 describe("password recovery actions", () => {
   beforeEach(() => {
+    cookieDelete.mockReset();
+    cookieGet.mockReset();
     getUser.mockReset();
     redirect.mockReset();
     resetPasswordForEmail.mockReset();
     signOut.mockReset();
     updateUser.mockReset();
+    verifyRecoveryMarker.mockReset();
+    cookieGet.mockReturnValue({ value: "signed-recovery-marker" });
+    verifyRecoveryMarker.mockReturnValue(true);
   });
 
   it("returns the same neutral response when the recovery provider rejects an email", async () => {
@@ -62,6 +86,26 @@ describe("password recovery actions", () => {
     expect(updateUser).not.toHaveBeenCalled();
   });
 
+  it("rejects a normal authenticated session without a valid recovery marker", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    verifyRecoveryMarker.mockReturnValue(false);
+    const formData = new FormData();
+    formData.set("password", "correct-horse-battery");
+    formData.set("passwordConfirm", "correct-horse-battery");
+
+    const result = await updatePasswordAction({}, formData);
+
+    expect(result).toEqual({
+      message: "Open a fresh password recovery link and try again.",
+      status: "error",
+    });
+    expect(verifyRecoveryMarker).toHaveBeenCalledWith(
+      "signed-recovery-marker",
+      "user-1",
+    );
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
   it("updates the password, clears the recovery session, and returns to login", async () => {
     getUser.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
     updateUser.mockResolvedValue({ error: null });
@@ -79,6 +123,7 @@ describe("password recovery actions", () => {
     expect(updateUser).toHaveBeenCalledWith({
       password: "correct-horse-battery",
     });
+    expect(cookieDelete).toHaveBeenCalledWith("nestory_recovery");
     expect(signOut).toHaveBeenCalledOnce();
   });
 });

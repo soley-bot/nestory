@@ -78,7 +78,7 @@ describe("invitation acceptance", () => {
     });
   });
 
-  it("requires and sets a password before accepting a new invited identity", async () => {
+  it("accepts a new invited identity before setting its password", async () => {
     rpc
       .mockResolvedValueOnce({ data: [invitation], error: null })
       .mockResolvedValueOnce({ data: "member-1", error: null });
@@ -98,6 +98,27 @@ describe("invitation acceptance", () => {
     expect(rpc).toHaveBeenLastCalledWith("accept_organization_invitation", {
       p_invitation_id: invitationId,
     });
+    expect(rpc.mock.invocationCallOrder[1]).toBeLessThan(
+      updateUser.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("does not change the password when invitation acceptance fails", async () => {
+    rpc
+      .mockResolvedValueOnce({ data: [invitation], error: null })
+      .mockResolvedValueOnce({ data: null, error: new Error("revoked") });
+    const formData = new FormData();
+    formData.set("invitationId", invitationId);
+    formData.set("password", "correct-horse-battery");
+    formData.set("passwordConfirm", "correct-horse-battery");
+
+    const result = await acceptInvitationAction({}, formData);
+
+    expect(result).toEqual({
+      message: "The invitation could not be accepted. Ask an administrator to resend it.",
+      status: "error",
+    });
+    expect(updateUser).not.toHaveBeenCalled();
   });
 
   it("accepts an existing identity without changing its password", async () => {
