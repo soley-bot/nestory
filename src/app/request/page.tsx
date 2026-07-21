@@ -7,7 +7,7 @@ import { PublicInterestForm } from "@/features/marketing/components/public-inter
 export const metadata: Metadata = {
   description:
     "Request information or a guided demo of Nestory property operations software.",
-  title: "Request information or a demo | Nestory",
+  title: "Request information or a demo",
 };
 
 const requestNotes = [
