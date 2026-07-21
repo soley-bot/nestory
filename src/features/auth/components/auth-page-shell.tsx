@@ -69,7 +69,7 @@ export function AuthPageShell({
           >
             <NestoryLogo
               markClassName="h-9 w-9"
-              markTone="auto"
+              markTone={visualSrc ? "light" : "auto"}
               priority
               subtitleClassName={
                 visualSrc
@@ -82,7 +82,7 @@ export function AuthPageShell({
             />
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 rounded-md border border-[color:var(--auth-page-header-border)] bg-[var(--auth-page-header-bg)] px-2 py-1 backdrop-blur-md">
             <Link
               className={cn(
                 "hidden text-[11px] font-medium uppercase tracking-[0.16em] transition-colors sm:inline-flex",

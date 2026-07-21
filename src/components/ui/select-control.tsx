@@ -97,7 +97,7 @@ export function SelectControl(props: SelectControlProps) {
           aria-labelledby={ariaLabelledBy}
           aria-required={ariaRequired ?? required}
           className={cn(
-            "flex h-8 w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-md border border-border bg-surface px-2.5 text-left text-sm shadow-sm outline-none transition-colors data-[placeholder]:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
+            "flex h-8 w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-md border border-control-border bg-surface px-2.5 text-left text-sm shadow-sm outline-none transition-colors data-[placeholder]:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
             className,
           )}
           type="button"

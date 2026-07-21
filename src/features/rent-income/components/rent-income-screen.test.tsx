@@ -121,7 +121,7 @@ describe("RentIncomeScreen", () => {
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(within(rows[0]!).getByRole("link", { name: "Home" }).getAttribute("href")).toBe(
       "/properties/property-1",
     );
@@ -206,7 +206,7 @@ describe("RentIncomeScreen", () => {
     expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
 
     expect(fireEvent.keyDown(secondLink, { key: "Enter" })).toBe(true);
-    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("false");
     expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
     expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
 
@@ -228,7 +228,7 @@ describe("RentIncomeScreen", () => {
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
-      expect(screen.getByRole("dialog", { name: "Tenant income inspector" })).not.toBeNull();
+      expect(screen.getByRole("dialog", { name: "Tenant income quick view" })).not.toBeNull();
 
       await user.click(screen.getByRole("button", { name: "Record payment" }));
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -301,6 +301,7 @@ describe("RentIncomeScreen", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
     fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
 
     expect(
@@ -312,6 +313,7 @@ describe("RentIncomeScreen", () => {
   it("states the official ledger effect before posting received income", () => {
     renderIncome("all");
 
+    fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
     fireEvent.click(screen.getByRole("button", { name: "Post" }));
 
     const consequence = screen.getByRole("region", {

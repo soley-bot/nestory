@@ -181,11 +181,12 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
 
   useEffect(() => {
     function handleDocumentKeyDown(event: KeyboardEvent) {
+      const key = typeof event.key === "string" ? event.key : "";
       const isComposing =
         compositionActiveRef.current || isComposingKeyboardEvent(event);
 
       const opensPalette =
-        event.key.toLowerCase() === "k" &&
+        key.toLowerCase() === "k" &&
         (event.ctrlKey || event.metaKey) &&
         !event.altKey;
 
@@ -209,7 +210,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
         return;
       }
 
-      if (event.key === "Escape") {
+      if (key === "Escape") {
         if (isComposing) {
           return;
         }
@@ -219,7 +220,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
         return;
       }
 
-      if (event.key !== "Tab") {
+      if (key !== "Tab") {
         return;
       }
 

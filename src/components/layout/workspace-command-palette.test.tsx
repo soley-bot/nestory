@@ -93,6 +93,13 @@ describe("Workspace command palette access", () => {
     expect(screen.getByRole("dialog", { name: "Search or jump" })).toBeTruthy();
   });
 
+  it("ignores document key events that do not expose a key value", () => {
+    renderPalette();
+
+    expect(() => document.dispatchEvent(new Event("keydown"))).not.toThrow();
+    expect(screen.queryByRole("dialog", { name: "Search or jump" })).toBeNull();
+  });
+
   it("focuses the combobox, traps focus, closes on Escape, and restores the trigger", () => {
     renderPalette();
     const trigger = openPalette();

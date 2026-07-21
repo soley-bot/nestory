@@ -53,14 +53,14 @@ describe("TimelineScreen workspace contract", () => {
     },
   );
 
-  it("keeps event context dense, selected, directly linked, attached, and docked at 1280+", () => {
+  it("keeps event context dense, directly linked, attached, and available in a quick view", () => {
     renderTimeline();
     const table = screen.getByRole("table");
     const rows = within(table).getAllByRole("row").slice(1);
 
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "Roof repair" }).getAttribute("href"),
     ).toBe("/timeline?archiveState=all&eventId=event-1");
@@ -69,8 +69,11 @@ describe("TimelineScreen workspace contract", () => {
     expect(within(rows[0]!).getByText("HOME")).not.toBeNull();
     expect(within(rows[0]!).getByText("Unit 1A")).not.toBeNull();
 
-    const inspector = screen.getByRole("complementary", {
-      name: "Roof repair timeline inspector",
+    fireEvent.click(
+      within(rows[0]!).getByRole("button", { name: "Preview Roof repair" }),
+    );
+    const inspector = screen.getByRole("dialog", {
+      name: "Roof repair timeline quick view",
     });
     expect(within(inspector).getByText("inspection.pdf")).not.toBeNull();
     expect(
@@ -88,7 +91,7 @@ describe("TimelineScreen workspace contract", () => {
     });
 
     expect(fireEvent.keyDown(secondLink, { key: "Enter" })).toBe(true);
-    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("false");
     expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
 
     fireEvent.keyDown(rows[1]!, { key: "Enter" });
@@ -108,7 +111,7 @@ describe("TimelineScreen workspace contract", () => {
 
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
-      expect(screen.getByRole("dialog", { name: "Roof repair timeline inspector" })).not.toBeNull();
+      expect(screen.getByRole("dialog", { name: "Roof repair timeline quick view" })).not.toBeNull();
       await user.click(screen.getByRole("button", { name: "Edit timeline record" }));
 
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -123,15 +126,16 @@ describe("TimelineScreen workspace contract", () => {
     renderTimeline(events, {}, { initialEventId: "event-2" });
 
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
-    expect(rows[1]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("keeps ledger-controlled and locked event actions permission-correct", () => {
     renderTimeline([makeEvent("event-locked", "Locked charge", { isLocked: true, ledger: true })]);
 
-    const inspector = screen.getByRole("complementary", {
-      name: "Locked charge timeline inspector",
+    fireEvent.click(screen.getByRole("button", { name: "Preview Locked charge" }));
+    const inspector = screen.getByRole("dialog", {
+      name: "Locked charge timeline quick view",
     });
     expect(within(inspector).getByRole("link", { name: "Open linked ledger entry" })).not.toBeNull();
     expect(within(inspector).queryByRole("button", { name: "Edit timeline record" })).toBeNull();

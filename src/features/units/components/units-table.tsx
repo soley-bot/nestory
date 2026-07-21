@@ -1,5 +1,7 @@
+"use client";
+
 import * as Popover from "@radix-ui/react-popover";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Archive,
@@ -8,8 +10,8 @@ import {
   ArrowUpDown,
   Building2,
   Ellipsis,
+  Eye,
   ImagePlus,
-  PanelRightOpen,
   Pencil,
   RotateCcw,
 } from "lucide-react";
@@ -32,6 +34,7 @@ type UnitsTableProps = {
   displayMode: UnitDisplayMode;
   onArchiveUnit: (unit: UnitSummary) => void;
   onEditUnit: (unit: UnitSummary) => void;
+  onOpenUnit: (id: string) => void;
   onRestoreUnit: (unit: UnitSummary) => void;
   onSelectUnit: (id: string) => void;
   onSortChange: (sort: UnitSortKey) => void;
@@ -46,6 +49,7 @@ export function UnitsTable({
   displayMode,
   onArchiveUnit,
   onEditUnit,
+  onOpenUnit,
   onRestoreUnit,
   onSelectUnit,
   onSortChange,
@@ -53,6 +57,36 @@ export function UnitsTable({
   sort,
   units,
 }: UnitsTableProps) {
+  const pendingPreviewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pendingPreviewRef.current) {
+        clearTimeout(pendingPreviewRef.current);
+      }
+    };
+  }, []);
+
+  function scheduleUnitPreview(unitId: string) {
+    if (pendingPreviewRef.current) {
+      clearTimeout(pendingPreviewRef.current);
+    }
+
+    pendingPreviewRef.current = setTimeout(() => {
+      pendingPreviewRef.current = null;
+      onSelectUnit(unitId);
+    }, 180);
+  }
+
+  function openUnitRecord(unitId: string) {
+    if (pendingPreviewRef.current) {
+      clearTimeout(pendingPreviewRef.current);
+      pendingPreviewRef.current = null;
+    }
+
+    onOpenUnit(unitId);
+  }
+
   return (
     <div className="h-full min-h-0">
       <div
@@ -154,7 +188,8 @@ export function UnitsTable({
                       unit.isArchived && "text-muted",
                     )}
                     key={unit.id}
-                    onClick={() => onSelectUnit(unit.id)}
+                    onClick={() => scheduleUnitPreview(unit.id)}
+                    onDoubleClick={() => openUnitRecord(unit.id)}
                     onKeyDown={(event) => {
                       if (event.currentTarget !== event.target) {
                         return;
@@ -166,6 +201,7 @@ export function UnitsTable({
                       }
                     }}
                     tabIndex={0}
+                    title="Click: quick view · Double-click: full record"
                   >
                     <td className="px-2.5 py-2">
                       <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
@@ -316,7 +352,7 @@ function UnitCard({
 
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2">
           <button
-            aria-label={`Preview unit ${unit.unitNumber}`}
+            aria-label={`Quick view unit ${unit.unitNumber}`}
             aria-pressed={selected}
             className={cn(
               "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
@@ -325,8 +361,8 @@ function UnitCard({
             onClick={() => onSelectUnit(unit.id)}
             type="button"
           >
-            <PanelRightOpen aria-hidden="true" className="size-3.5" />
-            Preview
+            <Eye aria-hidden="true" className="size-3.5" />
+            Quick view
           </button>
           <UnitActions
             className="justify-end gap-1"

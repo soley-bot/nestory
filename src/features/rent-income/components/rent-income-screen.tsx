@@ -9,7 +9,6 @@ import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
-  useWideWorkspace,
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +80,6 @@ export function RentIncomeScreen({
   const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
   const [selectedItemId, setSelectedItemId] = useState(incomeItems[0]?.id ?? "");
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
-  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedItem =
     incomeItems.find((item) => item.id === selectedItemId) ??
@@ -89,9 +87,7 @@ export function RentIncomeScreen({
     null;
 
   const openDrawer = (nextDrawer: DrawerState) => {
-    if (!isWideWorkspace) {
-      setCompactInspectorOpen(false);
-    }
+    setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawerState(nextDrawer);
   };
@@ -143,7 +139,7 @@ export function RentIncomeScreen({
             <RentIncomeTable
               incomeItems={incomeItems}
               onSelectItem={previewItem}
-              selectedItemId={selectedItem?.id ?? ""}
+              selectedItemId={compactInspectorOpen ? selectedItem?.id ?? "" : ""}
             />
           </div>
           <PaginationControls attached pagination={pagination} />
@@ -203,8 +199,8 @@ export function RentIncomeScreen({
         {incomeInspector && selectedItem ? (
           <WorkspaceSplitView
             inspector={incomeInspector}
-            inspectorLabel={`${selectedItem.payerLabel} income inspector`}
-            inspectorOpen={isWideWorkspace || compactInspectorOpen}
+            inspectorLabel={`${selectedItem.payerLabel} income quick view`}
+            inspectorOpen={compactInspectorOpen}
             list={incomeList}
             onInspectorOpenChange={setCompactInspectorOpen}
           />

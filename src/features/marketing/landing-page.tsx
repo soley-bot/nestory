@@ -189,14 +189,14 @@ export function LandingPage() {
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link
-                className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#090a0c] transition-transform hover:-translate-y-0.5"
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#090a0c] outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#090a0c]"
                 href="/signup"
               >
                 Create workspace
                 <ArrowRight size={15} />
               </Link>
               <a
-                className="inline-flex h-11 items-center px-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-white/75 hover:text-white"
+                className="inline-flex h-11 items-center px-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-white/90 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-white"
                 href="#control"
               >
                 See workspace

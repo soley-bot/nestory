@@ -51,7 +51,7 @@ export function MonthPickerField({
           <button
             aria-label={ariaLabel}
             className={cn(
-              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 text-left text-sm shadow-sm outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring",
+              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-control-border bg-surface px-2.5 text-left text-sm shadow-sm outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring",
               className,
             )}
             type="button"

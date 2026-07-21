@@ -97,15 +97,21 @@ describe("People route family redesign contract", () => {
     }
   });
 
-  it("uses one local lens navigation and the shared dense selected-record workspace", () => {
+  it("keeps the list workspace clean and reveals directory insight on demand", async () => {
+    const user = userEvent.setup();
     const { container } = renderPeople();
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="workspace-split-view"]')).toBeNull();
     const summary = screen.getByRole("region", { name: "People summary" });
-    expect(summary.querySelector('[data-mobile-summary-strip="people-metrics"]')?.className).toContain("overflow-x-auto");
-    expect(summary.querySelector('[data-mobile-summary-strip="people-attention"]')?.className).toContain("overflow-x-auto");
-    expect(screen.getByRole("link", { name: "People reports" }).getAttribute("href")).toBe("/people-reports");
+    const overviewTrigger = within(summary).getByRole("button", {
+      name: "Directory overview: 2 people, all clear",
+    });
+    expect(screen.queryByRole("dialog", { name: "People overview" })).toBeNull();
+    await user.click(overviewTrigger);
+    const overview = screen.getByRole("dialog", { name: "People overview" });
+    expect(within(overview).getByRole("link", { name: "Reports" }).getAttribute("href")).toBe("/people-reports");
+    expect(within(overview).getByText("Needs attention")).not.toBeNull();
 
     const lenses = screen.getByRole("navigation", { name: "People views" });
     expect(within(lenses).getAllByRole("link").map((link) => link.textContent)).toEqual([
@@ -122,7 +128,7 @@ describe("People route family redesign contract", () => {
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(rows.every((row) => row.getAttribute("aria-selected") === null)).toBe(true);
     expect(
       within(rows[0]!).getByRole("link", { name: "Alice Tenant" }).getAttribute("href"),
     ).toBe("/people/person-1");
@@ -130,15 +136,7 @@ describe("People route family redesign contract", () => {
     expect(within(rows[0]!).getByText("Active")).not.toBeNull();
     expect(within(rows[0]!).getByText("1 active lease")).not.toBeNull();
 
-    fireEvent.click(rows[1]!);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
-    expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
-    expect(
-      screen.getByRole("complementary", { name: "Nora Owner inspector" }),
-    ).not.toBeNull();
-
-    expect(screen.queryByText(/select a row/i)).toBeNull();
-    expect(screen.queryByText(/double-click/i)).toBeNull();
+    expect(screen.queryByRole("complementary")).toBeNull();
   });
 
   it.each([
@@ -159,33 +157,12 @@ describe("People route family redesign contract", () => {
     },
   );
 
-  it.each([1024, 390])("uses one preview drawer at %ipx and returns focus", async (width) => {
+  it.each([1024, 390])("uses direct record links instead of preview drawers at %ipx", (width) => {
     installMatchMedia(width);
-    const user = userEvent.setup();
     renderPeople();
-    const preview = screen.getByRole("button", { name: "Preview Alice Tenant" });
-
-    expect(screen.queryByRole("dialog")).toBeNull();
-    await user.click(preview);
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByRole("dialog", { name: "Alice Tenant inspector" })).not.toBeNull();
-
-    await user.click(screen.getByRole("button", { name: "Close drawer" }));
-    expect(document.activeElement).toBe(preview);
-  });
-
-  it("replaces a compact preview with one edit drawer", async () => {
-    installMatchMedia(1024);
-    const user = userEvent.setup();
-    renderPeople();
-    const preview = screen.getByRole("button", { name: "Preview Alice Tenant" });
-
-    await user.click(preview);
-    await user.click(screen.getByRole("button", { name: "Edit Alice Tenant" }));
-
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByRole("dialog", { name: "Edit person record" })).not.toBeNull();
-    expect(screen.queryByRole("dialog", { name: "Alice Tenant inspector" })).toBeNull();
+    expect(screen.getAllByRole("link", { name: "Open record" })[0]?.getAttribute("href")).toBe("/people/person-1");
+    expect(screen.queryByText("Preview")).toBeNull();
+    expect(screen.queryByRole("complementary")).toBeNull();
   });
 
   it("distinguishes filtered and true empty states and hides unauthorized creation", () => {
@@ -200,6 +177,8 @@ describe("People route family redesign contract", () => {
 
     renderPeople({ canCreate: false, people: [] });
     expect(screen.getByText("No people yet")).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "People summary" })).toBeNull();
+    expect(document.querySelector('[data-empty-state-icon="true"]')?.className).toContain("size-14");
     expect(screen.queryByRole("button", { name: "Add person" })).toBeNull();
   });
 
@@ -210,7 +189,7 @@ describe("People route family redesign contract", () => {
     expect(screen.queryByRole("dialog", { name: "Add person" })).toBeNull();
   });
 
-  it("uses truthful staff operating context in the table, cards, and inspector", () => {
+  it("uses truthful staff operating context in the table and cards", () => {
     const staffWithNotes = {
       ...makePerson("staff-1", "Sokha Staff", "staff"),
       notes: "Coordinates maintenance dispatch",
@@ -229,24 +208,6 @@ describe("People route family redesign contract", () => {
     expect(within(table).getByText("Coordinates maintenance dispatch")).not.toBeNull();
     expect(within(table).getByText("No operating context")).not.toBeNull();
     expect(screen.queryByText("Team context")).toBeNull();
-
-    const firstInspector = screen.getByRole("complementary", {
-      name: "Sokha Staff inspector",
-    });
-    expect(within(firstInspector).getByText("Operating context")).not.toBeNull();
-    expect(
-      within(firstInspector).getByText("Coordinates maintenance dispatch"),
-    ).not.toBeNull();
-
-    fireEvent.click(
-      within(table)
-        .getByRole("link", { name: "Maly Staff" })
-        .closest("tr")!,
-    );
-    const secondInspector = screen.getByRole("complementary", {
-      name: "Maly Staff inspector",
-    });
-    expect(within(secondInspector).getByText("No operating context")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Cards" }));
     const cards = screen.getAllByRole("article");
@@ -274,7 +235,7 @@ function renderPeople({
       addButtonLabel={lockedRole ? `Add ${lockedRole}` : "Add person"}
       canCreate={canCreate}
       createRole={lockedRole}
-      insights={getPeopleInsights(people, people.length)}
+      insights={getPeopleInsights(nextPeople, nextPeople.length)}
       lockedRole={lockedRole}
       pagination={{
         from: nextPeople.length > 0 ? 1 : 0,

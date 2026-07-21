@@ -44,7 +44,7 @@ describe("DocumentScreen workspace contract", () => {
     ]);
   });
 
-  it("keeps documents dense, selected, directly linked, metadata-rich, and docked at 1280+", () => {
+  it("keeps documents dense, directly linked, metadata-rich, and available in a quick view", () => {
     const { container } = renderDocuments();
     const table = screen.getByRole("table");
     const rows = within(table).getAllByRole("row").slice(1);
@@ -53,7 +53,7 @@ describe("DocumentScreen workspace contract", () => {
     expect(screen.getByRole("toolbar", { name: "Workspace tools" })).not.toBeNull();
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
+    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "lease.pdf" }).getAttribute("href"),
     ).toBe("/documents?archiveState=all&documentId=document-1");
@@ -63,8 +63,11 @@ describe("DocumentScreen workspace contract", () => {
     expect(within(rows[0]!).getByText("10 Jul 2026")).not.toBeNull();
     expect(within(rows[0]!).getByRole("button", { name: "Preview lease.pdf" })).not.toBeNull();
 
-    const inspector = screen.getByRole("complementary", {
-      name: "lease.pdf document inspector",
+    fireEvent.click(
+      within(rows[0]!).getByRole("button", { name: "Preview lease.pdf" }),
+    );
+    const inspector = screen.getByRole("dialog", {
+      name: "lease.pdf document quick view",
     });
     const open = within(inspector).getByRole("link", { name: "Open file" });
     expect(open.getAttribute("href")).toBe("https://example.test/lease.pdf?token=private");
@@ -85,7 +88,7 @@ describe("DocumentScreen workspace contract", () => {
     });
 
     expect(fireEvent.keyDown(secondLink, { key: "Enter" })).toBe(true);
-    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("false");
     expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
     fireEvent.keyDown(rows[1]!, { key: "Enter" });
     expect(rows[1]!.getAttribute("aria-selected")).toBe("true");
@@ -102,7 +105,7 @@ describe("DocumentScreen workspace contract", () => {
 
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
-      expect(screen.getByRole("dialog", { name: "lease.pdf document inspector" })).not.toBeNull();
+      expect(screen.getByRole("dialog", { name: "lease.pdf document quick view" })).not.toBeNull();
       await user.click(screen.getByRole("button", { name: "Edit document" }));
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
       expect(screen.getByRole("dialog", { name: "Edit document" })).not.toBeNull();
@@ -117,7 +120,7 @@ describe("DocumentScreen workspace contract", () => {
     renderDocuments(documents, {}, "document-2");
 
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
-    expect(rows[1]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[1]!.getAttribute("aria-selected")).toBe("false");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -141,8 +144,9 @@ describe("DocumentScreen workspace contract", () => {
 
   it("does not invent an unsafe file action when no signed URL is available", () => {
     renderDocuments([makeDocument("document-unavailable", "missing.pdf", { url: undefined })]);
-    const inspector = screen.getByRole("complementary", {
-      name: "missing.pdf document inspector",
+    fireEvent.click(screen.getByRole("button", { name: "Preview missing.pdf" }));
+    const inspector = screen.getByRole("dialog", {
+      name: "missing.pdf document quick view",
     });
 
     expect(within(inspector).queryByRole("link", { name: "Open file" })).toBeNull();

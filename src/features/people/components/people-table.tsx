@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, PanelRightOpen, UserRound } from "lucide-react";
+import { ArrowUpRight, Building2, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   getPeopleLinkedLabel,
@@ -18,19 +18,15 @@ import { cn } from "@/lib/utils";
 type PeopleTableProps = {
   archiveState: PeopleArchiveState;
   displayMode: PeopleDisplayMode;
-  onSelectPerson: (id: string) => void;
   people: PeopleSummary[];
   roleContext?: PersonRoleValue;
-  selectedPersonId: string;
 };
 
 export function PeopleTable({
   archiveState,
   displayMode,
-  onSelectPerson,
   people,
   roleContext,
-  selectedPersonId,
 }: PeopleTableProps) {
   const emptyMessage = getEmptyMessage(archiveState);
   const isRoleScoped = Boolean(roleContext);
@@ -52,10 +48,8 @@ export function PeopleTable({
         {people.map((person) => (
           <PersonCard
             key={person.id}
-            onSelectPerson={onSelectPerson}
             person={person}
             roleContext={roleContext}
-            selected={selectedPersonId === person.id}
           />
         ))}
       </div>
@@ -121,26 +115,11 @@ export function PeopleTable({
                 ) : null}
                 {people.map((person) => (
                   <tr
-                    aria-selected={selectedPersonId === person.id}
                     className={cn(
-                      "cursor-pointer border-t border-border outline-none transition-colors hover:bg-surface-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring",
-                      selectedPersonId === person.id &&
-                        "bg-state-selected shadow-[inset_3px_0_0_var(--record-spine)]",
+                      "border-t border-border transition-colors hover:bg-surface-muted/70",
                       person.isArchived && "text-muted",
                     )}
                     key={person.id}
-                    onClick={() => onSelectPerson(person.id)}
-                    onKeyDown={(event) => {
-                      if (event.currentTarget !== event.target) {
-                        return;
-                      }
-
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onSelectPerson(person.id);
-                      }
-                    }}
-                    tabIndex={0}
                   >
                     <td className="px-2.5 py-2">
                       <div className="min-w-0">
@@ -196,24 +175,18 @@ export function PeopleTable({
 }
 
 function PersonCard({
-  onSelectPerson,
   person,
   roleContext,
-  selected,
 }: {
-  onSelectPerson: (id: string) => void;
   person: PeopleSummary;
   roleContext?: PersonRoleValue;
-  selected: boolean;
 }) {
   return (
     <article
       className={cn(
         "group min-w-0 overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-record-spine",
-        selected && "border-record-spine bg-state-selected",
         person.isArchived && "text-muted",
       )}
-      data-selected={selected ? "true" : "false"}
     >
       <div className="flex items-start gap-3 border-b border-border px-3.5 py-3.5">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-muted">
@@ -250,19 +223,14 @@ function PersonCard({
           label={getContextHeader(roleContext)}
           value={getContextValue(person, roleContext)}
         />
-        <button
-          aria-label={`Preview ${person.displayName}`}
-          aria-pressed={selected}
-          className={cn(
-            "mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
-            selected && "border-record-spine bg-state-selected",
-          )}
-          onClick={() => onSelectPerson(person.id)}
-          type="button"
+        <Link
+          className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+          href={`/people/${person.id}`}
+          prefetch={false}
         >
-          <PanelRightOpen aria-hidden="true" className="size-3.5" />
-          Preview
-        </button>
+          Open record
+          <ArrowUpRight aria-hidden="true" className="size-3.5" />
+        </Link>
       </div>
     </article>
   );

@@ -48,7 +48,7 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
                 markClassName="h-9 w-9"
                 markTone={isHeroTone ? "light" : "auto"}
                 priority
-                subtitleClassName={isHeroTone ? "text-white/50" : "text-[var(--landing-subtle)]"}
+                subtitleClassName={isHeroTone ? "text-white/75" : "text-[var(--landing-subtle)]"}
                 textClassName={isHeroTone ? "text-2xl text-white" : "text-2xl text-[var(--landing-heading)]"}
               />
             </Link>
@@ -56,15 +56,15 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
             <div
               className={
                 isHeroTone
-                  ? "flex items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em] text-white/65 sm:gap-5"
+                  ? "flex items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em] text-white/90 sm:gap-5"
                   : "flex items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--landing-muted)] sm:gap-5"
               }
             >
               <Link
                 className={
                   isHeroTone
-                    ? "whitespace-nowrap transition-colors hover:text-white"
-                    : "whitespace-nowrap transition-colors hover:text-[var(--landing-heading)]"
+                    ? "whitespace-nowrap rounded-sm outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white"
+                    : "whitespace-nowrap rounded-sm outline-none transition-colors hover:text-[var(--landing-heading)] focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)]"
                 }
                 href="/login"
               >
@@ -75,8 +75,8 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
                 aria-label="Open menu"
                 className={
                   isHeroTone
-                    ? "inline-flex h-8 w-8 items-center justify-center text-white transition-opacity hover:opacity-65"
-                    : "inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] transition-opacity hover:opacity-65"
+                    ? "inline-flex h-8 w-8 items-center justify-center text-white outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white"
+                    : "inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)]"
                 }
                 onClick={() => setIsOpen(true)}
                 type="button"
@@ -105,14 +105,14 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
                 markClassName="h-9 w-9"
                 markTone="light"
                 priority
-                subtitleClassName="text-white/40"
+                subtitleClassName="text-white/75"
                 textClassName="text-2xl text-white"
               />
             </Link>
 
-            <div className="flex items-center gap-5 text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">
+            <div className="flex items-center gap-5 text-[11px] font-medium uppercase tracking-[0.16em] text-white/85">
               <Link
-                className="transition-colors hover:text-white"
+                className="rounded-sm outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white"
                 href="/login"
                 onClick={() => setIsOpen(false)}
               >
@@ -121,7 +121,7 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
               <LandingThemeToggle onToggle={toggleTheme} variant="overlay" />
               <button
                 aria-label="Close menu"
-                className="inline-flex h-8 w-8 items-center justify-center text-white transition-opacity hover:opacity-65"
+                className="inline-flex h-8 w-8 items-center justify-center text-white outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -137,7 +137,7 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
             <div className="space-y-4 text-center">
               {navItems.map((item) => (
                 <a
-                  className="font-display block text-4xl font-semibold leading-none text-white/35 transition-colors hover:text-white sm:text-5xl lg:text-6xl"
+                  className="font-display block rounded-sm text-4xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-5xl lg:text-6xl"
                   href={item.href}
                   key={item.href}
                   onClick={() => setIsOpen(false)}
@@ -146,7 +146,7 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
                 </a>
               ))}
               <Link
-                className="font-display block pt-6 text-3xl font-semibold leading-none text-white/35 transition-colors hover:text-white sm:text-4xl lg:text-5xl"
+                className="font-display block rounded-sm pt-6 text-3xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-4xl lg:text-5xl"
                 href="/signup"
                 onClick={() => setIsOpen(false)}
               >
@@ -172,8 +172,8 @@ function LandingThemeToggle({
       aria-label="Toggle color theme"
       className={
         variant === "overlay" || variant === "hero"
-          ? "inline-flex h-8 w-8 items-center justify-center text-white transition-opacity hover:opacity-65"
-          : "inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] transition-opacity hover:opacity-65"
+          ? "inline-flex h-8 w-8 items-center justify-center text-white outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white"
+          : "inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)]"
       }
       onClick={onToggle}
       title="Toggle color theme"

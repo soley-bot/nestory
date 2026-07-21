@@ -1,10 +1,7 @@
 "use client";
 
-import { useSyncExternalStore, type ReactNode } from "react";
-import { SideDrawer } from "@/components/ui/side-drawer";
-import { cn } from "@/lib/utils";
-
-const WIDE_WORKSPACE_QUERY = "(min-width: 1280px)";
+import type { ReactNode } from "react";
+import { RecordQuickViewDialog } from "@/components/ui/record-quick-view-dialog";
 
 type WorkspaceSplitViewBaseProps = {
   list: ReactNode;
@@ -28,37 +25,6 @@ type WorkspaceSplitViewProps =
   | WorkspaceSplitViewWithInspectorProps
   | WorkspaceSplitViewWithoutInspectorProps;
 
-function subscribeToWideWorkspace(onStoreChange: () => void) {
-  if (typeof window === "undefined" || !window.matchMedia) {
-    return () => undefined;
-  }
-
-  const mediaQuery = window.matchMedia(WIDE_WORKSPACE_QUERY);
-  mediaQuery.addEventListener("change", onStoreChange);
-
-  return () => mediaQuery.removeEventListener("change", onStoreChange);
-}
-
-function getWideWorkspaceSnapshot() {
-  if (typeof window === "undefined" || !window.matchMedia) {
-    return true;
-  }
-
-  return window.matchMedia(WIDE_WORKSPACE_QUERY).matches;
-}
-
-function getWideWorkspaceServerSnapshot() {
-  return true;
-}
-
-export function useWideWorkspace() {
-  return useSyncExternalStore(
-    subscribeToWideWorkspace,
-    getWideWorkspaceSnapshot,
-    getWideWorkspaceServerSnapshot,
-  );
-}
-
 export function WorkspaceSplitView({
   inspector,
   inspectorLabel,
@@ -66,12 +32,9 @@ export function WorkspaceSplitView({
   list,
   onInspectorOpenChange,
 }: WorkspaceSplitViewProps) {
-  const isWideWorkspace = useWideWorkspace();
   const hasDismissableInspector =
     inspector != null && typeof onInspectorOpenChange === "function";
-  const showInspector = hasDismissableInspector && inspectorOpen === true;
-  const showDockedInspector = showInspector && isWideWorkspace;
-  const showInspectorDrawer = showInspector && !isWideWorkspace;
+  const showQuickView = hasDismissableInspector && inspectorOpen === true;
 
   function closeInspector() {
     onInspectorOpenChange?.(false);
@@ -79,11 +42,7 @@ export function WorkspaceSplitView({
 
   return (
     <div
-      className={cn(
-        "grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden bg-surface-raised",
-        showDockedInspector &&
-          "xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]",
-      )}
+      className="grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden bg-surface-raised"
       data-slot="workspace-split-view"
     >
       <section
@@ -96,27 +55,14 @@ export function WorkspaceSplitView({
         {list}
       </section>
 
-      {showDockedInspector ? (
-        <aside
-          aria-label={inspectorLabel}
-          className="min-h-0 min-w-[280px] max-w-[320px] overflow-y-auto border-l-2 border-record-spine bg-surface-raised"
-          data-slot="workspace-inspector"
-        >
-          {inspector}
-        </aside>
-      ) : null}
-
-      {showInspectorDrawer ? (
-        <SideDrawer
+      {showQuickView ? (
+        <RecordQuickViewDialog
+          label={inspectorLabel ?? "Record quick view"}
           onClose={closeInspector}
           open
-          size="preview"
-          title={inspectorLabel}
         >
-          <div className="min-h-full border-l-2 border-record-spine bg-surface-raised">
-            {inspector}
-          </div>
-        </SideDrawer>
+          {inspector}
+        </RecordQuickViewDialog>
       ) : null}
     </div>
   );

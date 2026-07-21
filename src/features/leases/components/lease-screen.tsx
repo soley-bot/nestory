@@ -11,7 +11,6 @@ import {
 } from "@/components/data/record-selection";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
-  useWideWorkspace,
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
@@ -116,7 +115,6 @@ export function LeaseScreen({
     Boolean(initialLeaseId) &&
       (!canCreate || searchParams.get("action") !== "create"),
   );
-  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [rentState, generateRent, generatingRent] = useActionState(
     generateMonthlyRentAction,
@@ -142,9 +140,7 @@ export function LeaseScreen({
   const getLeaseRecordHref = (leaseId: string) =>
     getFocusedRecordHref(pathname, searchParams, "leaseId", leaseId);
   const openLeaseAction = (nextDrawer: DrawerState) => {
-    if (!isWideWorkspace) {
-      setCompactInspectorOpen(false);
-    }
+    setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawer(nextDrawer);
   };
@@ -232,7 +228,7 @@ export function LeaseScreen({
               leases={leases}
               getLeaseHref={getLeaseRecordHref}
               onSelectLease={previewLease}
-              selectedLeaseId={selectedLease?.id ?? ""}
+              selectedLeaseId={compactInspectorOpen ? selectedLease?.id ?? "" : ""}
             />
           </div>
           <PaginationControls attached pagination={pagination} />
@@ -310,8 +306,8 @@ export function LeaseScreen({
           {leaseInspector && selectedLease ? (
             <WorkspaceSplitView
               inspector={leaseInspector}
-              inspectorLabel={`${selectedLease.tenantName} lease inspector`}
-              inspectorOpen={isWideWorkspace || compactInspectorOpen}
+              inspectorLabel={`${selectedLease.tenantName} lease quick view`}
+              inspectorOpen={compactInspectorOpen}
               list={leaseList}
               onInspectorOpenChange={setCompactInspectorOpen}
             />

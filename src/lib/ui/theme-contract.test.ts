@@ -202,29 +202,41 @@ describe("authenticated theme contract", () => {
     );
 
     expect(lightTheme).toMatchObject({
+      "--brand-deep": "#135e4b",
+      "--brand-mid": "#4cb572",
+      "--brand-light": "#a1d8b5",
+      "--brand-mist": "#ccdcdb",
       "--surface-canvas": "#f3f5f4",
       "--surface-work": "#fafbf9",
       "--surface-raised": "#ffffff",
-      "--state-selected": "#dcebe6",
-      "--state-selected-strong": "#356e62",
+      "--state-selected": "#e2ebe7",
+      "--state-selected-strong": "#135e4b",
       "--state-attention": "#b7791f",
       "--state-danger": "#b42318",
-      "--focus-ring": "#2f7d71",
+      "--state-success": "#237a3e",
+      "--focus-ring": "#135e4b",
+      "--control-border": "#77817d",
       "--record-spine": "var(--state-selected-strong)",
       "--type-body": "14px",
       "--type-table": "13px",
       "--type-table-header": "11px",
     });
     expect(darkTheme).toMatchObject({
+      "--brand-deep": "#135e4b",
+      "--brand-mid": "#4cb572",
+      "--brand-light": "#a1d8b5",
+      "--brand-mist": "#ccdcdb",
       "--surface-canvas": "#111314",
       "--surface-work": "#17191a",
       "--surface-raised": "#202324",
-      "--state-selected": "#2b2f30",
-      "--state-selected-strong": "#b5bbb8",
+      "--state-selected": "#1b332a",
+      "--state-selected-strong": "#a1d8b5",
       "--state-attention": "#d6a85f",
       "--state-danger": "#ff8a80",
-      "--focus-ring": "#b5bbb8",
+      "--state-success": "#86d49b",
+      "--focus-ring": "#a1d8b5",
       "--border-neutral": "#343839",
+      "--control-border": "#7e8883",
       "--foreground": "#eef0ef",
       "--foreground-muted": "#b8bdba",
       "--foreground-subtle": "#a1a7a4",
@@ -303,11 +315,33 @@ describe("authenticated theme contract", () => {
     );
     expect(maintenanceWorkSource).toContain("focus-visible:ring-focus-ring");
     expect(maintenanceWorkSource).not.toContain("focus-visible:ring-accent");
+    expect(maintenanceWorkSource).toContain("bg-accent text-background");
+    expect(maintenanceWorkSource).not.toContain("bg-accent text-white");
 
     const maintenanceBoardSource = getSource(
       "src/features/maintenance/components/maintenance-board-surface.tsx",
     );
     expect(maintenanceBoardSource).not.toContain("ring-accent-soft");
+
+    for (const path of [
+      "src/features/auth/components/login-form.tsx",
+      "src/features/auth/components/signup-form.tsx",
+    ]) {
+      const source = getSource(path);
+      expect(source, path).toContain("focus-visible:ring-focus-ring");
+      expect(source, path).not.toContain("focus-visible:ring-accent");
+    }
+  });
+
+  it("keeps the landing workspace preview on the shared brand palette", () => {
+    const previewSource = getSource(
+      "src/features/marketing/components/control-preview.tsx",
+    );
+
+    expect(previewSource).toContain("--preview-accent: #135e4b");
+    expect(previewSource).toContain("--preview-accent: #4cb572");
+    expect(previewSource).not.toContain("--preview-blue");
+    expect(previewSource).not.toMatch(/#(?:9b4fd0|8fb8ff|1f4e8c)/i);
   });
 
   it("keeps small semantic text at WCAG AA contrast", () => {
@@ -338,6 +372,101 @@ describe("authenticated theme contract", () => {
     }
   });
 
+  it("keeps brand, semantic state, focus, and control roles contrast-safe", () => {
+    const lightTheme = getCustomProperties(getBlock(globalsCss, ":root"));
+    const darkTheme = getCustomProperties(
+      getBlock(globalsCss, '[data-theme="dark"]'),
+    );
+
+    for (const [label, foreground, background, minimum] of [
+      [
+        "light on-brand text",
+        lightTheme["--brand-on-solid"],
+        lightTheme["--brand-deep"],
+        4.5,
+      ],
+      [
+        "dark on-brand text",
+        darkTheme["--brand-on-solid"],
+        darkTheme["--brand-mid"],
+        4.5,
+      ],
+      [
+        "light selected text",
+        lightTheme["--state-selected-strong"],
+        lightTheme["--state-selected"],
+        4.5,
+      ],
+      [
+        "dark selected text",
+        darkTheme["--state-selected-strong"],
+        darkTheme["--state-selected"],
+        4.5,
+      ],
+      [
+        "light success text",
+        lightTheme["--state-success"],
+        lightTheme["--state-success-soft"],
+        4.5,
+      ],
+      [
+        "dark success text",
+        darkTheme["--state-success"],
+        darkTheme["--state-success-soft"],
+        4.5,
+      ],
+      [
+        "light focus ring",
+        lightTheme["--focus-ring"],
+        lightTheme["--surface-raised"],
+        3,
+      ],
+      [
+        "dark focus ring",
+        darkTheme["--focus-ring"],
+        darkTheme["--surface-work"],
+        3,
+      ],
+      [
+        "light control border",
+        lightTheme["--control-border"],
+        lightTheme["--surface-raised"],
+        3,
+      ],
+      [
+        "dark control border",
+        darkTheme["--control-border"],
+        darkTheme["--surface-raised"],
+        3,
+      ],
+    ] as const) {
+      expect(
+        getContrastRatio(foreground, background),
+        label,
+      ).toBeGreaterThanOrEqual(minimum);
+    }
+  });
+
+  it("keeps landing copy readable in both themes", () => {
+    for (const selector of [
+      ".landing-page",
+      '[data-theme="dark"] .landing-page',
+    ]) {
+      const palette = getCustomProperties(getBlock(globalsCss, selector));
+
+      for (const token of [
+        "--landing-muted",
+        "--landing-subtle",
+        "--landing-accent",
+      ]) {
+        expect(
+          getContrastRatio(palette[token], palette["--landing-bg"]),
+          `${selector} ${token}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
   it("keeps the workspace arrival palette isolated and readable", () => {
     const lightWorkspacePalette = getCustomProperties(
       getBlock(globalsCss, ".workspace-arrival-page"),
@@ -352,24 +481,30 @@ describe("authenticated theme contract", () => {
       "--workspace-arrival-fg": "#17211f",
       "--workspace-arrival-action": "#17211f",
       "--workspace-arrival-action-fg": "#f3f5f4",
-      "--workspace-arrival-card": "rgb(243 245 244 / 90%)",
-      "--workspace-arrival-line": "rgb(226 232 240 / 88%)",
+      "--workspace-arrival-card": "rgb(250 251 250 / 94%)",
+      "--workspace-arrival-line": "rgb(17 19 20 / 20%)",
+      "--workspace-arrival-overlay-bg": "rgb(17 19 20 / 68%)",
+      "--workspace-arrival-overlay-fg": "#f8faf9",
     });
     expect(darkWorkspacePalette).toMatchObject({
-      "--workspace-arrival-bg": "#0a1622",
-      "--workspace-arrival-fg": "#f4f7fa",
-      "--workspace-arrival-action": "rgb(244 247 250 / 8%)",
-      "--workspace-arrival-action-fg": "#f4f7fa",
+      "--workspace-arrival-bg": "#111314",
+      "--workspace-arrival-fg": "#eef0ef",
+      "--workspace-arrival-action": "#202324",
+      "--workspace-arrival-action-fg": "#eef0ef",
+      "--workspace-arrival-action-border": "#7e8883",
+      "--workspace-arrival-focus": "#a1d8b5",
     });
     const authPhotoPalette = getCustomProperties(
       getBlock(globalsCss, ".auth-photo-page"),
     );
     expect(authPhotoPalette).toMatchObject({
-      "--auth-page-card-bg": "rgb(243 245 244 / 90%)",
+      "--auth-page-card-bg": "rgb(250 251 250 / 96%)",
       "--auth-page-input-bg": "#ffffff",
-      "--auth-page-input-border": "#d7ddda",
-      "--auth-page-muted": "#34413d",
-      "--auth-page-subtle": "#4a5753",
+      "--auth-page-input-border": "#77817d",
+      "--auth-page-fg": "#f8faf9",
+      "--auth-page-muted": "rgb(248 250 249 / 88%)",
+      "--auth-page-subtle": "rgb(248 250 249 / 78%)",
+      "--auth-page-header-bg": "rgb(17 19 20 / 68%)",
     });
     const darkAuthPhotoPalette = getCustomProperties(
       getBlock(globalsCss, '[data-theme="dark"] .auth-photo-page'),
@@ -377,17 +512,20 @@ describe("authenticated theme contract", () => {
     expect(darkAuthPhotoPalette).toMatchObject({
       "--auth-page-card-bg": "rgb(22 24 25 / 94%)",
       "--auth-page-input-bg": "#1b1e1f",
-      "--auth-page-input-border": "#363b3c",
+      "--auth-page-input-border": "#7e8883",
       "--background": "#111314",
       "--border": "#363b3c",
       "--foreground": "#eef0ef",
       "--surface": "#1b1e1f",
     });
-    expect(lightWorkspacePalette["--workspace-arrival-scrim"]).toBe(
-      authPhotoPalette["--auth-page-scrim"],
-    );
     expect(lightWorkspacePalette["--workspace-arrival-scrim"]).toContain(
-      "rgb(239 241 238 / 80%)",
+      "rgb(11 17 15 / 12%)",
+    );
+    expect(authPhotoPalette["--auth-page-scrim"]).toContain(
+      "rgb(11 17 15 / 78%)",
+    );
+    expect(authPhotoPalette["--auth-page-scrim"]).not.toContain(
+      "rgb(243 245 244",
     );
     expect(
       getContrastRatio(
@@ -415,6 +553,27 @@ describe("authenticated theme contract", () => {
         `${foregroundToken} contrast on dark workspace background`,
       ).toBeGreaterThanOrEqual(4.5);
     }
+    expect(
+      getContrastRatio(
+        darkWorkspacePalette["--workspace-arrival-action-fg"],
+        darkWorkspacePalette["--workspace-arrival-action"],
+      ),
+      "dark workspace action contrast",
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      getContrastRatio(
+        authPhotoPalette["--auth-page-input-border"],
+        authPhotoPalette["--auth-page-input-bg"],
+      ),
+      "light auth input boundary contrast",
+    ).toBeGreaterThanOrEqual(3);
+    expect(
+      getContrastRatio(
+        darkAuthPhotoPalette["--auth-page-input-border"],
+        darkAuthPhotoPalette["--auth-page-input-bg"],
+      ),
+      "dark auth input boundary contrast",
+    ).toBeGreaterThanOrEqual(3);
     expect(workspaceSource).toContain(
       "shadow-[inset_0_0_0_1px_var(--workspace-arrival-action-border)]",
     );
@@ -454,8 +613,13 @@ describe("authenticated theme contract", () => {
       "--color-surface-work": "var(--surface-work)",
       "--color-surface-raised": "var(--surface-raised)",
       "--color-border-neutral": "var(--border-neutral)",
+      "--color-control-border": "var(--control-border)",
       "--color-state-selected": "var(--state-selected)",
       "--color-state-selected-strong": "var(--state-selected-strong)",
+      "--color-brand-solid": "var(--brand-solid)",
+      "--color-brand-on-solid": "var(--brand-on-solid)",
+      "--color-brand-text": "var(--brand-text)",
+      "--color-brand-soft": "var(--brand-soft)",
       "--color-state-attention": "var(--state-attention)",
       "--color-state-attention-foreground":
         "var(--state-attention-foreground)",

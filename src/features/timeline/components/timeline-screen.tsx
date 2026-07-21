@@ -18,7 +18,6 @@ import {
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
-  useWideWorkspace,
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
@@ -106,7 +105,6 @@ export function TimelineScreen({
     getInitialRecordId(events, initialEventId),
   );
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
-  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const focusedEvent = initialEventId
@@ -123,9 +121,7 @@ export function TimelineScreen({
     hasFocusedEventIntent: Boolean(initialEventId),
   });
   const openTimelineAction = (nextDrawer: DrawerState) => {
-    if (!isWideWorkspace) {
-      setCompactInspectorOpen(false);
-    }
+    setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawer(nextDrawer);
   };
@@ -205,7 +201,7 @@ export function TimelineScreen({
               events={events}
               onSelectEvent={previewEvent}
               pagination={pagination}
-              selectedEventId={selectedEvent?.id ?? ""}
+              selectedEventId={compactInspectorOpen ? selectedEvent?.id ?? "" : ""}
             />
           </div>
           <PaginationControls attached pagination={pagination} />
@@ -280,8 +276,8 @@ export function TimelineScreen({
         {timelineInspector && selectedEvent ? (
           <WorkspaceSplitView
             inspector={timelineInspector}
-            inspectorLabel={`${selectedEvent.title} timeline inspector`}
-            inspectorOpen={isWideWorkspace || compactInspectorOpen}
+            inspectorLabel={`${selectedEvent.title} timeline quick view`}
+            inspectorOpen={compactInspectorOpen}
             list={timelineList}
             onInspectorOpenChange={setCompactInspectorOpen}
           />

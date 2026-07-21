@@ -23,7 +23,6 @@ import {
 } from "@/components/data/record-selection";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
-  useWideWorkspace,
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
@@ -124,7 +123,6 @@ export function DocumentScreen({
     getInitialRecordId(documents, initialDocumentId),
   );
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
-  const isWideWorkspace = useWideWorkspace();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedDocument = initialDocumentId
     ? (documents.find((document) => document.id === initialDocumentId) ?? null)
@@ -164,9 +162,7 @@ export function DocumentScreen({
     });
   }, [createInitialValues, pathname, router, searchParams]);
   const openDocumentAction = (nextDrawer: DrawerState) => {
-    if (!isWideWorkspace) {
-      setCompactInspectorOpen(false);
-    }
+    setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawer(nextDrawer);
   };
@@ -218,7 +214,9 @@ export function DocumentScreen({
             <DocumentTable
               documents={documents}
               onSelect={previewDocument}
-              selectedDocumentId={selectedDocument?.id ?? ""}
+              selectedDocumentId={
+                compactInspectorOpen ? selectedDocument?.id ?? "" : ""
+              }
             />
           </div>
           <PaginationControls attached pagination={pagination} />
@@ -281,8 +279,8 @@ export function DocumentScreen({
           {documentInspector && selectedDocument ? (
             <WorkspaceSplitView
               inspector={documentInspector}
-              inspectorLabel={`${selectedDocument.fileName} document inspector`}
-              inspectorOpen={isWideWorkspace || compactInspectorOpen}
+              inspectorLabel={`${selectedDocument.fileName} document quick view`}
+              inspectorOpen={compactInspectorOpen}
               list={documentList}
               onInspectorOpenChange={setCompactInspectorOpen}
             />
