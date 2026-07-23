@@ -79,13 +79,25 @@ export function BillsExpensesScreen({
   vendorOptions,
   viewQuery,
 }: BillsExpensesScreenProps) {
+  const searchParams = useSearchParams();
+  const hasFocusedExpenseItem =
+    Boolean(viewQuery.expenseItemId) && viewQuery.expenseItemId !== "all";
+  const focusedExpenseItem = hasFocusedExpenseItem
+    ? expenseItems.find((item) => item.id === viewQuery.expenseItemId) ?? null
+    : null;
   const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
-  const [selectedItemId, setSelectedItemId] = useState(expenseItems[0]?.id ?? "");
-  const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState(
+    focusedExpenseItem?.id ??
+      (hasFocusedExpenseItem ? "" : expenseItems[0]?.id) ??
+      "",
+  );
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
+    Boolean(focusedExpenseItem),
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedItem =
     expenseItems.find((item) => item.id === selectedItemId) ??
-    expenseItems[0] ??
+    (hasFocusedExpenseItem ? null : expenseItems[0]) ??
     null;
 
   const openDrawer = (nextDrawer: DrawerState) => {
@@ -188,7 +200,19 @@ export function BillsExpensesScreen({
         </div>
       ) : null}
 
-      {viewQuery.dateBasis === "paid" ? (
+      {hasFocusedExpenseItem ? (
+        <FocusedRecordContext
+          clearHref={getClearFocusedHref(
+            "/bills-expenses",
+            searchParams,
+            "expenseItemId",
+          )}
+          isArchived={Boolean(focusedExpenseItem?.archivedAt)}
+          isAvailable={Boolean(focusedExpenseItem)}
+        />
+      ) : null}
+
+      {hasFocusedExpenseItem ? null : viewQuery.dateBasis === "paid" ? (
         <PaidBillsExpensesSummaryStrip
           eventCount={pagination.totalCount}
           netPayments={summary.postedTotal}
@@ -258,6 +282,53 @@ export function BillsExpensesScreen({
       </div>
     </WorkspacePage>
   );
+}
+
+function FocusedRecordContext({
+  clearHref,
+  isArchived,
+  isAvailable,
+}: {
+  clearHref: string;
+  isArchived: boolean;
+  isAvailable: boolean;
+}) {
+  return (
+    <section className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-muted/45 px-4 py-2 sm:px-6">
+      <div>
+        <p className="text-sm font-medium">
+          {isAvailable ? "Focused from activity history" : "Source record unavailable"}
+        </p>
+        <p className="text-xs text-muted">
+          {isAvailable
+            ? isArchived
+              ? "Archived source record"
+              : "The exact expense record is open for review."
+            : "The record does not exist or you no longer have access."}
+        </p>
+      </div>
+      <Link
+        aria-label="Clear focused record"
+        className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium hover:bg-surface-muted"
+        href={clearHref}
+      >
+        Clear focus
+      </Link>
+    </section>
+  );
+}
+
+function getClearFocusedHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  focusParam: string,
+) {
+  const next = new URLSearchParams(searchParams.toString());
+  next.delete(focusParam);
+  next.delete("archiveState");
+  next.delete("page");
+  const query = next.toString();
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 function BillsExpensesFilters({
@@ -592,7 +663,7 @@ function BillsExpensesInspector({
           </div>
         ) : null}
 
-        {!item.isPaymentEvent ? <div className="flex flex-wrap gap-2">
+        {!item.isPaymentEvent && !item.archivedAt ? <div className="flex flex-wrap gap-2">
           {item.status === "draft" ? (
             <Button onClick={() => onApprove(item)}>
               <CheckCircle2 size={15} />

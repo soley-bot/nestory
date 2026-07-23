@@ -2,6 +2,10 @@ import {
   toRecentChange,
   type ActivityLogSnapshot,
 } from "@/features/activity/recent-changes";
+import {
+  resolveRecentChangeTargets,
+  type ActivityTargetQueryClient,
+} from "@/features/activity/recent-change-targets";
 import type { LinkedDocument } from "@/features/documents/document.types";
 import { formatDate } from "@/lib/dates/format";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -907,7 +911,15 @@ async function loadPeopleSummariesForRows({
   const leasesById = indexById(leases);
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
-  const activityByPerson = groupActivityByPersonId(activityRows);
+  const resolvedActivity = await resolveRecentChangeTargets({
+    logs: activityRows,
+    organizationId,
+    supabase: supabase as unknown as ActivityTargetQueryClient,
+  });
+  const activityByPerson = groupActivityByPersonId(
+    activityRows,
+    new Map(resolvedActivity.map((change) => [change.id, change])),
+  );
   const documentsByPerson = groupDocumentsByPerson({
     documents,
     leasePartiesByPerson,
@@ -1815,12 +1827,15 @@ function mergeDocuments(...groups: DocumentRow[][]) {
   return sortDocuments([...byId.values()]);
 }
 
-function groupActivityByPersonId(rows: ActivityLogSnapshot[]) {
+function groupActivityByPersonId(
+  rows: ActivityLogSnapshot[],
+  resolvedById: Map<string, ReturnType<typeof toRecentChange>>,
+) {
   const grouped = new Map<string, ReturnType<typeof toRecentChange>[]>();
 
   for (const row of rows) {
     const group = grouped.get(row.entity_id) ?? [];
-    group.push(toRecentChange(row));
+    group.push(resolvedById.get(row.id) ?? toRecentChange(row));
     grouped.set(row.entity_id, group);
   }
 

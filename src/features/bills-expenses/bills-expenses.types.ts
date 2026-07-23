@@ -58,7 +58,9 @@ export const ownerBillStatusOptions = [
 ] as const;
 
 export type BillsExpensesViewQuery = {
+  archiveState: "active" | "all";
   dateBasis: BillsExpenseDateBasis;
+  expenseItemId: string;
   expenseType: BillsExpenseTypeFilter;
   month: string;
   page: number;
@@ -79,6 +81,7 @@ export type BillsExpenseUnitOption = BillsExpenseOption & {
 };
 
 export type BillsExpenseItem = {
+  archivedAt?: string;
   isPaymentEvent?: boolean;
   amount: number;
   amountDisplay: MoneyDisplayValue;

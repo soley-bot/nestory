@@ -174,10 +174,58 @@ describe("calculatePettyCashRegister", () => {
     expect(register.receiptMissingCount).toBe(1);
     expect(register.closingBalanceAmount).toBe(40);
   });
+
+  it("keeps archived expenses visible without changing register facts", () => {
+    const register = calculatePettyCashRegister({
+      currency: "USD",
+      entries: [
+        makeEntry({
+          archivedAt: "2026-07-20T00:00:00.000Z",
+          id: "archived-posted-expense",
+          outAmount: 50,
+          status: "posted",
+        }),
+      ],
+      period,
+    });
+
+    expect(register.cashOutAmount).toBe(0);
+    expect(register.closingBalanceAmount).toBe(300);
+    expect(register.postedCount).toBe(0);
+    expect(register.readyToPostCount).toBe(0);
+    expect(register.receiptMissingCount).toBe(0);
+    expect(register.voidCount).toBe(0);
+    expect(register.entries[0]).toMatchObject({
+      balanceAfter: 300,
+      effectiveOutAmount: 0,
+    });
+  });
+
+  it("does not let an archived advance suppress the period advance", () => {
+    const register = calculatePettyCashRegister({
+      currency: "USD",
+      entries: [
+        makeEntry({
+          archivedAt: "2026-07-20T00:00:00.000Z",
+          entryKind: "advance",
+          id: "archived-advance",
+          inAmount: 290,
+          outAmount: 0,
+          status: "posted",
+        }),
+      ],
+      period,
+    });
+
+    expect(register.effectiveOpeningAmount).toBe(300);
+    expect(register.cashInAmount).toBe(0);
+    expect(register.closingBalanceAmount).toBe(300);
+  });
 });
 
 function makeEntry(
   overrides: Partial<{
+    archivedAt: string | null;
     createdAt: string;
     entryKind: "advance" | "cash_in" | "expense";
     id: string;

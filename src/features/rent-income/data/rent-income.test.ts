@@ -6,6 +6,59 @@ import { parseRentIncomeSearchParams } from "@/features/rent-income/rent-income.
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
 
 describe("getRentIncomeScreenData", () => {
+  it("loads an archived focused obligation ahead of conflicting list filters", async () => {
+    const incomeItemId = "4f7ea031-33bb-4c4f-96cb-b1f90d5019cf";
+    const supabase = createQueryTrackingSupabase([
+      {
+        amount_due: 500,
+        amount_received: 500,
+        archived_at: "2026-07-20T00:00:00.000Z",
+        currency: "USD",
+        description: "Historical rent",
+        due_date: "2026-05-01",
+        id: incomeItemId,
+        income_type: "rent",
+        lease_id: null,
+        ledger_entry_id: null,
+        organization_id: "org-1",
+        payer_label: "Historical tenant",
+        payer_person_id: null,
+        property_id: "property-history",
+        received_date: "2026-05-03",
+        reference: "MAY-RENT",
+        status: "posted",
+        unit_id: null,
+      },
+    ]);
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+
+    const result = await getRentIncomeScreenData(
+      "org-1",
+      parseRentIncomeSearchParams({
+        archiveState: "all",
+        incomeItemId,
+        incomeType: "late_fee",
+        month: "2026-07",
+        propertyId: "11111111-1111-4111-8111-111111111111",
+        status: "open",
+      }),
+    );
+
+    expect(result.incomeItems).toHaveLength(1);
+    expect(result.incomeItems[0]).toMatchObject({
+      archivedAt: "2026-07-20T00:00:00.000Z",
+      id: incomeItemId,
+    });
+    expect(supabase.incomeCalls).not.toContainEqual({
+      args: ["archived_at", null],
+      method: "is",
+    });
+    expect(supabase.incomeCalls).not.toContainEqual({
+      args: ["status", "open"],
+      method: "eq",
+    });
+  });
+
   it("loads a prior-period obligation by validated focused ID without weakening record scope", async () => {
     const incomeItemId = "4f7ea031-33bb-4c4f-96cb-b1f90d5019cf";
     const propertyId = "74d58dfd-198d-407e-a3e6-35f68f671a1b";
@@ -56,7 +109,7 @@ describe("getRentIncomeScreenData", () => {
       args: ["organization_id", "org-1"],
       method: "eq",
     });
-    expect(supabase.incomeCalls).toContainEqual({
+    expect(supabase.incomeCalls).not.toContainEqual({
       args: ["property_id", propertyId],
       method: "eq",
     });
@@ -104,6 +157,7 @@ describe("getRentIncomeScreenData", () => {
     } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
 
     await getRentIncomeScreenData("org-1", {
+      archiveState: "active",
       incomeGroup: "management-company", incomeType: "service_fee", month: "2026-07", page: 1, pageSize: 25,
       propertyId: "all", query: "", status: "all", unitId: "all",
     });

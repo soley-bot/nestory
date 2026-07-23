@@ -478,24 +478,7 @@ export function PersonDetailScreen({
               ) : (
                 <div className="divide-y divide-border">
                   {person.activity.map((change) => (
-                    <Link
-                      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
-                      href={change.href}
-                      key={change.id}
-                      prefetch={false}
-                    >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <p className="break-words font-medium">
-                            {change.actionLabel}
-                          </p>
-                          <p className="mt-1 text-xs text-muted">
-                            {change.entityLabel} / {change.recordLabel}
-                          </p>
-                        </div>
-                        <Badge tone={change.tone}>{formatDate(change.createdAt)}</Badge>
-                      </div>
-                    </Link>
+                    <PersonActivityRow change={change} key={change.id} />
                   ))}
                 </div>
               )}
@@ -535,6 +518,36 @@ export function PersonDetailScreen({
         </SideDrawer>
       ) : null}
     </div>
+  );
+}
+
+function PersonActivityRow({
+  change,
+}: {
+  change: PeopleSummary["activity"][number];
+}) {
+  const content = (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <p className="break-words font-medium">{change.actionLabel}</p>
+        <p className="mt-1 text-xs text-muted">
+          {change.entityLabel} / {change.recordLabel}
+        </p>
+      </div>
+      <Badge tone={change.tone}>{formatDate(change.createdAt)}</Badge>
+    </div>
+  );
+
+  return change.href ? (
+    <Link
+      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+      href={change.href}
+      prefetch={false}
+    >
+      {content}
+    </Link>
+  ) : (
+    <div className="px-4 py-3 text-sm">{content}</div>
   );
 }
 

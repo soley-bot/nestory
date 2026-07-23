@@ -274,6 +274,7 @@ function makeEvent(
     propertyName: "Home",
     recordCounts: { activity: 0, documents: 1, linkedRecords: options.ledger ? 4 : 3 },
     riskIndicators: [],
+    sources: [],
     title,
     unitId: "unit-1",
     unitNumber: "1A",

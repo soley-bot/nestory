@@ -125,21 +125,23 @@ export async function getRentIncomeScreenData(
     let query = supabase
       .from("finance_income_items")
       .select("*", { count: "exact" })
-      .eq("organization_id", organizationId)
-      .is("archived_at", null);
+      .eq("organization_id", organizationId);
 
-    if (!focusedIncomeItemId) {
-      query = query
-        .gte("due_date", monthScope.from)
-        .lt("due_date", monthScope.before);
+    if (focusedIncomeItemId) {
+      if (viewQuery.archiveState !== "all") {
+        query = query.is("archived_at", null);
+      }
+
+      return query.eq("id", focusedIncomeItemId);
     }
+
+    query = query
+      .is("archived_at", null)
+      .gte("due_date", monthScope.from)
+      .lt("due_date", monthScope.before);
 
     if (viewQuery.status !== "all") {
       query = query.eq("status", viewQuery.status);
-    }
-
-    if (focusedIncomeItemId) {
-      query = query.eq("id", focusedIncomeItemId);
     }
 
     if (viewQuery.incomeGroup === "management-company") {
@@ -287,6 +289,7 @@ function toRentIncomeItem({
     amountDueDisplay: formatMoneyDisplay(row.amount_due, row.currency),
     amountReceived: row.amount_received,
     amountReceivedDisplay: formatMoneyDisplay(row.amount_received, row.currency),
+    archivedAt: row.archived_at ?? undefined,
     balanceDisplay: formatMoneyDisplay(balance, row.currency),
     currency: row.currency,
     description: row.description ?? "",

@@ -1,11 +1,19 @@
 import { Constants } from "@/types/database";
 import { toRecentChange } from "@/features/activity/recent-changes";
+import {
+  resolveRecentChangeTargets,
+  type ActivityTargetQueryClient,
+} from "@/features/activity/recent-change-targets";
 import type { LinkedDocument } from "@/features/documents/document.types";
 import {
   buildTimelinePagination,
   DEFAULT_TIMELINE_PAGE_SIZE,
   DEFAULT_TIMELINE_SORT,
 } from "@/features/timeline/timeline.filters";
+import {
+  countAvailableTimelineSources,
+  loadTimelineSourcesByEventId,
+} from "@/features/timeline/data/timeline-sources";
 import type {
   TimelineEvent,
   TimelineEventType,
@@ -62,6 +70,9 @@ const TIMELINE_RECENT_ACTIVITY_ENTITY_TYPES: Record<TimelineScope, string[]> = {
     "timeline_event",
     "ledger_entry",
     "ledger_period",
+    "finance_income_item",
+    "finance_expense_item",
+    "petty_cash_entry",
     "document",
     "task",
     "tenant_request",
@@ -96,6 +107,7 @@ type UnitRow = {
 };
 
 type LeaseRow = {
+  archived_at: string | null;
   id: string;
   tenant_name: string;
 };
@@ -107,9 +119,12 @@ type LedgerEntryRow = {
   currency: CurrencyCode;
   direction: string;
   id: string;
+  source_id: string | null;
+  source_type: string;
 };
 
 type DocumentRow = {
+  archived_at: string | null;
   category: string;
   file_name: string;
   id: string;
@@ -288,14 +303,16 @@ export async function getTimelineScreenData(
     leaseIds.length > 0
       ? supabase
           .from("leases")
-          .select("id, tenant_name")
+          .select("id, tenant_name, archived_at")
           .eq("organization_id", organizationId)
           .in("id", leaseIds)
       : Promise.resolve({ data: [] as LeaseRow[], error: null }),
     ledgerEntryIds.length > 0
       ? supabase
           .from("ledger_entries")
-          .select("id, category, direction, amount, currency, archived_at")
+          .select(
+            "id, category, direction, amount, currency, archived_at, source_type, source_id",
+          )
           .eq("organization_id", organizationId)
           .in("id", ledgerEntryIds)
       : Promise.resolve({ data: [] as LedgerEntryRow[], error: null }),
@@ -303,11 +320,10 @@ export async function getTimelineScreenData(
       ? supabase
           .from("documents")
           .select(
-            "id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at",
+            "id, timeline_event_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at, archived_at",
           )
           .eq("organization_id", organizationId)
           .in("timeline_event_id", eventIds)
-          .is("archived_at", null)
       : Promise.resolve({ data: [] as DocumentRow[], error: null }),
   ]);
 
@@ -334,17 +350,62 @@ export async function getTimelineScreenData(
   const leasesById = indexById(leasesResult.data ?? []);
   const ledgerById = indexById(ledgerResult.data ?? []);
   const periodLocks = periodLocksResult.data ?? [];
+  const allDocumentRows = documentsResult.data ?? [];
   const documentsWithUrls = await addSignedDocumentUrls(
-    documentsResult.data ?? [],
+    allDocumentRows.filter((document) => !document.archived_at),
     supabase,
   );
   const documentsByEventId = groupDocumentsByEventId(documentsWithUrls);
-  const activityRows = await getLinkedTimelineActivity(
-    supabase,
+  const [activityRows, sourcesByEventId] = await Promise.all([
+    getLinkedTimelineActivity(supabase, organizationId, eventIds),
+    loadTimelineSourcesByEventId({
+      documents: allDocumentRows.flatMap((document) =>
+        document.timeline_event_id
+          ? [
+              {
+                archivedAt: document.archived_at,
+                fileName: document.file_name,
+                id: document.id,
+                timelineEventId: document.timeline_event_id,
+              },
+            ]
+          : [],
+      ),
+      events: eventRows.map((event) => ({
+        id: event.id,
+        leaseId: event.lease_id,
+        ledgerEntryId: event.ledger_entry_id,
+      })),
+      leases: (leasesResult.data ?? []).map((lease) => ({
+        archivedAt: lease.archived_at,
+        id: lease.id,
+        tenantName: lease.tenant_name,
+      })),
+      ledgerEntries: (ledgerResult.data ?? []).map((ledgerEntry) => ({
+        archivedAt: ledgerEntry.archived_at,
+        category: ledgerEntry.category,
+        direction: ledgerEntry.direction,
+        id: ledgerEntry.id,
+        sourceId: ledgerEntry.source_id,
+        sourceType: ledgerEntry.source_type,
+      })),
+      organizationId,
+      supabase,
+    }),
+  ]);
+  const recentActivityRows = recentActivityResult.data ?? [];
+  const resolvedActivity = await resolveRecentChangeTargets({
+    logs: [...recentActivityRows, ...activityRows],
     organizationId,
-    eventIds,
+    supabase: supabase as unknown as ActivityTargetQueryClient,
+  });
+  const resolvedActivityById = new Map(
+    resolvedActivity.map((change) => [change.id, change]),
   );
-  const activityByEventId = groupActivityByEventId(activityRows);
+  const activityByEventId = groupActivityByEventId(
+    activityRows,
+    resolvedActivityById,
+  );
   const events = eventRows.map((event) =>
     toTimelineEvent({
       activity: activityByEventId.get(event.id) ?? [],
@@ -356,6 +417,7 @@ export async function getTimelineScreenData(
         : undefined,
       lease: event.lease_id ? leasesById.get(event.lease_id) : undefined,
       property: propertiesById.get(event.property_id),
+      sources: sourcesByEventId.get(event.id) ?? [],
       unit: event.unit_id ? unitsById.get(event.unit_id) : undefined,
     }),
   );
@@ -373,7 +435,9 @@ export async function getTimelineScreenData(
         label: formatPropertyOptionLabel(property),
       }),
     ),
-    recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
+    recentChanges: recentActivityRows.map(
+      (row) => resolvedActivityById.get(row.id) ?? toRecentChange(row),
+    ),
     unitOptions: (unitsResult.data ?? []).map((unit): TimelineUnitOption => {
       const property = propertiesById.get(unit.property_id);
 
@@ -398,6 +462,7 @@ function toTimelineEvent({
   ledgerEntry,
   lease,
   property,
+  sources,
   unit,
 }: {
   activity: ReturnType<typeof toRecentChange>[];
@@ -407,13 +472,14 @@ function toTimelineEvent({
   ledgerEntry?: LedgerEntryRow;
   lease?: LeaseRow;
   property?: PropertyRow;
+  sources: TimelineEvent["sources"];
   unit?: UnitRow;
 }): TimelineEvent {
   const hrefs = buildTimelineDetailHrefs(event, ledgerEntry, lease);
   const recordCounts: TimelineRecordCounts = {
     activity: activity.length,
     documents: documents.length,
-    linkedRecords: Number(Boolean(lease)) + Number(Boolean(ledgerEntry)),
+    linkedRecords: countAvailableTimelineSources(sources),
   };
 
   return {
@@ -454,6 +520,7 @@ function toTimelineEvent({
       isLocked,
       recordCounts,
     }),
+    sources,
     title: event.title,
     ledgerEntryId: event.ledger_entry_id ?? undefined,
     unitId: event.unit_id ?? undefined,
@@ -643,12 +710,15 @@ function groupDocumentsByEventId(rows: TimelineDocumentWithLink[]) {
   return grouped;
 }
 
-function groupActivityByEventId(rows: Parameters<typeof toRecentChange>[0][]) {
+function groupActivityByEventId(
+  rows: Parameters<typeof toRecentChange>[0][],
+  resolvedById: Map<string, ReturnType<typeof toRecentChange>>,
+) {
   const grouped = new Map<string, ReturnType<typeof toRecentChange>[]>();
 
   for (const row of rows) {
     const group = grouped.get(row.entity_id) ?? [];
-    group.push(toRecentChange(row));
+    group.push(resolvedById.get(row.id) ?? toRecentChange(row));
     grouped.set(row.entity_id, group);
   }
 

@@ -33,7 +33,29 @@ type UnitRow = {
   unit_number: string;
 };
 
+type PettyCashAccountRow = {
+  account_number: string;
+  archived_at?: string | null;
+  currency: CurrencyCode;
+  custodian_person_id: string | null;
+  float_amount: number;
+  id: string;
+  name: string;
+  status: string;
+};
+
+type PettyCashPeriodRow = {
+  account_id: string;
+  advance_amount: number;
+  counted_cash_amount: number | null;
+  id: string;
+  opening_balance_amount: number;
+  period_start: string;
+  status: string;
+};
+
 type PettyCashEntryRow = {
+  archived_at: string | null;
   category: string;
   clear_date: string | null;
   company_loss_amount: number;
@@ -51,6 +73,7 @@ type PettyCashEntryRow = {
   owner_bill_status: string;
   owner_reimbursable_amount: number;
   owner_reimbursed_amount: number;
+  period_id: string;
   property_id: string | null;
   receipt_reference: string | null;
   remark: string | null;
@@ -64,9 +87,33 @@ type PettyCashEntryRow = {
 
 export async function getPettyCashScreenData(
   organizationId: string,
-  selectedAccountId?: string,
+  options: {
+    focusedEntryId?: string;
+    selectedAccountId?: string;
+  } = {},
 ) {
   const supabase = await createSupabaseServerClient();
+  const focusedEntryReference = options.focusedEntryId
+    ? await getFocusedEntryReference({
+        entryId: options.focusedEntryId,
+        organizationId,
+        supabase,
+      })
+    : null;
+  const focusedPeriodRow = focusedEntryReference
+    ? await getPeriodById({
+        organizationId,
+        periodId: focusedEntryReference.period_id,
+        supabase,
+      })
+    : null;
+  const focusedAccountRow = focusedPeriodRow
+    ? await getAccountById({
+        accountId: focusedPeriodRow.account_id,
+        organizationId,
+        supabase,
+      })
+    : null;
   const [
     accountsResult,
     propertiesResult,
@@ -106,7 +153,7 @@ export async function getPettyCashScreenData(
 
   if (accountsResult.error) {
     if (isMissingPettyCashSchema(accountsResult.error.message)) {
-      return buildUnavailableScreenData();
+      return buildUnavailableScreenData(options.focusedEntryId);
     }
 
     throw new Error(
@@ -126,9 +173,18 @@ export async function getPettyCashScreenData(
     );
   }
 
+  const accountRows = [
+    ...((accountsResult.data ?? []) as PettyCashAccountRow[]),
+  ];
+  if (
+    focusedAccountRow &&
+    !accountRows.some((account) => account.id === focusedAccountRow.id)
+  ) {
+    accountRows.push(focusedAccountRow);
+  }
   const custodianIds = [
     ...new Set(
-      (accountsResult.data ?? [])
+      accountRows
         .map((account) => account.custodian_person_id)
         .filter((id): id is string => Boolean(id)),
     ),
@@ -137,7 +193,7 @@ export async function getPettyCashScreenData(
     organizationId,
     personIds: custodianIds,
   });
-  const accounts = (accountsResult.data ?? []).map(
+  const accounts = accountRows.map(
     (account): PettyCashAccount => ({
       accountNumber: account.account_number,
       currency: account.currency,
@@ -152,19 +208,23 @@ export async function getPettyCashScreenData(
     }),
   );
   const selectedAccount =
-    accounts.find((account) => account.id === selectedAccountId) ??
+    accounts.find((account) => account.id === focusedAccountRow?.id) ??
+    accounts.find((account) => account.id === options.selectedAccountId) ??
     accounts.find((account) => account.status === "active") ??
     accounts[0];
   const properties = propertiesResult.data ?? [];
   const units = unitsResult.data ?? [];
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
-  const selectedPeriod = selectedAccount
-    ? await getSelectedPeriod(organizationId, selectedAccount.id)
-    : null;
-  const entries = selectedPeriod
+  const selectedPeriod = focusedPeriodRow
+    ? toPettyCashPeriod(focusedPeriodRow)
+    : selectedAccount
+      ? await getSelectedPeriod(organizationId, selectedAccount.id)
+      : null;
+  const entries = selectedPeriod && selectedAccount
       ? await getPeriodEntries({
         currency: selectedAccount.currency,
+        focusedEntry: focusedEntryReference,
         organizationId,
         period: selectedPeriod,
         propertiesById,
@@ -176,6 +236,12 @@ export async function getPettyCashScreenData(
     accounts,
     counterpartyOptions,
     entries,
+    focusedEntryId: options.focusedEntryId,
+    focusState: options.focusedEntryId
+      ? entries.some((entry) => entry.id === options.focusedEntryId)
+        ? "available" as const
+        : "unavailable" as const
+      : "none" as const,
     period: selectedPeriod,
     propertyOptions: properties.map((property): PettyCashPropertyOption => ({
       id: property.id,
@@ -227,38 +293,35 @@ async function getSelectedPeriod(organizationId: string, accountId: string) {
     return null;
   }
 
-  return {
-    advanceAmount: result.data.advance_amount,
-    countedCashAmount: result.data.counted_cash_amount ?? undefined,
-    id: result.data.id,
-    openingBalanceAmount: result.data.opening_balance_amount,
-    periodStart: result.data.period_start,
-    status: result.data.status,
-  } satisfies PettyCashPeriod;
+  return toPettyCashPeriod(result.data as PettyCashPeriodRow);
 }
 
 async function getPeriodEntries({
   currency,
+  focusedEntry,
   organizationId,
   period,
   propertiesById,
   unitsById,
 }: {
   currency: CurrencyCode;
+  focusedEntry: PettyCashEntryRow | null;
   organizationId: string;
   period: PettyCashPeriod;
   propertiesById: Map<string, PropertyRow>;
   unitsById: Map<string, UnitRow>;
 }) {
   const supabase = await createSupabaseServerClient();
-  const result = await supabase
+  const query = supabase
     .from("petty_cash_entries")
     .select(
-      "id, property_id, unit_id, counterparty_person_id, ledger_entry_id, invoice_date, clear_date, entry_kind, status, category, supplier, description, receipt_reference, out_amount, in_amount, currency, economic_scope, owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount, remark, created_at, voided_at, voided_by, void_reason",
+      "id, period_id, archived_at, property_id, unit_id, counterparty_person_id, ledger_entry_id, invoice_date, clear_date, entry_kind, status, category, supplier, description, receipt_reference, out_amount, in_amount, currency, economic_scope, owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount, remark, created_at, voided_at, voided_by, void_reason",
     )
     .eq("organization_id", organizationId)
     .eq("period_id", period.id)
-    .is("archived_at", null)
+    .is("archived_at", null);
+
+  const result = await query
     .order("invoice_date", { ascending: true })
     .order("created_at", { ascending: true })
     .order("id", { ascending: true });
@@ -273,7 +336,16 @@ async function getPeriodEntries({
     );
   }
 
-  const rows = (result.data ?? []) as PettyCashEntryRow[];
+  const activeRows = (result.data ?? []) as PettyCashEntryRow[];
+  const archivedFocusedRow =
+    focusedEntry?.archived_at &&
+    focusedEntry.period_id === period.id &&
+    !activeRows.some((entry) => entry.id === focusedEntry.id)
+      ? focusedEntry
+      : null;
+  const rows = archivedFocusedRow
+    ? [...activeRows, archivedFocusedRow]
+    : activeRows;
   const counterpartyNames = await getPeopleNames({
     organizationId,
     personIds: [
@@ -299,6 +371,7 @@ async function getPeriodEntries({
         : 0;
 
     return {
+      archivedAt: entry.archived_at ?? undefined,
       balanceAfter: 0,
       category: entry.category,
       clearDate: entry.clear_date ?? undefined,
@@ -365,11 +438,13 @@ export function buildSummary(
   };
 }
 
-function buildUnavailableScreenData() {
+function buildUnavailableScreenData(focusedEntryId?: string) {
   return {
     accounts: [],
     counterpartyOptions: [],
     entries: [],
+    focusedEntryId,
+    focusState: focusedEntryId ? "unavailable" as const : "none" as const,
     period: null,
     propertyOptions: [],
     schemaStatus: {
@@ -381,6 +456,95 @@ function buildUnavailableScreenData() {
     staffOptions: [],
     summary: buildSummary(null, []),
     unitOptions: [],
+  };
+}
+
+async function getFocusedEntryReference({
+  entryId,
+  organizationId,
+  supabase,
+}: {
+  entryId: string;
+  organizationId: string;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+}) {
+  const result = await supabase
+    .from("petty_cash_entries")
+    .select(
+      "id, period_id, archived_at, property_id, unit_id, counterparty_person_id, ledger_entry_id, invoice_date, clear_date, entry_kind, status, category, supplier, description, receipt_reference, out_amount, in_amount, currency, economic_scope, owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount, remark, created_at, voided_at, voided_by, void_reason",
+    )
+    .eq("organization_id", organizationId)
+    .eq("id", entryId)
+    .maybeSingle();
+
+  if (result.error) {
+    if (isMissingPettyCashSchema(result.error.message)) return null;
+    throw new Error(`Could not load focused petty cash entry: ${result.error.message}`);
+  }
+
+  return result.data as PettyCashEntryRow | null;
+}
+
+async function getPeriodById({
+  organizationId,
+  periodId,
+  supabase,
+}: {
+  organizationId: string;
+  periodId: string;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+}) {
+  const result = await supabase
+    .from("petty_cash_periods")
+    .select(
+      "id, account_id, period_start, opening_balance_amount, advance_amount, counted_cash_amount, status",
+    )
+    .eq("organization_id", organizationId)
+    .eq("id", periodId)
+    .maybeSingle();
+
+  if (result.error) {
+    if (isMissingPettyCashSchema(result.error.message)) return null;
+    throw new Error(`Could not load focused petty cash period: ${result.error.message}`);
+  }
+
+  return result.data as PettyCashPeriodRow | null;
+}
+
+async function getAccountById({
+  accountId,
+  organizationId,
+  supabase,
+}: {
+  accountId: string;
+  organizationId: string;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+}) {
+  const result = await supabase
+    .from("petty_cash_accounts")
+    .select(
+      "id, account_number, name, currency, float_amount, status, custodian_person_id, archived_at",
+    )
+    .eq("organization_id", organizationId)
+    .eq("id", accountId)
+    .maybeSingle();
+
+  if (result.error) {
+    if (isMissingPettyCashSchema(result.error.message)) return null;
+    throw new Error(`Could not load focused petty cash account: ${result.error.message}`);
+  }
+
+  return result.data as PettyCashAccountRow | null;
+}
+
+function toPettyCashPeriod(row: PettyCashPeriodRow): PettyCashPeriod {
+  return {
+    advanceAmount: row.advance_amount,
+    countedCashAmount: row.counted_cash_amount ?? undefined,
+    id: row.id,
+    openingBalanceAmount: row.opening_balance_amount,
+    periodStart: row.period_start,
+    status: row.status,
   };
 }
 

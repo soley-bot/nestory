@@ -1,5 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
-import { toRecentChange } from "@/features/activity/recent-changes";
+import {
+  resolveRecentChangeTargets,
+  type ActivityTargetQueryClient,
+} from "@/features/activity/recent-change-targets";
 import {
   buildPropertySummary,
   type PropertyLedgerRecord,
@@ -707,6 +710,11 @@ export async function getPropertyDetail(
   const ledgerEntries = (ledgerResult.data ?? []) as PropertyDetailLedgerRecord[];
   const maintenanceCases =
     (maintenanceResult.data ?? []) as PropertyDetailMaintenanceRecord[];
+  const activity = await resolveRecentChangeTargets({
+    logs: activityResult.data ?? [],
+    organizationId,
+    supabase: supabase as unknown as ActivityTargetQueryClient,
+  });
 
   return buildPropertyDetail({
     activeLeases: activeLeasesResult.data ?? [],
@@ -716,7 +724,7 @@ export async function getPropertyDetail(
           personId: activeOwner.person_id,
         }
       : null,
-    activity: (activityResult.data ?? []).map(toRecentChange),
+    activity,
     documents,
     ledgerEntries,
     maintenanceCases,

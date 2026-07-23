@@ -5,6 +5,7 @@ import type {
 } from "@/features/petty-cash/petty-cash.types";
 
 type RegisterEntry = {
+  archivedAt?: string | null;
   createdAt: string;
   entryKind: PettyCashEntryKind;
   id: string;
@@ -30,8 +31,14 @@ export function calculatePettyCashRegister<TEntry extends RegisterEntry>({
   period: RegisterPeriod | null;
 }) {
   const orderedEntries = entries.toSorted(compareRegisterEntries);
+  const operationalEntries = orderedEntries.filter(
+    (entry) => !entry.archivedAt,
+  );
   const hasLiveAdvance = orderedEntries.some(
-    (entry) => entry.entryKind === "advance" && entry.status !== "void",
+    (entry) =>
+      !entry.archivedAt &&
+      entry.entryKind === "advance" &&
+      entry.status !== "void",
   );
   const effectiveOpeningAmount =
     (period?.openingBalanceAmount ?? 0) +
@@ -41,8 +48,9 @@ export function calculatePettyCashRegister<TEntry extends RegisterEntry>({
   let cashOutAmount = 0;
 
   const entriesWithBalances = orderedEntries.map((entry) => {
-    const effectiveInAmount = entry.status === "void" ? 0 : entry.inAmount;
-    const effectiveOutAmount = entry.status === "void" ? 0 : entry.outAmount;
+    const hasCashImpact = !entry.archivedAt && entry.status !== "void";
+    const effectiveInAmount = hasCashImpact ? entry.inAmount : 0;
+    const effectiveOutAmount = hasCashImpact ? entry.outAmount : 0;
     cashInAmount += effectiveInAmount;
     cashOutAmount += effectiveOutAmount;
     runningBalance += effectiveInAmount - effectiveOutAmount;
@@ -62,19 +70,21 @@ export function calculatePettyCashRegister<TEntry extends RegisterEntry>({
     currency,
     effectiveOpeningAmount,
     entries: entriesWithBalances,
-    postedCount: orderedEntries.filter((entry) => entry.status === "posted").length,
-    readyToPostCount: orderedEntries.filter(
+    postedCount: operationalEntries.filter((entry) => entry.status === "posted")
+      .length,
+    readyToPostCount: operationalEntries.filter(
       (entry) =>
         entry.entryKind === "expense" &&
         (entry.status === "draft" || entry.status === "cleared"),
     ).length,
-    receiptMissingCount: orderedEntries.filter(
+    receiptMissingCount: operationalEntries.filter(
       (entry) =>
         entry.entryKind === "expense" &&
         entry.status !== "void" &&
         !entry.receiptReference,
     ).length,
-    voidCount: orderedEntries.filter((entry) => entry.status === "void").length,
+    voidCount: operationalEntries.filter((entry) => entry.status === "void")
+      .length,
   };
 }
 
