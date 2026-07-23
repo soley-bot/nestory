@@ -208,11 +208,42 @@ type RpcFunctionOverrides = {
       p_amount: number;
       p_category: string;
       p_clear_date: string | null;
+      p_company_loss_amount?: number;
+      p_counterparty_person_id?: string | null;
       p_description: string;
+      p_economic_scope?: string;
       p_entry_kind: string;
       p_invoice_date: string;
       p_organization_id: string;
+      p_owner_bill_status?: string;
+      p_owner_reimbursable_amount?: number;
+      p_owner_reimbursed_amount?: number;
       p_period_id: string;
+      p_property_id: string | null;
+      p_receipt_reference?: string | null;
+      p_remark?: string | null;
+      p_status: string;
+      p_supplier: string | null;
+      p_unit_id: string | null;
+    }
+  >;
+  update_petty_cash_entry: WithArgs<
+    "update_petty_cash_entry",
+    {
+      p_amount: number;
+      p_category: string;
+      p_clear_date: string | null;
+      p_company_loss_amount?: number;
+      p_counterparty_person_id?: string | null;
+      p_description: string;
+      p_economic_scope?: string;
+      p_entry_id: string;
+      p_entry_kind: string;
+      p_invoice_date: string;
+      p_organization_id: string;
+      p_owner_bill_status?: string;
+      p_owner_reimbursable_amount?: number;
+      p_owner_reimbursed_amount?: number;
       p_property_id: string | null;
       p_receipt_reference?: string | null;
       p_remark?: string | null;

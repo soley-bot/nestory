@@ -12,6 +12,9 @@ type PettyCashFieldErrors = {
   category?: string[];
   clearDate?: string[];
   companyLossAmount?: string[];
+  counterpartyMode?: string[];
+  counterpartyPersonId?: string[];
+  custodianPersonId?: string[];
   description?: string[];
   economicScope?: string[];
   entryId?: string[];
@@ -29,6 +32,7 @@ type PettyCashFieldErrors = {
   status?: string[];
   supplier?: string[];
   unitId?: string[];
+  voidReason?: string[];
 };
 
 export type PettyCashActionState = {
@@ -51,6 +55,7 @@ const looseUuidSchema = z
 
 const createAccountSchema = z.object({
   accountNumber: z.string().trim().min(2, "Enter an account number."),
+  custodianPersonId: z.string().trim(),
   floatAmount: z.string().trim(),
   name: z.string().trim().min(2, "Enter an account name."),
 });
@@ -62,6 +67,8 @@ const createEntrySchema = z
     category: z.string().trim().min(2, "Enter a category."),
     clearDate: z.string().trim(),
     companyLossAmount: z.string().trim(),
+    counterpartyMode: z.enum(["external", "linked"]),
+    counterpartyPersonId: z.string().trim(),
     description: z.string().trim().min(2, "Enter a description."),
     economicScope: z.enum(["company_advance", "company_cost", "property_expense"]),
     entryKind: z.enum(["advance", "cash_in", "expense"]),
@@ -186,9 +193,36 @@ const createEntrySchema = z
         path: ["clearDate"],
       });
     }
+
+    if (
+      data.counterpartyMode === "linked" &&
+      !looseUuidSchema.safeParse(data.counterpartyPersonId).success
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose a linked person.",
+        path: ["counterpartyPersonId"],
+      });
+    }
+
+    if (data.counterpartyMode === "external" && data.supplier.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the external party name.",
+        path: ["supplier"],
+      });
+    }
   });
 
 const entryIdSchema = looseUuidSchema;
+const voidEntrySchema = z.object({
+  entryId: looseUuidSchema,
+  voidReason: z
+    .string()
+    .trim()
+    .min(2, "Explain why this row is being voided.")
+    .max(400, "Keep the void reason under 400 characters."),
+});
 const openNextPeriodSchema = z.object({
   accountId: looseUuidSchema,
   advanceAmount: z.string().trim(),
@@ -198,6 +232,36 @@ const openNextPeriodSchema = z.object({
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+function parseEntryFormData(formData: FormData) {
+  return createEntrySchema.safeParse({
+    accountId: readString(formData, "accountId"),
+    amount: readString(formData, "amount"),
+    category: readString(formData, "category"),
+    clearDate: readString(formData, "clearDate"),
+    companyLossAmount: readString(formData, "companyLossAmount"),
+    counterpartyMode:
+      readString(formData, "counterpartyMode") ||
+      (readString(formData, "counterpartyPersonId") ? "linked" : "external"),
+    counterpartyPersonId: readString(formData, "counterpartyPersonId"),
+    description: readString(formData, "description"),
+    economicScope:
+      readString(formData, "economicScope") || "property_expense",
+    entryKind: readString(formData, "entryKind"),
+    invoiceDate: readString(formData, "invoiceDate"),
+    ownerBillStatus:
+      readString(formData, "ownerBillStatus") || "not_billable",
+    ownerReimbursableAmount: readString(formData, "ownerReimbursableAmount"),
+    ownerReimbursedAmount: readString(formData, "ownerReimbursedAmount"),
+    periodId: readString(formData, "periodId"),
+    propertyId: readString(formData, "propertyId"),
+    receiptReference: readString(formData, "receiptReference"),
+    remark: readString(formData, "remark"),
+    status: readString(formData, "status"),
+    supplier: readString(formData, "supplier"),
+    unitId: readString(formData, "unitId"),
+  });
 }
 
 function invalidFormState(error: z.ZodError): PettyCashActionState {
@@ -214,6 +278,7 @@ export async function createPettyCashAccountAction(
   const context = await requireAdminContext();
   const parsed = createAccountSchema.safeParse({
     accountNumber: readString(formData, "accountNumber"),
+    custodianPersonId: readString(formData, "custodianPersonId"),
     floatAmount: readString(formData, "floatAmount"),
     name: readString(formData, "name"),
   });
@@ -231,10 +296,20 @@ export async function createPettyCashAccountAction(
     };
   }
 
+  if (
+    parsed.data.custodianPersonId.length > 0 &&
+    !looseUuidSchema.safeParse(parsed.data.custodianPersonId).success
+  ) {
+    return {
+      fieldErrors: { custodianPersonId: ["Choose a valid Staff custodian."] },
+      status: "error",
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("create_petty_cash_account", {
     p_account_number: parsed.data.accountNumber,
-    p_custodian_person_id: null,
+    p_custodian_person_id: parsed.data.custodianPersonId || null,
     p_float_amount: floatAmount,
     p_name: parsed.data.name,
     p_organization_id: context.organizationId,
@@ -260,27 +335,7 @@ export async function createPettyCashEntryAction(
   formData: FormData,
 ): Promise<PettyCashActionState> {
   const context = await requireAdminContext();
-  const parsed = createEntrySchema.safeParse({
-    accountId: readString(formData, "accountId"),
-    amount: readString(formData, "amount"),
-    category: readString(formData, "category"),
-    clearDate: readString(formData, "clearDate"),
-    companyLossAmount: readString(formData, "companyLossAmount"),
-    description: readString(formData, "description"),
-    economicScope: readString(formData, "economicScope") || "property_expense",
-    entryKind: readString(formData, "entryKind"),
-    invoiceDate: readString(formData, "invoiceDate"),
-    ownerBillStatus: readString(formData, "ownerBillStatus") || "not_billable",
-    ownerReimbursableAmount: readString(formData, "ownerReimbursableAmount"),
-    ownerReimbursedAmount: readString(formData, "ownerReimbursedAmount"),
-    periodId: readString(formData, "periodId"),
-    propertyId: readString(formData, "propertyId"),
-    receiptReference: readString(formData, "receiptReference"),
-    remark: readString(formData, "remark"),
-    status: readString(formData, "status"),
-    supplier: readString(formData, "supplier"),
-    unitId: readString(formData, "unitId"),
-  });
+  const parsed = parseEntryFormData(formData);
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
@@ -297,6 +352,10 @@ export async function createPettyCashEntryAction(
     p_clear_date:
       parsed.data.clearDate.length > 0 ? parsed.data.clearDate : null,
     p_company_loss_amount: Number(parsed.data.companyLossAmount || "0"),
+    p_counterparty_person_id:
+      parsed.data.counterpartyMode === "linked"
+        ? parsed.data.counterpartyPersonId
+        : null,
     p_description: parsed.data.description,
     p_economic_scope: parsed.data.economicScope,
     p_entry_kind: parsed.data.entryKind,
@@ -315,7 +374,8 @@ export async function createPettyCashEntryAction(
         : null,
     p_remark: parsed.data.remark.length > 0 ? parsed.data.remark : null,
     p_status: parsed.data.status,
-    p_supplier: parsed.data.supplier.length > 0 ? parsed.data.supplier : null,
+    p_supplier:
+      parsed.data.counterpartyMode === "external" ? parsed.data.supplier : null,
     p_unit_id: unitId,
   });
 
@@ -333,6 +393,123 @@ export async function createPettyCashEntryAction(
 
   return {
     message: "Petty cash row added.",
+    status: "success",
+  };
+}
+
+export async function updatePettyCashEntryAction(
+  _state: PettyCashActionState,
+  formData: FormData,
+): Promise<PettyCashActionState> {
+  const context = await requireAdminContext();
+  const parsedEntryId = entryIdSchema.safeParse(readString(formData, "entryId"));
+  const parsed = parseEntryFormData(formData);
+
+  if (!parsedEntryId.success) {
+    return {
+      fieldErrors: { entryId: ["Choose a petty cash row."] },
+      status: "error",
+    };
+  }
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const propertyId =
+    parsed.data.propertyId.length > 0 ? parsed.data.propertyId : null;
+  const unitId = parsed.data.unitId.length > 0 ? parsed.data.unitId : null;
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("update_petty_cash_entry", {
+    p_amount: Number(parsed.data.amount),
+    p_category: parsed.data.category,
+    p_clear_date:
+      parsed.data.clearDate.length > 0 ? parsed.data.clearDate : null,
+    p_company_loss_amount: Number(parsed.data.companyLossAmount || "0"),
+    p_counterparty_person_id:
+      parsed.data.counterpartyMode === "linked"
+        ? parsed.data.counterpartyPersonId
+        : null,
+    p_description: parsed.data.description,
+    p_economic_scope: parsed.data.economicScope,
+    p_entry_id: parsedEntryId.data,
+    p_entry_kind: parsed.data.entryKind,
+    p_invoice_date: parsed.data.invoiceDate,
+    p_organization_id: context.organizationId,
+    p_owner_bill_status: parsed.data.ownerBillStatus,
+    p_owner_reimbursable_amount: Number(
+      parsed.data.ownerReimbursableAmount || "0",
+    ),
+    p_owner_reimbursed_amount: Number(
+      parsed.data.ownerReimbursedAmount || "0",
+    ),
+    p_property_id: propertyId,
+    p_receipt_reference:
+      parsed.data.receiptReference.length > 0
+        ? parsed.data.receiptReference
+        : null,
+    p_remark: parsed.data.remark.length > 0 ? parsed.data.remark : null,
+    p_status: parsed.data.status,
+    p_supplier:
+      parsed.data.counterpartyMode === "external" ? parsed.data.supplier : null,
+    p_unit_id: unitId,
+  });
+
+  if (error) {
+    return {
+      message: pettyCashErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  const contexts = readEntryContextResult(data);
+  revalidatePettyCashPaths({
+    propertyIds: [
+      contexts?.previousPropertyId,
+      contexts?.propertyId,
+      propertyId,
+    ],
+    unitIds: [contexts?.previousUnitId, contexts?.unitId, unitId],
+  });
+
+  return {
+    message: "Petty cash row updated.",
+    status: "success",
+  };
+}
+
+export async function voidPettyCashEntryAction(
+  _state: PettyCashActionState,
+  formData: FormData,
+): Promise<PettyCashActionState> {
+  const context = await requireAdminContext();
+  const parsed = voidEntrySchema.safeParse({
+    entryId: readString(formData, "entryId"),
+    voidReason: readString(formData, "voidReason"),
+  });
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("void_petty_cash_entry", {
+    p_entry_id: parsed.data.entryId,
+    p_organization_id: context.organizationId,
+    p_reason: parsed.data.voidReason,
+  });
+
+  if (error) {
+    return {
+      message: pettyCashErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidatePettyCashPaths();
+
+  return {
+    message: "Petty cash row voided. Its original amount remains visible.",
     status: "success",
   };
 }
@@ -443,7 +620,48 @@ function pettyCashErrorMessage(message: string) {
     return "This petty cash month is already closed.";
   }
 
+  if (
+    message.includes("Only unposted draft or cleared petty cash rows can be edited")
+  ) {
+    return "Only unposted draft or cleared rows can be edited.";
+  }
+
+  if (
+    message.includes("Only unposted draft or cleared petty cash rows can be voided")
+  ) {
+    return "Only unposted draft or cleared rows can be voided.";
+  }
+
+  if (message.includes("Counterparty must be an active person")) {
+    return "Choose an active person from this workspace.";
+  }
+
+  if (message.includes("Custodian must be active Staff")) {
+    return "Choose an active Staff custodian from this workspace.";
+  }
+
+  if (message.includes("Open petty cash period not found")) {
+    return "This petty cash month is closed and cannot be changed.";
+  }
+
   return "We could not save the petty cash record. Please check the fields and try again.";
+}
+
+function readEntryContextResult(data: unknown) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return null;
+  }
+
+  const value = data as Record<string, unknown>;
+  const optionalString = (key: string) =>
+    typeof value[key] === "string" ? (value[key] as string) : undefined;
+
+  return {
+    previousPropertyId: optionalString("previous_property_id"),
+    previousUnitId: optionalString("previous_unit_id"),
+    propertyId: optionalString("property_id"),
+    unitId: optionalString("unit_id"),
+  };
 }
 
 function revalidatePettyCashPaths({

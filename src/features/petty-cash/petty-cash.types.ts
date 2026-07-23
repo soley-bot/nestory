@@ -17,6 +17,8 @@ export type PettyCashOwnerBillStatus =
 export type PettyCashAccount = {
   accountNumber: string;
   currency: CurrencyCode;
+  custodianName?: string;
+  custodianPersonId?: string;
   floatAmount: number;
   id: string;
   name: string;
@@ -36,6 +38,9 @@ export type PettyCashEntry = {
   balanceAfter: number;
   category: string;
   clearDate?: string;
+  companyLossAmount: number;
+  counterpartyCurrentName?: string;
+  counterpartyPersonId?: string;
   createdAt: string;
   currency: CurrencyCode;
   description: string;
@@ -62,6 +67,9 @@ export type PettyCashEntry = {
   supplier?: string;
   unitId?: string;
   unitNumber?: string;
+  voidReason?: string;
+  voidedAt?: string;
+  voidedBy?: string;
 };
 
 export type PettyCashPropertyOption = {
@@ -83,6 +91,7 @@ export type PettyCashSummary = {
   postedCount: string;
   readyToPostCount: string;
   receiptMissingCount: string;
+  voidCount: string;
 };
 
 export type PettyCashSchemaStatus = {

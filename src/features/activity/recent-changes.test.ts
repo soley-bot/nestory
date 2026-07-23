@@ -511,4 +511,32 @@ describe("toRecentChange", () => {
       recordLabel: "Person",
     });
   });
+
+  it("does not expose Petty Cash implementation UUIDs in activity details", () => {
+    const change = toRecentChange({
+      action: "posted_to_ledger",
+      created_at: "2026-07-23T11:30:00.000Z",
+      entity_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      entity_type: "petty_cash_entry",
+      id: "log-petty-cash",
+      new_values: {
+        account_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        accounting_journal_entry_id:
+          "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        counterparty_person_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        period_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        status: "posted",
+        voided_by: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+      },
+      previous_values: null,
+    });
+
+    expect(change.details).toEqual([
+      {
+        after: "posted",
+        before: "-",
+        field: "Status",
+      },
+    ]);
+  });
 });

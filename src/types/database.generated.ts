@@ -2625,6 +2625,7 @@ export type Database = {
           category: string
           clear_date: string | null
           company_loss_amount: number
+          counterparty_person_id: string | null
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -2649,6 +2650,9 @@ export type Database = {
           unit_id: string | null
           updated_at: string
           updated_by: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         Insert: {
           account_id: string
@@ -2657,6 +2661,7 @@ export type Database = {
           category: string
           clear_date?: string | null
           company_loss_amount?: number
+          counterparty_person_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -2681,6 +2686,9 @@ export type Database = {
           unit_id?: string | null
           updated_at?: string
           updated_by?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Update: {
           account_id?: string
@@ -2689,6 +2697,7 @@ export type Database = {
           category?: string
           clear_date?: string | null
           company_loss_amount?: number
+          counterparty_person_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -2713,6 +2722,9 @@ export type Database = {
           unit_id?: string | null
           updated_at?: string
           updated_by?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Relationships: [
           {
@@ -2720,6 +2732,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "petty_cash_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petty_cash_entries_counterparty_person_id_fkey"
+            columns: ["counterparty_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
             referencedColumns: ["id"]
           },
           {
@@ -3777,6 +3796,7 @@ export type Database = {
           p_category: string
           p_clear_date: string
           p_company_loss_amount?: number
+          p_counterparty_person_id?: string
           p_description: string
           p_economic_scope?: string
           p_entry_kind: string
@@ -4309,6 +4329,31 @@ export type Database = {
         }
         Returns: string
       }
+      update_petty_cash_entry: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_clear_date: string
+          p_company_loss_amount?: number
+          p_counterparty_person_id?: string
+          p_description: string
+          p_economic_scope?: string
+          p_entry_id: string
+          p_entry_kind: string
+          p_invoice_date: string
+          p_organization_id: string
+          p_owner_bill_status?: string
+          p_owner_reimbursable_amount?: number
+          p_owner_reimbursed_amount?: number
+          p_property_id: string
+          p_receipt_reference?: string
+          p_remark?: string
+          p_status: string
+          p_supplier: string
+          p_unit_id: string
+        }
+        Returns: Json
+      }
       update_property: {
         Args: {
           p_acquisition_date: string
@@ -4357,6 +4402,14 @@ export type Database = {
       void_finance_income_item: {
         Args: { p_income_item_id: string; p_organization_id: string }
         Returns: undefined
+      }
+      void_petty_cash_entry: {
+        Args: {
+          p_entry_id: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: string
       }
     }
     Enums: {

@@ -10,8 +10,10 @@ import {
   Eye,
   ExternalLink,
   FileText,
+  Pencil,
   Plus,
   Send,
+  ShieldX,
   Wallet,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
@@ -27,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
+import { SearchableSelectControl } from "@/components/ui/searchable-select-control";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +38,8 @@ import {
   createPettyCashEntryAction,
   openNextPettyCashPeriodAction,
   postPettyCashEntryAction,
+  updatePettyCashEntryAction,
+  voidPettyCashEntryAction,
   type PettyCashActionState,
 } from "@/features/petty-cash/actions";
 import {
@@ -50,6 +55,11 @@ import type {
   PettyCashSummary,
   PettyCashUnitOption,
 } from "@/features/petty-cash/petty-cash.types";
+import {
+  PERSON_SELECT_EXTERNAL_VALUE,
+  PersonSelect,
+} from "@/features/people/components/person-select";
+import type { PersonSelectOption } from "@/features/people/person-select";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
@@ -60,32 +70,39 @@ const accountInitialState: PettyCashActionState = {};
 const entryInitialState: PettyCashActionState = {};
 const openNextPeriodInitialState: PettyCashActionState = {};
 const postInitialState: PettyCashActionState = {};
+const voidInitialState: PettyCashActionState = {};
 
 type DrawerState =
   | { mode: "account" }
   | { mode: "entry" }
+  | { entry: PettyCashEntry; mode: "edit" }
+  | { entry: PettyCashEntry; mode: "void" }
   | { account: PettyCashAccount; mode: "rollover"; period: PettyCashPeriod; summary: PettyCashSummary }
   | { entry: PettyCashEntry; mode: "post" };
 
 type PettyCashScreenProps = {
   accounts: PettyCashAccount[];
+  counterpartyOptions: PersonSelectOption[];
   entries: PettyCashEntry[];
   period: PettyCashPeriod | null;
   propertyOptions: PettyCashPropertyOption[];
   schemaStatus?: PettyCashSchemaStatus;
   selectedAccount?: PettyCashAccount;
   summary: PettyCashSummary;
+  staffOptions: PersonSelectOption[];
   unitOptions: PettyCashUnitOption[];
 };
 
 export function PettyCashScreen({
   accounts,
+  counterpartyOptions,
   entries,
   period,
   propertyOptions,
   schemaStatus = { isReady: true },
   selectedAccount,
   summary,
+  staffOptions,
   unitOptions,
 }: PettyCashScreenProps) {
   const router = useRouter();
@@ -95,6 +112,8 @@ export function PettyCashScreen({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedEntry =
     entries.find((entry) => entry.id === selectedEntryId) ?? entries[0] ?? null;
+  const canAddEntry =
+    selectedAccount?.status === "active" && period?.status === "open";
 
   const openDrawer = (nextDrawer: DrawerState) => {
     setCompactInspectorOpen(false);
@@ -112,10 +131,12 @@ export function PettyCashScreen({
       {entries.length === 0 ? (
         <EmptyState
           action={
+            canAddEntry ? (
             <Button onClick={() => openDrawer({ mode: "entry" })} variant="primary">
               <Plus size={15} />
               Add cash row
             </Button>
+            ) : undefined
           }
           body="Record the first advance, cash-in movement, or expense."
           className="h-full"
@@ -139,10 +160,13 @@ export function PettyCashScreen({
       )}
     </section>
   ) : null;
-  const cashInspector = selectedEntry && period ? (
+  const cashInspector = selectedAccount && selectedEntry && period ? (
     <PettyCashInspector
+      account={selectedAccount}
       entry={selectedEntry}
+      onEdit={(entry) => openDrawer({ entry, mode: "edit" })}
       onPost={(entry) => openDrawer({ entry, mode: "post" })}
+      onVoid={(entry) => openDrawer({ entry, mode: "void" })}
       period={period}
     />
   ) : null;
@@ -156,7 +180,7 @@ export function PettyCashScreen({
                 <Wallet size={15} />
                 Add account
               </Button>
-              {selectedAccount && period ? (
+              {selectedAccount?.status === "active" && period ? (
                 <>
                   <Button
                     onClick={() =>
@@ -171,13 +195,15 @@ export function PettyCashScreen({
                     <CalendarPlus size={15} />
                     Open next month
                   </Button>
-                  <Button
-                    onClick={() => openDrawer({ mode: "entry" })}
-                    variant="primary"
-                  >
-                    <Plus size={15} />
-                    Add cash row
-                  </Button>
+                  {canAddEntry ? (
+                    <Button
+                      onClick={() => openDrawer({ mode: "entry" })}
+                      variant="primary"
+                    >
+                      <Plus size={15} />
+                      Add cash row
+                    </Button>
+                  ) : null}
                 </>
               ) : null}
           </div>
@@ -256,9 +282,16 @@ export function PettyCashScreen({
             <PettyCashAccountForm
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
+              staffOptions={staffOptions}
             />
           ) : drawerState.mode === "post" ? (
             <PostPettyCashPanel
+              entry={drawerState.entry}
+              onClose={() => setDrawerState(null)}
+              onSuccess={setStatusMessage}
+            />
+          ) : drawerState.mode === "void" ? (
+            <VoidPettyCashPanel
               entry={drawerState.entry}
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
@@ -274,6 +307,8 @@ export function PettyCashScreen({
           ) : (
             <PettyCashEntryForm
               account={selectedAccount}
+              counterpartyOptions={counterpartyOptions}
+              entry={drawerState.mode === "edit" ? drawerState.entry : undefined}
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
               period={period}
@@ -303,18 +338,26 @@ function PettyCashSummaryStrip({
 }) {
   return (
     <section aria-label="Petty cash summary" className="overflow-x-auto border-b border-border bg-surface-muted/35 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6" tabIndex={0}>
-      <div className="grid min-w-[920px] grid-cols-[minmax(190px,1.45fr)_repeat(6,minmax(106px,1fr))] gap-3 lg:min-w-0">
+      <div className="grid min-w-[1120px] grid-cols-[minmax(220px,1.6fr)_repeat(8,minmax(96px,1fr))] gap-3 xl:min-w-0">
         <div className="min-w-0 rounded-md border border-border bg-surface px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
             Account
           </p>
           {accounts.length > 0 && account ? (
-            <SelectControl
+            <SearchableSelectControl
               ariaLabel="Petty cash account"
               className="mt-1"
               onValueChange={onSelectAccount}
               options={accounts.map((option) => ({
-                label: `${option.accountNumber} / ${option.name}`,
+                description: [
+                  option.name,
+                  option.custodianName
+                    ? `Custodian: ${option.custodianName}`
+                    : "No custodian",
+                ].join(" / "),
+                label: option.accountNumber,
+                meta: option.status,
+                searchText: `${option.accountNumber} ${option.name} ${option.custodianName ?? ""} ${option.status}`,
                 value: option.id,
               }))}
               value={account.id}
@@ -323,17 +366,19 @@ function PettyCashSummaryStrip({
             <p className="mt-1 truncate text-sm font-semibold">No account</p>
           )}
           <p className="mt-0.5 text-xs text-muted">
-            {period
-              ? `${formatDate(period.periodStart)} period / ${period.status}`
+            {period && account
+             ? `${formatDate(period.periodStart)} period / ${period.status} / ${account.custodianName ?? "No custodian"}`
               : `${accounts.length} configured accounts`}
           </p>
         </div>
-        <MetricCard label="Opening float" value={summary.openingFloat.primary} />
+        <MetricCard label="Opening cash" value={summary.openingFloat.primary} />
         <MetricCard label="Cash in" value={summary.cashIn.primary} />
         <MetricCard label="Cash out" value={summary.cashOut.primary} />
         <MetricCard label="Balance" value={summary.balance.primary} />
+        <MetricCard label="Posted" value={summary.postedCount} />
         <MetricCard label="Ready" value={summary.readyToPostCount} />
         <MetricCard label="Missing receipts" value={summary.receiptMissingCount} />
+        <MetricCard label="Voids" value={summary.voidCount} />
       </div>
     </section>
   );
@@ -378,11 +423,11 @@ function PettyCashTable({
               <th className="px-3 py-2.5 font-semibold">Date</th>
               <th className="px-3 py-2.5 font-semibold">Type</th>
               <th className="px-3 py-2.5 font-semibold">Property / Unit</th>
-              <th className="px-3 py-2.5 font-semibold">Supplier / Description</th>
+              <th className="px-3 py-2.5 font-semibold">Counterparty / Description</th>
               <th className="px-3 py-2.5 text-right font-semibold">Movement</th>
               <th className="px-3 py-2.5 text-right font-semibold">Balance</th>
               <th className="px-3 py-2.5 font-semibold">Status</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Preview</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -451,15 +496,29 @@ function PettyCashTable({
                   <p className="truncate font-medium">
                     {entry.supplier ?? entry.category}
                   </p>
+                  {entry.counterpartyPersonId ? (
+                    <p className="mt-0.5 truncate text-[11px] text-muted">
+                      Linked person
+                      {entry.counterpartyCurrentName &&
+                      entry.counterpartyCurrentName !== entry.supplier
+                        ? ` · now ${entry.counterpartyCurrentName}`
+                        : ""}
+                    </p>
+                  ) : null}
                   <p className="mt-0.5 truncate text-xs text-muted">
                     {entry.description}
                   </p>
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
-                  {formatMoneyDisplay(
-                    entry.outAmount > 0 ? -entry.outAmount : entry.inAmount,
-                    entry.currency,
-                  ).primary}
+                  <span className={entry.status === "void" ? "line-through text-muted" : ""}>
+                    {formatMoneyDisplay(
+                      entry.outAmount > 0 ? -entry.outAmount : entry.inAmount,
+                      entry.currency,
+                    ).primary}
+                  </span>
+                  {entry.status === "void" ? (
+                    <span className="mt-0.5 block text-[11px] text-muted">No impact</span>
+                  ) : null}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
                   {formatMoneyDisplay(entry.balanceAfter, entry.currency).primary}
@@ -492,12 +551,18 @@ function PettyCashTable({
 }
 
 function PettyCashInspector({
+  account,
   entry,
+  onEdit,
   onPost,
+  onVoid,
   period,
 }: {
+  account: PettyCashAccount;
   entry: PettyCashEntry | null;
+  onEdit: (entry: PettyCashEntry) => void;
   onPost: (entry: PettyCashEntry) => void;
+  onVoid: (entry: PettyCashEntry) => void;
   period: PettyCashPeriod;
 }) {
   if (!entry) {
@@ -509,9 +574,16 @@ function PettyCashInspector({
   }
 
   const canPost =
+    account.status === "active" &&
     entry.entryKind === "expense" &&
     entry.status !== "posted" &&
-    entry.status !== "void";
+    entry.status !== "void" &&
+    period.status !== "closed";
+  const canCorrect =
+    account.status === "active" &&
+    (entry.status === "draft" || entry.status === "cleared") &&
+    !entry.ledgerEntryId &&
+    period.status !== "closed";
 
   return (
     <aside className="min-h-0 overflow-hidden rounded-md border border-border bg-surface">
@@ -541,10 +613,30 @@ function PettyCashInspector({
 
       <div className="space-y-3 p-4 text-sm">
         <div className="grid grid-cols-2 gap-3">
-          <CompactFact label="Supplier">
-            {entry.supplier ?? "Not recorded"}
+          <CompactFact label="Counterparty">
+            {entry.counterpartyPersonId ? (
+              <Link
+                className="line-clamp-2 text-accent hover:underline"
+                href={`/people/${entry.counterpartyPersonId}`}
+              >
+                {entry.supplier ?? entry.counterpartyCurrentName ?? "Linked person"}
+              </Link>
+            ) : (
+              entry.supplier ?? "Not recorded"
+            )}
           </CompactFact>
           <CompactFact label="Period">{formatDate(period.periodStart)}</CompactFact>
+          <CompactFact label="Account">
+            {account.accountNumber} · {account.name}
+          </CompactFact>
+          <CompactFact label="Cash impact">
+            {entry.status === "void"
+              ? "Zero · original retained"
+              : formatMoneyDisplay(
+                  entry.outAmount > 0 ? -entry.outAmount : entry.inAmount,
+                  entry.currency,
+                ).primary}
+          </CompactFact>
           <CompactFact label="Property">
             {entry.propertyId ? (
               <Link
@@ -570,6 +662,18 @@ function PettyCashInspector({
             )}
           </CompactFact>
         </div>
+
+        {entry.voidReason ? (
+          <div className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2.5">
+            <p className="font-semibold text-danger">Voided</p>
+            <p className="mt-1 text-xs leading-5 text-muted">{entry.voidReason}</p>
+            {entry.voidedAt ? (
+              <p className="mt-1 text-[11px] text-muted">
+                {formatDate(entry.voidedAt)}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {entry.entryKind === "expense" ? (
           <div className="rounded-md border border-border bg-surface-muted/60 px-3 py-2.5">
@@ -633,11 +737,27 @@ function PettyCashInspector({
             <ExternalLink size={14} />
             Open ledger entry
           </Link>
-        ) : canPost ? (
-          <Button className="w-full" onClick={() => onPost(entry)} variant="primary">
-            <Send size={14} />
-            Post to ledger
-          </Button>
+        ) : canCorrect || canPost ? (
+          <div className="grid gap-2">
+            {canPost ? (
+              <Button className="w-full" onClick={() => onPost(entry)} variant="primary">
+                <Send size={14} />
+                Post to ledger
+              </Button>
+            ) : null}
+            {canCorrect ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Button onClick={() => onEdit(entry)}>
+                  <Pencil size={14} />
+                  Edit
+                </Button>
+                <Button onClick={() => onVoid(entry)}>
+                  <ShieldX size={14} />
+                  Void
+                </Button>
+              </div>
+            ) : null}
+          </div>
         ) : (
           <div className="rounded-md border border-border px-3 py-2.5 text-sm text-muted">
             This row stays in petty cash reconciliation and does not post to
@@ -652,9 +772,11 @@ function PettyCashInspector({
 function PettyCashAccountForm({
   onClose,
   onSuccess,
+  staffOptions,
 }: {
   onClose: () => void;
   onSuccess: (message: string) => void;
+  staffOptions: PersonSelectOption[];
 }) {
   const [state, action, pending] = useActionState(
     createPettyCashAccountAction,
@@ -680,6 +802,16 @@ function PettyCashAccountForm({
         <Field label="Float / advance amount" error={state.fieldErrors?.floatAmount?.[0]}>
           <NumberInput min="0" name="floatAmount" placeholder="0.00" step="0.01" />
         </Field>
+        <Field label="Custodian (optional)" error={state.fieldErrors?.custodianPersonId?.[0]}>
+          <PersonSelect
+            allowClear
+            context="Petty cash custodian"
+            name="custodianPersonId"
+            options={staffOptions}
+            placeholder="Search active Staff"
+            roles={["staff"]}
+          />
+        </Field>
         <ConsequencePanel
           summary="Creates the cash account and opens the current month with its opening float."
           title="Opening-float consequence"
@@ -697,6 +829,8 @@ function PettyCashAccountForm({
 
 function PettyCashEntryForm({
   account,
+  counterpartyOptions,
+  entry,
   onClose,
   onSuccess,
   period,
@@ -704,31 +838,61 @@ function PettyCashEntryForm({
   units,
 }: {
   account?: PettyCashAccount;
+  counterpartyOptions: PersonSelectOption[];
+  entry?: PettyCashEntry;
   onClose: () => void;
   onSuccess: (message: string) => void;
   period: PettyCashPeriod | null;
   properties: PettyCashPropertyOption[];
   units: PettyCashUnitOption[];
 }) {
-  const [entryKind, setEntryKind] = useState("expense");
-  const [economicScope, setEconomicScope] = useState("property_expense");
-  const [ownerBillStatus, setOwnerBillStatus] = useState("not_billable");
-  const [selectedPropertyId, setSelectedPropertyId] = useState("");
+  const [entryKind, setEntryKind] = useState<string>(
+    entry?.entryKind ?? "expense",
+  );
+  const [economicScope, setEconomicScope] = useState<string>(
+    entry?.economicScope ?? "property_expense",
+  );
+  const [ownerBillStatus, setOwnerBillStatus] = useState<string>(
+    entry?.ownerBillStatus ?? "not_billable",
+  );
+  const [selectedPropertyId, setSelectedPropertyId] = useState(
+    entry?.propertyId ?? "",
+  );
+  const [selectedUnitId, setSelectedUnitId] = useState(entry?.unitId ?? "");
+  const [status, setStatus] = useState<string>(entry?.status ?? "draft");
+  const [selectedCounterparty, setSelectedCounterparty] = useState<string>(
+    entry?.counterpartyPersonId ??
+      (entry && !entry.counterpartyPersonId
+        ? PERSON_SELECT_EXTERNAL_VALUE
+        : ""),
+  );
   const [state, action, pending] = useActionState(
-    createPettyCashEntryAction,
+    entry ? updatePettyCashEntryAction : createPettyCashEntryAction,
     entryInitialState,
   );
   const availableUnits = useMemo(
     () => units.filter((unit) => unit.propertyId === selectedPropertyId),
     [selectedPropertyId, units],
   );
+  const orderedCounterparties = useMemo(
+    () =>
+      rankCounterpartyOptions(
+        counterpartyOptions,
+        entryKind,
+        account?.custodianPersonId,
+      ),
+    [account?.custodianPersonId, counterpartyOptions, entryKind],
+  );
 
   useEffect(() => {
     if (state.status === "success") {
-      onSuccess(state.message ?? "Petty cash row added.");
+      onSuccess(
+        state.message ??
+          (entry ? "Petty cash row updated." : "Petty cash row added."),
+      );
       onClose();
     }
-  }, [onClose, onSuccess, state.message, state.status]);
+  }, [entry, onClose, onSuccess, state.message, state.status]);
 
   if (!account || !period) {
     return (
@@ -742,6 +906,16 @@ function PettyCashEntryForm({
     <form action={action} className="flex h-full flex-col">
       <input name="accountId" type="hidden" value={account.id} />
       <input name="periodId" type="hidden" value={period.id} />
+      {entry ? <input name="entryId" type="hidden" value={entry.id} /> : null}
+      <input
+        name="counterpartyMode"
+        type="hidden"
+        value={
+          selectedCounterparty === PERSON_SELECT_EXTERNAL_VALUE
+            ? "external"
+            : "linked"
+        }
+      />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Movement" error={state.fieldErrors?.entryKind?.[0]}>
@@ -760,23 +934,24 @@ function PettyCashEntryForm({
           <Field label="Status" error={state.fieldErrors?.status?.[0]}>
             <SelectControl
               ariaLabel="Status"
-              defaultValue="draft"
               name="status"
+              onValueChange={setStatus}
               options={[
                 { label: "Draft", value: "draft" },
                 { label: "Cleared", value: "cleared" },
               ]}
+              value={status}
             />
           </Field>
           <Field label="Invoice date" error={state.fieldErrors?.invoiceDate?.[0]}>
             <DatePickerField
-              defaultValue={getBusinessDateValue()}
+              defaultValue={entry?.invoiceDate ?? getBusinessDateValue()}
               name="invoiceDate"
               required
             />
           </Field>
           <Field label="Clear date" error={state.fieldErrors?.clearDate?.[0]}>
-            <DatePickerField name="clearDate" />
+            <DatePickerField defaultValue={entry?.clearDate} name="clearDate" />
           </Field>
         </div>
 
@@ -785,7 +960,10 @@ function PettyCashEntryForm({
             <SelectControl
               ariaLabel="Property"
               name="propertyId"
-              onValueChange={setSelectedPropertyId}
+              onValueChange={(value) => {
+                setSelectedPropertyId(value);
+                setSelectedUnitId("");
+              }}
               options={[
                 {
                   disabled: entryKind === "expense",
@@ -809,6 +987,7 @@ function PettyCashEntryForm({
               ariaLabel="Unit"
               disabled={!selectedPropertyId}
               name="unitId"
+              onValueChange={setSelectedUnitId}
               options={[
                 { label: "Property level", value: "" },
                 ...availableUnits.map((unit) => ({
@@ -816,6 +995,7 @@ function PettyCashEntryForm({
                   value: unit.id,
                 })),
               ]}
+              value={selectedUnitId}
             />
           </Field>
         </div>
@@ -826,18 +1006,79 @@ function PettyCashEntryForm({
               name="category"
               placeholder={entryKind === "expense" ? "Repairs, cleaning" : "Advance PM"}
               required
+              defaultValue={entry?.category}
             />
           </Field>
           <Field label="Amount" error={state.fieldErrors?.amount?.[0]}>
-            <NumberInput min="0.01" name="amount" placeholder="0.00" required />
+            <NumberInput
+              defaultValue={
+                entry ? String(entry.inAmount + entry.outAmount) : undefined
+              }
+              min="0.01"
+              name="amount"
+              placeholder="0.00"
+              required
+            />
           </Field>
         </div>
 
-        <Field label="Supplier" error={state.fieldErrors?.supplier?.[0]}>
-          <Input name="supplier" placeholder="Supplier or staff name" />
+        <Field
+          label={entryKind === "expense" ? "Paid to" : "Received from"}
+          error={
+            state.fieldErrors?.counterpartyPersonId?.[0] ??
+            state.fieldErrors?.supplier?.[0]
+          }
+        >
+          <PersonSelect
+            allowExternal
+            context={
+              entryKind === "expense"
+                ? "Petty cash recipient"
+                : "Petty cash source"
+            }
+            externalDescription="Record a transaction-time name without linking a Person"
+            externalLabel="External party"
+            name="counterpartyPersonId"
+            onValueChange={setSelectedCounterparty}
+            options={orderedCounterparties}
+            placeholder={
+              entryKind === "expense"
+                ? "Search vendors, Staff, and people"
+                : "Search custodian, Staff, and people"
+            }
+            preservedOption={
+              entry?.counterpartyPersonId
+                ? {
+                    archived: false,
+                    description: "Historical linked counterparty",
+                    id: entry.counterpartyPersonId,
+                    label:
+                      entry.counterpartyCurrentName ??
+                      entry.supplier ??
+                      "Linked person",
+                    roles: [],
+                  }
+                : undefined
+            }
+            roles={["tenant", "owner", "vendor", "staff"]}
+            value={selectedCounterparty}
+          />
         </Field>
+        {selectedCounterparty === PERSON_SELECT_EXTERNAL_VALUE ? (
+          <Field label="External party name" error={state.fieldErrors?.supplier?.[0]}>
+            <Input
+              defaultValue={entry?.counterpartyPersonId ? undefined : entry?.supplier}
+              name="supplier"
+              placeholder="Name shown on this cash record"
+              required
+            />
+          </Field>
+        ) : (
+          <input name="supplier" type="hidden" value="" />
+        )}
         <Field label="Description" error={state.fieldErrors?.description?.[0]}>
           <Textarea
+            defaultValue={entry?.description}
             name="description"
             placeholder="What was paid for, or why cash came in"
             required
@@ -847,7 +1088,11 @@ function PettyCashEntryForm({
           label="Receipt / invoice reference"
           error={state.fieldErrors?.receiptReference?.[0]}
         >
-          <Input name="receiptReference" placeholder="Receipt number or file note" />
+          <Input
+            defaultValue={entry?.receiptReference}
+            name="receiptReference"
+            placeholder="Receipt number or file note"
+          />
         </Field>
 
         {entryKind === "expense" ? (
@@ -904,6 +1149,9 @@ function PettyCashEntryForm({
                 error={state.fieldErrors?.ownerReimbursableAmount?.[0]}
               >
                 <NumberInput
+                  defaultValue={
+                    entry ? String(entry.ownerReimbursableAmount) : undefined
+                  }
                   disabled={economicScope !== "company_advance"}
                   min="0"
                   name="ownerReimbursableAmount"
@@ -916,6 +1164,9 @@ function PettyCashEntryForm({
                 error={state.fieldErrors?.ownerReimbursedAmount?.[0]}
               >
                 <NumberInput
+                  defaultValue={
+                    entry ? String(entry.ownerReimbursedAmount) : undefined
+                  }
                   disabled={economicScope !== "company_advance"}
                   min="0"
                   name="ownerReimbursedAmount"
@@ -928,6 +1179,7 @@ function PettyCashEntryForm({
                 error={state.fieldErrors?.companyLossAmount?.[0]}
               >
                 <NumberInput
+                  defaultValue={entry ? String(entry.companyLossAmount) : undefined}
                   disabled={economicScope === "property_expense"}
                   min="0"
                   name="companyLossAmount"
@@ -941,14 +1193,26 @@ function PettyCashEntryForm({
           </section>
         ) : null}
         <Field label="Remark" error={state.fieldErrors?.remark?.[0]}>
-          <Textarea name="remark" placeholder="Clearing note or exception" />
+          <Textarea
+            defaultValue={entry?.remark}
+            name="remark"
+            placeholder="Clearing note or exception"
+          />
         </Field>
         <FormMessage state={state} />
       </div>
       <DrawerFooter
         disabled={pending}
         onClose={onClose}
-        submitLabel={pending ? "Adding..." : "Add cash row"}
+        submitLabel={
+          pending
+            ? entry
+              ? "Saving..."
+              : "Adding..."
+            : entry
+              ? "Save changes"
+              : "Add cash row"
+        }
       />
     </form>
   );
@@ -995,6 +1259,67 @@ function PostPettyCashPanel({
         disabled={pending}
         onClose={onClose}
         submitLabel={pending ? "Posting..." : "Post to ledger"}
+      />
+    </form>
+  );
+}
+
+function VoidPettyCashPanel({
+  entry,
+  onClose,
+  onSuccess,
+}: {
+  entry: PettyCashEntry;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const [state, action, pending] = useActionState(
+    voidPettyCashEntryAction,
+    voidInitialState,
+  );
+
+  useEffect(() => {
+    if (state.status === "success") {
+      onSuccess(
+        state.message ??
+          "Petty cash row voided. Its original amount remains visible.",
+      );
+      onClose();
+    }
+  }, [onClose, onSuccess, state.message, state.status]);
+
+  return (
+    <form action={action} className="flex h-full flex-col">
+      <input name="entryId" type="hidden" value={entry.id} />
+      <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
+        <ConsequencePanel
+          rows={[
+            { label: "Row", value: entry.category },
+            {
+              label: "Original amount",
+              value: formatMoneyDisplay(
+                entry.outAmount || entry.inAmount,
+                entry.currency,
+              ).primary,
+            },
+            { label: "Register impact", value: "Zero after voiding" },
+          ]}
+          summary="Keeps the original cash row and amount visible, records who voided it and why, and removes it from effective balances. This cannot be used after ledger posting."
+          title="Void consequence"
+        />
+        <Field label="Void reason" error={state.fieldErrors?.voidReason?.[0]}>
+          <Textarea
+            name="voidReason"
+            placeholder="Explain the correction and why the original row must remain"
+            required
+          />
+        </Field>
+        <FormMessage state={state} />
+      </div>
+      <DrawerFooter
+        disabled={pending}
+        onClose={onClose}
+        submitLabel={pending ? "Voiding..." : "Void cash row"}
       />
     </form>
   );
@@ -1116,6 +1441,46 @@ const statusLabels: Record<PettyCashEntry["status"], string> = {
   void: "Void",
 };
 
+function rankCounterpartyOptions(
+  options: PersonSelectOption[],
+  entryKind: PettyCashEntry["entryKind"] | string,
+  custodianPersonId?: string,
+) {
+  return options.toSorted((first, second) => {
+    const firstRank = counterpartyRank(first, entryKind, custodianPersonId);
+    const secondRank = counterpartyRank(second, entryKind, custodianPersonId);
+
+    return (
+      firstRank - secondRank ||
+      first.label.localeCompare(second.label, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }) ||
+      first.id.localeCompare(second.id)
+    );
+  });
+}
+
+function counterpartyRank(
+  option: PersonSelectOption,
+  entryKind: PettyCashEntry["entryKind"] | string,
+  custodianPersonId?: string,
+) {
+  if (entryKind !== "expense" && option.id === custodianPersonId) {
+    return 0;
+  }
+
+  if (entryKind === "expense" && option.roles.includes("vendor")) {
+    return 0;
+  }
+
+  if (option.roles.includes("staff")) {
+    return 1;
+  }
+
+  return 2;
+}
+
 function Field({
   children,
   error,
@@ -1187,6 +1552,14 @@ function getDrawerTitle(drawer: DrawerState) {
     return "Post to ledger";
   }
 
+  if (drawer.mode === "edit") {
+    return "Edit petty cash row";
+  }
+
+  if (drawer.mode === "void") {
+    return "Void petty cash row";
+  }
+
   if (drawer.mode === "rollover") {
     return "Open next month";
   }
@@ -1201,6 +1574,14 @@ function getDrawerDescription(drawer: DrawerState) {
 
   if (drawer.mode === "post") {
     return "Create the official ledger expense for this cash-out row.";
+  }
+
+  if (drawer.mode === "edit") {
+    return "Correct operational details before this row is posted.";
+  }
+
+  if (drawer.mode === "void") {
+    return "Keep the original row visible while removing its balance impact.";
   }
 
   if (drawer.mode === "rollover") {

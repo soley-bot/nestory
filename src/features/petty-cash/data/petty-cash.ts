@@ -5,6 +5,8 @@ import {
 } from "@/lib/entity-option-labels";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import type { CurrencyCode } from "@/lib/money/format";
+import { getPersonSelectOptions } from "@/features/people/data/person-options";
+import { calculatePettyCashRegister } from "@/features/petty-cash/register-facts";
 import type {
   PettyCashAccount,
   PettyCashEconomicScope,
@@ -34,6 +36,8 @@ type UnitRow = {
 type PettyCashEntryRow = {
   category: string;
   clear_date: string | null;
+  company_loss_amount: number;
+  counterparty_person_id: string | null;
   created_at: string;
   currency: CurrencyCode;
   description: string;
@@ -53,6 +57,9 @@ type PettyCashEntryRow = {
   status: string;
   supplier: string | null;
   unit_id: string | null;
+  void_reason: string | null;
+  voided_at: string | null;
+  voided_by: string | null;
 };
 
 export async function getPettyCashScreenData(
@@ -60,10 +67,18 @@ export async function getPettyCashScreenData(
   selectedAccountId?: string,
 ) {
   const supabase = await createSupabaseServerClient();
-  const [accountsResult, propertiesResult, unitsResult] = await Promise.all([
+  const [
+    accountsResult,
+    propertiesResult,
+    unitsResult,
+    counterpartyOptions,
+    staffOptions,
+  ] = await Promise.all([
     supabase
       .from("petty_cash_accounts")
-      .select("id, account_number, name, currency, float_amount, status")
+      .select(
+        "id, account_number, name, currency, float_amount, status, custodian_person_id",
+      )
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .order("created_at", { ascending: true }),
@@ -79,6 +94,14 @@ export async function getPettyCashScreenData(
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .order("unit_number", { ascending: true }),
+    getPersonSelectOptions({
+      organizationId,
+      roles: ["tenant", "owner", "vendor", "staff"],
+    }),
+    getPersonSelectOptions({
+      organizationId,
+      roles: ["staff"],
+    }),
   ]);
 
   if (accountsResult.error) {
@@ -103,10 +126,25 @@ export async function getPettyCashScreenData(
     );
   }
 
+  const custodianIds = [
+    ...new Set(
+      (accountsResult.data ?? [])
+        .map((account) => account.custodian_person_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const custodianNames = await getPeopleNames({
+    organizationId,
+    personIds: custodianIds,
+  });
   const accounts = (accountsResult.data ?? []).map(
     (account): PettyCashAccount => ({
       accountNumber: account.account_number,
       currency: account.currency,
+      custodianName: account.custodian_person_id
+        ? custodianNames.get(account.custodian_person_id)
+        : undefined,
+      custodianPersonId: account.custodian_person_id ?? undefined,
       floatAmount: account.float_amount,
       id: account.id,
       name: account.name,
@@ -114,7 +152,9 @@ export async function getPettyCashScreenData(
     }),
   );
   const selectedAccount =
-    accounts.find((account) => account.id === selectedAccountId) ?? accounts[0];
+    accounts.find((account) => account.id === selectedAccountId) ??
+    accounts.find((account) => account.status === "active") ??
+    accounts[0];
   const properties = propertiesResult.data ?? [];
   const units = unitsResult.data ?? [];
   const propertiesById = indexById(properties);
@@ -123,7 +163,8 @@ export async function getPettyCashScreenData(
     ? await getSelectedPeriod(organizationId, selectedAccount.id)
     : null;
   const entries = selectedPeriod
-    ? await getPeriodEntries({
+      ? await getPeriodEntries({
+        currency: selectedAccount.currency,
         organizationId,
         period: selectedPeriod,
         propertiesById,
@@ -133,6 +174,7 @@ export async function getPettyCashScreenData(
 
   return {
     accounts,
+    counterpartyOptions,
     entries,
     period: selectedPeriod,
     propertyOptions: properties.map((property): PettyCashPropertyOption => ({
@@ -140,7 +182,8 @@ export async function getPettyCashScreenData(
       label: formatPropertyOptionLabel(property),
     })),
     selectedAccount,
-    summary: buildSummary(selectedPeriod, entries),
+    staffOptions,
+    summary: buildSummary(selectedPeriod, entries, selectedAccount?.currency),
     unitOptions: units.map((unit): PettyCashUnitOption => {
       const property = propertiesById.get(unit.property_id);
 
@@ -195,11 +238,13 @@ async function getSelectedPeriod(organizationId: string, accountId: string) {
 }
 
 async function getPeriodEntries({
+  currency,
   organizationId,
   period,
   propertiesById,
   unitsById,
 }: {
+  currency: CurrencyCode;
   organizationId: string;
   period: PettyCashPeriod;
   propertiesById: Map<string, PropertyRow>;
@@ -209,13 +254,14 @@ async function getPeriodEntries({
   const result = await supabase
     .from("petty_cash_entries")
     .select(
-      "id, property_id, unit_id, ledger_entry_id, invoice_date, clear_date, entry_kind, status, category, supplier, description, receipt_reference, out_amount, in_amount, currency, economic_scope, owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount, remark, created_at",
+      "id, property_id, unit_id, counterparty_person_id, ledger_entry_id, invoice_date, clear_date, entry_kind, status, category, supplier, description, receipt_reference, out_amount, in_amount, currency, economic_scope, owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount, remark, created_at, voided_at, voided_by, void_reason",
     )
     .eq("organization_id", organizationId)
     .eq("period_id", period.id)
     .is("archived_at", null)
     .order("invoice_date", { ascending: true })
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   if (result.error) {
     if (isMissingPettyCashSchema(result.error.message)) {
@@ -228,12 +274,17 @@ async function getPeriodEntries({
   }
 
   const rows = (result.data ?? []) as PettyCashEntryRow[];
-  const hasAdvanceRows = rows.some((entry) => entry.entry_kind === "advance");
-  let balance =
-    period.openingBalanceAmount + (hasAdvanceRows ? 0 : period.advanceAmount);
-
-  return rows.map((entry) => {
-    balance += entry.in_amount - entry.out_amount;
+  const counterpartyNames = await getPeopleNames({
+    organizationId,
+    personIds: [
+      ...new Set(
+        rows
+          .map((entry) => entry.counterparty_person_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ],
+  });
+  const mappedEntries = rows.map((entry) => {
     const property = entry.property_id
       ? propertiesById.get(entry.property_id)
       : undefined;
@@ -248,9 +299,14 @@ async function getPeriodEntries({
         : 0;
 
     return {
-      balanceAfter: balance,
+      balanceAfter: 0,
       category: entry.category,
       clearDate: entry.clear_date ?? undefined,
+      companyLossAmount: Number(entry.company_loss_amount),
+      counterpartyCurrentName: entry.counterparty_person_id
+        ? counterpartyNames.get(entry.counterparty_person_id)
+        : undefined,
+      counterpartyPersonId: entry.counterparty_person_id ?? undefined,
       createdAt: entry.created_at,
       currency: entry.currency,
       description: entry.description,
@@ -277,49 +333,42 @@ async function getPeriodEntries({
       supplier: entry.supplier ?? undefined,
       unitId: entry.unit_id ?? undefined,
       unitNumber: unit?.unit_number,
+      voidReason: entry.void_reason ?? undefined,
+      voidedAt: entry.voided_at ?? undefined,
+      voidedBy: entry.voided_by ?? undefined,
     };
   });
+
+  return calculatePettyCashRegister({
+    currency,
+    entries: mappedEntries,
+    period,
+  }).entries;
 }
 
 export function buildSummary(
   period: PettyCashPeriod | null,
   entries: PettyCashEntry[],
+  currency: CurrencyCode = entries[0]?.currency ?? "USD",
 ): PettyCashSummary {
-  const hasAdvanceRows = entries.some((entry) => entry.entryKind === "advance");
-  const openingFloat = hasAdvanceRows ? 0 : (period?.advanceAmount ?? 0);
-  const cashIn = entries.reduce((total, entry) => total + entry.inAmount, 0);
-  const cashOut = entries.reduce((total, entry) => total + entry.outAmount, 0);
-  const balance =
-    (period?.openingBalanceAmount ?? 0) + openingFloat + cashIn - cashOut;
+  const register = calculatePettyCashRegister({ currency, entries, period });
 
   return {
-    balance: formatMoneyDisplay(balance, "USD"),
-    cashIn: formatMoneyDisplay(cashIn, "USD"),
-    cashOut: formatMoneyDisplay(cashOut, "USD"),
-    openingFloat: formatMoneyDisplay(openingFloat, "USD"),
-    postedCount: entries.filter((entry) => entry.status === "posted").length.toString(),
-    readyToPostCount: entries
-      .filter(
-        (entry) =>
-          entry.entryKind === "expense" &&
-          entry.status !== "posted" &&
-          entry.status !== "void",
-      )
-      .length.toString(),
-    receiptMissingCount: entries
-      .filter(
-        (entry) =>
-          entry.entryKind === "expense" &&
-          entry.status !== "void" &&
-          !entry.receiptReference,
-      )
-      .length.toString(),
+    balance: formatMoneyDisplay(register.closingBalanceAmount, currency),
+    cashIn: formatMoneyDisplay(register.cashInAmount, currency),
+    cashOut: formatMoneyDisplay(register.cashOutAmount, currency),
+    openingFloat: formatMoneyDisplay(register.effectiveOpeningAmount, currency),
+    postedCount: register.postedCount.toString(),
+    readyToPostCount: register.readyToPostCount.toString(),
+    receiptMissingCount: register.receiptMissingCount.toString(),
+    voidCount: register.voidCount.toString(),
   };
 }
 
 function buildUnavailableScreenData() {
   return {
     accounts: [],
+    counterpartyOptions: [],
     entries: [],
     period: null,
     propertyOptions: [],
@@ -329,9 +378,39 @@ function buildUnavailableScreenData() {
         "Petty cash is not available yet because the database migration has not been applied in this environment.",
     } satisfies PettyCashSchemaStatus,
     selectedAccount: undefined,
+    staffOptions: [],
     summary: buildSummary(null, []),
     unitOptions: [],
   };
+}
+
+async function getPeopleNames({
+  organizationId,
+  personIds,
+}: {
+  organizationId: string;
+  personIds: string[];
+}) {
+  if (personIds.length === 0) {
+    return new Map<string, string>();
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const result = await supabase
+    .from("people")
+    .select("id, display_name")
+    .eq("organization_id", organizationId)
+    .in("id", personIds);
+
+  if (result.error) {
+    throw new Error(
+      `Could not load petty cash people context: ${result.error.message}`,
+    );
+  }
+
+  return new Map(
+    (result.data ?? []).map((person) => [person.id, person.display_name]),
+  );
 }
 
 function isMissingPettyCashSchema(message: string) {
