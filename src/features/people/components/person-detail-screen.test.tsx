@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it } from "vitest";
 import { PersonDetailScreen } from "@/features/people/components/person-detail-screen";
 import PersonNotFound from "@/app/(dashboard)/people/[personId]/not-found";
+import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import type { PeopleSummary } from "@/features/people/people.types";
 
 afterEach(cleanup);
@@ -38,6 +39,128 @@ describe("PersonDetailScreen", () => {
     expect(screen.getByRole("link", { name: "Back to people" }).getAttribute("href")).toBe(
       "/people",
     );
+  });
+
+  it.each([
+    [
+      { primaryAction: "grant_access", state: "no_access" },
+      "No workspace access",
+      "Grant workspace access",
+      "/users-roles?personId=person-1",
+    ],
+    [
+      {
+        branchId: null,
+        email: "pending@example.com",
+        expiresAt: "2026-07-30T00:00:00.000Z",
+        invitationId: "invitation-pending",
+        lastSentAt: "2026-07-22T00:00:00.000Z",
+        primaryAction: "review_invitation",
+        role: "admin",
+        scopeLabel: "All branches",
+        state: "invitation_pending",
+      },
+      "Invitation pending",
+      "Review invitation",
+      "/users-roles?personId=person-1&invitationId=invitation-pending",
+    ],
+    [
+      {
+        branchId: null,
+        email: "failed@example.com",
+        expiresAt: "2026-07-30T00:00:00.000Z",
+        invitationId: "invitation-failed",
+        lastSentAt: null,
+        primaryAction: "retry_invitation",
+        role: "member",
+        scopeLabel: "All branches",
+        state: "delivery_failed",
+      },
+      "Invitation delivery failed",
+      "Review and resend",
+      "/users-roles?personId=person-1&invitationId=invitation-failed",
+    ],
+    [
+      {
+        branchId: null,
+        email: "expired@example.com",
+        expiresAt: "2026-07-20T00:00:00.000Z",
+        invitationId: "invitation-expired",
+        lastSentAt: null,
+        primaryAction: "review_invitation",
+        role: "member",
+        scopeLabel: "All branches",
+        state: "expired",
+      },
+      "Invitation expired",
+      "Review invitation",
+      "/users-roles?personId=person-1&invitationId=invitation-expired",
+    ],
+    [
+      {
+        branchId: "branch-1",
+        email: "active@example.com",
+        membershipId: "membership-1",
+        primaryAction: "manage_access",
+        role: "manager",
+        scopeLabel: "Central Office",
+        state: "active_workspace_access",
+      },
+      "Active workspace access",
+      "Manage workspace access",
+      "/users-roles?personId=person-1&memberId=membership-1",
+    ],
+  ] as Array<[OrganizationPersonAccessStatus, string, string, string]>) (
+    "shows the %s Staff access state with a safe focus action",
+    (accessStatus, stateLabel, actionLabel, href) => {
+      const staffPerson = {
+        ...person,
+        roleLabel: "Staff / Tenant",
+        roles: [
+          { role: "tenant" as const, status: "active" as const },
+          { role: "staff" as const, status: "active" as const },
+        ],
+      };
+      render(<PersonDetailScreen accessStatus={accessStatus} person={staffPerson} />);
+
+      expect(screen.getByRole("heading", { name: "Workspace Access" })).toBeTruthy();
+      expect(
+        screen.getByText(
+          "Staff records describe operational people. Workspace Access controls who can sign in.",
+        ),
+      ).toBeTruthy();
+      expect(screen.getByText(stateLabel)).toBeTruthy();
+      const action = screen.getByRole("link", {
+        name: `${actionLabel} for ${staffPerson.displayName}`,
+      });
+      expect(action.getAttribute("href")).toBe(href);
+      expect(action.getAttribute("href")).not.toContain("email=");
+    },
+  );
+
+  it.each([
+    ["non-staff", person],
+    [
+      "inactive staff",
+      { ...person, roles: [{ role: "staff" as const, status: "inactive" as const }] },
+    ],
+    [
+      "archived staff",
+      {
+        ...person,
+        isArchived: true,
+        roles: [{ role: "staff" as const, status: "active" as const }],
+      },
+    ],
+  ])("does not offer Workspace Access for %s records", (_label, nextPerson) => {
+    render(
+      <PersonDetailScreen
+        accessStatus={{ primaryAction: "grant_access", state: "no_access" }}
+        person={nextPerson}
+      />,
+    );
+
+    expect(screen.queryByRole("heading", { name: "Workspace Access" })).toBeNull();
   });
 });
 

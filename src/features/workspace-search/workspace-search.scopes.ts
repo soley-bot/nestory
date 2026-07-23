@@ -54,7 +54,7 @@ const ADMIN_ACTIONS = [
   action("documents", "Documents", "/documents", ["files"]),
   action("import", "Import data", "/import", ["csv", "upload"]),
   action("settings", "Organization settings", "/settings"),
-  action("users-roles", "Users & Roles", "/users-roles", ["access", "permissions"]),
+  action("users-roles", "Workspace Access", "/users-roles", ["access", "permissions", "users", "roles"]),
 ] satisfies readonly WorkspaceSearchAction[];
 
 const MANAGER_ACTIONS = [

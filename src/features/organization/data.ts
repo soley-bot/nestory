@@ -1,4 +1,13 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import type { PersonSelectOption } from "@/features/people/person-select";
+
+import {
+  buildAccessByPersonId,
+  type OrganizationPersonAccessStatus,
+  type WorkspaceAccessRole,
+} from "./access-status";
+
+export type { OrganizationPersonAccessStatus } from "./access-status";
 
 export type OrganizationBranch = {
   address: string | null;
@@ -20,12 +29,17 @@ export type OrganizationPersonOption = {
   label: string;
 };
 
+export type OrganizationStaffOption = PersonSelectOption & {
+  activeStaff: boolean;
+  primaryEmail: string | null;
+};
+
 export type OrganizationMembership = {
   branchId: string | null;
   email: string | null;
   id: string;
   personId: string | null;
-  role: "admin" | "manager" | "member";
+  role: WorkspaceAccessRole;
   userId: string;
 };
 
@@ -39,11 +53,6 @@ export type OrganizationInvitation = {
   personId: string | null;
   role: OrganizationMembership["role"];
   status: "expired" | "pending" | "send_failed";
-};
-
-export type OrganizationPersonAccessStatus = {
-  email: string | null;
-  role: OrganizationMembership["role"];
 };
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -70,7 +79,18 @@ export async function getAccessSettingsData(organizationId: string) {
     loadStaffForOrganization(supabase, organizationId),
   ]);
 
-  return { branches, invitations, members, staff };
+  const linkedPersonIds = Array.from(new Set(
+    [...members, ...invitations].flatMap((record) => record.personId ? [record.personId] : []),
+  ));
+  const historicalOptions = await loadStaffOptions(
+    supabase,
+    organizationId,
+    linkedPersonIds,
+    { activeStaffIds: new Set(staff.map((person) => person.id)), includeArchived: true },
+  );
+  const linkedPeople = mergeStaffOptions(staff, historicalOptions);
+
+  return { branches, invitations, linkedPeople, members, staff };
 }
 
 export async function getAccessByPersonId(
@@ -82,15 +102,18 @@ export async function getAccessByPersonId(
   }
 
   const supabase = await createSupabaseServerClient();
-  const personIdSet = new Set(personIds);
-  const memberships = await loadMemberships(supabase, organizationId);
+  const [branches, invitations, memberships] = await Promise.all([
+    loadBranches(supabase, organizationId),
+    loadInvitations(supabase, organizationId),
+    loadMemberships(supabase, organizationId),
+  ]);
 
-  return Object.fromEntries(
-    memberships.flatMap((member) =>
-      member.personId && personIdSet.has(member.personId)
-        ? [[member.personId, { email: member.email, role: member.role }]]
-        : [],
-    ),
+  return buildAccessByPersonId(
+    personIds,
+    memberships,
+    invitations,
+    new Date(),
+    branches,
   );
 }
 
@@ -188,7 +211,7 @@ async function loadInvitations(
     .from("organization_invitations")
     .select("id, email, role, branch_id, person_id, status, invited_at, last_sent_at, expires_at")
     .eq("organization_id", organizationId)
-    .in("status", ["pending", "send_failed"])
+    .in("status", ["pending", "send_failed", "expired"])
     .order("invited_at", { ascending: false });
 
   if (error) {
@@ -206,7 +229,7 @@ async function loadInvitations(
     personId: invitation.person_id,
     role: normalizeRole(invitation.role),
     status:
-      Date.parse(invitation.expires_at) <= now
+      invitation.status === "expired" || Date.parse(invitation.expires_at) <= now
         ? "expired"
         : invitation.status === "send_failed"
           ? "send_failed"
@@ -217,7 +240,7 @@ async function loadInvitations(
 async function loadStaffForOrganization(
   supabase: SupabaseServerClient,
   organizationId: string,
-): Promise<OrganizationPersonOption[]> {
+): Promise<OrganizationStaffOption[]> {
   const { data, error } = await supabase
     .from("person_roles")
     .select("person_id")
@@ -240,27 +263,44 @@ async function loadStaffOptions(
   supabase: SupabaseServerClient,
   organizationId: string,
   staffIds: string[],
-): Promise<OrganizationPersonOption[]> {
+  options: { activeStaffIds?: Set<string>; includeArchived?: boolean } = {},
+): Promise<OrganizationStaffOption[]> {
   if (staffIds.length === 0) {
     return [];
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("people")
-    .select("id, display_name")
+    .select("id, display_name, primary_email, primary_phone, archived_at")
     .eq("organization_id", organizationId)
-    .in("id", staffIds)
-    .is("archived_at", null)
-    .order("display_name", { ascending: true });
+    .in("id", staffIds);
+  if (!options.includeArchived) query = query.is("archived_at", null);
+  const { data, error } = await query.order("display_name", { ascending: true });
 
   if (error) {
     throw new Error(`Could not load staff: ${error.message}`);
   }
 
   return (data ?? []).map((person) => ({
+    activeStaff: options.activeStaffIds?.has(person.id) ?? !options.includeArchived,
+    archived: person.archived_at !== null,
+    description: ["Staff", person.primary_email ?? person.primary_phone]
+      .filter(Boolean)
+      .join(" · "),
     id: person.id,
     label: person.display_name,
+    primaryEmail: person.primary_email,
+    roles: ["staff"],
   }));
+}
+
+function mergeStaffOptions(
+  active: OrganizationStaffOption[],
+  historical: OrganizationStaffOption[],
+) {
+  return [...new Map(
+    [...historical, ...active].map((person) => [person.id, person]),
+  ).values()];
 }
 
 function normalizeRole(role: string): OrganizationMembership["role"] {

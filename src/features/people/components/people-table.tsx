@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowUpRight, Building2, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
+import { WorkspaceAccessStatus } from "@/features/people/components/workspace-access-status";
 import {
   getPeopleLinkedLabel,
   getPeopleOperatingContext,
@@ -16,6 +18,7 @@ import type {
 import { cn } from "@/lib/utils";
 
 type PeopleTableProps = {
+  accessByPersonId?: Record<string, OrganizationPersonAccessStatus>;
   archiveState: PeopleArchiveState;
   displayMode: PeopleDisplayMode;
   people: PeopleSummary[];
@@ -23,6 +26,7 @@ type PeopleTableProps = {
 };
 
 export function PeopleTable({
+  accessByPersonId,
   archiveState,
   displayMode,
   people,
@@ -47,6 +51,7 @@ export function PeopleTable({
         ) : null}
         {people.map((person) => (
           <PersonCard
+            accessStatus={accessByPersonId?.[person.id]}
             key={person.id}
             person={person}
             roleContext={roleContext}
@@ -87,7 +92,9 @@ export function PeopleTable({
                     <th className="px-1.5 py-2.5 font-semibold">
                       {getContextHeader(roleContext)}
                     </th>
-                    <th className="px-1.5 py-2.5 font-semibold">Next</th>
+                    <th className="px-1.5 py-2.5 font-semibold">
+                      {roleContext === "staff" ? "Workspace Access" : "Next"}
+                    </th>
                   </tr>
                 ) : (
                   <tr>
@@ -156,7 +163,20 @@ export function PeopleTable({
                     </td>
                     {isRoleScoped ? (
                       <td className="px-2 py-2">
-                        <NextActionCell person={person} />
+                        {roleContext === "staff" ? (
+                          canManageWorkspaceAccess(person) &&
+                          accessByPersonId?.[person.id] ? (
+                            <WorkspaceAccessStatus
+                              personId={person.id}
+                              personName={person.displayName}
+                              status={accessByPersonId[person.id]}
+                            />
+                          ) : (
+                            <WorkspaceAccessUnavailable />
+                          )
+                        ) : (
+                          <NextActionCell person={person} />
+                        )}
                       </td>
                     ) : (
                       <td className="px-1.5 py-2">
@@ -175,9 +195,11 @@ export function PeopleTable({
 }
 
 function PersonCard({
+  accessStatus,
   person,
   roleContext,
 }: {
+  accessStatus?: OrganizationPersonAccessStatus;
   person: PeopleSummary;
   roleContext?: PersonRoleValue;
 }) {
@@ -223,6 +245,22 @@ function PersonCard({
           label={getContextHeader(roleContext)}
           value={getContextValue(person, roleContext)}
         />
+        {roleContext === "staff" ? (
+          <div className="mt-3 border-t border-border pt-3">
+            <p className="mb-1.5 text-xs font-medium text-muted">
+              Workspace Access
+            </p>
+            {canManageWorkspaceAccess(person) && accessStatus ? (
+              <WorkspaceAccessStatus
+                personId={person.id}
+                personName={person.displayName}
+                status={accessStatus}
+              />
+            ) : (
+              <WorkspaceAccessUnavailable />
+            )}
+          </div>
+        ) : null}
         <Link
           className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
           href={`/people/${person.id}`}
@@ -321,6 +359,23 @@ function NextActionCell({ person }: { person: PeopleSummary }) {
         {person.nextAction.description}
       </p>
     </div>
+  );
+}
+
+function WorkspaceAccessUnavailable() {
+  return (
+    <p className="text-xs font-medium text-muted">
+      Workspace access unavailable
+    </p>
+  );
+}
+
+function canManageWorkspaceAccess(person: PeopleSummary) {
+  return (
+    !person.isArchived &&
+    person.roles.some(
+      (role) => role.role === "staff" && role.status === "active",
+    )
   );
 }
 

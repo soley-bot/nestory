@@ -85,9 +85,9 @@ function InvitationSummary({
   return (
     <dl className="grid gap-3 rounded-md border border-border bg-surface-muted p-4 text-sm">
       <SummaryRow label="Workspace" value={invitation.organizationName} />
-      <SummaryRow label="Role" value={formatRole(invitation.role)} />
-      <SummaryRow label="Scope" value={invitation.scopeName} />
-      {invitation.staffName ? <SummaryRow label="Staff link" value={invitation.staffName} /> : null}
+      <SummaryRow label="Access level" value={formatRole(invitation.role)} />
+      <SummaryRow label="Access scope" value={invitation.scopeName} />
+      {invitation.staffName ? <SummaryRow label="Linked staff record" value={invitation.staffName} /> : null}
       <SummaryRow label="Account" value={invitation.accountEmail ?? "Verified invited email"} />
     </dl>
   );
@@ -103,7 +103,7 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 }
 
 function formatRole(role: string) {
-  return role === "admin" ? "Administrator" : role === "manager" ? "Manager" : "Member";
+  return role === "admin" ? "Administrator" : role === "manager" ? "Manager" : "Team Member";
 }
 
 function titleFor(state: Awaited<ReturnType<typeof getInvitationAcceptance>>["state"]) {

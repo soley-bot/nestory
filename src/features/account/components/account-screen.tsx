@@ -78,9 +78,9 @@ export function AccountScreen({
       <aside className="min-w-0 space-y-4">
         <ConsequencePanel
           rows={[
-            { label: "Role", value: formatPlatformRole(identity.role) },
-            { label: "Scope", value: roleScope(identity.role, identity.branchLabel) },
-            { label: "Profile link", value: profile?.displayName ?? "Not linked" },
+            { label: "Access level", value: formatPlatformRole(identity.role) },
+            { label: "Access scope", value: roleScope(identity.role, identity.branchLabel) },
+            { label: "Linked staff record", value: profile?.displayName ?? "Not linked" },
           ]}
           summary={roleEffect(identity.role)}
           title="Access scope"
@@ -90,7 +90,7 @@ export function AccountScreen({
               className="font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               href="/users-roles"
             >
-              Users &amp; Roles
+              Workspace Access
             </Link>
           ) : null}
         </ConsequencePanel>
@@ -142,7 +142,7 @@ function roleEffect(role: WorkspaceRole) {
 }
 
 function formatPlatformRole(role: WorkspaceRole) {
-  return role === "admin" ? "Admin" : role === "manager" ? "Manager" : "Member";
+  return role === "admin" ? "Administrator" : role === "manager" ? "Manager" : "Team Member";
 }
 
 function formatPartyType(value: string) {

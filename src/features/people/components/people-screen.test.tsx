@@ -9,6 +9,7 @@ import StaffPage from "@/app/(dashboard)/staff/page";
 import TenantsPage from "@/app/(dashboard)/tenants/page";
 import VendorsPage from "@/app/(dashboard)/vendors/page";
 import { PeopleScreen } from "@/features/people/components/people-screen";
+import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import { getPeopleInsights } from "@/features/people/people.insights";
 import type {
   PeopleSummary,
@@ -217,14 +218,145 @@ describe("People route family redesign contract", () => {
     ).not.toBeNull();
     expect(within(cards[1]!).getByText("No operating context")).not.toBeNull();
   });
+
+  it("shows all Workspace Access states and safe focus actions in staff table and cards", () => {
+    const staff = [
+      makePerson("staff-none", "No Access Staff", "staff"),
+      makePerson("staff-pending", "Pending Staff", "staff"),
+      makePerson("staff-failed", "Failed Staff", "staff"),
+      makePerson("staff-expired", "Expired Staff", "staff"),
+      makePerson("staff-active", "Active Staff", "staff"),
+    ];
+    const accessByPersonId: Record<string, OrganizationPersonAccessStatus> = {
+      "staff-active": {
+        branchId: "branch-1",
+        email: "active@example.com",
+        membershipId: "membership-1",
+        primaryAction: "manage_access",
+        role: "manager",
+        scopeLabel: "Central Office",
+        state: "active_workspace_access",
+      },
+      "staff-expired": {
+        branchId: null,
+        email: "expired@example.com",
+        expiresAt: "2026-07-20T00:00:00.000Z",
+        invitationId: "invitation-expired",
+        lastSentAt: "2026-07-19T00:00:00.000Z",
+        primaryAction: "review_invitation",
+        role: "member",
+        scopeLabel: "All branches",
+        state: "expired",
+      },
+      "staff-failed": {
+        branchId: null,
+        email: "failed@example.com",
+        expiresAt: "2026-07-30T00:00:00.000Z",
+        invitationId: "invitation-failed",
+        lastSentAt: null,
+        primaryAction: "retry_invitation",
+        role: "member",
+        scopeLabel: "All branches",
+        state: "delivery_failed",
+      },
+      "staff-none": {
+        primaryAction: "grant_access",
+        state: "no_access",
+      },
+      "staff-pending": {
+        branchId: null,
+        email: "pending@example.com",
+        expiresAt: "2026-07-30T00:00:00.000Z",
+        invitationId: "invitation-pending",
+        lastSentAt: "2026-07-22T00:00:00.000Z",
+        primaryAction: "review_invitation",
+        role: "admin",
+        scopeLabel: "All branches",
+        state: "invitation_pending",
+      },
+    };
+
+    renderPeople({ accessByPersonId, lockedRole: "staff", people: staff });
+
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Workspace Access")).not.toBeNull();
+    const expectations = [
+      ["No Access Staff", "No workspace access", "Grant workspace access", "/users-roles?personId=staff-none"],
+      ["Pending Staff", "Invitation pending", "Review invitation", "/users-roles?personId=staff-pending&invitationId=invitation-pending"],
+      ["Failed Staff", "Invitation delivery failed", "Review and resend", "/users-roles?personId=staff-failed&invitationId=invitation-failed"],
+      ["Expired Staff", "Invitation expired", "Review invitation", "/users-roles?personId=staff-expired&invitationId=invitation-expired"],
+      ["Active Staff", "Active workspace access", "Manage workspace access", "/users-roles?personId=staff-active&memberId=membership-1"],
+    ] as const;
+
+    for (const [name, stateLabel, actionLabel, href] of expectations) {
+      const row = within(table).getByRole("link", { name }).closest("tr");
+      expect(row).not.toBeNull();
+      expect(within(row!).getByText(stateLabel)).not.toBeNull();
+      expect(
+        within(row!).getByRole("link", { name: `${actionLabel} for ${name}` }).getAttribute("href"),
+      ).toBe(href);
+    }
+    expect(within(table).getByText(/Last sent/)).not.toBeNull();
+    expect(
+      within(table).getByText(/^pending@example\.com \/ Last sent/),
+    ).not.toBeNull();
+    expect(
+      within(table).getByText(/^failed@example\.com \/ Delivery/),
+    ).not.toBeNull();
+    expect(within(table).getByText(/Central Office/)).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cards" }));
+    for (const [name, stateLabel, actionLabel, href] of expectations) {
+      const card = screen
+        .getAllByRole("article")
+        .find((item) => within(item).queryByRole("link", { name }));
+      expect(card).toBeDefined();
+      expect(within(card!).getByText(stateLabel)).not.toBeNull();
+      expect(
+        within(card!).getByRole("link", { name: `${actionLabel} for ${name}` }).getAttribute("href"),
+      ).toBe(href);
+    }
+  });
+
+  it("does not infer no-access or offer actions for missing, inactive, or archived Staff status", () => {
+    const missing = makePerson("staff-missing", "Missing Status Staff", "staff");
+    const inactive = {
+      ...makePerson("staff-inactive", "Inactive Staff", "staff"),
+      roles: [{ role: "staff" as const, status: "inactive" as const }],
+    };
+    const archived = {
+      ...makePerson("staff-archived", "Archived Staff", "staff"),
+      isArchived: true,
+    };
+
+    renderPeople({ lockedRole: "staff", people: [missing, inactive, archived] });
+
+    const table = screen.getByRole("table");
+    for (const name of ["Missing Status Staff", "Inactive Staff", "Archived Staff"]) {
+      const row = within(table).getByRole("link", { name }).closest("tr");
+      expect(within(row!).getByText("Workspace access unavailable")).not.toBeNull();
+      expect(within(row!).queryByRole("link", { name: /workspace access/i })).toBeNull();
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Cards" }));
+    const missingCard = screen
+      .getAllByRole("article")
+      .find((card) => within(card).queryByRole("link", { name: "Missing Status Staff" }));
+    expect(within(missingCard!).getByText("Workspace access unavailable")).not.toBeNull();
+    expect(
+      within(missingCard!).queryByRole("link", { name: /workspace access/i }),
+    ).toBeNull();
+  });
 });
 
 function renderPeople({
+  accessByPersonId,
   canCreate = true,
   lockedRole,
   people: nextPeople = people,
   viewQuery = defaultViewQuery,
 }: {
+  accessByPersonId?: Record<string, OrganizationPersonAccessStatus>;
   canCreate?: boolean;
   lockedRole?: PersonRoleValue;
   people?: PeopleSummary[];
@@ -232,6 +364,7 @@ function renderPeople({
 } = {}) {
   return render(
     <PeopleScreen
+      accessByPersonId={accessByPersonId}
       addButtonLabel={lockedRole ? `Add ${lockedRole}` : "Add person"}
       canCreate={canCreate}
       createRole={lockedRole}

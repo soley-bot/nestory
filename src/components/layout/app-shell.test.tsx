@@ -346,14 +346,14 @@ describe("AppShell global navigation hierarchy", () => {
     });
     expect(within(globalNavigation).getByRole("link", { name: "Settings" })).toBeTruthy();
     expect(within(globalNavigation).queryByRole("link", { name: "Workspace" })).toBeNull();
-    expect(within(globalNavigation).queryByRole("link", { name: "Users & Roles" })).toBeNull();
+    expect(within(globalNavigation).queryByRole("link", { name: "Workspace Access" })).toBeNull();
 
     const localNavigation = screen.getByRole("navigation", {
       name: "Settings sections",
     });
     expect(
       within(localNavigation).getAllByRole("link").map((link) => link.textContent),
-    ).toEqual(["Workspace", "Users & Roles"]);
+    ).toEqual(["Workspace", "Workspace Access"]);
     expect(
       within(localNavigation)
         .getAllByRole("link")

@@ -2058,7 +2058,9 @@
         "src/components/layout/module-loading.tsx"
       ],
       "populated": [
-        "src/app/(dashboard)/users-roles/page.tsx"
+        "src/app/(dashboard)/users-roles/page.tsx",
+        "src/app/(dashboard)/users-roles/page.test.tsx",
+        "src/features/organization/components/access-settings-screen.test.tsx"
       ],
       "empty": [
         "src/app/(dashboard)/users-roles/page.tsx",
@@ -2093,9 +2095,11 @@
         "member": "permission-blocked",
         "anonymous": "login-required"
       },
-      "queryContract": "not-applicable",
+      "queryContract": "preserved",
       "workflowEvidence": [
         "src/app/(dashboard)/users-roles/page.tsx",
+        "src/app/(dashboard)/users-roles/page.test.tsx",
+        "src/features/organization/components/access-settings-screen.test.tsx",
         "src/components/layout/module-loading.tsx",
         "src/components/ui/empty-state.tsx",
         "src/components/ui/error-state.tsx",

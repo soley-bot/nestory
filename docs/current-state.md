@@ -214,8 +214,10 @@ Settings and access:
 
 - `/settings` uses the three-zone settings layout to manage organization
   structure, branches, and teams with explicit draft/save/discard feedback.
-- `/users-roles` manages software access, roles, staff/person links, branches,
-  and existing-user access invites.
+- `/users-roles` remains the compatible Workspace Access route for Staff-first
+  invitations, access levels, linked Staff records, access scope, and existing
+  users. Active Staff records are selectable for new access; historical links
+  remain visible without becoming new-grant choices.
 - `/account` shows the signed-in user's workspace profile.
 
 ## Database Shape

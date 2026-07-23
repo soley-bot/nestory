@@ -50,6 +50,20 @@ describe("WorkspacePage", () => {
     expect(html).not.toContain("Dashboard");
   });
 
+  it.each([
+    ["admin", "Administrator workspace"],
+    ["member", "Team Member workspace"],
+  ] as const)("uses the Workspace Access role label for %s", async (role, expectedLabel) => {
+    requireWorkspaceContext.mockResolvedValue({
+      organizationName: "Riverside Operations",
+      role,
+    });
+
+    const html = renderToStaticMarkup(await WorkspacePage());
+
+    expect(html).toContain(expectedLabel);
+  });
+
   it("renders the approved cinematic workspace arrival composition", async () => {
     requireWorkspaceContext.mockResolvedValue({
       organizationName: "Riverside Operations",

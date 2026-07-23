@@ -204,7 +204,7 @@ SELECT public.create_organization_invitation(
   ' Invitee@Example.com ',
   'member',
   '00000000-0000-0000-0000-000000000211',
-  '80300000-0000-0000-0000-000000000003'
+  '80300000-0000-0000-0000-000000000004'
 );
 
 SELECT is(
@@ -218,7 +218,7 @@ SELECT is(
     'invitee@example.com',
     'member',
     '00000000-0000-0000-0000-000000000211',
-    '80300000-0000-0000-0000-000000000003'
+    '80300000-0000-0000-0000-000000000004'
   ),
   (SELECT invitation_id FROM invitation_test_state),
   'resend preparation refreshes the active invitation instead of duplicating it'

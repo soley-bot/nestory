@@ -258,19 +258,19 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect(background.hasAttribute("aria-hidden")).toBe(false);
   });
 
-  it("guards the adjacent Users & Roles tab with the same draft confirmation", async () => {
+  it("guards the adjacent Workspace Access tab with the same draft confirmation", async () => {
     const user = userEvent.setup();
     renderSettingsScreen("branches");
 
     const name = screen.getByRole("textbox", { name: "Name" });
-    const destination = screen.getByRole("link", { name: "Users & Roles" });
+    const destination = screen.getByRole("link", { name: "Workspace Access" });
     await user.type(name, "Pending branch");
     await user.click(destination);
 
     expect(navigation.push).not.toHaveBeenCalled();
     expect((name as HTMLInputElement).value).toBe("Pending branch");
     expect(
-      screen.getByRole("dialog", { name: "Open Users & Roles?" }),
+      screen.getByRole("dialog", { name: "Open Workspace Access?" }),
     ).not.toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Keep editing" }));
@@ -280,7 +280,7 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     await user.click(destination);
     await user.click(
-      screen.getByRole("button", { name: "Discard and open Users & Roles" }),
+      screen.getByRole("button", { name: "Discard and open Workspace Access" }),
     );
 
     expect(navigation.push).toHaveBeenCalledOnce();
@@ -288,11 +288,11 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect((name as HTMLInputElement).value).toBe("");
   });
 
-  it("keeps a clean Users & Roles tab as a native Link", async () => {
+  it("keeps a clean Workspace Access tab as a native Link", async () => {
     const user = userEvent.setup();
     renderSettingsScreen("branches");
 
-    await user.click(screen.getByRole("link", { name: "Users & Roles" }));
+    await user.click(screen.getByRole("link", { name: "Workspace Access" }));
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(navigation.push).not.toHaveBeenCalled();
@@ -307,7 +307,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
     await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    await user.click(screen.getByRole("link", { name: "Users & Roles" }));
+    await user.click(screen.getByRole("link", { name: "Workspace Access" }));
 
     expect(
       screen.getByText(
@@ -369,10 +369,10 @@ describe("SettingsWorkspace navigation and layout", () => {
     const alert = await screen.findByRole("alert");
     expect(document.activeElement).toBe(alert);
 
-    const destination = screen.getByRole("link", { name: "Users & Roles" });
+    const destination = screen.getByRole("link", { name: "Workspace Access" });
     await user.click(destination);
     expect(
-      screen.getByRole("dialog", { name: "Open Users & Roles?" }),
+      screen.getByRole("dialog", { name: "Open Workspace Access?" }),
     ).not.toBeNull();
 
     await user.keyboard("{Escape}");
