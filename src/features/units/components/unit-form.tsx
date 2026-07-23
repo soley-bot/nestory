@@ -26,15 +26,17 @@ import {
 const initialState: UnitActionState = {};
 
 type UnitFormProps = {
+  closeOnCreateSuccess?: boolean;
   mode?: "create" | "edit";
   initialValues?: Partial<Pick<UnitSummary["formValues"], "propertyId">>;
   onClose: () => void;
-  onSuccess?: (message: string) => void;
+  onSuccess?: (message: string, unitId?: string) => void;
   properties: UnitPropertyOption[];
   unit?: UnitDetail | UnitSummary | null;
 };
 
 export function UnitForm({
+  closeOnCreateSuccess = false,
   initialValues,
   mode = "create",
   onClose,
@@ -57,11 +59,22 @@ export function UnitForm({
   );
 
   useEffect(() => {
-    if (state.status === "success" && isEditMode) {
-      onSuccess?.(state.message ?? "Unit saved.");
+    if (
+      state.status === "success" &&
+      (isEditMode || closeOnCreateSuccess)
+    ) {
+      onSuccess?.(state.message ?? "Unit saved.", state.unitId);
       onClose();
     }
-  }, [isEditMode, onClose, onSuccess, state.message, state.status]);
+  }, [
+    closeOnCreateSuccess,
+    isEditMode,
+    onClose,
+    onSuccess,
+    state.message,
+    state.status,
+    state.unitId,
+  ]);
 
   return (
     <RecordForm

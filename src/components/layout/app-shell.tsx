@@ -177,7 +177,7 @@ function getActiveDestinationId(
 
 export function AppShell({
   children,
-  organizationName = "Admin workspace",
+  organizationName = "Administrator workspace",
   role = "admin",
   userEmail,
 }: AppShellProps) {
@@ -571,12 +571,12 @@ function getInitials(label: string) {
 
 function formatRole(role: WorkspaceRole) {
   if (role === "admin") {
-    return "Admin";
+    return "Administrator";
   }
 
   if (role === "manager") {
     return "Manager";
   }
 
-  return "Member";
+  return "Team Member";
 }

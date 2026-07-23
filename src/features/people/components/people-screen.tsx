@@ -54,6 +54,7 @@ type PeopleScreenProps = {
 };
 
 export function PeopleScreen({
+  accessByPersonId,
   addButtonLabel = "Add person",
   canCreate = true,
   createRole,
@@ -153,6 +154,7 @@ export function PeopleScreen({
         <>
           <div className="min-h-0 flex-1 p-3">
             <PeopleTable
+              accessByPersonId={accessByPersonId}
               archiveState={viewQuery.archiveState}
               displayMode={displayMode}
               people={people}

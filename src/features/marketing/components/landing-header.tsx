@@ -7,10 +7,10 @@ import { useEffect, useState } from "react";
 import { NestoryLogo } from "@/components/brand/nestory-logo";
 
 const navItems = [
-  { href: "#workspace", label: "Workspace" },
-  { href: "#control", label: "Control" },
-  { href: "#operations", label: "Operations" },
-  { href: "#start", label: "Access" },
+  { href: "/#workspace", label: "Workspace" },
+  { href: "/#control", label: "Control" },
+  { href: "/#operations", label: "Operations" },
+  { href: "/request?intent=demo", label: "Request a demo" },
 ];
 
 export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
@@ -60,6 +60,16 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
                   : "flex items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--landing-muted)] sm:gap-5"
               }
             >
+              <Link
+                className={
+                  isHeroTone
+                    ? "hidden whitespace-nowrap rounded-sm outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:inline"
+                    : "hidden whitespace-nowrap rounded-sm outline-none transition-colors hover:text-[var(--landing-heading)] focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] sm:inline"
+                }
+                href="/request?intent=demo"
+              >
+                Request demo
+              </Link>
               <Link
                 className={
                   isHeroTone
@@ -136,14 +146,14 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
           >
             <div className="space-y-4 text-center">
               {navItems.map((item) => (
-                <a
+                <Link
                   className="font-display block rounded-sm text-4xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-5xl lg:text-6xl"
                   href={item.href}
                   key={item.href}
                   onClick={() => setIsOpen(false)}
                 >
                   {item.label}
-                </a>
+                </Link>
               ))}
               <Link
                 className="font-display block rounded-sm pt-6 text-3xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-4xl lg:text-5xl"

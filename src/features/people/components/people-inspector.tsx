@@ -5,16 +5,13 @@ import {
   FileText,
   Pencil,
   RotateCcw,
-  UserPlus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import { getPeopleOperatingContext } from "@/features/people/people.context";
 import { formatRole } from "@/features/people/people.labels";
 import type { PeopleSummary } from "@/features/people/people.types";
 
 type PeopleInspectorProps = {
-  accessStatus?: OrganizationPersonAccessStatus;
   getPersonHref: (id: string) => string;
   onArchivePerson: (person: PeopleSummary) => void;
   onEditPerson: (person: PeopleSummary) => void;
@@ -24,7 +21,6 @@ type PeopleInspectorProps = {
 };
 
 export function PeopleInspector({
-  accessStatus,
   getPersonHref,
   onArchivePerson,
   onEditPerson,
@@ -103,10 +99,6 @@ export function PeopleInspector({
           fallbackLabel={person.nextAction.label}
         />
 
-        {showAccessStatus ? (
-          <AccessStatusNote accessStatus={accessStatus} person={person} />
-        ) : null}
-
         <div className="grid grid-cols-2 gap-2 text-sm">
           <Link
             aria-label={`Open ${person.displayName}`}
@@ -168,69 +160,6 @@ export function PeopleInspector({
       </div>
     </div>
   );
-}
-
-function AccessStatusNote({
-  accessStatus,
-  person,
-}: {
-  accessStatus?: OrganizationPersonAccessStatus;
-  person: PeopleSummary;
-}) {
-  if (accessStatus) {
-    return (
-      <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
-        <p className="text-sm font-semibold">Login access</p>
-        <p className="mt-1 truncate text-xs text-muted">
-          {formatAccessRole(accessStatus.role)}
-          {accessStatus.email ? ` / ${accessStatus.email}` : ""}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">No login access</p>
-          <p className="mt-1 truncate text-xs text-muted">
-            Staff record only.
-          </p>
-        </div>
-        <Link
-          aria-label={`Add login access for ${person.displayName}`}
-          className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted"
-          href={getInviteHref(person)}
-        >
-          <UserPlus size={15} />
-          <span className="hidden sm:inline">Add user</span>
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function getInviteHref(person: PeopleSummary) {
-  const params = new URLSearchParams({ personId: person.id });
-
-  if (person.contact.email) {
-    params.set("email", person.contact.email);
-  }
-
-  return `/users-roles?${params.toString()}`;
-}
-
-function formatAccessRole(role: OrganizationPersonAccessStatus["role"]) {
-  if (role === "admin") {
-    return "Admin";
-  }
-
-  if (role === "manager") {
-    return "Manager";
-  }
-
-  return "Member";
 }
 
 function CompactFact({

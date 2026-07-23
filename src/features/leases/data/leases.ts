@@ -22,7 +22,6 @@ import type {
   LeasePagination,
   LeasePropertyOption,
   LeaseSummary,
-  LeaseTenantOption,
   LeaseUnitOption,
   LeaseViewQuery,
 } from "@/features/leases/lease.types";
@@ -30,12 +29,12 @@ import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
 } from "@/lib/entity-option-labels";
+import { getPersonSelectOptions } from "@/features/people/data/person-options";
 
 const leaseSelect =
   "id, property_id, unit_id, tenant_name, primary_tenant_person_id, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, deposit_amount, deposit_currency, status, archived_at";
 const propertySelect = "id, code, name, archived_at";
 const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
-const tenantSelect = "id, display_name, primary_email, primary_phone";
 type SupabaseServerClient = Awaited<
   ReturnType<typeof createSupabaseServerClient>
 >;
@@ -50,7 +49,7 @@ export async function getLeasesScreenData(
   viewQuery: LeaseViewQuery = parseLeaseSearchParams({}),
 ) {
   const supabase = await createSupabaseServerClient();
-  const [propertiesResult, unitsResult, tenantsResult] = await Promise.all([
+  const [propertiesResult, unitsResult, tenantOptions] = await Promise.all([
     supabase
       .from("properties")
       .select(propertySelect)
@@ -61,12 +60,7 @@ export async function getLeasesScreenData(
       .select(unitSelect)
       .eq("organization_id", organizationId)
       .order("unit_number", { ascending: true }),
-    supabase
-      .from("people")
-      .select(tenantSelect)
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .order("display_name", { ascending: true }),
+    getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
   ]);
 
   if (propertiesResult.error) {
@@ -79,19 +73,12 @@ export async function getLeasesScreenData(
     throw new Error(`Could not load lease units: ${unitsResult.error.message}`);
   }
 
-  if (tenantsResult.error) {
-    throw new Error(
-      `Could not load lease tenant people: ${tenantsResult.error.message}`,
-    );
-  }
-
   const properties = (propertiesResult.data ?? []) as Array<
     LeasePropertyRow & { archived_at: string | null }
   >;
   const units = (unitsResult.data ?? []) as Array<
     LeaseUnitRow & { archived_at: string | null }
   >;
-  const tenantOptions = toTenantOptions(tenantsResult.data ?? []);
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
   const buildLeasesQuery = ({
@@ -740,20 +727,6 @@ function toUnitOptions(
       propertyId: unit.property_id,
     };
   });
-}
-
-function toTenantOptions(
-  people: Array<{
-    id: string;
-    display_name: string;
-    primary_email: string | null;
-    primary_phone: string | null;
-  }>,
-): LeaseTenantOption[] {
-  return people.map((person) => ({
-    id: person.id,
-    label: person.display_name,
-  }));
 }
 
 function buildLeaseSearchFilters(

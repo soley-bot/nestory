@@ -23,6 +23,11 @@ import {
   buildOwnerStatement,
 } from "@/features/reports/data/owner-statement";
 import {
+  buildOwnerStatementCashDiagnostics,
+  ownerStatementCashDiagnosticCopy,
+  type OwnerStatementCashDiagnostic,
+} from "@/features/reports/data/owner-statement-diagnostics";
+import {
   toOwnerStatementInput,
   type OwnerStatementDepositEventRow as DepositEventRow,
   type OwnerStatementIncomeItemRow as IncomeItemRow,
@@ -63,6 +68,7 @@ export async function getOwnerStatementReport({
 
   if (propertyIds.length === 0) {
     return buildOwnerStatementTrustedReport({
+      diagnostics: [],
       people: [],
       properties,
       result: buildOwnerStatement({
@@ -136,6 +142,7 @@ export async function getOwnerStatementReport({
   const result = buildOwnerStatement(input);
 
   return buildOwnerStatementTrustedReport({
+    diagnostics: buildOwnerStatementCashDiagnostics(input.cashInput),
     people: input.people,
     properties,
     result,
@@ -170,12 +177,14 @@ export function buildOwnerStatementScopeValidationReport(
 }
 
 export function buildOwnerStatementTrustedReport({
+  diagnostics = [],
   generatedAt = new Date().toISOString(),
   people,
   properties,
   result,
   viewQuery,
 }: {
+  diagnostics?: OwnerStatementCashDiagnostic[];
   generatedAt?: string;
   people: Array<Pick<OwnerStatementPerson, "displayName" | "id">>;
   properties: OwnerStatementReportProperty[];
@@ -186,6 +195,9 @@ export function buildOwnerStatementTrustedReport({
     properties.map((property) => [property.id, property]),
   );
   const peopleById = new Map(people.map((person) => [person.id, person]));
+  const diagnosticsByPropertyId = new Map(
+    diagnostics.map((diagnostic) => [diagnostic.propertyId, diagnostic]),
+  );
   const period = getReportMonthRange(viewQuery.month);
   const rows = result.rows.map((row): TrustedReportRow => {
     const property = propertiesById.get(row.propertyId);
@@ -202,6 +214,7 @@ export function buildOwnerStatementTrustedReport({
     if (row.status === "blocked") {
       return {
         cells: {
+          cashBasis: "Resolve ownership blockers before reviewing allocated cash-basis rent context.",
           depositsHeld: "—",
           managementEarned: "—",
           managementOutstanding: "—",
@@ -222,7 +235,15 @@ export function buildOwnerStatementTrustedReport({
         id: `owner-statement-blocked:${row.propertyId}`,
         propertyId: row.propertyId,
         sourceCount,
-        sourceLinks,
+        sourceLinks: [
+          {
+            href: `/properties/${row.propertyId}`,
+            id: `ownership-review:${row.propertyId}`,
+            label: "Review property ownership",
+            recordType: "owner",
+          },
+          ...sourceLinks,
+        ],
         sourceSummary: sourceLabel(sourceCount),
         title: `Blocked: ${row.reasons.join("; ")} / ${property?.code ?? row.propertyId}`,
         tone: "danger",
@@ -234,6 +255,9 @@ export function buildOwnerStatementTrustedReport({
     const notes = row.warnings.join("; ");
     return {
       cells: {
+        cashBasis: ownerStatementCashDiagnosticCopy(
+          diagnosticsByPropertyId.get(row.propertyId),
+        ),
         depositsHeld: cents(row.securityDepositHeldCents),
         managementEarned: cents(row.managementFeesEarnedCents),
         managementOutstanding: cents(row.managementFeesOutstandingCents),
@@ -268,6 +292,7 @@ export function buildOwnerStatementTrustedReport({
       { key: "owner", label: "Owner" },
       { key: "property", label: "Property" },
       { key: "ownership", label: "Ownership share" },
+      { key: "cashBasis", label: "Cash-basis rent context" },
       { align: "right", key: "operatingCash", label: "Operating cash received" },
       { align: "right", key: "propertyExpenses", label: "Property expenses paid" },
       { align: "right", key: "managementEarned", label: "Management fees earned" },
@@ -285,8 +310,14 @@ export function buildOwnerStatementTrustedReport({
     ],
     description:
       "Review which property and owner statements are ready before generating owner-facing documents.",
-    emptyDescription: "Add active properties or adjust the property filter.",
-    emptyTitle: "No owner statement rows",
+    emptyDescription:
+      viewQuery.propertyId !== "all" && properties.length === 0
+        ? "The selected property is unavailable in this organization or is archived. Choose another property."
+        : "No active properties are eligible for Owner Statement readiness in this scope.",
+    emptyTitle:
+      viewQuery.propertyId !== "all" && properties.length === 0
+        ? "Selected property unavailable"
+        : "No eligible Owner Statement records",
     exportFilenameBase: "owner-statement",
     generatedAt,
     kind: "owner-statement",
@@ -379,7 +410,7 @@ function buildOwnerStatementRecipientReport(
 ): TrustedReport {
   const ownerFacingCells = Object.fromEntries(
     Object.entries(row.cells).filter(
-      ([key]) => key !== "notes" && key !== "readiness",
+      ([key]) => key !== "cashBasis" && key !== "notes" && key !== "readiness",
     ),
   );
   const recipientRow: TrustedReportRow = {
@@ -396,7 +427,10 @@ function buildOwnerStatementRecipientReport(
   return {
     ...report,
     columns: report.columns.filter(
-      (column) => column.key !== "notes" && column.key !== "readiness",
+      (column) =>
+        column.key !== "cashBasis" &&
+        column.key !== "notes" &&
+        column.key !== "readiness",
     ),
     description:
       "Cash activity and period disclosures for the selected owner, property, and month.",
@@ -575,6 +609,9 @@ function buildIncomeReviewHref(
   month: string,
 ) {
   const params = new URLSearchParams({ month, propertyId: line.propertyId });
+  if (line.incomeItemId) {
+    params.set("incomeItemId", line.incomeItemId);
+  }
   if (
     line.classification === "management_fee_earned" ||
     line.classification === "management_fee_received"

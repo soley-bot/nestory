@@ -22,11 +22,13 @@ import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import {
   ArchivePersonPanel,
   RestorePersonPanel,
 } from "@/features/people/components/person-drawer-panels";
 import { PersonForm } from "@/features/people/components/person-form";
+import { WorkspaceAccessStatus } from "@/features/people/components/workspace-access-status";
 import { formatRole } from "@/features/people/people.labels";
 import {
   getPeopleReportExportHref,
@@ -75,11 +77,23 @@ const personReportKinds: PeopleReportKind[] = [
   "staff-access",
 ];
 
-export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
+export function PersonDetailScreen({
+  accessStatus,
+  person,
+}: {
+  accessStatus?: OrganizationPersonAccessStatus;
+  person: PeopleSummary;
+}) {
   const [activeSection, setActiveSection] =
     useState<PersonRecordSection>("overview");
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const showWorkspaceAccess =
+    Boolean(accessStatus) &&
+    !person.isArchived &&
+    person.roles.some(
+      (role) => role.role === "staff" && role.status === "active",
+    );
 
   return (
     <div className="min-h-screen lg:flex lg:h-screen lg:flex-col lg:overflow-hidden">
@@ -230,6 +244,31 @@ export function PersonDetailScreen({ person }: { person: PeopleSummary }) {
                   ))}
                 </div>
               </div>
+              {showWorkspaceAccess && accessStatus ? (
+                <div
+                  aria-labelledby="staff-workspace-access-heading"
+                  className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <h2
+                      className="text-sm font-semibold"
+                      id="staff-workspace-access-heading"
+                    >
+                      Workspace Access
+                    </h2>
+                    <p className="mt-1 max-w-2xl text-sm text-muted">
+                      Staff records describe operational people. Workspace Access
+                      controls who can sign in.
+                    </p>
+                  </div>
+                  <WorkspaceAccessStatus
+                    className="shrink-0 sm:max-w-[420px]"
+                    personId={person.id}
+                    personName={person.displayName}
+                    status={accessStatus}
+                  />
+                </div>
+              ) : null}
             </section>
 
             <section

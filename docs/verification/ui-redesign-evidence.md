@@ -18,6 +18,8 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 | /workspace | /workspace | /workspace | accessible (expected accessible) | accessible (expected accessible) | login-required (expected login-required) | populated, permission-blocked | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/properties -->
 | /properties | /properties?query=Central | /properties?query=Central | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
+<!-- route-evidence:/properties/setup -->
+| /properties/setup | /properties/setup?step=1 | /properties/setup?step=1 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | not rerun | preserved | Implementation-backed entry added after the dated browser artifact; focused browser route sweep not rerun. |
 <!-- route-evidence:/units -->
 | /units | /units?query=09 | /units?query=09 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
 <!-- route-evidence:/people -->
@@ -86,6 +88,8 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 | /people/[personId] | /people/80100000-0000-0000-0000-000000000001 | /people/80100000-0000-0000-0000-000000000001 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/ -->
 | / | / | /workspace | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | populated | 3/3 pass | not-applicable | None |
+<!-- route-evidence:/request -->
+| /request | /request?intent=demo | /request?intent=demo | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, error, success | focused browser check pending | preserved | Submissions are stored for follow-up; outbound email notification is not configured. |
 <!-- route-evidence:/login -->
 | /login | /login | /workspace | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | draft, saving, error, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/forgot-password -->

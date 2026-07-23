@@ -82,6 +82,11 @@ describe("PropertyScreen redesign contract", () => {
     );
     expect(toolbar).not.toBeNull();
     expect(within(toolbar!).getByRole("button", { name: "Add property" })).toBeTruthy();
+    expect(
+      within(toolbar!).getByRole("link", { name: "Set up property" }).getAttribute(
+        "href",
+      ),
+    ).toBe("/properties/setup");
   });
 
   it("uses the shared dense workspace, quick view, double-click navigation, and URL-backed sorting", async () => {
@@ -186,6 +191,7 @@ describe("PropertyScreen redesign contract", () => {
 
     renderProperties({ canCreate: false, properties: [] });
     expect(screen.queryByRole("button", { name: "Add property" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Set up property" })).toBeNull();
   });
 
   it("does not open an action=create drawer when create is unauthorized", () => {

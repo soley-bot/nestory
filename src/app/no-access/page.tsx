@@ -13,8 +13,8 @@ export default async function NoAccessPage() {
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-foreground-muted">
-          Ask an admin to add this email under Users & Roles, or sign in with an
-          account that already belongs here.
+          Ask a workspace administrator to add this email through Workspace Access,
+          or sign in with an account that already belongs here.
         </p>
         <div className="flex flex-wrap gap-2">
           <form action={signOutAction}>

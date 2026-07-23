@@ -330,6 +330,17 @@ function allocatePropertyFacts({
         line,
         owner: roster[0]!,
       });
+    } else if (line.classification === "rent_due") {
+      for (const allocation of allocateByShares(line.signedAmountCents, roster)) {
+        requiredAccumulator(accumulators, allocation.owner).evidence.push(
+          cashEvidence({
+            allocatedAmountCents: allocation.amountCents,
+            fact: "supporting_evidence",
+            line,
+            owner: allocation.owner,
+          }),
+        );
+      }
     }
   }
 

@@ -43,8 +43,8 @@ const memberSchema = z.object({
 
 const userAccessSchema = z.object({
   branchId: optionalUuidSchema,
-  email: z.email().trim(),
-  personId: optionalUuidSchema,
+  email: z.string().trim().toLowerCase().pipe(z.email()),
+  personId: uuidShapeSchema,
   role: z.enum(["admin", "manager", "member"]),
 });
 const invitationIdSchema = z.object({ invitationId: uuidShapeSchema });
@@ -147,7 +147,7 @@ export async function updateMemberAccessAction(
     return { message: organizationErrorMessage(error.message), status: "error" };
   }
 
-  revalidateSettings();
+  revalidateSettings(parsed.data.personId);
   return { message: "Access updated.", status: "success" };
 }
 
@@ -164,7 +164,10 @@ export async function inviteOrganizationUserAction(
   });
 
   if (!parsed.success) {
-    return { message: "Enter a valid email and role.", status: "error" };
+    return {
+      message: "Choose a valid Staff member, invitation email, and access level.",
+      status: "error",
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -195,17 +198,20 @@ export async function inviteOrganizationUserAction(
         p_invitation_id: createResult.data,
       });
 
+  revalidateSettings(parsed.data.personId);
   if (finalizeResult.error) {
     return { message: "Invitation state could not be finalized.", status: "error" };
   }
 
-  revalidateSettings();
   return delivery.error
     ? {
         message: "Invitation saved, but email delivery failed. Retry from Pending invitations.",
         status: "error",
       }
-    : { message: "Invitation sent.", status: "success" };
+    : {
+        message: `Invitation sent to ${parsed.data.email} for the selected Staff record.`,
+        status: "success",
+      };
 }
 
 export async function resendOrganizationInvitationAction(
@@ -226,10 +232,13 @@ export async function resendOrganizationInvitationAction(
   });
   const invitation = refreshResult.data?.[0];
   if (refreshResult.error || !invitation) {
-    return { message: "Invitation could not be refreshed.", status: "error" };
+    return {
+      message: refreshResult.error
+        ? organizationErrorMessage(refreshResult.error.message)
+        : "Invitation could not be refreshed.",
+      status: "error",
+    };
   }
-  revalidateSettings();
-
   const delivery = await deliverInvitation(invitation.email, invitation.invitation_id);
   const finalizeResult = delivery.error
     ? await supabase.rpc("mark_organization_invitation_delivery_failed", {
@@ -242,6 +251,7 @@ export async function resendOrganizationInvitationAction(
         p_invitation_id: invitation.invitation_id,
       });
 
+  revalidateSettings();
   if (finalizeResult.error || delivery.error) {
     return { message: "Invitation email could not be resent.", status: "error" };
   }
@@ -298,14 +308,30 @@ export async function removeMemberAccessAction(
   return { message: "Access removed.", status: "success" };
 }
 
-function revalidateSettings() {
+function revalidateSettings(personId?: string | null) {
   revalidatePath("/settings");
   revalidatePath("/users-roles");
+  revalidatePath("/staff");
+  revalidatePath("/people");
+  revalidatePath("/people/[personId]", "page");
   revalidatePath("/maintenance");
   revalidatePath("/tasks");
+  if (personId) revalidatePath(`/people/${personId}`);
 }
 
 function organizationErrorMessage(message: string) {
+  if (message.includes("This staff member already has workspace access")) {
+    return "This Staff member already has workspace access. Review the existing member.";
+  }
+
+  if (message.includes("This staff member already has an active invitation")) {
+    return "This Staff member already has an active invitation. Review the existing invitation.";
+  }
+
+  if (message.includes("An active invitation already exists for this email")) {
+    return "That invitation email already has an active invitation.";
+  }
+
   if (message.includes("final administrator")) {
     return message;
   }
@@ -318,8 +344,12 @@ function organizationErrorMessage(message: string) {
     return "Choose an active branch.";
   }
 
-  if (message.includes("Person not found") || message.includes("Manager person not found")) {
+  if (message.includes("Manager person not found")) {
     return "Choose an active person.";
+  }
+
+  if (message.includes("Person not found")) {
+    return "Choose an active Staff member.";
   }
 
   return "We could not save the organization setting.";

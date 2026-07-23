@@ -47,7 +47,7 @@ npm run test:ui-a11y
 - Records: `/timeline`, `/financial-timeline`, `/maintenance-timeline`,
   `/property-timeline`, `/documents`, `/import`
 - Reports: `/reports`, `/reports/[reportKind]`
-- Settings/access: `/settings`, `/users-roles`, `/account`
+- Settings/Workspace Access: `/settings`, `/users-roles`, `/account`
 - Preserved legacy entries: `/property-dashboard`, `/finance-dashboard`,
   `/maintenance-dashboard`, `/payments`, `/invoices`, `/schedule`, `/team`
   redirect to their current workspaces while retaining incoming query values.

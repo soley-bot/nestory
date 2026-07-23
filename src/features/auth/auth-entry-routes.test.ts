@@ -146,6 +146,9 @@ describe("entry experience contracts", () => {
     expect(source).not.toContain("Create workspace");
     expect(header).not.toContain('href="/signup"');
     expect(header).not.toContain("Create workspace");
+    expect(source).toContain('href="/request?intent=information"');
+    expect(source).toContain('href="/request?intent=demo"');
+    expect(header).toContain('href="/request?intent=demo"');
   });
 
   it("disables local public signup without disabling the email auth provider", () => {

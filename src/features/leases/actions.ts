@@ -23,6 +23,7 @@ type LeaseFieldErrors = {
 
 export type LeaseActionState = {
   fieldErrors?: LeaseFieldErrors;
+  leaseId?: string;
   message?: string;
   status?: "error" | "success";
 };
@@ -161,6 +162,7 @@ export async function createLeaseAction(
   );
 
   return {
+    leaseId,
     message: "Lease added.",
     status: "success",
   };
@@ -218,6 +220,7 @@ export async function updateLeaseAction(
   );
 
   return {
+    leaseId: parsedLeaseId.data,
     message: "Lease updated.",
     status: "success",
   };

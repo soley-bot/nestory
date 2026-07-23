@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const settingsTabs = [
   { href: "/settings", label: "Workspace" },
-  { href: "/users-roles", label: "Users & Roles" },
+  { href: "/users-roles", label: "Workspace Access" },
 ];
 
 export function SettingsTabs({ activeHref }: { activeHref: string }) {

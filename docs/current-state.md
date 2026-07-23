@@ -63,6 +63,9 @@ Nestory is a multi-module property operations app. The implemented core covers:
 Public and auth:
 
 - `/` renders the marketing/public entry.
+- `/request?intent=information|demo` is the public B2B intake route. It stores
+  validated requests for follow-up without creating a workspace; access stays
+  managed and invite-only.
 - `/login` provides password sign-in only. `/forgot-password` and
   `/update-password` use Supabase recovery sessions. `/accept-invite` reviews
   and accepts a Nestory invitation after Supabase verifies the invited email.
@@ -95,6 +98,9 @@ Property and units:
 
 - `/properties` is a server-loaded operational list with filters, table/card
   quick view, create/edit/archive/restore drawers, and direct detail navigation.
+- `/properties/setup` is an admin-only guided setup workspace that links an
+  owner, property, unit, tenant, and existing or newly created lease before
+  handing off to the first rent-charge workflow.
 - `/properties/[propertyId]` is a detail record with photos, units, leases,
   ledger, timeline, documents, maintenance, owner history, health, and next
   actions.
@@ -208,8 +214,10 @@ Settings and access:
 
 - `/settings` uses the three-zone settings layout to manage organization
   structure, branches, and teams with explicit draft/save/discard feedback.
-- `/users-roles` manages software access, roles, staff/person links, branches,
-  and existing-user access invites.
+- `/users-roles` remains the compatible Workspace Access route for Staff-first
+  invitations, access levels, linked Staff records, access scope, and existing
+  users. Active Staff records are selectable for new access; historical links
+  remain visible without becoming new-grant choices.
 - `/account` shows the signed-in user's workspace profile.
 
 ## Database Shape
@@ -219,6 +227,10 @@ RPC write boundaries. Current table families include:
 
 - Access: `organizations`, `organization_members`, `organization_invitations`,
   `organization_branches`, `organization_teams`.
+- Public intake: `public_interest_requests` is RLS-enabled and unavailable to
+  anonymous or ordinary authenticated database roles. The public server action
+  writes through the service role and deduplicates an email/request type per
+  UTC day.
 - Property core: `properties`, `units`.
 - People and lease backbone: `people`, `person_roles`, `person_contacts`,
   `property_owners`, `vendor_profiles`, `leases`, `lease_parties`,
@@ -318,7 +330,7 @@ Compatibility database tests still cover the accounting schema and security
 boundary, balanced/idempotent posting, period locks and reversals, historical
 backfill, transaction rollback, and seeded ledger-to-journal parity.
 
-The UI route manifest currently covers all 47 page routes. Local redesign
+The UI route manifest currently covers all 52 page routes. Local redesign
 verification captures every route at 1440x900, 1024x768, and 390x844, audits
 admin/manager/member/anonymous access outcomes, and rejects serious/critical
 axe findings, application errors, document overflow, unreachable actions,

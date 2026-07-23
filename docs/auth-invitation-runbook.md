@@ -16,8 +16,10 @@ it.
 ### Invite a user
 
 1. Sign in as an organization administrator.
-2. Open **Users & Roles** and use **Invite user**.
-3. Choose the intended role, optional branch scope, and optional staff link.
+2. Open **Workspace Access** and use **Invite Staff**.
+3. Choose an active Staff record, confirm or edit its prefilled invitation
+   email, then choose the access level and optional access scope. Editing the
+   sign-in email does not change the Staff record's operational email.
 4. Confirm the record appears under **Pending invitations**, not **Active
    members**.
 5. The recipient opens the Supabase email link. A new Auth user creates a
@@ -51,7 +53,7 @@ A duplicate slug fails without modifying the existing workspace.
 
 ### Remove or change access
 
-Use **Users & Roles**. Removing a membership immediately removes
+Use **Workspace Access**. Removing a membership immediately removes
 membership-based RLS access. SQL prevents demoting or removing the final
 administrator even if a UI check is bypassed. Do not delete the Auth identity
 merely to remove one organization membership.

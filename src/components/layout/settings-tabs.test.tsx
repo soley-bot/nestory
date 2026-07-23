@@ -22,7 +22,7 @@ describe("SettingsTabs", () => {
 
       expect(links.map((link) => link.textContent)).toEqual([
         "Workspace",
-        "Users & Roles",
+        "Workspace Access",
       ]);
       expect(current).toHaveLength(1);
       expect(current[0]?.getAttribute("href")).toBe(activeHref);

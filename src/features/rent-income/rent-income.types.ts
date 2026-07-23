@@ -1,4 +1,5 @@
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
+import type { PersonSelectOption } from "@/features/people/person-select";
 
 export const incomeTypeOptions = [
   { label: "Rent", value: "rent" },
@@ -38,6 +39,7 @@ export type RentIncomeGroup = "all" | "management-company";
 export type RentIncomeTypeFilter = "all" | RentIncomeType;
 
 export type RentIncomeViewQuery = {
+  incomeItemId?: string;
   incomeGroup: RentIncomeGroup;
   incomeType: RentIncomeTypeFilter;
   month: string;
@@ -59,9 +61,30 @@ export type RentIncomeUnitOption = RentIncomeOption & {
 };
 
 export type RentIncomeLeaseOption = RentIncomeOption & {
+  currency: CurrencyCode;
+  monthlyRentAmount: number;
   propertyId: string;
+  tenantPersonId: string;
   tenantName: string;
   unitId: string | null;
+};
+
+export type RentIncomeCreateDefaults = {
+  amountDue: string;
+  incomeType: RentIncomeType;
+  leaseId: string;
+  payerPersonId: string;
+  propertyId: string;
+  unitId: string;
+};
+
+export type RentIncomeReceipt = {
+  amount: number;
+  amountDisplay: MoneyDisplayValue;
+  id: string;
+  receivedDate: string;
+  reference: string;
+  reversed: boolean;
 };
 
 export type RentIncomeItem = {
@@ -87,11 +110,13 @@ export type RentIncomeItem = {
   ledgerEntryId: string | null;
   nextAction: string;
   payerLabel: string;
+  payerPersonId: string | null;
   propertyCode: string;
   propertyId: string;
   propertyName: string;
   receivedDate: string | null;
   reference: string;
+  receipts: RentIncomeReceipt[];
   status: RentIncomeStatus;
   statusLabel: string;
   unitId: string | null;
@@ -113,4 +138,16 @@ export type RentIncomePagination = {
   to: number;
   totalCount: number;
   totalPages: number;
+};
+
+export type RentIncomeScreenData = {
+  createDefaults?: RentIncomeCreateDefaults;
+  incomeItems: RentIncomeItem[];
+  leaseOptions: RentIncomeLeaseOption[];
+  pagination: RentIncomePagination;
+  payerOptions: PersonSelectOption[];
+  propertyOptions: RentIncomeOption[];
+  summary: RentIncomeSummary;
+  unitOptions: RentIncomeUnitOption[];
+  viewQuery: RentIncomeViewQuery;
 };

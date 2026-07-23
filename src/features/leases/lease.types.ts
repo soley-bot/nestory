@@ -1,6 +1,7 @@
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 import type { RecentChange } from "@/features/activity/activity.types";
 import type { LinkedDocument } from "@/features/documents/document.types";
+import type { PersonSelectOption } from "@/features/people/person-select";
 
 export type LeaseBadgeTone =
   | "accent"
@@ -39,10 +40,7 @@ export type LeaseUnitOption = {
   propertyId: string;
 };
 
-export type LeaseTenantOption = {
-  id: string;
-  label: string;
-};
+export type LeaseTenantOption = PersonSelectOption;
 
 export type LeaseFormValues = {
   depositAmount?: number | null;

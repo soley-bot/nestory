@@ -36,6 +36,7 @@ import {
 } from "@/features/organization/actions";
 
 const invitationId = "11111111-1111-4111-8111-111111111111";
+const personId = "55555555-5555-4555-8555-555555555555";
 
 describe("organization invitation actions", () => {
   beforeEach(() => {
@@ -63,6 +64,10 @@ describe("organization invitation actions", () => {
     const result = await inviteOrganizationUserAction({}, formData);
 
     expect(rpc.mock.calls[0][0]).toBe("create_organization_invitation");
+    expect(rpc.mock.calls[0][1]).toEqual(expect.objectContaining({
+      p_email: "invitee@example.com",
+      p_person_id: personId,
+    }));
     expect(adminInvite).toHaveBeenCalledWith(
       "invitee@example.com",
       expect.objectContaining({
@@ -77,7 +82,10 @@ describe("organization invitation actions", () => {
         p_invitation_id: invitationId,
       },
     ]);
-    expect(result).toEqual({ message: "Invitation sent.", status: "success" });
+    expect(result).toEqual({
+      message: "Invitation sent to invitee@example.com for the selected Staff record.",
+      status: "success",
+    });
   });
 
   it("claims an existing Auth user with a non-creating magic link", async () => {
@@ -122,6 +130,33 @@ describe("organization invitation actions", () => {
     });
   });
 
+  it("requires a valid Staff record for a new invitation", async () => {
+    const formData = inviteForm();
+    formData.set("personId", "");
+
+    await expect(inviteOrganizationUserAction({}, formData)).resolves.toEqual({
+      message: "Choose a valid Staff member, invitation email, and access level.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(adminInvite).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["This staff member already has workspace access", "This Staff member already has workspace access. Review the existing member."],
+    ["This staff member already has an active invitation", "This Staff member already has an active invitation. Review the existing invitation."],
+    ["An active invitation already exists for this email", "That invitation email already has an active invitation."],
+    ["Person not found", "Choose an active Staff member."],
+  ])("maps bounded invitation RPC errors without provider details", async (databaseMessage, safeMessage) => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: databaseMessage } });
+
+    await expect(inviteOrganizationUserAction({}, inviteForm())).resolves.toEqual({
+      message: safeMessage,
+      status: "error",
+    });
+    expect(adminInvite).not.toHaveBeenCalled();
+  });
+
   it("refreshes and resends an invitation through the same delivery boundary", async () => {
     rpc
       .mockResolvedValueOnce({
@@ -141,6 +176,23 @@ describe("organization invitation actions", () => {
     expect(rpc.mock.calls[0][0]).toBe("refresh_organization_invitation");
     expect(adminInvite).toHaveBeenCalledOnce();
     expect(result).toEqual({ message: "Invitation resent.", status: "success" });
+  });
+
+  it("returns bounded conflict guidance when an expired invitation cannot be reactivated", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "This staff member already has an active invitation" },
+    });
+    const formData = new FormData();
+    formData.set("invitationId", invitationId);
+
+    await expect(
+      resendOrganizationInvitationAction({}, formData),
+    ).resolves.toEqual({
+      message: "This Staff member already has an active invitation. Review the existing invitation.",
+      status: "error",
+    });
+    expect(adminInvite).not.toHaveBeenCalled();
   });
 
   it("revalidates settings after refresh even when resend delivery fails", async () => {
@@ -165,6 +217,9 @@ describe("organization invitation actions", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/settings");
     expect(revalidatePath).toHaveBeenCalledWith("/users-roles");
+    expect(revalidatePath).toHaveBeenCalledWith("/staff");
+    expect(revalidatePath).toHaveBeenCalledWith("/people");
+    expect(revalidatePath).toHaveBeenCalledWith("/people/[personId]", "page");
   });
 
   it("revokes pending invitations and removes active membership separately", async () => {
@@ -184,9 +239,9 @@ describe("organization invitation actions", () => {
 
 function inviteForm() {
   const formData = new FormData();
-  formData.set("email", "invitee@example.com");
+  formData.set("email", "  Invitee@Example.com  ");
   formData.set("role", "member");
   formData.set("branchId", "");
-  formData.set("personId", "");
+  formData.set("personId", personId);
   return formData;
 }

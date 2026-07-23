@@ -22,6 +22,7 @@ import {
   DEFAULT_PROPERTY_SORT,
   parsePropertySearchParams,
 } from "@/features/properties/property.filters";
+import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import type {
   PropertyArchiveState,
   PropertyNetStatusFilter,
@@ -49,9 +50,6 @@ type ActiveOwnerRow = {
 type PropertyPersonRow = {
   display_name: string;
   id: string;
-};
-type PropertyOwnerRoleRow = {
-  person_id: string;
 };
 type PropertyUnitSummaryRow = PropertyUnitRecord & { property_id: string };
 type PropertyLedgerSummaryRow = PropertyLedgerRecord & { property_id: string };
@@ -284,58 +282,10 @@ async function getPropertyThumbnailUrls({
 export async function getPropertyOwnerOptions(
   organizationId: string,
 ): Promise<PropertyOwnerOption[]> {
-  const supabase = await createSupabaseServerClient();
-  const rolesResult = await supabase
-    .from("person_roles")
-    .select("person_id")
-    .eq("organization_id", organizationId)
-    .eq("role", "owner")
-    .eq("status", "active")
-    .is("archived_at", null);
-
-  if (rolesResult.error) {
-    throw new Error(`Could not load owner roles: ${rolesResult.error.message}`);
-  }
-
-  const ownerPersonIds = [
-    ...new Set(
-      ((rolesResult.data ?? []) as PropertyOwnerRoleRow[]).map(
-        (role) => role.person_id,
-      ),
-    ),
-  ];
-
-  if (ownerPersonIds.length === 0) {
-    return [];
-  }
-
-  const people = await queryValueBatches(ownerPersonIds, async (batch) => {
-    const peopleResult = await supabase
-      .from("people")
-      .select("id, display_name")
-      .eq("organization_id", organizationId)
-      .in("id", batch)
-      .is("archived_at", null)
-      .order("display_name", { ascending: true });
-
-    if (peopleResult.error) {
-      throw new Error(`Could not load owner options: ${peopleResult.error.message}`);
-    }
-
-    return (peopleResult.data ?? []) as PropertyPersonRow[];
+  return getPersonSelectOptions({
+    organizationId,
+    roles: ["owner"],
   });
-
-  return people
-    .toSorted((first, second) =>
-      first.display_name.localeCompare(second.display_name, undefined, {
-        numeric: true,
-        sensitivity: "base",
-      }),
-    )
-    .map((person) => ({
-      id: person.id,
-      label: person.display_name,
-    }));
 }
 
 export async function getPropertiesScreenData(

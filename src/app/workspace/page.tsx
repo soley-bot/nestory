@@ -62,5 +62,5 @@ export default async function WorkspacePage() {
 }
 
 function formatRole(role: "admin" | "manager" | "member") {
-  return role === "admin" ? "Admin" : role === "manager" ? "Manager" : "Member";
+  return role === "admin" ? "Administrator" : role === "manager" ? "Manager" : "Team Member";
 }

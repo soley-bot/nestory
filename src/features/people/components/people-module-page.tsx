@@ -43,7 +43,7 @@ export function PeopleModulePage({
   );
 }
 
-async function PeopleModulePageContent({
+export async function PeopleModulePageContent({
   config,
   searchParams,
 }: PeopleModulePageProps) {
@@ -59,10 +59,18 @@ async function PeopleModulePageContent({
       : Promise.resolve(undefined),
   ]);
   const initialPersonId = viewQuery.personId ?? undefined;
+  const activeStaffIds = people.flatMap((person) =>
+    !person.isArchived &&
+    person.roles.some(
+      (role) => role.role === "staff" && role.status === "active",
+    )
+      ? [person.id]
+      : [],
+  );
   const accessByPersonId = config.showAccessStatus
     ? await getAccessByPersonId(
         context.organizationId,
-        people.map((person) => person.id),
+        activeStaffIds,
       )
     : undefined;
 

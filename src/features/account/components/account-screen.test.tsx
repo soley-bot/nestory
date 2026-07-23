@@ -19,7 +19,7 @@ describe("AccountScreen", () => {
     expect(html).toContain("Access scope");
     expect(html).toContain("Assigned work");
     expect(html).toContain("Signing out ends this browser session.");
-    expect(html).not.toContain("Users &amp; Roles");
+    expect(html).not.toContain("Workspace Access");
     expect(html).not.toContain("Change password");
     expect(html).not.toContain("Delete account");
   });
@@ -39,5 +39,7 @@ describe("AccountScreen", () => {
 
     expect(html).toContain('href="/users-roles"');
     expect(html).toContain("Organization-wide");
+    expect(html).toContain("Workspace Access");
+    expect(html).toContain("Administrator");
   });
 });

@@ -186,6 +186,9 @@ describe("workspace search scopes", () => {
     expect(getWorkspaceSearchActions("admin").map((action) => action.href)).toEqual(
       expect.arrayContaining(["/tasks", "/work-orders", "/inspections"]),
     );
+    expect(getWorkspaceSearchActions("admin")).toContainEqual(
+      expect.objectContaining({ href: "/users-roles", label: "Workspace Access" }),
+    );
 
     expect(getWorkspaceSearchActions("manager").map((action) => action.href)).toEqual([
       "/maintenance",

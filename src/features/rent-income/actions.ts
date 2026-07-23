@@ -14,6 +14,8 @@ type RentIncomeFieldErrors = {
   incomeType?: string[];
   leaseId?: string[];
   payerLabel?: string[];
+  payerMode?: string[];
+  payerPersonId?: string[];
   propertyId?: string[];
   receivedDate?: string[];
   reference?: string[];
@@ -22,6 +24,7 @@ type RentIncomeFieldErrors = {
 
 export type RentIncomeActionState = {
   fieldErrors?: RentIncomeFieldErrors;
+  incomeItemId?: string;
   message?: string;
   status?: "error" | "success";
 };
@@ -57,11 +60,9 @@ const createIncomeSchema = z
       "other",
     ]),
     leaseId: optionalUuidSchema,
-    payerLabel: z
-      .string()
-      .trim()
-      .min(2, "Enter who this income is from.")
-      .max(120, "Keep the payer under 120 characters."),
+    payerLabel: z.string().trim().max(120, "Keep the payer under 120 characters."),
+    payerMode: z.enum(["external", "linked"]),
+    payerPersonId: optionalUuidSchema,
     propertyId: z.uuid("Choose a property."),
     receivedDate: z.string().trim(),
     reference: z.string().trim().max(120, "Keep the reference under 120 characters."),
@@ -71,10 +72,10 @@ const createIncomeSchema = z
     const amountDue = Number(data.amountDue);
     const amountReceived = Number(data.amountReceived || "0");
 
-    if (!Number.isFinite(amountDue) || amountDue < 0) {
+    if (!Number.isFinite(amountDue) || amountDue <= 0) {
       context.addIssue({
         code: "custom",
-        message: "Enter a valid expected amount.",
+        message: "Enter an expected amount greater than zero.",
         path: ["amountDue"],
       });
     }
@@ -87,11 +88,35 @@ const createIncomeSchema = z
       });
     }
 
-    if (amountDue <= 0 && amountReceived <= 0) {
+    if (amountReceived > amountDue) {
       context.addIssue({
         code: "custom",
-        message: "Enter an expected or received amount.",
-        path: ["amountDue"],
+        message: "Received amount cannot exceed the expected amount.",
+        path: ["amountReceived"],
+      });
+    }
+
+    if (data.payerMode === "linked" && !data.payerPersonId) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose an active Person record.",
+        path: ["payerPersonId"],
+      });
+    }
+
+    if (data.payerMode === "external" && data.payerLabel.length < 2) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the external payer name.",
+        path: ["payerLabel"],
+      });
+    }
+
+    if (amountReceived > 0 && !data.receivedDate) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose a received date for the initial receipt.",
+        path: ["receivedDate"],
       });
     }
 
@@ -154,6 +179,8 @@ export async function createRentIncomeItemAction(
     incomeType: readString(formData, "incomeType"),
     leaseId: readString(formData, "leaseId"),
     payerLabel: readString(formData, "payerLabel"),
+    payerMode: readString(formData, "payerMode"),
+    payerPersonId: readString(formData, "payerPersonId"),
     propertyId: readString(formData, "propertyId"),
     receivedDate: readString(formData, "receivedDate"),
     reference: readString(formData, "reference"),
@@ -165,7 +192,7 @@ export async function createRentIncomeItemAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("create_finance_income_item", {
+  const { data: incomeItemId, error } = await supabase.rpc("create_finance_income_item", {
     p_amount_due: Number(parsed.data.amountDue),
     p_amount_received: Number(parsed.data.amountReceived || "0"),
     p_description: parsed.data.description || null,
@@ -173,7 +200,10 @@ export async function createRentIncomeItemAction(
     p_income_type: parsed.data.incomeType,
     p_lease_id: parsed.data.leaseId || null,
     p_organization_id: context.organizationId,
-    p_payer_label: parsed.data.payerLabel,
+    p_payer_label:
+      parsed.data.payerMode === "external" ? parsed.data.payerLabel : "",
+    p_payer_person_id:
+      parsed.data.payerMode === "linked" ? parsed.data.payerPersonId : null,
     p_property_id: parsed.data.propertyId,
     p_received_date: parsed.data.receivedDate || null,
     p_reference: parsed.data.reference || null,
@@ -190,7 +220,13 @@ export async function createRentIncomeItemAction(
   revalidateFinanceIncomePaths(parsed.data.propertyId, parsed.data.unitId || null);
 
   return {
-    message: "Income row created.",
+    incomeItemId: incomeItemId ?? undefined,
+    message:
+      Number(parsed.data.amountReceived || "0") <= 0
+        ? "Income charge created. No cash was recorded; the cash-basis Owner Statement stays unchanged until a receipt is recorded."
+        : Number(parsed.data.amountReceived) < Number(parsed.data.amountDue)
+          ? "Income charge and partial receipt recorded. Record the remaining receipt before posting to the ledger."
+          : "Income charge and full receipt recorded. It is ready to post to the ledger.",
     status: "success",
   };
 }
@@ -212,8 +248,37 @@ export async function recordRentIncomePaymentAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const { data: incomeItem, error: incomeItemError } = await supabase
+    .from("finance_income_items")
+    .select("amount_due, amount_received")
+    .eq("organization_id", context.organizationId)
+    .eq("id", parsed.data.incomeItemId)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (incomeItemError || !incomeItem) {
+    return {
+      message: "The income row is no longer available.",
+      status: "error",
+    };
+  }
+
+  const receiptAmount = Number(parsed.data.amountReceived);
+  const remainingBefore = Math.max(
+    0,
+    incomeItem.amount_due - incomeItem.amount_received,
+  );
+  if (receiptAmount > remainingBefore) {
+    return {
+      fieldErrors: {
+        amountReceived: ["Receipt amount cannot exceed the remaining balance."],
+      },
+      status: "error",
+    };
+  }
+
   const { error } = await supabase.rpc("record_finance_receipt", {
-    p_amount: Number(parsed.data.amountReceived),
+    p_amount: receiptAmount,
     p_income_item_id: parsed.data.incomeItemId,
     p_organization_id: context.organizationId,
     p_received_date: parsed.data.receivedDate,
@@ -230,7 +295,10 @@ export async function recordRentIncomePaymentAction(
   revalidateFinanceIncomePaths();
 
   return {
-    message: "Receipt recorded.",
+    message:
+      receiptAmount >= remainingBefore
+        ? "Receipt recorded in full. This income is ready to post to the ledger."
+        : "Partial receipt recorded. The remaining balance can still accept another receipt before posting.",
     status: "success",
   };
 }
@@ -318,6 +386,22 @@ function financeIncomeErrorMessage(message: string) {
     return "Record received money before posting this row to ledger.";
   }
 
+  if (message.includes("remaining receipt before posting")) {
+    return "Record the remaining receipt before posting this income to the ledger.";
+  }
+
+  if (message.includes("Payer person not found")) {
+    return "Choose an active Person record from this workspace.";
+  }
+
+  if (message.includes("External payer name is required")) {
+    return "Enter the external payer name.";
+  }
+
+  if (message.includes("Receipt allocation exceeds open balance")) {
+    return "Receipt amount cannot exceed the remaining balance.";
+  }
+
   if (message.includes("Posted income stays in the ledger")) {
     return "Posted income already belongs to the ledger. Archive the ledger entry if you need to reverse it.";
   }
@@ -332,7 +416,6 @@ function revalidateFinanceIncomePaths(
   revalidatePath("/overview");
   revalidatePath("/ledger");
   revalidatePath("/rent-income");
-  revalidatePath("/ledger");
   revalidatePath("/reports");
 
   if (propertyId) {

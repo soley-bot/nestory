@@ -40,10 +40,7 @@ export type PropertyFormValues = {
   status: PropertyStatusValue;
 };
 
-export type PropertyOwnerOption = {
-  id: string;
-  label: string;
-};
+export type PropertyOwnerOption = PersonSelectOption;
 
 export type PropertyPagination = {
   from: number;
@@ -65,3 +62,4 @@ export type PropertyViewQuery = {
   sort: PropertySortKey;
   status: PropertyStatusValue | "all";
 };
+import type { PersonSelectOption } from "@/features/people/person-select";

@@ -813,6 +813,7 @@ export type Database = {
           ledger_entry_id: string | null
           organization_id: string
           payer_label: string
+          payer_person_id: string | null
           property_id: string
           received_date: string | null
           reference: string | null
@@ -837,6 +838,7 @@ export type Database = {
           ledger_entry_id?: string | null
           organization_id: string
           payer_label: string
+          payer_person_id?: string | null
           property_id: string
           received_date?: string | null
           reference?: string | null
@@ -861,6 +863,7 @@ export type Database = {
           ledger_entry_id?: string | null
           organization_id?: string
           payer_label?: string
+          payer_person_id?: string | null
           property_id?: string
           received_date?: string | null
           reference?: string | null
@@ -890,6 +893,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_income_items_payer_person_fk"
+            columns: ["organization_id", "payer_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "finance_income_items_property_id_fkey"
@@ -2959,6 +2969,48 @@ export type Database = {
           },
         ]
       }
+      public_interest_requests: {
+        Row: {
+          company_name: string
+          full_name: string
+          id: string
+          message: string | null
+          portfolio_size: string | null
+          request_type: string
+          status: string
+          submission_date: string
+          submitted_at: string
+          updated_at: string
+          work_email: string
+        }
+        Insert: {
+          company_name: string
+          full_name: string
+          id?: string
+          message?: string | null
+          portfolio_size?: string | null
+          request_type: string
+          status?: string
+          submission_date?: string
+          submitted_at?: string
+          updated_at?: string
+          work_email: string
+        }
+        Update: {
+          company_name?: string
+          full_name?: string
+          id?: string
+          message?: string | null
+          portfolio_size?: string | null
+          request_type?: string
+          status?: string
+          submission_date?: string
+          submitted_at?: string
+          updated_at?: string
+          work_email?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           actual_cost_amount: number | null
@@ -3604,6 +3656,7 @@ export type Database = {
           p_lease_id: string
           p_organization_id: string
           p_payer_label: string
+          p_payer_person_id?: string
           p_property_id: string
           p_received_date: string
           p_reference: string
