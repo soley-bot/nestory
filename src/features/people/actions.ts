@@ -20,6 +20,7 @@ type PeopleFieldErrors = {
 export type PeopleActionState = {
   fieldErrors?: PeopleFieldErrors;
   message?: string;
+  personId?: string;
   status?: "error" | "success";
 };
 
@@ -120,7 +121,7 @@ export async function createPersonAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("create_person", {
+  const { data: personId, error } = await supabase.rpc("create_person", {
     ...peopleRpcPayload(context, parsed.data),
   });
 
@@ -135,6 +136,7 @@ export async function createPersonAction(
 
   return {
     message: "Person added.",
+    personId,
     status: "success",
   };
 }
@@ -175,6 +177,7 @@ export async function updatePersonAction(
 
   return {
     message: "Person updated.",
+    personId: parsedPersonId.data,
     status: "success",
   };
 }

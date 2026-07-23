@@ -115,6 +115,90 @@
     }
   },
   {
+    "route": "/properties/setup",
+    "source": "src/app/(dashboard)/properties/setup/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/properties/setup/page.tsx",
+        "src/app/(dashboard)/properties/setup/loading.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/properties/setup/page.tsx",
+        "src/features/property-setup/components/property-setup-screen.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/properties/setup/page.tsx",
+        "src/features/property-setup/components/property-setup-screen.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/properties/setup/page.tsx",
+        "src/features/property-setup/components/property-setup-screen.tsx",
+        "src/components/ui/record-form.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/properties/setup/page.tsx",
+        "src/lib/auth/context.ts",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/properties/setup/page.tsx",
+        "src/features/property-setup/components/property-setup-screen.tsx",
+        "src/features/property-setup/property-setup.test.ts",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/properties/setup/page.tsx",
+        "src/features/property-setup/components/property-setup-screen.tsx",
+        "src/components/ui/record-form.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/properties/setup/page.tsx",
+        "src/features/property-setup/components/property-setup-screen.tsx",
+        "src/features/property-setup/property-setup.test.ts",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/properties/setup?step=1",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/properties/setup/page.tsx",
+        "src/app/(dashboard)/properties/setup/loading.tsx",
+        "src/features/property-setup/components/property-setup-screen.tsx",
+        "src/features/property-setup/components/property-setup-screen.test.tsx",
+        "src/features/property-setup/property-setup.test.ts"
+      ],
+      "limitations": [
+        "Implementation-backed route evidence only; the focused task did not rerun the browser route sweep."
+      ]
+    }
+  },
+  {
     "route": "/units",
     "source": "src/app/(dashboard)/units/page.tsx",
     "phase": 3,

@@ -414,7 +414,7 @@ SELECT lives_ok(
       'Initial receipt tenant',
       '2026-07-01',
       300,
-      100,
+      300,
       '2026-07-09',
       'Created with initial cash',
       'INITIAL-RECEIPT'
@@ -424,9 +424,9 @@ SELECT lives_ok(
 
 SELECT ok(
   (
-    SELECT income.amount_received = 100
+    SELECT income.amount_received = 300
       AND income.received_date = '2026-07-09'
-      AND income.status = 'partially_received'
+      AND income.status = 'received'
     FROM public.finance_income_items AS income
     WHERE income.id = (SELECT initial_income_id FROM property_cash_event_state)
   )
@@ -437,7 +437,7 @@ SELECT ok(
     WHERE allocation.income_item_id = (
       SELECT initial_income_id FROM property_cash_event_state
     )
-      AND allocation.amount = 100
+      AND allocation.amount = 300
       AND receipt.reference = 'INITIAL-RECEIPT'
   ),
   'initial received income is backed by one receipt allocation'
@@ -493,7 +493,7 @@ SELECT ok(
   (
     SELECT status = 'posted'
       AND ledger_entry_id IS NOT NULL
-      AND amount_received = 100
+      AND amount_received = 300
     FROM public.finance_income_items
     WHERE id = (SELECT initial_income_id FROM property_cash_event_state)
   ),

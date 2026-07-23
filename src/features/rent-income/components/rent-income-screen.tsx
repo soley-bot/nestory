@@ -26,6 +26,11 @@ import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
+  PersonSelect,
+  PERSON_SELECT_EXTERNAL_VALUE,
+} from "@/features/people/components/person-select";
+import type { PersonSelectOption } from "@/features/people/person-select";
+import {
   createRentIncomeItemAction,
   postRentIncomeItemAction,
   recordRentIncomePaymentAction,
@@ -35,6 +40,7 @@ import {
 import {
   incomeStatusOptions,
   incomeTypeOptions,
+  type RentIncomeCreateDefaults,
   type RentIncomeItem,
   type RentIncomeLeaseOption,
   type RentIncomeOption,
@@ -43,6 +49,7 @@ import {
   type RentIncomeUnitOption,
   type RentIncomeViewQuery,
 } from "@/features/rent-income/rent-income.types";
+import { getRentIncomeWorkflow } from "@/features/rent-income/rent-income-workflow";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
@@ -59,9 +66,11 @@ type DrawerState =
   | { item: RentIncomeItem; mode: "void" };
 
 type RentIncomeScreenProps = {
+  createDefaults?: RentIncomeCreateDefaults;
   incomeItems: RentIncomeItem[];
   leaseOptions: RentIncomeLeaseOption[];
   pagination: RentIncomePagination;
+  payerOptions: PersonSelectOption[];
   propertyOptions: RentIncomeOption[];
   summary: RentIncomeSummary;
   unitOptions: RentIncomeUnitOption[];
@@ -69,16 +78,24 @@ type RentIncomeScreenProps = {
 };
 
 export function RentIncomeScreen({
+  createDefaults,
   incomeItems,
   leaseOptions,
   pagination,
+  payerOptions,
   propertyOptions,
   summary,
   unitOptions,
   viewQuery,
 }: RentIncomeScreenProps) {
-  const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
-  const [selectedItemId, setSelectedItemId] = useState(incomeItems[0]?.id ?? "");
+  const [drawerState, setDrawerState] = useState<DrawerState | null>(() =>
+    createDefaults ? { mode: "create" } : null,
+  );
+  const [selectedItemId, setSelectedItemId] = useState(
+    incomeItems.find((item) => item.id === viewQuery.incomeItemId)?.id ??
+      incomeItems[0]?.id ??
+      "",
+  );
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedItem =
@@ -97,7 +114,10 @@ export function RentIncomeScreen({
     setCompactInspectorOpen(true);
   };
 
+  const hasFocusedIncomeItem =
+    Boolean(viewQuery.incomeItemId) && viewQuery.incomeItemId !== "all";
   const hasFilters =
+    hasFocusedIncomeItem ||
     viewQuery.incomeGroup !== "all" ||
     viewQuery.incomeType !== "all" ||
     viewQuery.propertyId !== "all" ||
@@ -186,7 +206,9 @@ export function RentIncomeScreen({
         </div>
       ) : null}
 
-      {viewQuery.incomeGroup === "all" && viewQuery.incomeType === "all" ? (
+      {!hasFocusedIncomeItem &&
+      viewQuery.incomeGroup === "all" &&
+      viewQuery.incomeType === "all" ? (
         <RentIncomeSummaryStrip summary={summary} />
       ) : (
         <ScopedSummary
@@ -218,9 +240,11 @@ export function RentIncomeScreen({
         >
           {drawerState.mode === "create" ? (
             <RentIncomeForm
+              initialValues={createDefaults}
               leaseOptions={leaseOptions}
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
+              payerOptions={payerOptions}
               propertyOptions={propertyOptions}
               unitOptions={unitOptions}
             />
@@ -381,6 +405,10 @@ function FilterField({ children, label }: { children: ReactNode; label: string }
 }
 
 function getScopedSummaryLabel(viewQuery: RentIncomeViewQuery) {
+  if (viewQuery.incomeItemId && viewQuery.incomeItemId !== "all") {
+    return "Focused income record";
+  }
+
   if (viewQuery.incomeType !== "all") {
     return (
       incomeTypeOptions.find((option) => option.value === viewQuery.incomeType)
@@ -534,10 +562,15 @@ function RentIncomeInspector({
     );
   }
 
-  const canRecordPayment =
-    item.status === "open" || item.status === "partially_received";
-  const canPost = item.status === "received" || item.status === "partially_received";
+  const workflow = getRentIncomeWorkflow(item);
+  const canRecordPayment = workflow.canRecordReceipt;
+  const canPost = workflow.canPost;
   const canVoid = item.status !== "posted";
+  const statementParams = new URLSearchParams({
+    month: (item.receivedDate ?? item.dueDate).slice(0, 7),
+    propertyId: item.propertyId,
+    report: "owner-statement",
+  });
 
   return (
     <aside className="rounded-md border border-border bg-surface">
@@ -564,6 +597,23 @@ function RentIncomeInspector({
           <Detail label="Due">{formatDate(item.dueDate)}</Detail>
         </div>
 
+        <div className="rounded-md border border-border bg-surface-muted/35 p-3 text-sm">
+          <p className="font-medium text-foreground">{workflow.stageLabel}</p>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            {workflow.ownerStatementState === "no_cash"
+              ? "Cash-basis Owner Statement: this charge is context only until a receipt is recorded."
+              : workflow.ownerStatementState === "partial_cash"
+                ? "Cash-basis Owner Statement includes only the receipt recorded so far."
+                : "Cash-basis Owner Statement includes the received cash; ledger posting is a separate bookkeeping step."}
+          </p>
+          <Link
+            className="mt-2 inline-flex text-xs font-semibold text-accent hover:underline"
+            href={`/reports?${statementParams.toString()}`}
+          >
+            Open Owner Statement context
+          </Link>
+        </div>
+
         <div className="space-y-2 text-sm">
           <Link className="block rounded-md border border-border px-3 py-2 hover:bg-surface-muted" href={item.hrefs.property}>
             {item.propertyName}
@@ -576,6 +626,11 @@ function RentIncomeInspector({
           {item.hrefs.lease ? (
             <Link className="block rounded-md border border-border px-3 py-2 hover:bg-surface-muted" href={item.hrefs.lease}>
               Lease record
+            </Link>
+          ) : null}
+          {item.payerPersonId ? (
+            <Link className="block rounded-md border border-border px-3 py-2 hover:bg-surface-muted" href={`/people/${item.payerPersonId}`}>
+              Payer Person record
             </Link>
           ) : null}
           {item.hrefs.ledger ? (
@@ -592,17 +647,41 @@ function RentIncomeInspector({
           </div>
         ) : null}
 
+        {item.receipts.length > 0 ? (
+          <section aria-label="Recorded receipts" className="space-y-2">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+              Recorded receipts
+            </h3>
+            {item.receipts.map((receipt) => (
+              <div
+                className="flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
+                key={receipt.id}
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {receipt.reversed ? "Reversal" : "Receipt"} · {formatDate(receipt.receivedDate)}
+                  </p>
+                  {receipt.reference ? (
+                    <p className="mt-0.5 truncate text-xs text-muted">{receipt.reference}</p>
+                  ) : null}
+                </div>
+                <MoneyDisplay align="right" value={receipt.amountDisplay} />
+              </div>
+            ))}
+          </section>
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           {canRecordPayment ? (
             <Button onClick={() => onRecordPayment(item)}>
               <Coins size={15} />
-              Record payment
+              Record receipt
             </Button>
           ) : null}
           {canPost ? (
             <Button onClick={() => onPost(item)} variant="primary">
               <Send size={15} />
-              Post
+              Post to ledger
             </Button>
           ) : null}
           {canVoid ? (
@@ -618,21 +697,48 @@ function RentIncomeInspector({
 }
 
 function RentIncomeForm({
+  initialValues,
   leaseOptions,
   onClose,
   onSuccess,
+  payerOptions,
   propertyOptions,
   unitOptions,
 }: {
+  initialValues?: RentIncomeCreateDefaults;
   leaseOptions: RentIncomeLeaseOption[];
   onClose: () => void;
   onSuccess: (message: string) => void;
+  payerOptions: PersonSelectOption[];
   propertyOptions: RentIncomeOption[];
   unitOptions: RentIncomeUnitOption[];
 }) {
   const [state, action, pending] = useActionState(
     createRentIncomeItemAction,
     createInitialState,
+  );
+  const [selectedPropertyId, setSelectedPropertyId] = useState(
+    initialValues?.propertyId ?? "",
+  );
+  const [selectedUnitId, setSelectedUnitId] = useState(
+    initialValues?.unitId ?? "",
+  );
+  const [selectedLeaseId, setSelectedLeaseId] = useState(
+    initialValues?.leaseId ?? "",
+  );
+  const [selectedPayer, setSelectedPayer] = useState(
+    initialValues?.payerPersonId ?? "",
+  );
+  const [amountDue, setAmountDue] = useState(initialValues?.amountDue ?? "");
+  const payerMode =
+    selectedPayer === PERSON_SELECT_EXTERNAL_VALUE ? "external" : "linked";
+  const visibleUnits = unitOptions.filter(
+    (option) => !selectedPropertyId || option.propertyId === selectedPropertyId,
+  );
+  const visibleLeases = leaseOptions.filter(
+    (option) =>
+      (!selectedPropertyId || option.propertyId === selectedPropertyId) &&
+      (!selectedUnitId || option.unitId === selectedUnitId),
   );
 
   useCloseOnSuccess(state, onClose, onSuccess);
@@ -643,7 +749,7 @@ function RentIncomeForm({
         <FormSection title="Income record">
           <Field label="Income type" error={state.fieldErrors?.incomeType?.[0]}>
             <SelectControl
-              defaultValue="rent"
+              defaultValue={initialValues?.incomeType ?? "rent"}
               name="incomeType"
               options={incomeTypeOptions.map((option) => ({
                 label: option.label,
@@ -652,48 +758,101 @@ function RentIncomeForm({
               required
             />
           </Field>
-          <Field label="Payer" error={state.fieldErrors?.payerLabel?.[0]}>
-            <Input
-              name="payerLabel"
-              placeholder="Tenant, owner, or payer name"
-              required
+          <Field
+            label="Payer"
+            error={
+              state.fieldErrors?.payerPersonId?.[0] ??
+              state.fieldErrors?.payerLabel?.[0]
+            }
+          >
+            <input name="payerMode" type="hidden" value={payerMode} />
+            <PersonSelect
+              allowExternal
+              aria-invalid={Boolean(
+                state.fieldErrors?.payerPersonId?.[0] ??
+                  state.fieldErrors?.payerLabel?.[0],
+              )}
+              context="Income payer"
+              name="payerPersonId"
+              onValueChange={setSelectedPayer}
+              options={payerOptions}
+              placeholder="Search active People"
+              roles={["tenant", "owner", "vendor", "staff"]}
+              value={selectedPayer}
             />
           </Field>
+          {payerMode === "external" ? (
+            <Field
+              label="External payer name"
+              error={state.fieldErrors?.payerLabel?.[0]}
+            >
+              <Input
+                name="payerLabel"
+                placeholder="Name shown on this income snapshot"
+                required
+              />
+            </Field>
+          ) : (
+            <input name="payerLabel" type="hidden" value="" />
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
               <SelectControl
                 name="propertyId"
+                onValueChange={(value) => {
+                  setSelectedPropertyId(value);
+                  setSelectedUnitId("");
+                  setSelectedLeaseId("");
+                }}
                 options={propertyOptions.map((option) => ({
                   label: option.label,
                   value: option.id,
                 }))}
                 placeholder="Choose property"
                 required
+                value={selectedPropertyId}
               />
             </Field>
             <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
               <SelectControl
                 name="unitId"
+                onValueChange={(value) => {
+                  setSelectedUnitId(value);
+                  setSelectedLeaseId("");
+                }}
                 options={[
                   { label: "No unit", value: "" },
-                  ...unitOptions.map((option) => ({
+                  ...visibleUnits.map((option) => ({
                     label: option.label,
                     value: option.id,
                   })),
                 ]}
+                value={selectedUnitId}
               />
             </Field>
           </div>
           <Field label="Lease" error={state.fieldErrors?.leaseId?.[0]}>
             <SelectControl
               name="leaseId"
+              onValueChange={(value) => {
+                setSelectedLeaseId(value);
+                const lease = leaseOptions.find((option) => option.id === value);
+                if (!lease) return;
+                setSelectedPropertyId(lease.propertyId);
+                setSelectedUnitId(lease.unitId ?? "");
+                if (payerOptions.some((option) => option.id === lease.tenantPersonId)) {
+                  setSelectedPayer(lease.tenantPersonId);
+                }
+                setAmountDue(String(lease.monthlyRentAmount));
+              }}
               options={[
                 { label: "No lease link", value: "" },
-                ...leaseOptions.map((option) => ({
-                  label: option.label,
+                ...visibleLeases.map((option) => ({
+                  label: `${option.label} · ${option.monthlyRentAmount.toLocaleString()}`,
                   value: option.id,
                 })),
               ]}
+              value={selectedLeaseId}
             />
           </Field>
         </FormSection>
@@ -716,7 +875,13 @@ function RentIncomeForm({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Expected" error={state.fieldErrors?.amountDue?.[0]}>
-              <NumberInput name="amountDue" placeholder="0.00" required />
+              <NumberInput
+                name="amountDue"
+                onChange={(event) => setAmountDue(event.currentTarget.value)}
+                placeholder="0.00"
+                required
+                value={amountDue}
+              />
             </Field>
             <Field label="Received" error={state.fieldErrors?.amountReceived?.[0]}>
               <NumberInput name="amountReceived" placeholder="0.00" />
@@ -804,7 +969,7 @@ function RecordPaymentPanel({
       <DrawerActions
         onCancel={onClose}
         pending={pending}
-        submitLabel="Record payment"
+        submitLabel="Record receipt"
       />
     </form>
   );
@@ -1017,7 +1182,7 @@ function getDrawerTitle(drawer: DrawerState) {
   }
 
   if (drawer.mode === "payment") {
-    return "Record received money";
+    return "Record receipt";
   }
 
   if (drawer.mode === "post") {
@@ -1033,7 +1198,7 @@ function getDrawerDescription(drawer: DrawerState) {
   }
 
   if (drawer.mode === "payment") {
-    return "Confirm received money before posting it to the ledger.";
+    return "Record dated cash against the remaining balance. Partial receipts stay open for more cash."
   }
 
   if (drawer.mode === "post") {

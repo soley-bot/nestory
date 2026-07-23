@@ -236,8 +236,20 @@ function renderLeases({
         }}
       propertyOptions={[{ id: "property-1", label: "Riverside House" }]}
       tenantOptions={[
-        { id: "person-1", label: "Alice Tenant" },
-        { id: "person-2", label: "Ben Tenant" },
+        {
+          archived: false,
+          description: "Tenant · alice@example.com",
+          id: "person-1",
+          label: "Alice Tenant",
+          roles: ["tenant"],
+        },
+        {
+          archived: false,
+          description: "Tenant · ben@example.com",
+          id: "person-2",
+          label: "Ben Tenant",
+          roles: ["tenant"],
+        },
       ]}
       unitOptions={[
         { id: "unit-1", label: "Unit 2A", propertyId: "property-1" },

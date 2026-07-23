@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Plus } from "lucide-react";
+import { CheckCircle2, ListChecks, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
@@ -148,10 +148,19 @@ export function PropertyScreen({
   const workspaceActions = (
     <>
       {canCreate ? (
-        <Button onClick={openCreateProperty} variant="primary">
-          <Plus size={15} />
-          Add property
-        </Button>
+        <>
+          <Link
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            href="/properties/setup"
+          >
+            <ListChecks size={15} />
+            Set up property
+          </Link>
+          <Button onClick={openCreateProperty} variant="primary">
+            <Plus size={15} />
+            Add property
+          </Button>
+        </>
       ) : null}
     </>
   );

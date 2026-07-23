@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
+import { PersonSelect } from "@/features/people/components/person-select";
 import {
   createPropertyAction,
   type PropertyActionState,
@@ -42,14 +43,18 @@ type PhotoPreview = {
 };
 
 type PropertyFormProps = {
+  closeOnCreateSuccess?: boolean;
+  initialValues?: Partial<Pick<PropertyFormValues, "ownerPersonId">>;
   mode?: "create" | "edit";
   onClose: () => void;
-  onSuccess?: (message: string) => void;
+  onSuccess?: (message: string, propertyId?: string) => void;
   ownerOptions: PropertyOwnerOption[];
   property?: PropertySummary | null;
 };
 
 export function PropertyForm({
+  closeOnCreateSuccess = false,
+  initialValues,
   mode = "create",
   onClose,
   onSuccess,
@@ -61,17 +66,10 @@ export function PropertyForm({
     isEditMode ? updatePropertyAction : createPropertyAction,
     initialState,
   );
-  const defaults = getPropertyDefaults(property);
+  const defaults = getPropertyDefaults(property, initialValues);
   const [photoPreview, setPhotoPreview] = useState<PhotoPreview | null>(null);
   const [dropzoneKey, setDropzoneKey] = useState(0);
   const openPhotoPickerRef = useRef<(() => void) | null>(null);
-  const ownerSelectOptions = [
-    { label: "No current owner link", value: "" },
-    ...ownerOptions.map((owner) => ({
-      label: owner.label,
-      value: owner.id,
-    })),
-  ];
   useEffect(() => {
     return () => {
       if (photoPreview) {
@@ -81,11 +79,22 @@ export function PropertyForm({
   }, [photoPreview]);
 
   useEffect(() => {
-    if (state.status === "success" && isEditMode) {
-      onSuccess?.(state.message ?? "Property saved.");
+    if (
+      state.status === "success" &&
+      (isEditMode || closeOnCreateSuccess)
+    ) {
+      onSuccess?.(state.message ?? "Property saved.", state.propertyId);
       onClose();
     }
-  }, [isEditMode, onClose, onSuccess, state.message, state.status]);
+  }, [
+    closeOnCreateSuccess,
+    isEditMode,
+    onClose,
+    onSuccess,
+    state.message,
+    state.propertyId,
+    state.status,
+  ]);
 
   const handlePhotoFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -206,12 +215,25 @@ export function PropertyForm({
             name="ownerPersonId"
             error={state.fieldErrors?.ownerPersonId?.[0]}
           >
-            <SelectControl
-              ariaLabel="Current owner link"
+            <PersonSelect
+              allowClear
+              context="Property owner"
               defaultValue={defaults.ownerPersonId ?? ""}
               name="ownerPersonId"
-              options={ownerSelectOptions}
+              options={ownerOptions}
               placeholder="Choose owner"
+              preservedOption={
+                defaults.ownerPersonId && defaults.owner
+                  ? {
+                      archived: true,
+                      description: "Historical owner link",
+                      id: defaults.ownerPersonId,
+                      label: defaults.owner,
+                      roles: ["owner"],
+                    }
+                  : undefined
+              }
+              roles={["owner"]}
             />
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
               <span>
@@ -430,6 +452,7 @@ function SelectedPropertyPhotoPreview({
 
 function getPropertyDefaults(
   property?: PropertySummary | null,
+  initialValues: Partial<Pick<PropertyFormValues, "ownerPersonId">> = {},
 ): PropertyFormValues {
   return {
     acquisitionDate: property?.formValues.acquisitionDate ?? "",
@@ -438,7 +461,8 @@ function getPropertyDefaults(
     name: property?.formValues.name ?? "",
     notes: property?.formValues.notes ?? "",
     owner: property?.formValues.owner ?? "",
-    ownerPersonId: property?.formValues.ownerPersonId ?? "",
+    ownerPersonId:
+      property?.formValues.ownerPersonId ?? initialValues.ownerPersonId ?? "",
     propertyType: property?.formValues.propertyType ?? "",
     status: property?.formValues.status ?? "active",
   };

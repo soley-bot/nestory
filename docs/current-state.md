@@ -98,6 +98,9 @@ Property and units:
 
 - `/properties` is a server-loaded operational list with filters, table/card
   quick view, create/edit/archive/restore drawers, and direct detail navigation.
+- `/properties/setup` is an admin-only guided setup workspace that links an
+  owner, property, unit, tenant, and existing or newly created lease before
+  handing off to the first rent-charge workflow.
 - `/properties/[propertyId]` is a detail record with photos, units, leases,
   ledger, timeline, documents, maintenance, owner history, health, and next
   actions.
@@ -325,7 +328,7 @@ Compatibility database tests still cover the accounting schema and security
 boundary, balanced/idempotent posting, period locks and reversals, historical
 backfill, transaction rollback, and seeded ledger-to-journal parity.
 
-The UI route manifest currently covers all 47 page routes. Local redesign
+The UI route manifest currently covers all 52 page routes. Local redesign
 verification captures every route at 1440x900, 1024x768, and 390x844, audits
 admin/manager/member/anonymous access outcomes, and rejects serious/critical
 axe findings, application errors, document overflow, unreachable actions,

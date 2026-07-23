@@ -132,6 +132,7 @@ type RpcFunctionOverrides = {
       p_lease_id: string | null;
       p_organization_id: string;
       p_payer_label: string;
+      p_payer_person_id?: string | null;
       p_property_id: string;
       p_received_date: string | null;
       p_reference: string | null;

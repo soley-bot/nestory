@@ -18,6 +18,8 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 | /workspace | /workspace | /workspace | accessible (expected accessible) | accessible (expected accessible) | login-required (expected login-required) | populated, permission-blocked | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/properties -->
 | /properties | /properties?query=Central | /properties?query=Central | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
+<!-- route-evidence:/properties/setup -->
+| /properties/setup | /properties/setup?step=1 | /properties/setup?step=1 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | not rerun | preserved | Implementation-backed entry added after the dated browser artifact; focused browser route sweep not rerun. |
 <!-- route-evidence:/units -->
 | /units | /units?query=09 | /units?query=09 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
 <!-- route-evidence:/people -->

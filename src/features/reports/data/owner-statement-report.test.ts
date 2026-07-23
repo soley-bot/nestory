@@ -10,6 +10,7 @@ import {
   getOwnerStatementReport,
   selectOwnerStatementRecipient,
 } from "@/features/reports/data/owner-statement-report";
+import { buildOwnerStatementCashDiagnostics } from "@/features/reports/data/owner-statement-diagnostics";
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -127,6 +128,61 @@ describe("Owner Statement trusted report adapter", () => {
 
     const csv = buildTrustedReportCsv(report);
     expect(csv).toContain("USD 100.00");
+  });
+
+  it("shows a charge-without-receipt diagnostic and direct rent source without changing cash totals", () => {
+    const statementInput = input({
+      cashInput: {
+        depositEvents: [],
+        expenseItems: [],
+        incomeItems: [
+          {
+            amountDue: 900,
+            dueDate: "2026-07-01",
+            id: "rent-charge-only",
+            incomeType: "rent",
+            propertyId,
+          },
+        ],
+        monthScope: { before: "2026-08-01", from: "2026-07-01" },
+        paymentAllocations: [],
+        propertyIds: [propertyId],
+        receiptAllocations: [],
+      },
+    });
+    const report = buildOwnerStatementTrustedReport({
+      diagnostics: buildOwnerStatementCashDiagnostics(statementInput.cashInput),
+      generatedAt: "2026-08-01T00:00:00.000Z",
+      people: [{ displayName: "Owner One", id: "person-1" }],
+      properties: [{ code: "P1", id: propertyId, name: "Property One" }],
+      result: buildOwnerStatement(statementInput),
+      viewQuery: ownerStatementQuery(),
+    });
+
+    expect(report.rows[0]?.cells).toMatchObject({
+      cashBasis: expect.stringContaining("charged, but no cash was received"),
+      netMovement: "USD 0.00",
+      operatingCash: "USD 0.00",
+      readiness: "Ready",
+    });
+    expect(report.rows[0]?.sourceLinks).toContainEqual(
+      expect.objectContaining({
+        href: expect.stringContaining("incomeItemId=rent-charge-only"),
+        id: "rent-charge-only",
+        recordType: "income-obligation",
+      }),
+    );
+
+    const recipient = selectOwnerStatementRecipient(report, {
+      ...ownerStatementQuery(),
+      ownerPersonId: "person-1",
+      propertyId,
+    });
+    expect("report" in recipient).toBe(true);
+    if (!("report" in recipient)) {
+      throw new Error(`Expected recipient report, received: ${recipient.message}`);
+    }
+    expect(recipient.report.rows[0]?.cells.cashBasis).toBeUndefined();
   });
 
   it("renders one explicit blocked property row without monetary totals", () => {

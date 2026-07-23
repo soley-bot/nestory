@@ -7,6 +7,7 @@ import { FormSection } from "@/components/ui/form-section";
 import { NumberInput } from "@/components/ui/number-input";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
+import { PersonSelect } from "@/features/people/components/person-select";
 import {
   createLeaseAction,
   type LeaseActionState,
@@ -37,7 +38,7 @@ type LeaseFormProps = {
   lease?: LeaseSummary | null;
   mode?: "create" | "edit";
   onClose: () => void;
-  onSuccess?: (message: string) => void;
+  onSuccess?: (message: string, leaseId?: string) => void;
   properties: LeasePropertyOption[];
   tenants: LeaseTenantOption[];
   units: LeaseUnitOption[];
@@ -110,10 +111,10 @@ export function LeaseForm({
 
   useEffect(() => {
     if (state.status === "success") {
-      onSuccess?.(state.message ?? "Lease saved.");
+      onSuccess?.(state.message ?? "Lease saved.", state.leaseId);
       onClose();
     }
-  }, [onClose, onSuccess, state.message, state.status]);
+  }, [onClose, onSuccess, state.leaseId, state.message, state.status]);
 
   return (
     <RecordForm
@@ -167,18 +168,24 @@ export function LeaseForm({
             name="tenantPersonId"
             required
           >
-            <SelectControl
-              ariaLabel="Tenant"
+            <PersonSelect
+              context="Lease tenant"
               name="tenantPersonId"
               onValueChange={setSelectedTenantId}
-              options={[
-                { label: "Select tenant", value: "" },
-                ...tenantOptions.map((tenant) => ({
-                  label: tenant.label,
-                  value: tenant.id,
-                })),
-              ]}
-              required
+              options={tenantOptions}
+              placeholder="Select tenant"
+              preservedOption={
+                selectedTenantId && defaults.tenantName
+                  ? {
+                      archived: true,
+                      description: "Historical lease tenant",
+                      id: selectedTenantId,
+                      label: defaults.tenantName,
+                      roles: ["tenant"] as const,
+                    }
+                  : undefined
+              }
+              roles={["tenant"]}
               value={selectedTenantId}
             />
           </RecordField>
@@ -381,7 +388,7 @@ function ensureSelectedTenant(
   tenants: LeaseTenantOption[],
   selectedTenantId: string,
   selectedTenantName: string,
-) {
+): LeaseTenantOption[] {
   if (
     !selectedTenantId ||
     tenants.some((tenant) => tenant.id === selectedTenantId)
@@ -392,8 +399,11 @@ function ensureSelectedTenant(
   return [
     ...tenants,
     {
+      archived: true,
+      description: "Historical lease tenant",
       id: selectedTenantId,
       label: selectedTenantName || "Current tenant",
+      roles: ["tenant"],
     },
   ];
 }

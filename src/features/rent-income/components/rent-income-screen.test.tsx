@@ -230,9 +230,9 @@ describe("RentIncomeScreen", () => {
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
       expect(screen.getByRole("dialog", { name: "Tenant income quick view" })).not.toBeNull();
 
-      await user.click(screen.getByRole("button", { name: "Record payment" }));
+      await user.click(screen.getByRole("button", { name: "Record receipt" }));
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
-      expect(screen.getByRole("dialog", { name: "Record received money" })).not.toBeNull();
+      expect(screen.getByRole("dialog", { name: "Record receipt" })).not.toBeNull();
       const consequence = screen.getByRole("region", { name: "Receipt consequence" });
       expect(consequence.textContent).toContain("USD 400.00");
       expect(within(consequence).getByText("Current balance")).not.toBeNull();
@@ -272,6 +272,39 @@ describe("RentIncomeScreen", () => {
     expect(screen.getByRole("region", { name: "Scoped income summary" })).toBeTruthy();
   });
 
+  it("does not present portfolio totals for a focused income obligation", () => {
+    renderIncome("all", [partialIncome], { incomeItemId: partialIncome.id });
+
+    expect(
+      screen.queryByRole("region", { name: "Global income summary" }),
+    ).toBeNull();
+    const scopedSummary = screen.getByRole("region", {
+      name: "Scoped income summary",
+    });
+    expect(scopedSummary.textContent).toContain("Focused income record");
+    expect(scopedSummary.textContent).toContain("1 filtered row");
+    expect(scopedSummary.textContent).not.toContain("USD");
+  });
+
+  it("opens cash-basis owner statement context in the receipt month", () => {
+    const lateReceipt = {
+      ...receivedIncome,
+      dueDate: "2026-07-01",
+      receivedDate: "2026-08-05",
+    } satisfies RentIncomeItem;
+    renderIncome("all", [lateReceipt]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
+
+    expect(
+      screen
+        .getByRole("link", { name: "Open Owner Statement context" })
+        .getAttribute("href"),
+    ).toBe(
+      "/reports?month=2026-08&propertyId=property-1&report=owner-statement",
+    );
+  });
+
   it("defaults the next receipt to the remaining balance", () => {
     render(
       <RentIncomeScreen
@@ -279,6 +312,7 @@ describe("RentIncomeScreen", () => {
         leaseOptions={[]}
         pagination={{ from: 1, page: 1, pageSize: 25, to: 1, totalCount: 1, totalPages: 1 }}
         propertyOptions={[{ id: "property-1", label: "HOME / Home" }]}
+        payerOptions={[]}
         summary={{
           openCount: "1",
           overdueCount: "0",
@@ -302,7 +336,7 @@ describe("RentIncomeScreen", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
-    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
 
     expect(
       (document.querySelector('input[name="amountReceived"]') as HTMLInputElement)
@@ -311,10 +345,10 @@ describe("RentIncomeScreen", () => {
   });
 
   it("states the official ledger effect before posting received income", () => {
-    renderIncome("all");
+    renderIncome("all", [receivedIncome]);
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
-    fireEvent.click(screen.getByRole("button", { name: "Post" }));
+    fireEvent.click(screen.getByRole("button", { name: "Post to ledger" }));
 
     const consequence = screen.getByRole("region", {
       name: "Posting consequence",
@@ -323,6 +357,15 @@ describe("RentIncomeScreen", () => {
       "ResultOfficial income ledger entry",
     );
   });
+
+  it("keeps partially received income open for another receipt and hides posting", () => {
+    renderIncome("all", [partialIncome]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
+    expect(screen.getByRole("button", { name: "Record receipt" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Post to ledger" })).toBeNull();
+    expect(screen.getByText("Record remaining receipt")).toBeTruthy();
+  });
 });
 
 function renderIncome(
@@ -330,7 +373,7 @@ function renderIncome(
   incomeItems: RentIncomeItem[] = [partialIncome],
   viewQuery: Partial<ComponentProps<typeof RentIncomeScreen>["viewQuery"]> = {},
 ) {
-  return render(<RentIncomeScreen incomeItems={incomeItems} leaseOptions={[]} pagination={{ from: incomeItems.length ? 1 : 0, page: 1, pageSize: 25, to: incomeItems.length, totalCount: incomeItems.length, totalPages: incomeItems.length ? 1 : 0 }} propertyOptions={[{ id: "property-1", label: "HOME / Home" }]} summary={{ openCount: "1", overdueCount: "0", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" }, unpostedCount: "1" }} unitOptions={[]} viewQuery={{ incomeGroup, incomeType: "all", month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all", ...viewQuery }} />);
+  return render(<RentIncomeScreen incomeItems={incomeItems} leaseOptions={[]} pagination={{ from: incomeItems.length ? 1 : 0, page: 1, pageSize: 25, to: incomeItems.length, totalCount: incomeItems.length, totalPages: incomeItems.length ? 1 : 0 }} payerOptions={[]} propertyOptions={[{ id: "property-1", label: "HOME / Home" }]} summary={{ openCount: "1", overdueCount: "0", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" }, unpostedCount: "1" }} unitOptions={[]} viewQuery={{ incomeGroup, incomeType: "all", month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all", ...viewQuery }} />);
 }
 
 const partialIncome: RentIncomeItem = {
@@ -349,17 +392,29 @@ const partialIncome: RentIncomeItem = {
   isOverdue: false,
   leaseId: null,
   ledgerEntryId: null,
-  nextAction: "Record payment",
+  nextAction: "Record remaining receipt",
   payerLabel: "Tenant",
+  payerPersonId: null,
   propertyCode: "HOME",
   propertyId: "property-1",
   propertyName: "Home",
   receivedDate: "2026-07-01",
   reference: "RENT-500",
+  receipts: [],
   status: "partially_received",
   statusLabel: "Partial",
   unitId: null,
   unitNumber: "No unit",
+};
+
+const receivedIncome: RentIncomeItem = {
+  ...partialIncome,
+  amountReceived: 500,
+  amountReceivedDisplay: { primary: "USD 500.00" },
+  balanceDisplay: { primary: "USD 0.00" },
+  nextAction: "Post to ledger",
+  status: "received",
+  statusLabel: "Received",
 };
 
 function installMatchMedia(width: number) {

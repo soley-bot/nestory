@@ -25,6 +25,7 @@ describe("parseRentIncomeSearchParams", () => {
       ),
     ).toEqual({
       incomeGroup: "management-company",
+      incomeItemId: "all",
       incomeType: "late_fee",
       month: "2026-07",
       page: 2,
