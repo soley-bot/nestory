@@ -71,7 +71,9 @@ describe("organization invitation actions", () => {
     expect(adminInvite).toHaveBeenCalledWith(
       "invitee@example.com",
       expect.objectContaining({
-        redirectTo: expect.stringContaining("%2Faccept-invite%3Finvitation%3D"),
+        redirectTo: expect.stringMatching(
+          /^http:\/\/localhost:3000\/auth\/complete\?next=%2Faccept-invite%3Finvitation%3D/,
+        ),
       }),
     );
     expect(rpc.mock.calls[1]).toEqual([

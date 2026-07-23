@@ -92,7 +92,7 @@ describe("UI route coverage contract", () => {
     const pageSources = findPageSources(join(process.cwd(), "src", "app")).sort();
     const manifestSources = routeCoverageJson.map(({ source }) => source).sort();
 
-    expect(pageSources).toHaveLength(52);
+    expect(pageSources).toHaveLength(53);
     expect(new Set(manifestSources).size).toBe(manifestSources.length);
     expect(manifestSources).toEqual(pageSources);
     expect(
