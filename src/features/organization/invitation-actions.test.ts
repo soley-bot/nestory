@@ -94,7 +94,10 @@ describe("organization invitation actions", () => {
       .mockResolvedValueOnce({ data: invitationId, error: null });
     adminInvite.mockResolvedValue({
       data: { user: null },
-      error: { code: "user_already_exists", message: "User already registered" },
+      error: {
+        code: "email_exists",
+        message: "A user with this email address has already been registered",
+      },
     });
     adminOtp.mockResolvedValue({ error: null });
 
