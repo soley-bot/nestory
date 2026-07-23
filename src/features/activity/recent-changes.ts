@@ -62,6 +62,7 @@ const hiddenDetailFields = new Set([
   "actor_id",
   "archived_by",
   "created_by",
+  "custodian_person_id",
   "id",
   "checklist_item_id",
   "counterparty_person_id",
