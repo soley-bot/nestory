@@ -97,7 +97,11 @@ export async function getBillsExpensesScreenData(
   const vendors = vendorsResult.data ?? [];
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
-  if (viewQuery.dateBasis === "paid") {
+  const focusedExpenseItemId =
+    viewQuery.expenseItemId && viewQuery.expenseItemId !== "all"
+      ? viewQuery.expenseItemId
+      : undefined;
+  if (!focusedExpenseItemId && viewQuery.dateBasis === "paid") {
     return getPaidBillsExpensesData({ organizationId, properties, propertiesById, supabase, units, unitsById, vendors, viewQuery });
   }
   const expenseSearchColumns = [
@@ -111,7 +115,17 @@ export async function getBillsExpensesScreenData(
     let query = supabase
       .from("finance_expense_items")
       .select("*", { count: "exact" })
-      .eq("organization_id", organizationId)
+      .eq("organization_id", organizationId);
+
+    if (focusedExpenseItemId) {
+      if (viewQuery.archiveState !== "all") {
+        query = query.is("archived_at", null);
+      }
+
+      return query.eq("id", focusedExpenseItemId);
+    }
+
+    query = query
       .is("archived_at", null)
       .gte(dateColumn, monthScope.from)
       .lt(dateColumn, monthScope.before);
@@ -261,6 +275,7 @@ function toBillsExpenseItem({
     amountDisplay: formatMoneyDisplay(row.amount, row.currency),
     amountPaid,
     amountPaidDisplay: formatMoneyDisplay(amountPaid, row.currency),
+    archivedAt: row.archived_at ?? undefined,
     category: row.category,
     currency: row.currency,
     description: row.description ?? "",

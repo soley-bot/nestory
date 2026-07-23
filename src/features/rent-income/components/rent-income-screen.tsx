@@ -88,19 +88,27 @@ export function RentIncomeScreen({
   unitOptions,
   viewQuery,
 }: RentIncomeScreenProps) {
+  const searchParams = useSearchParams();
+  const hasFocusedIncomeItem =
+    Boolean(viewQuery.incomeItemId) && viewQuery.incomeItemId !== "all";
+  const focusedIncomeItem = hasFocusedIncomeItem
+    ? incomeItems.find((item) => item.id === viewQuery.incomeItemId) ?? null
+    : null;
   const [drawerState, setDrawerState] = useState<DrawerState | null>(() =>
     createDefaults ? { mode: "create" } : null,
   );
   const [selectedItemId, setSelectedItemId] = useState(
-    incomeItems.find((item) => item.id === viewQuery.incomeItemId)?.id ??
-      incomeItems[0]?.id ??
+    focusedIncomeItem?.id ??
+      (hasFocusedIncomeItem ? "" : incomeItems[0]?.id) ??
       "",
   );
-  const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
+    Boolean(focusedIncomeItem),
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedItem =
     incomeItems.find((item) => item.id === selectedItemId) ??
-    incomeItems[0] ??
+    (hasFocusedIncomeItem ? null : incomeItems[0]) ??
     null;
 
   const openDrawer = (nextDrawer: DrawerState) => {
@@ -114,8 +122,6 @@ export function RentIncomeScreen({
     setCompactInspectorOpen(true);
   };
 
-  const hasFocusedIncomeItem =
-    Boolean(viewQuery.incomeItemId) && viewQuery.incomeItemId !== "all";
   const hasFilters =
     hasFocusedIncomeItem ||
     viewQuery.incomeGroup !== "all" ||
@@ -206,6 +212,18 @@ export function RentIncomeScreen({
         </div>
       ) : null}
 
+      {hasFocusedIncomeItem ? (
+        <FocusedRecordContext
+          clearHref={getClearFocusedHref(
+            "/rent-income",
+            searchParams,
+            "incomeItemId",
+          )}
+          isArchived={Boolean(focusedIncomeItem?.archivedAt)}
+          isAvailable={Boolean(focusedIncomeItem)}
+        />
+      ) : null}
+
       {!hasFocusedIncomeItem &&
       viewQuery.incomeGroup === "all" &&
       viewQuery.incomeType === "all" ? (
@@ -272,6 +290,53 @@ export function RentIncomeScreen({
       </div>
     </WorkspacePage>
   );
+}
+
+function FocusedRecordContext({
+  clearHref,
+  isArchived,
+  isAvailable,
+}: {
+  clearHref: string;
+  isArchived: boolean;
+  isAvailable: boolean;
+}) {
+  return (
+    <section className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-muted/45 px-4 py-2 sm:px-6">
+      <div>
+        <p className="text-sm font-medium">
+          {isAvailable ? "Focused from activity history" : "Source record unavailable"}
+        </p>
+        <p className="text-xs text-muted">
+          {isAvailable
+            ? isArchived
+              ? "Archived source record"
+              : "The exact income record is open for review."
+            : "The record does not exist or you no longer have access."}
+        </p>
+      </div>
+      <Link
+        aria-label="Clear focused record"
+        className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium hover:bg-surface-muted"
+        href={clearHref}
+      >
+        Clear focus
+      </Link>
+    </section>
+  );
+}
+
+function getClearFocusedHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  focusParam: string,
+) {
+  const next = new URLSearchParams(searchParams.toString());
+  next.delete(focusParam);
+  next.delete("archiveState");
+  next.delete("page");
+  const query = next.toString();
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 function RentIncomeFilters({
@@ -563,9 +628,10 @@ function RentIncomeInspector({
   }
 
   const workflow = getRentIncomeWorkflow(item);
-  const canRecordPayment = workflow.canRecordReceipt;
-  const canPost = workflow.canPost;
-  const canVoid = item.status !== "posted";
+  const isReadOnly = Boolean(item.archivedAt);
+  const canRecordPayment = !isReadOnly && workflow.canRecordReceipt;
+  const canPost = !isReadOnly && workflow.canPost;
+  const canVoid = !isReadOnly && item.status !== "posted";
   const statementParams = new URLSearchParams({
     month: (item.receivedDate ?? item.dueDate).slice(0, 7),
     propertyId: item.propertyId,

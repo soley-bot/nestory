@@ -1,6 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { isMissingSchemaObjectMessage } from "@/lib/db/schema-errors";
-import { toRecentChange } from "@/features/activity/recent-changes";
+import {
+  resolveRecentChangeTargets,
+  type ActivityTargetQueryClient,
+} from "@/features/activity/recent-change-targets";
 import {
   getAssetPhotosForScope,
   getUnitPhotoThumbnailUrls,
@@ -620,14 +623,19 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
 
   const activeLease = selectCurrentLease(leaseRows);
   const maintenanceRows = (maintenanceResult.data ?? []) as UnitMaintenanceRecord[];
-  const [documents, people] = await Promise.all([
+  const [activity, documents, people] = await Promise.all([
+    resolveRecentChangeTargets({
+      logs: activityResult.data ?? [],
+      organizationId,
+      supabase: supabase as unknown as ActivityTargetQueryClient,
+    }),
     addSignedDocumentUrls(documentsResult.data ?? [], supabase),
     getActiveLeasePeople(supabase, organizationId, activeLease),
   ]);
 
   return buildUnitDetail({
     activeLease,
-    activity: (activityResult.data ?? []).map(toRecentChange),
+    activity,
     counts: {
       documents: documentsResult.count ?? 0,
       ledgerEntries: ledgerResult.count ?? ledgerResult.data?.length ?? 0,

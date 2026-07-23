@@ -4,6 +4,7 @@ import type {
   RecentChange,
   RecentChangeTone,
 } from "@/features/activity/activity.types";
+import { resolveActivityEntityTarget } from "@/features/activity/entity-target";
 import { formatDate } from "@/lib/dates/format";
 
 export type ActivityLogSnapshot = Pick<
@@ -153,17 +154,25 @@ const linkReferenceFields = new Set([
 ]);
 
 export function toRecentChange(log: ActivityLogSnapshot): RecentChange {
-  const recordLabel = getRecordLabel(log);
+  const target = resolveActivityEntityTarget({
+    entityId: log.entity_id,
+    entityType: log.entity_type,
+    periodStart:
+      getString(toRecord(log.new_values), "period_start") ??
+      getString(toRecord(log.previous_values), "period_start"),
+    recordLabel: getSnapshotRecordLabel(log),
+  });
 
   return {
     action: log.action,
     actionLabel: getActionLabel(log),
     createdAt: log.created_at,
     details: getChangeDetails(log),
-    entityLabel: getEntityLabel(log.entity_type),
-    href: getActivityHref(log, recordLabel),
+    entityLabel: target.entityLabel,
+    href: target.href,
     id: log.id,
-    recordLabel,
+    recordLabel: target.recordLabel,
+    target,
     tone: getTone(log.action),
   };
 }
@@ -183,7 +192,7 @@ function hasChangedValue(log: ActivityLogSnapshot, key: string) {
   return !isSameJsonValue(previousValues[key], nextValues[key]);
 }
 
-function getRecordLabel(log: ActivityLogSnapshot) {
+function getSnapshotRecordLabel(log: ActivityLogSnapshot) {
   const nextValues = toRecord(log.new_values);
   const previousValues = toRecord(log.previous_values);
   const label =
@@ -212,242 +221,7 @@ function getRecordLabel(log: ActivityLogSnapshot) {
     getString(nextValues, "category") ??
     getString(previousValues, "category");
 
-  if (label) {
-    return label;
-  }
-
-  return getFallbackRecordLabel(log.entity_type);
-}
-
-function getFallbackRecordLabel(entityType: string) {
-  if (entityType === "ledger_entry") {
-    return "Ledger entry";
-  }
-
-  if (entityType === "ledger_period") {
-    return "Period lock";
-  }
-
-  if (entityType === "finance_income_item") {
-    return "Income item";
-  }
-
-  if (entityType === "finance_expense_item") {
-    return "Expense item";
-  }
-
-  if (entityType === "petty_cash_entry") {
-    return "Petty cash row";
-  }
-
-  if (entityType === "document") {
-    return "Document";
-  }
-
-  if (entityType === "task") {
-    return "Maintenance case";
-  }
-
-  if (entityType === "tenant_request") {
-    return "Maintenance request";
-  }
-
-  if (entityType === "lease") {
-    return "Lease";
-  }
-
-  if (entityType === "import") {
-    return "Import batch";
-  }
-
-  if (entityType === "person") {
-    return "Person";
-  }
-
-  if (entityType === "property") {
-    return "Property";
-  }
-
-  if (entityType === "timeline_event") {
-    return "Timeline event";
-  }
-
-  if (entityType === "unit") {
-    return "Unit";
-  }
-
-  return "Activity record";
-}
-
-function getEntityLabel(entityType: string) {
-  if (entityType === "ledger_entry") {
-    return "Ledger";
-  }
-
-  if (entityType === "timeline_event") {
-    return "Timeline";
-  }
-
-  if (entityType === "task" || entityType === "tenant_request") {
-    return "Maintenance";
-  }
-
-  if (entityType === "ledger_period") {
-    return "Period lock";
-  }
-
-  if (entityType === "finance_income_item") {
-    return "Rent & Income";
-  }
-
-  if (entityType === "finance_expense_item") {
-    return "Bills & Expenses";
-  }
-
-  if (entityType === "petty_cash_entry") {
-    return "Petty Cash";
-  }
-
-  if (entityType === "import") {
-    return "Import";
-  }
-
-  if (entityType === "unit") {
-    return "Unit";
-  }
-
-  return toReadableAction(entityType);
-}
-
-function getActivityHref(log: ActivityLogSnapshot, recordLabel: string) {
-  const entityId = encodeURIComponent(log.entity_id);
-
-  if (log.entity_type === "ledger_entry") {
-    return buildModuleHref("/ledger", {
-      archiveState: "all",
-      entryId: log.entity_id,
-      query: getFocusedQuery(recordLabel, "Ledger entry"),
-    });
-  }
-
-  if (log.entity_type === "timeline_event") {
-    return buildModuleHref("/timeline", {
-      archiveState: "all",
-      eventId: log.entity_id,
-      query: getFocusedQuery(recordLabel, "Timeline event"),
-    });
-  }
-
-  if (log.entity_type === "finance_income_item") {
-    return buildModuleHref("/rent-income", {
-      query: getFocusedQuery(recordLabel, "Income item"),
-    });
-  }
-
-  if (log.entity_type === "finance_expense_item") {
-    return buildModuleHref("/bills-expenses", {
-      query: getFocusedQuery(recordLabel, "Expense item"),
-    });
-  }
-
-  if (log.entity_type === "petty_cash_entry") {
-    return "/petty-cash";
-  }
-
-  if (log.entity_type === "task") {
-    return buildModuleHref("/maintenance", {
-      archiveState: "all",
-      query: getFocusedQuery(recordLabel, "Maintenance case"),
-      taskId: log.entity_id,
-    });
-  }
-
-  if (log.entity_type === "tenant_request") {
-    return buildModuleHref("/maintenance", {
-      archiveState: "all",
-      query: getFocusedQuery(recordLabel, "Maintenance request"),
-    });
-  }
-
-  if (log.entity_type === "unit") {
-    return `/units/${entityId}`;
-  }
-
-  if (log.entity_type === "property") {
-    return `/properties/${entityId}`;
-  }
-
-  if (log.entity_type === "lease") {
-    return buildModuleHref("/leases", {
-      archiveState: "all",
-      leaseId: log.entity_id,
-      query: getFocusedQuery(recordLabel, "Lease"),
-    });
-  }
-
-  if (log.entity_type === "person") {
-    return `/people/${log.entity_id}`;
-  }
-
-  if (log.entity_type === "document") {
-    return buildModuleHref("/documents", {
-      archiveState: "all",
-      documentId: log.entity_id,
-      query: getFocusedQuery(recordLabel, "Document"),
-    });
-  }
-
-  if (log.entity_type === "import") {
-    return "/import";
-  }
-
-  if (log.entity_type === "ledger_period") {
-    const periodStart =
-      getString(toRecord(log.new_values), "period_start") ??
-      getString(toRecord(log.previous_values), "period_start");
-
-    return periodStart ? getLedgerPeriodHref(periodStart) : "/ledger";
-  }
-
-  return `/timeline?query=${encodeURIComponent(recordLabel)}`;
-}
-
-function buildModuleHref(pathname: string, values: Record<string, string | undefined>) {
-  const params = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(values)) {
-    if (value) {
-      params.set(key, value);
-    }
-  }
-
-  const query = params.toString();
-
-  return query ? `${pathname}?${query}` : pathname;
-}
-
-function getFocusedQuery(recordLabel: string, fallbackLabel: string) {
-  return recordLabel === fallbackLabel ? undefined : recordLabel;
-}
-
-function getLedgerPeriodHref(periodStart: string) {
-  const monthStart = periodStart.slice(0, 10);
-  const match = monthStart.match(/^(\d{4})-(\d{2})-01$/);
-
-  if (!match) {
-    return "/ledger";
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const dateTo = `${monthStart.slice(0, 8)}${String(lastDay).padStart(2, "0")}`;
-  const params = new URLSearchParams({
-    dateFrom: monthStart,
-    dateTo,
-  });
-
-  return `/ledger?${params.toString()}`;
+  return label;
 }
 
 function getTone(action: string): RecentChangeTone {

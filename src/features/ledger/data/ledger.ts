@@ -5,6 +5,10 @@ import {
 } from "@/lib/entity-option-labels";
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
+  resolveRecentChangeTargets,
+  type ActivityTargetQueryClient,
+} from "@/features/activity/recent-change-targets";
+import {
   getFinanceCloseMonth,
   getFinanceCloseSummary,
 } from "@/features/finance/data/finance-close";
@@ -266,7 +270,19 @@ export async function getLedgerScreenData(
   const documentsWithUrls = await addSignedDocumentUrls(documents, supabase);
   const documentsByLedgerEntryId =
     groupDocumentsByLedgerEntryId(documentsWithUrls);
-  const activityByLedgerEntryId = groupActivityByLedgerEntryId(activityRows);
+  const recentActivityRows = recentActivityResult.data ?? [];
+  const resolvedActivity = await resolveRecentChangeTargets({
+    logs: [...recentActivityRows, ...activityRows],
+    organizationId,
+    supabase: supabase as unknown as ActivityTargetQueryClient,
+  });
+  const resolvedActivityById = new Map(
+    resolvedActivity.map((change) => [change.id, change]),
+  );
+  const activityByLedgerEntryId = groupActivityByLedgerEntryId(
+    activityRows,
+    resolvedActivityById,
+  );
   const entries = entriesPage.map((entry) =>
     toLedgerEntry({
       activity: activityByLedgerEntryId.get(entry.id) ?? [],
@@ -296,7 +312,9 @@ export async function getLedgerScreenData(
       id: property.id,
       label: formatPropertyOptionLabel(property),
     })),
-    recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
+    recentChanges: recentActivityRows.map(
+      (row) => resolvedActivityById.get(row.id) ?? toRecentChange(row),
+    ),
     unitOptions: units.map((unit): LedgerUnitOption => {
       const property = propertiesById.get(unit.property_id);
 
@@ -488,12 +506,13 @@ function groupDocumentsByLedgerEntryId(rows: LedgerDocumentWithLink[]) {
 
 function groupActivityByLedgerEntryId(
   rows: Parameters<typeof toRecentChange>[0][],
+  resolvedById: Map<string, ReturnType<typeof toRecentChange>>,
 ) {
   const grouped = new Map<string, ReturnType<typeof toRecentChange>[]>();
 
   for (const row of rows) {
     const group = grouped.get(row.entity_id) ?? [];
-    group.push(toRecentChange(row));
+    group.push(resolvedById.get(row.id) ?? toRecentChange(row));
     grouped.set(row.entity_id, group);
   }
 

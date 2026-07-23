@@ -50,9 +50,16 @@ describe("toRecentChange", () => {
         },
       ],
       entityLabel: "Timeline",
-      href: "/timeline?archiveState=all&eventId=11111111-1111-4111-8111-111111111111&query=Expense+-+Maintenance",
+      href: "/timeline?archiveState=all&eventId=11111111-1111-4111-8111-111111111111",
       id: "log-1",
       recordLabel: "Expense - Maintenance",
+      target: {
+        actionLabel: "Open Timeline event",
+        entityLabel: "Timeline",
+        focusMode: "exact",
+        href: "/timeline?archiveState=all&eventId=11111111-1111-4111-8111-111111111111",
+        recordLabel: "Expense - Maintenance",
+      },
       tone: "accent",
     });
   });
@@ -75,7 +82,7 @@ describe("toRecentChange", () => {
     ).toMatchObject({
       actionLabel: "Archived",
       entityLabel: "Ledger",
-      href: "/ledger?archiveState=all&entryId=22222222-2222-4222-8222-222222222222&query=Rent",
+      href: "/ledger?archiveState=all&entryId=22222222-2222-4222-8222-222222222222",
       recordLabel: "Rent",
       tone: "warning",
     });
@@ -223,6 +230,13 @@ describe("toRecentChange", () => {
       href: "/import",
       id: "log-unit-import",
       recordLabel: "Import batch",
+      target: {
+        actionLabel: "Open Import",
+        entityLabel: "Import",
+        focusMode: "module",
+        href: "/import",
+        recordLabel: "Import batch",
+      },
       tone: "success",
     });
   });
@@ -301,8 +315,12 @@ describe("toRecentChange", () => {
     ).toMatchObject({
       actionLabel: "Payment recorded",
       entityLabel: "Rent & Income",
-      href: "/rent-income?query=John+Smith",
+      href: "/rent-income?archiveState=all&incomeItemId=dddddddd-dddd-4ddd-8ddd-dddddddddddd",
       recordLabel: "John Smith",
+      target: {
+        actionLabel: "Open Rent & Income record",
+        focusMode: "exact",
+      },
     });
 
     expect(
@@ -321,12 +339,16 @@ describe("toRecentChange", () => {
     ).toMatchObject({
       actionLabel: "Posted to ledger",
       entityLabel: "Bills & Expenses",
-      href: "/bills-expenses?query=maintenance",
+      href: "/bills-expenses?archiveState=all&expenseItemId=eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
       recordLabel: "maintenance",
+      target: {
+        actionLabel: "Open Bills & Expenses record",
+        focusMode: "exact",
+      },
     });
   });
 
-  it("labels petty cash activity without inventing a brittle row focus link", () => {
+  it("links Petty Cash activity to the exact register row", () => {
     expect(
       toRecentChange({
         action: "posted_to_ledger",
@@ -346,8 +368,12 @@ describe("toRecentChange", () => {
     ).toMatchObject({
       actionLabel: "Posted to ledger",
       entityLabel: "Petty Cash",
-      href: "/petty-cash",
+      href: "/petty-cash?entryId=abababab-abab-4aba-8aba-abababababab",
       recordLabel: "Petty cash row",
+      target: {
+        actionLabel: "Open Petty Cash row",
+        focusMode: "exact",
+      },
       tone: "accent",
     });
   });
@@ -367,7 +393,7 @@ describe("toRecentChange", () => {
       }),
     ).toMatchObject({
       entityLabel: "Lease",
-      href: "/leases?archiveState=all&leaseId=77777777-7777-4777-8777-777777777777&query=John+Smith",
+      href: "/leases?archiveState=all&leaseId=77777777-7777-4777-8777-777777777777",
       recordLabel: "John Smith",
     });
   });
@@ -408,7 +434,7 @@ describe("toRecentChange", () => {
       }),
     ).toMatchObject({
       entityLabel: "Document",
-      href: "/documents?archiveState=all&documentId=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb&query=signed+lease.pdf",
+      href: "/documents?archiveState=all&documentId=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       recordLabel: "signed lease.pdf",
     });
   });
@@ -449,7 +475,7 @@ describe("toRecentChange", () => {
         },
       ],
       entityLabel: "Document",
-      href: "/documents?archiveState=all&documentId=bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc&query=renewed+lease.pdf",
+      href: "/documents?archiveState=all&documentId=bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc",
       recordLabel: "renewed lease.pdf",
     });
   });
@@ -470,7 +496,7 @@ describe("toRecentChange", () => {
     ).toMatchObject({
       actionLabel: "Archived",
       entityLabel: "Maintenance",
-      href: "/maintenance?archiveState=all&query=Fix+AC+leak&taskId=cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      href: "/maintenance?archiveState=all&taskId=cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       recordLabel: "Fix AC leak",
       tone: "warning",
     });
@@ -539,5 +565,24 @@ describe("toRecentChange", () => {
         field: "Status",
       },
     ]);
+  });
+
+  it("keeps unknown activity detail without a misleading Timeline search", () => {
+    const change = toRecentChange({
+      action: "updated",
+      created_at: "2026-07-23T12:00:00.000Z",
+      entity_id: "12121212-1212-4121-8121-121212121212",
+      entity_type: "unsupported_source",
+      id: "log-unsupported",
+      new_values: { title: "Retained audit detail" },
+      previous_values: null,
+    });
+
+    expect(change.href).toBeUndefined();
+    expect(change.target).toMatchObject({
+      actionLabel: "Source unavailable",
+      focusMode: "unavailable",
+      recordLabel: "Retained audit detail",
+    });
   });
 });

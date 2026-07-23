@@ -1,4 +1,7 @@
-import { toRecentChange } from "@/features/activity/recent-changes";
+import {
+  resolveRecentChangeTargets,
+  type ActivityTargetQueryClient,
+} from "@/features/activity/recent-change-targets";
 import type {
   OverviewAttentionItem,
   OverviewLedgerPoint,
@@ -561,6 +564,11 @@ export async function getOverviewScreenData(
       portfolioPerformance.summary.statementReadiness.blockedPropertyCount,
     vacantUnits,
   });
+  const recentChanges = await resolveRecentChangeTargets({
+    logs: recentActivityResult.data ?? [],
+    organizationId,
+    supabase: supabase as unknown as ActivityTargetQueryClient,
+  });
 
   return {
     attentionItems,
@@ -626,7 +634,7 @@ export async function getOverviewScreenData(
       { href: "/timeline?action=create", label: "Add event" },
       { href: "/ledger?action=create", label: "Add ledger entry" },
     ],
-    recentChanges: (recentActivityResult.data ?? []).map(toRecentChange),
+    recentChanges,
     workspaceSetup: {
       activeLeaseCount: currentLeases.length,
       hasAnyOperatingData:

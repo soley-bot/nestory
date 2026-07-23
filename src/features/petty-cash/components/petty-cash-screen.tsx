@@ -84,6 +84,8 @@ type PettyCashScreenProps = {
   accounts: PettyCashAccount[];
   counterpartyOptions: PersonSelectOption[];
   entries: PettyCashEntry[];
+  focusedEntryId?: string;
+  focusState?: "available" | "none" | "unavailable";
   period: PettyCashPeriod | null;
   propertyOptions: PettyCashPropertyOption[];
   schemaStatus?: PettyCashSchemaStatus;
@@ -97,6 +99,8 @@ export function PettyCashScreen({
   accounts,
   counterpartyOptions,
   entries,
+  focusedEntryId,
+  focusState = focusedEntryId ? "available" : "none",
   period,
   propertyOptions,
   schemaStatus = { isReady: true },
@@ -106,12 +110,23 @@ export function PettyCashScreen({
   unitOptions,
 }: PettyCashScreenProps) {
   const router = useRouter();
+  const hasFocusedEntry = focusState !== "none" && Boolean(focusedEntryId);
+  const focusedEntry =
+    focusState === "available"
+      ? entries.find((entry) => entry.id === focusedEntryId) ?? null
+      : null;
   const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
-  const [selectedEntryId, setSelectedEntryId] = useState(entries[0]?.id ?? "");
-  const [compactInspectorOpen, setCompactInspectorOpen] = useState(false);
+  const [selectedEntryId, setSelectedEntryId] = useState(
+    focusedEntry?.id ?? (hasFocusedEntry ? "" : entries[0]?.id) ?? "",
+  );
+  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
+    Boolean(focusedEntry),
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedEntry =
-    entries.find((entry) => entry.id === selectedEntryId) ?? entries[0] ?? null;
+    entries.find((entry) => entry.id === selectedEntryId) ??
+    (hasFocusedEntry ? null : entries[0]) ??
+    null;
   const canAddEntry =
     selectedAccount?.status === "active" && period?.status === "open";
 
@@ -224,6 +239,16 @@ export function PettyCashScreen({
         </div>
       ) : null}
 
+      {hasFocusedEntry ? (
+        <FocusedRecordContext
+          clearHref={buildHref("/petty-cash", {
+            accountId: selectedAccount?.id,
+          })}
+          isArchived={Boolean(focusedEntry?.archivedAt)}
+          isAvailable={Boolean(focusedEntry)}
+        />
+      ) : null}
+
       <div className="flex min-h-0 flex-1 flex-col">
         <PettyCashSummaryStrip
           account={selectedAccount}
@@ -240,7 +265,7 @@ export function PettyCashScreen({
             {cashInspector && registerList ? (
               <WorkspaceSplitView
                 inspector={cashInspector}
-                inspectorLabel={`${selectedEntry.category} cash quick view`}
+                inspectorLabel={`${selectedEntry?.category ?? "Petty cash"} cash quick view`}
                 inspectorOpen={compactInspectorOpen}
                 list={registerList}
                 onInspectorOpenChange={setCompactInspectorOpen}
@@ -320,6 +345,40 @@ export function PettyCashScreen({
       ) : null}
       </div>
     </WorkspacePage>
+  );
+}
+
+function FocusedRecordContext({
+  clearHref,
+  isArchived,
+  isAvailable,
+}: {
+  clearHref: string;
+  isArchived: boolean;
+  isAvailable: boolean;
+}) {
+  return (
+    <section className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-muted/45 px-4 py-2 sm:px-6">
+      <div>
+        <p className="text-sm font-medium">
+          {isAvailable ? "Focused from activity history" : "Source record unavailable"}
+        </p>
+        <p className="text-xs text-muted">
+          {isAvailable
+            ? isArchived
+              ? "Archived source record"
+              : "The exact Petty Cash row is open for review."
+            : "The record does not exist or you no longer have access."}
+        </p>
+      </div>
+      <Link
+        aria-label="Clear focused record"
+        className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium hover:bg-surface-muted"
+        href={clearHref}
+      >
+        Clear focus
+      </Link>
+    </section>
   );
 }
 
@@ -574,12 +633,14 @@ function PettyCashInspector({
   }
 
   const canPost =
+    !entry.archivedAt &&
     account.status === "active" &&
     entry.entryKind === "expense" &&
     entry.status !== "posted" &&
     entry.status !== "void" &&
     period.status !== "closed";
   const canCorrect =
+    !entry.archivedAt &&
     account.status === "active" &&
     (entry.status === "draft" || entry.status === "cleared") &&
     !entry.ledgerEntryId &&

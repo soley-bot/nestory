@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { RecentChange } from "@/features/activity/activity.types";
 import { formatDate } from "@/lib/dates/format";
@@ -7,6 +9,18 @@ type ActivityDetailPanelProps = {
 };
 
 export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
+  const target =
+    change.target ??
+    (change.href
+      ? {
+          actionLabel: `Open ${change.entityLabel}`,
+          entityLabel: change.entityLabel,
+          focusMode: "module" as const,
+          href: change.href,
+          recordLabel: change.recordLabel,
+        }
+      : undefined);
+
   return (
     <div className="space-y-5 px-4 py-5 sm:px-5">
       <div className="rounded-md border border-border bg-surface-muted p-4">
@@ -20,6 +34,30 @@ export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
           {change.entityLabel} - {formatDate(change.createdAt)}
         </p>
       </div>
+
+      <section
+        aria-label="Source record"
+        className="rounded-md border border-border px-3 py-3"
+      >
+        {target?.href ? (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted">
+              Opens the operational record that produced this audit entry.
+            </p>
+            <Link
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-accent transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href={target.href}
+            >
+              {target.actionLabel}
+              <ExternalLink aria-hidden="true" size={14} />
+            </Link>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">
+            Source record is unavailable or you no longer have access.
+          </p>
+        )}
+      </section>
 
       {change.details.length === 0 ? (
         <p className="rounded-md border border-border px-3 py-3 text-sm text-muted">

@@ -10,7 +10,9 @@ describe("parseBillsExpensesSearchParams", () => {
     expect(
       parseBillsExpensesSearchParams(
         {
+          archiveState: "all",
           dateBasis: "paid",
+          expenseItemId: "11111111-1111-4111-8111-111111111111",
           month: "2026-07",
           expenseType: "maintenance",
           page: "3",
@@ -23,7 +25,9 @@ describe("parseBillsExpensesSearchParams", () => {
         new Date("2026-01-15T00:00:00.000Z"),
       ),
     ).toEqual({
+      archiveState: "all",
       dateBasis: "paid",
+      expenseItemId: "11111111-1111-4111-8111-111111111111",
       expenseType: "maintenance",
       month: "2026-07",
       page: 3,
@@ -47,7 +51,9 @@ describe("parseBillsExpensesSearchParams", () => {
         new Date("2026-07-06T00:00:00.000Z"),
       ),
     ).toMatchObject({
+      archiveState: "active",
       dateBasis: "invoice",
+      expenseItemId: "all",
       expenseType: "all",
       month: "2026-07",
       page: 1,

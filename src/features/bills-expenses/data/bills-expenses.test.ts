@@ -7,6 +7,80 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 describe("getBillsExpensesScreenData", () => {
+  it("loads one archived focused expense without applying list date or status filters", async () => {
+    queryFilters.length = 0;
+    queryDateFilters.length = 0;
+    const expenseItemId = "11111111-1111-4111-8111-111111111111";
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        finance_expense_items: [
+          { count: 1, data: [] },
+          {
+            data: [
+              {
+                amount: 200,
+                archived_at: "2026-07-20T00:00:00.000Z",
+                category: "Repair",
+                company_loss_amount: 0,
+                currency: "USD",
+                description: null,
+                due_date: "2026-05-31",
+                economic_scope: "property_expense",
+                expense_type: "maintenance",
+                id: expenseItemId,
+                invoice_date: "2026-05-01",
+                ledger_entry_id: null,
+                organization_id: "org-1",
+                owner_bill_status: "not_billable",
+                owner_reimbursable_amount: 0,
+                owner_reimbursed_amount: 0,
+                paid_date: null,
+                property_id: "property-1",
+                reference: "INV-HISTORY",
+                status: "approved",
+                unit_id: null,
+                vendor_label: "Historical vendor",
+                vendor_person_id: null,
+              },
+            ],
+          },
+        ],
+        finance_payment_allocations: [{ data: [] }],
+        people: [{ data: [] }],
+        properties: [
+          {
+            data: [{ code: "HOME", id: "property-1", name: "Home" }],
+          },
+        ],
+        units: [{ data: [] }],
+      }),
+    );
+
+    const result = await getBillsExpensesScreenData("org-1", {
+      archiveState: "all",
+      dateBasis: "paid",
+      expenseItemId,
+      expenseType: "utilities",
+      month: "2026-07",
+      page: 1,
+      pageSize: 25,
+      propertyId: "all",
+      query: "",
+      status: "paid",
+      unitId: "all",
+    });
+
+    expect(result.expenseItems).toHaveLength(1);
+    expect(result.expenseItems[0]).toMatchObject({
+      archivedAt: "2026-07-20T00:00:00.000Z",
+      id: expenseItemId,
+    });
+    expect(queryFilters).toContainEqual(["id", expenseItemId]);
+    expect(queryFilters).toContainEqual(["organization_id", "org-1"]);
+    expect(queryFilters).not.toContainEqual(["status", "paid"]);
+    expect(queryDateFilters).toEqual([]);
+  });
+
   it("derives the remaining payment from existing settlement allocations", async () => {
     queryDateFilters.length = 0;
     vi.mocked(createSupabaseServerClient).mockResolvedValue(
@@ -65,7 +139,9 @@ describe("getBillsExpensesScreenData", () => {
     );
 
     const result = await getBillsExpensesScreenData("org-1", {
+      archiveState: "active",
       dateBasis: "invoice",
+      expenseItemId: "all",
       expenseType: "maintenance",
       month: "2026-07",
       page: 1,
@@ -94,7 +170,7 @@ describe("getBillsExpensesScreenData", () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase);
 
     const result = await getBillsExpensesScreenData("org-1", {
-      dateBasis: "paid", expenseType: "maintenance", month: "2026-07", page: 1,
+      archiveState: "active", dateBasis: "paid", expenseItemId: "all", expenseType: "maintenance", month: "2026-07", page: 1,
       pageSize: 25, propertyId: "property-1", query: "", status: "paid", unitId: "all",
     });
 
@@ -109,7 +185,7 @@ describe("getBillsExpensesScreenData", () => {
     const event = { expense, payment_id: "payment-1", paid_date: "2026-07-10", allocation_amount: 50, payment_reference: "PAY-1", reversal_of_id: null, total_count: 1, scoped_amount: 50 };
     const supabase = createSupabaseStub({ people: [{ data: [] }], properties: [{ data: [{ code: "HOME", id: "property-1", name: "Home" }] }], units: [{ data: [] }] }, { get_finance_payment_drilldown: [{ data: [] }, { data: [event] }, { data: [event] }] });
     vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase);
-    const result = await getBillsExpensesScreenData("org-1", { dateBasis: "paid", expenseType: "all", month: "2026-07", page: 9, pageSize: 25, propertyId: "all", query: "", status: "paid", unitId: "all" });
+    const result = await getBillsExpensesScreenData("org-1", { archiveState: "active", dateBasis: "paid", expenseItemId: "all", expenseType: "all", month: "2026-07", page: 9, pageSize: 25, propertyId: "all", query: "", status: "paid", unitId: "all" });
     expect(result.pagination).toMatchObject({ page: 1, totalCount: 1 });
     expect(result.expenseItems).toHaveLength(1);
     expect(result.summary.postedTotal).toEqual({ primary: "USD 50.00" });

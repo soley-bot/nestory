@@ -22,7 +22,10 @@ export function parseBillsExpensesSearchParams(
   currentDate = new Date(),
 ): BillsExpensesViewQuery {
   return {
+    archiveState:
+      getFirstSearchParam(params.archiveState) === "all" ? "all" : "active",
     dateBasis: getFirstSearchParam(params.dateBasis) === "paid" ? "paid" : "invoice",
+    expenseItemId: getUuidOrAllSearchParam(params.expenseItemId),
     expenseType: parseExpenseType(params.expenseType),
     month: parseMonth(params.month, currentDate),
     page: getPositiveIntegerSearchParam(params.page, 1),
