@@ -395,7 +395,7 @@ async function deliverInvitation(email: string, invitationId: string) {
 
 function isExistingAuthUserError(error: { code?: string; message: string }) {
   if (error.code) {
-    return error.code === "user_already_exists";
+    return error.code === "email_exists" || error.code === "user_already_exists";
   }
 
   const normalized = error.message.toLowerCase();

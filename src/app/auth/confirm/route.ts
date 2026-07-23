@@ -1,6 +1,6 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest } from "next/server";
-import { createSupabaseServerClient } from "@/lib/db/server";
+import { createSupabaseAuthRouteClient } from "@/lib/db/auth-route";
 import {
   authRedirectResponse,
   safeAuthNextPath,
@@ -19,20 +19,19 @@ export async function GET(request: NextRequest) {
     return authRedirectResponse(request, "/login");
   }
 
-  const supabase = await createSupabaseServerClient();
+  const response = authRedirectResponse(
+    request,
+    safeAuthNextPath(request.nextUrl.searchParams.get("next")),
+  );
+  const supabase = createSupabaseAuthRouteClient(request, response);
   const { data, error } = await supabase.auth.verifyOtp({
     token_hash: tokenHash,
     type,
   });
 
   if (error || !data.user) {
-    return authRedirectResponse(request, "/login");
+    return authRedirectResponse(request, "/login", response);
   }
-
-  const response = authRedirectResponse(
-    request,
-    safeAuthNextPath(request.nextUrl.searchParams.get("next")),
-  );
 
   if (type === "recovery") {
     response.cookies.set(

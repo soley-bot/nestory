@@ -129,6 +129,18 @@ export async function acceptInvitationAction(
     newPassword = parsedPassword.data.password;
   }
 
+  if (newPassword) {
+    const { error: passwordError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (passwordError) {
+      return {
+        message: "The password could not be created. Try again or request a new invitation.",
+        status: "error",
+      };
+    }
+  }
+
   const { error: acceptanceError } = await supabase.rpc(
     "accept_organization_invitation",
     { p_invitation_id: parsedInvitationId.data },
@@ -138,18 +150,6 @@ export async function acceptInvitationAction(
       message: "The invitation could not be accepted. Ask an administrator to resend it.",
       status: "error",
     };
-  }
-
-  if (newPassword) {
-    const { error: passwordError } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-    if (passwordError) {
-      return {
-        message: "Access was granted, but the password could not be set. Use password recovery to sign in.",
-        status: "error",
-      };
-    }
   }
 
   redirect(WORKSPACE_ENTRY_PATH);

@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(32);
+SELECT plan(39);
 
 SELECT has_table('public', 'organization_invitations', 'invitation domain exists');
 SELECT has_function(
@@ -106,7 +106,7 @@ VALUES
   'authenticated',
   'authenticated',
   'invitee@example.com',
-  extensions.crypt('123456789', extensions.gen_salt('bf')),
+  '',
   now(), '', '', '', '', '', '',
   '{"provider":"email","providers":["email"]}'::jsonb,
   '{}'::jsonb,
@@ -229,6 +229,86 @@ SELECT is(
   'only one active invitation exists per organization and email'
 );
 
+SELECT public.mark_organization_invitation_sent(
+  (SELECT invitation_id FROM invitation_test_state),
+  NULL,
+  'magic_link'
+);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT invitation_id FROM invitation_test_state)
+    )
+  ),
+  true,
+  'a confirmed passwordless Auth identity still requires password setup after resend switches delivery to magic link'
+);
+SELECT throws_ok(
+  format(
+    'SELECT public.accept_organization_invitation(%L)',
+    (SELECT invitation_id FROM invitation_test_state)
+  ),
+  '55000',
+  'Password setup is required',
+  'direct acceptance rejects a confirmed identity with an empty password hash'
+);
+UPDATE auth.users
+SET encrypted_password = NULL
+WHERE id = '00000000-0000-0000-0000-000000000701';
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT invitation_id FROM invitation_test_state)
+    )
+  ),
+  true,
+  'a null Auth password hash requires password setup regardless of invitation delivery method'
+);
+SELECT throws_ok(
+  format(
+    'SELECT public.accept_organization_invitation(%L)',
+    (SELECT invitation_id FROM invitation_test_state)
+  ),
+  '55000',
+  'Password setup is required',
+  'direct acceptance rejects a confirmed identity with a null password hash'
+);
+SELECT is(
+  (
+    SELECT status
+    FROM public.organization_invitations
+    WHERE id = (SELECT invitation_id FROM invitation_test_state)
+  ),
+  'pending',
+  'passwordless acceptance attempts leave the invitation pending'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM public.organization_members
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND user_id = '00000000-0000-0000-0000-000000000701'
+  ),
+  0::bigint,
+  'passwordless acceptance attempts do not create membership'
+);
+UPDATE auth.users
+SET encrypted_password = extensions.crypt('123456789', extensions.gen_salt('bf'))
+WHERE id = '00000000-0000-0000-0000-000000000701';
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT invitation_id FROM invitation_test_state)
+    )
+  ),
+  false,
+  'an existing password identity skips password setup even when the invitation was resent by magic link'
+);
+
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000703', true);
 SELECT throws_ok(
   format(
@@ -256,7 +336,7 @@ UPDATE invitation_test_state
 SET member_id = public.accept_organization_invitation(invitation_id);
 SELECT ok(
   (SELECT member_id IS NOT NULL FROM invitation_test_state),
-  'matching verified email accepts the invitation'
+  'matching verified email accepts the invitation after password setup'
 );
 SELECT is(
   (SELECT status FROM public.organization_invitations WHERE id = (SELECT invitation_id FROM invitation_test_state)),

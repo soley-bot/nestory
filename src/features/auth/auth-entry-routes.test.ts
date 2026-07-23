@@ -3,9 +3,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { exchangeCodeForSession, verifyOtp } = vi.hoisted(() => ({
-  exchangeCodeForSession: vi.fn(),
-  verifyOtp: vi.fn(),
+const { createSupabaseAuthRouteClient } = vi.hoisted(() => ({
+  createSupabaseAuthRouteClient: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/recovery-marker", () => ({
@@ -14,10 +13,8 @@ vi.mock("@/lib/auth/recovery-marker", () => ({
   RECOVERY_MARKER_MAX_AGE_SECONDS: 600,
 }));
 
-vi.mock("@/lib/db/server", () => ({
-  createSupabaseServerClient: () => ({
-    auth: { exchangeCodeForSession, verifyOtp },
-  }),
+vi.mock("@/lib/db/auth-route", () => ({
+  createSupabaseAuthRouteClient,
 }));
 
 import { GET as callbackGet } from "@/app/auth/callback/route";
@@ -25,16 +22,22 @@ import { GET as confirmGet } from "@/app/auth/confirm/route";
 
 describe("successful auth entry routes", () => {
   beforeEach(() => {
-    exchangeCodeForSession.mockReset();
-    verifyOtp.mockReset();
+    createSupabaseAuthRouteClient.mockReset();
+    createSupabaseAuthRouteClient.mockImplementation((_request, response) => ({
+      auth: {
+        exchangeCodeForSession: async (code: string) => {
+          response.cookies.set("sb-session", `code:${code}`);
+          return { data: { user: { id: "user-id" } }, error: null };
+        },
+        verifyOtp: async ({ token_hash, type }: { token_hash: string; type: string }) => {
+          response.cookies.set("sb-session", `${type}:${token_hash}`);
+          return { data: { user: { id: "user-id" } }, error: null };
+        },
+      },
+    }));
   });
 
   it("sends OAuth callback success through the workspace resolver", async () => {
-    exchangeCodeForSession.mockResolvedValue({
-      data: { user: { id: "user-1" } },
-      error: null,
-    });
-
     const response = await callbackGet(
       new NextRequest("http://localhost:3000/auth/callback?code=valid"),
     );
@@ -42,31 +45,69 @@ describe("successful auth entry routes", () => {
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/workspace",
     );
+    expect(response.cookies.get("sb-session")?.value).toBe("code:valid");
   });
 
   it("sends email confirmation success through the workspace resolver", async () => {
-    verifyOtp.mockResolvedValue({
-      data: { user: { id: "user-1" } },
-      error: null,
-    });
-
     const response = await confirmGet(
       new NextRequest(
-        "http://localhost:3000/auth/confirm?token_hash=valid&type=signup",
+        "http://localhost:3000/auth/confirm?token_hash=valid&type=magiclink",
       ),
     );
 
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/workspace",
     );
+    expect(response.cookies.get("sb-session")?.value).toBe("magiclink:valid");
+  });
+
+  it("preserves callback cookie mutations when code exchange fails", async () => {
+    createSupabaseAuthRouteClient.mockImplementationOnce((_request, response) => ({
+      auth: {
+        exchangeCodeForSession: async () => {
+          response.cookies.set("sb-session", "callback-error-cookie");
+          return { data: { user: null }, error: new Error("invalid code") };
+        },
+      },
+    }));
+
+    const response = await callbackGet(
+      new NextRequest("http://localhost:3000/auth/callback?code=invalid"),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/login",
+    );
+    expect(response.cookies.get("sb-session")?.value).toBe(
+      "callback-error-cookie",
+    );
+  });
+
+  it("preserves confirmation cookie mutations when OTP verification fails", async () => {
+    createSupabaseAuthRouteClient.mockImplementationOnce((_request, response) => ({
+      auth: {
+        verifyOtp: async () => {
+          response.cookies.set("sb-session", "confirm-error-cookie");
+          return { data: { user: null }, error: new Error("invalid token") };
+        },
+      },
+    }));
+
+    const response = await confirmGet(
+      new NextRequest(
+        "http://localhost:3000/auth/confirm?token_hash=invalid&type=magiclink",
+      ),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/login",
+    );
+    expect(response.cookies.get("sb-session")?.value).toBe(
+      "confirm-error-cookie",
+    );
   });
 
   it("preserves only an allowlisted recovery destination", async () => {
-    exchangeCodeForSession.mockResolvedValue({
-      data: { user: { id: "user-1" } },
-      error: null,
-    });
-
     const response = await callbackGet(
       new NextRequest(
         "http://localhost:3000/auth/callback?code=valid&next=%2Fupdate-password",
@@ -79,11 +120,6 @@ describe("successful auth entry routes", () => {
   });
 
   it("marks only a verified recovery-token response for password updates", async () => {
-    verifyOtp.mockResolvedValue({
-      data: { user: { id: "user-1" } },
-      error: null,
-    });
-
     const response = await confirmGet(
       new NextRequest(
         "http://localhost:3000/auth/confirm?token_hash=valid&type=recovery&next=%2Fupdate-password",
@@ -98,14 +134,10 @@ describe("successful auth entry routes", () => {
     );
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
     expect(response.headers.get("set-cookie")).toContain("Max-Age=600");
+    expect(response.cookies.get("sb-session")?.value).toBe("recovery:valid");
   });
 
   it("rejects external callback destinations", async () => {
-    exchangeCodeForSession.mockResolvedValue({
-      data: { user: { id: "user-1" } },
-      error: null,
-    });
-
     const response = await callbackGet(
       new NextRequest(
         "http://localhost:3000/auth/callback?code=valid&next=https%3A%2F%2Fevil.example",
@@ -118,11 +150,6 @@ describe("successful auth entry routes", () => {
   });
 
   it("preserves an invitation identifier after email verification", async () => {
-    verifyOtp.mockResolvedValue({
-      data: { user: { id: "user-1" } },
-      error: null,
-    });
-
     const response = await confirmGet(
       new NextRequest(
         "http://localhost:3000/auth/confirm?token_hash=valid&type=invite&next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111",
@@ -132,6 +159,7 @@ describe("successful auth entry routes", () => {
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/accept-invite?invitation=11111111-1111-4111-8111-111111111111",
     );
+    expect(response.cookies.get("sb-session")?.value).toBe("invite:valid");
   });
 });
 
