@@ -286,6 +286,74 @@ describe("RentIncomeScreen", () => {
     expect(scopedSummary.textContent).not.toContain("USD");
   });
 
+  it("opens an exact focused income record and clears only the focus contract", () => {
+    navigation.searchParams = new URLSearchParams(
+      "archiveState=all&incomeItemId=income-1&status=received",
+    );
+    renderIncome("all", [partialIncome], {
+      archiveState: "all",
+      incomeItemId: partialIncome.id,
+      status: "received",
+    });
+
+    expect(
+      screen.getByRole("dialog", { name: "Tenant income quick view" }),
+    ).not.toBeNull();
+    expect(screen.getByText("Focused from activity history")).not.toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: "Clear focused record" })
+        .getAttribute("href"),
+    ).toBe("/rent-income?status=received");
+  });
+
+  it.each([
+    ["partially received", partialIncome, "Record receipt"],
+    ["fully received", receivedIncome, "Post to ledger"],
+  ])(
+    "keeps archived focused %s income history read-only",
+    (_label, item, expectedMutation) => {
+      const archivedItem = {
+        ...item,
+        archivedAt: "2026-07-20T00:00:00.000Z",
+      } satisfies RentIncomeItem;
+      renderIncome("all", [archivedItem], {
+        archiveState: "all",
+        incomeItemId: archivedItem.id,
+      });
+
+      const inspector = screen.getByRole("dialog", {
+        name: "Tenant income quick view",
+      });
+      expect(
+        within(inspector).queryByRole("button", { name: expectedMutation }),
+      ).toBeNull();
+      expect(
+        within(inspector).queryByRole("button", { name: "Void" }),
+      ).toBeNull();
+      expect(within(inspector).getByRole("link", { name: "Home" })).not.toBeNull();
+      expect(
+        screen.getByRole("link", { name: "Clear focused record" }),
+      ).not.toBeNull();
+    },
+  );
+
+  it("shows unavailable focus without selecting the first income row", () => {
+    renderIncome("all", [partialIncome], {
+      archiveState: "all",
+      incomeItemId: "missing-income",
+    });
+
+    expect(screen.getByText("Source record unavailable")).not.toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      within(screen.getByRole("table"))
+        .getAllByRole("row")
+        .slice(1)
+        .some((row) => row.getAttribute("aria-selected") === "true"),
+    ).toBe(false);
+  });
+
   it("opens cash-basis owner statement context in the receipt month", () => {
     const lateReceipt = {
       ...receivedIncome,
@@ -322,6 +390,7 @@ describe("RentIncomeScreen", () => {
         }}
         unitOptions={[]}
         viewQuery={{
+          archiveState: "active",
           incomeGroup: "all",
           incomeType: "all",
           month: "2026-07",
@@ -373,7 +442,7 @@ function renderIncome(
   incomeItems: RentIncomeItem[] = [partialIncome],
   viewQuery: Partial<ComponentProps<typeof RentIncomeScreen>["viewQuery"]> = {},
 ) {
-  return render(<RentIncomeScreen incomeItems={incomeItems} leaseOptions={[]} pagination={{ from: incomeItems.length ? 1 : 0, page: 1, pageSize: 25, to: incomeItems.length, totalCount: incomeItems.length, totalPages: incomeItems.length ? 1 : 0 }} payerOptions={[]} propertyOptions={[{ id: "property-1", label: "HOME / Home" }]} summary={{ openCount: "1", overdueCount: "0", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" }, unpostedCount: "1" }} unitOptions={[]} viewQuery={{ incomeGroup, incomeType: "all", month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all", ...viewQuery }} />);
+  return render(<RentIncomeScreen incomeItems={incomeItems} leaseOptions={[]} pagination={{ from: incomeItems.length ? 1 : 0, page: 1, pageSize: 25, to: incomeItems.length, totalCount: incomeItems.length, totalPages: incomeItems.length ? 1 : 0 }} payerOptions={[]} propertyOptions={[{ id: "property-1", label: "HOME / Home" }]} summary={{ openCount: "1", overdueCount: "0", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" }, unpostedCount: "1" }} unitOptions={[]} viewQuery={{ archiveState: "active", incomeGroup, incomeType: "all", month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all", ...viewQuery }} />);
 }
 
 const partialIncome: RentIncomeItem = {

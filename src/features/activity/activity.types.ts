@@ -1,3 +1,5 @@
+import type { ActivityEntityTarget } from "@/features/activity/entity-target";
+
 export type RecentChangeTone = "neutral" | "success" | "warning" | "accent";
 
 export type ActivityChangeDetail = {
@@ -12,8 +14,9 @@ export type RecentChange = {
   createdAt: string;
   details: ActivityChangeDetail[];
   entityLabel: string;
-  href: string;
+  href?: string;
   id: string;
   recordLabel: string;
+  target?: ActivityEntityTarget;
   tone: RecentChangeTone;
 };

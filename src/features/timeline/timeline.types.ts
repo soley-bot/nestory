@@ -1,5 +1,6 @@
 import type { CurrencyCode } from "@/lib/money/format";
 import type { RecentChange } from "@/features/activity/activity.types";
+import type { ActivityEntityType } from "@/features/activity/entity-target";
 import type { LinkedDocument } from "@/features/documents/document.types";
 
 export type TimelineEventType =
@@ -20,6 +21,23 @@ export type TimelineRecordCounts = {
   documents: number;
   linkedRecords: number;
 };
+
+export type TimelineSourceReference =
+  | {
+      availability: "available";
+      entityId: string;
+      entityType: ActivityEntityType;
+      href: string;
+      isArchived: boolean;
+      label: string;
+      moduleLabel: string;
+    }
+  | {
+      availability: "unavailable";
+      entityType: ActivityEntityType;
+      label: string;
+      moduleLabel: string;
+    };
 
 export type TimelineRiskIndicator = {
   description: string;
@@ -72,6 +90,7 @@ export type TimelineEvent = {
   relatedLeaseId?: string;
   relatedLedgerEntry?: string;
   riskIndicators: TimelineRiskIndicator[];
+  sources: TimelineSourceReference[];
 };
 
 export type TimelinePropertyOption = {

@@ -952,16 +952,26 @@ function DocumentRow({ document }: { document: PropertyDocumentContext }) {
 }
 
 function ActivityRow({ change }: { change: RecentChange }) {
-  return (
+  const content = (
+    <>
+      <p className="break-words font-medium">{change.actionLabel}</p>
+      <p className="mt-1 text-xs text-muted">
+        {formatDate(change.createdAt)} / {change.recordLabel}
+      </p>
+    </>
+  );
+
+  return change.href ? (
     <Link
       className="block rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
       href={change.href}
       prefetch={false}
     >
-      <p className="break-words font-medium">{change.actionLabel}</p>
-      <p className="mt-1 text-xs text-muted">
-        {formatDate(change.createdAt)} / {change.recordLabel}
-      </p>
+      {content}
     </Link>
+  ) : (
+    <div className="rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm">
+      {content}
+    </div>
   );
 }

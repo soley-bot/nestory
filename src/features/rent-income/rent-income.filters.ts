@@ -24,6 +24,8 @@ export function parseRentIncomeSearchParams(
   currentDate = new Date(),
 ): RentIncomeViewQuery {
   return {
+    archiveState:
+      getFirstSearchParam(params.archiveState) === "all" ? "all" : "active",
     incomeItemId: getUuidOrAllSearchParam(params.incomeItemId),
     incomeGroup: parseIncomeGroup(params.incomeGroup, params.incomeScope),
     incomeType: parseIncomeType(params.incomeType),

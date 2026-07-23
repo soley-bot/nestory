@@ -39,6 +39,7 @@ export type RentIncomeGroup = "all" | "management-company";
 export type RentIncomeTypeFilter = "all" | RentIncomeType;
 
 export type RentIncomeViewQuery = {
+  archiveState: "active" | "all";
   incomeItemId?: string;
   incomeGroup: RentIncomeGroup;
   incomeType: RentIncomeTypeFilter;
@@ -88,6 +89,7 @@ export type RentIncomeReceipt = {
 };
 
 export type RentIncomeItem = {
+  archivedAt?: string;
   amountDue: number;
   amountDueDisplay: MoneyDisplayValue;
   amountReceived: number;

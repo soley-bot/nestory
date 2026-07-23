@@ -11,7 +11,9 @@ describe("parseRentIncomeSearchParams", () => {
     expect(
       parseRentIncomeSearchParams(
         {
+          archiveState: "all",
           incomeGroup: "management-company",
+          incomeItemId: "11111111-1111-4111-8111-111111111111",
           incomeType: "late_fee",
           month: "2026-07",
           page: "2",
@@ -24,8 +26,9 @@ describe("parseRentIncomeSearchParams", () => {
         new Date("2026-01-15T00:00:00.000Z"),
       ),
     ).toEqual({
+      archiveState: "all",
       incomeGroup: "management-company",
-      incomeItemId: "all",
+      incomeItemId: "11111111-1111-4111-8111-111111111111",
       incomeType: "late_fee",
       month: "2026-07",
       page: 2,
@@ -65,6 +68,8 @@ describe("parseRentIncomeSearchParams", () => {
       ),
     ).toMatchObject({
       incomeGroup: "all",
+      archiveState: "active",
+      incomeItemId: "all",
       incomeType: "all",
       month: "2026-07",
       page: 1,

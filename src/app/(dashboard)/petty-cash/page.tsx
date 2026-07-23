@@ -14,7 +14,10 @@ export default async function PettyCashPage({
   const params = await searchParams;
   const data = await getPettyCashScreenData(
     context.organizationId,
-    getUuidSearchParam(params.accountId),
+    {
+      focusedEntryId: getUuidSearchParam(params.entryId),
+      selectedAccountId: getUuidSearchParam(params.accountId),
+    },
   );
 
   return <PettyCashScreen {...data} />;

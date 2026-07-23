@@ -106,6 +106,61 @@ export function TimelineInspector({
           </div>
         </div>
 
+        {event.sources.length > 0 ? (
+          <section
+            aria-label="Source records"
+            className="rounded-md border border-border p-3"
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h3 className="font-semibold">Source records</h3>
+              <Badge>{event.sources.length}</Badge>
+            </div>
+            <div className="space-y-1.5">
+              {event.sources.map((source) =>
+                source.availability === "available" ? (
+                  <Link
+                    aria-label={`Open ${source.moduleLabel} source ${source.label}`}
+                    className="flex min-w-0 items-center justify-between gap-3 rounded border border-border px-2.5 py-2 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    href={source.href}
+                    key={`${source.entityType}:${source.entityId}`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-xs font-medium text-muted">
+                        {source.moduleLabel}
+                      </span>
+                      <span className="block truncate font-medium">
+                        {source.label}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {source.isArchived ? (
+                        <Badge tone="warning">Archived source</Badge>
+                      ) : null}
+                      <ExternalLink className="text-accent" size={13} />
+                    </span>
+                  </Link>
+                ) : (
+                  <div
+                    className="rounded border border-border bg-surface-muted/70 px-2.5 py-2"
+                    key={`${source.entityType}:unavailable`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-medium text-muted">
+                        {source.moduleLabel}
+                      </span>
+                      <Badge tone="neutral">Unavailable</Badge>
+                    </div>
+                    <p className="mt-1 font-medium">{source.label}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      Source record is unavailable or you no longer have access.
+                    </p>
+                  </div>
+                ),
+              )}
+            </div>
+          </section>
+        ) : null}
+
         <section aria-label="Attachments" className="rounded-md border border-border p-3">
           <div className="mb-2 flex items-center justify-between gap-3">
             <h3 className="font-semibold">Attachments</h3>

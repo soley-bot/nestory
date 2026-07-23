@@ -226,6 +226,54 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(screen.queryByRole("button", { name: "Void" })).toBeNull();
   });
 
+  it("opens the authoritative focused row and clears back to its account", () => {
+    renderPettyCash({ focusedEntryId: "cash-2" });
+
+    expect(
+      screen.getByRole("dialog", { name: "Supplies cash quick view" }),
+    ).not.toBeNull();
+    expect(screen.getByText("Focused from activity history")).not.toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: "Clear focused record" })
+        .getAttribute("href"),
+    ).toBe("/petty-cash?accountId=account-1");
+  });
+
+  it("keeps an archived focused petty cash row read-only", () => {
+    const archivedEntry = {
+      ...entries[0],
+      archivedAt: "2026-07-20T00:00:00.000Z",
+    } satisfies PettyCashEntry;
+    renderPettyCash({
+      entries: [archivedEntry],
+      focusedEntryId: archivedEntry.id,
+    });
+
+    const inspector = screen.getByRole("dialog", {
+      name: "Cleaning cash quick view",
+    });
+    for (const action of ["Post to ledger", "Edit", "Void"]) {
+      expect(
+        within(inspector).queryByRole("button", { name: action }),
+      ).toBeNull();
+    }
+    expect(within(inspector).getByRole("link", { name: "HOME" })).not.toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Clear focused record" }),
+    ).not.toBeNull();
+  });
+
+  it("keeps a missing focused row controlled without selecting the first row", () => {
+    renderPettyCash({
+      focusState: "unavailable",
+      focusedEntryId: "missing-entry",
+    });
+
+    expect(screen.getByText("Source record unavailable")).not.toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("links a prioritized Person or exposes one explicit external-party path", async () => {
     const user = userEvent.setup();
     const vendor = {
@@ -305,6 +353,8 @@ function renderPettyCash({
   period: nextPeriod = period,
   schemaStatus = { isReady: true },
   selectedAccount = account,
+  focusedEntryId,
+  focusState = focusedEntryId ? "available" : "none",
 }: {
   accounts?: PettyCashAccount[];
   counterpartyOptions?: PersonSelectOption[];
@@ -312,12 +362,16 @@ function renderPettyCash({
   period?: PettyCashPeriod | null;
   schemaStatus?: { isReady: boolean; message?: string };
   selectedAccount?: PettyCashAccount;
+  focusedEntryId?: string;
+  focusState?: "available" | "none" | "unavailable";
 } = {}) {
   return render(
     <PettyCashScreen
       accounts={accounts}
       counterpartyOptions={counterpartyOptions}
       entries={nextEntries}
+      focusedEntryId={focusedEntryId}
+      focusState={focusState}
       period={nextPeriod}
       propertyOptions={[{ id: "property-1", label: "HOME / Home" }]}
       schemaStatus={schemaStatus}

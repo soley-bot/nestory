@@ -350,6 +350,79 @@ describe("BillsExpensesScreen", () => {
 
     expect(screen.queryByRole("button", { name: "Record payment" })).toBeNull();
   });
+
+  it("opens an exact focused expense and preserves normal filters when clearing it", () => {
+    navigation.searchParams = new URLSearchParams(
+      "archiveState=all&expenseItemId=expense-1&status=approved",
+    );
+    renderScreen([partialExpense], "all", {
+      archiveState: "all",
+      expenseItemId: partialExpense.id,
+      status: "approved",
+    });
+
+    expect(
+      screen.getByRole("dialog", {
+        name: "Repair Vendor expense quick view",
+      }),
+    ).not.toBeNull();
+    expect(screen.getByText("Focused from activity history")).not.toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: "Clear focused record" })
+        .getAttribute("href"),
+    ).toBe("/bills-expenses?status=approved");
+  });
+
+  it.each([
+    [
+      "draft",
+      {
+        ...partialExpense,
+        nextAction: "Approve",
+        status: "draft",
+        statusLabel: "Draft",
+      } satisfies BillsExpenseItem,
+      "Approve",
+    ],
+    ["approved", partialExpense, "Record payment"],
+  ])(
+    "keeps archived focused %s expense history read-only",
+    (_label, item, expectedMutation) => {
+      const archivedItem = {
+        ...item,
+        archivedAt: "2026-07-20T00:00:00.000Z",
+      } satisfies BillsExpenseItem;
+      renderScreen([archivedItem], "all", {
+        archiveState: "all",
+        expenseItemId: archivedItem.id,
+      });
+
+      const inspector = screen.getByRole("dialog", {
+        name: "Repair Vendor expense quick view",
+      });
+      expect(
+        within(inspector).queryByRole("button", { name: expectedMutation }),
+      ).toBeNull();
+      expect(
+        within(inspector).queryByRole("button", { name: "Void" }),
+      ).toBeNull();
+      expect(within(inspector).getByRole("link", { name: "Home" })).not.toBeNull();
+      expect(
+        screen.getByRole("link", { name: "Clear focused record" }),
+      ).not.toBeNull();
+    },
+  );
+
+  it("does not fall back to the first expense for unavailable focus", () => {
+    renderScreen([partialExpense], "all", {
+      archiveState: "all",
+      expenseItemId: "missing-expense",
+    });
+
+    expect(screen.getByText("Source record unavailable")).not.toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
 });
 
 const partialExpense = {
@@ -446,7 +519,9 @@ function renderScreen(
       unitOptions={[]}
       vendorOptions={[]}
     viewQuery={{
+      archiveState: "active",
       dateBasis: "invoice",
+      expenseItemId: "all",
       expenseType,
         month: "2026-07",
         page: 1,

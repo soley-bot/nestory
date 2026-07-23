@@ -37,6 +37,13 @@ describe("timeline scope helpers", () => {
       "finance_expense_item",
       "petty_cash_entry",
     ]);
+    expect(getRecentActivityEntityTypes("global")).toEqual(
+      expect.arrayContaining([
+        "finance_income_item",
+        "finance_expense_item",
+        "petty_cash_entry",
+      ]),
+    );
   });
 });
 

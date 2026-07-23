@@ -35,6 +35,7 @@ export type PettyCashPeriod = {
 };
 
 export type PettyCashEntry = {
+  archivedAt?: string;
   balanceAfter: number;
   category: string;
   clearDate?: string;
