@@ -27,6 +27,7 @@ describe("petty cash summary", () => {
       {
         balanceAfter: 290,
         category: "Advance",
+        companyLossAmount: 0,
         createdAt: "2026-07-01T00:00:00.000Z",
         currency: "USD",
         description: "Opening advance",

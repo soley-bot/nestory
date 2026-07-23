@@ -27,6 +27,8 @@ type PersonSelectProps = {
   context?: string;
   defaultValue?: string;
   disabled?: boolean;
+  externalDescription?: string;
+  externalLabel?: string;
   includeArchived?: boolean;
   name: string;
   onValueChange?: (value: string) => void;
@@ -49,6 +51,8 @@ export function PersonSelect({
   context,
   defaultValue = "",
   disabled = false,
+  externalDescription = "Use a manually entered payer snapshot",
+  externalLabel = "External payer",
   includeArchived = false,
   name,
   onValueChange,
@@ -83,9 +87,9 @@ export function PersonSelect({
           ...normalizedOptions,
           {
             archived: false,
-            description: "Use a manually entered payer snapshot",
+            description: externalDescription,
             id: externalValue,
-            label: "External payer",
+            label: externalLabel,
             roles: [] as PersonRoleValue[],
           },
         ]
@@ -100,15 +104,21 @@ export function PersonSelect({
         .toLocaleLowerCase()
         .includes(normalizedQuery),
     );
-  }, [allowExternal, normalizedOptions, query]);
+  }, [
+    allowExternal,
+    externalDescription,
+    externalLabel,
+    normalizedOptions,
+    query,
+  ]);
   const selectedOption =
     normalizedOptions.find((option) => option.id === selectedValue) ??
     (selectedValue === externalValue && allowExternal
       ? {
           archived: false,
-          description: "Use a manually entered payer snapshot",
+          description: externalDescription,
           id: externalValue,
-          label: "External payer",
+          label: externalLabel,
           roles: [] as PersonRoleValue[],
         }
       : null);

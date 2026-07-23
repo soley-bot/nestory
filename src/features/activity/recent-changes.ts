@@ -53,21 +53,29 @@ const actionLabels: Record<string, string> = {
   unlocked: "Period unlocked",
   updated: "Updated",
   updated_from_ledger: "Synced from ledger",
+  voided: "Voided",
 };
 
 const hiddenDetailFields = new Set([
+  "account_id",
+  "accounting_journal_entry_id",
   "actor_id",
   "archived_by",
   "created_by",
+  "custodian_person_id",
   "id",
   "checklist_item_id",
+  "counterparty_person_id",
   "organization_id",
+  "period_id",
   "updated_by",
+  "voided_by",
 ]);
 
 const fieldLabels: Record<string, string> = {
   account_id: "Cash account",
   amount: "Amount",
+  counterparty_person_id: "Counterparty",
   amount_due: "Amount due",
   amount_received: "Amount received",
   archived_at: "Archived",
@@ -120,6 +128,9 @@ const fieldLabels: Record<string, string> = {
   unit_number: "Unit number",
   updated_count: "Updated",
   vendor_label: "Vendor",
+  void_reason: "Void reason",
+  voided_at: "Voided at",
+  voided_by: "Voided by",
 };
 
 const referenceFields = new Set([

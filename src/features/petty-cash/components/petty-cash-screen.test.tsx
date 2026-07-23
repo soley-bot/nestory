@@ -10,6 +10,7 @@ import type {
   PettyCashPeriod,
   PettyCashSummary,
 } from "@/features/petty-cash/petty-cash.types";
+import type { PersonSelectOption } from "@/features/people/person-select";
 
 const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
 
@@ -151,6 +152,117 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(blockedState.getAttribute("data-kind")).toBe("permission");
     expect(screen.queryByRole("button", { name: "Add account" })).toBeNull();
   });
+
+  it("searches account number, name, and custodian while keeping selection URL-backed", async () => {
+    const user = userEvent.setup();
+    const fieldAccount = {
+      ...account,
+      accountNumber: "PM-FIELD-02",
+      custodianName: "Mina Ops",
+      id: "account-2",
+      name: "Field cash",
+    };
+    renderPettyCash({ accounts: [account, fieldAccount] });
+
+    await user.click(
+      screen.getByRole("button", { name: "Petty cash account" }),
+    );
+    const search = screen.getByRole("combobox", {
+      name: "Search Petty cash account",
+    });
+    await user.type(search, "Mina");
+    expect(screen.getByRole("option", { name: /PM-FIELD-02/ })).not.toBeNull();
+    await user.keyboard("{Enter}");
+
+    expect(navigation.replace).toHaveBeenCalledWith(
+      "/petty-cash?accountId=account-2",
+    );
+  });
+
+  it("uses one shared correction surface and keeps voiding explicit", async () => {
+    const user = userEvent.setup();
+    renderPettyCash();
+
+    await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(
+      screen.getByRole("dialog", { name: "Edit petty cash row" }),
+    ).not.toBeNull();
+    expect(
+      (document.querySelector('input[name="entryId"]') as HTMLInputElement).value,
+    ).toBe("cash-1");
+    expect(
+      (document.querySelector('input[name="category"]') as HTMLInputElement).value,
+    ).toBe("Cleaning");
+
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
+    await user.click(screen.getByRole("button", { name: "Void" }));
+    expect(screen.getByRole("region", { name: "Void consequence" }).textContent).toContain(
+      "Zero after voiding",
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Void reason" }).getAttribute("required"),
+    ).not.toBeNull();
+  });
+
+  it("does not expose rollover or row mutations for an inactive account", async () => {
+    const user = userEvent.setup();
+    const inactiveAccount = {
+      ...account,
+      status: "inactive",
+    } satisfies PettyCashAccount;
+    renderPettyCash({
+      accounts: [inactiveAccount],
+      selectedAccount: inactiveAccount,
+    });
+
+    expect(screen.queryByRole("button", { name: "Open next month" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add cash row" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
+    expect(screen.queryByRole("button", { name: "Post to ledger" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Void" })).toBeNull();
+  });
+
+  it("links a prioritized Person or exposes one explicit external-party path", async () => {
+    const user = userEvent.setup();
+    const vendor = {
+      archived: false,
+      description: "Vendor / vendor@example.test",
+      id: "vendor-1",
+      label: "Acme Repairs",
+      roles: ["vendor"],
+    } satisfies PersonSelectOption;
+    renderPettyCash({ counterpartyOptions: [vendor] });
+
+    await user.click(screen.getByRole("button", { name: "Add cash row" }));
+    const counterparty = screen.getByRole("combobox", {
+      name: "Petty cash recipient",
+    });
+    await user.type(counterparty, "Acme");
+    await user.click(screen.getByRole("option", { name: /Acme Repairs/ }));
+    expect(
+      (
+        document.querySelector(
+          'input[name="counterpartyPersonId"]',
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("vendor-1");
+    expect(
+      (document.querySelector('input[name="counterpartyMode"]') as HTMLInputElement)
+        .value,
+    ).toBe("linked");
+
+    await user.click(counterparty);
+    await user.clear(counterparty);
+    await user.type(counterparty, "External party");
+    await user.click(screen.getByRole("option", { name: /External party/ }));
+    expect(
+      screen.getByRole("textbox", { name: "External party name" }),
+    ).not.toBeNull();
+  });
 });
 
 const account: PettyCashAccount = {
@@ -178,6 +290,7 @@ const summary: PettyCashSummary = {
   postedCount: "1",
   readyToPostCount: "1",
   receiptMissingCount: "0",
+  voidCount: "0",
 };
 
 const entries: PettyCashEntry[] = [
@@ -187,12 +300,14 @@ const entries: PettyCashEntry[] = [
 
 function renderPettyCash({
   accounts = [account],
+  counterpartyOptions = [],
   entries: nextEntries = entries,
   period: nextPeriod = period,
   schemaStatus = { isReady: true },
   selectedAccount = account,
 }: {
   accounts?: PettyCashAccount[];
+  counterpartyOptions?: PersonSelectOption[];
   entries?: PettyCashEntry[];
   period?: PettyCashPeriod | null;
   schemaStatus?: { isReady: boolean; message?: string };
@@ -201,12 +316,14 @@ function renderPettyCash({
   return render(
     <PettyCashScreen
       accounts={accounts}
+      counterpartyOptions={counterpartyOptions}
       entries={nextEntries}
       period={nextPeriod}
       propertyOptions={[{ id: "property-1", label: "HOME / Home" }]}
       schemaStatus={schemaStatus}
       selectedAccount={selectedAccount}
       summary={summary}
+      staffOptions={[]}
       unitOptions={[]}
     />,
   );
@@ -223,6 +340,7 @@ function makeEntry(
     balanceAfter,
     category,
     clearDate: "2026-07-10",
+    companyLossAmount: 0,
     createdAt: "2026-07-10T00:00:00.000Z",
     currency: "USD",
     description: `${category} expense`,
