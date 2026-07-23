@@ -28,6 +28,11 @@ it.
 6. Confirm the invitation leaves the pending list and the account appears under
    active members.
 
+Administrators assign workspace access but never passwords. New identities
+create their own password after entering through a verified invitation. Existing
+identities retain their current password and review the invitation through a
+magic link before accepting access.
+
 Use **Resend** after correcting an email-delivery problem. Resend refreshes the
 expiry and delivery state on the same active invitation. Use **Revoke** when
 the access offer is no longer valid.
@@ -100,7 +105,11 @@ Dashboard:
   SMTP host, port, username, and secret/password. Do not commit credentials.
 - Apply the branded invite, magic-link, and recovery templates under
   `supabase/templates/`, preserving `TokenHash`, `RedirectTo`, and the correct
-  Supabase verification type.
+  Supabase verification type. These repository templates are the source for
+  hosted Auth email content.
+- Treat `supabase config push` as a production configuration write. Before
+  running it, review the linked project, target ref, and local
+  `supabase/config.toml`.
 - Verify the provider's sender domain and review rate limits, bounce handling,
   and delivery logs.
 - Send one production invitation to a controlled new address and verify
