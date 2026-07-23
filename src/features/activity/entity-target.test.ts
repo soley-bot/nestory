@@ -164,8 +164,16 @@ describe("resolveActivityEntityTarget", () => {
     ["accounting_period", "Accounting", "/ledger"],
     ["organization", "Organization", "/settings?section=organization"],
     ["organization_branch", "Organization branch", "/settings?section=branches"],
-    ["organization_invitation", "Organization access", "/settings?section=teams"],
-    ["organization_membership", "Organization access", "/settings?section=teams"],
+    [
+      "organization_invitation",
+      "Organization access",
+      `/users-roles?invitationId=${id}`,
+    ],
+    [
+      "organization_membership",
+      "Organization access",
+      `/users-roles?memberId=${id}`,
+    ],
   ])("uses a safe module target for %s", (entityType, entityLabel, href) => {
     expect(
       resolveActivityEntityTarget({

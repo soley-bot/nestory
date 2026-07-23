@@ -224,7 +224,7 @@ export async function getPettyCashScreenData(
   const entries = selectedPeriod && selectedAccount
       ? await getPeriodEntries({
         currency: selectedAccount.currency,
-        includeArchived: Boolean(focusedEntryReference),
+        focusedEntry: focusedEntryReference,
         organizationId,
         period: selectedPeriod,
         propertiesById,
@@ -298,31 +298,28 @@ async function getSelectedPeriod(organizationId: string, accountId: string) {
 
 async function getPeriodEntries({
   currency,
-  includeArchived,
+  focusedEntry,
   organizationId,
   period,
   propertiesById,
   unitsById,
 }: {
   currency: CurrencyCode;
-  includeArchived: boolean;
+  focusedEntry: PettyCashEntryRow | null;
   organizationId: string;
   period: PettyCashPeriod;
   propertiesById: Map<string, PropertyRow>;
   unitsById: Map<string, UnitRow>;
 }) {
   const supabase = await createSupabaseServerClient();
-  let query = supabase
+  const query = supabase
     .from("petty_cash_entries")
     .select(
       "id, period_id, archived_at, property_id, unit_id, counterparty_person_id, ledger_entry_id, invoice_date, clear_date, entry_kind, status, category, supplier, description, receipt_reference, out_amount, in_amount, currency, economic_scope, owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount, remark, created_at, voided_at, voided_by, void_reason",
     )
     .eq("organization_id", organizationId)
-    .eq("period_id", period.id);
-
-  if (!includeArchived) {
-    query = query.is("archived_at", null);
-  }
+    .eq("period_id", period.id)
+    .is("archived_at", null);
 
   const result = await query
     .order("invoice_date", { ascending: true })
@@ -339,7 +336,16 @@ async function getPeriodEntries({
     );
   }
 
-  const rows = (result.data ?? []) as PettyCashEntryRow[];
+  const activeRows = (result.data ?? []) as PettyCashEntryRow[];
+  const archivedFocusedRow =
+    focusedEntry?.archived_at &&
+    focusedEntry.period_id === period.id &&
+    !activeRows.some((entry) => entry.id === focusedEntry.id)
+      ? focusedEntry
+      : null;
+  const rows = archivedFocusedRow
+    ? [...activeRows, archivedFocusedRow]
+    : activeRows;
   const counterpartyNames = await getPeopleNames({
     organizationId,
     personIds: [
@@ -464,7 +470,9 @@ async function getFocusedEntryReference({
 }) {
   const result = await supabase
     .from("petty_cash_entries")
-    .select("id, period_id, archived_at")
+    .select(
+      "id, period_id, archived_at, property_id, unit_id, counterparty_person_id, ledger_entry_id, invoice_date, clear_date, entry_kind, status, category, supplier, description, receipt_reference, out_amount, in_amount, currency, economic_scope, owner_bill_status, owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount, remark, created_at, voided_at, voided_by, void_reason",
+    )
     .eq("organization_id", organizationId)
     .eq("id", entryId)
     .maybeSingle();
@@ -474,10 +482,7 @@ async function getFocusedEntryReference({
     throw new Error(`Could not load focused petty cash entry: ${result.error.message}`);
   }
 
-  return result.data as Pick<
-    PettyCashEntryRow,
-    "archived_at" | "id" | "period_id"
-  > | null;
+  return result.data as PettyCashEntryRow | null;
 }
 
 async function getPeriodById({
