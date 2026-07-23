@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(32);
+SELECT plan(35);
 
 SELECT has_table('public', 'organization_invitations', 'invitation domain exists');
 SELECT has_function(
@@ -106,7 +106,7 @@ VALUES
   'authenticated',
   'authenticated',
   'invitee@example.com',
-  extensions.crypt('123456789', extensions.gen_salt('bf')),
+  '',
   now(), '', '', '', '', '', '',
   '{"provider":"email","providers":["email"]}'::jsonb,
   '{}'::jsonb,
@@ -227,6 +227,49 @@ SELECT is(
   (SELECT count(*) FROM public.organization_invitations WHERE organization_id = '00000000-0000-0000-0000-000000000001' AND email = 'invitee@example.com' AND status IN ('pending', 'send_failed')),
   1::bigint,
   'only one active invitation exists per organization and email'
+);
+
+SELECT public.mark_organization_invitation_sent(
+  (SELECT invitation_id FROM invitation_test_state),
+  NULL,
+  'magic_link'
+);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT invitation_id FROM invitation_test_state)
+    )
+  ),
+  true,
+  'a confirmed passwordless Auth identity still requires password setup after resend switches delivery to magic link'
+);
+UPDATE auth.users
+SET encrypted_password = NULL
+WHERE id = '00000000-0000-0000-0000-000000000701';
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT invitation_id FROM invitation_test_state)
+    )
+  ),
+  true,
+  'a null Auth password hash requires password setup regardless of invitation delivery method'
+);
+UPDATE auth.users
+SET encrypted_password = extensions.crypt('123456789', extensions.gen_salt('bf'))
+WHERE id = '00000000-0000-0000-0000-000000000701';
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT invitation_id FROM invitation_test_state)
+    )
+  ),
+  false,
+  'an existing password identity skips password setup even when the invitation was resent by magic link'
 );
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000703', true);

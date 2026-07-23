@@ -181,6 +181,67 @@ describe("organization invitation actions", () => {
     expect(result).toEqual({ message: "Invitation resent.", status: "success" });
   });
 
+  it.each(["email_exists", "user_already_exists"])(
+    "keeps an invite-created Auth user on password onboarding when resend returns %s",
+    async (errorCode) => {
+      rpc
+        .mockResolvedValueOnce({ data: invitationId, error: null })
+        .mockResolvedValueOnce({ data: invitationId, error: null })
+        .mockResolvedValueOnce({
+          data: [{ email: "invitee@example.com", invitation_id: invitationId }],
+          error: null,
+        })
+        .mockResolvedValueOnce({ data: invitationId, error: null });
+      adminInvite
+        .mockResolvedValueOnce({
+          data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: { user: null },
+          error: {
+            code: errorCode,
+            message: "A user with this email address has already been registered",
+          },
+        });
+      adminOtp.mockResolvedValue({ error: null });
+      const resendFormData = new FormData();
+      resendFormData.set("invitationId", invitationId);
+
+      const inviteResult = await inviteOrganizationUserAction({}, inviteForm());
+      const resendResult = await resendOrganizationInvitationAction(
+        {},
+        resendFormData,
+      );
+
+      expect(rpc.mock.calls[1]).toEqual([
+        "mark_organization_invitation_sent",
+        {
+          p_auth_user_id: "44444444-4444-4444-8444-444444444444",
+          p_delivery_method: "invite",
+          p_invitation_id: invitationId,
+        },
+      ]);
+      expect(adminOtp).toHaveBeenCalledWith({
+        email: "invitee@example.com",
+        options: expect.objectContaining({ shouldCreateUser: false }),
+      });
+      expect(rpc.mock.calls[3]).toEqual([
+        "mark_organization_invitation_sent",
+        {
+          p_auth_user_id: null,
+          p_delivery_method: "magic_link",
+          p_invitation_id: invitationId,
+        },
+      ]);
+      expect(inviteResult.status).toBe("success");
+      expect(resendResult).toEqual({
+        message: "Invitation resent.",
+        status: "success",
+      });
+    },
+  );
+
   it("returns bounded conflict guidance when an expired invitation cannot be reactivated", async () => {
     rpc.mockResolvedValueOnce({
       data: null,
