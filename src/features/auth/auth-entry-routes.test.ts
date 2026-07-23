@@ -61,6 +61,52 @@ describe("successful auth entry routes", () => {
     expect(response.cookies.get("sb-session")?.value).toBe("magiclink:valid");
   });
 
+  it("preserves callback cookie mutations when code exchange fails", async () => {
+    createSupabaseAuthRouteClient.mockImplementationOnce((_request, response) => ({
+      auth: {
+        exchangeCodeForSession: async () => {
+          response.cookies.set("sb-session", "callback-error-cookie");
+          return { data: { user: null }, error: new Error("invalid code") };
+        },
+      },
+    }));
+
+    const response = await callbackGet(
+      new NextRequest("http://localhost:3000/auth/callback?code=invalid"),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/login",
+    );
+    expect(response.cookies.get("sb-session")?.value).toBe(
+      "callback-error-cookie",
+    );
+  });
+
+  it("preserves confirmation cookie mutations when OTP verification fails", async () => {
+    createSupabaseAuthRouteClient.mockImplementationOnce((_request, response) => ({
+      auth: {
+        verifyOtp: async () => {
+          response.cookies.set("sb-session", "confirm-error-cookie");
+          return { data: { user: null }, error: new Error("invalid token") };
+        },
+      },
+    }));
+
+    const response = await confirmGet(
+      new NextRequest(
+        "http://localhost:3000/auth/confirm?token_hash=invalid&type=magiclink",
+      ),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/login",
+    );
+    expect(response.cookies.get("sb-session")?.value).toBe(
+      "confirm-error-cookie",
+    );
+  });
+
   it("preserves only an allowlisted recovery destination", async () => {
     const response = await callbackGet(
       new NextRequest(

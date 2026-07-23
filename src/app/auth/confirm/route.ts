@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (error || !data.user) {
-    return authRedirectResponse(request, "/login");
+    return authRedirectResponse(request, "/login", response);
   }
 
   if (type === "recovery") {

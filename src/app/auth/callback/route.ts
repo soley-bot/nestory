@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error || !data.user) {
-    return authRedirectResponse(request, "/login");
+    return authRedirectResponse(request, "/login", response);
   }
 
   return response;

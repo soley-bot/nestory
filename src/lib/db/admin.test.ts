@@ -26,7 +26,13 @@ describe("createSupabaseAdminClient", () => {
     expect(createClient).toHaveBeenCalledWith(
       "https://example.supabase.co",
       "sb_secret_example",
-      expect.any(Object),
+      {
+        auth: {
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          persistSession: false,
+        },
+      },
     );
   });
 });

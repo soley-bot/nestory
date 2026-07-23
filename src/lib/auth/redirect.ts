@@ -4,11 +4,17 @@ import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 export function authRedirectResponse(
   request: NextRequest,
   destination: string,
+  response?: NextResponse,
 ) {
   const url = request.nextUrl.clone();
   const target = new URL(destination, request.url);
   url.pathname = target.pathname;
   url.search = target.search;
+
+  if (response) {
+    response.headers.set("location", url.toString());
+    return response;
+  }
 
   return NextResponse.redirect(url);
 }
