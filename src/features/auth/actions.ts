@@ -94,7 +94,7 @@ export async function requestPasswordRecoveryAction(
 
   const supabase = await createSupabaseServerClient();
   await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: getAuthCallbackUrl("/auth/confirm", "/update-password"),
+    redirectTo: getAuthCallbackUrl("/auth/complete", "/update-password"),
   });
 
   return {

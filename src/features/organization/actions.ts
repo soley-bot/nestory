@@ -409,7 +409,7 @@ function isExistingAuthUserError(error: { code?: string; message: string }) {
 
 async function getInvitationConfirmUrl(invitationId: string) {
   return getAuthCallbackUrl(
-    "/auth/confirm",
+    "/auth/complete",
     `/accept-invite?invitation=${invitationId}`,
   );
 }

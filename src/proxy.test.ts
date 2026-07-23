@@ -60,4 +60,18 @@ describe("proxy", () => {
     expect(response.headers.get("location")).toBeNull();
     expect(response.status).toBe(200);
   });
+
+  it.each(["/auth/complete?next=%2Faccept-invite", "/auth/session"])(
+    "keeps the implicit email boundary public without a session: %s",
+    async (path) => {
+    getClaims.mockResolvedValue({ data: { claims: null }, error: null });
+
+    const response = await proxy(
+      new NextRequest(`http://localhost:3000${path}`),
+    );
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.status).toBe(200);
+    },
+  );
 });
