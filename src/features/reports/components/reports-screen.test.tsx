@@ -200,6 +200,72 @@ describe("Reports workspace", () => {
     expect(container.querySelector('[data-kind="filtered"]')).not.toBeNull();
     expect(container.querySelector('[data-kind="empty"]')).toBeNull();
   });
+
+  it("keeps People-specific scope, exports, record links, and next actions in the central builder", () => {
+    renderReportBuilder({
+      report: {
+        ...reportFixture(),
+        columns: [
+          { key: "readiness", label: "Readiness" },
+          { key: "next", label: "Next action" },
+        ],
+        exportFilenameBase: "people-staff-access",
+        kind: "people-readiness",
+        periodLabel: "Current directory snapshot",
+        rows: [
+          {
+            cells: {
+              next: "Grant workspace access",
+              readiness: "No workspace access",
+            },
+            href: "/people/person-1",
+            id: "person-1",
+            nextActionHref: "/users-roles?personId=person-1",
+            sourceCount: 2,
+            sourceLinks: [
+              {
+                href: "/people/person-1",
+                id: "person-1",
+                label: "Person One",
+                recordType: "person",
+              },
+            ],
+            sourceSummary: "2 linked sources",
+            title: "Person One",
+          },
+        ],
+        scopeLabel: "Staff Access",
+        title: "Staff Access",
+      },
+      viewQuery: reportQuery({
+        peopleArchiveState: "archived",
+        peopleView: "staff",
+        report: "people-readiness",
+      }),
+    });
+
+    expect(
+      screen.getByRole("combobox", { name: "Choose People readiness view" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Person One" }).getAttribute("href"),
+    ).toBe("/people/person-1");
+    expect(
+      screen
+        .getByRole("link", { name: "Grant workspace access" })
+        .getAttribute("href"),
+    ).toBe("/users-roles?personId=person-1");
+    expect(
+      screen.getByRole("link", { name: "Export CSV" }).getAttribute("href"),
+    ).toBe(
+      "/api/reports/export?report=people-readiness&archiveState=archived&peopleView=staff",
+    );
+    expect(
+      screen.getByRole("link", { name: "Export PDF" }).getAttribute("href"),
+    ).toBe(
+      "/api/reports/pdf?report=people-readiness&archiveState=archived&peopleView=staff",
+    );
+  });
 });
 
 describe("Owner Statement report workflow", () => {
@@ -315,6 +381,8 @@ function renderOwnerStatement(overrides: Partial<ReportsViewQuery> = {}) {
   const viewQuery: ReportsViewQuery = {
     month: "2026-07",
     ownerPersonId: "all",
+    peopleArchiveState: "active",
+    peopleView: "relationship",
     propertyId: "all",
     report: "owner-statement",
     status: "all",
@@ -467,6 +535,8 @@ function reportQuery(
   return {
     month: "2026-07",
     ownerPersonId: "all",
+    peopleArchiveState: "active",
+    peopleView: "relationship",
     propertyId: "all",
     report: "rent-roll",
     status: "all",

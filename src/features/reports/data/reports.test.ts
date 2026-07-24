@@ -72,6 +72,8 @@ function ownerStatementQuery(): ReportsViewQuery {
   return {
     month: "2026-07",
     ownerPersonId: "all",
+    peopleArchiveState: "active",
+    peopleView: "relationship",
     propertyId: "all",
     report: "owner-statement",
     status: "all",

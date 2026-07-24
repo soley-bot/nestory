@@ -3,7 +3,9 @@ import { relative, resolve, sep } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright";
 import {
+  collectSmokeFailures,
   createReadOnlyRequestPolicy,
+  getRouteResultFailures,
   validateLocalBaseUrl,
 } from "./smoke-ui-redesign-policy.mjs";
 
@@ -162,7 +164,7 @@ try {
 
   await writeFile(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
 
-  const failures = collectFailures(
+  const failures = collectSmokeFailures(
     results,
     roleAudits,
     blockedMutationRequests,
@@ -481,59 +483,6 @@ async function measurePrimaryActions(page) {
   });
 }
 
-function collectFailures(routeResults, accessAudits, blockedRequests) {
-  const failures = blockedRequests.map(
-    (request) =>
-      `blocked request: ${request.method} ${request.url} (${request.reason})`,
-  );
-
-  for (const result of routeResults) {
-    const prefix = `${result.viewport} ${result.route}`;
-
-    if (["navigation-error", "http-error"].includes(result.accessResult)) {
-      failures.push(`${prefix}: ${result.accessResult}`);
-    }
-    if (result.accessResult !== result.expectedAccess) {
-      failures.push(
-        `${prefix}: expected ${result.expectedAccess}, received ${result.accessResult}`,
-      );
-    }
-    if (result.consoleErrors.length > 0) {
-      failures.push(`${prefix}: ${result.consoleErrors.length} console error(s)`);
-    }
-    if (result.pageErrors.length > 0) {
-      failures.push(`${prefix}: ${result.pageErrors.length} page error(s)`);
-    }
-    if (result.horizontalOverflow.error || result.horizontalOverflow.hasOverflow) {
-      failures.push(`${prefix}: horizontal overflow check failed`);
-    }
-    if (result.primaryActions.error || result.primaryActions.reachable !== true) {
-      failures.push(`${prefix}: no reachable primary action`);
-    }
-    if (result.accessibility?.error) {
-      failures.push(`${prefix}: axe scan failed`);
-    }
-    if (result.accessibility?.violations.length > 0) {
-      failures.push(
-        `${prefix}: ${result.accessibility.violations.length} serious/critical axe violation(s)`,
-      );
-    }
-    if (result.queryVerified !== true) {
-      failures.push(`${prefix}: query or redirect contract failed`);
-    }
-  }
-
-  for (const audit of accessAudits) {
-    if (audit.accessResult !== audit.expectedAccess) {
-      failures.push(
-        `${audit.role} ${audit.manifestRoute}: expected ${audit.expectedAccess}, received ${audit.accessResult}`,
-      );
-    }
-  }
-
-  return failures;
-}
-
 async function measureHorizontalOverflow(page) {
   return page.evaluate(() => {
     const documentElement = document.documentElement;
@@ -718,6 +667,11 @@ function routeSlug(route) {
 }
 
 function renderEvidenceDocument(summary) {
+  const failureCount = collectSmokeFailures(
+    summary.results,
+    summary.roleAudits,
+    summary.blockedMutationRequests,
+  ).length;
   const lines = [
     "# UI Redesign Verification Evidence",
     "",
@@ -726,9 +680,9 @@ function renderEvidenceDocument(summary) {
     "",
     "## Verdict",
     "",
-    `- ${summary.results.length} admin route/viewport captures passed across desktop, compact desktop, and phone.`,
+    `- ${summary.results.length} admin route/viewport captures completed across desktop, compact desktop, and phone.`,
     `- ${summary.roleAudits.length} manager, member, and anonymous access checks matched the manifest.`,
-    "- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: 0.",
+    `- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: ${failureCount}.`,
     "- Local fixture evidence only; this is not hosted production certification.",
     "",
     "## Route matrix",
@@ -753,17 +707,7 @@ function renderEvidenceDocument(summary) {
         ]),
     );
     const viewportPass = adminResults.every(
-      (result) =>
-        result.accessResult === result.expectedAccess &&
-        result.queryVerified &&
-        !result.navigationError &&
-        result.consoleErrors.length === 0 &&
-        result.pageErrors.length === 0 &&
-        result.horizontalOverflow.hasOverflow === false &&
-        result.primaryActions.reachable === true &&
-        (!result.accessibility ||
-          (!result.accessibility.error &&
-            result.accessibility.violations.length === 0)),
+      (result) => getRouteResultFailures(result).length === 0,
     );
     const limitation = entry.smoke.limitations.join(" ") || "None";
 

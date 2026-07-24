@@ -5,7 +5,7 @@ import {
 } from "@/features/reports/data/owner-statement-report";
 import {
   formatLongReportDate,
-  slugifyReportPart,
+  getReportExportFilename,
 } from "@/features/reports/data/report-format";
 import type {
   OccupancyReport,
@@ -196,9 +196,7 @@ export async function getReportPdf(
 
   return {
     body: buildTrustedReportPdf({ organizationName, report }),
-    filename: `${report.exportFilenameBase}-${viewQuery.month}-${slugifyReportPart(
-      report.scopeLabel,
-    )}.pdf`,
+    filename: getReportExportFilename(report, viewQuery, "pdf"),
   };
 }
 

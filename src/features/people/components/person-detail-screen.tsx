@@ -32,7 +32,7 @@ import { PersonForm } from "@/features/people/components/person-form";
 import { WorkspaceAccessStatus } from "@/features/people/components/workspace-access-status";
 import { formatRole } from "@/features/people/people.labels";
 import {
-  getPeopleReportExportHref,
+  getPeopleReadinessExportHref,
   peopleReportOptions,
   type PeopleReportKind,
 } from "@/features/people/people.insights";
@@ -433,13 +433,13 @@ export function PersonDetailScreen({
                           <ExternalLink size={14} />
                         </ReportLink>
                         <ReportLink
-                          href={getPeopleReportExportHref(report.kind, "csv")}
+                          href={getPeopleReadinessExportHref(report.kind, "csv")}
                           label="CSV"
                         >
                           <Download size={14} />
                         </ReportLink>
                         <ReportLink
-                          href={getPeopleReportExportHref(report.kind, "pdf")}
+                          href={getPeopleReadinessExportHref(report.kind, "pdf")}
                           label="PDF"
                         >
                           <Download size={14} />

@@ -74,7 +74,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
               </div>
               <Link
                 className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
-                href="/people-reports"
+                href="/reports/people-readiness"
                 prefetch={false}
               >
                 <FileCheck2 aria-hidden="true" size={14} />

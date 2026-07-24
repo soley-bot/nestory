@@ -38,6 +38,23 @@ npm run supabase:stop
 Use Supabase checks when migrations, generated database types, RLS, RPCs,
 storage, seed data, or local database behavior changed.
 
+## Invitation Credential Verification
+
+PR #24 is integrated into the report-consolidation branch through `main`. A
+local invitation replay passed invitation acceptance, required password
+creation, logout, password login, and the Member workspace destination. This is
+local fixture evidence, not production invitation verification.
+
+Cross-domain verification must also distinguish implemented behavior from
+unsupported workflow assumptions:
+
+- Maintenance currently supports actual-cost capture and Admin direct ledger
+  linkage, not a prefilled bill or petty-cash handoff with reciprocal links,
+  duplicate prevention, or void recovery.
+- Petty cash currently derives rollover from the calculated close; it does not
+  capture a separate physical cash count or resolve a counted-versus-calculated
+  variance.
+
 Accounting changes must also prove that journals remain balanced, source
 posting is idempotent, locked periods reject new postings, reversals preserve
 the original journal, and active operational ledger rows retain journal links.

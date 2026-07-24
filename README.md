@@ -40,19 +40,19 @@ npm run test:ui-a11y
   `/units/[unitId]`, `/people/[personId]`
 - Properties and units: `/properties`, `/units`
 - People and leases: `/people`, `/owners`, `/staff`, `/tenants`, `/vendors`,
-  `/leases`, `/people-reports`
+  `/leases`
 - Finance: `/rent-income`, `/bills-expenses`, `/ledger`, `/petty-cash`
 - Maintenance: `/maintenance`, `/tasks`, `/recurring-tasks`, `/inspections`,
   `/work-orders`
 - Records: `/timeline`, `/financial-timeline`, `/maintenance-timeline`,
   `/property-timeline`, `/documents`, `/import`
-- Reports: `/reports`, `/reports/[reportKind]`
+- Reports: `/reports`, `/reports/[reportKind]`, including
+  `/reports/people-readiness`
 - Settings/Workspace Access: `/settings`, `/users-roles`, `/account`
 - Preserved legacy entries: `/property-dashboard`, `/finance-dashboard`,
   `/maintenance-dashboard`, `/payments`, `/invoices`, `/schedule`, `/team`
   redirect to their current workspaces while retaining incoming query values.
-- APIs: `/api/workspace-search`, `/api/reports/export`, `/api/reports/pdf`,
-  `/api/people-reports/export`, `/api/people-reports/pdf`
+- APIs: `/api/workspace-search`, `/api/reports/export`, `/api/reports/pdf`
 
 `config/ui-route-coverage.json` is the executable route inventory. The latest
 local redesign evidence is in `docs/verification/ui-redesign-evidence.md`.

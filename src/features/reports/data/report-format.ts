@@ -1,4 +1,8 @@
-import type { ReportPropertyOption } from "@/features/reports/reports.types";
+import type {
+  ReportPropertyOption,
+  ReportsViewQuery,
+  TrustedReport,
+} from "@/features/reports/reports.types";
 
 export function formatLongReportDate(value: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -38,4 +42,18 @@ export function slugifyReportPart(value: string) {
     .replace(/^-+|-+$/g, "");
 
   return slug || "report";
+}
+
+export function getReportExportFilename(
+  report: TrustedReport,
+  viewQuery: ReportsViewQuery,
+  extension: "csv" | "pdf",
+) {
+  if (report.kind === "people-readiness") {
+    return `${report.exportFilenameBase}-current-${viewQuery.peopleArchiveState}.${extension}`;
+  }
+
+  return `${report.exportFilenameBase}-${viewQuery.month}-${slugifyReportPart(
+    report.scopeLabel,
+  )}.${extension}`;
 }

@@ -74,6 +74,72 @@ export function createReadOnlyRequestPolicy({ baseUrl }) {
   };
 }
 
+export function collectSmokeFailures(
+  routeResults,
+  accessAudits,
+  blockedRequests,
+) {
+  const failures = blockedRequests.map(
+    (request) =>
+      `blocked request: ${request.method} ${request.url} (${request.reason})`,
+  );
+
+  for (const result of routeResults) {
+    failures.push(...getRouteResultFailures(result));
+  }
+
+  for (const audit of accessAudits) {
+    if (audit.accessResult !== audit.expectedAccess) {
+      failures.push(
+        `${audit.role} ${audit.manifestRoute}: expected ${audit.expectedAccess}, received ${audit.accessResult}`,
+      );
+    }
+  }
+
+  return failures;
+}
+
+export function getRouteResultFailures(result) {
+  const failures = [];
+  const prefix = `${result.viewport} ${result.route}`;
+
+  if (result.navigationError) {
+    failures.push(`${prefix}: navigation-error`);
+  } else if (["navigation-error", "http-error"].includes(result.accessResult)) {
+    failures.push(`${prefix}: ${result.accessResult}`);
+  }
+  if (result.accessResult !== result.expectedAccess) {
+    failures.push(
+      `${prefix}: expected ${result.expectedAccess}, received ${result.accessResult}`,
+    );
+  }
+  if (result.consoleErrors.length > 0) {
+    failures.push(`${prefix}: ${result.consoleErrors.length} console error(s)`);
+  }
+  if (result.pageErrors.length > 0) {
+    failures.push(`${prefix}: ${result.pageErrors.length} page error(s)`);
+  }
+  if (result.horizontalOverflow.error || result.horizontalOverflow.hasOverflow) {
+    failures.push(`${prefix}: horizontal overflow check failed`);
+  }
+  if (result.primaryActions.error || result.primaryActions.reachable !== true) {
+    failures.push(`${prefix}: no reachable primary action`);
+  }
+  if (result.accessibility?.error) {
+    failures.push(`${prefix}: axe scan failed`);
+  }
+  if (result.accessibility?.violations.length > 0) {
+    failures.push(
+      `${prefix}: ${result.accessibility.violations.length} serious/critical axe violation(s)`,
+    );
+  }
+  if (result.queryVerified !== true) {
+    failures.push(`${prefix}: query or redirect contract failed`);
+  }
+
+  return failures;
+}
+
 function isLoginReferer(value, baseOrigin) {
   if (!value) {
     return false;

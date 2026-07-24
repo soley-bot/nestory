@@ -13,9 +13,17 @@ export type ReportKind =
   | "lease-expiry"
   | "vacancy-risk"
   | "maintenance-cost"
-  | "missing-data";
+  | "missing-data"
+  | "people-readiness";
 
 export type ReportStatusFilter = UnitStatusValue | "all";
+export type PeopleReadinessArchiveState = "active" | "archived" | "all";
+export type PeopleReadinessView =
+  | "relationship"
+  | "tenant"
+  | "owner"
+  | "vendor"
+  | "staff";
 
 export type ReportPropertyOption = {
   id: string;
@@ -26,6 +34,8 @@ export type ReportsViewQuery = {
   month: string;
   ownerPersonId: string;
   ownerPersonIdInvalid?: boolean;
+  peopleArchiveState: PeopleReadinessArchiveState;
+  peopleView: PeopleReadinessView;
   print?: boolean;
   propertyId: string;
   report: ReportKind;
@@ -49,7 +59,9 @@ export type ReportSourceRecordType =
   | "receipt-allocation"
   | "income-obligation"
   | "timeline"
-  | "unit";
+  | "unit"
+  | "vendor-profile"
+  | "workspace-access";
 
 export type ReportSourceLink = {
   href?: string;
@@ -95,6 +107,7 @@ export type TrustedReportRow = {
   evidence?: ReportEvidenceLine[];
   href?: string;
   id: string;
+  nextActionHref?: string;
   ownerPersonId?: string;
   propertyId?: string;
   sourceCount: number;

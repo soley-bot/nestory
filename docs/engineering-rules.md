@@ -132,7 +132,12 @@ These rules are grounded in the current implementation.
   scoped period/property context.
 - Supported report kinds are rent roll, unit performance, property performance,
   owner statement, income/expense, lease expiry, vacancy/risk, maintenance
-  cost, and missing data.
+  cost, missing data, and People readiness.
+- People readiness remains a separate trusted-report row schema under
+  `/reports/people-readiness`; do not mix Person rows into property/unit Record
+  Readiness. Normalize its bounded `peopleView` and `archiveState` filters,
+  page through the authoritative People loader, and keep Staff access state at
+  the organization-scoped Workspace Access boundary.
 - CSV export must remain formula-safe.
 - PDF/export endpoints must stay auth-gated.
 

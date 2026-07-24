@@ -1,4 +1,6 @@
 import type {
+  PeopleReadinessArchiveState,
+  PeopleReadinessView,
   ReportKind,
   ReportStatusFilter,
   ReportsViewQuery,
@@ -36,6 +38,8 @@ export function parseReportSearchParams(
       ? { ownerPersonIdInvalid: true }
       : {}),
     ...(getFirstSearchParam(params.print) === "1" ? { print: true } : {}),
+    peopleArchiveState: parsePeopleArchiveState(params.archiveState),
+    peopleView: parsePeopleView(params.peopleView),
     propertyId: getUuidOrAllSearchParam(params.propertyId),
     report: parseReportKind(params.report),
     status: parseStatus(params.status),
@@ -82,9 +86,31 @@ function parseReportKind(value: string | string[] | undefined): ReportKind {
     candidate === "lease-expiry" ||
     candidate === "vacancy-risk" ||
     candidate === "maintenance-cost" ||
-    candidate === "missing-data"
+    candidate === "missing-data" ||
+    candidate === "people-readiness"
     ? candidate
     : DEFAULT_REPORT_KIND;
+}
+
+function parsePeopleArchiveState(
+  value: string | string[] | undefined,
+): PeopleReadinessArchiveState {
+  const candidate = getFirstSearchParam(value);
+
+  return candidate === "archived" || candidate === "all" ? candidate : "active";
+}
+
+function parsePeopleView(
+  value: string | string[] | undefined,
+): PeopleReadinessView {
+  const candidate = getFirstSearchParam(value);
+
+  return candidate === "tenant" ||
+    candidate === "owner" ||
+    candidate === "vendor" ||
+    candidate === "staff"
+    ? candidate
+    : "relationship";
 }
 
 function parseStatus(value: string | string[] | undefined): ReportStatusFilter {

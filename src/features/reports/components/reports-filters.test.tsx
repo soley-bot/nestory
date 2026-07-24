@@ -53,12 +53,40 @@ describe("ReportsFilters", () => {
       container.querySelector('input[name="unitId"]')?.getAttribute("value"),
     ).toBe("8b3a08d2-0898-4de3-9495-994eaf7a08dc");
   });
+
+  it("uses People-specific view and archive filters without unrelated property scope", () => {
+    render(
+      <ReportsFilters
+        action="/reports/people-readiness"
+        propertyOptions={[]}
+        showReportSelect={false}
+        viewQuery={{
+          ...query("rent-roll"),
+          peopleArchiveState: "all",
+          peopleView: "staff",
+          report: "people-readiness",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("combobox", { name: "Choose People readiness view" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Filter People records by state" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("Property")).toBeNull();
+    expect(screen.queryByText("Month")).toBeNull();
+    expect(screen.queryByText("Status")).toBeNull();
+  });
 });
 
 function query(report: ReportsViewQuery["report"]): ReportsViewQuery {
   return {
     month: "2026-07",
     ownerPersonId: "all",
+    peopleArchiveState: "active",
+    peopleView: "relationship",
     propertyId: "all",
     report,
     status: "all",

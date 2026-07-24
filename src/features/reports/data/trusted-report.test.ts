@@ -152,6 +152,8 @@ function makeReportInput(
     viewQuery: {
       month: "2026-06",
       ownerPersonId: "all",
+      peopleArchiveState: "active",
+      peopleView: "relationship",
       propertyId: "all",
       report: "unit-performance",
       status: "all",

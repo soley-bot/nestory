@@ -233,6 +233,8 @@ describe("Owner Statement PDF selection", () => {
     const result = await getReportPdf("organization-1", "Demo Org", {
       month: "2026-07",
       ownerPersonId: "all",
+      peopleArchiveState: "active",
+      peopleView: "relationship",
       propertyId: "all",
       report: "owner-statement",
       status: "all",
@@ -262,6 +264,8 @@ describe("Owner Statement PDF selection", () => {
     const result = await getReportPdf("organization-1", "Demo Org", {
       month: "2026-07",
       ownerPersonId: "all",
+      peopleArchiveState: "active",
+      peopleView: "relationship",
       propertyId: selectedPropertyId,
       report: "owner-statement",
       status: "all",
@@ -302,6 +306,8 @@ describe("Owner Statement PDF selection", () => {
     const result = await getReportPdf("organization-1", "Demo Org", {
       month: "2026-07",
       ownerPersonId: "all",
+      peopleArchiveState: "active",
+      peopleView: "relationship",
       propertyId: selectedPropertyId,
       report: "owner-statement",
       status: "all",
