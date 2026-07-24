@@ -2,7 +2,7 @@
 
 This artifact records Prompt 6 verification on
 `codex/release-consolidation`, based on
-`4fdbbc16cd49c246fe33c8bc816e90fda9c3f63d`. It is local fixture evidence,
+`bdd268166a20b55d75ccc61c8f60e37b1b7dce9d`. It is local fixture evidence,
 not production certification.
 
 ## People report consolidation
@@ -37,8 +37,9 @@ People-report APIs and duplicate loader/page UI are removed.
 
 ## Local verification results
 
-- Focused consolidation suite: 8 files, 42 tests passed.
-- Full Vitest suite: 150 files, 1,154 tests passed.
+- Focused People/report suite: 13 files, 79 tests passed.
+- Focused Workspace Access/auth/invitation suite: 7 files, 40 tests passed.
+- Full Vitest suite: 150 files, 1,162 tests passed.
 - ESLint: passed with no warnings.
 - TypeScript: `npx tsc --noEmit` passed.
 - Next.js production build: passed against the local Supabase fixture.
@@ -48,20 +49,27 @@ People-report APIs and duplicate loader/page UI are removed.
 - Database lint: no schema errors.
 - Generated database types: normalized content matches `HEAD`; no generated
   type drift.
-- Full pgTAP: 16 files, 471 assertions passed.
-- Read-only browser matrix: 159 Admin route/viewport captures and 159
-  Manager/Member/anonymous access checks matched the manifest at desktop,
-  compact desktop, and phone sizes.
+- Full pgTAP: 16 files, 489 assertions passed.
+- Targeted route smoke: the compatibility route passed three viewport checks
+  and Admin, Manager, and Member role checks.
 - Central Staff Access browser check: 5 organization-scoped rows rendered with
-  exact Person and Workspace Access links. Generic CSV and PDF returned 200,
-  valid content, and deterministic active-scope filenames. The compatibility
-  bookmark reached the bounded central destination.
+  exact Person and Workspace Access links. Relationship, Tenant, Owner, Vendor,
+  and Staff filters rendered their bounded tables. Active, archived, and all
+  scopes preserved their export parameters. Generic CSV and PDF downloads had
+  valid content and deterministic all-scope filenames. The compatibility
+  bookmark preserved its Staff and archived query intent at the bounded central
+  destination.
+- Access browser check: Admin reached the central report; Manager and Member
+  reached `/no-access`; anonymous access reached `/login`.
+- Invitation compatibility replay: a fresh local invitation required password
+  creation, accepted into the Member workspace, signed out, and signed back in
+  with the selected password.
 
 ## Cross-domain result
 
 | Workflow | Result |
 | --- | --- |
-| Staff and Workspace Access | Access state, role/scope boundaries, and SQL acceptance contracts pass automated tests. The real new-invite password lifecycle is blocked as described below and was not claimed as passed. |
+| Staff and Workspace Access | Access state, role/scope boundaries, and SQL acceptance contracts pass automated tests. A real local new-invite replay required password creation and passed acceptance, logout, and password sign-in. |
 | Role-specific People | Role filtering, People detail, handoff links, multi-role summaries, active selection rules, and archived history are covered by application tests and the route matrix. No separate mutable end-to-end script exists for every creation path. |
 | Lease, rent, receipt, and allocation | Application tests and settlement/deposit pgTAP contracts pass, including exact IDs, allocation, reversal, cash reporting, and payer integrity. No new browser mutation was introduced by this branch. |
 | Vendor bill and payment | Expense/payment application tests and paid-basis pgTAP contracts pass, including active Vendor selection and settlement activity. No new browser mutation was introduced by this branch. |
@@ -70,42 +78,30 @@ People-report APIs and duplicate loader/page UI are removed.
 | Activity and Timeline | Exact organization-scoped source IDs and curated record links remain covered by application/database tests and the route matrix. |
 | Reports | Catalog destinations, People Readiness, Record Readiness, Owner Statement, generic CSV/PDF, print controls, source links, filters, malformed scope, empty, and blocked states pass application and browser checks. |
 
-## Blocked gates and limitations
+## Out-of-scope known limitations
 
-1. **Invitation credential lifecycle - external release blocker.** A
-   brand-new invite can accept through a magic-link session without being
-   offered password creation and then cannot password-sign-in after logout.
-   This branch intentionally contains no auth, invitation, password, login,
-   recovery, or credential-proof implementation changes.
-2. **Full axe gate - blocked outside branch scope.** The full run completed but
+1. **Full axe gate - outside branch scope.** The prior full run completed but
    reported nine color-contrast findings: the same auth hero-text finding on
    forgot-password, update-password, and accept-invite at each of three
    viewports. The changed People report and compatibility redirect had no
    serious/critical axe finding.
-3. **Mutable property smoke - stale harness.** The script waits for a
+2. **Mutable property smoke - stale harness.** The script waits for a
    `Preview <property>` card button, while the implemented card action is
    `Open <property>`. It stopped before its rename mutation.
-4. **Mutable maintenance-mobile smoke - stale harness.** The script waits for
+3. **Mutable maintenance-mobile smoke - stale harness.** The script waits for
    a dialog whose accessible name ends in `Preview`; that preview contract is
    no longer present. It stopped before the intended workflow assertions.
-5. **Maintenance-to-Finance and physical petty-cash reconciliation** remain
+4. **Maintenance-to-Finance and physical petty-cash reconciliation** remain
    unsupported as detailed in the cross-domain table. They were not fabricated
    as passing workflows.
 
-## Draft and merge gate
+## Merge gate
 
-The Prompt 6 pull request must remain draft and is not merge-ready. Before it
-can be promoted:
-
-1. Merge the focused invitation credential-lifecycle fix into `main`.
-2. Rebase this branch or merge the updated `main` into it.
-3. Rerun invitation acceptance -> password creation -> logout -> password
-   sign-in successfully.
-4. Rerun the affected full application and database suites.
-5. Resolve or explicitly re-scope the failed auth axe gate and stale mutable
-   property/maintenance smoke harnesses.
-6. Verify the branch preview deployment. This occurs after the branch is
-   pushed and is reported in the draft pull request and final handoff.
+The branch now contains the focused invitation credential-lifecycle fix through
+the updated `main` base, and the required local application, database, report,
+export, redirect, authorization, and invitation checks pass. Promotion remains
+conditional on required GitHub checks, no unresolved review threads, and a
+READY Vercel preview at the exact pushed head.
 
 No database migration was added by this consolidation. Organization scope,
 RLS, checked RPCs, accounting posting, locks, reversals, and generated database
