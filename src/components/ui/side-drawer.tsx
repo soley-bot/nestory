@@ -12,6 +12,7 @@ import {
 } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { cn } from "@/lib/utils";
 import type { DraftStatus } from "@/components/ui/draft-action-bar";
 
@@ -105,6 +106,19 @@ export function SideDrawer({
     setDismissalDecision(null);
     onClose();
   }, [onClose]);
+  const closeDismissalDecision = useCallback(() => {
+    setDismissalDecision(null);
+  }, []);
+  const discardAndClose = useCallback(() => {
+    const onDiscard = draftGuardRef.current?.onDiscard;
+
+    setDismissalDecision(null);
+    if (onDiscard) {
+      onDiscard();
+    } else {
+      onClose();
+    }
+  }, [onClose]);
   const dismissalContext = useMemo(
     () => ({ portalContainer, registerDraftGuard, requestClose }),
     [portalContainer, registerDraftGuard, requestClose],
@@ -163,13 +177,13 @@ export function SideDrawer({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (dismissalDecision) {
+        return;
+      }
+
       if (event.key === "Escape") {
         event.preventDefault();
-        if (dismissalDecision) {
-          setDismissalDecision(null);
-        } else {
-          requestClose();
-        }
+        requestClose();
         return;
       }
 
@@ -226,130 +240,110 @@ export function SideDrawer({
   return (
     <DrawerDismissalContext.Provider value={dismissalContext}>
       <div
-      aria-labelledby={titleId}
-      aria-modal="true"
-      className="fixed bottom-0 left-0 top-0 z-50 flex justify-end bg-background/70 backdrop-blur-[2px]"
-      role="dialog"
-      style={{ right: "var(--removed-body-scroll-bar-size, 0px)" }}
-      {...(description ? { "aria-describedby": descriptionId } : {})}
-    >
-      <button
-        aria-hidden="true"
-        className="absolute inset-0 cursor-default"
-        onClick={requestClose}
-        tabIndex={-1}
-        type="button"
-      />
-      <aside
-        className={cn(
-          "relative flex h-full w-full flex-col border-l border-border bg-background shadow-xl outline-none",
-          size === "preview"
-            ? "max-w-[min(100vw,520px)]"
-            : "max-w-[min(100vw,680px)]",
-        )}
-        ref={drawerRef}
-        tabIndex={-1}
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="fixed bottom-0 left-0 top-0 z-50 flex justify-end bg-background/70 backdrop-blur-[2px]"
+        inert={dismissalDecision ? true : undefined}
+        role="dialog"
+        style={{ right: "var(--removed-body-scroll-bar-size, 0px)" }}
+        {...(description ? { "aria-describedby": descriptionId } : {})}
       >
-        <div
-          className="flex shrink-0 items-start justify-between gap-4 border-b border-border bg-surface px-5 py-4"
-          data-slot="drawer-header"
-        >
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold tracking-tight" id={titleId}>
-              {title}
-            </h2>
-            {description ? (
-              <p
-                className="mt-1 text-sm leading-5 text-foreground-muted"
-                id={descriptionId}
-              >
-                {description}
-              </p>
-            ) : null}
-          </div>
-          <Button
-            aria-label="Close drawer"
-            className="h-8 w-8 shrink-0 px-0"
-            onClick={requestClose}
-            type="button"
-            variant="ghost"
-          >
-            <X size={16} />
-          </Button>
-        </div>
-        <div
-          className="min-h-0 flex-1 overflow-y-auto bg-surface text-sm"
-          data-slot="drawer-content"
-        >
-          {children}
-        </div>
-        {summary ? (
-          <div
-            className="shrink-0 border-t border-border bg-surface-raised px-5 py-3 text-sm"
-            data-slot="drawer-summary"
-          >
-            {summary}
-          </div>
-        ) : null}
-        {dismissalDecision ? (
-          <div
-            aria-live={dismissalDecision === "saving" ? "polite" : undefined}
-            className="shrink-0 border-t border-border bg-surface-raised px-5 py-3 text-sm"
-            data-slot="drawer-dismissal"
-            aria-label={dismissalDecision === "dirty" ? "Unsaved changes" : undefined}
-            role={dismissalDecision === "dirty" ? "alertdialog" : "status"}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="font-medium text-foreground">
-                {dismissalDecision === "dirty"
-                  ? "Discard unsaved changes?"
-                  : "Saving is still in progress."}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  autoFocus
-                  onClick={() => setDismissalDecision(null)}
-                  type="button"
-                  variant="ghost"
-                >
-                  {dismissalDecision === "dirty" ? "Keep editing" : "Continue waiting"}
-                </Button>
-                {dismissalDecision === "dirty" ? (
-                  <Button
-                    onClick={() => {
-                      const onDiscard = draftGuardRef.current?.onDiscard;
-
-                      setDismissalDecision(null);
-                      if (onDiscard) {
-                        onDiscard();
-                      } else {
-                        onClose();
-                      }
-                    }}
-                    type="button"
-                  >
-                    Discard changes
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        ) : null}
-        {footer ? (
-          <footer
-            className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-surface px-5 py-3 text-sm"
-            data-slot="drawer-footer"
-          >
-            {footer}
-          </footer>
-        ) : null}
-        <div
-          className="contents"
-          data-slot="drawer-portals"
-          ref={setPortalContainer}
+        <button
+          aria-hidden="true"
+          className="absolute inset-0 cursor-default"
+          onClick={requestClose}
+          tabIndex={-1}
+          type="button"
         />
-      </aside>
+        <aside
+          className={cn(
+            "relative flex h-full w-full flex-col border-l border-border bg-background shadow-xl outline-none",
+            size === "preview"
+              ? "max-w-[min(100vw,520px)]"
+              : "max-w-[min(100vw,680px)]",
+          )}
+          ref={drawerRef}
+          tabIndex={-1}
+        >
+          <div
+            className="flex shrink-0 items-start justify-between gap-4 border-b border-border bg-surface px-5 py-4"
+            data-slot="drawer-header"
+          >
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold tracking-tight" id={titleId}>
+                {title}
+              </h2>
+              {description ? (
+                <p
+                  className="mt-1 text-sm leading-5 text-foreground-muted"
+                  id={descriptionId}
+                >
+                  {description}
+                </p>
+              ) : null}
+            </div>
+            <Button
+              aria-label="Close drawer"
+              className="h-8 w-8 shrink-0 px-0"
+              onClick={requestClose}
+              type="button"
+              variant="ghost"
+            >
+              <X size={16} />
+            </Button>
+          </div>
+          <div
+            className="min-h-0 flex-1 overflow-y-auto bg-surface text-sm"
+            data-slot="drawer-content"
+          >
+            {children}
+          </div>
+          {summary ? (
+            <div
+              className="shrink-0 border-t border-border bg-surface-raised px-5 py-3 text-sm"
+              data-slot="drawer-summary"
+            >
+              {summary}
+            </div>
+          ) : null}
+          {footer ? (
+            <footer
+              className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-surface px-5 py-3 text-sm"
+              data-slot="drawer-footer"
+            >
+              {footer}
+            </footer>
+          ) : null}
+          <div
+            className="contents"
+            data-slot="drawer-portals"
+            ref={setPortalContainer}
+          />
+        </aside>
       </div>
+
+      <ConfirmationDialog
+        ariaLabel={
+          dismissalDecision === "dirty" ? "Unsaved changes" : "Save in progress"
+        }
+        cancelLabel={
+          dismissalDecision === "dirty" ? "Keep editing" : "Continue waiting"
+        }
+        confirmLabel={dismissalDecision === "dirty" ? "Discard changes" : undefined}
+        description={
+          dismissalDecision === "dirty"
+            ? "Your changes will be lost and cannot be recovered."
+            : "Stay in this drawer until the save finishes."
+        }
+        onCancel={closeDismissalDecision}
+        onConfirm={dismissalDecision === "dirty" ? discardAndClose : undefined}
+        open={dismissalDecision !== null}
+        title={
+          dismissalDecision === "dirty"
+            ? "Discard unsaved changes?"
+            : "Saving is still in progress"
+        }
+      />
     </DrawerDismissalContext.Provider>
   );
 }
