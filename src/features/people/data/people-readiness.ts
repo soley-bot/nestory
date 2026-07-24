@@ -78,7 +78,7 @@ async function loadAllPeople({
     page += 1;
   } while (page <= totalPages);
 
-  return people;
+  return [...new Map(people.map((person) => [person.id, person])).values()];
 }
 
 function getRoleForView(view: PeopleReadinessView): PeopleRoleFilter {

@@ -38,15 +38,12 @@ npm run supabase:stop
 Use Supabase checks when migrations, generated database types, RLS, RPCs,
 storage, seed data, or local database behavior changed.
 
-## Current Release Blocker
+## Invitation Credential Verification
 
-The invitation acceptance -> password creation -> logout -> password sign-in
-scenario is blocked by a separate credential-lifecycle defect and must not be
-marked passed from the report-consolidation branch. Keep its pull request in
-draft until the focused invitation fix is merged into `main`, this branch is
-updated from that commit, the real workflow is rerun successfully, and the
-affected full application and database suites pass again. Do not substitute a
-magic-link session for password-replacement proof.
+PR #24 is integrated into the report-consolidation branch through `main`. A
+local invitation replay passed invitation acceptance, required password
+creation, logout, password login, and the Member workspace destination. This is
+local fixture evidence, not production invitation verification.
 
 Cross-domain verification must also distinguish implemented behavior from
 unsupported workflow assumptions:

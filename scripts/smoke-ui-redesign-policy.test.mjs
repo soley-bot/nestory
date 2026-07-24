@@ -3,6 +3,7 @@ import {
   createReadOnlyRequestPolicy,
   validateLocalBaseUrl,
 } from "./smoke-ui-redesign-policy.mjs";
+import * as smokePolicy from "./smoke-ui-redesign-policy.mjs";
 
 describe("validateLocalBaseUrl", () => {
   it.each([
@@ -108,6 +109,33 @@ describe("createReadOnlyRequestPolicy", () => {
         }).allowed,
       ).toBe(true);
     }
+  });
+});
+
+describe("smoke failure aggregation", () => {
+  it("uses navigation errors consistently for route and aggregate failures", () => {
+    expect(smokePolicy.getRouteResultFailures).toBeTypeOf("function");
+
+    const result = {
+      accessibility: null,
+      accessResult: "accessible",
+      consoleErrors: [],
+      expectedAccess: "accessible",
+      horizontalOverflow: { error: null, hasOverflow: false },
+      navigationError: "Navigation timed out",
+      pageErrors: [],
+      primaryActions: { error: null, reachable: true },
+      queryVerified: true,
+      route: "/reports",
+      viewport: "desktop",
+    };
+
+    expect(smokePolicy.getRouteResultFailures(result)).toEqual([
+      "desktop /reports: navigation-error",
+    ]);
+    expect(smokePolicy.collectSmokeFailures([result], [], [])).toEqual([
+      "desktop /reports: navigation-error",
+    ]);
   });
 });
 

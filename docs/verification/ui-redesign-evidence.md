@@ -19,7 +19,7 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
 <!-- route-evidence:/properties -->
 | /properties | /properties?query=Central | /properties?query=Central | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
 <!-- route-evidence:/properties/setup -->
-| /properties/setup | /properties/setup?step=1 | /properties/setup?step=1 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | Implementation-backed route evidence only; the focused task did not rerun the browser route sweep. |
+| /properties/setup | /properties/setup?step=1 | /properties/setup?step=1 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | not rerun | preserved | Implementation-backed route evidence only; the focused task did not rerun the browser route sweep. |
 <!-- route-evidence:/units -->
 | /units | /units?query=09 | /units?query=09 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
 <!-- route-evidence:/people -->
@@ -93,7 +93,7 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
 <!-- route-evidence:/login -->
 | /login | /login | /workspace | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | draft, saving, error, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/forgot-password -->
-| /forgot-password | /forgot-password | /forgot-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | FAIL | not-applicable | None |
+| /forgot-password | /forgot-password | /forgot-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | FAIL | not-applicable | Shared auth hero-text color contrast finding. |
 <!-- route-evidence:/update-password -->
 | /update-password | /update-password | /update-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | FAIL | not-applicable | A valid Supabase recovery session is required for a successful password update. |
 <!-- route-evidence:/auth/complete -->

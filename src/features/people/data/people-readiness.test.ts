@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAccessByPersonId } from "@/features/organization/data";
 import { getPeopleScreenData } from "@/features/people/data/people";
 import { getPeopleReadinessReport } from "@/features/people/data/people-readiness";
+import { buildTrustedReportCsv } from "@/features/reports/data/csv";
+import { buildTrustedReportPdf } from "@/features/reports/data/pdf";
 import type { PeopleSummary } from "@/features/people/people.types";
 
 vi.mock("@/features/organization/data", () => ({
@@ -87,6 +89,76 @@ describe("getPeopleReadinessReport", () => {
       "organization-1",
       people.map((person) => person.id),
     );
+  });
+
+  it("stabilizes duplicate names across pages for preview, CSV, and PDF", async () => {
+    const people = Array.from({ length: 101 }, (_, index) => {
+      const person = staffPerson(
+        `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      );
+      person.displayName = "Duplicate Staff";
+      person.formValues.displayName = "Duplicate Staff";
+      return person;
+    });
+    vi.mocked(getPeopleScreenData)
+      .mockResolvedValueOnce({
+        pagination: {
+          from: 1,
+          page: 1,
+          pageSize: 100,
+          to: 100,
+          totalCount: 101,
+          totalPages: 2,
+        },
+        people: people.slice(0, 100),
+      })
+      .mockResolvedValueOnce({
+        pagination: {
+          from: 101,
+          page: 2,
+          pageSize: 100,
+          to: 101,
+          totalCount: 101,
+          totalPages: 2,
+        },
+        people: [people[99]!, people[100]!],
+      });
+    vi.mocked(getAccessByPersonId).mockResolvedValue(
+      Object.fromEntries(
+        people.map((person) => [
+          person.id,
+          { primaryAction: "grant_access", state: "no_access" },
+        ]),
+      ),
+    );
+
+    const report = await getPeopleReadinessReport({
+      archiveState: "active",
+      organizationId: "organization-duplicates",
+      view: "staff",
+    });
+    const expectedIds = people.map((person) => person.id);
+
+    expect(report.rows.map((row) => row.id)).toEqual(expectedIds);
+    expect(new Set(report.rows.map((row) => row.id))).toHaveLength(101);
+    expect(report.totalRowCount).toBe(101);
+
+    const csvRows = buildTrustedReportCsv(report)
+      .split("\r\n")
+      .filter((row) => /^\d+,/.test(row));
+    expect(csvRows).toHaveLength(101);
+    expect(csvRows.map((row) => row.split(",").at(-2))).toEqual(expectedIds);
+
+    const pdfText = extractPdfCommandText(
+      Buffer.from(
+        buildTrustedReportPdf({
+          organizationName: "Demo Organization",
+          report,
+        }),
+      ).toString("latin1"),
+    );
+    expect(pdfText).toContain("ROWS 101");
+    expect(pdfText).toContain("SOURCE ROWS 101");
   });
 
   it("preserves archived scope at the authoritative organization loader", async () => {
@@ -188,4 +260,17 @@ function staffPerson(id: string): PeopleSummary {
     statusTone: "success",
     updatedAt: "2026-07-24T00:00:00.000Z",
   };
+}
+
+function extractPdfCommandText(pdf: string) {
+  return [...pdf.matchAll(/\(((?:\\.|[^)])*)\) Tj/g)]
+    .map((match) =>
+      match[1]
+        .replaceAll("\\(", "(")
+        .replaceAll("\\)", ")")
+        .replaceAll("\\\\", "\\"),
+    )
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
 }

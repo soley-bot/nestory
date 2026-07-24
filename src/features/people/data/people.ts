@@ -611,10 +611,13 @@ function applyPeopleBaseSort(
   if (sort === "updated_desc") {
     return nextQuery
       .order("updated_at", { ascending: false })
-      .order("display_name", { ascending: true });
+      .order("display_name", { ascending: true })
+      .order("id", { ascending: true });
   }
 
-  return nextQuery.order("display_name", { ascending: true });
+  return nextQuery
+    .order("display_name", { ascending: true })
+    .order("id", { ascending: true });
 }
 
 function applyPeopleIdPrefilter(
@@ -2751,14 +2754,16 @@ function isActiveLease(lease: LeaseRow | undefined): lease is LeaseRow {
 function comparePeopleSummaries(first: PeopleSummary, second: PeopleSummary) {
   return (
     Number(first.isArchived) - Number(second.isArchived) ||
-    compareStrings(first.displayName, second.displayName)
+    compareStrings(first.displayName, second.displayName) ||
+    compareStrings(first.id, second.id)
   );
 }
 
 function comparePersonRows(first: PersonRow, second: PersonRow) {
   return (
     Number(Boolean(first.archivedAt)) - Number(Boolean(second.archivedAt)) ||
-    compareStrings(first.displayName, second.displayName)
+    compareStrings(first.displayName, second.displayName) ||
+    compareStrings(first.id, second.id)
   );
 }
 

@@ -242,16 +242,17 @@ Settings and access:
 - `/account` shows the signed-in user's workspace profile and links to the
   signed recovery flow for users who need to set or replace a password.
 
-## Known Release Limitations
+## Release Verification And Known Limitations
 
-- A production-relevant invitation credential-lifecycle defect is tracked
-  outside this consolidation branch. A brand-new invited user can currently
-  accept through a magic-link session without being offered password creation,
-  then cannot use password sign-in after logout. Release verification must
-  keep invitation acceptance, password creation, logout, and subsequent
-  password sign-in blocked until the focused fix is merged, this branch is
-  updated from `main`, and the workflow plus affected test/database suites are
-  rerun successfully.
+- PR #24's invitation credential-readiness fix is integrated through `main`.
+  The local invitation replay passed acceptance, required password creation,
+  logout, password login, and the Member workspace destination. Production
+  invitation verification remains a separate release activity.
+- Multi-page People Readiness loads use deterministic `display_name` plus `id`
+  ordering and remove duplicate IDs before building the shared preview/CSV/PDF
+  report. The load is not a transactional snapshot, so concurrent People
+  inserts, archives, or renames can still change report membership while its
+  page queries are running.
 - Maintenance supports operational actual-cost capture and, for Admins, direct
   ledger linkage. It does not currently provide a prefilled vendor-bill or
   petty-cash handoff, link an existing finance record through a dedicated
