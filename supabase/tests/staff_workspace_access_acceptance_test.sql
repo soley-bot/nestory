@@ -49,6 +49,23 @@ FROM (
     ('00000000-0000-0000-0000-000000000736'::uuid, 'accept-unrelated-unique@example.com')
 ) AS fixture_users(user_id, email);
 
+DO $$
+BEGIN
+  PERFORM app_private.record_auth_password_credential_proof(
+    '00000000-0000-0000-0000-000000000731',
+    'password_login'
+  );
+  PERFORM app_private.record_auth_password_credential_proof(
+    '00000000-0000-0000-0000-000000000732',
+    'password_login'
+  );
+  PERFORM app_private.record_auth_password_credential_proof(
+    '00000000-0000-0000-0000-000000000736',
+    'password_login'
+  );
+END;
+$$;
+
 INSERT INTO public.people (
   id,
   organization_id,

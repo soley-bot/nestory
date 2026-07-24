@@ -44,6 +44,17 @@ export function AccountScreen({
             <AccountFact label="Email" value={identity.email} />
             <AccountFact label="Organization" value={identity.organizationName} />
           </dl>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+            <p className="text-sm text-foreground-muted">
+              Use secure email recovery to create or replace your password.
+            </p>
+            <Link
+              className="text-sm font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href="/forgot-password"
+            >
+              Set or change password
+            </Link>
+          </div>
         </section>
 
         <section className="rounded-md border border-border bg-surface">

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getUser, redirect, rpc, updateUser } = vi.hoisted(() => ({
+const { adminRpc, getUser, redirect, rpc, updateUser } = vi.hoisted(() => ({
+  adminRpc: vi.fn(),
   getUser: vi.fn(),
   redirect: vi.fn(),
   rpc: vi.fn(),
@@ -8,6 +9,9 @@ const { getUser, redirect, rpc, updateUser } = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("@/lib/db/admin", () => ({
+  createSupabaseAdminClient: () => ({ rpc: adminRpc }),
+}));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({
     auth: { getUser, updateUser },
@@ -34,10 +38,12 @@ const invitation = {
 
 describe("invitation acceptance", () => {
   beforeEach(() => {
+    adminRpc.mockReset();
     getUser.mockReset();
     redirect.mockReset();
     rpc.mockReset();
     updateUser.mockReset();
+    adminRpc.mockResolvedValue({ error: null });
     getUser.mockResolvedValue({
       data: { user: { email: "owner@example.com", id: "user-1" } },
       error: null,
@@ -62,8 +68,13 @@ describe("invitation acceptance", () => {
     });
   });
 
-  it("maps a valid invitation without exposing provider tokens", async () => {
-    rpc.mockResolvedValue({ data: [invitation], error: null });
+  it.each(["admin", "manager", "member"])(
+    "uses the same password requirement for %s invitations",
+    async (role) => {
+    rpc.mockResolvedValue({
+      data: [{ ...invitation, invited_role: role }],
+      error: null,
+    });
 
     await expect(getInvitationAcceptance(invitationId)).resolves.toEqual({
       accountEmail: "owner@example.com",
@@ -71,12 +82,13 @@ describe("invitation acceptance", () => {
       invitationId,
       organizationName: "Harbor Property Group",
       passwordRequired: true,
-      role: "admin",
+      role,
       scopeName: "All branches",
       staffName: null,
       state: "pending",
     });
-  });
+    },
+  );
 
   it("sets the password before accepting a new invited identity", async () => {
     rpc
@@ -95,10 +107,20 @@ describe("invitation acceptance", () => {
       "redirect:/workspace",
     );
     expect(updateUser).toHaveBeenCalledWith({ password: "correct-horse-battery" });
+    expect(adminRpc).toHaveBeenCalledWith(
+      "record_auth_password_credential_proof",
+      {
+        p_auth_user_id: "user-1",
+        p_proof_method: "invitation_password",
+      },
+    );
     expect(rpc).toHaveBeenLastCalledWith("accept_organization_invitation", {
       p_invitation_id: invitationId,
     });
     expect(updateUser.mock.invocationCallOrder[0]).toBeLessThan(
+      adminRpc.mock.invocationCallOrder[0],
+    );
+    expect(adminRpc.mock.invocationCallOrder[0]).toBeLessThan(
       rpc.mock.invocationCallOrder[1],
     );
   });
@@ -125,6 +147,27 @@ describe("invitation acceptance", () => {
       status: "error",
     });
     expect(rpc).toHaveBeenCalledTimes(1);
+    expect(adminRpc).not.toHaveBeenCalled();
+  });
+
+  it("does not accept when password proof cannot be established", async () => {
+    rpc
+      .mockResolvedValueOnce({ data: [invitation], error: null })
+      .mockResolvedValueOnce({ data: "member-1", error: null });
+    updateUser.mockResolvedValue({ error: null });
+    adminRpc.mockResolvedValue({ error: new Error("proof unavailable") });
+    const formData = new FormData();
+    formData.set("invitationId", invitationId);
+    formData.set("password", "correct-horse-battery");
+    formData.set("passwordConfirm", "correct-horse-battery");
+
+    const result = await acceptInvitationAction({}, formData);
+
+    expect(result).toEqual({
+      message: "The password could not be confirmed. Request a fresh invitation or use password recovery.",
+      status: "error",
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 
   it("accepts an existing identity without changing its password", async () => {
@@ -144,5 +187,6 @@ describe("invitation acceptance", () => {
       "redirect:/workspace",
     );
     expect(updateUser).not.toHaveBeenCalled();
+    expect(adminRpc).not.toHaveBeenCalled();
   });
 });
