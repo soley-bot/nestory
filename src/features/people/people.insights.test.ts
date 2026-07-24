@@ -312,6 +312,9 @@ describe("people insights", () => {
         }),
       ]),
     );
+    expect(activeRow.nextActionHref).toBe(
+      `/users-roles?personId=${active.id}&memberId=${membershipId}`,
+    );
     expect(activeRow.sourceCount).toBe(2);
 
     const csv = buildTrustedReportCsv(report);
@@ -339,6 +342,30 @@ describe("people insights", () => {
     expect(pdfText).toMatch(/No Access Staff .* 1(?: |$)/);
     expect(pdfText).toMatch(/Pending Staff .* 2(?: |$)/);
     expect(pdfText).toMatch(/Active Staff .* 2(?: |$)/);
+  });
+
+  it("opens archived Staff without access in the Person lifecycle flow", () => {
+    const archived = staffPerson("person-archived", "Archived Staff");
+    archived.isArchived = true;
+
+    const report = buildPeopleTrustedReport({
+      accessByPersonId: {
+        [archived.id]: {
+          primaryAction: "grant_access",
+          state: "no_access",
+        },
+      },
+      kind: "staff-access",
+      people: [archived],
+    });
+
+    expect(report.rows[0]).toMatchObject({
+      cells: {
+        next: "Review archived person",
+        readiness: "Archived",
+      },
+      nextActionHref: `/people/${archived.id}`,
+    });
   });
 });
 

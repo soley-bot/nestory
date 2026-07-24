@@ -551,6 +551,13 @@ function getReportAction(
     return person.nextAction;
   }
 
+  if (person.isArchived && (!access || access.state === "no_access")) {
+    return {
+      href: getPrimaryPersonHref(person),
+      label: "Review archived person",
+    };
+  }
+
   const params = new URLSearchParams({ personId: person.id });
   if (
     access &&
@@ -561,7 +568,7 @@ function getReportAction(
     params.set("invitationId", access.invitationId);
   }
   if (access?.state === "active_workspace_access") {
-    params.set("membershipId", access.membershipId);
+    params.set("memberId", access.membershipId);
   }
 
   return {
