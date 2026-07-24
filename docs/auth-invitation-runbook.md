@@ -22,9 +22,11 @@ it.
    sign-in email does not change the Staff record's operational email.
 4. Confirm the record appears under **Pending invitations**, not **Active
    members**.
-5. The recipient opens the Supabase email link. A new Auth user creates a
-   password; an existing confirmed user keeps the existing password. Both
-   review and explicitly accept the Nestory access.
+5. The recipient opens the newest Supabase email link. Supabase verifies the
+   one-time link, redirects through `/auth/complete`, and Nestory creates the
+   secure session cookies before opening `/accept-invite`. A new Auth user
+   creates a password; an existing confirmed user keeps the existing password.
+   Both review and explicitly accept the Nestory access.
 6. Confirm the invitation leaves the pending list and the account appears under
    active members.
 
@@ -91,23 +93,37 @@ invitation tokens or Supabase email tokens.
 These hosted settings are manual; the repository does not change the Supabase
 Dashboard:
 
+- Set Vercel Production `NESTORY_APP_URL` to the canonical HTTPS application
+  origin. Do not rely on deployment-specific `VERCEL_URL` values for email
+  links.
 - Disable **Allow new users to sign up** in Auth settings. Administrative
   invites remain enabled.
 - Set the production **Site URL** to the canonical HTTPS application origin.
-- Add only required HTTPS redirect patterns for `/auth/confirm` and
-  `/auth/callback`; remove localhost values from production.
+- Add the exact canonical `/auth/complete**` URL to **Redirect URLs**. Add a
+  bounded Vercel preview/deployment pattern for `/auth/complete**` only when
+  preview invitation testing is required. Keep `/auth/confirm` and
+  `/auth/callback` only for flows that actually use those server routes.
+  Remove localhost values from production when local hosted-Auth testing is
+  not required.
 - Configure a supported custom SMTP provider with sender address, sender name,
   SMTP host, port, username, and secret/password. Do not commit credentials.
 - Apply the branded invite, magic-link, and recovery templates under
-  `supabase/templates/`, preserving `TokenHash`, `RedirectTo`, and the correct
-  Supabase verification type.
+  `supabase/templates/`. These templates must link to `ConfirmationURL`.
+  Supabase verifies the one-time token and returns the implicit session in the
+  URL fragment consumed by `/auth/complete`. Do not send `TokenHash` directly
+  to `/auth/complete`; that route does not call `verifyOtp`.
 - Verify the provider's sender domain and review rate limits, bounce handling,
   and delivery logs.
-- Send one production invitation to a controlled new address and verify
-  password setup, acceptance, membership, and `/workspace` routing.
+- Send one production invitation to a controlled brand-new address. Inspect
+  the newest email's link and confirm its `redirect_to` targets the expected
+  application origin, `/auth/complete`, and the matching `/accept-invite`
+  identifier. Then verify password setup, acceptance, membership, and the
+  role-specific route reached through `/workspace`.
 - Send one invitation to a controlled existing Auth user and verify the magic
   link does not reset its password.
 - Run one production password recovery and verify the recovery-session gate.
+- Sign out after invitation acceptance, then sign in again with the newly
+  created password. The invitation pass is incomplete until this succeeds.
 
 For local testing, Supabase CLI delivers messages to Mailpit at
 `http://127.0.0.1:54324`. `supabase/config.toml` disables account creation at

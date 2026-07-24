@@ -2,9 +2,14 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(39);
+SELECT plan(40);
 
 SELECT has_table('public', 'organization_invitations', 'invitation domain exists');
+SELECT has_table(
+  'app_private',
+  'invitation_password_challenges',
+  'provider-generated invitation passwords are tracked privately'
+);
 SELECT has_function(
   'public',
   'provision_client_workspace',
@@ -106,7 +111,7 @@ VALUES
   'authenticated',
   'authenticated',
   'invitee@example.com',
-  '',
+  extensions.crypt('provider-generated-invite-secret', extensions.gen_salt('bf')),
   now(), '', '', '', '', '', '',
   '{"provider":"email","providers":["email"]}'::jsonb,
   '{}'::jsonb,
@@ -231,6 +236,11 @@ SELECT is(
 
 SELECT public.mark_organization_invitation_sent(
   (SELECT invitation_id FROM invitation_test_state),
+  '00000000-0000-0000-0000-000000000701',
+  'invite'
+);
+SELECT public.mark_organization_invitation_sent(
+  (SELECT invitation_id FROM invitation_test_state),
   NULL,
   'magic_link'
 );
@@ -243,7 +253,7 @@ SELECT is(
     )
   ),
   true,
-  'a confirmed passwordless Auth identity still requires password setup after resend switches delivery to magic link'
+  'a provider-generated invite hash still requires password setup after resend switches delivery to magic link'
 );
 SELECT throws_ok(
   format(
@@ -252,7 +262,7 @@ SELECT throws_ok(
   ),
   '55000',
   'Password setup is required',
-  'direct acceptance rejects a confirmed identity with an empty password hash'
+  'direct acceptance rejects an unchanged provider-generated invite hash'
 );
 UPDATE auth.users
 SET encrypted_password = NULL

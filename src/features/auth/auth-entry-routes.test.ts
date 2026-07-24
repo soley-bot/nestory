@@ -262,6 +262,20 @@ describe("entry experience contracts", () => {
     expect(form).toContain('autoComplete="new-password"');
   });
 
+  it("routes hosted email templates through the browser session completion boundary", () => {
+    for (const path of [
+      "supabase/templates/invite.html",
+      "supabase/templates/magic_link.html",
+      "supabase/templates/recovery.html",
+    ]) {
+      const template = readSource(path);
+
+      expect(template).toContain("{{ .ConfirmationURL }}");
+      expect(template).not.toContain("{{ .TokenHash }}");
+      expect(template).not.toContain("{{ .RedirectTo }}");
+    }
+  });
+
   it("keeps the no-access recovery honest and the preview attention-first", () => {
     const noAccess = readSource("src/app/no-access/page.tsx");
     const preview = readSource(
