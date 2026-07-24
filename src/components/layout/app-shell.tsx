@@ -116,7 +116,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     href: "/reports",
     icon: FileChartColumn,
     label: "Reports",
-    routes: ["/reports", "/people-reports"],
+    routes: ["/reports"],
   },
   {
     id: "settings",

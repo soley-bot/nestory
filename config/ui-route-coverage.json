@@ -1907,60 +1907,26 @@
     "route": "/people-reports",
     "source": "src/app/(dashboard)/people-reports/page.tsx",
     "phase": 3,
-    "surface": "workspace",
+    "surface": "redirect",
     "roles": [
       "admin"
     ],
-    "states": [
-      "loading",
-      "populated",
-      "empty",
-      "filtered-empty",
-      "error",
-      "permission-blocked"
-    ],
-    "evidence": {
-      "loading": [
-        "src/app/(dashboard)/people-reports/page.tsx",
-        "src/components/layout/module-loading.tsx"
-      ],
-      "populated": [
-        "src/app/(dashboard)/people-reports/page.tsx"
-      ],
-      "empty": [
-        "src/app/(dashboard)/people-reports/page.tsx",
-        "src/components/ui/empty-state.tsx"
-      ],
-      "filtered-empty": [
-        "src/app/(dashboard)/people-reports/page.tsx",
-        "src/components/ui/empty-state.tsx"
-      ],
-      "error": [
-        "src/app/(dashboard)/people-reports/page.tsx",
-        "src/components/ui/error-state.tsx"
-      ],
-      "permission-blocked": [
-        "src/app/(dashboard)/people-reports/page.tsx",
-        "src/components/ui/status-notice.tsx"
-      ]
-    },
+    "states": [],
+    "evidence": {},
     "smoke": {
-      "path": "/people-reports",
+      "path": "/people-reports?report=staff-access&archiveState=archived",
       "expectedAccess": {
-        "admin": "accessible",
+        "admin": "redirected",
         "manager": "permission-blocked",
         "member": "permission-blocked",
         "anonymous": "login-required"
       },
-      "queryContract": "not-applicable",
+      "queryContract": "redirect-preserved",
       "workflowEvidence": [
-        "src/app/(dashboard)/people-reports/page.tsx",
-        "src/components/layout/module-loading.tsx",
-        "src/components/ui/empty-state.tsx",
-        "src/components/ui/error-state.tsx",
-        "src/components/ui/status-notice.tsx"
+        "src/app/(dashboard)/people-reports/page.test.tsx"
       ],
-      "limitations": []
+      "limitations": [],
+      "expectedFinalPath": "/reports/people-readiness?peopleView=staff&archiveState=archived"
     }
   },
   {

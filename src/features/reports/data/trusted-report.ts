@@ -7,6 +7,7 @@ import {
 } from "@/lib/money/format";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
 import { getOwnerStatementReport } from "@/features/reports/data/owner-statement-report";
+import { getPeopleReadinessReport } from "@/features/people/data/people-readiness";
 import type {
   ReportKind,
   ReportSourceLink,
@@ -28,6 +29,7 @@ export const REPORT_OPTIONS: Array<{ label: string; value: ReportKind }> = [
   { label: "Vacancy & Lease Risk", value: "vacancy-risk" },
   { label: "Maintenance Cost", value: "maintenance-cost" },
   { label: "Record Readiness", value: "missing-data" },
+  { label: "People Readiness", value: "people-readiness" },
 ];
 
 const reportLeaseSelect =
@@ -202,6 +204,7 @@ const trustedReportSourceRequirements = {
   ),
   "missing-data": requiresReportSources("documents", "leases", "owners", "units"),
   "owner-statement": requiresReportSources(),
+  "people-readiness": requiresReportSources(),
   "property-performance": requiresReportSources(
     "ledgerEntries",
     "leases",
@@ -227,6 +230,14 @@ export async function getTrustedReport({
 }): Promise<TrustedReport> {
   if (viewQuery.report === "owner-statement") {
     return getOwnerStatementReport({ organizationId, viewQuery });
+  }
+
+  if (viewQuery.report === "people-readiness") {
+    return getPeopleReadinessReport({
+      archiveState: viewQuery.peopleArchiveState,
+      organizationId,
+      view: viewQuery.peopleView,
+    });
   }
 
   const supabase = await createSupabaseServerClient();
@@ -328,6 +339,12 @@ export function buildTrustedReport(input: TrustedReportInput): TrustedReport {
   if (context.viewQuery.report === "owner-statement") {
     throw new Error(
       "Owner Statement must be built through the property-cash report loader",
+    );
+  }
+
+  if (context.viewQuery.report === "people-readiness") {
+    throw new Error(
+      "People Readiness must be built through the organization-scoped people loader",
     );
   }
 

@@ -115,7 +115,7 @@ describe("AppShell global navigation hierarchy", () => {
     ["/property-dashboard", "Properties"],
     ["/people", "People"],
     ["/people/person-1", "People"],
-    ["/people-reports", "Reports"],
+    ["/reports/people-readiness", "Reports"],
     ["/tenants", "People"],
     ["/owners", "People"],
     ["/vendors", "People"],

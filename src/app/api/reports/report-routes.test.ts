@@ -4,6 +4,10 @@ import { GET as getCsv } from "@/app/api/reports/export/route";
 import { GET as getPdf } from "@/app/api/reports/pdf/route";
 import { getReportCsv } from "@/features/reports/data/csv";
 import { getReportPdf } from "@/features/reports/data/pdf";
+import {
+  getAdminMembershipForUser,
+  getCurrentUser,
+} from "@/lib/auth/context";
 
 vi.mock("@/lib/auth/context", () => ({
   getAdminMembershipForUser: vi.fn().mockResolvedValue({
@@ -30,6 +34,64 @@ const message =
 describe("Owner Statement export scope", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1" } as never);
+    vi.mocked(getAdminMembershipForUser).mockResolvedValue({
+      organizationId: "organization-1",
+      organizationName: "Demo Org",
+    } as never);
+  });
+
+  it.each([
+    ["CSV", getCsv, "export"],
+    ["PDF", getPdf, "pdf"],
+  ] as const)("returns 401 for anonymous People Readiness %s", async (_, handler, route) => {
+    vi.mocked(getCurrentUser).mockResolvedValueOnce(null);
+
+    const response = await handler(
+      new Request(
+        `http://localhost/api/reports/${route}?report=people-readiness&peopleView=staff`,
+      ),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it.each([
+    ["CSV", getCsv, "export"],
+    ["PDF", getPdf, "pdf"],
+  ] as const)("returns 403 for non-admin People Readiness %s", async (_, handler, route) => {
+    vi.mocked(getAdminMembershipForUser).mockResolvedValueOnce(null);
+
+    const response = await handler(
+      new Request(
+        `http://localhost/api/reports/${route}?report=people-readiness&peopleView=staff`,
+      ),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it("passes the bounded People Readiness filters through the generic CSV route", async () => {
+    vi.mocked(getReportCsv).mockResolvedValue({
+      body: "People Readiness",
+      filename: "people-staff-access-current-archived.csv",
+    });
+
+    const response = await getCsv(
+      new Request(
+        "http://localhost/api/reports/export?report=people-readiness&peopleView=staff&archiveState=archived",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getReportCsv).toHaveBeenCalledWith(
+      "organization-1",
+      expect.objectContaining({
+        peopleArchiveState: "archived",
+        peopleView: "staff",
+        report: "people-readiness",
+      }),
+    );
   });
 
   it.each([

@@ -1,5 +1,9 @@
 import type { TrustedReport } from "@/features/reports/reports.types";
 import { slugifyReportPart } from "@/features/reports/data/report-format";
+import {
+  formatWorkspaceAccessRole,
+  type OrganizationPersonAccessStatus,
+} from "@/features/organization/access-status";
 import type {
   PeopleBadgeTone,
   PeopleSummary,
@@ -74,35 +78,35 @@ export const peopleReportOptions: Array<{
   {
     description:
       "Directory quality, role assignment, contact readiness, evidence, and next actions.",
-    href: "/people?archiveState=all",
+    href: "/reports/people-readiness",
     kind: "relationship-readiness",
     title: "Relationship Readiness",
   },
   {
     description:
       "Tenants with contact, active lease links, evidence, and renewal follow-up context.",
-    href: "/tenants",
+    href: "/reports/people-readiness?peopleView=tenant",
     kind: "tenant-readiness",
     title: "Tenant Readiness",
   },
   {
     description:
       "Owners with property links, communication readiness, evidence, and report preparation cues.",
-    href: "/owners",
+    href: "/reports/people-readiness?peopleView=owner",
     kind: "owner-readiness",
     title: "Owner Readiness",
   },
   {
     description:
       "Vendor profiles, preferred status, service coverage, evidence, and maintenance linkage cues.",
-    href: "/vendors",
+    href: "/reports/people-readiness?peopleView=vendor",
     kind: "vendor-activity",
     title: "Vendor Activity",
   },
   {
     description:
       "Staff directory readiness and access-management follow-up for operating teams.",
-    href: "/staff",
+    href: "/reports/people-readiness?peopleView=staff",
     kind: "staff-access",
     title: "Staff Access",
   },
@@ -111,17 +115,20 @@ export const peopleReportOptions: Array<{
 export function getPeopleInsights(
   people: PeopleSummary[],
   totalCount = people.length,
+  { includeArchived = false }: { includeArchived?: boolean } = {},
 ): PeopleInsights {
-  const activePeople = people.filter((person) => !person.isArchived);
-  const missingContact = activePeople.filter((person) => !person.hasUsefulContact);
-  const missingRole = activePeople.filter((person) => !hasAnyActiveRole(person));
-  const missingEvidence = activePeople.filter(
+  const scopedPeople = includeArchived
+    ? people
+    : people.filter((person) => !person.isArchived);
+  const missingContact = scopedPeople.filter((person) => !person.hasUsefulContact);
+  const missingRole = scopedPeople.filter((person) => !hasAnyActiveRole(person));
+  const missingEvidence = scopedPeople.filter(
     (person) => person.recordCounts.documents === 0,
   );
-  const tenants = activePeople.filter((person) => hasActiveRole(person, "tenant"));
-  const owners = activePeople.filter((person) => hasActiveRole(person, "owner"));
-  const vendors = activePeople.filter((person) => hasActiveRole(person, "vendor"));
-  const staff = activePeople.filter((person) => hasActiveRole(person, "staff"));
+  const tenants = scopedPeople.filter((person) => hasActiveRole(person, "tenant"));
+  const owners = scopedPeople.filter((person) => hasActiveRole(person, "owner"));
+  const vendors = scopedPeople.filter((person) => hasActiveRole(person, "vendor"));
+  const staff = scopedPeople.filter((person) => hasActiveRole(person, "staff"));
   const tenantReady = tenants.filter(
     (person) => person.hasUsefulContact && person.linked.activeLeaseCount > 0,
   ).length;
@@ -134,7 +141,7 @@ export function getPeopleInsights(
   const staffReady = staff.filter((person) => person.hasUsefulContact).length;
 
   return buildPeopleInsightsFromCounts({
-    activeCount: activePeople.length,
+    activeCount: scopedPeople.length,
     missingContactCount: missingContact.length,
     missingEvidenceCount: missingEvidence.length,
     missingRoleCount: missingRole.length,
@@ -164,7 +171,7 @@ export function buildPeopleInsightsFromCounts({
       {
         count: missingContactCount,
         description: "People records without a usable email or phone.",
-        href: "/people-reports",
+        href: "/reports/people-readiness?peopleView=relationship",
         id: "missing-contact",
         label: "Missing contact",
         tone: missingContactCount > 0 ? "warning" : "success",
@@ -172,7 +179,7 @@ export function buildPeopleInsightsFromCounts({
       {
         count: missingRoleCount,
         description: "Records that cannot drive workflows until a role is set.",
-        href: "/people-reports",
+        href: "/reports/people-readiness?peopleView=relationship",
         id: "missing-role",
         label: "No role",
         tone: missingRoleCount > 0 ? "warning" : "success",
@@ -180,7 +187,7 @@ export function buildPeopleInsightsFromCounts({
       {
         count: missingEvidenceCount,
         description: "Records without linked documents or evidence.",
-        href: "/people-reports",
+        href: "/reports/people-readiness?peopleView=relationship",
         id: "missing-evidence",
         label: "Evidence gaps",
         tone: missingEvidenceCount > 0 ? "warning" : "success",
@@ -268,11 +275,13 @@ export function buildPeopleInsightsFromCounts({
 }
 
 export function buildPeopleTrustedReport({
+  accessByPersonId = {},
   generatedAt = new Date().toISOString(),
   kind,
   people,
   totalCount = people.length,
 }: {
+  accessByPersonId?: Record<string, OrganizationPersonAccessStatus>;
   generatedAt?: string;
   kind: PeopleReportKind;
   people: PeopleSummary[];
@@ -280,10 +289,13 @@ export function buildPeopleTrustedReport({
 }): TrustedReport {
   const option = getPeopleReportOption(kind);
   const reportPeople = getPeopleForReport(people, kind);
-  const insights = getPeopleInsights(people, totalCount);
+  const insights = getPeopleInsights(people, totalCount, {
+    includeArchived: true,
+  });
 
   return {
     columns: [
+      { key: "readiness", label: "Readiness" },
       { key: "roles", label: "Roles" },
       { key: "contact", label: "Contact" },
       { key: "linked", label: "Linked context" },
@@ -295,35 +307,40 @@ export function buildPeopleTrustedReport({
     emptyTitle: "No people rows",
     exportFilenameBase: `people-${slugifyReportPart(option.title)}`,
     generatedAt,
-    kind: "missing-data",
+    kind: "people-readiness",
     periodLabel: "Current directory snapshot",
-    rows: reportPeople.map((person) => ({
-      cells: {
-        contact: person.contact.label,
-        evidence: `${person.recordCounts.documents} document${
-          person.recordCounts.documents === 1 ? "" : "s"
-        }`,
-        linked: getLinkedLabel(person),
-        next: person.nextAction.label,
-        roles: person.roleLabel,
-      },
-      href: getPrimaryPersonHref(person),
-      id: person.id,
-      sourceCount: getPersonSourceCount(person),
-      sourceLinks: [
-        {
-          href: getPrimaryPersonHref(person),
-          id: person.id,
-          label: person.displayName,
-          recordType: "person",
+    rows: reportPeople.map((person) => {
+      const access = accessByPersonId[person.id];
+      const action = getReportAction(person, kind, access);
+      const sourceLinks = getPersonSourceLinks(person, kind, access, action.href);
+      const sourceCount = sourceLinks.length;
+
+      return {
+        cells: {
+          contact: person.contact.label,
+          evidence: `${person.recordCounts.documents} document${
+            person.recordCounts.documents === 1 ? "" : "s"
+          }`,
+          linked:
+            kind === "staff-access"
+              ? getStaffAccessLabel(access)
+              : getLinkedLabel(person),
+          next: action.label,
+          readiness: getReadinessLabel(person, kind, access),
+          roles: person.roleLabel,
         },
-      ],
-      sourceSummary: `${getPersonSourceCount(person)} linked source${
-        getPersonSourceCount(person) === 1 ? "" : "s"
-      }`,
-      title: person.displayName,
-      tone: getReportRowTone(person),
-    })),
+        href: getPrimaryPersonHref(person),
+        id: person.id,
+        nextActionHref: action.href,
+        sourceCount,
+        sourceLinks,
+        sourceSummary: `${sourceCount} linked source${
+          sourceCount === 1 ? "" : "s"
+        }`,
+        title: person.displayName,
+        tone: getReportRowTone(person, kind, access),
+      };
+    }),
     scopeLabel: option.title,
     summary: [
       {
@@ -370,13 +387,17 @@ export function parsePeopleReportKind(value: string | null): PeopleReportKind {
     : "relationship-readiness";
 }
 
-export function getPeopleReportExportHref(
+export function getPeopleReadinessExportHref(
   kind: PeopleReportKind,
   format: "csv" | "pdf",
+  archiveState: "active" | "archived" | "all" = "active",
 ) {
-  const endpoint =
-    format === "csv" ? "/api/people-reports/export" : "/api/people-reports/pdf";
-  const params = new URLSearchParams({ report: kind });
+  const endpoint = format === "csv" ? "/api/reports/export" : "/api/reports/pdf";
+  const params = new URLSearchParams({
+    archiveState,
+    peopleView: getPeopleView(kind),
+    report: "people-readiness",
+  });
 
   return `${endpoint}?${params.toString()}`;
 }
@@ -456,19 +477,19 @@ function getLinkedLabel(person: PeopleSummary) {
   return "No linked context";
 }
 
-function getPersonSourceCount(person: PeopleSummary) {
-  return Math.max(
-    1,
-    person.recordCounts.activity +
-      person.recordCounts.documents +
-      person.recordCounts.leases +
-      person.recordCounts.properties +
-      person.recordCounts.vendors,
-  );
-}
-
-function getReportRowTone(person: PeopleSummary) {
+function getReportRowTone(
+  person: PeopleSummary,
+  kind: PeopleReportKind,
+  access?: OrganizationPersonAccessStatus,
+) {
   if (!person.hasUsefulContact || !hasAnyActiveRole(person)) {
+    return "warning";
+  }
+
+  if (
+    kind === "staff-access" &&
+    access?.state !== "active_workspace_access"
+  ) {
     return "warning";
   }
 
@@ -481,4 +502,153 @@ function getReportRowTone(person: PeopleSummary) {
 
 function getPrimaryPersonHref(person: PeopleSummary) {
   return person.hrefs.people;
+}
+
+function getPeopleView(kind: PeopleReportKind) {
+  if (kind === "tenant-readiness") return "tenant";
+  if (kind === "owner-readiness") return "owner";
+  if (kind === "vendor-activity") return "vendor";
+  if (kind === "staff-access") return "staff";
+  return "relationship";
+}
+
+function getReadinessLabel(
+  person: PeopleSummary,
+  kind: PeopleReportKind,
+  access?: OrganizationPersonAccessStatus,
+) {
+  if (person.isArchived) return "Archived";
+  if (!hasAnyActiveRole(person)) return "Role required";
+  if (!person.hasUsefulContact) return "Contact required";
+  if (kind === "tenant-readiness" && person.linked.activeLeaseCount === 0) {
+    return "Lease required";
+  }
+  if (kind === "owner-readiness" && person.linked.ownerPropertyCount === 0) {
+    return "Property link required";
+  }
+  if (kind === "vendor-activity" && !person.linked.vendorProfile) {
+    return "Vendor profile required";
+  }
+  if (kind === "staff-access") return getStaffAccessLabel(access);
+  if (person.recordCounts.documents === 0) return "Evidence required";
+  return "Ready";
+}
+
+function getStaffAccessLabel(access?: OrganizationPersonAccessStatus) {
+  if (!access || access.state === "no_access") return "No workspace access";
+  if (access.state === "invitation_pending") return "Invitation pending";
+  if (access.state === "delivery_failed") return "Invite delivery failed";
+  if (access.state === "expired") return "Invitation expired";
+  return `${formatWorkspaceAccessRole(access.role)} / ${access.scopeLabel}`;
+}
+
+function getReportAction(
+  person: PeopleSummary,
+  kind: PeopleReportKind,
+  access?: OrganizationPersonAccessStatus,
+) {
+  if (kind !== "staff-access") {
+    return person.nextAction;
+  }
+
+  const params = new URLSearchParams({ personId: person.id });
+  if (
+    access &&
+    (access.state === "invitation_pending" ||
+      access.state === "delivery_failed" ||
+      access.state === "expired")
+  ) {
+    params.set("invitationId", access.invitationId);
+  }
+  if (access?.state === "active_workspace_access") {
+    params.set("membershipId", access.membershipId);
+  }
+
+  return {
+    href: `/users-roles?${params.toString()}`,
+    label:
+      access?.state === "delivery_failed"
+        ? "Retry invitation"
+        : access?.state === "invitation_pending" ||
+            access?.state === "expired"
+          ? "Review invitation"
+          : access?.state === "active_workspace_access"
+            ? "Manage workspace access"
+            : "Grant workspace access",
+  };
+}
+
+function getPersonSourceLinks(
+  person: PeopleSummary,
+  kind: PeopleReportKind,
+  access: OrganizationPersonAccessStatus | undefined,
+  actionHref: string,
+): TrustedReport["rows"][number]["sourceLinks"] {
+  const links: TrustedReport["rows"][number]["sourceLinks"] = [
+    {
+      href: getPrimaryPersonHref(person),
+      id: person.id,
+      label: person.displayName,
+      recordType: "person",
+    },
+  ];
+
+  links.push(
+    ...person.documents.map((document) => ({
+      href: `/documents?archiveState=all&documentId=${document.id}`,
+      id: document.id,
+      label: document.fileName,
+      recordType: "document" as const,
+    })),
+  );
+
+  if (kind === "relationship-readiness" || kind === "tenant-readiness") {
+    links.push(
+      ...person.linked.activeLeases.map((lease) => ({
+        href: lease.href,
+        id: lease.id,
+        label: lease.label,
+        recordType: "lease" as const,
+      })),
+    );
+  }
+
+  if (kind === "relationship-readiness" || kind === "owner-readiness") {
+    links.push(
+      ...person.linked.ownerProperties.map((property) => ({
+        href: property.href,
+        id: property.id,
+        label: property.label,
+        recordType: "property" as const,
+      })),
+    );
+  }
+
+  if (
+    (kind === "relationship-readiness" || kind === "vendor-activity") &&
+    person.linked.vendorProfile
+  ) {
+    links.push({
+      href: getPrimaryPersonHref(person),
+      id: person.linked.vendorProfile.id,
+      label: person.linked.vendorProfile.label,
+      recordType: "vendor-profile",
+    });
+  }
+
+  if (kind === "staff-access") {
+    links.push({
+      href: actionHref,
+      id:
+        access && "membershipId" in access
+          ? access.membershipId
+          : access && "invitationId" in access
+            ? access.invitationId
+            : person.id,
+      label: getStaffAccessLabel(access),
+      recordType: "workspace-access",
+    });
+  }
+
+  return links;
 }

@@ -14,17 +14,26 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const viewQuery = parseReportSearchParams(rawSearchParams);
 
   if (rawSearchParams.report !== undefined) {
-    const query = new URLSearchParams({ month: viewQuery.month });
+    const query =
+      viewQuery.report === "people-readiness"
+        ? new URLSearchParams({
+            archiveState: viewQuery.peopleArchiveState,
+            peopleView: viewQuery.peopleView,
+          })
+        : new URLSearchParams({ month: viewQuery.month });
 
-    if (viewQuery.propertyId !== "all") {
+    if (
+      viewQuery.report !== "people-readiness" &&
+      viewQuery.propertyId !== "all"
+    ) {
       query.set("propertyId", viewQuery.propertyId);
     }
 
-    if (viewQuery.unitId !== "all") {
+    if (viewQuery.report !== "people-readiness" && viewQuery.unitId !== "all") {
       query.set("unitId", viewQuery.unitId);
     }
 
-    if (viewQuery.status !== "all") {
+    if (viewQuery.report !== "people-readiness" && viewQuery.status !== "all") {
       query.set("status", viewQuery.status);
     }
 

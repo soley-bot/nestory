@@ -142,7 +142,7 @@ describe("People route family redesign contract", () => {
     expect(screen.queryByRole("dialog", { name: "People overview" })).toBeNull();
     await user.click(overviewTrigger);
     const overview = screen.getByRole("dialog", { name: "People overview" });
-    expect(within(overview).getByRole("link", { name: "Reports" }).getAttribute("href")).toBe("/people-reports");
+    expect(within(overview).getByRole("link", { name: "Reports" }).getAttribute("href")).toBe("/reports/people-readiness");
     expect(within(overview).getByText("Needs attention")).not.toBeNull();
 
     const lenses = screen.getByRole("navigation", { name: "People views" });

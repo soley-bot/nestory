@@ -1,6 +1,6 @@
 # Current State
 
-Last rebuilt from code inventory on 2026-07-21. This file describes what is
+Last rebuilt from code inventory on 2026-07-24. This file describes what is
 implemented now. It is not a roadmap or early-stage plan.
 
 ## Product Baseline
@@ -123,10 +123,6 @@ People and leases:
   Staff records offer explicit property, lease, or Workspace Access handoffs.
   Staff also shows software-access status. `/team` redirects to `/staff` for
   legacy links.
-- `/people-reports` is a People-domain report hub with CSV/PDF exports for
-  relationship, tenant, owner, vendor, and staff readiness. It remains
-  reachable from the central Reports library but is not duplicated in People
-  navigation.
 - People selectors use active, organization-scoped role membership at the
   shared query boundary. Property ownership uses Owners, lease tenancy uses
   Tenants, expense vendor links use Vendors, and maintenance keeps its stricter
@@ -217,7 +213,13 @@ Documents, imports, and reports:
   report builder with scope/period filters, summary metrics, traceable report
   rows, and CSV/PDF/print export for rent roll, unit performance, property
   performance, owner statement, income/expense, lease expiry, vacancy/risk,
-  maintenance cost, and record-readiness reports.
+  maintenance cost, record readiness, and People readiness reports.
+- `/reports/people-readiness` owns the five People report views:
+  relationship, tenant, owner, vendor, and staff. It preserves active,
+  archived, or all-record scope, exact People and linked-record sources,
+  Staff-to-Workspace-Access actions, and generic CSV/PDF exports without the
+  former duplicate report hub or dedicated export APIs. The retired page
+  remains only as a tested bookmark redirect into this report.
 - `/api/reports/export` and `/api/reports/pdf` expose report export endpoints.
 
 Settings and access:
@@ -232,6 +234,26 @@ Settings and access:
   Staff records are selectable for new access; historical links remain visible
   without becoming new-grant choices.
 - `/account` shows the signed-in user's workspace profile.
+
+## Known Release Limitations
+
+- A production-relevant invitation credential-lifecycle defect is tracked
+  outside this consolidation branch. A brand-new invited user can currently
+  accept through a magic-link session without being offered password creation,
+  then cannot use password sign-in after logout. Release verification must
+  keep invitation acceptance, password creation, logout, and subsequent
+  password sign-in blocked until the focused fix is merged, this branch is
+  updated from `main`, and the workflow plus affected test/database suites are
+  rerun successfully.
+- Maintenance supports operational actual-cost capture and, for Admins, direct
+  ledger linkage. It does not currently provide a prefilled vendor-bill or
+  petty-cash handoff, link an existing finance record through a dedicated
+  workflow, maintain reciprocal bill/petty-cash links, prevent duplicate
+  finance handoffs, or recover a voided handoff.
+- Petty-cash rollover carries the calculated closing balance. The implemented
+  UI does not capture a separate user-entered physical cash count or provide a
+  variance-resolution workflow, so physical-cash reconciliation must not be
+  reported as verified.
 
 ## Database Shape
 
@@ -343,7 +365,7 @@ Compatibility database tests still cover the accounting schema and security
 boundary, balanced/idempotent posting, period locks and reversals, historical
 backfill, transaction rollback, and seeded ledger-to-journal parity.
 
-The UI route manifest currently covers all 52 page routes. Local redesign
+The UI route manifest currently covers all 53 page routes. Local redesign
 verification captures every route at 1440x900, 1024x768, and 390x844, audits
 admin/manager/member/anonymous access outcomes, and rejects serious/critical
 axe findings, application errors, document overflow, unreachable actions,

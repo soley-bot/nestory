@@ -4,7 +4,7 @@ import type {
   TrustedReport,
   TrustedReportRow,
 } from "@/features/reports/reports.types";
-import { slugifyReportPart } from "@/features/reports/data/report-format";
+import { getReportExportFilename } from "@/features/reports/data/report-format";
 
 export async function getReportCsv(
   organizationId: string,
@@ -17,9 +17,7 @@ export async function getReportCsv(
 
   return {
     body: buildTrustedReportCsv(report),
-    filename: `${report.exportFilenameBase}-${viewQuery.month}-${slugifyReportPart(
-      report.scopeLabel,
-    )}.csv`,
+    filename: getReportExportFilename(report, viewQuery, "csv"),
   };
 }
 
