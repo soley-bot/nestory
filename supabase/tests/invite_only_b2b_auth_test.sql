@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(40);
+SELECT plan(42);
 
 SELECT has_table('public', 'organization_invitations', 'invitation domain exists');
 SELECT has_table(
@@ -149,6 +149,26 @@ CREATE TEMP TABLE invitation_test_state (
   expired_invitation_id uuid
 ) ON COMMIT DROP;
 
+CREATE FUNCTION pg_temp.probe_invitation_acceptance(p_invitation_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  rejection_message text;
+BEGIN
+  BEGIN
+    PERFORM public.accept_organization_invitation(p_invitation_id);
+    RAISE EXCEPTION 'accepted unexpectedly' USING ERRCODE = 'P0001';
+  EXCEPTION
+    WHEN SQLSTATE '55000' THEN
+      GET STACKED DIAGNOSTICS rejection_message = MESSAGE_TEXT;
+      RETURN rejection_message;
+    WHEN SQLSTATE 'P0001' THEN
+      RETURN 'accepted unexpectedly';
+  END;
+END;
+$$;
+
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000501', true);
 SELECT throws_ok(
   $$SELECT public.create_organization_invitation(
@@ -234,6 +254,32 @@ SELECT is(
   'only one active invitation exists per organization and email'
 );
 
+SELECT public.mark_organization_invitation_sent(
+  (SELECT invitation_id FROM invitation_test_state),
+  '00000000-0000-0000-0000-000000000701',
+  'invite'
+);
+DELETE FROM app_private.invitation_password_challenges
+WHERE invitation_id = (SELECT invitation_id FROM invitation_test_state);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT invitation_id FROM invitation_test_state)
+    )
+  ),
+  true,
+  'invite delivery without a provider-hash challenge fails closed'
+);
+SELECT is(
+  pg_temp.probe_invitation_acceptance(
+    (SELECT invitation_id FROM invitation_test_state)
+  ),
+  'Password setup is required',
+  'invite acceptance without proof of provider-hash replacement fails closed'
+);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SELECT public.mark_organization_invitation_sent(
   (SELECT invitation_id FROM invitation_test_state),
   '00000000-0000-0000-0000-000000000701',
