@@ -8,6 +8,7 @@ import {
   RECOVERY_MARKER_COOKIE,
   verifyRecoveryMarker,
 } from "@/lib/auth/recovery-marker";
+import { recordPasswordCredentialProof } from "@/lib/auth/password-credential-proof";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -73,6 +74,18 @@ export async function loginAction(
   if (error || !data.user) {
     return {
       message: "Email or password was not accepted.",
+      status: "error",
+    };
+  }
+
+  const proofRecorded = await recordPasswordCredentialProof(
+    data.user.id,
+    "password_login",
+  );
+  if (!proofRecorded) {
+    await supabase.auth.signOut();
+    return {
+      message: "We could not verify this sign-in. Try again.",
       status: "error",
     };
   }
@@ -150,6 +163,19 @@ export async function updatePasswordAction(
   if (error) {
     return {
       message: "We could not update the password. Request a new recovery link.",
+      status: "error",
+    };
+  }
+
+  const proofRecorded = await recordPasswordCredentialProof(
+    data.user.id,
+    "password_recovery",
+  );
+  if (!proofRecorded) {
+    cookieStore.delete(RECOVERY_MARKER_COOKIE);
+    await supabase.auth.signOut();
+    return {
+      message: "Your password was updated. Sign in with it to finish securing your account.",
       status: "error",
     };
   }

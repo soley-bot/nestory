@@ -4064,6 +4064,10 @@ export type Database = {
           workspace_slug: string
         }[]
       }
+      record_auth_password_credential_proof: {
+        Args: { p_auth_user_id: string; p_proof_method: string }
+        Returns: string
+      }
       record_finance_income_payment: {
         Args: {
           p_amount_received: number

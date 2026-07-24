@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  adminRpc,
   cookieDelete,
   cookieGet,
   getUser,
@@ -11,6 +12,7 @@ const {
   verifyRecoveryMarker,
 } =
   vi.hoisted(() => ({
+    adminRpc: vi.fn(),
     cookieDelete: vi.fn(),
     cookieGet: vi.fn(),
     getUser: vi.fn(),
@@ -22,6 +24,9 @@ const {
   }));
 
 vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("@/lib/db/admin", () => ({
+  createSupabaseAdminClient: () => ({ rpc: adminRpc }),
+}));
 vi.mock("next/headers", () => ({
   cookies: () => ({ delete: cookieDelete, get: cookieGet }),
 }));
@@ -42,6 +47,7 @@ import {
 
 describe("password recovery actions", () => {
   beforeEach(() => {
+    adminRpc.mockReset();
     cookieDelete.mockReset();
     cookieGet.mockReset();
     getUser.mockReset();
@@ -50,6 +56,7 @@ describe("password recovery actions", () => {
     signOut.mockReset();
     updateUser.mockReset();
     verifyRecoveryMarker.mockReset();
+    adminRpc.mockResolvedValue({ error: null });
     cookieGet.mockReturnValue({ value: "signed-recovery-marker" });
     verifyRecoveryMarker.mockReturnValue(true);
   });
@@ -123,7 +130,31 @@ describe("password recovery actions", () => {
     expect(updateUser).toHaveBeenCalledWith({
       password: "correct-horse-battery",
     });
+    expect(adminRpc).toHaveBeenCalledWith(
+      "record_auth_password_credential_proof",
+      {
+        p_auth_user_id: "user-1",
+        p_proof_method: "password_recovery",
+      },
+    );
+    expect(updateUser.mock.invocationCallOrder[0]).toBeLessThan(
+      adminRpc.mock.invocationCallOrder[0],
+    );
     expect(cookieDelete).toHaveBeenCalledWith("nestory_recovery");
     expect(signOut).toHaveBeenCalledOnce();
+  });
+
+  it("does not establish credential proof when recovery password update fails", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    updateUser.mockResolvedValue({ error: new Error("password rejected") });
+    const formData = new FormData();
+    formData.set("password", "correct-horse-battery");
+    formData.set("passwordConfirm", "correct-horse-battery");
+
+    await expect(updatePasswordAction({}, formData)).resolves.toEqual({
+      message: "We could not update the password. Request a new recovery link.",
+      status: "error",
+    });
+    expect(adminRpc).not.toHaveBeenCalled();
   });
 });

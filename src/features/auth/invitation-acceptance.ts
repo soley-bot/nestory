@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { AuthActionState } from "@/features/auth/actions";
+import { recordPasswordCredentialProof } from "@/lib/auth/password-credential-proof";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -136,6 +137,17 @@ export async function acceptInvitationAction(
     if (passwordError) {
       return {
         message: "The password could not be created. Try again or request a new invitation.",
+        status: "error",
+      };
+    }
+
+    const proofRecorded = await recordPasswordCredentialProof(
+      userData.user.id,
+      "invitation_password",
+    );
+    if (!proofRecorded) {
+      return {
+        message: "The password could not be confirmed. Request a fresh invitation or use password recovery.",
         status: "error",
       };
     }
