@@ -227,7 +227,146 @@ describe("people insights", () => {
     expect(pdf.byteLength).toBeGreaterThan(500);
     expect(new TextDecoder().decode(pdf.slice(0, 8))).toBe("%PDF-1.4");
   });
+
+  it("emits Workspace Access sources only for real invitations and memberships", () => {
+    const noAccess = staffPerson("person-no-access", "No Access Staff");
+    const pending = staffPerson("person-pending", "Pending Staff");
+    const active = staffPerson("person-active", "Active Staff");
+    const invitationId = "invitation-pending";
+    const membershipId = "membership-active";
+
+    const report = buildPeopleTrustedReport({
+      accessByPersonId: {
+        [noAccess.id]: {
+          primaryAction: "grant_access",
+          state: "no_access",
+        },
+        [pending.id]: {
+          branchId: null,
+          email: "pending@example.com",
+          expiresAt: "2026-07-25T00:00:00.000Z",
+          invitationId,
+          lastSentAt: "2026-07-24T00:00:00.000Z",
+          primaryAction: "review_invitation",
+          role: "member",
+          scopeLabel: "All branches",
+          state: "invitation_pending",
+        },
+        [active.id]: {
+          branchId: null,
+          email: "active@example.com",
+          membershipId,
+          primaryAction: "manage_access",
+          role: "manager",
+          scopeLabel: "All branches",
+          state: "active_workspace_access",
+        },
+      },
+      generatedAt: "2026-07-24T00:00:00.000Z",
+      kind: "staff-access",
+      people: [noAccess, pending, active],
+    });
+
+    const noAccessRow = report.rows.find((row) => row.id === noAccess.id)!;
+    const pendingRow = report.rows.find((row) => row.id === pending.id)!;
+    const activeRow = report.rows.find((row) => row.id === active.id)!;
+
+    expect(noAccessRow).toMatchObject({
+      nextActionHref: `/users-roles?personId=${noAccess.id}`,
+      sourceCount: 1,
+      sourceSummary: "1 linked source",
+    });
+    expect(noAccessRow.sourceLinks).toEqual([
+      expect.objectContaining({
+        id: noAccess.id,
+        recordType: "person",
+      }),
+    ]);
+    expect(noAccessRow.sourceLinks.map((source) => source.id)).toEqual([
+      noAccess.id,
+    ]);
+
+    expect(pendingRow.sourceLinks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: pending.id,
+          recordType: "person",
+        }),
+        expect.objectContaining({
+          id: invitationId,
+          recordType: "workspace-access",
+        }),
+      ]),
+    );
+    expect(pendingRow.sourceCount).toBe(2);
+
+    expect(activeRow.sourceLinks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: active.id,
+          recordType: "person",
+        }),
+        expect.objectContaining({
+          id: membershipId,
+          recordType: "workspace-access",
+        }),
+      ]),
+    );
+    expect(activeRow.sourceCount).toBe(2);
+
+    const csv = buildTrustedReportCsv(report);
+    expect(csv).toContain(
+      `person:${noAccess.displayName},${noAccess.id},/people/${noAccess.id}`,
+    );
+    expect(csv).not.toContain(
+      `person:${noAccess.displayName} | workspace-access:`,
+    );
+    expect(csv).toContain(
+      `person:${pending.displayName} | workspace-access:Invitation pending,${pending.id} | ${invitationId}`,
+    );
+    expect(csv).toContain(
+      `person:${active.displayName} | workspace-access:Manager / All branches,${active.id} | ${membershipId}`,
+    );
+
+    const pdfText = extractPdfCommandText(
+      Buffer.from(
+        buildTrustedReportPdf({
+          organizationName: "Demo Organization",
+          report,
+        }),
+      ).toString("latin1"),
+    );
+    expect(pdfText).toMatch(/No Access Staff .* 1(?: |$)/);
+    expect(pdfText).toMatch(/Pending Staff .* 2(?: |$)/);
+    expect(pdfText).toMatch(/Active Staff .* 2(?: |$)/);
+  });
 });
+
+function staffPerson(id: string, displayName: string) {
+  const staff = person({
+    contact: true,
+    documents: 0,
+    roles: ["staff"],
+  });
+  staff.displayName = displayName;
+  staff.formValues.displayName = displayName;
+  staff.hrefs.people = `/people/${id}`;
+  staff.id = id;
+  return staff;
+}
+
+function extractPdfCommandText(pdf: string) {
+  return [...pdf.matchAll(/\(((?:\\.|[^)])*)\) Tj/g)]
+    .map((match) =>
+      match[1]
+        .replaceAll("\\(", "(")
+        .replaceAll("\\)", ")")
+        .replaceAll("\\\\", "\\"),
+    )
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function person({
   contact,

@@ -636,15 +636,14 @@ function getPersonSourceLinks(
     });
   }
 
-  if (kind === "staff-access") {
+  if (
+    kind === "staff-access" &&
+    access &&
+    ("membershipId" in access || "invitationId" in access)
+  ) {
     links.push({
       href: actionHref,
-      id:
-        access && "membershipId" in access
-          ? access.membershipId
-          : access && "invitationId" in access
-            ? access.invitationId
-            : person.id,
+      id: "membershipId" in access ? access.membershipId : access.invitationId,
       label: getStaffAccessLabel(access),
       recordType: "workspace-access",
     });
