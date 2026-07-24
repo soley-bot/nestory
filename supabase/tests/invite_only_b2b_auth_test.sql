@@ -2,13 +2,63 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(42);
+SELECT plan(60);
 
 SELECT has_table('public', 'organization_invitations', 'invitation domain exists');
 SELECT has_table(
   'app_private',
   'invitation_password_challenges',
   'provider-generated invitation passwords are tracked privately'
+);
+SELECT has_table(
+  'app_private',
+  'auth_password_credential_proofs',
+  'positive password credential proof is tracked privately'
+);
+SELECT is(
+  (
+    SELECT relrowsecurity
+    FROM pg_class
+    WHERE oid = 'app_private.auth_password_credential_proofs'::regclass
+  ),
+  true,
+  'the private credential-proof table has RLS enabled'
+);
+SELECT ok(
+  NOT has_table_privilege(
+    'anon',
+    'app_private.auth_password_credential_proofs',
+    'SELECT,INSERT,UPDATE,DELETE'
+  )
+  AND NOT has_table_privilege(
+    'authenticated',
+    'app_private.auth_password_credential_proofs',
+    'SELECT,INSERT,UPDATE,DELETE'
+  )
+  AND NOT has_table_privilege(
+    'service_role',
+    'app_private.auth_password_credential_proofs',
+    'SELECT,INSERT,UPDATE,DELETE'
+  ),
+  'no API role has direct credential-proof table privileges'
+);
+SELECT ok(
+  has_function_privilege(
+    'service_role',
+    'public.record_auth_password_credential_proof(uuid,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'authenticated',
+    'public.record_auth_password_credential_proof(uuid,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'anon',
+    'public.record_auth_password_credential_proof(uuid,text)',
+    'EXECUTE'
+  ),
+  'only the trusted service role may establish credential proof'
 );
 SELECT has_function(
   'public',
@@ -140,13 +190,66 @@ VALUES
   '{"provider":"email","providers":["email"]}'::jsonb,
   '{"email":"invitee@example.com"}'::jsonb,
   now(), now()
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-000000000704',
+  'authenticated',
+  'authenticated',
+  'magic-manager@example.com',
+  extensions.crypt('unknown-existing-password', extensions.gen_salt('bf')),
+  now(), '', '', '', '', '', '',
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{}'::jsonb,
+  now(), now()
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-000000000705',
+  'authenticated',
+  'authenticated',
+  'magic-admin@example.com',
+  extensions.crypt('unknown-admin-password', extensions.gen_salt('bf')),
+  now(), '', '', '', '', '', '',
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{}'::jsonb,
+  now(), now()
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-000000000706',
+  'authenticated',
+  'authenticated',
+  'magic-member@example.com',
+  extensions.crypt('unknown-member-password', extensions.gen_salt('bf')),
+  now(), '', '', '', '', '', '',
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{}'::jsonb,
+  now(), now()
+),
+(
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-000000000707',
+  'authenticated',
+  'authenticated',
+  'brand-new@example.com',
+  NULL,
+  NULL, '', '', '', '', '', '',
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{}'::jsonb,
+  now(), now()
 );
 
 CREATE TEMP TABLE invitation_test_state (
   invitation_id uuid,
   member_id uuid,
   revoked_invitation_id uuid,
-  expired_invitation_id uuid
+  expired_invitation_id uuid,
+  magic_link_invitation_id uuid,
+  magic_admin_invitation_id uuid,
+  magic_member_invitation_id uuid,
+  proven_invitation_id uuid,
+  brand_new_invitation_id uuid
 ) ON COMMIT DROP;
 
 CREATE FUNCTION pg_temp.probe_invitation_acceptance(p_invitation_id uuid)
@@ -254,6 +357,201 @@ SELECT is(
   'only one active invitation exists per organization and email'
 );
 
+UPDATE invitation_test_state
+SET brand_new_invitation_id = public.create_organization_invitation(
+  '00000000-0000-0000-0000-000000000001',
+  'brand-new@example.com',
+  'manager',
+  NULL,
+  NULL
+);
+SELECT lives_ok(
+  format(
+    'SELECT public.mark_organization_invitation_sent(%L, %L, %L)',
+    (SELECT brand_new_invitation_id FROM invitation_test_state),
+    '00000000-0000-0000-0000-000000000707',
+    'invite'
+  ),
+  'brand-new Auth identities without a provider password hash still finalize delivery'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM app_private.invitation_password_challenges
+    WHERE invitation_id = (SELECT brand_new_invitation_id FROM invitation_test_state)
+  ),
+  0::bigint,
+  'an empty provider password hash does not create a fake challenge'
+);
+UPDATE auth.users
+SET email_confirmed_at = now()
+WHERE id = '00000000-0000-0000-0000-000000000707';
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000707', true);
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT brand_new_invitation_id FROM invitation_test_state)
+    )
+  ),
+  true,
+  'brand-new invite recipients with an empty hash must create a password'
+);
+
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
+UPDATE invitation_test_state
+SET magic_link_invitation_id = public.create_organization_invitation(
+  '00000000-0000-0000-0000-000000000001',
+  'magic-manager@example.com',
+  'manager',
+  NULL,
+  NULL
+);
+SELECT public.mark_organization_invitation_sent(
+  (SELECT magic_link_invitation_id FROM invitation_test_state),
+  NULL,
+  'magic_link'
+);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000704', true);
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT magic_link_invitation_id FROM invitation_test_state)
+    )
+  ),
+  true,
+  'a fresh Manager magic-link invitation without private proof requires password setup'
+);
+SELECT is(
+  pg_temp.probe_invitation_acceptance(
+    (SELECT magic_link_invitation_id FROM invitation_test_state)
+  ),
+  'Password setup is required',
+  'direct acceptance rejects a non-empty Auth hash without private proof'
+);
+
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
+UPDATE invitation_test_state
+SET
+  magic_admin_invitation_id = public.create_organization_invitation(
+    '00000000-0000-0000-0000-000000000001',
+    'magic-admin@example.com',
+    'admin',
+    NULL,
+    NULL
+  ),
+  magic_member_invitation_id = public.create_organization_invitation(
+    '00000000-0000-0000-0000-000000000001',
+    'magic-member@example.com',
+    'member',
+    NULL,
+    NULL
+  ),
+  proven_invitation_id = public.create_organization_invitation(
+    '00000000-0000-0000-0000-000000000001',
+    'other@example.com',
+    'member',
+    NULL,
+    NULL
+  );
+SELECT public.mark_organization_invitation_sent(
+  (SELECT magic_admin_invitation_id FROM invitation_test_state),
+  NULL,
+  'magic_link'
+);
+SELECT public.mark_organization_invitation_sent(
+  (SELECT magic_member_invitation_id FROM invitation_test_state),
+  NULL,
+  'magic_link'
+);
+SELECT public.mark_organization_invitation_sent(
+  (SELECT proven_invitation_id FROM invitation_test_state),
+  NULL,
+  'magic_link'
+);
+
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000705', true);
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT magic_admin_invitation_id FROM invitation_test_state)
+    )
+  ),
+  true,
+  'Admin invitations use the same fail-closed credential rule'
+);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000706', true);
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT magic_member_invitation_id FROM invitation_test_state)
+    )
+  ),
+  true,
+  'Member invitations use the same fail-closed credential rule'
+);
+
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$INSERT INTO app_private.auth_password_credential_proofs (
+    auth_user_id,
+    password_hash_fingerprint,
+    proof_method
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000702',
+    '\x00'::bytea,
+    'password_login'
+  )$$,
+  '42501',
+  'permission denied for table auth_password_credential_proofs',
+  'ordinary authenticated callers cannot mutate credential proof'
+);
+RESET ROLE;
+
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
+SET LOCAL ROLE service_role;
+SELECT lives_ok(
+  $$SELECT public.record_auth_password_credential_proof(
+    '00000000-0000-0000-0000-000000000702',
+    'password_login'
+  )$$,
+  'the trusted password-login boundary can establish proof'
+);
+RESET ROLE;
+SELECT is(
+  (
+    SELECT count(*)
+    FROM app_private.auth_password_credential_proofs
+    WHERE auth_user_id = '00000000-0000-0000-0000-000000000702'
+  ),
+  1::bigint,
+  'positive proof stores one current password fingerprint'
+);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000702', true);
+SELECT is(
+  (
+    SELECT password_required
+    FROM public.get_organization_invitation_for_acceptance(
+      (SELECT proven_invitation_id FROM invitation_test_state)
+    )
+  ),
+  false,
+  'a fresh magic-link invitation may reuse a positively proven password'
+);
+SELECT lives_ok(
+  format(
+    'SELECT public.accept_organization_invitation(%L)',
+    (SELECT proven_invitation_id FROM invitation_test_state)
+  ),
+  'positive credential proof permits direct invitation acceptance'
+);
+
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SELECT public.mark_organization_invitation_sent(
   (SELECT invitation_id FROM invitation_test_state),
   '00000000-0000-0000-0000-000000000701',
@@ -408,6 +706,24 @@ SELECT is(
   (SELECT count(*) FROM public.organization_members WHERE organization_id = '00000000-0000-0000-0000-000000000001' AND user_id = '00000000-0000-0000-0000-000000000701'),
   1::bigint,
   'acceptance never duplicates membership'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM app_private.invitation_password_challenges
+    WHERE invitation_id = (SELECT invitation_id FROM invitation_test_state)
+  ),
+  0::bigint,
+  'successful invitation acceptance clears its provider-generated challenge'
+);
+SELECT is(
+  (
+    SELECT count(*)
+    FROM app_private.auth_password_credential_proofs
+    WHERE auth_user_id = '00000000-0000-0000-0000-000000000701'
+  ),
+  1::bigint,
+  'provider-password replacement becomes durable credential proof'
 );
 
 SET LOCAL ROLE authenticated;

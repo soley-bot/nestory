@@ -69,13 +69,19 @@ Public and auth:
 - `/login` provides password sign-in only. `/forgot-password` and
   `/update-password` use Supabase recovery sessions. `/accept-invite` reviews
   and accepts a Nestory invitation after Supabase verifies the invited email.
+  Invitation acceptance requires password creation unless Nestory has positive
+  proof for the identity's current password. Auth identity existence or a
+  non-empty provider hash alone is not proof.
 - `/signup` is a retired redirect to `/login`. `/setup` cannot provision a
   workspace and sends authenticated users to `/no-access`.
 - `/workspace` is a concise authenticated organization entry surface with one
   role-aware continuation link to `/overview` for admins, `/maintenance` for
   managers, or `/tasks` for members. Users without a matching membership go
   to `/no-access`; they cannot create an organization from a public route.
-- `/auth/callback`, `/auth/confirm` handle Supabase auth callbacks.
+- `/auth/callback` and `/auth/confirm` handle server-verifiable Supabase auth
+  callbacks. `/auth/complete` consumes implicit email-link fragments and posts
+  them to `/auth/session`, which creates secure server session cookies before
+  continuing to invitation acceptance or password recovery.
 
 Core dashboard shell:
 
@@ -233,7 +239,8 @@ Settings and access:
   resend, revoke, role/scope update, and access removal safeguards. Active
   Staff records are selectable for new access; historical links remain visible
   without becoming new-grant choices.
-- `/account` shows the signed-in user's workspace profile.
+- `/account` shows the signed-in user's workspace profile and links to the
+  signed recovery flow for users who need to set or replace a password.
 
 ## Known Release Limitations
 
@@ -262,6 +269,11 @@ RPC write boundaries. Current table families include:
 
 - Access: `organizations`, `organization_members`, `organization_invitations`,
   `organization_branches`, `organization_teams`.
+- Private credential readiness:
+  `app_private.auth_password_credential_proofs` binds positive password proof
+  to the current Auth password fingerprint, while
+  `app_private.invitation_password_challenges` tracks the provider-generated
+  invite fingerprint. Both remain outside ordinary Data API access.
 - Public intake: `public_interest_requests` is RLS-enabled and unavailable to
   anonymous or ordinary authenticated database roles. The public server action
   writes through the service role and deduplicates an email/request type per
@@ -301,6 +313,8 @@ Implemented RPC families include:
 - Service-role-only workspace provisioning; admin-checked invitation
   create/resend/revoke; verified-email invitation acceptance; access lookup,
   update, and removal with SQL-enforced final-administrator protection.
+  Invitation acceptance also fails closed unless the current password has
+  durable proof or differs from the matching private provider challenge.
 - Property, unit, person, lease, document, ledger, timeline, and maintenance
   create/update/archive/restore.
 - Finance income and expense workflow creation, status changes, dated receipt

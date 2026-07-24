@@ -138,6 +138,32 @@ password otherwise. These are disposable local accounts, not hosted credentials.
 For authenticated UI, start from the route an operator would use, not only a
 deep component state.
 
+### Invitation credential lifecycle
+
+Invitation changes are not verified by reaching the workspace once. Use local
+Supabase and the newest Mailpit message to prove the complete credential
+lifecycle:
+
+1. For a brand-new invited identity, inspect the generated email target, pass
+   through `/auth/complete`, confirm `/auth/session` succeeds, and confirm
+   `/accept-invite` requires password creation.
+2. Accept the invitation, follow the role-specific `/workspace` continuation,
+   sign out, and sign in with the selected password.
+3. For an existing identity with positive proof from a successful password
+   login, verify a fresh magic-link invitation omits password creation and the
+   existing password still works after sign-out.
+4. For an existing confirmed identity with a non-empty password hash but no
+   private proof, verify a fresh magic-link invitation requires password
+   creation, cannot be submitted empty, and the replacement password works
+   after sign-out.
+5. Run the invitation pgTAP coverage for Admin, Manager, and Member, missing or
+   matching challenges, empty hashes, direct RPC bypass, and private-table
+   privileges.
+
+Do not inspect or print Auth password hashes during browser verification.
+Database evidence should be limited to invitation status, membership role,
+proof method/timestamp presence, and whether the private challenge remains.
+
 ## Route Checks
 
 - A public unauthenticated request to protected dashboard routes should redirect

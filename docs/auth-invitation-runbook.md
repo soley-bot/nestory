@@ -1,15 +1,30 @@
 # Invite-only authentication runbook
 
-Nestory access has two separate records:
+Nestory access has three separate records:
 
 1. Supabase Auth owns the identity, verified email, password, recovery,
    session, and JWT.
 2. Nestory owns the organization invitation and the active
    `organization_members` row.
+3. `app_private.auth_password_credential_proofs` records that a specific
+   current password hash was positively proven through a Nestory-controlled
+   password boundary.
 
 An Auth user without an accepted Nestory membership has no workspace access.
 An invitation is not access until its verified recipient explicitly accepts
 it.
+
+Auth identity existence and a non-empty `auth.users.encrypted_password` are not
+proof that the user knows the password. Credential proof is established only
+after successful password login, recovery password update, invitation password
+creation, or replacement of the exact provider-generated password fingerprint
+tracked for that invitation. Provider replacement is proven only when the
+current hash is non-empty, the invitation has a matching private challenge,
+and the current fingerprint differs from that stored fingerprint.
+
+The proof table is private, RLS-enabled, unavailable to anonymous and ordinary
+authenticated database roles, and stores only a one-way hash fingerprint.
+Application code never receives an Auth password hash.
 
 ## Staff identity and access model
 
@@ -41,11 +56,17 @@ guarded access update flow.
    access**.
 5. The recipient opens the newest Supabase email link. Supabase verifies the
    one-time link, redirects through `/auth/complete`, and Nestory creates the
-   secure session cookies before opening `/accept-invite`. A new Auth user
-   creates a password; an existing confirmed user keeps the existing password.
-   Both review and explicitly accept the Nestory access.
+   secure session cookies before opening `/accept-invite`. Password creation is
+   required unless Nestory has positive proof for the identity's current
+   password. This includes fresh existing-user magic-link invitations: a
+   non-empty provider hash alone does not remove the password fields. The
+   recipient reviews and explicitly accepts the Nestory access only after the
+   database credential gate is satisfied.
 6. Confirm the invitation leaves the pending list and the account appears under
    **Active access**.
+7. Sign out, then sign in with the selected or previously proven password.
+   Invitation verification is incomplete until this succeeds and the
+   role-specific `/workspace` continuation opens.
 
 Use **Resend** after correcting an email-delivery problem. Resend refreshes the
 expiry and delivery state on the same active invitation. Use **Revoke** when
@@ -83,7 +104,9 @@ merely to remove one organization membership.
   **Resend**. Do not add a membership as a workaround.
 - **Auth identity exists without Nestory access:** send or resend a Nestory
   invitation. Supabase sends an existing-user magic link with account creation
-  disabled; the user explicitly accepts after email authentication.
+  disabled. Email authentication alone does not establish password proof. The
+  user must create a password unless a successful Nestory password boundary
+  already proved the current credential.
 - **Auth identity was created but membership finalization failed:** keep or
   refresh the pending invitation and resend it. Acceptance is idempotent and
   will create at most one membership.
@@ -94,7 +117,11 @@ merely to remove one organization membership.
   deliver the matching existing-user claim link and invitation identifier.
 - **Forgotten password:** use `/forgot-password`. Responses are neutral whether
   the address exists. The recipient must establish a valid Supabase
-  recovery session before `/update-password` succeeds.
+  recovery session before `/update-password` succeeds. A successful recovery
+  password update establishes credential proof. Already-affected users who
+  accepted access without creating a password should use this route, or the
+  **Set or change password** link on `/account`, then sign in with the new
+  password.
 - **Break-glass membership repair:** direct database repair is an exceptional,
   reviewed operation. Preserve the final-admin invariant, organization scope,
   and an equivalent `activity_logs` audit record. Prefer repairing/resending
@@ -136,8 +163,14 @@ Dashboard:
   application origin, `/auth/complete`, and the matching `/accept-invite`
   identifier. Then verify password setup, acceptance, membership, and the
   role-specific route reached through `/workspace`.
-- Send one invitation to a controlled existing Auth user and verify the magic
-  link does not reset its password.
+- Send one invitation to a controlled existing Auth user after establishing
+  positive proof with a successful password login. Verify the magic-link
+  invitation does not require an unnecessary reset, then sign out and confirm
+  that existing password still works.
+- Send one invitation to a controlled existing Auth identity with a non-empty
+  password hash but no Nestory credential proof. Verify the magic link still
+  requires password creation, empty submission cannot accept the invitation,
+  and the replacement password works after sign-out.
 - Run one production password recovery and verify the recovery-session gate.
 - Sign out after invitation acceptance, then sign in again with the newly
   created password. The invitation pass is incomplete until this succeeds.

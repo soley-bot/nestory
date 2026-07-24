@@ -20,7 +20,8 @@ describe("AccountScreen", () => {
     expect(html).toContain("Assigned work");
     expect(html).toContain("Signing out ends this browser session.");
     expect(html).not.toContain("Workspace Access");
-    expect(html).not.toContain("Change password");
+    expect(html).toContain("Set or change password");
+    expect(html).toContain('href="/forgot-password"');
     expect(html).not.toContain("Delete account");
   });
 

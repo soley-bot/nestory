@@ -41,4 +41,50 @@ describe("AcceptInvitePage", () => {
     expect(html).toContain("Member");
     expect(html).not.toContain("Team Member");
   });
+
+  it("omits password fields when acceptance data says password is not required", async () => {
+    getInvitationAcceptance.mockResolvedValue({
+      accountEmail: "manager@example.com",
+      expiresAt: "2026-07-23T12:00:00.000Z",
+      invitationId: "11111111-1111-4111-8111-111111111111",
+      organizationName: "Riverside Operations",
+      passwordRequired: false,
+      role: "manager",
+      scopeName: "Bangkok",
+      staffName: "Mara Chen",
+      state: "pending",
+    });
+
+    const html = renderToStaticMarkup(
+      await AcceptInvitePage({
+        searchParams: Promise.resolve({ invitation: "11111111-1111-4111-8111-111111111111" }),
+      }),
+    );
+
+    expect(html).not.toContain("Create password");
+    expect(html).not.toContain("Confirm password");
+  });
+
+  it("shows password fields when acceptance data says password is required", async () => {
+    getInvitationAcceptance.mockResolvedValue({
+      accountEmail: "manager@example.com",
+      expiresAt: "2026-07-23T12:00:00.000Z",
+      invitationId: "11111111-1111-4111-8111-111111111111",
+      organizationName: "Riverside Operations",
+      passwordRequired: true,
+      role: "manager",
+      scopeName: "Bangkok",
+      staffName: "Mara Chen",
+      state: "pending",
+    });
+
+    const html = renderToStaticMarkup(
+      await AcceptInvitePage({
+        searchParams: Promise.resolve({ invitation: "11111111-1111-4111-8111-111111111111" }),
+      }),
+    );
+
+    expect(html).toContain("Create password");
+    expect(html).toContain("Confirm password");
+  });
 });
