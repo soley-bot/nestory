@@ -62,6 +62,7 @@ export function PersonForm({
   );
   const defaults = getPersonDefaults(person, initialRoles);
   const presentation = getPersonFormPresentation(roleContext);
+  const locksRole = !isEditMode && Boolean(roleContext);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -175,8 +176,8 @@ export function PersonForm({
         </div>
       </FormSection>
 
-      <FormSection title={roleContext ? "Record type" : "Roles"}>
-        {roleContext ? (
+      <FormSection title={locksRole ? "Record type" : "Roles"}>
+        {locksRole && roleContext ? (
           <LockedRoleField
             error={state.fieldErrors?.roles?.[0]}
             role={roleContext}

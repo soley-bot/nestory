@@ -1,13 +1,20 @@
 /* @vitest-environment jsdom */
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PersonDetailScreen } from "@/features/people/components/person-detail-screen";
 import PersonNotFound from "@/app/(dashboard)/people/[personId]/not-found";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import type { PeopleSummary } from "@/features/people/people.types";
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("PersonDetailScreen", () => {
   it("uses the linked-record detail rhythm without repeating identity", () => {
@@ -39,6 +46,25 @@ describe("PersonDetailScreen", () => {
     expect(screen.getByRole("link", { name: "Back to people" }).getAttribute("href")).toBe(
       "/people",
     );
+  });
+
+  it("keeps role checkboxes available when editing a single-role person", () => {
+    render(<PersonDetailScreen person={person} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(
+      screen.getByRole("checkbox", { name: "Tenant" }).getAttribute("data-state"),
+    ).toBe("checked");
+    expect(
+      screen.getByRole("checkbox", { name: "Owner" }).getAttribute("data-state"),
+    ).toBe("unchecked");
+    expect(
+      screen.getByRole("checkbox", { name: "Vendor" }).getAttribute("data-state"),
+    ).toBe("unchecked");
+    expect(
+      screen.getByRole("checkbox", { name: "Staff" }).getAttribute("data-state"),
+    ).toBe("unchecked");
   });
 
   it.each([
@@ -234,3 +260,9 @@ const person: PeopleSummary = {
   statusTone: "success",
   updatedAt: "2026-07-15T00:00:00.000Z",
 };
+
+class ResizeObserverStub {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
