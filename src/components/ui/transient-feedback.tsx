@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { CheckCircle2, X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 export type TransientFeedbackAction = {
   href: string;
@@ -18,14 +18,16 @@ export function TransientFeedback({
   message: string;
   onDismiss: () => void;
 }) {
+  const dismiss = useEffectEvent(onDismiss);
+
   useEffect(() => {
     if (action) {
       return;
     }
 
-    const timeoutId = window.setTimeout(onDismiss, 4_500);
+    const timeoutId = window.setTimeout(dismiss, 4_500);
     return () => window.clearTimeout(timeoutId);
-  }, [action, message, onDismiss]);
+  }, [action, message]);
 
   return (
     <div
