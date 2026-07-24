@@ -81,7 +81,7 @@ BEGIN
         invitation.status IN ('pending', 'send_failed')
         AND (
           invitation.auth_user_id IS NOT NULL
-          OR invitation.delivery_method IS DISTINCT FROM 'magic_link'
+          OR invitation.delivery_method = 'invite'
         )
         AND NOT app_private.invitation_password_was_replaced(
           invitation.id,
@@ -119,7 +119,7 @@ BEGIN
     AND OLD.status IN ('pending', 'send_failed')
     AND (
       OLD.auth_user_id IS NOT NULL
-      OR OLD.delivery_method IS DISTINCT FROM 'magic_link'
+      OR OLD.delivery_method = 'invite'
     ) THEN
     SELECT user_row.encrypted_password
     INTO current_encrypted_password
