@@ -40,6 +40,6 @@ describe("AccountScreen", () => {
     expect(html).toContain('href="/users-roles"');
     expect(html).toContain("Organization-wide");
     expect(html).toContain("Workspace Access");
-    expect(html).toContain("Administrator");
+    expect(html).toContain("Admin");
   });
 });

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import type { PeopleBadgeTone } from "@/features/people/people.types";
 import { formatDate } from "@/lib/dates/format";
@@ -58,9 +59,9 @@ export function getWorkspaceAccessPresentation(
       params.set("memberId", status.membershipId);
       return {
         actionLabel: "Manage workspace access",
-        detail: `${formatAccessRole(status.role)} / ${status.scopeLabel}`,
+        detail: `${formatWorkspaceAccessRole(status.role)} / ${status.scopeLabel}`,
         href: `/users-roles?${params.toString()}`,
-        stateLabel: "Active workspace access",
+        stateLabel: "Active access",
         tone: "success",
       };
     case "delivery_failed":
@@ -69,7 +70,7 @@ export function getWorkspaceAccessPresentation(
         actionLabel: "Review and resend",
         detail: `${status.email} / Delivery needs attention.`,
         href: `/users-roles?${params.toString()}`,
-        stateLabel: "Invitation delivery failed",
+        stateLabel: "Invitation failed",
         tone: "danger",
       };
     case "expired":
@@ -89,7 +90,7 @@ export function getWorkspaceAccessPresentation(
           ? `${status.email} / Last sent ${formatDate(status.lastSentAt)}`
           : `${status.email} / Awaiting acceptance.`,
         href: `/users-roles?${params.toString()}`,
-        stateLabel: "Invitation pending",
+        stateLabel: "Pending invitation",
         tone: "accent",
       };
     case "no_access":
@@ -97,20 +98,8 @@ export function getWorkspaceAccessPresentation(
         actionLabel: "Grant workspace access",
         detail: "Operational Staff record only.",
         href: `/users-roles?${params.toString()}`,
-        stateLabel: "No workspace access",
+        stateLabel: "No access",
         tone: "neutral",
       };
   }
-}
-
-function formatAccessRole(role: "admin" | "manager" | "member") {
-  if (role === "admin") {
-    return "Administrator";
-  }
-
-  if (role === "manager") {
-    return "Manager";
-  }
-
-  return "Team Member";
 }

@@ -10,7 +10,7 @@ import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
-import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
+import { removeSearchParams } from "@/lib/url/href";
 import {
   ArchivePropertyPanel,
   RestorePropertyPanel,
@@ -23,6 +23,7 @@ import type { PropertySummary } from "@/features/properties/data/properties";
 import { DEFAULT_PROPERTY_SORT } from "@/features/properties/property.filters";
 import type {
   PropertyDisplayMode,
+  PropertyFormValues,
   PropertyOwnerOption,
   PropertyPagination,
   PropertySortKey,
@@ -30,7 +31,11 @@ import type {
 } from "@/features/properties/property.types";
 
 type DrawerState =
-  | { mode: "create"; property?: never }
+  | {
+      initialValues?: Partial<Pick<PropertyFormValues, "ownerPersonId">>;
+      mode: "create";
+      property?: never;
+    }
   | { mode: "edit"; property: PropertySummary }
   | { mode: "archive"; property: PropertySummary }
   | { mode: "restore"; property: PropertySummary };
@@ -55,9 +60,13 @@ export function PropertyScreen({
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const createInitialValues = getPropertyCreateInitialValues(
+    searchParams,
+    ownerOptions,
+  );
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
     canCreate && searchParams.get("action") === "create"
-      ? { mode: "create" }
+      ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
   const [displayMode, setDisplayMode] = useState<PropertyDisplayMode>(() =>
@@ -124,7 +133,7 @@ export function PropertyScreen({
     }
 
     if (!canCreate) {
-      router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+      router.replace(getHrefWithoutCreateIntent(pathname, searchParams), {
         scroll: false,
       });
       return;
@@ -132,12 +141,18 @@ export function PropertyScreen({
 
     queueMicrotask(() => {
       setStatusMessage(null);
-      setDrawer({ mode: "create" });
+      setDrawer({
+        initialValues: getPropertyCreateInitialValues(
+          searchParams,
+          ownerOptions,
+        ),
+        mode: "create",
+      });
     });
-    router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+    router.replace(getHrefWithoutCreateIntent(pathname, searchParams), {
       scroll: false,
     });
-  }, [canCreate, pathname, router, searchParams]);
+  }, [canCreate, ownerOptions, pathname, router, searchParams]);
 
   const hasFilters =
     hasActivePropertyFilters(viewQuery) ||
@@ -296,7 +311,14 @@ export function PropertyScreen({
             />
           ) : (
             <PropertyForm
-              key={`${drawer.mode}-${drawer.property?.id ?? "new"}`}
+              initialValues={
+                drawer.mode === "create" ? drawer.initialValues : undefined
+              }
+              key={
+                drawer.mode === "create"
+                  ? `create-${drawer.initialValues?.ownerPersonId ?? "new"}`
+                  : `${drawer.mode}-${drawer.property.id}`
+              }
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
@@ -308,6 +330,31 @@ export function PropertyScreen({
       ) : null}
     </WorkspacePage>
   );
+}
+
+function getHrefWithoutCreateIntent(
+  pathname: string,
+  searchParams: { toString(): string },
+) {
+  return removeSearchParams(pathname, searchParams, [
+    "action",
+    "ownerPersonId",
+  ]);
+}
+
+function getPropertyCreateInitialValues(
+  searchParams: { get(name: string): string | null },
+  ownerOptions: PropertyOwnerOption[],
+): Partial<Pick<PropertyFormValues, "ownerPersonId">> | undefined {
+  const ownerPersonId = searchParams.get("ownerPersonId");
+  if (
+    !ownerPersonId ||
+    !ownerOptions.some((owner) => owner.id === ownerPersonId)
+  ) {
+    return undefined;
+  }
+
+  return { ownerPersonId };
 }
 
 type PropertyReviewContext = {

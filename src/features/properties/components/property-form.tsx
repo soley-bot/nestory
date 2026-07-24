@@ -211,7 +211,7 @@ export function PropertyForm({
       <FormSection title="Ownership and location">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
           <RecordField
-            label="Current owner link"
+            label="Property owner"
             name="ownerPersonId"
             error={state.fieldErrors?.ownerPersonId?.[0]}
           >

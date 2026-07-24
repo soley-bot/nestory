@@ -11,6 +11,23 @@ An Auth user without an accepted Nestory membership has no workspace access.
 An invitation is not access until its verified recipient explicitly accepts
 it.
 
+## Staff identity and access model
+
+- **Staff** is the operational person record.
+- **Workspace Access** determines whether that Staff member can sign in.
+- **Access Level** is Admin, Manager, or Member.
+- **Scope** limits non-admin access to the permitted branch when configured.
+- **Operational responsibility** is separate from Access Level. Nestory
+  currently enforces specific assignments in the workflows that support them;
+  it does not yet have a general responsibility-area model across maintenance,
+  finance, and property operations.
+
+Workspace Access lists Staff without access, pending invitations, and active
+access separately. An archived linked Staff record remains visible for review
+but cannot be selected for a new grant. **Legacy unlinked access** identifies
+an older active account that must be linked to a Staff record through the
+guarded access update flow.
+
 ## Normal operations
 
 ### Invite a user
@@ -21,14 +38,14 @@ it.
    email, then choose the access level and optional access scope. Editing the
    sign-in email does not change the Staff record's operational email.
 4. Confirm the record appears under **Pending invitations**, not **Active
-   members**.
+   access**.
 5. The recipient opens the newest Supabase email link. Supabase verifies the
    one-time link, redirects through `/auth/complete`, and Nestory creates the
    secure session cookies before opening `/accept-invite`. A new Auth user
    creates a password; an existing confirmed user keeps the existing password.
    Both review and explicitly accept the Nestory access.
 6. Confirm the invitation leaves the pending list and the account appears under
-   active members.
+   **Active access**.
 
 Use **Resend** after correcting an email-delivery problem. Resend refreshes the
 expiry and delivery state on the same active invitation. Use **Revoke** when

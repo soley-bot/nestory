@@ -117,10 +117,20 @@ People and leases:
   list workspace does not reserve a side inspector; full person context lives
   on the person detail route. `/people` places its cross-role readiness summary
   behind a compact overview popover, while each alias opens its matching lens
-  and create default; Staff also shows software-access status. `/team`
-  redirects to `/staff` for legacy links.
+  and role-specific form presentation. Owner, Tenant, Staff, and Vendor routes
+  share the person record boundary without exposing unrelated role fields.
+  Successful person writes use transient feedback; new Owner, Tenant, and
+  Staff records offer explicit property, lease, or Workspace Access handoffs.
+  Staff also shows software-access status. `/team` redirects to `/staff` for
+  legacy links.
 - `/people-reports` is a People-domain report hub with CSV/PDF exports for
-  relationship, tenant, owner, vendor, and staff readiness.
+  relationship, tenant, owner, vendor, and staff readiness. It remains
+  reachable from the central Reports library but is not duplicated in People
+  navigation.
+- People selectors use active, organization-scoped role membership at the
+  shared query boundary. Property ownership uses Owners, lease tenancy uses
+  Tenants, expense vendor links use Vendors, and maintenance keeps its stricter
+  linked-member eligibility boundary.
 - `/leases` supports lease list, filters, create/update/archive/restore, linked
   tenant/person data, terms, occupancy, deposits, documents, timeline context,
   risk, and next actions.
@@ -216,8 +226,11 @@ Settings and access:
   structure, branches, and teams with explicit draft/save/discard feedback.
 - `/users-roles` remains the compatible Workspace Access route for Staff-first
   invitations, access levels, linked Staff records, access scope, and existing
-  users. Active Staff records are selectable for new access; historical links
-  remain visible without becoming new-grant choices.
+  access. It separates Staff without access, pending invitations, and active
+  access; identifies archived Staff and legacy unlinked access; and keeps
+  resend, revoke, role/scope update, and access removal safeguards. Active
+  Staff records are selectable for new access; historical links remain visible
+  without becoming new-grant choices.
 - `/account` shows the signed-in user's workspace profile.
 
 ## Database Shape

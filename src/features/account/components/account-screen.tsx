@@ -3,6 +3,7 @@ import { KeyRound, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { signOutAction } from "@/features/auth/actions";
+import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
 import type { WorkspaceRole } from "@/lib/auth/context";
 
 export type AccountIdentity = {
@@ -78,7 +79,10 @@ export function AccountScreen({
       <aside className="min-w-0 space-y-4">
         <ConsequencePanel
           rows={[
-            { label: "Access level", value: formatPlatformRole(identity.role) },
+            {
+              label: "Access level",
+              value: formatWorkspaceAccessRole(identity.role),
+            },
             { label: "Access scope", value: roleScope(identity.role, identity.branchLabel) },
             { label: "Linked staff record", value: profile?.displayName ?? "Not linked" },
           ]}
@@ -139,10 +143,6 @@ function roleEffect(role: WorkspaceRole) {
   if (role === "admin") return "Full workspace and settings access.";
   if (role === "manager") return "Operational access within the assigned branch scope.";
   return "Assigned task access through the linked staff profile.";
-}
-
-function formatPlatformRole(role: WorkspaceRole) {
-  return role === "admin" ? "Administrator" : role === "manager" ? "Manager" : "Team Member";
 }
 
 function formatPartyType(value: string) {

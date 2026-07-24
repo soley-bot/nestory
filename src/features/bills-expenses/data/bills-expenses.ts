@@ -10,6 +10,8 @@ import {
   getBillsExpensesMonthScope,
 } from "@/features/bills-expenses/bills-expenses.filters";
 import { buildPostgrestIlikeOrFilters } from "@/lib/query/screen-query";
+import { getPersonSelectOptions } from "@/features/people/data/person-options";
+import type { PersonSelectOption } from "@/features/people/person-select";
 import {
   expenseTypeOptions,
   economicScopeOptions,
@@ -35,10 +37,6 @@ type UnitRow = Pick<
   Database["public"]["Tables"]["units"]["Row"],
   "id" | "property_id" | "unit_number"
 >;
-type PersonRow = Pick<
-  Database["public"]["Tables"]["people"]["Row"],
-  "display_name" | "id"
->;
 type PaymentAllocationRow = Pick<
   Database["public"]["Tables"]["finance_payment_allocations"]["Row"],
   "amount" | "expense_item_id"
@@ -55,7 +53,7 @@ export async function getBillsExpensesScreenData(
 ) {
   const supabase = await createSupabaseServerClient();
   const monthScope = getBillsExpensesMonthScope(viewQuery.month);
-  const [propertiesResult, unitsResult, vendorsResult] = await Promise.all([
+  const [propertiesResult, unitsResult, vendors] = await Promise.all([
     supabase
       .from("properties")
       .select("id, name, code")
@@ -68,12 +66,10 @@ export async function getBillsExpensesScreenData(
       .eq("organization_id", organizationId)
       .is("archived_at", null)
       .order("unit_number", { ascending: true }),
-    supabase
-      .from("people")
-      .select("id, display_name")
-      .eq("organization_id", organizationId)
-      .is("archived_at", null)
-      .order("display_name", { ascending: true }),
+    getPersonSelectOptions({
+      organizationId,
+      roles: ["vendor"],
+    }),
   ]);
 
   if (propertiesResult.error) {
@@ -86,15 +82,8 @@ export async function getBillsExpensesScreenData(
     throw new Error(`Could not load expense units: ${unitsResult.error.message}`);
   }
 
-  if (vendorsResult.error) {
-    throw new Error(
-      `Could not load expense vendors: ${vendorsResult.error.message}`,
-    );
-  }
-
   const properties = propertiesResult.data ?? [];
   const units = unitsResult.data ?? [];
-  const vendors = vendorsResult.data ?? [];
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
   const focusedExpenseItemId =
@@ -320,7 +309,7 @@ function toBillsExpenseItem({
 async function getPaidBillsExpensesData({ organizationId, properties, propertiesById, supabase, units, unitsById, vendors, viewQuery }: {
   organizationId: string; properties: PropertyRow[]; propertiesById: Map<string, PropertyRow>;
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>; units: UnitRow[];
-  unitsById: Map<string, UnitRow>; vendors: PersonRow[]; viewQuery: BillsExpensesViewQuery;
+  unitsById: Map<string, UnitRow>; vendors: PersonSelectOption[]; viewQuery: BillsExpensesViewQuery;
 }) {
   const scope = getBillsExpensesMonthScope(viewQuery.month);
   const offset = (viewQuery.page - 1) * viewQuery.pageSize;
@@ -421,10 +410,10 @@ function toUnitOptions(
   }));
 }
 
-function toVendorOptions(vendors: PersonRow[]): BillsExpenseOption[] {
+function toVendorOptions(vendors: PersonSelectOption[]): BillsExpenseOption[] {
   return vendors.map((vendor) => ({
     id: vendor.id,
-    label: vendor.display_name,
+    label: vendor.label,
   }));
 }
 

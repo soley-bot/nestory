@@ -19,7 +19,10 @@ import { DraftActionBar, type DraftStatus } from "@/components/ui/draft-action-b
 import { SelectControl } from "@/components/ui/select-control";
 import { signOutAction } from "@/features/auth/actions";
 import { PersonSelect } from "@/features/people/components/person-select";
-import { buildAccessByPersonId } from "@/features/organization/access-status";
+import {
+  buildAccessByPersonId,
+  formatWorkspaceAccessRole,
+} from "@/features/organization/access-status";
 import {
   inviteOrganizationUserAction,
   removeMemberAccessAction,
@@ -41,9 +44,9 @@ type AccessDraftController = {
 };
 
 const roleOptions = [
-  { label: "Administrator", value: "admin" },
+  { label: "Admin", value: "admin" },
   { label: "Manager", value: "manager" },
-  { label: "Team Member", value: "member" },
+  { label: "Member", value: "member" },
 ];
 
 export function AccessSettingsScreen({
@@ -105,6 +108,24 @@ function AccessWorkspace({
   const [draftVersion, setDraftVersion] = useState(0);
   const adminCount = members.filter((member) => member.role === "admin").length;
   const staffOptions = useMemo(() => activeStaffOptions(people), [people]);
+  const accessByPersonId = useMemo(
+    () =>
+      buildAccessByPersonId(
+        staffOptions.map((person) => person.id),
+        members,
+        invitations,
+        new Date(),
+        branches,
+      ),
+    [branches, invitations, members, staffOptions],
+  );
+  const staffWithoutAccess = useMemo(
+    () =>
+      staffOptions.filter(
+        (person) => accessByPersonId[person.id]?.state === "no_access",
+      ),
+    [accessByPersonId, staffOptions],
+  );
 
   const registerDraft = useCallback(
     (id: string, controller: AccessDraftController | null) => {
@@ -174,6 +195,45 @@ function AccessWorkspace({
         <section className="rounded-md border border-border bg-surface">
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <UsersRound aria-hidden="true" size={15} />
+              Staff without access
+            </h2>
+            <Badge tone="neutral">{staffWithoutAccess.length}</Badge>
+          </div>
+          {staffWithoutAccess.length > 0 ? (
+            <div className="divide-y divide-border">
+              {staffWithoutAccess.map((person) => (
+                <div
+                  className="flex min-w-0 items-center justify-between gap-4 px-4 py-3"
+                  key={person.id}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{person.label}</p>
+                    <p className="mt-1 truncate text-xs text-foreground-muted">
+                      {person.primaryEmail ?? "No email recorded"}
+                    </p>
+                  </div>
+                  <Link
+                    aria-label={`Grant workspace access for ${person.label}`}
+                    className="shrink-0 text-[13px] font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    href={`/users-roles?personId=${person.id}`}
+                    prefetch={false}
+                  >
+                    Grant access
+                  </Link>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-4 py-6 text-sm text-foreground-muted">
+              Every active Staff record has an invitation or active access.
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-md border border-border bg-surface">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
               <MailPlus aria-hidden="true" size={15} />
               Pending invitations
             </h2>
@@ -202,10 +262,10 @@ function AccessWorkspace({
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <UsersRound aria-hidden="true" size={15} />
-              Active members
+              Active access
             </h2>
             <Badge tone="neutral">
-              {members.length} active {members.length === 1 ? "member" : "members"}
+              {members.length} active {members.length === 1 ? "account" : "accounts"}
             </Badge>
           </div>
           {members.length > 0 ? (
@@ -225,7 +285,7 @@ function AccessWorkspace({
             </div>
           ) : (
             <div className="px-4 py-8 text-center">
-              <p className="text-sm font-medium">No active members</p>
+              <p className="text-sm font-medium">No active access</p>
               <p className="mt-1 text-sm text-foreground-muted">Accepted invitations appear here.</p>
             </div>
           )}
@@ -484,11 +544,12 @@ function PendingInvitationRow({
   };
 
   const statusLabel = invitation.status === "send_failed"
-    ? "Delivery failed"
+    ? "Invitation failed"
     : invitation.status === "expired"
-      ? "Expired"
-      : "Pending";
+      ? "Invitation expired"
+      : "Pending invitation";
   const statusTone = invitation.status === "pending" ? "accent" : "warning";
+  const linkedPerson = people.find((person) => person.id === invitation.personId);
 
   useEffect(() => {
     if (focused) rowRef.current?.focus();
@@ -497,6 +558,18 @@ function PendingInvitationRow({
   useEffect(() => {
     if (confirmingRevoke) revokeCancelRef.current?.focus();
   }, [confirmingRevoke]);
+
+  useEffect(() => {
+    if (status !== "success") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setMessage(undefined);
+      setStatus(undefined);
+    }, 4_500);
+    return () => window.clearTimeout(timeoutId);
+  }, [status]);
 
   return (
     <article
@@ -510,6 +583,7 @@ function PendingInvitationRow({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <p className="truncate text-sm font-semibold">{invitation.email}</p>
           <Badge tone={statusTone}>{statusLabel}</Badge>
+          {linkedPerson?.archived ? <Badge tone="warning">Archived Staff</Badge> : null}
         </div>
         <p className="mt-1 text-xs text-foreground-muted">
           {invitation.lastSentAt
@@ -525,7 +599,9 @@ function PendingInvitationRow({
       <dl className="grid gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-xs text-foreground-muted">Access level</dt>
-          <dd className="mt-1 font-medium">{formatRole(invitation.role)}</dd>
+          <dd className="mt-1 font-medium">
+            {formatWorkspaceAccessRole(invitation.role)}
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-foreground-muted">Access scope</dt>
@@ -693,6 +769,18 @@ function MemberAccessForm({
     if (confirmingRemove) removeCancelRef.current?.focus();
   }, [confirmingRemove]);
 
+  useEffect(() => {
+    if (removeStatus !== "success" || current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setRemoveMessage(undefined);
+      setRemoveStatus(undefined);
+    }, 4_500);
+    return () => window.clearTimeout(timeoutId);
+  }, [current, removeStatus]);
+
   return (
     <form
       className="grid min-w-0 gap-4 px-4 py-4 xl:grid-cols-[minmax(180px,0.65fr)_minmax(0,1.8fr)]"
@@ -711,7 +799,11 @@ function MemberAccessForm({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <p className="truncate text-sm font-semibold">{accountLabel}</p>
           {current ? <Badge tone="accent">You</Badge> : null}
-          <Badge tone="success">Active membership</Badge>
+          <Badge tone="success">Active access</Badge>
+          {!member.personId ? (
+            <Badge tone="warning">Legacy unlinked access</Badge>
+          ) : null}
+          {linkedPerson?.archived ? <Badge tone="warning">Archived Staff</Badge> : null}
         </div>
         <p className="mt-1 truncate text-xs text-foreground-muted" title={member.email ?? undefined}>
           {member.email ?? "Email unavailable"}
@@ -947,6 +1039,21 @@ function useAccessDraft<TValues extends Record<string, string>>({
     };
   }, []);
 
+  useEffect(() => {
+    if (status !== "saved") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (!alive.current) {
+        return;
+      }
+      setMessage(undefined);
+      setStatus((current) => (current === "saved" ? "clean" : current));
+    }, 4_500);
+    return () => window.clearTimeout(timeoutId);
+  }, [status]);
+
   const discard = useCallback(() => {
     submission.current += 1;
     submitting.current = false;
@@ -1031,7 +1138,7 @@ function accessRows(
   people: OrganizationStaffOption[],
 ) {
   return [
-    { label: "Access level", value: formatRole(values.role) },
+    { label: "Access level", value: formatWorkspaceAccessRole(values.role) },
     {
       label: "Access scope",
       value: values.role === "admin" ? "Organization-wide" : branchLabel(values.branchId, branches),
@@ -1054,10 +1161,6 @@ function branchLabel(branchId: string, branches: OrganizationBranch[]) {
 
 function personLabel(personId: string | null, people: OrganizationStaffOption[]) {
   return people.find((person) => person.id === personId)?.label ?? "Not linked to a Staff record";
-}
-
-function formatRole(role: string) {
-  return role === "admin" ? "Administrator" : role === "manager" ? "Manager" : "Team Member";
 }
 
 function formatAccessDate(value: string) {

@@ -96,6 +96,8 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 | /forgot-password | /forgot-password | /forgot-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | 3/3 pass | not-applicable | Recovery delivery is verified separately through local Mailpit. |
 <!-- route-evidence:/update-password -->
 | /update-password | /update-password | /update-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | 3/3 pass | not-applicable | Successful update requires a valid Supabase recovery session. |
+<!-- route-evidence:/auth/complete -->
+| /auth/complete | /auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111 | not rerun (expected accessible) | not rerun (expected accessible) | not rerun (expected accessible) | not rerun (expected accessible) | loading, error | implementation-backed route evidence | preserved | A fresh Supabase implicit-flow email fragment is required for successful completion; the dated browser route sweep predates this manifest row. |
 <!-- route-evidence:/accept-invite -->
 | /accept-invite | /accept-invite?invitation=11111111-1111-4111-8111-111111111111 | /accept-invite?invitation=11111111-1111-4111-8111-111111111111 | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error, permission-blocked | 3/3 pass | preserved | Acceptance requires a matching pending invitation and verified Supabase email session. |
 <!-- route-evidence:/signup -->

@@ -38,6 +38,7 @@ describe("AcceptInvitePage", () => {
     expect(html).toContain("Access level");
     expect(html).toContain("Access scope");
     expect(html).toContain("Linked staff record");
-    expect(html).toContain("Team Member");
+    expect(html).toContain("Member");
+    expect(html).not.toContain("Team Member");
   });
 });

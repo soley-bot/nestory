@@ -1,5 +1,17 @@
 export type WorkspaceAccessRole = "admin" | "manager" | "member";
 
+export function formatWorkspaceAccessRole(role: WorkspaceAccessRole | string) {
+  if (role === "admin") {
+    return "Admin";
+  }
+
+  if (role === "manager") {
+    return "Manager";
+  }
+
+  return "Member";
+}
+
 type MembershipAccessSource = {
   branchId: string | null;
   email: string | null;

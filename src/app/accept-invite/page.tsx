@@ -3,6 +3,7 @@ import { signOutAction } from "@/features/auth/actions";
 import { AcceptInvitationForm } from "@/features/auth/components/accept-invitation-form";
 import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
 import { getInvitationAcceptance } from "@/features/auth/invitation-acceptance";
+import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
 
 export default async function AcceptInvitePage({
   searchParams,
@@ -85,7 +86,10 @@ function InvitationSummary({
   return (
     <dl className="grid gap-3 rounded-md border border-border bg-surface-muted p-4 text-sm">
       <SummaryRow label="Workspace" value={invitation.organizationName} />
-      <SummaryRow label="Access level" value={formatRole(invitation.role)} />
+      <SummaryRow
+        label="Access level"
+        value={formatWorkspaceAccessRole(invitation.role)}
+      />
       <SummaryRow label="Access scope" value={invitation.scopeName} />
       {invitation.staffName ? <SummaryRow label="Linked staff record" value={invitation.staffName} /> : null}
       <SummaryRow label="Account" value={invitation.accountEmail ?? "Verified invited email"} />
@@ -100,10 +104,6 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <dd className="text-right font-medium text-foreground">{value}</dd>
     </div>
   );
-}
-
-function formatRole(role: string) {
-  return role === "admin" ? "Administrator" : role === "manager" ? "Manager" : "Team Member";
 }
 
 function titleFor(state: Awaited<ReturnType<typeof getInvitationAcceptance>>["state"]) {

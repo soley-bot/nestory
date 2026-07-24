@@ -200,21 +200,51 @@ describe("PropertyScreen redesign contract", () => {
 
     expect(screen.queryByRole("dialog", { name: "Add property" })).toBeNull();
   });
+
+  it("prefills a trusted Owner handoff and removes the consumed query intent", () => {
+    const ownerId = "11111111-1111-4111-8111-111111111111";
+    navigation.searchParams = new URLSearchParams(
+      `action=create&ownerPersonId=${ownerId}`,
+    );
+    renderProperties({
+      ownerOptions: [
+        {
+          archived: false,
+          description: "Owner · owner@example.com",
+          id: ownerId,
+          label: "Nora Owner",
+          roles: ["owner"],
+        },
+      ],
+    });
+
+    const ownerField = screen.getByRole("group", { name: "Property owner" });
+    expect(within(ownerField).getByText("Nora Owner")).toBeTruthy();
+    expect(
+      ownerField.querySelector<HTMLInputElement>('input[name="ownerPersonId"]')
+        ?.value,
+    ).toBe(ownerId);
+    expect(navigation.replace).toHaveBeenCalledWith("/properties", {
+      scroll: false,
+    });
+  });
 });
 
 function renderProperties({
   canCreate = true,
+  ownerOptions = [],
   properties: nextProperties = properties,
   viewQuery = defaultViewQuery,
 }: {
   canCreate?: boolean;
+  ownerOptions?: React.ComponentProps<typeof PropertyScreen>["ownerOptions"];
   properties?: typeof properties;
   viewQuery?: PropertyViewQuery;
 } = {}) {
   return render(
     <PropertyScreen
       canCreate={canCreate}
-      ownerOptions={[]}
+      ownerOptions={ownerOptions}
       pagination={{
         from: nextProperties.length > 0 ? 1 : 0,
         page: 1,
