@@ -126,7 +126,7 @@ deep component state.
 - Manager/member task access should remain role-limited.
 - Links from reports, recent changes, property/unit detail, and maintenance
   drawers should preserve focused IDs through URL params.
-- `npm run test:ui-coverage` must report the filesystem and all 52 current page
+- `npm run test:ui-coverage` must report the filesystem and all 53 current page
   routes in agreement, with exactly one evidence row per manifest entry.
 
 ## Handoff Expectations

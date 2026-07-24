@@ -3,36 +3,38 @@ import type { PersonRoleValue } from "@/features/people/people.types";
 
 export function PeopleWorkspaceNavigation({
   activeRole,
-  reports = false,
 }: {
   activeRole?: PersonRoleValue;
-  reports?: boolean;
 }) {
   return (
     <LocalWorkspaceNav
       items={[
-        { active: !activeRole && !reports, href: "/people", label: "All" },
+        { active: !activeRole, href: "/people", label: "All" },
         {
-          active: activeRole === "owner" && !reports,
+          active: activeRole === "owner",
           href: "/owners",
           label: "Owners",
         },
         {
-          active: activeRole === "staff" && !reports,
+          active: activeRole === "staff",
           href: "/staff",
           label: "Staff",
         },
         {
-          active: activeRole === "tenant" && !reports,
+          active: activeRole === "tenant",
           href: "/tenants",
           label: "Tenants",
         },
         {
-          active: activeRole === "vendor" && !reports,
+          active: activeRole === "vendor",
           href: "/vendors",
           label: "Vendors",
         },
-        { active: reports, href: "/people-reports", label: "Reports" },
+        {
+          active: false,
+          href: "/users-roles",
+          label: "Workspace Access",
+        },
       ]}
       label="People views"
     />

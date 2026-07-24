@@ -1,12 +1,66 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getBillsExpensesScreenData } from "./bills-expenses";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { getPersonSelectOptions } from "@/features/people/data/person-options";
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(),
 }));
+vi.mock("@/features/people/data/person-options", () => ({
+  getPersonSelectOptions: vi.fn(),
+}));
 
 describe("getBillsExpensesScreenData", () => {
+  beforeEach(() => {
+    vi.mocked(getPersonSelectOptions).mockReset();
+    vi.mocked(getPersonSelectOptions).mockResolvedValue([]);
+  });
+
+  it("loads the Known vendor selector from the authoritative active Vendor boundary", async () => {
+    vi.mocked(getPersonSelectOptions).mockResolvedValue([
+      {
+        archived: false,
+        description: "Vendor · acme@example.com",
+        id: "vendor-1",
+        label: "Acme Repairs",
+        roles: ["vendor"],
+      },
+    ]);
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        finance_expense_items: [
+          { count: 0, data: [] },
+          { data: [] },
+        ],
+        finance_payment_allocations: [{ data: [] }],
+        properties: [{ data: [] }],
+        units: [{ data: [] }],
+      }),
+    );
+
+    const result = await getBillsExpensesScreenData("org-1", {
+      archiveState: "active",
+      dateBasis: "invoice",
+      expenseItemId: "all",
+      expenseType: "all",
+      month: "2026-07",
+      page: 1,
+      pageSize: 25,
+      propertyId: "all",
+      query: "",
+      status: "all",
+      unitId: "all",
+    });
+
+    expect(getPersonSelectOptions).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      roles: ["vendor"],
+    });
+    expect(result.vendorOptions).toEqual([
+      { id: "vendor-1", label: "Acme Repairs" },
+    ]);
+  });
+
   it("loads one archived focused expense without applying list date or status filters", async () => {
     queryFilters.length = 0;
     queryDateFilters.length = 0;

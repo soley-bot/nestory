@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { ThemeToggle } from "@/components/theme-toggle";
+import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 import { getWorkspaceEntryPath } from "@/lib/auth/workspace-entry";
 
@@ -40,7 +41,7 @@ export default async function WorkspacePage() {
           className="workspace-arrival-card w-full max-w-md rounded-lg border border-[var(--workspace-arrival-line)] bg-[var(--workspace-arrival-card)] p-6 shadow-[0_20px_70px_var(--workspace-arrival-shadow)] backdrop-blur-xl lg:col-start-2"
         >
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--workspace-arrival-muted)]">
-            {formatRole(context.role)} workspace
+            {formatWorkspaceAccessRole(context.role)} workspace
           </p>
           <h1
             className="mt-2 text-xl font-semibold tracking-tight"
@@ -59,8 +60,4 @@ export default async function WorkspacePage() {
       </div>
     </main>
   );
-}
-
-function formatRole(role: "admin" | "manager" | "member") {
-  return role === "admin" ? "Administrator" : role === "manager" ? "Manager" : "Team Member";
 }

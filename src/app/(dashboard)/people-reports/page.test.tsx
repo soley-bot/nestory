@@ -37,18 +37,12 @@ describe("PeopleReportsPage", () => {
     });
   });
 
-  it("keeps People Reports distinct, indexed, and explicit about its report window", async () => {
+  it("keeps People Reports available from the report library without duplicating People navigation", async () => {
     const html = renderToStaticMarkup(await PeopleReportsPage());
     const document = new DOMParser().parseFromString(html, "text/html");
     const navigation = document.querySelector('nav[aria-label="People views"]');
 
-    expect(navigation).not.toBeNull();
-    expect(
-      navigation?.querySelectorAll('a[aria-current="page"]'),
-    ).toHaveLength(1);
-    expect(
-      navigation?.querySelector('a[aria-current="page"]')?.textContent,
-    ).toContain("Reports");
+    expect(navigation).toBeNull();
     expect(
       document.querySelectorAll('[data-people-report-item="true"]'),
     ).toHaveLength(5);

@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { NestoryLogo } from "@/components/brand/nestory-logo";
 import { WorkspaceCommandPalette } from "@/components/layout/workspace-command-palette";
 import { signOutAction } from "@/features/auth/actions";
+import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
 import type { WorkspaceRole } from "@/lib/auth/context";
 import { getWorkspaceEntryPath } from "@/lib/auth/workspace-entry";
 
@@ -58,7 +59,6 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     label: "People",
     routes: [
       "/people",
-      "/people-reports",
       "/tenants",
       "/owners",
       "/vendors",
@@ -116,7 +116,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     href: "/reports",
     icon: FileChartColumn,
     label: "Reports",
-    routes: ["/reports"],
+    routes: ["/reports", "/people-reports"],
   },
   {
     id: "settings",
@@ -177,7 +177,7 @@ function getActiveDestinationId(
 
 export function AppShell({
   children,
-  organizationName = "Administrator workspace",
+  organizationName = "Nestory workspace",
   role = "admin",
   userEmail,
 }: AppShellProps) {
@@ -494,7 +494,7 @@ function ProfileMenu({
                   {label}
                 </span>
                 <span className="mt-1 block truncate text-[11px] text-muted">
-                  {formatRole(role)} / {organizationName}
+                  {formatWorkspaceAccessRole(role)} / {organizationName}
                 </span>
               </span>
             </>
@@ -517,7 +517,7 @@ function ProfileMenu({
           <div className="border-b border-border px-2 py-2">
             <p className="truncate text-sm font-semibold">{label}</p>
             <p className="mt-0.5 truncate text-xs text-muted">
-              {formatRole(role)} / {organizationName}
+              {formatWorkspaceAccessRole(role)} / {organizationName}
             </p>
           </div>
           <Link
@@ -567,16 +567,4 @@ function getInitials(label: string) {
     .filter(Boolean);
 
   return `${first[0] ?? "U"}${second[0] ?? ""}`.toUpperCase();
-}
-
-function formatRole(role: WorkspaceRole) {
-  if (role === "admin") {
-    return "Administrator";
-  }
-
-  if (role === "manager") {
-    return "Manager";
-  }
-
-  return "Team Member";
 }

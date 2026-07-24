@@ -22,6 +22,7 @@ import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import { TransientFeedback } from "@/components/ui/transient-feedback";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import {
   ArchivePersonPanel,
@@ -160,14 +161,10 @@ export function PersonDetailScreen({
       />
 
       {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:shrink-0 lg:px-6">
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role="status"
-          >
-            {statusMessage}
-          </p>
-        </div>
+        <TransientFeedback
+          message={statusMessage}
+          onDismiss={() => setStatusMessage(null)}
+        />
       ) : null}
 
       <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
@@ -513,12 +510,18 @@ export function PersonDetailScreen({
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
               person={drawer.person}
+              roleContext={getSingleActiveRole(drawer.person)}
             />
           )}
         </SideDrawer>
       ) : null}
     </div>
   );
+}
+
+function getSingleActiveRole(person: PeopleSummary) {
+  const activeRoles = person.roles.filter((role) => role.status === "active");
+  return activeRoles.length === 1 ? activeRoles[0]?.role : undefined;
 }
 
 function PersonActivityRow({

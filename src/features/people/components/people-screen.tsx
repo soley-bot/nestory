@@ -3,12 +3,16 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Plus, UsersRound } from "lucide-react";
+import { Plus, UsersRound } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import {
+  TransientFeedback,
+  type TransientFeedbackAction,
+} from "@/components/ui/transient-feedback";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import {
@@ -35,6 +39,11 @@ type DrawerState =
   | { mode: "edit"; person: PeopleSummary }
   | { mode: "archive"; person: PeopleSummary }
   | { mode: "restore"; person: PeopleSummary };
+
+type PeopleFeedback = {
+  action?: TransientFeedbackAction;
+  message: string;
+};
 
 type PeopleScreenProps = {
   accessByPersonId?: Record<string, OrganizationPersonAccessStatus>;
@@ -78,7 +87,7 @@ export function PeopleScreen({
   );
   const [displayMode, setDisplayMode] = useState<PeopleDisplayMode>("table");
   const isTableMode = displayMode === "table";
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<PeopleFeedback | null>(null);
   const focusedPerson = initialPersonId
     ? people.find((person) => person.id === initialPersonId) ?? null
     : null;
@@ -89,7 +98,7 @@ export function PeopleScreen({
   });
   const moduleRole = lockedRole ?? createRole;
   const openPeopleAction = (nextDrawer: DrawerState) => {
-    setStatusMessage(null);
+    setFeedback(null);
     setDrawer(nextDrawer);
   };
 
@@ -114,7 +123,7 @@ export function PeopleScreen({
     }
 
     queueMicrotask(() => {
-      setStatusMessage(null);
+      setFeedback(null);
       setDrawer({ mode: "create" });
     });
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
@@ -199,16 +208,12 @@ export function PeopleScreen({
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
 
-      {statusMessage ? (
-        <div className="shrink-0 px-4 py-2 sm:px-6">
-          <div
-            className="flex items-start gap-2 rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
-            role="status"
-          >
-            <CheckCircle2 className="mt-0.5 shrink-0" size={16} />
-            <p className="font-medium text-foreground">{statusMessage}</p>
-          </div>
-        </div>
+      {feedback ? (
+        <TransientFeedback
+          action={feedback.action}
+          message={feedback.message}
+          onDismiss={() => setFeedback(null)}
+        />
       ) : null}
 
       {insights ? (
@@ -234,13 +239,13 @@ export function PeopleScreen({
           {drawer.mode === "archive" ? (
             <ArchivePersonPanel
               onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
+              onSuccess={(message) => setFeedback({ message })}
               person={drawer.person}
             />
           ) : drawer.mode === "restore" ? (
             <RestorePersonPanel
               onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
+              onSuccess={(message) => setFeedback({ message })}
               person={drawer.person}
             />
           ) : (
@@ -251,7 +256,16 @@ export function PeopleScreen({
               }
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
+              onSuccess={(message, personId) =>
+                setFeedback(
+                  getPeopleFeedback(
+                    message,
+                    personId,
+                    drawer.mode,
+                    moduleRole,
+                  ),
+                )
+              }
               person={drawer.person}
               roleContext={moduleRole}
             />
@@ -260,6 +274,37 @@ export function PeopleScreen({
       ) : null}
     </WorkspacePage>
   );
+}
+
+function getPeopleFeedback(
+  message: string,
+  personId: string | undefined,
+  mode: Extract<DrawerState["mode"], "create" | "edit">,
+  role?: PersonRoleValue,
+): PeopleFeedback {
+  if (mode !== "create" || !personId) {
+    return { message };
+  }
+
+  const action =
+    role === "owner"
+      ? {
+          href: `/properties?action=create&ownerPersonId=${personId}`,
+          label: "Create property",
+        }
+      : role === "tenant"
+        ? {
+            href: `/leases?action=create&tenantPersonId=${personId}`,
+            label: "Create lease",
+          }
+        : role === "staff"
+          ? {
+              href: `/users-roles?personId=${personId}`,
+              label: "Grant Workspace Access",
+            }
+          : undefined;
+
+  return { action, message };
 }
 
 type PeopleReviewContext = {

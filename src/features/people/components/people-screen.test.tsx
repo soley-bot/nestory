@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OwnersPage from "@/app/(dashboard)/owners/page";
@@ -38,6 +38,25 @@ vi.mock("@/features/people/components/people-module-page", () => ({
     <div data-role={config.role ?? "all"} data-testid="people-module-page">
       {config.title}
     </div>
+  ),
+}));
+
+vi.mock("@/features/people/components/person-form", () => ({
+  PersonForm: ({
+    onSuccess,
+    roleContext,
+  }: {
+    onSuccess?: (message: string, personId?: string) => void;
+    roleContext?: PersonRoleValue;
+  }) => (
+    <button
+      onClick={() =>
+        onSuccess?.(`${roleContext ?? "person"} added.`, "11111111-1111-4111-8111-111111111111")
+      }
+      type="button"
+    >
+      Complete person create
+    </button>
   ),
 }));
 
@@ -121,8 +140,13 @@ describe("People route family redesign contract", () => {
       "Staff",
       "Tenants",
       "Vendors",
-      "Reports",
+      "Workspace Access",
     ]);
+    expect(
+      within(lenses)
+        .getByRole("link", { name: "Workspace Access" })
+        .getAttribute("href"),
+    ).toBe("/users-roles");
     expect(within(lenses).getByRole("link", { name: "All" }).getAttribute("aria-current")).toBe("page");
 
     const table = screen.getByRole("table");
@@ -189,6 +213,55 @@ describe("People route family redesign contract", () => {
 
     expect(screen.queryByRole("dialog", { name: "Add person" })).toBeNull();
   });
+
+  it.each([
+    [
+      "owner",
+      "Create property",
+      "/properties?action=create&ownerPersonId=11111111-1111-4111-8111-111111111111",
+    ],
+    [
+      "tenant",
+      "Create lease",
+      "/leases?action=create&tenantPersonId=11111111-1111-4111-8111-111111111111",
+    ],
+    [
+      "staff",
+      "Grant Workspace Access",
+      "/users-roles?personId=11111111-1111-4111-8111-111111111111",
+    ],
+  ] as const)(
+    "shows a transient %s creation handoff without pushing the workspace",
+    (role, actionLabel, href) => {
+      vi.useFakeTimers();
+      const rendered = renderPeople({
+        lockedRole: role,
+        people: [],
+      });
+
+      fireEvent.click(screen.getAllByRole("button", { name: `Add ${role}` })[0]!);
+      fireEvent.click(screen.getByRole("button", { name: "Complete person create" }));
+
+      const feedback = document.querySelector<HTMLElement>(
+        '[data-slot="transient-feedback"]',
+      )!;
+      expect(feedback.getAttribute("data-slot")).toBe("transient-feedback");
+      expect(feedback.className).toContain("fixed");
+      expect(within(feedback).getByRole("link", { name: actionLabel }).getAttribute("href")).toBe(
+        href,
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(
+        document.querySelector('[data-slot="transient-feedback"]'),
+      ).toBeNull();
+
+      rendered.unmount();
+      vi.useRealTimers();
+    },
+  );
 
   it("uses truthful staff operating context in the table and cards", () => {
     const staffWithNotes = {
@@ -281,11 +354,11 @@ describe("People route family redesign contract", () => {
     const table = screen.getByRole("table");
     expect(within(table).getByText("Workspace Access")).not.toBeNull();
     const expectations = [
-      ["No Access Staff", "No workspace access", "Grant workspace access", "/users-roles?personId=staff-none"],
-      ["Pending Staff", "Invitation pending", "Review invitation", "/users-roles?personId=staff-pending&invitationId=invitation-pending"],
-      ["Failed Staff", "Invitation delivery failed", "Review and resend", "/users-roles?personId=staff-failed&invitationId=invitation-failed"],
+      ["No Access Staff", "No access", "Grant workspace access", "/users-roles?personId=staff-none"],
+      ["Pending Staff", "Pending invitation", "Review invitation", "/users-roles?personId=staff-pending&invitationId=invitation-pending"],
+      ["Failed Staff", "Invitation failed", "Review and resend", "/users-roles?personId=staff-failed&invitationId=invitation-failed"],
       ["Expired Staff", "Invitation expired", "Review invitation", "/users-roles?personId=staff-expired&invitationId=invitation-expired"],
-      ["Active Staff", "Active workspace access", "Manage workspace access", "/users-roles?personId=staff-active&memberId=membership-1"],
+      ["Active Staff", "Active access", "Manage workspace access", "/users-roles?personId=staff-active&memberId=membership-1"],
     ] as const;
 
     for (const [name, stateLabel, actionLabel, href] of expectations) {

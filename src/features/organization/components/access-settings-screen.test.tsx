@@ -132,9 +132,15 @@ describe("AccessSettingsScreen", () => {
     expect(screen.getByRole("link", { name: "Add Staff" }).getAttribute("href")).toBe(
       "/staff?action=create",
     );
+    expect(screen.getByRole("heading", { name: "Staff without access" })).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: "Grant workspace access for Mina Chen" })
+        .getAttribute("href"),
+    ).toBe(`/users-roles?personId=${person.id}`);
     expect(screen.getByRole("heading", { name: "Pending invitations" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Active members" })).toBeTruthy();
-    expect(screen.getByText("1 active member")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Active access" })).toBeTruthy();
+    expect(screen.getByText("1 active account")).toBeTruthy();
     expect(screen.queryByText(/Full workspace access, settings/i)).toBeNull();
   });
 
@@ -148,7 +154,7 @@ describe("AccessSettingsScreen", () => {
     );
 
     const member = screen.getByTestId(`access-member-${admin.id}`);
-    expect(within(member).getByText("Active membership")).toBeTruthy();
+    expect(within(member).getByText("Active access")).toBeTruthy();
     expect(within(member).getByText("Organization-wide")).toBeTruthy();
     expect(
       within(member).getByRole("combobox", { name: "Access scope" }).textContent,
@@ -172,7 +178,7 @@ describe("AccessSettingsScreen", () => {
       `access-invitation-${pendingInvitation.id}`,
     );
     expect(within(invitation).getByText("pending@example.com")).toBeTruthy();
-    expect(within(invitation).getByText("Pending")).toBeTruthy();
+    expect(within(invitation).getByText("Pending invitation")).toBeTruthy();
     expect(within(invitation).getByText("Bangkok")).toBeTruthy();
     expect(within(invitation).getByText("Mina Chen")).toBeTruthy();
 
@@ -211,7 +217,7 @@ describe("AccessSettingsScreen", () => {
     const invitation = screen.getByTestId(
       `access-invitation-${expiredInvitation.id}`,
     );
-    expect(within(invitation).getByText("Expired")).toBeTruthy();
+    expect(within(invitation).getByText("Invitation expired")).toBeTruthy();
 
     await user.click(within(invitation).getByRole("button", { name: "Resend" }));
     expect(resendInvite).toHaveBeenCalledOnce();
@@ -479,7 +485,7 @@ describe("AccessSettingsScreen", () => {
     fireEvent.click(within(addForm).getByRole("combobox", { name: "Access scope" }));
     fireEvent.click(screen.getByRole("option", { name: "BKK - Bangkok" }));
     fireEvent.click(within(addForm).getByRole("combobox", { name: "Access level" }));
-    fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
+    fireEvent.click(screen.getByRole("option", { name: "Admin" }));
 
     expect(
       (within(addForm).getByRole("combobox", { name: "Access scope" }) as HTMLButtonElement).disabled,
@@ -526,7 +532,7 @@ describe("AccessSettingsScreen", () => {
       />,
     );
     const invitation = screen.getByTestId(`access-invitation-${pendingInvitation.id}`);
-    expect(within(invitation).getByText("Delivery failed")).toBeTruthy();
+    expect(within(invitation).getByText("Invitation failed")).toBeTruthy();
     expect(within(invitation).getByText(
       "The invitation was created, but email delivery did not complete.",
     )).toBeTruthy();
@@ -595,6 +601,7 @@ describe("AccessSettingsScreen", () => {
     );
     const member = screen.getByTestId(`access-member-${historicalMember.id}`);
     expect(within(member).getAllByText("Historical Staff").length).toBeGreaterThan(0);
+    expect(within(member).getByText("Archived Staff")).toBeTruthy();
     expect(within(member).getByRole("button", { name: "Clear linked Staff record" })).toBeTruthy();
 
     await user.click(within(screen.getByTestId("add-access-form")).getByRole("combobox", { name: "Staff member" }));
@@ -620,6 +627,7 @@ describe("AccessSettingsScreen", () => {
     );
     const member = screen.getByTestId(`access-member-${legacyMember.id}`);
     expect(within(member).getAllByText("Not linked to a Staff record").length).toBeGreaterThan(0);
+    expect(within(member).getByText("Legacy unlinked access")).toBeTruthy();
     await user.click(within(member).getByRole("combobox", { name: "Linked staff record" }));
     await user.click(screen.getByRole("option", { name: /Mina Chen/ }));
     await user.click(within(member).getByRole("button", { name: "Link staff record" }));

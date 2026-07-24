@@ -4,7 +4,6 @@ import { Download, Eye, FileText } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Badge } from "@/components/ui/badge";
-import { PeopleWorkspaceNavigation } from "@/features/people/components/people-workspace-navigation";
 import { getPeopleReportHubData } from "@/features/people/data/people-reports";
 import {
   getPeopleInsights,
@@ -27,7 +26,6 @@ export default async function PeopleReportsPage() {
           title="People Reports"
         />
       }
-      localNav={<PeopleWorkspaceNavigation reports />}
     >
       <main className="h-full space-y-4 overflow-y-auto px-4 py-4 sm:px-6 lg:px-6">
         <section

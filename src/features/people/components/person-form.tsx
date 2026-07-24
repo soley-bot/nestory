@@ -25,6 +25,15 @@ const initialState: PeopleActionState = {};
 
 const roleOptions: PersonRoleValue[] = ["tenant", "owner", "vendor", "staff"];
 
+type PersonFormPresentation = {
+  administrationHeading: string;
+  contactHeading: string;
+  displayNameLabel: string;
+  identityHeading: string;
+  notesLabel: string;
+  showTaxIdentifier: boolean;
+};
+
 type PersonFormProps = {
   initialRoles?: PersonRoleValue[];
   mode?: "create" | "edit";
@@ -48,6 +57,7 @@ export function PersonForm({
     initialState,
   );
   const defaults = getPersonDefaults(person, initialRoles);
+  const presentation = getPersonFormPresentation(roleContext);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -74,11 +84,11 @@ export function PersonForm({
         <input name="personId" type="hidden" value={person.id} />
       ) : null}
 
-      <FormSection title="Identity">
+      <FormSection title={presentation.identityHeading}>
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
           <RecordField
             error={state.fieldErrors?.displayName?.[0]}
-            label="Display name"
+            label={presentation.displayNameLabel}
             name="displayName"
             required
           >
@@ -124,7 +134,7 @@ export function PersonForm({
         </RecordField>
       </FormSection>
 
-      <FormSection title="Contact">
+      <FormSection title={presentation.contactHeading}>
         <div className="grid gap-4 sm:grid-cols-2">
           <RecordField
             error={state.fieldErrors?.primaryEmail?.[0]}
@@ -154,7 +164,7 @@ export function PersonForm({
         </div>
       </FormSection>
 
-      <FormSection title="Roles">
+      <FormSection title={roleContext ? "Record type" : "Roles"}>
         {roleContext ? (
           <LockedRoleField
             error={state.fieldErrors?.roles?.[0]}
@@ -181,28 +191,40 @@ export function PersonForm({
         )}
 
         <ConsequencePanel
-          summary="Roles determine where this record appears in People workflows. They do not grant workspace access."
-          title="Role effect"
+          summary={
+            roleContext === "staff"
+              ? "Create the Staff record first, then grant Workspace Access with an Access Level and Scope."
+              : "Roles determine where this record appears in People workflows. They do not grant workspace access."
+          }
+          title={roleContext === "staff" ? "Access boundary" : "Role effect"}
         />
       </FormSection>
 
-      <FormSection title="Administration">
-        <RecordField
-          error={state.fieldErrors?.taxIdentifier?.[0]}
-          label="Tax identifier"
-          name="taxIdentifier"
-        >
-          <Input
-            defaultValue={defaults.taxIdentifier}
+      <FormSection title={presentation.administrationHeading}>
+        {presentation.showTaxIdentifier ? (
+          <RecordField
+            error={state.fieldErrors?.taxIdentifier?.[0]}
+            label="Tax identifier"
             name="taxIdentifier"
-            placeholder="Optional"
-            type="text"
+          >
+            <Input
+              defaultValue={defaults.taxIdentifier}
+              name="taxIdentifier"
+              placeholder="Optional"
+              type="text"
+            />
+          </RecordField>
+        ) : (
+          <input
+            name="taxIdentifier"
+            type="hidden"
+            value={defaults.taxIdentifier}
           />
-        </RecordField>
+        )}
 
         <RecordField
           error={state.fieldErrors?.notes?.[0]}
-          label="Internal notes"
+          label={presentation.notesLabel}
           name="notes"
         >
           <Textarea
@@ -215,6 +237,58 @@ export function PersonForm({
       </FormSection>
     </RecordForm>
   );
+}
+
+function getPersonFormPresentation(
+  role?: PersonRoleValue,
+): PersonFormPresentation {
+  switch (role) {
+    case "owner":
+      return {
+        administrationHeading: "Owner details",
+        contactHeading: "Statement contact",
+        displayNameLabel: "Owner name",
+        identityHeading: "Owner identity",
+        notesLabel: "Owner notes",
+        showTaxIdentifier: true,
+      };
+    case "tenant":
+      return {
+        administrationHeading: "Tenancy details",
+        contactHeading: "Tenancy contact",
+        displayNameLabel: "Tenant name",
+        identityHeading: "Tenant identity",
+        notesLabel: "Tenancy notes",
+        showTaxIdentifier: false,
+      };
+    case "staff":
+      return {
+        administrationHeading: "Staff context",
+        contactHeading: "Operational contact",
+        displayNameLabel: "Staff name",
+        identityHeading: "Staff identity",
+        notesLabel: "Staff notes",
+        showTaxIdentifier: false,
+      };
+    case "vendor":
+      return {
+        administrationHeading: "Vendor details",
+        contactHeading: "Business contact",
+        displayNameLabel: "Vendor or business name",
+        identityHeading: "Vendor identity",
+        notesLabel: "Vendor notes",
+        showTaxIdentifier: true,
+      };
+    default:
+      return {
+        administrationHeading: "Administration",
+        contactHeading: "Contact",
+        displayNameLabel: "Display name",
+        identityHeading: "Identity",
+        notesLabel: "Internal notes",
+        showTaxIdentifier: true,
+      };
+  }
 }
 
 function LockedRoleField({

@@ -30,6 +30,27 @@ These rules are grounded in the current implementation.
 - Never create an active membership before a matching verified user explicitly
   accepts the pending invitation.
 
+## People And Workspace Access
+
+- A Staff record is the operational person identity. Workspace Access is a
+  separate sign-in grant linked to Staff; an Access Level (`admin`, `manager`,
+  or `member`) and Scope describe authorization.
+- Operational responsibility is not an Access Level. The current schema and
+  route/RLS model enforce module-specific assignments where implemented, but
+  do not provide a general maintenance/finance/property-operations
+  responsibility model. Do not add a decorative responsibility field without
+  database enforcement, RLS, route access, query filtering, navigation, and
+  backward-compatible tests.
+- Reuse the existing invitation and membership RPC boundaries. Do not implement
+  Staff access through direct browser writes or a second invitation path.
+- Role-specific Owner, Tenant, Staff, and Vendor forms may share components and
+  the `people` record, but must not expose unrelated fields or imply that a
+  People role grants Workspace Access.
+- Person selectors must filter active roles at an organization-scoped,
+  authoritative query or RPC boundary. Preserve historical linked values for
+  existing records without offering archived or ineligible people for new
+  assignments.
+
 ## Data Loading
 
 - Server pages call feature data loaders such as `getPropertiesScreenData`,

@@ -51,8 +51,8 @@ describe("WorkspacePage", () => {
   });
 
   it.each([
-    ["admin", "Administrator workspace"],
-    ["member", "Team Member workspace"],
+    ["admin", "Admin workspace"],
+    ["member", "Member workspace"],
   ] as const)("uses the Workspace Access role label for %s", async (role, expectedLabel) => {
     requireWorkspaceContext.mockResolvedValue({
       organizationName: "Riverside Operations",
