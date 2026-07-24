@@ -19,9 +19,13 @@ export function TransientFeedback({
   onDismiss: () => void;
 }) {
   useEffect(() => {
+    if (action) {
+      return;
+    }
+
     const timeoutId = window.setTimeout(onDismiss, 4_500);
     return () => window.clearTimeout(timeoutId);
-  }, [message, onDismiss]);
+  }, [action, message, onDismiss]);
 
   return (
     <div

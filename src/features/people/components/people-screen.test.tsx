@@ -256,6 +256,15 @@ describe("People route family redesign contract", () => {
       });
       expect(
         document.querySelector('[data-slot="transient-feedback"]'),
+      ).not.toBeNull();
+
+      fireEvent.click(
+        within(feedback).getByRole("button", {
+          name: "Dismiss notification",
+        }),
+      );
+      expect(
+        document.querySelector('[data-slot="transient-feedback"]'),
       ).toBeNull();
 
       rendered.unmount();
