@@ -1,13 +1,13 @@
 # UI Redesign Verification Evidence
 
-Generated from `config/ui-route-coverage.json` on 2026-07-16T13:43:01.067Z.
-Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
+Generated from `config/ui-route-coverage.json` on 2026-07-24T06:38:35.530Z.
+Browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
 
 ## Verdict
 
-- 138 admin route/viewport captures passed across desktop, compact desktop, and phone.
-- 138 manager, member, and anonymous access checks matched the manifest.
-- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: 0.
+- 159 admin route/viewport captures completed across desktop, compact desktop, and phone.
+- 159 manager, member, and anonymous access checks matched the manifest.
+- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: 9.
 - Local fixture evidence only; this is not hosted production certification.
 
 ## Route matrix
@@ -19,7 +19,7 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 <!-- route-evidence:/properties -->
 | /properties | /properties?query=Central | /properties?query=Central | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
 <!-- route-evidence:/properties/setup -->
-| /properties/setup | /properties/setup?step=1 | /properties/setup?step=1 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | not rerun | preserved | Implementation-backed entry added after the dated browser artifact; focused browser route sweep not rerun. |
+| /properties/setup | /properties/setup?step=1 | /properties/setup?step=1 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | Implementation-backed route evidence only; the focused task did not rerun the browser route sweep. |
 <!-- route-evidence:/units -->
 | /units | /units?query=09 | /units?query=09 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
 <!-- route-evidence:/people -->
@@ -67,11 +67,11 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 <!-- route-evidence:/reports/[reportKind] -->
 | /reports/[reportKind] | /reports/rent-roll?month=2026-07 | /reports/rent-roll?month=2026-07 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked | 3/3 pass | preserved | None |
 <!-- route-evidence:/people-reports -->
-| /people-reports | /people-reports | /people-reports | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked | 3/3 pass | not-applicable | None |
+| /people-reports | /people-reports?report=staff-access&archiveState=archived | /reports/people-readiness?peopleView=staff&archiveState=archived | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-preserved | None |
 <!-- route-evidence:/settings -->
 | /settings | /settings | /settings | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/users-roles -->
-| /users-roles | /users-roles | /users-roles | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | None |
+| /users-roles | /users-roles | /users-roles | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
 <!-- route-evidence:/account -->
 | /account | /account | /account | accessible (expected accessible) | accessible (expected accessible) | login-required (expected login-required) | loading, populated, error, permission-blocked | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/import -->
@@ -79,7 +79,7 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 <!-- route-evidence:/overview -->
 | /overview | /overview | /overview | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/overview/[view] -->
-| /overview/[view] | /overview/attention?month=2026-07 | /overview/attention?month=2026-07 | not rerun (expected permission-blocked) | not rerun (expected permission-blocked) | not rerun (expected login-required) | loading, populated, error, permission-blocked | admin desktop checked this turn | preserved | Added after the retained full-browser evidence; role and responsive matrix not rerun. |
+| /overview/[view] | /overview/attention?month=2026-07 | /overview/attention?month=2026-07 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, error, permission-blocked | 3/3 pass | preserved | None |
 <!-- route-evidence:/properties/[propertyId] -->
 | /properties/[propertyId] | /properties/10000000-0000-0000-0000-000000000001 | /properties/10000000-0000-0000-0000-000000000001 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/units/[unitId] -->
@@ -89,21 +89,21 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-16T13-33-27Z`.
 <!-- route-evidence:/ -->
 | / | / | /workspace | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | populated | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/request -->
-| /request | /request?intent=demo | /request?intent=demo | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, error, success | focused browser check pending | preserved | Submissions are stored for follow-up; outbound email notification is not configured. |
+| /request | /request?intent=demo | /request?intent=demo | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, error, success | 3/3 pass | preserved | Submissions are stored for follow-up; outbound email notification is not configured. |
 <!-- route-evidence:/login -->
 | /login | /login | /workspace | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | draft, saving, error, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/forgot-password -->
-| /forgot-password | /forgot-password | /forgot-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | 3/3 pass | not-applicable | Recovery delivery is verified separately through local Mailpit. |
+| /forgot-password | /forgot-password | /forgot-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | FAIL | not-applicable | None |
 <!-- route-evidence:/update-password -->
-| /update-password | /update-password | /update-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | 3/3 pass | not-applicable | Successful update requires a valid Supabase recovery session. |
+| /update-password | /update-password | /update-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | FAIL | not-applicable | A valid Supabase recovery session is required for a successful password update. |
 <!-- route-evidence:/auth/complete -->
-| /auth/complete | /auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111 | not rerun (expected accessible) | not rerun (expected accessible) | not rerun (expected accessible) | not rerun (expected accessible) | loading, error | implementation-backed route evidence | preserved | A fresh Supabase implicit-flow email fragment is required for successful completion; the dated browser route sweep predates this manifest row. |
+| /auth/complete | /auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111 | /auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111 | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | loading, error | 3/3 pass | preserved | A fresh Supabase implicit-flow email fragment is required for successful completion. |
 <!-- route-evidence:/accept-invite -->
-| /accept-invite | /accept-invite?invitation=11111111-1111-4111-8111-111111111111 | /accept-invite?invitation=11111111-1111-4111-8111-111111111111 | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error, permission-blocked | 3/3 pass | preserved | Acceptance requires a matching pending invitation and verified Supabase email session. |
+| /accept-invite | /accept-invite?invitation=11111111-1111-4111-8111-111111111111 | /accept-invite?invitation=11111111-1111-4111-8111-111111111111 | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error, permission-blocked | FAIL | preserved | A valid matching invitation and Supabase-authenticated email session are required for acceptance. |
 <!-- route-evidence:/signup -->
-| /signup | /signup | /login or /workspace | redirected (expected redirected) | redirected (expected redirected) | login-required (expected login-required) | redirect only | 3/3 pass | not-applicable | Public registration is retired; authenticated sessions continue through the auth proxy. |
+| /signup | /signup | /workspace | redirected (expected redirected) | redirected (expected redirected) | login-required (expected login-required) | redirect only | 3/3 pass | not-applicable | Anonymous requests land on login; already-authenticated sessions continue through the auth proxy to workspace. |
 <!-- route-evidence:/setup -->
-| /setup | /setup | /no-access | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | not-applicable | Public workspace setup is retired; authenticated users continue to the no-access recovery page. |
+| /setup | /setup | /no-access | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | not-applicable | The retired route redirects authenticated users to the no-access recovery page; anonymous users are intercepted by the auth proxy. |
 <!-- route-evidence:/no-access -->
 | /no-access | /no-access | /no-access | accessible (expected accessible) | accessible (expected accessible) | login-required (expected login-required) | permission-blocked | 3/3 pass | not-applicable | Unlinked-account browser presentation is covered by unit and state contracts; the retained local fixtures represent linked roles. |
 <!-- route-evidence:/property-dashboard -->

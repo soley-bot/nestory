@@ -38,6 +38,26 @@ npm run supabase:stop
 Use Supabase checks when migrations, generated database types, RLS, RPCs,
 storage, seed data, or local database behavior changed.
 
+## Current Release Blocker
+
+The invitation acceptance -> password creation -> logout -> password sign-in
+scenario is blocked by a separate credential-lifecycle defect and must not be
+marked passed from the report-consolidation branch. Keep its pull request in
+draft until the focused invitation fix is merged into `main`, this branch is
+updated from that commit, the real workflow is rerun successfully, and the
+affected full application and database suites pass again. Do not substitute a
+magic-link session for password-replacement proof.
+
+Cross-domain verification must also distinguish implemented behavior from
+unsupported workflow assumptions:
+
+- Maintenance currently supports actual-cost capture and Admin direct ledger
+  linkage, not a prefilled bill or petty-cash handoff with reciprocal links,
+  duplicate prevention, or void recovery.
+- Petty cash currently derives rollover from the calculated close; it does not
+  capture a separate physical cash count or resolve a counted-versus-calculated
+  variance.
+
 Accounting changes must also prove that journals remain balanced, source
 posting is idempotent, locked periods reject new postings, reversals preserve
 the original journal, and active operational ledger rows retain journal links.

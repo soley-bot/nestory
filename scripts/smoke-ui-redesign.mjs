@@ -718,6 +718,11 @@ function routeSlug(route) {
 }
 
 function renderEvidenceDocument(summary) {
+  const failureCount = collectFailures(
+    summary.results,
+    summary.roleAudits,
+    summary.blockedMutationRequests,
+  ).length;
   const lines = [
     "# UI Redesign Verification Evidence",
     "",
@@ -726,9 +731,9 @@ function renderEvidenceDocument(summary) {
     "",
     "## Verdict",
     "",
-    `- ${summary.results.length} admin route/viewport captures passed across desktop, compact desktop, and phone.`,
+    `- ${summary.results.length} admin route/viewport captures completed across desktop, compact desktop, and phone.`,
     `- ${summary.roleAudits.length} manager, member, and anonymous access checks matched the manifest.`,
-    "- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: 0.",
+    `- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: ${failureCount}.`,
     "- Local fixture evidence only; this is not hosted production certification.",
     "",
     "## Route matrix",

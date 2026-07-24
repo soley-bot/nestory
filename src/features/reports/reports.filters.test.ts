@@ -18,6 +18,8 @@ describe("report search params", () => {
     expect(query.status).toBe("all");
     expect(query.unitId).toBe("all");
     expect(query.ownerPersonId).toBe("all");
+    expect(query.peopleArchiveState).toBe("active");
+    expect(query.peopleView).toBe("relationship");
     expect(query.month).toMatch(/^\d{4}-\d{2}$/);
   });
 
@@ -31,10 +33,38 @@ describe("report search params", () => {
     ).toEqual({
       month: "2026-06",
       ownerPersonId: "all",
+      peopleArchiveState: "active",
+      peopleView: "relationship",
       propertyId: "all",
       report: "income-expense",
       status: "vacant",
       unitId: "all",
+    });
+  });
+
+  it("normalizes the bounded People Readiness view and archive scope", () => {
+    expect(
+      parseReportSearchParams({
+        archiveState: "archived",
+        peopleView: "staff",
+        report: "people-readiness",
+      }),
+    ).toMatchObject({
+      peopleArchiveState: "archived",
+      peopleView: "staff",
+      report: "people-readiness",
+    });
+
+    expect(
+      parseReportSearchParams({
+        archiveState: "deleted",
+        peopleView: "payroll",
+        report: "people-readiness",
+      }),
+    ).toMatchObject({
+      peopleArchiveState: "active",
+      peopleView: "relationship",
+      report: "people-readiness",
     });
   });
 
@@ -80,6 +110,8 @@ describe("report search params", () => {
       getReportScopeValidation({
         month: "2026-07",
         ownerPersonId: "all",
+        peopleArchiveState: "active",
+        peopleView: "relationship",
         propertyId: "all",
         report: "owner-statement",
         status: "all",

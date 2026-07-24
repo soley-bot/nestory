@@ -10,6 +10,7 @@ export const reportKindValues = [
   "vacancy-risk",
   "maintenance-cost",
   "missing-data",
+  "people-readiness",
 ] as const satisfies readonly ReportKind[];
 
 export type ReportCatalogItem = {
@@ -103,6 +104,15 @@ export const reportCatalog: ReportCatalogItem[] = [
     sources: "Unit, lease, owner, documents",
     title: "Record Readiness",
   },
+  {
+    bestFor: "Relationship, role, access, and evidence follow-up",
+    category: "Operations",
+    description:
+      "People readiness across relationships, tenants, owners, vendors, and staff access.",
+    kind: "people-readiness",
+    sources: "People, leases, ownership, vendor profiles, workspace access",
+    title: "People Readiness",
+  },
 ];
 
 export const reportCategories = [
@@ -165,7 +175,7 @@ export function getReportPackets({
     {
       description:
         "Record readiness plus people-domain relationship and evidence checks.",
-      href: "/people-reports",
+      href: "/reports/people-readiness",
       reports: "People reports",
       title: "People Readiness",
     },
@@ -179,6 +189,15 @@ export function buildReportBuilderHref(
   const params = new URLSearchParams(query);
   params.delete("report");
   params.delete("ownerPersonId");
+  if (report === "people-readiness") {
+    params.delete("month");
+    params.delete("propertyId");
+    params.delete("status");
+    params.delete("unitId");
+  } else {
+    params.delete("archiveState");
+    params.delete("peopleView");
+  }
   if (report === "owner-statement") {
     params.delete("unitId");
   }

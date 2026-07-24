@@ -828,7 +828,17 @@ function TrustedReportTableRow({
           )}
           key={column.key}
         >
-          {row.cells[column.key] ?? "-"}
+          {column.key === "next" && row.nextActionHref ? (
+            <Link
+              className="font-medium text-accent hover:text-accent-strong"
+              href={row.nextActionHref}
+              prefetch={false}
+            >
+              {row.cells[column.key] ?? "-"}
+            </Link>
+          ) : (
+            row.cells[column.key] ?? "-"
+          )}
         </td>
       ))}
       <td className="w-[150px] border-b border-border px-3 py-2.5">
@@ -899,6 +909,13 @@ function shouldExplainAccountingScope(kind: TrustedReport["kind"]) {
 }
 
 function hasActiveReportFilters(query: ReportsViewQuery) {
+  if (query.report === "people-readiness") {
+    return (
+      query.peopleArchiveState !== "active" ||
+      query.peopleView !== "relationship"
+    );
+  }
+
   return (
     query.propertyId !== "all" ||
     (query.report !== "owner-statement" && query.unitId !== "all") ||
@@ -910,6 +927,10 @@ function hasActiveReportFilters(query: ReportsViewQuery) {
 }
 
 function buildClearReportFiltersHref(query: ReportsViewQuery) {
+  if (query.report === "people-readiness") {
+    return "/reports/people-readiness";
+  }
+
   return buildReportBuilderHref(
     query.report,
     new URLSearchParams({ month: query.month }),
@@ -920,6 +941,12 @@ function buildCsvHref(query: ReportsViewQuery) {
   const params = new URLSearchParams();
 
   params.set("report", query.report);
+  if (query.report === "people-readiness") {
+    params.set("archiveState", query.peopleArchiveState);
+    params.set("peopleView", query.peopleView);
+    return `/api/reports/export?${params.toString()}`;
+  }
+
   params.set("month", query.month);
 
   if (query.propertyId !== "all") {
@@ -941,6 +968,12 @@ function buildPdfHref(query: ReportsViewQuery) {
   const params = new URLSearchParams();
 
   params.set("report", query.report);
+  if (query.report === "people-readiness") {
+    params.set("archiveState", query.peopleArchiveState);
+    params.set("peopleView", query.peopleView);
+    return `/api/reports/pdf?${params.toString()}`;
+  }
+
   params.set("month", query.month);
 
   if (query.propertyId !== "all") {

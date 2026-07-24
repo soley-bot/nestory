@@ -51,4 +51,22 @@ describe("route state evidence", () => {
       }
     }
   });
+
+  it("does not claim zero verification failures when generated route evidence has failed rows", () => {
+    const evidence = readFileSync(
+      resolve(
+        process.cwd(),
+        "docs",
+        "verification",
+        "ui-redesign-evidence.md",
+      ),
+      "utf8",
+    );
+
+    if (evidence.includes("| FAIL |")) {
+      expect(evidence).not.toContain(
+        "blocked mutations, and query-contract failures: 0.",
+      );
+    }
+  });
 });

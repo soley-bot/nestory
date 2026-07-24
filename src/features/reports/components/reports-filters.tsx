@@ -26,6 +26,7 @@ export function ReportsFilters({
 }: ReportsFiltersProps) {
   const showStatusFilter =
     viewQuery.report === "rent-roll" || viewQuery.report === "vacancy-risk";
+  const isPeopleReadiness = viewQuery.report === "people-readiness";
 
   return (
     <section
@@ -41,6 +42,7 @@ export function ReportsFilters({
         method="get"
       >
         {viewQuery.unitId !== "all" &&
+        !isPeopleReadiness &&
         viewQuery.report !== "owner-statement" ? (
           <input name="unitId" type="hidden" value={viewQuery.unitId} />
         ) : null}
@@ -57,32 +59,67 @@ export function ReportsFilters({
           </ScopeField>
         ) : null}
 
-        <ScopeField label="Property">
-          <SelectControl
-            ariaLabel="Filter report by property"
-            className="h-8 px-2 text-[13px]"
-            defaultValue={viewQuery.propertyId}
-            name="propertyId"
-            options={[
-              { label: "All properties", value: "all" },
-              ...propertyOptions.map((property) => ({
-                label: property.label,
-                value: property.id,
-              })),
-            ]}
-          />
-        </ScopeField>
+        {isPeopleReadiness ? (
+          <>
+            <ScopeField label="People view">
+              <SelectControl
+                ariaLabel="Choose People readiness view"
+                className="h-8 px-2 text-[13px]"
+                defaultValue={viewQuery.peopleView}
+                name="peopleView"
+                options={[
+                  { label: "Relationship readiness", value: "relationship" },
+                  { label: "Tenant readiness", value: "tenant" },
+                  { label: "Owner readiness", value: "owner" },
+                  { label: "Vendor activity", value: "vendor" },
+                  { label: "Staff access", value: "staff" },
+                ]}
+              />
+            </ScopeField>
+            <ScopeField label="Record state">
+              <SelectControl
+                ariaLabel="Filter People records by state"
+                className="h-8 px-2 text-[13px]"
+                defaultValue={viewQuery.peopleArchiveState}
+                name="archiveState"
+                options={[
+                  { label: "Active records", value: "active" },
+                  { label: "Archived records", value: "archived" },
+                  { label: "All records", value: "all" },
+                ]}
+              />
+            </ScopeField>
+          </>
+        ) : (
+          <>
+            <ScopeField label="Property">
+              <SelectControl
+                ariaLabel="Filter report by property"
+                className="h-8 px-2 text-[13px]"
+                defaultValue={viewQuery.propertyId}
+                name="propertyId"
+                options={[
+                  { label: "All properties", value: "all" },
+                  ...propertyOptions.map((property) => ({
+                    label: property.label,
+                    value: property.id,
+                  })),
+                ]}
+              />
+            </ScopeField>
 
-        <ScopeField label="Month">
-          <MonthPickerField
-            ariaLabel="Report month"
-            className="h-8 px-2 text-[13px]"
-            defaultValue={viewQuery.month}
-            name="month"
-          />
-        </ScopeField>
+            <ScopeField label="Month">
+              <MonthPickerField
+                ariaLabel="Report month"
+                className="h-8 px-2 text-[13px]"
+                defaultValue={viewQuery.month}
+                name="month"
+              />
+            </ScopeField>
+          </>
+        )}
 
-        {showStatusFilter ? (
+        {!isPeopleReadiness && showStatusFilter ? (
           <ScopeField label="Status">
             <SelectControl
               ariaLabel="Filter units by status"
@@ -95,9 +132,9 @@ export function ReportsFilters({
               ]}
             />
           </ScopeField>
-        ) : (
+        ) : !isPeopleReadiness ? (
           <input name="status" type="hidden" value="all" />
-        )}
+        ) : null}
 
         <Button
           className="h-8 justify-start gap-1.5 px-2.5 text-[13px] md:justify-center"
@@ -110,7 +147,9 @@ export function ReportsFilters({
         <Link
           aria-label="Reset report filters"
           className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-          href="/reports"
+          href={
+            isPeopleReadiness ? "/reports/people-readiness" : "/reports"
+          }
           title="Reset filters"
         >
           <RotateCcw size={14} />

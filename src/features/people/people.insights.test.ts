@@ -3,6 +3,8 @@ import {
   buildPeopleTrustedReport,
   getPeopleInsights,
 } from "@/features/people/people.insights";
+import { buildTrustedReportCsv } from "@/features/reports/data/csv";
+import { buildTrustedReportPdf } from "@/features/reports/data/pdf";
 import type { PeopleSummary, PersonRoleValue } from "@/features/people/people.types";
 
 describe("people insights", () => {
@@ -51,6 +53,21 @@ describe("people insights", () => {
     );
   });
 
+  it("calculates readiness metrics over archived rows when the report scope selects them", () => {
+    const archived = person({ contact: false, documents: 0, roles: ["owner"] });
+    archived.isArchived = true;
+
+    const report = buildPeopleTrustedReport({
+      kind: "relationship-readiness",
+      people: [archived],
+    });
+
+    expect(report.rows[0]?.cells.readiness).toBe("Archived");
+    expect(
+      report.summary.find((metric) => metric.label === "Missing contact")?.value,
+    ).toBe("1");
+  });
+
   it("builds traceable people report rows", () => {
     const report = buildPeopleTrustedReport({
       generatedAt: "2026-07-03T00:00:00.000Z",
@@ -75,6 +92,140 @@ describe("people insights", () => {
     expect(report.rows).toHaveLength(1);
     expect(report.rows[0]?.sourceLinks[0]?.recordType).toBe("person");
     expect(report.rows[0]?.cells.linked).toBe("1 active lease");
+  });
+
+  it.each([
+    ["relationship-readiness", 5, "Relationship Readiness"],
+    ["tenant-readiness", 1, "Tenant Readiness"],
+    ["owner-readiness", 1, "Owner Readiness"],
+    ["vendor-activity", 1, "Vendor Activity"],
+    ["staff-access", 1, "Staff Access"],
+  ] as const)(
+    "preserves the %s report variant in the central trusted-report shape",
+    (kind, expectedRows, title) => {
+      const people = [
+        person({
+          contact: true,
+          documents: 1,
+          leaseCount: 1,
+          roles: ["tenant"],
+        }),
+        person({
+          contact: true,
+          documents: 1,
+          ownerPropertyCount: 1,
+          roles: ["owner"],
+        }),
+        person({
+          contact: true,
+          documents: 1,
+          roles: ["vendor"],
+        }),
+        person({
+          contact: true,
+          documents: 1,
+          roles: ["staff"],
+        }),
+        person({
+          contact: false,
+          documents: 0,
+          roles: [],
+        }),
+      ];
+      const staff = people.find((candidate) =>
+        candidate.roles.some((role) => role.role === "staff"),
+      )!;
+
+      const report = buildPeopleTrustedReport({
+        accessByPersonId: {
+          [staff.id]: {
+            primaryAction: "grant_access",
+            state: "no_access",
+          },
+        },
+        generatedAt: "2026-07-24T00:00:00.000Z",
+        kind,
+        people,
+        totalCount: people.length,
+      });
+
+      expect(report.kind).toBe("people-readiness");
+      expect(report.title).toBe(title);
+      expect(report.rows).toHaveLength(expectedRows);
+      expect(report.columns.map((column) => column.label)).toEqual([
+        "Readiness",
+        "Roles",
+        "Contact",
+        "Linked context",
+        "Evidence",
+        "Next action",
+      ]);
+      expect(report.rows.every((row) => row.href === `/people/${row.id}`)).toBe(
+        true,
+      );
+
+      if (kind === "staff-access") {
+        expect(report.rows[0]).toMatchObject({
+          nextActionHref: `/users-roles?personId=${staff.id}`,
+        });
+        expect(report.rows[0]?.cells.linked).toBe("No workspace access");
+      }
+    },
+  );
+
+  it("keeps central CSV headers, rows, sources, and PDF generation for People Readiness", () => {
+    const tenant = person({
+      contact: true,
+      documents: 2,
+      leaseCount: 1,
+      roles: ["tenant", "owner"],
+    });
+    tenant.linked.activeLeases = [
+      {
+        endDate: "2027-06-30",
+        href: "/leases?leaseId=lease-1",
+        id: "lease-1",
+        label: "Lease One",
+        ledgerHref: "/ledger?leaseId=lease-1",
+        propertyId: "property-1",
+        propertyLabel: "Property One",
+        startDate: "2026-07-01",
+        status: "active",
+        timelineHref: "/timeline?leaseId=lease-1",
+        unitId: "unit-1",
+        unitLabel: "Unit One",
+      },
+    ];
+
+    const report = buildPeopleTrustedReport({
+      generatedAt: "2026-07-24T00:00:00.000Z",
+      kind: "tenant-readiness",
+      people: [tenant],
+    });
+
+    const csv = buildTrustedReportCsv(report);
+    const pdf = buildTrustedReportPdf({
+      organizationName: "Demo Organization",
+      report,
+    });
+
+    expect(csv).toContain(
+      "Row,Title,Readiness,Roles,Contact,Linked context,Evidence,Next action,Source records,Source ids,Source links",
+    );
+    expect(csv).toContain(report.rows[0]!.id);
+    expect(csv).toContain(`/people/${report.rows[0]!.id}`);
+    expect(csv).toContain("lease-1");
+    expect(report.rows[0]?.sourceLinks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          href: "/leases?leaseId=lease-1",
+          id: "lease-1",
+          recordType: "lease",
+        }),
+      ]),
+    );
+    expect(pdf.byteLength).toBeGreaterThan(500);
+    expect(new TextDecoder().decode(pdf.slice(0, 8))).toBe("%PDF-1.4");
   });
 });
 
