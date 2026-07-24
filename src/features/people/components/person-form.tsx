@@ -38,7 +38,11 @@ type PersonFormProps = {
   initialRoles?: PersonRoleValue[];
   mode?: "create" | "edit";
   onClose: () => void;
-  onSuccess?: (message: string, personId?: string) => void;
+  onSuccess?: (
+    message: string,
+    personId?: string,
+    roles?: PersonRoleValue[],
+  ) => void;
   person?: PeopleSummary | null;
   roleContext?: PersonRoleValue;
 };
@@ -61,10 +65,17 @@ export function PersonForm({
 
   useEffect(() => {
     if (state.status === "success") {
-      onSuccess?.(state.message ?? "Person saved.", state.personId);
+      onSuccess?.(state.message ?? "Person saved.", state.personId, state.roles);
       onClose();
     }
-  }, [onClose, onSuccess, state.message, state.personId, state.status]);
+  }, [
+    onClose,
+    onSuccess,
+    state.message,
+    state.personId,
+    state.roles,
+    state.status,
+  ]);
 
   return (
     <RecordForm

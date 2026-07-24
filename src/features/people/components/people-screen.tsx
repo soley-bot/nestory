@@ -256,13 +256,14 @@ export function PeopleScreen({
               }
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
-              onSuccess={(message, personId) =>
+              onSuccess={(message, personId, createdRoles) =>
                 setFeedback(
                   getPeopleFeedback(
                     message,
                     personId,
                     drawer.mode,
                     moduleRole,
+                    createdRoles,
                   ),
                 )
               }
@@ -281,23 +282,29 @@ function getPeopleFeedback(
   personId: string | undefined,
   mode: Extract<DrawerState["mode"], "create" | "edit">,
   role?: PersonRoleValue,
+  createdRoles: PersonRoleValue[] = [],
 ): PeopleFeedback {
   if (mode !== "create" || !personId) {
     return { message };
   }
 
+  const handoffRole =
+    role ??
+    (["owner", "tenant", "staff"] as const).find((candidate) =>
+      createdRoles.includes(candidate),
+    );
   const action =
-    role === "owner"
+    handoffRole === "owner"
       ? {
           href: `/properties?action=create&ownerPersonId=${personId}`,
           label: "Create property",
         }
-      : role === "tenant"
+      : handoffRole === "tenant"
         ? {
             href: `/leases?action=create&tenantPersonId=${personId}`,
             label: "Create lease",
           }
-        : role === "staff"
+        : handoffRole === "staff"
           ? {
               href: `/users-roles?personId=${personId}`,
               label: "Grant Workspace Access",

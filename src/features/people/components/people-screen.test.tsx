@@ -23,6 +23,9 @@ const navigation = vi.hoisted(() => ({
   replace: vi.fn(),
   searchParams: new URLSearchParams(),
 }));
+const personFormSubmission = vi.hoisted(() => ({
+  role: "tenant" as PersonRoleValue,
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
@@ -46,12 +49,20 @@ vi.mock("@/features/people/components/person-form", () => ({
     onSuccess,
     roleContext,
   }: {
-    onSuccess?: (message: string, personId?: string) => void;
+    onSuccess?: (
+      message: string,
+      personId?: string,
+      roles?: PersonRoleValue[],
+    ) => void;
     roleContext?: PersonRoleValue;
   }) => (
     <button
       onClick={() =>
-        onSuccess?.(`${roleContext ?? "person"} added.`, "11111111-1111-4111-8111-111111111111")
+        onSuccess?.(
+          `${roleContext ?? "person"} added.`,
+          "11111111-1111-4111-8111-111111111111",
+          [roleContext ?? personFormSubmission.role],
+        )
       }
       type="button"
     >
@@ -85,6 +96,7 @@ beforeEach(() => {
   navigation.push.mockReset();
   navigation.replace.mockReset();
   navigation.searchParams = new URLSearchParams();
+  personFormSubmission.role = "tenant";
   installMatchMedia(1440);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -269,6 +281,23 @@ describe("People route family redesign contract", () => {
 
       rendered.unmount();
       vi.useRealTimers();
+    },
+  );
+
+  it.each([
+    ["owner", "Create property"],
+    ["tenant", "Create lease"],
+    ["staff", "Grant Workspace Access"],
+  ] as const)(
+    "offers the %s handoff when the role is selected from All People",
+    (role, actionLabel) => {
+      personFormSubmission.role = role;
+      renderPeople({ people: [] });
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Add person" })[0]!);
+      fireEvent.click(screen.getByRole("button", { name: "Complete person create" }));
+
+      expect(screen.getByRole("link", { name: actionLabel })).not.toBeNull();
     },
   );
 

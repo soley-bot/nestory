@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import type { PersonRoleValue } from "@/features/people/people.types";
 
 type PeopleFieldErrors = {
   displayName?: string[];
@@ -21,6 +22,7 @@ export type PeopleActionState = {
   fieldErrors?: PeopleFieldErrors;
   message?: string;
   personId?: string;
+  roles?: PersonRoleValue[];
   status?: "error" | "success";
 };
 
@@ -137,6 +139,7 @@ export async function createPersonAction(
   return {
     message: "Person added.",
     personId,
+    roles: parsed.data.roles,
     status: "success",
   };
 }
@@ -178,6 +181,7 @@ export async function updatePersonAction(
   return {
     message: "Person updated.",
     personId: parsedPersonId.data,
+    roles: parsed.data.roles,
     status: "success",
   };
 }
