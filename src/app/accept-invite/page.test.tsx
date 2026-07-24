@@ -42,7 +42,7 @@ describe("AcceptInvitePage", () => {
     expect(html).not.toContain("Team Member");
   });
 
-  it("demonstrates the unsafe magic-link state omits password creation when proof is misclassified", async () => {
+  it("omits password fields when acceptance data says password is not required", async () => {
     getInvitationAcceptance.mockResolvedValue({
       accountEmail: "manager@example.com",
       expiresAt: "2026-07-23T12:00:00.000Z",
@@ -65,7 +65,7 @@ describe("AcceptInvitePage", () => {
     expect(html).not.toContain("Confirm password");
   });
 
-  it("shows password creation when private credential proof is absent", async () => {
+  it("shows password fields when acceptance data says password is required", async () => {
     getInvitationAcceptance.mockResolvedValue({
       accountEmail: "manager@example.com",
       expiresAt: "2026-07-23T12:00:00.000Z",

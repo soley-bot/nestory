@@ -87,8 +87,28 @@ describe("invitation acceptance", () => {
       staffName: null,
       state: "pending",
     });
+    expect(rpc).toHaveBeenCalledWith(
+      "get_organization_invitation_for_acceptance",
+      { p_invitation_id: invitationId },
+    );
     },
   );
+
+  it("maps a false password requirement from the invitation acceptance boundary", async () => {
+    rpc.mockResolvedValue({
+      data: [{ ...invitation, password_required: false }],
+      error: null,
+    });
+
+    await expect(getInvitationAcceptance(invitationId)).resolves.toMatchObject({
+      passwordRequired: false,
+      state: "pending",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "get_organization_invitation_for_acceptance",
+      { p_invitation_id: invitationId },
+    );
+  });
 
   it("sets the password before accepting a new invited identity", async () => {
     rpc
