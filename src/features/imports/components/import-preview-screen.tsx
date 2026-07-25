@@ -58,6 +58,11 @@ type ParsedFile = {
   records: ParsedCsvRecord[];
 };
 
+type ImportSetupAction = {
+  href: string;
+  label: string;
+};
+
 const initialStageState: StageImportRunState = {};
 const initialCommitState: CommitImportRunState = {};
 
@@ -150,6 +155,14 @@ export function ImportPreviewScreen({
     selectedType,
     stageState.summary?.ready ?? stats.readyCount,
   );
+  const previewStatus = getImportPreviewStatus({
+    blockedRowCount: blockedRows.length,
+    isStagedCurrent,
+    missingRequiredMatches,
+    readyRecordLabel,
+    readyRowCount: stats.readyCount,
+    rowCount: rows.length,
+  });
   const templateLabel = getTemplateDownloadLabel(selectedType, referenceData);
   const templateHref = `data:text/csv;charset=utf-8,${encodeURIComponent(
     buildImportTemplateCsv(selectedType, referenceData),
@@ -236,7 +249,6 @@ export function ImportPreviewScreen({
             {templateLabel}
           </a>
         }
-        description="Bring portfolio spreadsheets into Nestory with templates, column matching, row checks, and a preview before committing."
         title="Import center"
       />
 
@@ -258,7 +270,13 @@ export function ImportPreviewScreen({
           missingRequiredMatches={missingRequiredMatches}
         />
 
-        <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,0.86fr)_minmax(380px,1.14fr)]">
+        <section
+          className={
+            parsedFile
+              ? "grid min-w-0 gap-3 xl:grid-cols-[minmax(0,0.86fr)_minmax(380px,1.14fr)]"
+              : "min-w-0"
+          }
+        >
           <div className="min-w-0 space-y-3">
             <div className="rounded-md border border-border bg-surface">
               <div className="border-b border-border px-4 py-3 sm:px-5">
@@ -302,28 +320,30 @@ export function ImportPreviewScreen({
               </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
-              <ImportStat
-                icon={<Database size={15} />}
-                label="Rows"
-                value={String(stats.totalCount)}
-              />
-              <ImportStat
-                icon={<CheckCircle2 size={15} />}
-                label="Ready"
-                value={String(stats.readyCount)}
-              />
-              <ImportStat
-                icon={<AlertTriangle size={15} />}
-                label="Errors"
-                value={String(stats.errorCount)}
-              />
-              <ImportStat
-                icon={<ListChecks size={15} />}
-                label="Warnings"
-                value={String(stats.warningCount)}
-              />
-            </div>
+            {parsedFile ? (
+              <div className="grid gap-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
+                <ImportStat
+                  icon={<Database size={15} />}
+                  label="Rows"
+                  value={String(stats.totalCount)}
+                />
+                <ImportStat
+                  icon={<CheckCircle2 size={15} />}
+                  label="Ready"
+                  value={String(stats.readyCount)}
+                />
+                <ImportStat
+                  icon={<AlertTriangle size={15} />}
+                  label="Errors"
+                  value={String(stats.errorCount)}
+                />
+                <ImportStat
+                  icon={<ListChecks size={15} />}
+                  label="Warnings"
+                  value={String(stats.warningCount)}
+                />
+              </div>
+            ) : null}
 
             {stageState.message ? (
               <p
@@ -358,37 +378,38 @@ export function ImportPreviewScreen({
             ) : null}
           </div>
 
-          <div className="min-w-0 rounded-md border border-border bg-surface">
-            <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-              <div>
-                <h2 className="text-base font-semibold">Match columns</h2>
-                <p className="mt-1 text-sm text-muted">
-                  {parsedFile
-                    ? `${parsedFile.headers.length} spreadsheet columns found. Required fields are marked *.`
-                    : `Upload ${config.label.toLowerCase()} CSV to match its columns to Nestory fields.`}
-                </p>
+          {parsedFile ? (
+            <div className="min-w-0 rounded-md border border-border bg-surface">
+              <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <div>
+                  <h2 className="text-base font-semibold">Match columns</h2>
+                  <p className="mt-1 text-sm text-muted">
+                    {parsedFile.headers.length} spreadsheet column
+                    {parsedFile.headers.length === 1 ? "" : "s"} found
+                    {missingRequiredMatches > 0
+                      ? ` · ${missingRequiredMatches} required ${
+                          missingRequiredMatches === 1 ? "match" : "matches"
+                        } missing`
+                      : " · Required matches complete"}
+                  </p>
+                </div>
+                <Button
+                  onClick={() =>
+                    setMapping(
+                      mapHeadersForType(
+                        selectedType,
+                        parsedFile.headers,
+                        savedMapping,
+                      ),
+                    )
+                  }
+                  type="button"
+                >
+                  <RotateCcw size={15} />
+                  Auto-map
+                </Button>
               </div>
-              <Button
-                disabled={!parsedFile}
-                onClick={() =>
-                  parsedFile
-                    ? setMapping(
-                        mapHeadersForType(
-                          selectedType,
-                          parsedFile.headers,
-                          savedMapping,
-                        ),
-                      )
-                    : undefined
-                }
-                type="button"
-              >
-                <RotateCcw size={15} />
-                Auto-map
-              </Button>
-            </div>
 
-            {parsedFile ? (
               <div className="grid gap-3 p-4 sm:grid-cols-2">
                 {config.fields.map((field) => (
                   <label
@@ -420,158 +441,143 @@ export function ImportPreviewScreen({
                   </label>
                 ))}
               </div>
-            ) : (
-              <div className="p-4">
-                <div className="rounded-md border border-border bg-surface-muted px-4 py-5 text-sm">
-                  <p className="font-medium text-foreground">
-                    Upload a CSV first.
-                  </p>
-                  <p className="mt-1 max-w-xl text-muted">
-                    Nestory will match obvious columns automatically. You only
-                    need to review fields marked as missing before saving the
-                    preview.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : null}
         </section>
 
-        <section className="min-w-0 overflow-hidden rounded-md border border-border bg-surface">
-          <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <div>
-              <h2 className="text-base font-semibold">Preview rows</h2>
-              <p className="mt-1 text-sm text-muted">
-                {isStagedCurrent
-                  ? `This preview is saved. Import writes ${readyRecordLabel} to ${config.label.toLowerCase()}.`
-                  : `Review the rows first. Save a preview, then import the ready rows.`}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {isStagedCurrent ? (
-                <div className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-success/30 bg-success-soft px-2.5 text-[13px] font-medium text-success">
-                  <CheckCircle2 size={15} />
-                  Preview saved
-                </div>
-              ) : (
-                <form action={stageAction}>
-                  <input name="payload" type="hidden" value={stagePayload} />
+        {parsedFile ? (
+          <section className="min-w-0 overflow-hidden rounded-md border border-border bg-surface">
+            <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div>
+                <h2 className="text-base font-semibold">Preview rows</h2>
+                <p className="mt-1 text-sm text-muted">{previewStatus}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {isStagedCurrent ? (
+                  <div className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-success/30 bg-success-soft px-2.5 text-[13px] font-medium text-success">
+                    <CheckCircle2 size={15} />
+                    Preview saved
+                  </div>
+                ) : (
+                  <form action={stageAction}>
+                    <input name="payload" type="hidden" value={stagePayload} />
+                    <Button
+                      disabled={staging || rows.length === 0}
+                      type="submit"
+                      variant={stagedRunId ? "secondary" : "primary"}
+                    >
+                      <Database size={15} />
+                      {staging
+                        ? "Saving..."
+                        : stagedRunId
+                          ? "Update saved preview"
+                          : `Save preview (${rows.length})`}
+                    </Button>
+                  </form>
+                )}
+                <form action={commitAction}>
+                  <input name="runId" type="hidden" value={stagedRunId ?? ""} />
                   <Button
-                    disabled={!parsedFile || staging || rows.length === 0}
+                    disabled={
+                      committing ||
+                      !isStagedCurrent ||
+                      !stageState.summary ||
+                      stageState.summary.ready === 0
+                    }
                     type="submit"
-                    variant={stagedRunId ? "secondary" : "primary"}
+                    variant="primary"
                   >
-                    <Database size={15} />
-                    {staging
-                      ? "Saving..."
-                      : stagedRunId
-                        ? "Update saved preview"
-                        : `Save preview (${rows.length})`}
+                    <Upload size={15} />
+                    {committing
+                      ? "Importing..."
+                      : `Import ${readyRecordLabel}`}
                   </Button>
                 </form>
-              )}
-              <form action={commitAction}>
-                <input name="runId" type="hidden" value={stagedRunId ?? ""} />
-                <Button
-                  disabled={
-                    committing ||
-                    !isStagedCurrent ||
-                    !stageState.summary ||
-                    stageState.summary.ready === 0
-                  }
-                  type="submit"
-                  variant="primary"
-                >
-                  <Upload size={15} />
-                  {committing
-                    ? "Importing..."
-                    : `Import ${readyRecordLabel}`}
-                </Button>
-              </form>
+              </div>
             </div>
-          </div>
 
-          {rows.length > 0 ? (
-            <div className="border-b border-border p-4">
-              <ConsequencePanel
-                rows={[
-                  { label: "Create", value: importConsequences.create },
-                  { label: "Update", value: importConsequences.update },
-                  {
-                    label: "Create or update",
-                    value: importConsequences.createOrUpdate,
-                  },
-                  { label: "Skip", value: importConsequences.skip },
-                ]}
-                summary="Only ready rows are written. Blocked rows stay in this import run for correction."
-                title="Import consequence"
+            {rows.length > 0 ? (
+              <div className="border-b border-border p-4">
+                <ConsequencePanel
+                  rows={[
+                    { label: "Create", value: importConsequences.create },
+                    { label: "Update", value: importConsequences.update },
+                    {
+                      label: "Create or update",
+                      value: importConsequences.createOrUpdate,
+                    },
+                    { label: "Skip", value: importConsequences.skip },
+                  ]}
+                  summary="Only ready rows are written. Blocked rows stay in this import run for correction."
+                  title="Import consequence"
+                />
+              </div>
+            ) : null}
+
+            {!isStagedCurrent && stagedRunId ? (
+              <p className="border-b border-border px-4 py-2 text-sm text-warning sm:px-5">
+                Column matches or file data changed after saving. Save the
+                preview again before importing.
+              </p>
+            ) : null}
+
+            {cleanupItems.length > 0 ? (
+              <CleanupQueue
+                errorRowsHref={errorRowsHref}
+                fixTemplateHref={fixTemplateHref}
+                items={cleanupItems}
               />
-            </div>
-          ) : null}
+            ) : null}
 
-          {!isStagedCurrent && stagedRunId && parsedFile ? (
-            <p className="border-b border-border px-4 py-2 text-sm text-warning sm:px-5">
-              Column matches or file data changed after saving. Save the
-              preview again before importing.
-            </p>
-          ) : null}
-
-          {parsedFile ? (
-            <CleanupQueue
-              errorRowsHref={errorRowsHref}
-              fixTemplateHref={fixTemplateHref}
-              items={cleanupItems}
-            />
-          ) : null}
-
-          <div
-            aria-label="Import preview rows"
-            className="max-h-[min(360px,calc(100vh-500px))] max-w-full overflow-auto"
-            role="region"
-            tabIndex={0}
-          >
-            <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
-              <thead className="bg-surface-muted text-[11px] uppercase tracking-[0] text-muted">
-                <tr>
-                  <th className="border-b border-border px-3 py-2 font-semibold">
-                    Row
-                  </th>
-                  <th className="border-b border-border px-3 py-2 font-semibold">
-                    Record
-                  </th>
-                  <th className="border-b border-border px-3 py-2 font-semibold">
-                    Will write to
-                  </th>
-                  <th className="border-b border-border px-3 py-2 text-right font-semibold">
-                    Amount
-                  </th>
-                  <th className="border-b border-border px-3 py-2 font-semibold">
-                    Action
-                  </th>
-                  <th className="border-b border-border px-3 py-2 font-semibold">
-                    Issues
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
+            <div
+              aria-label="Import preview rows"
+              className="max-h-[min(360px,calc(100vh-500px))] max-w-full overflow-auto"
+              role="region"
+              tabIndex={0}
+            >
+              <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
+                <thead className="bg-surface-muted text-[11px] uppercase tracking-[0] text-muted">
                   <tr>
-                    <td
-                      className="px-4 py-8 text-center text-muted"
-                      colSpan={6}
-                    >
-                      No rows loaded.
-                    </td>
+                    <th className="border-b border-border px-3 py-2 font-semibold">
+                      Row
+                    </th>
+                    <th className="border-b border-border px-3 py-2 font-semibold">
+                      Record
+                    </th>
+                    <th className="border-b border-border px-3 py-2 font-semibold">
+                      Will write to
+                    </th>
+                    <th className="border-b border-border px-3 py-2 text-right font-semibold">
+                      Amount
+                    </th>
+                    <th className="border-b border-border px-3 py-2 font-semibold">
+                      Action
+                    </th>
+                    <th className="border-b border-border px-3 py-2 font-semibold">
+                      Issues
+                    </th>
                   </tr>
-                ) : (
-                  rows.map((row) => (
-                    <PreviewRow key={row.sourceRowNumber} row={row} />
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                </thead>
+                <tbody>
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td
+                        className="px-4 py-8 text-center text-muted"
+                        colSpan={6}
+                      >
+                        No rows loaded.
+                      </td>
+                    </tr>
+                  ) : (
+                    rows.map((row) => (
+                      <PreviewRow key={row.sourceRowNumber} row={row} />
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
 
         <ImportRunHistory runs={recentRuns} />
       </main>
@@ -647,9 +653,11 @@ function ImportTypeChooser({
                 {availability.ready ? "Ready" : "Needs setup"}
               </Badge>
             </div>
-            <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">
-              {availability.message}
-            </p>
+            {availability.ready || selected ? null : (
+              <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">
+                {availability.message}
+              </p>
+            )}
           </button>
         );
       })}
@@ -722,61 +730,37 @@ function ImportStartGuide({
 }) {
   const config = getImportTypeConfig(selectedType);
   const availability = getImportAvailability(selectedType, referenceData);
-  const templateLabel = getTemplateDownloadLabel(selectedType, referenceData);
+  const actions = getImportSetupActions(selectedType, referenceData);
+
+  if (availability.ready) {
+    return null;
+  }
 
   return (
-    <section
-      className={
-        availability.ready
-          ? "rounded-md border border-border bg-surface px-4 py-3"
-          : "rounded-md border border-warning/30 bg-warning-soft/25 px-4 py-3"
-      }
-    >
+    <section className="rounded-md border border-warning/30 bg-warning-soft/25 px-4 py-3">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={availability.ready ? "success" : "warning"}>
-              {availability.ready ? "Import ready" : "Setup needed"}
-            </Badge>
-            <h2 className="text-sm font-semibold text-foreground">
-              {config.label} import path
-            </h2>
-          </div>
+          <h2 className="text-sm font-semibold text-foreground">
+            {config.label} import requires setup
+          </h2>
           <p className="mt-1 text-sm leading-5 text-foreground-muted">
-            {config.description}
+            {availability.message}
           </p>
-          {config.nextDependency ? (
-            <p className="mt-1 text-xs leading-5 text-muted">
-              {config.nextDependency}
-            </p>
-          ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
-            href="/properties?action=create"
-          >
-            <Building2 size={15} />
-            Add property
-          </Link>
-          <a
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
-            download={`nestory-${selectedType}-import-template.csv`}
-            href={`data:text/csv;charset=utf-8,${encodeURIComponent(
-              buildImportTemplateCsv(selectedType, referenceData),
-            )}`}
-          >
-            <Download size={15} />
-            {templateLabel}
-          </a>
-        </div>
+        {actions.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {actions.map((action) => (
+              <Link
+                className="inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
+                href={action.href}
+                key={action.href}
+              >
+                {action.label}
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </div>
-
-      {!availability.ready ? (
-        <p className="mt-3 rounded-md border border-warning/30 bg-surface px-3 py-2 text-sm font-medium text-foreground">
-          {availability.message}
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -1098,6 +1082,69 @@ function getImportAvailability(
     message: "Leases need matched properties, units, and tenant people first.",
     ready: false,
   };
+}
+
+function getImportSetupActions(
+  type: ImportType,
+  referenceData: ImportReferenceData,
+): ImportSetupAction[] {
+  if (type === "units" && referenceData.properties.length === 0) {
+    return [{ href: "/properties?action=create", label: "Add property" }];
+  }
+
+  if (type !== "leases") {
+    return [];
+  }
+
+  if (referenceData.properties.length === 0) {
+    return [{ href: "/properties?action=create", label: "Add property" }];
+  }
+
+  if (referenceData.units.length === 0) {
+    return [{ href: "/units?action=create", label: "Add unit" }];
+  }
+
+  if (!referenceData.people.some((person) => person.roles.includes("tenant"))) {
+    return [{ href: "/tenants?action=create", label: "Add tenant" }];
+  }
+
+  return [];
+}
+
+function getImportPreviewStatus({
+  blockedRowCount,
+  isStagedCurrent,
+  missingRequiredMatches,
+  readyRecordLabel,
+  readyRowCount,
+  rowCount,
+}: {
+  blockedRowCount: number;
+  isStagedCurrent: boolean;
+  missingRequiredMatches: number;
+  readyRecordLabel: string;
+  readyRowCount: number;
+  rowCount: number;
+}) {
+  if (isStagedCurrent) {
+    return `${readyRecordLabel} ready to import.`;
+  }
+
+  if (rowCount === 0) {
+    return "No data rows found in this file.";
+  }
+
+  if (missingRequiredMatches > 0) {
+    return `${missingRequiredMatches} required column ${
+      missingRequiredMatches === 1 ? "match is" : "matches are"
+    } missing.`;
+  }
+
+  if (blockedRowCount > 0) {
+    return `${readyRowCount} ready · ${blockedRowCount} blocked.`;
+  }
+
+  return `${readyRowCount} ready to save as a preview.`;
 }
 
 function importIcon(type: ImportType) {
