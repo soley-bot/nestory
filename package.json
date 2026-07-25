@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "vitest run src/features/properties/components/property-screen.test.tsx src/features/units/components/unit-screen.test.ts --reporter=verbose && next build",
+    "build": "NODE_ENV=test vitest run src/features/properties/components/property-screen.test.tsx src/features/units/components/unit-screen.test.ts --reporter=verbose && NODE_ENV=production next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
