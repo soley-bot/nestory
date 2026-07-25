@@ -494,17 +494,12 @@ function ReportCatalogRow({
       href={buildCatalogCardHref(report.kind, viewQuery)}
       prefetch={false}
     >
-      <div className="min-w-0 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(140px,0.8fr)] sm:items-center sm:gap-4">
-        <div className="min-w-0">
-          <h4 className="truncate text-sm font-semibold text-foreground">
-            {report.title}
-          </h4>
-          <p className="mt-0.5 truncate text-xs text-foreground-muted">
-            {report.bestFor}
-          </p>
-        </div>
-        <p className="mt-1 truncate text-xs text-muted sm:mt-0">
-          {report.sources}
+      <div className="min-w-0">
+        <h4 className="truncate text-sm font-semibold text-foreground">
+          {report.title}
+        </h4>
+        <p className="mt-0.5 truncate text-xs text-foreground-muted">
+          {report.bestFor}
         </p>
       </div>
       <ArrowRight
@@ -997,7 +992,6 @@ function buildPdfHref(query: ReportsViewQuery) {
 
   return `/api/reports/pdf?${params.toString()}`;
 }
-
 function buildOwnerStatementPreviewHref(
   query: ReportsViewQuery,
   print = false,

@@ -8,7 +8,7 @@ describe("report catalog supporting copy", () => {
   it("uses one visible purpose line per library report", () => {
     for (const report of reportCatalog) {
       expect(report.bestFor.trim().length).toBeGreaterThan(0);
-      expect(report.sources).toBeUndefined();
+      expect(Object.prototype.hasOwnProperty.call(report, "sources")).toBe(false);
     }
   });
 

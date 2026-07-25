@@ -18,7 +18,6 @@ export type ReportCatalogItem = {
   category: "Finance" | "Leasing" | "Operations" | "Property";
   description: string;
   kind: ReportKind;
-  sources?: string;
   title: string;
 };
 
@@ -177,7 +176,7 @@ export function buildReportBuilderHref(
   query?: URLSearchParams,
 ) {
   const params = new URLSearchParams(query);
-  params.delete("report");
+ params.delete("report");
   params.delete("ownerPersonId");
   if (report === "people-readiness") {
     params.delete("month");
