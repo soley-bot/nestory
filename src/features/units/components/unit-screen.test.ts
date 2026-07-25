@@ -148,12 +148,27 @@ describe("UnitScreen redesign contract", () => {
   );
 
   it.each([
-    { actionName: "Edit unit 1A", drawerName: "Edit unit", width: 1024 },
-    { actionName: "Archive unit 1A", drawerName: "Archive unit", width: 1024 },
-    { actionName: "Edit unit 1A", drawerName: "Edit unit", width: 390 },
+    {
+      actionName: "Edit unit 1A",
+      drawerName: "Edit unit",
+      openMoreActions: false,
+      width: 1024,
+    },
+    {
+      actionName: "Archive unit 1A",
+      drawerName: "Archive unit",
+      openMoreActions: true,
+      width: 1024,
+    },
+    {
+      actionName: "Edit unit 1A",
+      drawerName: "Edit unit",
+      openMoreActions: false,
+      width: 390,
+    },
   ])(
     "replaces the quick view with one $drawerName drawer at $width px and returns focus",
-    async ({ actionName, drawerName, width }) => {
+    async ({ actionName, drawerName, openMoreActions, width }) => {
       installMatchMedia(width);
       const user = userEvent.setup();
       renderUnits();
@@ -162,6 +177,11 @@ describe("UnitScreen redesign contract", () => {
       await user.click(preview);
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
 
+      if (openMoreActions) {
+        await user.click(
+          screen.getByRole("button", { name: "More actions for unit 1A" }),
+        );
+      }
       await user.click(screen.getByRole("button", { name: actionName }));
 
       const dialogs = screen.getAllByRole("dialog");
