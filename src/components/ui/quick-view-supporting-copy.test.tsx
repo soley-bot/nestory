@@ -85,8 +85,12 @@ describe("quick-view supporting copy", () => {
       .closest("section");
 
     expect(related).not.toBeNull();
-    expect(within(related!).getByRole("link", { name: "Timeline" })).toBeTruthy();
-    expect(within(related!).getByRole("link", { name: "Ledger" })).toBeTruthy();
+    expect(
+      within(related!).getByRole("link", { name: "Timeline" }).getAttribute("href"),
+    ).toBe("/timeline?unitId=unit-1");
+    expect(
+      within(related!).getByRole("link", { name: "Ledger" }).getAttribute("href"),
+    ).toBe("/ledger?propertyId=property-1&query=1A");
     expect(within(related!).queryByText("Recent history")).toBeNull();
     expect(within(related!).queryByText("Financial activity")).toBeNull();
   });
