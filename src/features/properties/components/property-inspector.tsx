@@ -291,7 +291,7 @@ function PreviewMenuButton({
     <Popover.Close asChild>
       <button
         className={cn(
-          "flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[13px] font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
+          "flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
           danger && "text-danger hover:text-danger",
         )}
         onClick={onClick}
