@@ -1,17 +1,10 @@
 "use client";
 
-import * as Popover from "@radix-ui/react-popover";
-import type { ReactNode } from "react";
 import {
-  Archive,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   Building2,
-  Ellipsis,
-  ImagePlus,
-  Pencil,
-  RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type {
@@ -30,10 +23,10 @@ const selectedUnitRowClassName =
 
 type UnitsTableProps = {
   displayMode: UnitDisplayMode;
-  onArchiveUnit: (unit: UnitSummary) => void;
-  onEditUnit: (unit: UnitSummary) => void;
+  onArchiveUnit?: (unit: UnitSummary) => void;
+  onEditUnit?: (unit: UnitSummary) => void;
   onOpenUnit?: (id: string) => void;
-  onRestoreUnit: (unit: UnitSummary) => void;
+  onRestoreUnit?: (unit: UnitSummary) => void;
   onSelectUnit: (id: string) => void;
   onSortChange: (sort: UnitSortKey) => void;
   selectedUnitId: string;
@@ -45,9 +38,6 @@ type UnitsTableProps = {
 export function UnitsTable({
   archiveState,
   displayMode,
-  onArchiveUnit,
-  onEditUnit,
-  onRestoreUnit,
   onSelectUnit,
   onSortChange,
   selectedUnitId,
@@ -71,9 +61,6 @@ export function UnitsTable({
         {units.map((unit) => (
           <UnitCard
             key={unit.id}
-            onArchiveUnit={onArchiveUnit}
-            onEditUnit={onEditUnit}
-            onRestoreUnit={onRestoreUnit}
             onSelectUnit={onSelectUnit}
             selected={selectedUnitId === unit.id}
             unit={unit}
@@ -250,16 +237,10 @@ function getEmptyMessage(archiveState: UnitArchiveState) {
 }
 
 function UnitCard({
-  onArchiveUnit,
-  onEditUnit,
-  onRestoreUnit,
   onSelectUnit,
   selected,
   unit,
 }: {
-  onArchiveUnit: (unit: UnitSummary) => void;
-  onEditUnit: (unit: UnitSummary) => void;
-  onRestoreUnit: (unit: UnitSummary) => void;
   onSelectUnit: (id: string) => void;
   selected: boolean;
   unit: UnitSummary;
@@ -325,17 +306,9 @@ function UnitCard({
           </p>
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2">
-          <p className="text-xs font-medium text-foreground-muted">Open quick view</p>
-          <UnitActions
-            className="justify-end gap-1"
-            onArchiveUnit={onArchiveUnit}
-            onEditUnit={onEditUnit}
-            onRestoreUnit={onRestoreUnit}
-            size="touch"
-            unit={unit}
-          />
-        </div>
+        <p className="mt-3 border-t border-border pt-2 text-xs font-medium text-foreground-muted">
+          Open quick view
+        </p>
       </div>
     </article>
   );
@@ -381,110 +354,6 @@ function SortableHeader({
         <SortIcon aria-hidden="true" className="size-3" />
       </button>
     </th>
-  );
-}
-
-function UnitActions({
-  className,
-  onArchiveUnit,
-  onEditUnit,
-  onRestoreUnit,
-  size = "compact",
-  unit,
-}: {
-  className?: string;
-  onArchiveUnit: (unit: UnitSummary) => void;
-  onEditUnit: (unit: UnitSummary) => void;
-  onRestoreUnit: (unit: UnitSummary) => void;
-  size?: "compact" | "touch";
-  unit: UnitSummary;
-}) {
-  const wrapperClassName = cn("flex justify-center gap-1", className);
-  const triggerClassName = cn(
-    "inline-flex items-center justify-center rounded-md border border-transparent text-muted outline-none transition-colors hover:border-border hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring data-[state=open]:border-border data-[state=open]:bg-surface-muted data-[state=open]:text-foreground",
-    size === "touch" ? "h-9 w-9" : "h-8 w-8",
-  );
-
-  return (
-    <div className={wrapperClassName}>
-      <Popover.Root>
-        <Popover.Trigger asChild>
-          <button
-            aria-label={`Open actions for unit ${unit.unitNumber}`}
-            className={triggerClassName}
-            onClick={(event) => event.stopPropagation()}
-            title="Actions"
-            type="button"
-          >
-            <Ellipsis size={16} />
-          </button>
-        </Popover.Trigger>
-        <Popover.Portal>
-          <Popover.Content
-            align="end"
-            className="z-50 w-40 rounded-md border border-border bg-surface p-1.5 text-sm shadow-lg"
-            onClick={(event) => event.stopPropagation()}
-            side="bottom"
-            sideOffset={6}
-          >
-            {unit.isArchived ? (
-              <UnitActionMenuButton
-                icon={<RotateCcw size={14} />}
-                label="Restore"
-                onClick={() => onRestoreUnit(unit)}
-              />
-            ) : (
-              <>
-                <UnitActionMenuButton
-                  icon={<ImagePlus size={14} />}
-                  label={unit.thumbnailUrl ? "Add photo" : "Upload photo"}
-                  onClick={() => onEditUnit(unit)}
-                />
-                <UnitActionMenuButton
-                  icon={<Pencil size={14} />}
-                  label="Edit"
-                  onClick={() => onEditUnit(unit)}
-                />
-                <UnitActionMenuButton
-                  danger
-                  icon={<Archive size={14} />}
-                  label="Archive"
-                  onClick={() => onArchiveUnit(unit)}
-                />
-              </>
-            )}
-          </Popover.Content>
-        </Popover.Portal>
-      </Popover.Root>
-    </div>
-  );
-}
-
-function UnitActionMenuButton({
-  danger = false,
-  icon,
-  label,
-  onClick,
-}: {
-  danger?: boolean;
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Popover.Close asChild>
-      <button
-        className={cn(
-          "flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[13px] font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
-          danger && "text-danger hover:text-danger",
-        )}
-        onClick={onClick}
-        type="button"
-      >
-        {icon}
-        <span>{label}</span>
-      </button>
-    </Popover.Close>
   );
 }
 
