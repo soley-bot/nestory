@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown, ArrowUpRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
@@ -17,7 +15,7 @@ const propertyRowClassName =
 
 type PropertiesTableProps = {
   displayMode: PropertyDisplayMode;
-  onOpenProperty: (id: string) => void;
+  onOpenProperty?: (id: string) => void;
   onPreviewProperty: (id: string) => void;
   onSortChange: (sort: PropertySortKey) => void;
   properties: PropertySummary[];
@@ -26,42 +24,11 @@ type PropertiesTableProps = {
 
 export function PropertiesTable({
   displayMode,
-  onOpenProperty,
   onPreviewProperty,
   onSortChange,
   properties,
   sort,
 }: PropertiesTableProps) {
-  const pendingPreviewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (pendingPreviewRef.current) {
-        clearTimeout(pendingPreviewRef.current);
-      }
-    };
-  }, []);
-
-  function schedulePropertyPreview(propertyId: string) {
-    if (pendingPreviewRef.current) {
-      clearTimeout(pendingPreviewRef.current);
-    }
-
-    pendingPreviewRef.current = setTimeout(() => {
-      pendingPreviewRef.current = null;
-      onPreviewProperty(propertyId);
-    }, 180);
-  }
-
-  function openPropertyRecord(propertyId: string) {
-    if (pendingPreviewRef.current) {
-      clearTimeout(pendingPreviewRef.current);
-      pendingPreviewRef.current = null;
-    }
-
-    onOpenProperty(propertyId);
-  }
-
   return (
     <div className="h-full min-h-0">
       <div
@@ -80,7 +47,7 @@ export function PropertiesTable({
         {properties.map((property) => (
           <PropertyCard
             key={property.id}
-            onOpenProperty={onOpenProperty}
+            onPreviewProperty={onPreviewProperty}
             property={property}
           />
         ))}
@@ -140,13 +107,13 @@ export function PropertiesTable({
                 ) : null}
                 {properties.map((property) => (
                   <tr
+                    aria-label={`Preview ${property.name}`}
                     className={cn(
                       propertyRowClassName,
                       property.isArchived && "text-muted",
                     )}
                     key={property.id}
-                    onClick={() => schedulePropertyPreview(property.id)}
-                    onDoubleClick={() => openPropertyRecord(property.id)}
+                    onClick={() => onPreviewProperty(property.id)}
                     onKeyDown={(event) => {
                       if (event.currentTarget !== event.target) {
                         return;
@@ -158,21 +125,18 @@ export function PropertiesTable({
                       }
                     }}
                     tabIndex={0}
-                    title="Click: quick view · Double-click: full record"
+                    title={`Preview ${property.name}`}
                   >
                     <td className="px-2.5 py-2">
                       <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
                         <PropertyThumbnail property={property} />
                         <div className="min-w-0">
-                          <Link
-                            className="block truncate rounded-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                            href={`/properties/${property.id}`}
-                            onClick={(event) => event.stopPropagation()}
-                            prefetch={false}
+                          <p
+                            className="truncate font-medium text-foreground"
                             title={property.name}
                           >
                             {property.name}
-                          </Link>
+                          </p>
                           <p
                             className="mt-0.5 truncate text-xs text-muted"
                             title={`${property.code} / ${property.type}`}
@@ -217,20 +181,34 @@ export function PropertiesTable({
 }
 
 function PropertyCard({
-  onOpenProperty,
+  onPreviewProperty,
   property,
 }: {
-  onOpenProperty: (id: string) => void;
+  onPreviewProperty: (id: string) => void;
   property: PropertySummary;
 }) {
   const attention = getPropertyCardAttention(property);
 
   return (
     <article
+      aria-label={`Preview ${property.name}`}
       className={cn(
-        "group min-w-0 overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-record-spine",
+        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-focus-ring",
         property.isArchived && "text-muted",
       )}
+      onClick={() => onPreviewProperty(property.id)}
+      onKeyDown={(event) => {
+        if (event.currentTarget !== event.target) {
+          return;
+        }
+
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onPreviewProperty(property.id);
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
       <PropertyThumbnail property={property} size="card" />
 
@@ -246,14 +224,12 @@ function PropertyCard({
         </div>
 
         <div className="min-w-0">
-          <Link
-            className="block truncate rounded-sm text-sm font-semibold leading-5 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-            href={`/properties/${property.id}`}
-            prefetch={false}
+          <p
+            className="truncate text-sm font-semibold leading-5 text-foreground"
             title={property.name}
           >
             {property.name}
-          </Link>
+          </p>
           <p
             className="mt-0.5 truncate text-xs text-foreground-muted"
             title={property.type}
@@ -268,15 +244,9 @@ function PropertyCard({
           </Badge>
         ) : null}
 
-        <button
-          aria-label={`Open ${property.name}`}
-          className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:border-accent/40 hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
-          onClick={() => onOpenProperty(property.id)}
-          type="button"
-        >
-          <ArrowUpRight aria-hidden="true" className="size-3.5" />
-          Open record
-        </button>
+        <p className="mt-1 border-t border-border pt-2 text-xs font-medium text-foreground-muted">
+          Open quick view
+        </p>
       </div>
     </article>
   );
