@@ -12,9 +12,12 @@ import {
   ImportPreviewScreen,
   summarizeImportConsequences,
 } from "@/features/imports/components/import-preview-screen";
-import type { GenericImportPreviewRow } from "@/features/imports/import.types";
+import type {
+  GenericImportPreviewRow,
+  ImportReferenceData,
+} from "@/features/imports/import.types";
 
-const emptyReferenceData = {
+const emptyReferenceData: ImportReferenceData = {
   leaseOccupancies: [],
   people: [],
   properties: [],
@@ -64,7 +67,7 @@ describe("ImportPreviewScreen consequences", () => {
   it("shows a precise prerequisite only when the selected import type is blocked", () => {
     renderImportScreen();
 
-    fireEvent.click(screen.getByText("Units").closest("button")!);
+    fireEvent.click(screen.getByRole("button", { name: /^Units/ }));
 
     expect(
       screen.getByRole("heading", { name: "Units import requires setup" }),
@@ -88,8 +91,11 @@ describe("ImportPreviewScreen consequences", () => {
     const { container } = renderImportScreen();
     const input = container.querySelector('input[type="file"]');
 
-    expect(input).not.toBeNull();
-    fireEvent.change(input!, { target: { files: [file] } });
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    if (!(input instanceof HTMLInputElement)) {
+      throw new Error("Expected the import file input.");
+    }
+    fireEvent.change(input, { target: { files: [file] } });
 
     expect(
       await screen.findByRole("heading", { name: "Match columns" }),
@@ -118,11 +124,13 @@ describe("ImportPreviewScreen consequences", () => {
 
 afterEach(cleanup);
 
-function renderImportScreen() {
+function renderImportScreen(
+  referenceData: ImportReferenceData = emptyReferenceData,
+) {
   return render(
     <ImportPreviewScreen
       recentRuns={[]}
-      referenceData={emptyReferenceData}
+      referenceData={referenceData}
       savedMappings={[]}
     />,
   );
