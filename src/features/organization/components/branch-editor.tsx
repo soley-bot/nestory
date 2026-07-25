@@ -200,7 +200,10 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
           rows={[
             { label: "Scope", value: organizationName },
             { label: "Branch", value: branchLabel },
+            { label: "Affected records", value: "New branch only" },
+            { label: "Draft", value: draftStatusLabel(draft.status) },
           ]}
+          summary="Saving adds one branch record. Existing branches remain unchanged."
           title="Branch impact"
         />
       </aside>
@@ -257,8 +260,15 @@ function validateBranch(values: BranchDraft) {
   if (values.code.trim().length < 2) {
     errors.code = "Code must be at least 2 characters.";
   }
-  if (values.address.length > 240) {
-    errors.address = "Address must be 240 characters or fewer.";
-  }
   return errors;
+}
+
+function draftStatusLabel(status: string) {
+  return {
+    clean: "No changes",
+    dirty: "Unsaved",
+    error: "Needs attention",
+    saved: "Saved",
+    saving: "Saving",
+  }[status] ?? status;
 }

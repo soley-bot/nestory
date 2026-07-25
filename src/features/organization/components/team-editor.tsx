@@ -242,9 +242,12 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
           rows={[
             { label: "Scope", value: selectedBranch?.name ?? organizationName },
             { label: "Team", value: draft.values.name.trim() || "New team" },
+            { label: "Affected records", value: "1 team" },
             { label: "Manager link", value: selectedManager?.label ?? "None" },
             { label: "Access changes", value: "None" },
+            { label: "Draft", value: draftStatusLabel(draft.status) },
           ]}
+          summary="Saving adds one team record and an optional manager link. Existing teams and access remain unchanged."
           title="Team impact"
         />
       </aside>
@@ -257,4 +260,14 @@ function validateTeam(values: TeamDraft) {
   return values.name.trim().length < 2
     ? { name: "Name must be at least 2 characters." }
     : {};
+}
+
+function draftStatusLabel(status: string) {
+  return {
+    clean: "No changes",
+    dirty: "Unsaved",
+    error: "Needs attention",
+    saved: "Saved",
+    saving: "Saving",
+  }[status] ?? status;
 }
