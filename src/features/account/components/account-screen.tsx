@@ -115,10 +115,7 @@ export function AccountScreen({
             <ShieldCheck aria-hidden="true" size={15} />
             Session
           </h2>
-          <p className="mt-2 text-sm text-foreground-muted">
-            Signing out ends this browser session.
-          </p>
-          <form action={signOutAction} className="mt-4">
+          <form action={signOutAction} className="mt-3">
             <button
               className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-danger/30 bg-surface px-3 text-[13px] font-medium text-danger outline-none hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring"
               type="submit"

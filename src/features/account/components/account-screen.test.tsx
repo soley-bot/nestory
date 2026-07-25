@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { AccountScreen } from "@/features/account/components/account-screen";
 
 describe("AccountScreen", () => {
-  it("shows member scope and session consequence without admin controls", () => {
+  it("shows member scope without admin controls or obvious session narration", () => {
     const html = renderToStaticMarkup(
       <AccountScreen
         identity={{
@@ -18,7 +18,7 @@ describe("AccountScreen", () => {
 
     expect(html).toContain("Access scope");
     expect(html).toContain("Assigned work");
-    expect(html).toContain("Signing out ends this browser session.");
+    expect(html).not.toContain("Signing out ends this browser session.");
     expect(html).not.toContain("Workspace Access");
     expect(html).toContain("Set or change password");
     expect(html).toContain('href="/forgot-password"');
