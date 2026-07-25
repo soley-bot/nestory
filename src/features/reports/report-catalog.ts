@@ -18,7 +18,7 @@ export type ReportCatalogItem = {
   category: "Finance" | "Leasing" | "Operations" | "Property";
   description: string;
   kind: ReportKind;
-  sources: string;
+  sources?: string;
   title: string;
 };
 
@@ -29,7 +29,6 @@ export const reportCatalog: ReportCatalogItem[] = [
     description:
       "Income, expenses, and NOI for the selected period with ledger source rows.",
     kind: "income-expense",
-    sources: "Ledger, property, unit",
     title: "Income & Expense",
   },
   {
@@ -38,7 +37,6 @@ export const reportCatalog: ReportCatalogItem[] = [
     description:
       "Review property and owner readiness, then generate one owner-facing statement at a time.",
     kind: "owner-statement",
-    sources: "Finance cash events, owners, people",
     title: "Owner Statement",
   },
   {
@@ -47,7 +45,6 @@ export const reportCatalog: ReportCatalogItem[] = [
     description:
       "Property-level occupancy, revenue, NOI, maintenance, and operating risk.",
     kind: "property-performance",
-    sources: "Property, unit, ledger, timeline",
     title: "Property Performance",
   },
   {
@@ -56,7 +53,6 @@ export const reportCatalog: ReportCatalogItem[] = [
     description:
       "Current unit rent roll with tenant, lease, rent, status, and document evidence.",
     kind: "rent-roll",
-    sources: "Unit, lease, documents",
     title: "Rent Roll",
   },
   {
@@ -65,7 +61,6 @@ export const reportCatalog: ReportCatalogItem[] = [
     description:
       "Upcoming lease ends and renewal windows for the selected operating period.",
     kind: "lease-expiry",
-    sources: "Lease, unit, property",
     title: "Lease Expiry",
   },
   {
@@ -74,7 +69,6 @@ export const reportCatalog: ReportCatalogItem[] = [
     description:
       "Vacant, missing-lease, missing-rent, and evidence-risk checks by unit.",
     kind: "vacancy-risk",
-    sources: "Unit, lease, documents",
     title: "Vacancy & Lease Risk",
   },
   {
@@ -83,7 +77,6 @@ export const reportCatalog: ReportCatalogItem[] = [
     description:
       "Unit-scoped income, expenses, NOI, maintenance cost, and evidence counts.",
     kind: "unit-performance",
-    sources: "Unit, ledger, timeline, documents",
     title: "Unit Performance",
   },
   {
@@ -92,7 +85,6 @@ export const reportCatalog: ReportCatalogItem[] = [
     description:
       "Maintenance cost, estimates, priority, completion state, and linked records.",
     kind: "maintenance-cost",
-    sources: "Maintenance, ledger, timeline",
     title: "Maintenance Cost",
   },
   {
@@ -101,7 +93,6 @@ export const reportCatalog: ReportCatalogItem[] = [
     description:
       "Missing lease, rent, owner, and evidence fields blocking clean reporting.",
     kind: "missing-data",
-    sources: "Unit, lease, owner, documents",
     title: "Record Readiness",
   },
   {
@@ -110,7 +101,6 @@ export const reportCatalog: ReportCatalogItem[] = [
     description:
       "People readiness across relationships, tenants, owners, vendors, and staff access.",
     kind: "people-readiness",
-    sources: "People, leases, ownership, vendor profiles, workspace access",
     title: "People Readiness",
   },
 ];
@@ -203,6 +193,5 @@ export function buildReportBuilderHref(
   }
 
   const suffix = params.toString();
-
   return suffix ? `/reports/${report}?${suffix}` : `/reports/${report}`;
 }
