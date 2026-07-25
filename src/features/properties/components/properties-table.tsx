@@ -15,6 +15,7 @@ const propertyRowClassName =
 
 type PropertiesTableProps = {
   displayMode: PropertyDisplayMode;
+  onOpenProperty?: (id: string) => void;
   onPreviewProperty: (id: string) => void;
   onSortChange: (sort: PropertySortKey) => void;
   properties: PropertySummary[];
