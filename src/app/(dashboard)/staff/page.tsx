@@ -10,8 +10,6 @@ export default function StaffPage({ searchParams }: StaffPageProps) {
       config={{
         addButtonLabel: "Add staff",
         createRole: "staff",
-        description:
-          "Staff directory records for property management contacts and operating follow-up.",
         role: "staff",
         searchPlaceholder: "Search staff, contact, role, or operating note",
         showAccessStatus: true,

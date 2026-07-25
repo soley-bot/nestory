@@ -9,7 +9,6 @@ export default function WorkOrdersPage({ searchParams }: WorkOrdersPageProps) {
     baseReview: "work_orders",
     createButtonLabel: "New work order",
     defaults: { review: "work_orders" },
-    description: "Assigned and scheduled maintenance jobs that need follow-through.",
     emptyLabel: "No work orders found.",
     flowLabel: "Execution queue",
     listLabel: "work orders",

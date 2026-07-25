@@ -18,7 +18,6 @@ type MaintenanceRouteOptions = {
   baseReview?: MaintenanceViewQuery["review"];
   createButtonLabel?: string;
   defaults?: Partial<Record<keyof MaintenanceViewQuery, string>>;
-  description: string;
   emptyLabel: string;
   flowLabel: string;
   listLabel: string;
@@ -36,7 +35,6 @@ export async function renderMaintenanceRoute({
   baseReview,
   createButtonLabel = "New case",
   defaults = {},
-  description,
   emptyLabel,
   flowLabel,
   listLabel,
@@ -72,7 +70,6 @@ export async function renderMaintenanceRoute({
       capabilities={capabilities}
       cases={data.cases}
       createButtonLabel={createButtonLabel}
-      description={description}
       emptyLabel={emptyLabel}
       flowLabel={flowLabel}
       initialTaskId={initialTaskId}

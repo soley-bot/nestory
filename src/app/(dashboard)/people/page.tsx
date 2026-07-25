@@ -9,7 +9,6 @@ export default function PeoplePage({ searchParams }: PeoplePageProps) {
     <PeopleModulePage
       config={{
         addButtonLabel: "Add person",
-        description: "People and companies linked to operating work.",
         searchPlaceholder: "Search name, contact, role, lease, or property",
         showInsights: true,
         title: "People",

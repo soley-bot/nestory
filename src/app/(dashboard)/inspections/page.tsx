@@ -9,7 +9,6 @@ export default function InspectionsPage({ searchParams }: InspectionsPageProps) 
     baseReview: "inspections",
     createButtonLabel: "New inspection",
     defaults: { review: "inspections" },
-    description: "Condition checks, inspection requests, and follow-up work.",
     emptyLabel: "No inspections found.",
     flowLabel: "Inspection queue",
     listLabel: "inspections",
