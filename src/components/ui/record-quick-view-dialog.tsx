@@ -81,6 +81,13 @@ export function RecordQuickViewDialog({
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        if (
+          event.target instanceof Node &&
+          !dialogRef.current?.contains(event.target)
+        ) {
+          return;
+        }
+
         event.preventDefault();
         onCloseRef.current();
         return;
