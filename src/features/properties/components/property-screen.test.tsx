@@ -89,7 +89,7 @@ describe("PropertyScreen redesign contract", () => {
     ).toBe("/properties/setup");
   });
 
-  it("uses the shared dense workspace, quick view, double-click navigation, and URL-backed sorting", async () => {
+  it("uses one predictable row action, opens details only from preview, and preserves URL-backed sorting", async () => {
     const { container } = renderProperties();
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
@@ -100,9 +100,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
 
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(
-      within(rows[0]!).getByRole("link", { name: "Home Residence" }).getAttribute("href"),
-    ).toBe("/properties/property-1");
+    expect(within(rows[0]!).queryByRole("link", { name: "Home Residence" })).toBeNull();
 
     fireEvent.click(rows[1]!);
     await waitFor(() => {
@@ -113,9 +111,18 @@ describe("PropertyScreen redesign contract", () => {
     expect(navigation.push).not.toHaveBeenCalled();
     expect(screen.queryByRole("complementary")).toBeNull();
 
+    const quickView = screen.getByRole("dialog", {
+      name: "Riverside House quick view",
+    });
+    expect(
+      within(quickView).getByRole("link", { name: "Open Riverside House" }).getAttribute(
+        "href",
+      ),
+    ).toBe("/properties/property-2");
+
     fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
     fireEvent.doubleClick(rows[1]!);
-    expect(navigation.push).toHaveBeenLastCalledWith("/properties/property-2");
+    expect(navigation.push).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Sort properties by net" }));
     expect(navigation.replace).toHaveBeenLastCalledWith(
@@ -138,16 +145,16 @@ describe("PropertyScreen redesign contract", () => {
     },
   );
 
-  it("opens card records directly without preview state", () => {
+  it("opens card quick views instead of bypassing preview", () => {
     installMatchMedia(1024);
-    const { container } = renderProperties();
-    const cards = Array.from(container.querySelectorAll("article"));
-    fireEvent.click(
-      within(cards[1]!).getByRole("button", { name: "Open Riverside House" }),
-    );
+    renderProperties();
 
-    expect(navigation.push).toHaveBeenLastCalledWith("/properties/property-2");
-    expect(screen.queryByText("Preview")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Preview Riverside House" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Riverside House quick view" }),
+    ).toBeTruthy();
+    expect(navigation.push).not.toHaveBeenCalled();
   });
 
   it("supports Enter and Space for table-row quick views", () => {
