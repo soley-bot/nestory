@@ -1,8 +1,7 @@
 "use client";
 
 import * as Popover from "@radix-ui/react-popover";
-import { useEffect, useRef, type ReactNode } from "react";
-import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   Archive,
   ArrowDown,
@@ -10,7 +9,6 @@ import {
   ArrowUpDown,
   Building2,
   Ellipsis,
-  Eye,
   ImagePlus,
   Pencil,
   RotateCcw,
@@ -34,7 +32,7 @@ type UnitsTableProps = {
   displayMode: UnitDisplayMode;
   onArchiveUnit: (unit: UnitSummary) => void;
   onEditUnit: (unit: UnitSummary) => void;
-  onOpenUnit: (id: string) => void;
+  onOpenUnit?: (id: string) => void;
   onRestoreUnit: (unit: UnitSummary) => void;
   onSelectUnit: (id: string) => void;
   onSortChange: (sort: UnitSortKey) => void;
@@ -49,7 +47,6 @@ export function UnitsTable({
   displayMode,
   onArchiveUnit,
   onEditUnit,
-  onOpenUnit,
   onRestoreUnit,
   onSelectUnit,
   onSortChange,
@@ -57,36 +54,6 @@ export function UnitsTable({
   sort,
   units,
 }: UnitsTableProps) {
-  const pendingPreviewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (pendingPreviewRef.current) {
-        clearTimeout(pendingPreviewRef.current);
-      }
-    };
-  }, []);
-
-  function scheduleUnitPreview(unitId: string) {
-    if (pendingPreviewRef.current) {
-      clearTimeout(pendingPreviewRef.current);
-    }
-
-    pendingPreviewRef.current = setTimeout(() => {
-      pendingPreviewRef.current = null;
-      onSelectUnit(unitId);
-    }, 180);
-  }
-
-  function openUnitRecord(unitId: string) {
-    if (pendingPreviewRef.current) {
-      clearTimeout(pendingPreviewRef.current);
-      pendingPreviewRef.current = null;
-    }
-
-    onOpenUnit(unitId);
-  }
-
   return (
     <div className="h-full min-h-0">
       <div
@@ -181,6 +148,7 @@ export function UnitsTable({
                 ) : null}
                 {units.map((unit) => (
                   <tr
+                    aria-label={`Preview unit ${unit.unitNumber}`}
                     aria-selected={selectedUnitId === unit.id}
                     className={cn(
                       unitRowClassName,
@@ -188,8 +156,7 @@ export function UnitsTable({
                       unit.isArchived && "text-muted",
                     )}
                     key={unit.id}
-                    onClick={() => scheduleUnitPreview(unit.id)}
-                    onDoubleClick={() => openUnitRecord(unit.id)}
+                    onClick={() => onSelectUnit(unit.id)}
                     onKeyDown={(event) => {
                       if (event.currentTarget !== event.target) {
                         return;
@@ -201,7 +168,7 @@ export function UnitsTable({
                       }
                     }}
                     tabIndex={0}
-                    title="Click: quick view · Double-click: full record"
+                    title={`Preview unit ${unit.unitNumber}`}
                   >
                     <td className="px-2.5 py-2">
                       <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
@@ -223,16 +190,12 @@ export function UnitsTable({
                       </div>
                     </td>
                     <td className="px-1.5 py-2">
-                      <Link
-                        aria-label={`Unit ${unit.unitNumber}`}
-                        className="block truncate rounded-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                        href={`/units/${unit.id}`}
-                        onClick={(event) => event.stopPropagation()}
-                        prefetch={false}
+                      <p
+                        className="truncate font-medium text-foreground"
                         title={`Unit ${unit.unitNumber}`}
                       >
                         {unit.unitNumber}
-                      </Link>
+                      </p>
                     </td>
                     <td className="px-1.5 py-2">
                       <div className="flex flex-wrap justify-center gap-1.5">
@@ -303,27 +266,39 @@ function UnitCard({
 }) {
   return (
     <article
+      aria-label={`Preview unit ${unit.unitNumber}`}
+      aria-pressed={selected}
       className={cn(
-        "group min-w-0 overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-record-spine",
+        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-focus-ring",
         selected && "border-record-spine bg-state-selected",
         unit.isArchived && "text-muted",
       )}
       data-selected={selected ? "true" : "false"}
+      onClick={() => onSelectUnit(unit.id)}
+      onKeyDown={(event) => {
+        if (event.currentTarget !== event.target) {
+          return;
+        }
+
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelectUnit(unit.id);
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
       <UnitPhoto unit={unit} />
 
       <div className="px-3 py-3">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
-            <Link
-              aria-label={`Unit ${unit.unitNumber}`}
-              className="block truncate rounded-sm text-sm font-semibold leading-5 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-              href={`/units/${unit.id}`}
-              prefetch={false}
+            <p
+              className="truncate text-sm font-semibold leading-5 text-foreground"
               title={`Unit ${unit.unitNumber}`}
             >
               Unit {unit.unitNumber}
-            </Link>
+            </p>
             <p className="mt-1 truncate font-medium" title={unit.propertyName}>
               {unit.propertyName}
             </p>
@@ -351,19 +326,7 @@ function UnitCard({
         </div>
 
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2">
-          <button
-            aria-label={`Quick view unit ${unit.unitNumber}`}
-            aria-pressed={selected}
-            className={cn(
-              "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
-              selected && "border-record-spine bg-state-selected",
-            )}
-            onClick={() => onSelectUnit(unit.id)}
-            type="button"
-          >
-            <Eye aria-hidden="true" className="size-3.5" />
-            Quick view
-          </button>
+          <p className="text-xs font-medium text-foreground-muted">Open quick view</p>
           <UnitActions
             className="justify-end gap-1"
             onArchiveUnit={onArchiveUnit}
