@@ -8,11 +8,20 @@ For authenticated UI flow work, also apply
 
 ## Standard Checks
 
+GitHub's current Application CI runs these checks for pull requests and pushes
+to `main`:
+
 ```bash
 npm run lint
 npx tsc --noEmit
 npm run test
 npm run build
+```
+
+The following repository checks remain required when their contracts are
+relevant, but they are not currently enforced as required GitHub CI statuses:
+
+```bash
 npm run test:ui-coverage
 npm run test:ui-copy
 ```
@@ -24,7 +33,15 @@ npm run lint -- "src/features/<feature>/file.tsx"
 npm run test -- src/features/<feature>/<file>.test.ts
 ```
 
+Documentation-only changes should verify the final diff, commands, route names,
+interaction contracts, and references against the merged code on `main`. Do not
+claim application or database checks that were not run.
+
 ## Supabase Checks
+
+GitHub's current Database CI starts and resets local Supabase, lints the schema,
+verifies generated database types, and runs the full pgTAP suite. The equivalent
+local commands are:
 
 ```bash
 npm run supabase:start
@@ -40,10 +57,10 @@ storage, seed data, or local database behavior changed.
 
 ## Invitation Credential Verification
 
-PR #24 is integrated into the report-consolidation branch through `main`. A
-local invitation replay passed invitation acceptance, required password
-creation, logout, password login, and the Member workspace destination. This is
-local fixture evidence, not production invitation verification.
+PR #24 is merged into `main`. A local invitation replay passed invitation
+acceptance, required password creation, logout, password login, and the Member
+workspace destination. This is local fixture evidence, not a fresh production
+invitation verification against the latest release.
 
 Cross-domain verification must also distinguish implemented behavior from
 unsupported workflow assumptions:
@@ -71,6 +88,22 @@ Use a real browser smoke when a change affects:
 - File upload or import flows.
 - Maintenance board/agenda/checklist/task interactions.
 - Report export or print/PDF behavior.
+
+### Current Property and Unit interaction contract
+
+Browser verification for Properties and Units must use the merged preview-first
+behavior:
+
+- Single-click a normal row or card to open the quick view.
+- Enter or Space on a focused row or card opens the same quick view.
+- Double-click has no special behavior.
+- Full detail opens only through the clearly labelled action inside the quick
+  view.
+- Closing the quick view restores focus to the originating row or card.
+- Dirty create/edit/lifecycle drawers open the shared discard confirmation for
+  the close control, backdrop, Escape, and form cancellation.
+- Save-in-progress close attempts show the continue-waiting state and do not
+  offer destructive discard.
 
 ### Read-only redesign baseline
 
@@ -109,10 +142,10 @@ The generated document lives at
 `docs/verification/ui-redesign-evidence.md`; screenshots and JSON summaries stay
 under ignored `artifacts/ui-redesign/` paths.
 
-### Full local UI gate
+### Current full local UI gate
 
-Build and start the production app with the confirmed local Supabase variables,
-then run:
+Build and start the production app with confirmed local Supabase variables,
+then run the manifest-backed browser and accessibility checks:
 
 ```powershell
 $env:BASE_URL='http://127.0.0.1:3000'
@@ -120,12 +153,6 @@ $env:E2E_EMAIL='local admin fixture email'
 $env:E2E_PASSWORD='local fixture password'
 npm run test:ui-redesign
 npm run test:ui-a11y
-
-$env:NESTORY_BASE_URL='http://127.0.0.1:3000'
-$env:NESTORY_TEST_EMAIL='local admin fixture email'
-$env:NESTORY_TEST_PASSWORD='local fixture password'
-npm run test:properties-flow
-npm run test:maintenance-mobile
 ```
 
 The retained role fixtures are `manager@nestory.com` and
@@ -134,6 +161,22 @@ password otherwise. These are disposable local accounts, not hosted credentials.
 
 For authenticated UI, start from the route an operator would use, not only a
 deep component state.
+
+### Feature smoke script status
+
+Two package scripts remain in the repository but are not current release gates:
+
+- `npm run test:properties-flow` still targets the retired
+  `Preview <property>` button contract instead of row/card preview-first
+  interaction.
+- `npm run test:maintenance-mobile` still targets the older docked desktop and
+  drawer-style mobile Maintenance preview model.
+
+Do not use either script as passing or failing release evidence until its
+selectors and expectations are realigned with the implemented UI. Use the
+manifest-backed runners plus a focused browser check of the affected route in
+the meantime. When either script is repaired, update this section in the same
+pull request.
 
 ### Invitation credential lifecycle
 
