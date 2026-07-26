@@ -1,6 +1,6 @@
 # Current State
 
-Last rebuilt from code inventory on 2026-07-24. This file describes what is
+Last rebuilt from GitHub `main` code inventory on 2026-07-26. This file describes what is
 implemented now. It is not a roadmap or early-stage plan.
 
 ## Product Baseline
@@ -28,8 +28,8 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - Dedicated property/unit photo records with private photo storage and cover
   thumbnail selection.
 - Private document storage and document metadata.
-- CSV unit import with mapping, validation, create/update commit, and cleanup
-  queue.
+- CSV imports for properties, units/rent roll, people, and leases with mapping,
+  validation, staged preview, safe commit, and cleanup queues.
 - Traceable reports and CSV/PDF endpoints.
 - Organization branches, teams, users, roles, and access management.
 
@@ -45,9 +45,14 @@ Nestory is a multi-module property operations app. The implemented core covers:
   action in the shared command bar, URL-backed workspace tools, full-width
   record content, a compact modal quick view for secondary context, and a side
   drawer for create/edit/lifecycle work. List pages do not reserve a persistent
-  side inspector. Row click or Enter opens the quick view; Properties and Units
-  also use double-click as a shortcut to their existing detail routes while
-  retaining explicit record links for keyboard and touch access.
+  side inspector. For Properties and Units, single-click, Enter, or Space opens
+  the quick view; double-click has no special behavior. Full detail opens only
+  through the clearly labelled action inside the quick view, and closing the
+  quick view restores focus to the originating row or card.
+- Shared create/edit/lifecycle drawers guard dirty close attempts with a centered
+  confirmation dialog. The same guarded path covers the close control, backdrop,
+  Escape, and form cancellation; save-in-progress close attempts show a
+  continue-waiting state instead of discarding work.
 - Settings uses three zones: local settings navigation, the active settings
   workspace, and a persistent draft action area for save/discard/status. Access
   management follows the same draft and consequence conventions.
@@ -102,16 +107,18 @@ Core dashboard shell:
 
 Property and units:
 
-- `/properties` is a server-loaded operational list with filters, table/card
-  quick view, create/edit/archive/restore drawers, and direct detail navigation.
+- `/properties` is a server-loaded preview-first operational list with filters,
+  table/card quick view, create/edit/archive/restore drawers, and an explicit
+  full-record action inside the quick view.
 - `/properties/setup` is an admin-only guided setup workspace that links an
   owner, property, unit, tenant, and existing or newly created lease before
   handing off to the first rent-charge workflow.
 - `/properties/[propertyId]` is a detail record with photos, units, leases,
   ledger, timeline, documents, maintenance, owner history, health, and next
   actions.
-- `/units` is a server-loaded list with filters, table/card quick view,
-  create/edit/archive/restore drawers, and direct detail navigation.
+- `/units` is a server-loaded preview-first list with filters, table/card quick
+  view, create/edit/archive/restore drawers, and an explicit full-record action
+  inside the quick view.
 - `/units/[unitId]` is a detail record with photos, lease, ledger, timeline,
   documents, maintenance, health, financial summary, and next actions.
 
@@ -244,7 +251,7 @@ Settings and access:
 
 ## Release Verification And Known Limitations
 
-- PR #24's invitation credential-readiness fix is integrated through `main`.
+- PR #24's invitation credential-readiness fix is merged into `main`.
   The local invitation replay passed acceptance, required password creation,
   logout, password login, and the Member workspace destination. Production
   invitation verification remains a separate release activity.
@@ -262,6 +269,12 @@ Settings and access:
   UI does not capture a separate user-entered physical cash count or provide a
   variance-resolution workflow, so physical-cash reconciliation must not be
   reported as verified.
+- `test:properties-flow` still targets the retired Property preview-button
+  contract, and `test:maintenance-mobile` still targets the older docked/mobile
+  Maintenance preview model. They are not current release evidence until their
+  scripts are realigned with the implemented interaction contract; use the
+  manifest-backed redesign and accessibility runners plus focused browser
+  verification in the meantime.
 
 ## Database Shape
 
