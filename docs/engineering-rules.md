@@ -101,10 +101,17 @@ These rules are grounded in the current implementation.
   URL-backed tools, full-width record content, a compact record quick view,
   then a side drawer for create/edit/lifecycle work.
 - Do not reserve persistent side-inspector space beside operational tables.
-  Single-click or Enter opens the shared modal quick view. Escape, backdrop,
-  and the close control dismiss it and return focus to the opener. Where a true
-  detail route exists, retain an explicit record link and allow double-click as
-  a pointer shortcut; do not invent detail routes for modules that lack one.
+  For Properties and Units, single-click, Enter, or Space opens the shared
+  modal quick view. Double-click has no special behavior. Escape, backdrop, and
+  the close control dismiss the quick view and return focus to its originating
+  row or card. Where a true detail route exists, open it only through the
+  clearly labelled full-record action inside the quick view; do not invent
+  detail routes for modules that lack one.
+- Dirty create/edit/lifecycle drawers use the shared centered confirmation dialog
+  for the close control, backdrop, Escape, and form cancellation. Cancelling the
+  decision restores focus to the initiating drawer control; confirmed discard
+  closes through the existing form boundary. A save-in-progress close attempt
+  must show the continue-waiting state and must not offer destructive discard.
 - Keep one global `Search or jump` command surface. Navigation actions may be
   client-known; entity results must remain organization/role scoped through the
   server search boundary. Do not expose raw UUIDs in results or URLs shown as
@@ -149,6 +156,18 @@ These rules are grounded in the current implementation.
 - Commits should stay RPC-backed and preserve activity logs.
 - Do not silently import invalid or ambiguous property, unit, people, or lease
   rows.
+
+## Documentation And Verification
+
+- `docs/current-state.md` describes merged behavior on `main`; do not include an
+  open branch or unmerged pull request as implemented product state.
+- When a shared interaction contract changes, update `docs/current-state.md`,
+  this file, relevant browser scripts, route evidence, and focused tests in the
+  same release boundary.
+- A stale smoke script is not release evidence. Mark it explicitly and use a
+  current focused browser check until the script is realigned.
+- Keep historical dated plans/specifications as historical context; they do not
+  override the current code, current-state document, or verification guide.
 
 ## Placeholder Policy
 
