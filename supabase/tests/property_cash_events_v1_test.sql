@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(38);
+SELECT plan(47);
 
 CREATE TEMP TABLE property_cash_events_test_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -462,7 +462,7 @@ INSERT INTO public.ledger_entries (
   currency, description, source_type
 )
 SELECT
-  state.organization_id, state.property_id, '2026-07-25', 'income', 'Legacy',
+  state.organization_id, state.property_id, '2025-07-25', 'income', 'Legacy',
   1, 'USD', 'Bulk deterministic traversal ' || sequence_number, 'manual'
 FROM property_cash_events_test_state state
 CROSS JOIN generate_series(1, 5005) AS sequence_number;
@@ -489,6 +489,294 @@ INSERT INTO public.finance_receipt_allocations (
 SELECT cross_allocation_id, cross_organization_id, cross_receipt_id,
   cross_income_id, 999
 FROM property_cash_events_test_state;
+
+-- A reversal header with the same total but redistributed allocations must
+-- never resolve any of its allocation effects.
+INSERT INTO public.finance_income_items (
+  organization_id, property_id, income_type, payer_label, due_date, amount_due,
+  currency, status, reference
+)
+SELECT
+  state.organization_id, state.property_id, 'rent', 'Malformed receipt payer',
+  '2026-07-23', fixture.amount, 'USD', 'open', fixture.reference
+FROM property_cash_events_test_state state
+CROSS JOIN (VALUES
+  ('MALFORMED-RECEIPT-A', 60::numeric),
+  ('MALFORMED-RECEIPT-B', 40::numeric)
+) fixture(reference, amount);
+
+INSERT INTO public.finance_receipts (
+  organization_id, property_id, received_date, amount, currency, payer_label,
+  reference
+)
+SELECT organization_id, property_id, '2026-07-23', 100, 'USD',
+  'Malformed receipt payer', 'MALFORMED-RECEIPT-ORIGINAL'
+FROM property_cash_events_test_state;
+
+INSERT INTO public.finance_receipts (
+  organization_id, property_id, received_date, amount, currency, payer_label,
+  reference, reversal_of_id
+)
+SELECT
+  state.organization_id, state.property_id, '2026-07-24', 100, 'USD',
+  'Malformed receipt payer', 'MALFORMED-RECEIPT-REVERSAL', original.id
+FROM property_cash_events_test_state state
+JOIN public.finance_receipts original
+  ON original.organization_id = state.organization_id
+ AND original.reference = 'MALFORMED-RECEIPT-ORIGINAL';
+
+INSERT INTO public.finance_receipt_allocations (
+  organization_id, receipt_id, income_item_id, amount
+)
+SELECT
+  state.organization_id, receipt.id, income.id,
+  CASE income.reference
+    WHEN 'MALFORMED-RECEIPT-A' THEN 60
+    ELSE 40
+  END
+FROM property_cash_events_test_state state
+JOIN public.finance_receipts receipt
+  ON receipt.organization_id = state.organization_id
+ AND receipt.reference = 'MALFORMED-RECEIPT-ORIGINAL'
+JOIN public.finance_income_items income
+  ON income.organization_id = state.organization_id
+ AND income.reference IN ('MALFORMED-RECEIPT-A', 'MALFORMED-RECEIPT-B');
+
+INSERT INTO public.finance_receipt_allocations (
+  organization_id, receipt_id, income_item_id, amount
+)
+SELECT
+  state.organization_id, receipt.id, income.id, 50
+FROM property_cash_events_test_state state
+JOIN public.finance_receipts receipt
+  ON receipt.organization_id = state.organization_id
+ AND receipt.reference = 'MALFORMED-RECEIPT-REVERSAL'
+JOIN public.finance_income_items income
+  ON income.organization_id = state.organization_id
+ AND income.reference IN ('MALFORMED-RECEIPT-A', 'MALFORMED-RECEIPT-B');
+
+-- A reversal payment header missing one original obligation allocation must
+-- keep its surviving allocation visible but unresolved.
+INSERT INTO public.finance_expense_items (
+  organization_id, property_id, expense_type, vendor_label, invoice_date,
+  amount, currency, category, status, economic_scope, reference
+)
+SELECT
+  state.organization_id, state.property_id, 'vendor_bill',
+  'Malformed payment vendor', '2026-07-23', fixture.amount, 'USD', 'Repairs',
+  'approved', 'property_expense', fixture.reference
+FROM property_cash_events_test_state state
+CROSS JOIN (VALUES
+  ('MALFORMED-PAYMENT-A', 60::numeric),
+  ('MALFORMED-PAYMENT-B', 40::numeric)
+) fixture(reference, amount);
+
+INSERT INTO public.finance_payments (
+  organization_id, property_id, paid_date, amount, currency, payee_label,
+  reference
+)
+SELECT organization_id, property_id, '2026-07-23', 100, 'USD',
+  'Malformed payment vendor', 'MALFORMED-PAYMENT-ORIGINAL'
+FROM property_cash_events_test_state;
+
+INSERT INTO public.finance_payments (
+  organization_id, property_id, paid_date, amount, currency, payee_label,
+  reference, reversal_of_id
+)
+SELECT
+  state.organization_id, state.property_id, '2026-07-24', 100, 'USD',
+  'Malformed payment vendor', 'MALFORMED-PAYMENT-REVERSAL', original.id
+FROM property_cash_events_test_state state
+JOIN public.finance_payments original
+  ON original.organization_id = state.organization_id
+ AND original.reference = 'MALFORMED-PAYMENT-ORIGINAL';
+
+INSERT INTO public.finance_payment_allocations (
+  organization_id, payment_id, expense_item_id, amount
+)
+SELECT
+  state.organization_id, payment.id, expense.id,
+  CASE expense.reference
+    WHEN 'MALFORMED-PAYMENT-A' THEN 60
+    ELSE 40
+  END
+FROM property_cash_events_test_state state
+JOIN public.finance_payments payment
+  ON payment.organization_id = state.organization_id
+ AND payment.reference = 'MALFORMED-PAYMENT-ORIGINAL'
+JOIN public.finance_expense_items expense
+  ON expense.organization_id = state.organization_id
+ AND expense.reference IN ('MALFORMED-PAYMENT-A', 'MALFORMED-PAYMENT-B');
+
+INSERT INTO public.finance_payment_allocations (
+  organization_id, payment_id, expense_item_id, amount
+)
+SELECT state.organization_id, payment.id, expense.id, 60
+FROM property_cash_events_test_state state
+JOIN public.finance_payments payment
+  ON payment.organization_id = state.organization_id
+ AND payment.reference = 'MALFORMED-PAYMENT-REVERSAL'
+JOIN public.finance_expense_items expense
+  ON expense.organization_id = state.organization_id
+ AND expense.reference = 'MALFORMED-PAYMENT-A';
+
+-- Malformed scope rows are permitted by the current direct-admin boundary but
+-- must never become resolved canonical effects.
+INSERT INTO public.finance_income_items (
+  organization_id, property_id, income_type, payer_label, due_date, amount_due,
+  currency, status, reference, lease_id, unit_id
+)
+SELECT organization_id, property_id, 'rent', 'Scope payer',
+  '2026-07-20'::date, 11,
+  'USD', 'open', 'SCOPE-RECEIPT-LEASE-UNIT', lease_id, NULL
+FROM property_cash_events_test_state;
+
+INSERT INTO public.finance_receipts (
+  organization_id, property_id, received_date, amount, currency, payer_label,
+  reference
+)
+SELECT organization_id, property_id, '2026-07-20', fixture.amount, 'USD',
+  'Scope payer', fixture.receipt_reference
+FROM property_cash_events_test_state
+CROSS JOIN (VALUES
+  ('SCOPE-RECEIPT-LEASE-UNIT-HEADER', 11::numeric)
+) fixture(receipt_reference, amount);
+
+INSERT INTO public.finance_receipt_allocations (
+  organization_id, receipt_id, income_item_id, amount
+)
+SELECT state.organization_id, receipt.id, income.id, receipt.amount
+FROM property_cash_events_test_state state
+JOIN public.finance_receipts receipt
+ ON receipt.organization_id = state.organization_id
+ AND receipt.reference IN (
+   'SCOPE-RECEIPT-LEASE-UNIT-HEADER'
+ )
+JOIN public.finance_income_items income
+  ON income.organization_id = state.organization_id
+ AND (
+   (receipt.reference = 'SCOPE-RECEIPT-LEASE-UNIT-HEADER'
+     AND income.reference = 'SCOPE-RECEIPT-LEASE-UNIT')
+ );
+
+INSERT INTO public.people (organization_id, display_name)
+SELECT cross_organization_id, 'Cross-organization scope vendor'
+FROM property_cash_events_test_state;
+
+INSERT INTO public.finance_expense_items (
+  organization_id, property_id, unit_id, task_id, vendor_person_id,
+  expense_type, vendor_label, invoice_date, amount, currency, category, status,
+  economic_scope, reference
+)
+SELECT
+  state.organization_id, state.property_id, NULL, state.represented_task_id,
+  NULL, 'maintenance', 'Scope vendor', '2026-07-20'::date, 13, 'USD',
+  'Maintenance',
+  'approved', 'property_expense', 'SCOPE-PAYMENT-TASK-UNIT'
+FROM property_cash_events_test_state state;
+
+INSERT INTO public.finance_expense_items (
+  organization_id, property_id, unit_id, task_id, vendor_person_id,
+  expense_type, vendor_label, invoice_date, amount, currency, category, status,
+  economic_scope, reference
+)
+SELECT
+  state.organization_id, state.property_id, NULL, NULL, cross_vendor.id,
+  'vendor_bill', 'Cross vendor', '2026-07-20'::date, 14, 'USD', 'Repairs',
+  'approved', 'property_expense', 'SCOPE-PAYMENT-VENDOR'
+FROM property_cash_events_test_state state
+JOIN public.people cross_vendor
+  ON cross_vendor.organization_id = state.cross_organization_id
+ AND cross_vendor.display_name = 'Cross-organization scope vendor';
+
+INSERT INTO public.finance_payments (
+  organization_id, property_id, paid_date, amount, currency, payee_label,
+  reference
+)
+SELECT
+  state.organization_id, state.property_id, '2026-07-20', fixture.amount,
+  'USD', 'Scope vendor', fixture.payment_reference
+FROM property_cash_events_test_state state
+CROSS JOIN (VALUES
+  ('SCOPE-PAYMENT-TASK-UNIT-HEADER', 13::numeric),
+  ('SCOPE-PAYMENT-VENDOR-HEADER', 14::numeric)
+) fixture(payment_reference, amount);
+
+INSERT INTO public.finance_payment_allocations (
+  organization_id, payment_id, expense_item_id, amount
+)
+SELECT state.organization_id, payment.id, expense.id, payment.amount
+FROM property_cash_events_test_state state
+JOIN public.finance_payments payment
+  ON payment.organization_id = state.organization_id
+ AND payment.reference LIKE 'SCOPE-PAYMENT-%-HEADER'
+JOIN public.finance_expense_items expense
+  ON expense.organization_id = state.organization_id
+ AND payment.reference =
+   CASE expense.reference
+     WHEN 'SCOPE-PAYMENT-TASK-UNIT' THEN 'SCOPE-PAYMENT-TASK-UNIT-HEADER'
+     WHEN 'SCOPE-PAYMENT-VENDOR' THEN 'SCOPE-PAYMENT-VENDOR-HEADER'
+   END;
+
+INSERT INTO public.lease_deposits (
+  organization_id, lease_id, deposit_type, amount, currency, status, notes
+)
+SELECT organization_id, lease_id, 'other', 16, 'USD', 'held',
+  'SCOPE-DEPOSIT-ORIGINAL-PARENT'
+FROM property_cash_events_test_state;
+
+INSERT INTO public.lease_deposits (
+  organization_id, lease_id, deposit_type, amount, currency, status, notes
+)
+SELECT organization_id, lease_id, 'other', 16, 'USD', 'held',
+  'SCOPE-DEPOSIT-REVERSAL-PARENT'
+FROM property_cash_events_test_state;
+
+INSERT INTO public.lease_deposit_events (
+  organization_id, property_id, lease_deposit_id, event_type, event_date,
+  amount, currency, reference
+)
+SELECT state.organization_id, state.property_id, deposit.id, 'received',
+  '2026-07-21', 16, 'USD', 'SCOPE-DEPOSIT-ORIGINAL'
+FROM property_cash_events_test_state state
+JOIN public.lease_deposits deposit
+  ON deposit.organization_id = state.organization_id
+ AND deposit.notes = 'SCOPE-DEPOSIT-ORIGINAL-PARENT';
+
+INSERT INTO public.lease_deposit_events (
+  organization_id, property_id, lease_deposit_id, event_type, event_date,
+  amount, currency, reference, reversal_of_id
+)
+SELECT state.organization_id, state.property_id, reversal_parent.id,
+  'reversed', '2026-07-22', 16, 'USD', 'SCOPE-DEPOSIT-REVERSAL', original.id
+FROM property_cash_events_test_state state
+JOIN public.lease_deposits reversal_parent
+  ON reversal_parent.organization_id = state.organization_id
+ AND reversal_parent.notes = 'SCOPE-DEPOSIT-REVERSAL-PARENT'
+JOIN public.lease_deposit_events original
+  ON original.organization_id = state.organization_id
+ AND original.reference = 'SCOPE-DEPOSIT-ORIGINAL';
+
+INSERT INTO public.ledger_entries (
+  organization_id, property_id, transaction_date, direction, category, amount,
+  currency, description, source_type
+)
+SELECT organization_id, property_id, '2026-07-22', 'income', 'Legacy', 0,
+  'USD', 'ZERO-LEDGER-NON-EVENT', 'manual'
+FROM property_cash_events_test_state;
+
+INSERT INTO public.petty_cash_entries (
+  organization_id, account_id, period_id, property_id, unit_id, invoice_date,
+  clear_date, entry_kind, status, category, description, out_amount, in_amount,
+  currency, economic_scope
+)
+SELECT
+  state.organization_id, state.petty_account_id, state.petty_period_id,
+  state.property_id, state.unit_id, '2025-07-28', NULL, 'expense', 'posted',
+  'Supplies', 'NULL-TAIL-' || sequence_number, 1, 0, 'USD',
+  'property_expense'
+FROM property_cash_events_test_state state
+CROSS JOIN generate_series(1, 2) AS sequence_number;
 
 SELECT app_private.ensure_accounting_books_and_accounts(
   (SELECT organization_id FROM property_cash_events_test_state),
@@ -711,7 +999,8 @@ SELECT ok(
     'tenant_person_id', 'vendor_person_id', 'event_date', 'period_start',
     'currency', 'amount', 'owner_cash_effect', 'operating_cash_effect',
     'deposit_liability_effect', 'management_fee_effect', 'economic_class',
-    'statement_section', 'category_code', 'source_type', 'source_id',
+    'statement_section', 'category_code', 'classification_status',
+    'source_type', 'source_id',
     'source_parent_type', 'source_parent_id', 'obligation_type',
     'obligation_id', 'reversal_source_type', 'reversal_source_id',
     'is_reversal', 'is_legacy', 'requires_resolution', 'ledger_entry_id',
@@ -735,8 +1024,14 @@ SELECT ok(
   AND obligation_type = 'finance_income_item'
   AND obligation_id = (
     SELECT income_rent_id FROM property_cash_events_test_state
-  ),
-  'receipt allocation preserves exact header and obligation identity'
+  )
+  AND classification_status = 'provisional_current_obligation'
+  AND requires_resolution
+  AND owner_cash_effect = 100
+  AND operating_cash_effect = 100
+  AND deposit_liability_effect = 0
+  AND management_fee_effect = 0,
+  'receipt allocation preserves identity and explicitly provisional effects'
 )
 FROM public.get_property_cash_events_v1_page(
   (SELECT organization_id FROM property_cash_events_test_state),
@@ -798,9 +1093,13 @@ SELECT is(
   'exact Ledger projections and journals do not become duplicate events'
 );
 
-SELECT is(
+SELECT ok(
   (
-    SELECT sum(owner_cash_effect)
+    SELECT sum(owner_cash_effect) = 0
+      AND bool_and(
+        classification_status = 'provisional_current_obligation'
+        AND requires_resolution
+      )
     FROM public.get_property_cash_events_v1_page(
       (SELECT organization_id FROM property_cash_events_test_state),
       (SELECT property_id FROM property_cash_events_test_state),
@@ -812,8 +1111,7 @@ SELECT is(
        FROM property_cash_events_test_state)
     )
   ),
-  0::numeric,
-  'receipt reversal pair remains traceable and nets owner cash to zero'
+  'receipt reversal pair nets to zero and remains explicitly provisional'
 );
 
 SELECT ok(
@@ -822,9 +1120,11 @@ SELECT ok(
   AND reversal_source_id = (
     SELECT receipt_rent_allocation_id FROM property_cash_events_test_state
   )
+  AND classification_status = 'provisional_current_obligation'
+  AND requires_resolution
   AND owner_cash_effect = -100
   AND operating_cash_effect = -100,
-  'receipt reversal derives the exact original allocation and opposite signs'
+  'receipt reversal derives exact identity and explicitly provisional signs'
 )
 FROM public.get_property_cash_events_v1_page(
   (SELECT organization_id FROM property_cash_events_test_state),
@@ -836,9 +1136,13 @@ WHERE source_id = (
   FROM property_cash_events_test_state
 );
 
-SELECT is(
+SELECT ok(
   (
-    SELECT sum(operating_cash_effect)
+    SELECT sum(operating_cash_effect) = 0
+      AND bool_and(
+        classification_status = 'provisional_current_obligation'
+        AND requires_resolution
+      )
     FROM public.get_property_cash_events_v1_page(
       (SELECT organization_id FROM property_cash_events_test_state),
       (SELECT property_id FROM property_cash_events_test_state),
@@ -851,8 +1155,124 @@ SELECT is(
        FROM property_cash_events_test_state)
     )
   ),
-  0::numeric,
-  'payment reversal pair nets operating cash to zero'
+  'payment reversal pair nets to zero and remains explicitly provisional'
+);
+
+SELECT ok(
+  count(*) = 2
+  AND bool_and(
+    classification_status = 'unresolved_reversal_header'
+    AND requires_resolution
+    AND reversal_source_id IS NULL
+    AND owner_cash_effect IS NULL
+    AND operating_cash_effect IS NULL
+    AND deposit_liability_effect IS NULL
+    AND management_fee_effect IS NULL
+  ),
+  'redistributed receipt reversal header is wholly unresolved and non-counting'
+)
+FROM public.get_property_cash_events_v1_page(
+  (SELECT organization_id FROM property_cash_events_test_state),
+  (SELECT property_id FROM property_cash_events_test_state),
+  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+)
+WHERE source_id IN (
+  SELECT allocation.id
+  FROM public.finance_receipt_allocations allocation
+  JOIN public.finance_receipts receipt
+    ON receipt.id = allocation.receipt_id
+  WHERE receipt.reference = 'MALFORMED-RECEIPT-REVERSAL'
+);
+
+SELECT ok(
+  count(*) = 1
+  AND bool_and(
+    classification_status = 'unresolved_reversal_header'
+    AND requires_resolution
+    AND reversal_source_id IS NOT NULL
+    AND owner_cash_effect IS NULL
+    AND operating_cash_effect IS NULL
+    AND deposit_liability_effect IS NULL
+    AND management_fee_effect IS NULL
+  ),
+  'incomplete payment reversal header is wholly unresolved and non-counting'
+)
+FROM public.get_property_cash_events_v1_page(
+  (SELECT organization_id FROM property_cash_events_test_state),
+  (SELECT property_id FROM property_cash_events_test_state),
+  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+)
+WHERE source_id IN (
+  SELECT allocation.id
+  FROM public.finance_payment_allocations allocation
+  JOIN public.finance_payments payment
+    ON payment.id = allocation.payment_id
+  WHERE payment.reference = 'MALFORMED-PAYMENT-REVERSAL'
+);
+
+SELECT ok(
+  count(*) = 1
+  AND bool_and(
+    classification_status = 'unresolved_source_scope'
+    AND requires_resolution
+    AND owner_cash_effect IS NULL
+    AND operating_cash_effect IS NULL
+    AND deposit_liability_effect IS NULL
+    AND management_fee_effect IS NULL
+  )
+  AND (
+    SELECT array_agg(enum_value.enumlabel ORDER BY enum_value.enumsortorder)
+    FROM pg_catalog.pg_enum AS enum_value
+    JOIN pg_catalog.pg_type AS enum_type
+      ON enum_type.oid = enum_value.enumtypid
+    JOIN pg_catalog.pg_namespace AS enum_namespace
+      ON enum_namespace.oid = enum_type.typnamespace
+    WHERE enum_namespace.nspname = 'public'
+      AND enum_type.typname = 'currency_code'
+  ) = ARRAY['USD']::name[],
+  'receipt lease-unit mismatch is non-counting; currency mismatch is schema-impossible'
+)
+FROM public.get_property_cash_events_v1_page(
+  (SELECT organization_id FROM property_cash_events_test_state),
+  (SELECT property_id FROM property_cash_events_test_state),
+  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+)
+WHERE source_id IN (
+  SELECT allocation.id
+  FROM public.finance_receipt_allocations allocation
+  JOIN public.finance_receipts receipt
+    ON receipt.id = allocation.receipt_id
+  WHERE receipt.reference IN (
+    'SCOPE-RECEIPT-LEASE-UNIT-HEADER'
+  )
+);
+
+SELECT ok(
+  count(*) = 2
+  AND bool_and(
+    classification_status = 'unresolved_source_scope'
+    AND requires_resolution
+    AND owner_cash_effect IS NULL
+    AND operating_cash_effect IS NULL
+    AND deposit_liability_effect IS NULL
+    AND management_fee_effect IS NULL
+  ),
+  'payment task-unit and person-organization mismatches stay non-counting'
+)
+FROM public.get_property_cash_events_v1_page(
+  (SELECT organization_id FROM property_cash_events_test_state),
+  (SELECT property_id FROM property_cash_events_test_state),
+  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+)
+WHERE source_id IN (
+  SELECT allocation.id
+  FROM public.finance_payment_allocations allocation
+  JOIN public.finance_payments payment
+    ON payment.id = allocation.payment_id
+  WHERE payment.reference IN (
+    'SCOPE-PAYMENT-TASK-UNIT-HEADER',
+    'SCOPE-PAYMENT-VENDOR-HEADER'
+  )
 );
 
 SELECT is(
@@ -873,14 +1293,63 @@ SELECT is(
 );
 
 SELECT ok(
+  classification_status = 'unresolved_source_scope'
+  AND requires_resolution
+  AND owner_cash_effect IS NULL
+  AND operating_cash_effect IS NULL
+  AND deposit_liability_effect IS NULL
+  AND management_fee_effect IS NULL,
+  'deposit reversal linked to a different deposit parent is visible but non-counting'
+)
+FROM public.get_property_cash_events_v1_page(
+  (SELECT organization_id FROM property_cash_events_test_state),
+  (SELECT property_id FROM property_cash_events_test_state),
+  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+)
+WHERE source_id = (
+  SELECT id
+  FROM public.lease_deposit_events
+  WHERE reference = 'SCOPE-DEPOSIT-REVERSAL'
+);
+
+SELECT ok(
   economic_class = 'owner_contribution'
   AND statement_section = 'owner_funding'
   AND owner_person_id = (
     SELECT owner_id FROM property_cash_events_test_state
   )
+  AND classification_status = 'provisional_current_obligation'
+  AND requires_resolution
   AND owner_cash_effect = 50
-  AND operating_cash_effect = 0,
-  'owner contribution is classified outside operating income'
+  AND operating_cash_effect = 0
+  AND deposit_liability_effect = 0
+  AND management_fee_effect = 0,
+  'owner contribution effects are explicit but provisional'
+)
+FROM public.get_property_cash_events_v1_page(
+  (SELECT organization_id FROM property_cash_events_test_state),
+  (SELECT property_id FROM property_cash_events_test_state),
+  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+)
+WHERE source_id = (
+  SELECT receipt_owner_allocation_id FROM property_cash_events_test_state
+);
+
+UPDATE public.finance_income_items
+SET income_type = 'rent'
+WHERE id = (
+  SELECT income_owner_id FROM property_cash_events_test_state
+);
+
+SELECT ok(
+  economic_class = 'operating_income'
+  AND classification_status = 'provisional_current_obligation'
+  AND requires_resolution
+  AND owner_cash_effect = 50
+  AND operating_cash_effect = 50
+  AND deposit_liability_effect = 0
+  AND management_fee_effect = 0,
+  'obligation mutation changes only economics already marked provisional'
 )
 FROM public.get_property_cash_events_v1_page(
   (SELECT organization_id FROM property_cash_events_test_state),
@@ -894,9 +1363,13 @@ WHERE source_id = (
 SELECT ok(
   economic_class = 'management_fee'
   AND statement_section = 'management_fees'
+  AND classification_status = 'provisional_current_obligation'
+  AND requires_resolution
   AND owner_cash_effect = -25
+  AND operating_cash_effect = 0
+  AND deposit_liability_effect = 0
   AND management_fee_effect = 25,
-  'management fee compatibility receipt remains a distinct effect'
+  'management fee compatibility effects remain explicitly provisional'
 )
 FROM public.get_property_cash_events_v1_page(
   (SELECT organization_id FROM property_cash_events_test_state),
@@ -910,9 +1383,13 @@ WHERE source_id = (
 SELECT ok(
   economic_class = 'owner_distribution'
   AND statement_section = 'owner_distributions'
+  AND classification_status = 'provisional_current_obligation'
+  AND requires_resolution
   AND owner_cash_effect = -30
-  AND operating_cash_effect = 0,
-  'owner payout compatibility payment is not an operating expense'
+  AND operating_cash_effect = 0
+  AND deposit_liability_effect = 0
+  AND management_fee_effect = 0,
+  'owner payout compatibility effects remain explicitly provisional'
 )
 FROM public.get_property_cash_events_v1_page(
   (SELECT organization_id FROM property_cash_events_test_state),
@@ -926,6 +1403,7 @@ WHERE source_id = (
 SELECT ok(
   economic_class = 'security_deposit'
   AND statement_section = 'deposits'
+  AND classification_status = 'provisional_current_obligation'
   AND requires_resolution
   AND owner_cash_effect IS NULL
   AND operating_cash_effect IS NULL
@@ -945,6 +1423,7 @@ WHERE source_id = (
 SELECT ok(
   economic_class = 'legacy_unclassified'
   AND statement_section = 'unresolved'
+  AND classification_status = 'provisional_current_obligation'
   AND requires_resolution
   AND owner_cash_effect IS NULL
   AND operating_cash_effect IS NULL,
@@ -961,6 +1440,7 @@ WHERE source_id = (
 
 SELECT ok(
   event_date = '2026-07-18'
+  AND classification_status = 'source_stable'
   AND owner_cash_effect = -15
   AND operating_cash_effect = -15
   AND NOT requires_resolution,
@@ -978,6 +1458,7 @@ WHERE source_id = (
 SELECT ok(
   event_date IS NULL
   AND period_start IS NULL
+  AND classification_status = 'unresolved_evidence'
   AND requires_resolution
   AND owner_cash_effect IS NULL
   AND operating_cash_effect IS NULL,
@@ -986,7 +1467,25 @@ SELECT ok(
 FROM public.get_property_cash_events_v1_page(
   (SELECT organization_id FROM property_cash_events_test_state),
   (SELECT property_id FROM property_cash_events_test_state),
-  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+  'USD', '2026-07-01', '2026-07-31',
+  NULL,
+  'petty_cash_entry',
+  coalesce(
+    (
+      SELECT entry.id
+      FROM public.petty_cash_entries AS entry
+      WHERE entry.organization_id = (
+        SELECT organization_id FROM property_cash_events_test_state
+      )
+        AND entry.id < (
+          SELECT petty_uncleared_id FROM property_cash_events_test_state
+        )
+      ORDER BY entry.id DESC
+      LIMIT 1
+    ),
+    '00000000-0000-0000-0000-000000000000'::uuid
+  ),
+  1000
 )
 WHERE source_id = (
   SELECT petty_uncleared_id FROM property_cash_events_test_state
@@ -1003,6 +1502,7 @@ SELECT ok(
   AND vendor_person_id = (
     SELECT vendor_id FROM property_cash_events_test_state
   )
+  AND classification_status = 'source_stable'
   AND operating_cash_effect = -40,
   'maintenance effect exists only through its exact linked Ledger row'
 )
@@ -1035,6 +1535,7 @@ SELECT is(
 SELECT ok(
   source_type = 'ledger_entry'
   AND is_legacy
+  AND classification_status = 'unresolved_evidence'
   AND requires_resolution
   AND owner_cash_effect IS NULL
   AND operating_cash_effect IS NULL,
@@ -1047,6 +1548,24 @@ FROM public.get_property_cash_events_v1_page(
 )
 WHERE source_id = (
   SELECT manual_ledger_id FROM property_cash_events_test_state
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_property_cash_events_v1_page(
+      (SELECT organization_id FROM property_cash_events_test_state),
+      (SELECT property_id FROM property_cash_events_test_state),
+      'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+    )
+    WHERE source_id = (
+      SELECT id
+      FROM public.ledger_entries
+      WHERE description = 'ZERO-LEDGER-NON-EVENT'
+    )
+  ),
+  0::bigint,
+  'zero-amount Ledger rows are deliberately excluded as non-owner-relevant'
 );
 
 SELECT ok(
@@ -1114,6 +1633,24 @@ SELECT is(
   ),
   'repeated first-page loads are deterministic'
 );
+
+RESET ROLE;
+
+UPDATE public.ledger_entries
+SET transaction_date = '2026-07-25'
+WHERE organization_id = (
+    SELECT organization_id FROM property_cash_events_test_state
+  )
+  AND description LIKE 'Bulk deterministic traversal %';
+
+UPDATE public.petty_cash_entries
+SET invoice_date = '2026-07-28'
+WHERE organization_id = (
+    SELECT organization_id FROM property_cash_events_test_state
+  )
+  AND description LIKE 'NULL-TAIL-%';
+
+SET LOCAL ROLE authenticated;
 
 CREATE TEMP TABLE property_cash_events_traversal (
   event_key text PRIMARY KEY,
@@ -1187,6 +1724,46 @@ SELECT is(
   ),
   1::bigint,
   'null-date unresolved evidence is traversed exactly once after dated events'
+);
+
+SELECT ok(
+  (
+    SELECT count(*)
+    FROM property_cash_events_traversal traversed
+    JOIN public.petty_cash_entries petty
+      ON petty.id = traversed.source_id
+    WHERE traversed.source_type = 'petty_cash_entry'
+      AND traversed.event_date IS NULL
+      AND petty.description LIKE 'NULL-TAIL-%'
+  ) = 2
+  AND EXISTS (
+    WITH first_null_page AS (
+      SELECT page.*
+      FROM public.get_property_cash_events_v1_page(
+        (SELECT organization_id FROM property_cash_events_test_state),
+        (SELECT property_id FROM property_cash_events_test_state),
+        'USD', '2026-07-01', '2026-07-31',
+        NULL, '', '00000000-0000-0000-0000-000000000000', 1
+      ) AS page
+    ),
+    second_null_page AS (
+      SELECT page.*
+      FROM first_null_page AS first_page
+      CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+        (SELECT organization_id FROM property_cash_events_test_state),
+        (SELECT property_id FROM property_cash_events_test_state),
+        'USD', '2026-07-01', '2026-07-31',
+        NULL, first_page.source_type, first_page.source_id, 1
+      ) AS page
+    )
+    SELECT 1
+    FROM first_null_page AS first_page
+    CROSS JOIN second_null_page AS second_page
+    WHERE first_page.event_date IS NULL
+      AND second_page.event_date IS NULL
+      AND first_page.event_key <> second_page.event_key
+  ),
+  'two null-date events traverse distinct page-size-one cursor pages'
 );
 
 SELECT is(

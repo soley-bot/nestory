@@ -28,29 +28,40 @@ deterministically after dated events.
 - `deposit_liability_effect`
 - `management_fee_effect`
 
-Resolved rows populate the effects that their classification controls and use
-exact zero only for an intentionally unaffected axis. An unresolved row sets
-all four effects to `NULL`; zero must never stand in for unknown economic
-meaning or an unproven cash date. `requires_resolution` is true for every such
-row. `period_start` is derived from a non-null `event_date`; it remains null
-when the event date is unresolved.
+`classification_status` states how consumers may use those effects:
+
+- `source_stable` means the classification and signed effects come from the
+  direct source row or exact linked Ledger row.
+- `provisional_current_obligation` means receipt or payment classification is
+  derived from the current, still-mutable obligation. Countable obligation
+  classes return exact signed effects for shadow comparison; compatibility
+  classes with unknown property economics remain null. Neither form is
+  historical authority, and `requires_resolution` is always true.
+- `unresolved_source_scope`, `unresolved_reversal_header`, and
+  `unresolved_evidence` mean the evidence is not safe to count. All four
+  effects are `NULL` and `requires_resolution` is true.
+
+Exact zero is used only for an intentionally unaffected axis. Zero never
+stands in for unknown economic meaning or an unproven cash date.
+`period_start` is derived from a non-null `event_date`; it remains null when
+the event date is unresolved.
 
 ## Source matrix
 
-| Source at contract grain | Eligibility | Economic class | Statement section | Stable category | Signed effects |
-| --- | --- | --- | --- | --- | --- |
-| Receipt allocation for rent, utility reimbursement, parking, late fee, or other operating income | Exact allocation, receipt, and income obligation | `operating_income` | `income` | Income type | owner `+amount`; operating `+amount`; deposit and fee `0` |
-| Receipt allocation for management fee, leasing commission, service fee, or maintenance markup | Exact allocation, receipt, and income obligation | `management_fee` | `management_fees` | Income type | owner `-amount`; operating `0`; deposit `0`; fee `+amount` |
-| Receipt allocation for owner contribution | Exact allocation, receipt, and income obligation | `owner_contribution` | `owner_funding` | `owner_contribution` | owner `+amount`; other effects `0` |
-| Receipt allocation for security deposit compatibility income | Exact allocation exists but no exact deposit-event identity | `security_deposit` | `deposits` | `security_deposit_compatibility` | all effects `NULL`; unresolved |
-| Payment allocation for property expense | Exact allocation, payment, and expense obligation | `operating_expense` | `expenses` | Expense category normalized to a stable code | owner `-amount`; operating `-amount`; deposit and fee `0` |
-| Payment allocation for owner payout | Exact allocation, payment, and expense obligation | `owner_distribution` | `owner_distributions` | `owner_distribution` | owner `-amount`; other effects `0` |
-| Payment allocation for company cost, company advance, refund, or other company-scope handling | Exact allocation exists but the property effect is not authoritative | `legacy_unclassified` | `unresolved` | `company_scope_payment` | all effects `NULL`; unresolved |
-| Lease deposit event | Exact event and lease-deposit parent | `security_deposit` | `deposits` | Deposit type plus event type | owner `0`; operating `0`; signed deposit liability; fee `0` |
-| Cleared or posted property-expense petty-cash entry with `clear_date` | Exact petty-cash row | `operating_expense` | `expenses` | Petty-cash category normalized to a stable code | owner `-amount`; operating `-amount`; deposit and fee `0` |
-| Cleared or posted property-expense petty-cash entry without `clear_date` | Invoice evidence only | `legacy_unclassified` | `unresolved` | `petty_cash_uncleared` | all effects `NULL`; unresolved and date null |
-| Maintenance task represented by its exact linked Ledger row, with no finance expense for the task | Exact `tasks.ledger_entry_id` link | `operating_expense` | `expenses` | `maintenance` | owner and operating `-ledger amount`; deposit and fee `0` |
-| Active unmatched Ledger row | No exact finance, petty-cash, or maintenance domain identity | `legacy_unclassified` | `unresolved` | `ledger_unclassified` | all effects `NULL`; unresolved legacy evidence |
+| Source at contract grain | Eligibility | Economic class | Status | Signed effects |
+| --- | --- | --- | --- | --- |
+| Receipt allocation for operating income | Exact source scope and, for reversals, exact header pairing | `operating_income` | `provisional_current_obligation` | owner and operating signed `amount`; deposit and fee `0` |
+| Receipt allocation for management fee families | Exact source scope and, for reversals, exact header pairing | `management_fee` | `provisional_current_obligation` | signed owner and fee effects; operating and deposit `0` |
+| Receipt allocation for owner contribution | Exact source scope and, for reversals, exact header pairing | `owner_contribution` | `provisional_current_obligation` | owner signed `amount`; other effects `0` |
+| Receipt allocation for security-deposit compatibility income | No exact deposit-event identity | `security_deposit` | `provisional_current_obligation` | all effects `NULL` |
+| Payment allocation for property expense | Exact source scope and, for reversals, exact header pairing | `operating_expense` | `provisional_current_obligation` | owner and operating signed `amount`; deposit and fee `0` |
+| Payment allocation for owner payout | Exact source scope and, for reversals, exact header pairing | `owner_distribution` | `provisional_current_obligation` | owner signed `amount`; other effects `0` |
+| Payment allocation for company-scope handling or refund | Property effect is not authoritative | `legacy_unclassified` | `provisional_current_obligation` | all effects `NULL` |
+| Lease deposit event | Exact event, lease-deposit parent, and reversal scope | `security_deposit` | `source_stable` | owner and operating `0`; signed deposit liability; fee `0` |
+| Cleared or posted property-expense petty cash with `clear_date` | Exact petty-cash row | `operating_expense` | `source_stable` | owner and operating `-amount`; deposit and fee `0` |
+| Petty cash without `clear_date` | Invoice evidence only | `legacy_unclassified` | `unresolved_evidence` | all effects `NULL`; date null |
+| Maintenance task represented by its exact linked Ledger row | No finance expense for the task | `operating_expense` | `source_stable` | owner and operating `-ledger amount`; deposit and fee `0` |
+| Active unmatched positive Ledger row | No exact domain identity | `legacy_unclassified` | `unresolved_evidence` | all effects `NULL` |
 
 Company-scope petty-cash expenses, advances, and refunds remain visible as
 unresolved non-counting evidence under the same null-effect rule.
@@ -76,17 +87,32 @@ their IDs and status are non-authoritative reconciliation metadata only.
 No link or deduplication may use descriptions, references, dates, vendors,
 labels, or approximate amounts.
 
-A receipt or payment reversal allocation is resolved only through
-`reversal header -> original header -> same obligation's unique allocation`.
-The reversal row retains its own allocation identity and points to the original
-allocation identity. A missing or ambiguous original allocation remains
-visible with null effects and `requires_resolution = true`.
+A receipt or payment reversal allocation receives provisional signed effects
+only when the entire reversal header is a one-to-one match with the original
+header by obligation ID and exact allocation amount. The reversal row retains
+its own allocation identity and points to its exact original allocation. If
+any allocation is missing, extra, or redistributed, every allocation on that
+reversal header remains visible with
+`classification_status = 'unresolved_reversal_header'`, null effects, and
+`requires_resolution = true`.
 
 A deposit reversal uses only its direct `reversal_of_id`. Resolved reversals
 preserve the original event, carry exact opposite signed effects, and net to
 zero with it. Archived settled obligations remain eligible because settlement
 history is authoritative; void obligations without settlement never emit a
 row.
+
+Exact source scope also requires receipt/obligation and payment/obligation
+currency equality, lease/property/unit consistency, task/property/unit
+consistency, direct person organization consistency, and deposit reversal
+membership in the same lease-deposit parent and original property/currency
+scope. `currency_code` currently permits only non-null `USD`, so a
+header/obligation currency mismatch cannot be inserted through the current
+schema; the equality check remains part of the contract for future currencies.
+
+Ledger eligibility deliberately requires `amount > 0`. A zero-amount Ledger
+row is excluded as non-owner-relevant evidence rather than surfaced as an
+unresolved cash event.
 
 ## Projection metadata
 

@@ -31,6 +31,7 @@ RETURNS TABLE (
   economic_class text,
   statement_section text,
   category_code text,
+  classification_status text,
   source_type text,
   source_id uuid,
   source_parent_type text,
@@ -126,12 +127,50 @@ BEGIN
       income.updated_at,
       income.updated_by,
       income.archived_at,
+      CASE
+        WHEN receipt.reversal_of_id IS NULL THEN true
+        ELSE
+          NOT EXISTS (
+            SELECT
+              original_set.income_item_id,
+              original_set.amount
+            FROM public.finance_receipt_allocations AS original_set
+            WHERE original_set.receipt_id = receipt.reversal_of_id
+              AND original_set.organization_id = allocation.organization_id
+            EXCEPT
+            SELECT
+              reversal_set.income_item_id,
+              reversal_set.amount
+            FROM public.finance_receipt_allocations AS reversal_set
+            WHERE reversal_set.receipt_id = receipt.id
+              AND reversal_set.organization_id = allocation.organization_id
+          )
+          AND NOT EXISTS (
+            SELECT
+              reversal_set.income_item_id,
+              reversal_set.amount
+            FROM public.finance_receipt_allocations AS reversal_set
+            WHERE reversal_set.receipt_id = receipt.id
+              AND reversal_set.organization_id = allocation.organization_id
+            EXCEPT
+            SELECT
+              original_set.income_item_id,
+              original_set.amount
+            FROM public.finance_receipt_allocations AS original_set
+            WHERE original_set.receipt_id = receipt.reversal_of_id
+              AND original_set.organization_id = allocation.organization_id
+          )
+      END AS reversal_header_is_exact,
       coalesce((
         income.organization_id = allocation.organization_id
         AND income.property_id = receipt.property_id
+        AND income.currency = receipt.currency
         AND (
           income.lease_id IS NULL
-          OR lease.property_id = receipt.property_id
+          OR (
+            lease.property_id = receipt.property_id
+            AND lease.unit_id IS NOT DISTINCT FROM income.unit_id
+          )
         )
         AND (
           income.unit_id IS NULL
@@ -161,6 +200,7 @@ BEGIN
     LEFT JOIN public.finance_receipt_allocations AS original_allocation
       ON original_allocation.receipt_id = receipt.reversal_of_id
      AND original_allocation.income_item_id = allocation.income_item_id
+     AND original_allocation.amount = allocation.amount
      AND original_allocation.organization_id = allocation.organization_id
     LEFT JOIN public.ledger_entries AS ledger
       ON ledger.id = income.ledger_entry_id
@@ -201,11 +241,8 @@ BEGIN
       fact.amount,
       CASE
         WHEN NOT fact.scope_is_exact
+          OR NOT fact.reversal_header_is_exact
           OR fact.income_type = 'security_deposit'
-          OR (
-            fact.reversal_of_id IS NOT NULL
-            AND fact.original_allocation_id IS NULL
-          )
           THEN NULL::numeric
         WHEN fact.income_type IN (
           'management_fee', 'leasing_commission', 'service_fee',
@@ -218,11 +255,8 @@ BEGIN
       END AS owner_cash_effect,
       CASE
         WHEN NOT fact.scope_is_exact
+          OR NOT fact.reversal_header_is_exact
           OR fact.income_type = 'security_deposit'
-          OR (
-            fact.reversal_of_id IS NOT NULL
-            AND fact.original_allocation_id IS NULL
-          )
           THEN NULL::numeric
         WHEN fact.income_type IN (
           'management_fee', 'leasing_commission', 'service_fee',
@@ -234,21 +268,15 @@ BEGIN
       END AS operating_cash_effect,
       CASE
         WHEN NOT fact.scope_is_exact
+          OR NOT fact.reversal_header_is_exact
           OR fact.income_type = 'security_deposit'
-          OR (
-            fact.reversal_of_id IS NOT NULL
-            AND fact.original_allocation_id IS NULL
-          )
           THEN NULL::numeric
         ELSE 0::numeric
       END AS deposit_liability_effect,
       CASE
         WHEN NOT fact.scope_is_exact
+          OR NOT fact.reversal_header_is_exact
           OR fact.income_type = 'security_deposit'
-          OR (
-            fact.reversal_of_id IS NOT NULL
-            AND fact.original_allocation_id IS NULL
-          )
           THEN NULL::numeric
         WHEN fact.income_type IN (
           'management_fee', 'leasing_commission', 'service_fee',
@@ -289,6 +317,12 @@ BEGIN
         WHEN 'rent' THEN 'rent'
         ELSE 'other_operating_income'
       END::text AS category_code,
+      CASE
+        WHEN NOT fact.scope_is_exact THEN 'unresolved_source_scope'
+        WHEN NOT fact.reversal_header_is_exact
+          THEN 'unresolved_reversal_header'
+        ELSE 'provisional_current_obligation'
+      END::text AS classification_status,
       'receipt_allocation'::text AS source_type,
       fact.id AS source_id,
       'finance_receipt'::text AS source_parent_type,
@@ -304,14 +338,7 @@ BEGIN
         fact.income_type = 'security_deposit'
         OR NOT fact.scope_is_exact
       ) AS is_legacy,
-      (
-        NOT fact.scope_is_exact
-        OR fact.income_type = 'security_deposit'
-        OR (
-          fact.reversal_of_id IS NOT NULL
-          AND fact.original_allocation_id IS NULL
-        )
-      ) AS requires_resolution,
+      true AS requires_resolution,
       fact.ledger_entry_id,
       fact.accounting_journal_entry_id AS journal_entry_id,
       CASE
@@ -351,16 +378,54 @@ BEGIN
       expense.updated_at,
       expense.updated_by,
       expense.archived_at,
+      CASE
+        WHEN payment.reversal_of_id IS NULL THEN true
+        ELSE
+          NOT EXISTS (
+            SELECT
+              original_set.expense_item_id,
+              original_set.amount
+            FROM public.finance_payment_allocations AS original_set
+            WHERE original_set.payment_id = payment.reversal_of_id
+              AND original_set.organization_id = allocation.organization_id
+            EXCEPT
+            SELECT
+              reversal_set.expense_item_id,
+              reversal_set.amount
+            FROM public.finance_payment_allocations AS reversal_set
+            WHERE reversal_set.payment_id = payment.id
+              AND reversal_set.organization_id = allocation.organization_id
+          )
+          AND NOT EXISTS (
+            SELECT
+              reversal_set.expense_item_id,
+              reversal_set.amount
+            FROM public.finance_payment_allocations AS reversal_set
+            WHERE reversal_set.payment_id = payment.id
+              AND reversal_set.organization_id = allocation.organization_id
+            EXCEPT
+            SELECT
+              original_set.expense_item_id,
+              original_set.amount
+            FROM public.finance_payment_allocations AS original_set
+            WHERE original_set.payment_id = payment.reversal_of_id
+              AND original_set.organization_id = allocation.organization_id
+          )
+      END AS reversal_header_is_exact,
       coalesce((
         expense.organization_id = allocation.organization_id
         AND expense.property_id = payment.property_id
+        AND expense.currency = payment.currency
         AND (
           expense.unit_id IS NULL
           OR unit.property_id = payment.property_id
         )
         AND (
           expense.task_id IS NULL
-          OR task.property_id = payment.property_id
+          OR (
+            task.property_id = payment.property_id
+            AND task.unit_id IS NOT DISTINCT FROM expense.unit_id
+          )
         )
         AND (
           expense.vendor_person_id IS NULL
@@ -386,6 +451,7 @@ BEGIN
     LEFT JOIN public.finance_payment_allocations AS original_allocation
       ON original_allocation.payment_id = payment.reversal_of_id
      AND original_allocation.expense_item_id = allocation.expense_item_id
+     AND original_allocation.amount = allocation.amount
      AND original_allocation.organization_id = allocation.organization_id
     LEFT JOIN public.ledger_entries AS ledger
       ON ledger.id = expense.ledger_entry_id
@@ -413,24 +479,18 @@ BEGIN
       fact.amount,
       CASE
         WHEN NOT fact.scope_is_exact
+          OR NOT fact.reversal_header_is_exact
           OR fact.economic_scope <> 'property_expense'
           OR fact.expense_type = 'refund'
-          OR (
-            fact.reversal_of_id IS NOT NULL
-            AND fact.original_allocation_id IS NULL
-          )
           THEN NULL::numeric
         ELSE CASE WHEN fact.reversal_of_id IS NULL
           THEN -fact.amount ELSE fact.amount END
       END AS owner_cash_effect,
       CASE
         WHEN NOT fact.scope_is_exact
+          OR NOT fact.reversal_header_is_exact
           OR fact.economic_scope <> 'property_expense'
           OR fact.expense_type = 'refund'
-          OR (
-            fact.reversal_of_id IS NOT NULL
-            AND fact.original_allocation_id IS NULL
-          )
           THEN NULL::numeric
         WHEN fact.expense_type = 'owner_payout' THEN 0::numeric
         ELSE CASE WHEN fact.reversal_of_id IS NULL
@@ -438,23 +498,17 @@ BEGIN
       END AS operating_cash_effect,
       CASE
         WHEN NOT fact.scope_is_exact
+          OR NOT fact.reversal_header_is_exact
           OR fact.economic_scope <> 'property_expense'
           OR fact.expense_type = 'refund'
-          OR (
-            fact.reversal_of_id IS NOT NULL
-            AND fact.original_allocation_id IS NULL
-          )
           THEN NULL::numeric
         ELSE 0::numeric
       END AS deposit_liability_effect,
       CASE
         WHEN NOT fact.scope_is_exact
+          OR NOT fact.reversal_header_is_exact
           OR fact.economic_scope <> 'property_expense'
           OR fact.expense_type = 'refund'
-          OR (
-            fact.reversal_of_id IS NOT NULL
-            AND fact.original_allocation_id IS NULL
-          )
           THEN NULL::numeric
         ELSE 0::numeric
       END AS management_fee_effect,
@@ -482,6 +536,12 @@ BEGIN
         WHEN fact.expense_type = 'owner_payout' THEN 'owner_distribution'
         ELSE 'expense_' || fact.expense_type
       END::text AS category_code,
+      CASE
+        WHEN NOT fact.scope_is_exact THEN 'unresolved_source_scope'
+        WHEN NOT fact.reversal_header_is_exact
+          THEN 'unresolved_reversal_header'
+        ELSE 'provisional_current_obligation'
+      END::text AS classification_status,
       'payment_allocation'::text AS source_type,
       fact.id AS source_id,
       'finance_payment'::text AS source_parent_type,
@@ -498,15 +558,7 @@ BEGIN
         OR fact.economic_scope <> 'property_expense'
         OR fact.expense_type = 'refund'
       ) AS is_legacy,
-      (
-        NOT fact.scope_is_exact
-        OR fact.economic_scope <> 'property_expense'
-        OR fact.expense_type = 'refund'
-        OR (
-          fact.reversal_of_id IS NOT NULL
-          AND fact.original_allocation_id IS NULL
-        )
-      ) AS requires_resolution,
+      true AS requires_resolution,
       fact.ledger_entry_id,
       fact.accounting_journal_entry_id AS journal_entry_id,
       CASE
@@ -547,6 +599,15 @@ BEGIN
         lease_deposit.organization_id = deposit.organization_id
         AND lease.organization_id = deposit.organization_id
         AND lease.property_id = deposit.property_id
+        AND (
+          deposit.reversal_of_id IS NULL
+          OR (
+            original.id IS NOT NULL
+            AND original.lease_deposit_id = deposit.lease_deposit_id
+            AND original.property_id = deposit.property_id
+            AND original.currency = deposit.currency
+          )
+        )
       ), false) AS scope_is_exact
     FROM public.lease_deposit_events AS deposit
     JOIN public.lease_deposits AS lease_deposit
@@ -634,6 +695,10 @@ BEGIN
         || '_'
         || fact.event_type
       )::text AS category_code,
+      CASE
+        WHEN NOT fact.scope_is_exact THEN 'unresolved_source_scope'
+        ELSE 'source_stable'
+      END::text AS classification_status,
       'deposit_event'::text AS source_type,
       fact.id AS source_id,
       'lease_deposit'::text AS source_parent_type,
@@ -794,6 +859,14 @@ BEGIN
         WHEN fact.clear_date IS NULL THEN 'petty_cash_uncleared'
         ELSE 'petty_cash_company_scope'
       END::text AS category_code,
+      CASE
+        WHEN fact.scope_is_exact
+          AND fact.entry_kind = 'expense'
+          AND fact.economic_scope = 'property_expense'
+          AND fact.clear_date IS NOT NULL
+          THEN 'source_stable'
+        ELSE 'unresolved_evidence'
+      END::text AS classification_status,
       'petty_cash_entry'::text AS source_type,
       fact.id AS source_id,
       NULL::text AS source_parent_type,
@@ -853,6 +926,7 @@ BEGIN
       'operating_expense'::text AS economic_class,
       'expenses'::text AS statement_section,
       'maintenance'::text AS category_code,
+      'source_stable'::text AS classification_status,
       'maintenance_task'::text AS source_type,
       task.id AS source_id,
       NULL::text AS source_parent_type,
@@ -926,6 +1000,7 @@ BEGIN
       'legacy_unclassified'::text AS economic_class,
       'unresolved'::text AS statement_section,
       'ledger_unclassified'::text AS category_code,
+      'unresolved_evidence'::text AS classification_status,
       'ledger_entry'::text AS source_type,
       ledger.id AS source_id,
       CASE WHEN ledger.source_id IS NULL THEN NULL::text
