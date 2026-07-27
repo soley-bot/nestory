@@ -148,6 +148,9 @@ Every record includes:
 - `period_flow`, `period_obligation`, `closing_balance`, or `control` basis;
 - exact `bigint` current, canonical, and delta cents, with `null` used when the
   comparison cannot be made safely;
+- explicit `referenceCents` and `referenceDeltaCents` for current-path
+  integrity controls; `canonicalCents` and `deltaCents` are populated only
+  from canonical-event comparisons;
 - `match`, `mismatch`, `unresolved`, or `not_comparable` status;
 - exact included, excluded, and unresolved typed identities; and
 - a non-authoritative explanation of the comparison boundary.
@@ -156,9 +159,19 @@ Identity variants cover canonical events, Plan 01 source stable keys and
 diagnostic stable keys, current obligations and settlement evidence, effective
 owner links, returned Ledger report sources, and journal controls. Identity
 collection fails closed before accepting identity 10,001. Inputs that can
-produce stored identities are also rejected before aggregation when they exceed
-the configured limit. The focused fixture proves 5,205 identities are retained
-without truncation.
+produce stored identities are rejected before any builder runs when an
+individual Owner Statement, TrustedReport, Property Summary, canonical, or
+Plan 01 collection exceeds the configured limit. Required combined
+PropertyCash, owner-allocation, and report contributor sets are preflighted as
+well. One required-limit collector consumes identity chunks without first
+concatenating them, stops before adding limit plus one, and rejects an identity
+assigned to more than one of included, excluded, and unresolved. The focused
+fixture proves 5,205 identities are retained without truncation.
+
+Every canonical input event must match the stamped organization, property, and
+USD currency. A dated event must fall inside the inclusive selected period.
+Null-dated unresolved evidence is accepted only when its organization,
+property, and currency still match the requested scope.
 
 ### Property cash mapping
 
@@ -182,6 +195,15 @@ canonical and delta cents remain null while the event identity stays visible.
 Original and reversal identities remain separate. Current archived-settlement
 differences remain mismatches rather than being normalized away.
 
+Current provenance is field-specific. Rent due and management-fee earned retain
+only their obligation identities. Rent received and arrears also retain the
+exact relevant receipt allocations; management-fee outstanding retains both
+its obligation and relevant fee receipts. Selected-period flow metrics retain
+only allocations whose dates contributed to those flows. Deposit balances use
+typed `current_cash_source/deposit_event` identities rather than pretending
+current evidence is a canonical event. The current-source deduplication key
+includes both source type and ID.
+
 ### Current read surfaces
 
 - Owner Statement input is normalized through `toOwnerStatementInput`.
@@ -191,21 +213,34 @@ differences remain mismatches rather than being normalized away.
   an allocation roster. Readiness records retain exact blockers and evidence.
   Blocked summary omissions remain unresolved nulls, never zero mismatches.
   Separate controls compare ready current allocations with current
-  property-level cash.
+  property-level cash through `referenceCents` and `referenceDeltaCents`;
+  canonical fields remain null. Each allocation metric retains its effective
+  owner link and only the evidence lines used for that metric.
 - Property Performance, Unit Performance, and Income & Expense are all built by
   `buildTrustedReport`. Returned USD strings are parsed exactly. Returned
-  Ledger source links and Plan 01 stable keys are retained. Unit Performance
+  Ledger source links and matching active Plan 01 stable keys are retained
+  separately for income, expense, and their NOI union. Unrelated,
+  opposite-direction, and archived Plan 01 keys are excluded. A null-effect
+  `legacy_unclassified` canonical Ledger event becomes relevant only when its
+  source or Ledger ID matches an exact current contributor, making that metric
+  unresolved without globally tainting unrelated controls. Unit Performance
   summary totals and visible unit-row totals are separate records so legitimate
-  property-level Ledger rows do not disappear into a unit-row comparison.
+  property-level Ledger rows remain in the summary while visible-row
+  provenance remains limited to returned visible-unit rows.
 - Plan 01 output is rebuilt through `buildReadPathParity`,
   `buildUnitContextCoverage`, and `buildParitySummary`. Proposed bucket
   included/excluded/unresolved stable keys remain diagnostic and carry an
   explicit non-authority disclaimer. `REPORT_TOTAL_CONTRADICTION` retains its
   diagnostic key plus `settlementAmount` and `ledgerAmount`;
   `SOURCE_LOAD_LIMIT_EXCEEDED` remains unresolved. Gross settlement
-  diagnostics are not forced into canonical economic buckets.
+  diagnostics are not forced into canonical economic buckets. A report-total
+  contradiction keeps Ledger amount as current and settlement amount as an
+  explicit reference; both canonical fields remain null.
 - Journal debit, credit, and balance are current internal `control` records,
-  not canonical cash comparisons.
+  not canonical cash comparisons. Balance compares against an explicit zero
+  reference. Exact journal entry and line IDs are required for typed journal
+  identities; a row missing either ID retains its Plan 01 stable key as
+  unresolved evidence instead of inventing journal identifiers.
 - `buildPropertySummary` is invoked, but both `netIncome` and `netIncomeUsd`
   remain `not_comparable` because they are all-time current Ledger values and
   the canonical scope is a selected period.

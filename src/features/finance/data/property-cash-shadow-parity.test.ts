@@ -303,20 +303,22 @@ describe("property cash shadow parity", () => {
       canonicalCents: null,
       currentCents: BigInt(9_000),
       deltaCents: null,
-      included: [
+      included: expect.arrayContaining([
         {
           id: "owner-link-1",
           kind: "owner_link",
           ownerPersonId: "owner-1",
         },
-      ],
+      ]),
       status: "not_comparable",
     });
     expect(integrity).toMatchObject({
       basis: "control",
-      canonicalCents: BigInt(9_000),
+      canonicalCents: null,
       currentCents: BigInt(9_000),
-      deltaCents: BigInt(0),
+      deltaCents: null,
+      referenceCents: BigInt(9_000),
+      referenceDeltaCents: BigInt(0),
       status: "match",
     });
   });
@@ -484,9 +486,11 @@ describe("property cash shadow parity", () => {
       ),
     ).toMatchObject({
       basis: "control",
-      canonicalCents: BigInt(9_000),
+      canonicalCents: null,
       currentCents: BigInt(7_000),
-      deltaCents: -BigInt(2_000),
+      deltaCents: null,
+      referenceCents: BigInt(9_000),
+      referenceDeltaCents: -BigInt(2_000),
       status: "mismatch",
       unresolved: [
         {

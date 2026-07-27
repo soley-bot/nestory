@@ -91,6 +91,8 @@ export type PropertyCashParityRecord = {
   periodEnd: string;
   periodStart: string;
   propertyId: string;
+  referenceCents: bigint | null;
+  referenceDeltaCents: bigint | null;
   status: PropertyCashParityStatus;
   surface: string;
   unresolved: PropertyCashParityIdentity[];
@@ -122,6 +124,7 @@ export async function buildPropertyCashShadowParity(
 ): Promise<PropertyCashShadowParityResult> {
   const identityLimit = validateIdentityLimit(input.identityLimit);
   assertInputBounds(input, identityLimit);
+  assertCanonicalEventScope(input);
   const ownerStatementInput = toOwnerStatementInput(input.ownerStatementRows);
   const propertyCash = buildPropertyCash(ownerStatementInput.cashInput);
   const propertyFacts =
@@ -255,7 +258,12 @@ function buildPropertyCashRecords({
             metric === "securityDepositHeldCents"
               ? "Current cash reports a period-end held balance while the canonical contract exposes selected-period deposit movement; this shadow record does not declare either source authoritative."
               : "Current cash reports an obligation or obligation-state value while the canonical contract exposes settlement flows; this shadow record is intentionally not comparable.",
-          included: propertyCashIdentities(facts, metric),
+          included: propertyCashIdentities(
+            facts,
+            metric,
+            input,
+            identityLimit,
+          ),
           metric,
           status: "not_comparable",
           surface: "property_cash",
@@ -265,7 +273,11 @@ function buildPropertyCashRecords({
       ),
     ),
     ...comparable.map(({ canonicalCents, canonicalMetric, metric }) => {
-      const identities = canonicalIdentitiesForMetric(events, canonicalMetric);
+      const identities = canonicalIdentitiesForMetric(
+        events,
+        canonicalMetric,
+        identityLimit,
+      );
       const currentCents = BigInt(facts[metric]);
       const hasUnresolved = identities.unresolved.length > 0;
       const comparableCanonicalCents = hasUnresolved ? null : canonicalCents;
@@ -284,10 +296,17 @@ function buildPropertyCashRecords({
           excluded: identities.excluded,
           explanation:
             "Shadow comparison of the existing property-cash builder and the versioned canonical event contract; neither side is promoted as authority by this record.",
-          included: [
-            ...identities.included,
-            ...currentPropertyCashIdentities(facts, metric),
-          ],
+          included: mergeIdentities(
+            identityLimit,
+            `${metric} canonical and current contributors`,
+            identities.included,
+            currentPropertyCashIdentities(
+              facts,
+              metric,
+              input,
+              identityLimit,
+            ),
+          ),
           metric,
           status: hasUnresolved
             ? "unresolved"
@@ -352,7 +371,7 @@ function buildOwnerStatementRecords({
   );
 
   for (const row of rows) {
-    const evidence = evidenceIdentities(row.evidence);
+    const evidence = evidenceIdentities(row.evidence, identityLimit);
     const linkIdentities = ownerLinks
       .filter((link) =>
         row.status === "ready"
@@ -377,13 +396,26 @@ function buildOwnerStatementRecords({
             row.status === "blocked"
               ? `Current Owner Statement allocation is blocked: ${row.reasons.join("; ")}. The blockers and evidence are retained without substituting zero.`
               : "Current Owner Statement allocation readiness passed its effective-roster checks; this is an internal readiness control, not canonical cash authority.",
-          included: row.status === "ready" ? [...linkIdentities, ...evidence] : [],
+          included:
+            row.status === "ready"
+              ? mergeIdentities(
+                  identityLimit,
+                  "Owner Statement readiness",
+                  linkIdentities,
+                  evidence,
+                )
+              : [],
           metric: "readiness",
           status: row.status === "ready" ? "match" : "unresolved",
           surface: "owner_statement_readiness",
           unresolved:
             row.status === "blocked"
-              ? uniqueIdentities([...linkIdentities, ...evidence])
+              ? mergeIdentities(
+                  identityLimit,
+                  "blocked Owner Statement readiness",
+                  linkIdentities,
+                  evidence,
+                )
               : [],
         },
         identityLimit,
@@ -392,6 +424,10 @@ function buildOwnerStatementRecords({
 
     if (row.status === "ready") {
       for (const metric of ownerStatementMoneyMetrics) {
+        const metricEvidence = evidenceIdentities(
+          ownerMetricEvidence(row.evidence, metric),
+          identityLimit,
+        );
         records.push(
           boundedRecord(
             {
@@ -403,7 +439,12 @@ function buildOwnerStatementRecords({
               excluded: [],
               explanation:
                 "Current owner allocation uses the effective ownership roster; direct owner IDs on canonical events are not treated as that roster and no authoritative canonical owner allocation is inferred.",
-              included: linkIdentities,
+              included: mergeIdentities(
+                identityLimit,
+                `Owner Statement allocation ${metric}`,
+                linkIdentities,
+                metricEvidence,
+              ),
               metric,
               status: "not_comparable",
               surface: "owner_statement_allocation",
@@ -421,9 +462,8 @@ function buildOwnerStatementRecords({
   );
   const blocked = rows.some((row) => row.status === "blocked");
   const blockedEvidence = uniqueIdentities(
-    rows.flatMap((row) =>
-      row.status === "blocked" ? evidenceIdentities(row.evidence) : [],
-    ),
+    blockedOwnerEvidence(rows),
+    identityLimit,
   );
   for (const metric of ownerStatementMoneyMetrics) {
     if (blocked) {
@@ -461,22 +501,19 @@ function buildOwnerStatementRecords({
         {
           ...scopeFields(input),
           basis: "control",
-          canonicalCents: propertyCents,
+          canonicalCents: null,
           currentCents: allocatedCents,
-          deltaCents,
+          deltaCents: null,
           excluded: [],
           explanation:
             "Internal current-path control comparing the sum of ready owner allocations with property-level current cash; the canonical event contract is not the comparison target.",
           included: uniqueIdentities(
-            readyRows.flatMap((row) =>
-              row.ownerLinkIds.map((id) => ({
-                id,
-                kind: "owner_link" as const,
-                ownerPersonId: row.ownerPersonId,
-              })),
-            ),
+            readyOwnerLinkIdentities(readyRows),
+            identityLimit,
           ),
           metric,
+          referenceCents: propertyCents,
+          referenceDeltaCents: deltaCents,
           status: deltaCents === BigInt(0) ? "match" : "mismatch",
           surface: "owner_statement_allocation_integrity",
           unresolved: [],
@@ -503,6 +540,61 @@ function ownerStatementMetricBasis(
     : "period_flow";
 }
 
+function ownerMetricEvidence(
+  lines: OwnerStatementEvidenceLine[],
+  metric: OwnerStatementMoneyMetric,
+) {
+  const facts =
+    metric === "managementFeesEarnedCents"
+      ? new Set(["management_fees_earned"])
+      : metric === "managementFeesOutstandingCents"
+        ? new Set(["management_fees_outstanding"])
+        : metric === "managementFeesReceivedCents"
+          ? new Set(["management_fees_received"])
+          : metric === "operatingCashReceivedCents"
+            ? new Set(["operating_cash_received"])
+            : metric === "ownerContributionCents"
+              ? new Set(["owner_contributions"])
+              : metric === "ownerPayoutCents"
+                ? new Set(["owner_payouts"])
+                : metric === "propertyExpensesPaidCents"
+                  ? new Set(["property_expenses_paid"])
+                  : metric === "securityDepositHeldCents"
+                    ? new Set(["security_deposits_held"])
+                    : new Set([
+                        "management_fees_received",
+                        "operating_cash_received",
+                        "owner_contributions",
+                        "owner_payouts",
+                        "property_expenses_paid",
+                      ]);
+  return lines.filter((line) => facts.has(line.statementFact));
+}
+
+function* blockedOwnerEvidence(
+  rows: ReturnType<typeof buildOwnerStatement>["rows"],
+): Generator<PropertyCashParityIdentity> {
+  for (const row of rows) {
+    if (row.status === "blocked") {
+      yield* evidenceIdentityCandidates(row.evidence);
+    }
+  }
+}
+
+function* readyOwnerLinkIdentities(
+  rows: OwnerStatementReadyRow[],
+): Generator<PropertyCashParityIdentity> {
+  for (const row of rows) {
+    for (const id of row.ownerLinkIds) {
+      yield {
+        id,
+        kind: "owner_link",
+        ownerPersonId: row.ownerPersonId,
+      };
+    }
+  }
+}
+
 function ownerLinkIdentity(
   link: ReturnType<typeof toOwnerStatementInput>["ownerLinks"][number],
 ): PropertyCashParityIdentity {
@@ -513,48 +605,55 @@ function ownerLinkIdentity(
   };
 }
 
-function evidenceIdentities(lines: OwnerStatementEvidenceLine[]) {
-  const identities: PropertyCashParityIdentity[] = [];
+function evidenceIdentities(
+  lines: Iterable<OwnerStatementEvidenceLine>,
+  identityLimit: number,
+) {
+  return uniqueIdentities(evidenceIdentityCandidates(lines), identityLimit);
+}
+
+function* evidenceIdentityCandidates(
+  lines: Iterable<OwnerStatementEvidenceLine>,
+): Generator<PropertyCashParityIdentity> {
   for (const line of lines) {
     if (line.ownerLinkId && line.ownerPersonId) {
-      identities.push({
+      yield {
         id: line.ownerLinkId,
         kind: "owner_link",
         ownerPersonId: line.ownerPersonId,
-      });
+      };
     }
     if (line.incomeItemId) {
-      identities.push({
+      yield {
         id: line.incomeItemId,
         kind: "obligation",
         obligationType: "income",
-      });
+      };
     }
     if (line.expenseItemId) {
-      identities.push({
+      yield {
         id: line.expenseItemId,
         kind: "obligation",
         obligationType: "expense",
-      });
+      };
     }
     if (line.allocationId) {
-      identities.push({
+      yield {
         id: line.allocationId,
         kind: "current_cash_source",
         sourceType: line.paymentId
           ? "payment_allocation"
           : "receipt_allocation",
-      });
+      };
     }
     if (line.depositEventId) {
-      identities.push({
+      yield {
         id: line.depositEventId,
         kind: "current_cash_source",
         sourceType: "deposit_event",
-      });
+      };
     }
   }
-  return uniqueIdentities(identities);
 }
 
 async function buildTrustedReportRecords({
@@ -587,9 +686,23 @@ async function buildTrustedReportRecords({
     toAsyncIterable(unitEvents),
     { diagnosticSourceLimit: identityLimit },
   );
-  const plan01LedgerIdentities = input.financeInventorySourceRows
-    .filter((row) => row.payload.sourceType === "ledger_entry")
-    .map(plan01SourceIdentity);
+  const scopedLedgerEntries = input.trustedReportInput.ledgerEntries.filter(
+    (entry) =>
+      input.trustedReportInput.viewQuery.unitId === "all" ||
+      entry.unit_id === input.trustedReportInput.viewQuery.unitId,
+  );
+  const summaryContributors = reportContributorSets(
+    scopedLedgerEntries,
+    input.financeInventorySourceRows,
+    identityLimit,
+  );
+  const visibleContributors = reportContributorSets(
+    scopedLedgerEntries.filter(
+      (entry) => entry.unit_id !== null && visibleUnitIds.has(entry.unit_id),
+    ),
+    input.financeInventorySourceRows,
+    identityLimit,
+  );
   const records: PropertyCashParityRecord[] = [];
 
   records.push(
@@ -599,10 +712,7 @@ async function buildTrustedReportRecords({
       current: reportSummaryMoney(propertyReport),
       identityLimit,
       input,
-      reportIdentities: uniqueIdentities([
-        ...ledgerIdentitiesFromReport(propertyReport),
-        ...plan01LedgerIdentities,
-      ]),
+      reportContributors: summaryContributors,
       surface: "property_performance",
     }),
   );
@@ -613,10 +723,7 @@ async function buildTrustedReportRecords({
       current: reportSummaryMoney(unitReport),
       identityLimit,
       input,
-      reportIdentities: uniqueIdentities([
-        ...ledgerIdentitiesFromReport(unitReport),
-        ...plan01LedgerIdentities,
-      ]),
+      reportContributors: summaryContributors,
       surface: "unit_performance_summary",
     }),
   );
@@ -627,7 +734,7 @@ async function buildTrustedReportRecords({
       current: visibleUnitRowMoney(unitReport),
       identityLimit,
       input,
-      reportIdentities: ledgerIdentitiesFromReport(unitReport),
+      reportContributors: visibleContributors,
       surface: "unit_performance_visible_rows",
     }),
   );
@@ -638,10 +745,7 @@ async function buildTrustedReportRecords({
       current: reportSummaryMoney(incomeExpenseReport),
       identityLimit,
       input,
-      reportIdentities: uniqueIdentities([
-        ...ledgerIdentitiesFromReport(incomeExpenseReport),
-        ...plan01LedgerIdentities,
-      ]),
+      reportContributors: summaryContributors,
       surface: "income_expense",
     }),
   );
@@ -655,13 +759,22 @@ type ReportMoney = {
   noi: bigint;
 };
 
+type ReportMetric = keyof ReportMoney;
+
+type ReportContributorSet = {
+  identities: PropertyCashParityIdentity[];
+  ledgerIds: ReadonlySet<string>;
+};
+
+type ReportContributorSets = Record<ReportMetric, ReportContributorSet>;
+
 function reportSummaryRecords({
   canonical,
   canonicalEvents,
   current,
   identityLimit,
   input,
-  reportIdentities,
+  reportContributors,
   surface,
 }: {
   canonical: CanonicalTotals;
@@ -669,7 +782,7 @@ function reportSummaryRecords({
   current: ReportMoney;
   identityLimit: number;
   input: PropertyCashShadowParityInput;
-  reportIdentities: PropertyCashParityIdentity[];
+  reportContributors: ReportContributorSets;
   surface: string;
 }) {
   return (["income", "expenses", "noi"] as const).map((metric) => {
@@ -682,6 +795,8 @@ function reportSummaryRecords({
     const identities = canonicalIdentitiesForMetrics(
       canonicalEvents,
       canonicalMetrics,
+      identityLimit,
+      reportContributors[metric].ledgerIds,
     );
     const unresolved = identities.unresolved;
     const canonicalCents =
@@ -707,10 +822,12 @@ function reportSummaryRecords({
         excluded: identities.excluded,
         explanation:
           "The current amount is parsed exactly from the returned TrustedReport value and retains returned Ledger source links plus Plan 01 stable keys; the comparison remains shadow-only.",
-        included: uniqueIdentities([
-          ...reportIdentities,
-          ...identities.included,
-        ]),
+        included: mergeIdentities(
+          identityLimit,
+          `${surface}.${metric} contributors`,
+          reportContributors[metric].identities,
+          identities.included,
+        ),
         metric,
         status:
           canonicalCents === null
@@ -797,23 +914,95 @@ function parseUsdDisplay(value: string) {
   );
 }
 
-function ledgerIdentitiesFromReport(
-  report: ReturnType<typeof buildTrustedReport>,
-) {
-  return uniqueIdentities(
-    report.rows.flatMap((row) =>
-      row.sourceLinks.flatMap((source) =>
-        source.recordType === "ledger"
-          ? [
-              {
-                id: source.id,
-                kind: "ledger_source" as const,
-              },
-            ]
-          : [],
+function reportContributorSets(
+  ledgerEntries: Parameters<typeof buildTrustedReport>[0]["ledgerEntries"],
+  plan01Rows: FinanceInventoryPageRow[],
+  identityLimit: number,
+): ReportContributorSets {
+  const income = ledgerEntries.filter((entry) => entry.direction !== "expense");
+  const expenses = ledgerEntries.filter(
+    (entry) => entry.direction === "expense",
+  );
+  return {
+    expenses: reportContributorSet(
+      expenses,
+      plan01Rows,
+      "expense",
+      identityLimit,
+    ),
+    income: reportContributorSet(
+      income,
+      plan01Rows,
+      "income",
+      identityLimit,
+    ),
+    noi: reportContributorSet(
+      ledgerEntries,
+      plan01Rows,
+      "both",
+      identityLimit,
+    ),
+  };
+}
+
+function reportContributorSet(
+  ledgerEntries: Parameters<typeof buildTrustedReport>[0]["ledgerEntries"],
+  plan01Rows: FinanceInventoryPageRow[],
+  direction: "both" | "expense" | "income",
+  identityLimit: number,
+): ReportContributorSet {
+  const ledgerIds = new Set(ledgerEntries.map((entry) => entry.id));
+  const ledgerDirections = new Map(
+    ledgerEntries.map((entry) => [
+      entry.id,
+      entry.direction === "expense" ? "expense" : "income",
+    ] as const),
+  );
+  return {
+    identities: mergeIdentities(
+      identityLimit,
+      `TrustedReport ${direction} contributors`,
+      ledgerEntries.map(
+        (entry): PropertyCashParityIdentity => ({
+          id: entry.id,
+          kind: "ledger_source",
+        }),
+      ),
+      matchingPlan01LedgerIdentities(
+        plan01Rows,
+        ledgerDirections,
       ),
     ),
-  );
+    ledgerIds,
+  };
+}
+
+function* matchingPlan01LedgerIdentities(
+  rows: FinanceInventoryPageRow[],
+  ledgerDirections: ReadonlyMap<string, "expense" | "income">,
+): Generator<PropertyCashParityIdentity> {
+  for (const row of rows) {
+    if (
+      row.payload.sourceType !== "ledger_entry" ||
+      row.payload.archived === true
+    ) {
+      continue;
+    }
+    const sourceId =
+      typeof row.payload.sourceId === "string"
+        ? row.payload.sourceId
+        : row.stable_key.startsWith("ledger_entry:")
+          ? row.stable_key.slice("ledger_entry:".length)
+          : null;
+    const rowDirection =
+      row.payload.direction === "expense" ? "expense" : "income";
+    if (
+      sourceId !== null &&
+      ledgerDirections.get(sourceId) === rowDirection
+    ) {
+      yield plan01SourceIdentity(row);
+    }
+  }
 }
 
 function buildPlan01Records({
@@ -870,21 +1059,21 @@ function buildPlan01Records({
     const currentCents = isContradiction
       ? payloadMoney(row, "ledgerAmount")
       : null;
-    const canonicalCents = isContradiction
+    const referenceCents = isContradiction
       ? payloadMoney(row, "settlementAmount")
       : null;
-    const deltaCents =
-      currentCents === null || canonicalCents === null
+    const referenceDeltaCents =
+      currentCents === null || referenceCents === null
         ? null
-        : currentCents - canonicalCents;
+        : currentCents - referenceCents;
     records.push(
       boundedRecord(
         {
           ...scopeFields(input),
           basis: "control",
-          canonicalCents,
+          canonicalCents: null,
           currentCents,
-          deltaCents,
+          deltaCents: null,
           excluded: [],
           explanation: isContradiction
             ? "Plan 01 cross-report diagnostic retains its gross settlementAmount and ledgerAmount under the diagnostic stable key; it is not reclassified as canonical economics."
@@ -893,9 +1082,11 @@ function buildPlan01Records({
               : "Plan 01 diagnostic is retained as unresolved evidence without claiming financial authority.",
           included: [],
           metric: issueCode,
+          referenceCents,
+          referenceDeltaCents,
           status:
-            isContradiction && deltaCents !== null
-              ? deltaCents === BigInt(0)
+            isContradiction && referenceDeltaCents !== null
+              ? referenceDeltaCents === BigInt(0)
                 ? "match"
                 : "mismatch"
               : "unresolved",
@@ -932,9 +1123,18 @@ function buildPlan01Records({
     );
   }
 
-  const journalIdentities = input.financeInventorySourceRows
-    .filter((row) => row.payload.sourceType === "journal_line")
-    .map(journalIdentity);
+  const journalRows = input.financeInventorySourceRows.filter(
+    (row) => row.payload.sourceType === "journal_line",
+  );
+  const journalIdentities = uniqueIdentities(
+    exactJournalIdentities(journalRows),
+    identityLimit,
+  );
+  const unresolvedJournalIdentities = uniqueIdentities(
+    missingJournalIdentities(journalRows),
+    identityLimit,
+  );
+  const journalUnresolved = unresolvedJournalIdentities.length > 0;
   const debit = parseMoneyToMinor(
     readPath.journalAccountingControl.totals.debit,
   );
@@ -959,9 +1159,9 @@ function buildPlan01Records({
             "Current journal debit/credit is an internal accounting control and is not comparable to canonical property cash.",
           included: journalIdentities,
           metric,
-          status: "not_comparable",
+          status: journalUnresolved ? "unresolved" : "not_comparable",
           surface: "journal_control",
-          unresolved: [],
+          unresolved: unresolvedJournalIdentities,
         },
         identityLimit,
       ),
@@ -980,9 +1180,15 @@ function buildPlan01Records({
           "Current journal balance is an internal debit-minus-credit control. Match means balanced internally, not parity with canonical cash.",
         included: journalIdentities,
         metric: "balance",
-        status: balance === BigInt(0) ? "match" : "mismatch",
+        referenceCents: BigInt(0),
+        referenceDeltaCents: balance,
+        status: journalUnresolved
+          ? "unresolved"
+          : balance === BigInt(0)
+            ? "match"
+            : "mismatch",
         surface: "journal_control",
-        unresolved: [],
+        unresolved: unresolvedJournalIdentities,
       },
       identityLimit,
     ),
@@ -1041,20 +1247,38 @@ function plan01StableKeyIdentity(
   return { kind: "plan01_source", stableKey };
 }
 
-function journalIdentity(
-  row: FinanceInventoryPageRow,
-): PropertyCashParityIdentity {
-  return {
-    journalEntryId:
-      typeof row.payload.journalEntryId === "string"
-        ? row.payload.journalEntryId
-        : row.stable_key,
-    journalLineId:
-      typeof row.payload.journalLineId === "string"
-        ? row.payload.journalLineId
-        : row.stable_key,
-    kind: "journal_control",
-  };
+function* exactJournalIdentities(
+  rows: FinanceInventoryPageRow[],
+): Generator<PropertyCashParityIdentity> {
+  for (const row of rows) {
+    if (
+      typeof row.payload.journalEntryId === "string" &&
+      row.payload.journalEntryId.trim() !== "" &&
+      typeof row.payload.journalLineId === "string" &&
+      row.payload.journalLineId.trim() !== ""
+    ) {
+      yield {
+        journalEntryId: row.payload.journalEntryId,
+        journalLineId: row.payload.journalLineId,
+        kind: "journal_control",
+      };
+    }
+  }
+}
+
+function* missingJournalIdentities(
+  rows: FinanceInventoryPageRow[],
+): Generator<PropertyCashParityIdentity> {
+  for (const row of rows) {
+    if (
+      typeof row.payload.journalEntryId !== "string" ||
+      row.payload.journalEntryId.trim() === "" ||
+      typeof row.payload.journalLineId !== "string" ||
+      row.payload.journalLineId.trim() === ""
+    ) {
+      yield plan01SourceIdentity(row);
+    }
+  }
 }
 
 function requiredPayloadString(row: FinanceInventoryPageRow, key: string) {
@@ -1075,6 +1299,7 @@ function payloadMoney(row: FinanceInventoryPageRow, key: string) {
 function canonicalIdentitiesForMetric(
   events: PropertyCashEvent[],
   metric: CanonicalMetric,
+  identityLimit: number,
 ) {
   const included: PropertyCashParityIdentity[] = [];
   const excluded: PropertyCashParityIdentity[] = [];
@@ -1091,12 +1316,18 @@ function canonicalIdentitiesForMetric(
     }
   }
 
-  return { excluded, included, unresolved };
+  return collectIdentityPartitions(
+    { excluded: [excluded], included: [included], unresolved: [unresolved] },
+    identityLimit,
+    `canonical metric ${metric}`,
+  );
 }
 
 function canonicalIdentitiesForMetrics(
   events: PropertyCashEvent[],
   metrics: CanonicalMetric[],
+  identityLimit: number,
+  relevantLedgerIds: ReadonlySet<string> = new Set(),
 ) {
   const included: PropertyCashParityIdentity[] = [];
   const excluded: PropertyCashParityIdentity[] = [];
@@ -1107,7 +1338,18 @@ function canonicalIdentitiesForMetrics(
       canonicalEventSupportsMetric(event, metric),
     );
     const identity = canonicalIdentity(event);
-    if (supported.length === 0) {
+    const matchesCurrentLedger =
+      event.sourceType === "ledger_entry" &&
+      (relevantLedgerIds.has(event.sourceId) ||
+        (event.ledgerEntryId !== null &&
+          relevantLedgerIds.has(event.ledgerEntryId)));
+    if (
+      matchesCurrentLedger &&
+      event.economicClass === "legacy_unclassified" &&
+      event.operatingCashEffectCents === null
+    ) {
+      unresolved.push(identity);
+    } else if (supported.length === 0) {
       excluded.push(identity);
     } else if (
       supported.some(
@@ -1119,11 +1361,11 @@ function canonicalIdentitiesForMetrics(
       included.push(identity);
     }
   }
-  return {
-    excluded: uniqueIdentities(excluded),
-    included: uniqueIdentities(included),
-    unresolved: uniqueIdentities(unresolved),
-  };
+  return collectIdentityPartitions(
+    { excluded: [excluded], included: [included], unresolved: [unresolved] },
+    identityLimit,
+    `canonical metrics ${metrics.join(",")}`,
+  );
 }
 
 function canonicalEventSupportsMetric(
@@ -1158,48 +1400,65 @@ function canonicalEffectForMetric(
 function propertyCashIdentities(
   facts: PropertyCashPropertyFacts,
   metric: PropertyCashMetric,
+  input: PropertyCashShadowParityInput,
+  identityLimit: number,
 ): PropertyCashParityIdentity[] {
-  const classifications =
-    metric === "rentDueCents" ||
-    metric === "rentReceivedCents" ||
-    metric === "arrearsCents"
-      ? new Set(["rent_due"])
-      : metric === "managementFeesEarnedCents" ||
-          metric === "managementFeesOutstandingCents"
-        ? new Set(["management_fee_earned", "management_fee_received"])
-        : new Set(["security_deposit"]);
-  const identities = new Map<string, PropertyCashParityIdentity>();
+  const rentIds = incomeItemIdsForClassification(facts, "rent_due");
+  const feeIds = incomeItemIdsForClassification(
+    facts,
+    "management_fee_earned",
+  );
+  const lines = facts.sourceLines.filter((line) => {
+    if (metric === "rentDueCents") return line.classification === "rent_due";
+    if (metric === "rentReceivedCents" || metric === "arrearsCents") {
+      return (
+        line.classification === "rent_due" ||
+        (line.classification === "operating_receipt" &&
+          line.incomeItemId !== null &&
+          rentIds.has(line.incomeItemId))
+      );
+    }
+    if (metric === "managementFeesEarnedCents") {
+      return line.classification === "management_fee_earned";
+    }
+    if (metric === "managementFeesOutstandingCents") {
+      return (
+        line.classification === "management_fee_earned" ||
+        (line.classification === "management_fee_received" &&
+          line.incomeItemId !== null &&
+          feeIds.has(line.incomeItemId))
+      );
+    }
+    return line.classification === "security_deposit";
+  });
+  return uniqueIdentities(
+    sourceLineIdentities(lines, {
+      includeObligation: true,
+      input,
+      requireFlowScope: false,
+    }),
+    identityLimit,
+  );
+}
 
+function incomeItemIdsForClassification(
+  facts: PropertyCashPropertyFacts,
+  classification: PropertyCashPropertyFacts["sourceLines"][number]["classification"],
+) {
+  const ids = new Set<string>();
   for (const line of facts.sourceLines) {
-    if (!classifications.has(line.classification)) continue;
-    if (line.incomeItemId) {
-      identities.set(`income:${line.incomeItemId}`, {
-        id: line.incomeItemId,
-        kind: "obligation",
-        obligationType: "income",
-      });
-    } else if (line.expenseItemId) {
-      identities.set(`expense:${line.expenseItemId}`, {
-        id: line.expenseItemId,
-        kind: "obligation",
-        obligationType: "expense",
-      });
-    } else if (line.depositEventId) {
-      identities.set(`deposit:${line.depositEventId}`, {
-        eventKey: `deposit_event:${line.depositEventId}`,
-        kind: "canonical_event",
-        sourceId: line.depositEventId,
-        sourceType: "deposit_event",
-      });
+    if (line.classification === classification && line.incomeItemId) {
+      ids.add(line.incomeItemId);
     }
   }
-
-  return [...identities.values()];
+  return ids;
 }
 
 function currentPropertyCashIdentities(
   facts: PropertyCashPropertyFacts,
   metric: PropertyCashMetric,
+  input: PropertyCashShadowParityInput,
+  identityLimit: number,
 ): PropertyCashParityIdentity[] {
   const classifications =
     metric === "managementFeesReceivedCents"
@@ -1221,21 +1480,67 @@ function currentPropertyCashIdentities(
               : new Set(["property_expense"]);
 
   return uniqueIdentities(
-    facts.sourceLines.flatMap((line) => {
-      if (!classifications.has(line.classification) || !line.allocationId) {
-        return [];
-      }
-      return [
-        {
-          id: line.allocationId,
-          kind: "current_cash_source" as const,
-          sourceType: line.paymentId
-            ? ("payment_allocation" as const)
-            : ("receipt_allocation" as const),
-        },
-      ];
-    }),
+    sourceLineIdentities(
+      facts.sourceLines.filter((line) =>
+        classifications.has(line.classification),
+      ),
+      { includeObligation: false, input, requireFlowScope: true },
+    ),
+    identityLimit,
   );
+}
+
+function* sourceLineIdentities(
+  lines: Iterable<PropertyCashPropertyFacts["sourceLines"][number]>,
+  {
+    includeObligation,
+    input,
+    requireFlowScope,
+  }: {
+    includeObligation: boolean;
+    input: PropertyCashShadowParityInput;
+    requireFlowScope: boolean;
+  },
+): Generator<PropertyCashParityIdentity> {
+  for (const line of lines) {
+    if (
+      requireFlowScope &&
+      (line.eventDate < input.scope.periodStart ||
+        line.eventDate > input.scope.periodEnd)
+    ) {
+      continue;
+    }
+    if (includeObligation && line.incomeItemId) {
+      yield {
+        id: line.incomeItemId,
+        kind: "obligation",
+        obligationType: "income",
+      };
+    }
+    if (includeObligation && line.expenseItemId) {
+      yield {
+        id: line.expenseItemId,
+        kind: "obligation",
+        obligationType: "expense",
+      };
+    }
+    if (line.allocationId) {
+      yield {
+        id: line.allocationId,
+        kind: "current_cash_source",
+        sourceType: line.paymentId
+          ? "payment_allocation"
+          : "receipt_allocation",
+      };
+    }
+    if (line.depositEventId) {
+      yield {
+        id: line.depositEventId,
+        kind: "current_cash_source",
+        sourceType: "deposit_event",
+      };
+    }
+  }
 }
 
 function canonicalIdentity(
@@ -1259,45 +1564,122 @@ function scopeFields(input: PropertyCashShadowParityInput) {
   };
 }
 
+type PropertyCashParityRecordDraft = Omit<
+  PropertyCashParityRecord,
+  "referenceCents" | "referenceDeltaCents"
+> &
+  Partial<
+    Pick<PropertyCashParityRecord, "referenceCents" | "referenceDeltaCents">
+  >;
+
 function boundedRecord(
-  record: PropertyCashParityRecord,
+  record: PropertyCashParityRecordDraft,
   identityLimit: number,
 ): PropertyCashParityRecord {
+  const partitions = collectIdentityPartitions(
+    {
+      excluded: [record.excluded],
+      included: [record.included],
+      unresolved: [record.unresolved],
+    },
+    identityLimit,
+    `${record.surface}.${record.metric}`,
+  );
   const normalized = {
     ...record,
-    excluded: uniqueIdentities(record.excluded, identityLimit),
-    included: uniqueIdentities(record.included, identityLimit),
-    unresolved: uniqueIdentities(record.unresolved, identityLimit),
+    ...partitions,
+    referenceCents: record.referenceCents ?? null,
+    referenceDeltaCents: record.referenceDeltaCents ?? null,
   };
-  const count =
-    normalized.included.length +
-    normalized.excluded.length +
-    normalized.unresolved.length;
-  if (count > identityLimit) {
-    throw new Error(
-      `Property cash parity identity limit exceeded for ${record.surface}.${record.metric}: ${count} identities exceeds ${identityLimit}.`,
-    );
-  }
   return normalized;
 }
 
 function uniqueIdentities(
-  identities: PropertyCashParityIdentity[],
-  limit = 10_000,
+  identities: Iterable<PropertyCashParityIdentity>,
+  limit: number,
 ) {
-  const unique = new Map<string, PropertyCashParityIdentity>();
-  for (const identity of identities) {
-    const key = identityKey(identity);
-    if (!unique.has(key) && unique.size >= limit) {
-      throw new Error(
-        `Property cash parity identity limit exceeded while collecting identities: more than ${limit}.`,
-      );
+  return collectIdentityPartitions(
+    { included: [identities] },
+    limit,
+    "identity collection",
+  ).included;
+}
+
+function mergeIdentities(
+  limit: number,
+  context: string,
+  ...chunks: Array<Iterable<PropertyCashParityIdentity>>
+) {
+  return collectIdentityPartitions(
+    { included: chunks },
+    limit,
+    context,
+  ).included;
+}
+
+type IdentityPartitionName = "excluded" | "included" | "unresolved";
+type IdentityPartitionChunks = Partial<
+  Record<
+    IdentityPartitionName,
+    Iterable<Iterable<PropertyCashParityIdentity>>
+  >
+>;
+
+function collectIdentityPartitions(
+  chunks: IdentityPartitionChunks,
+  limit: number,
+  context: string,
+) {
+  const partitions: Record<
+    IdentityPartitionName,
+    Map<string, PropertyCashParityIdentity>
+  > = {
+    excluded: new Map(),
+    included: new Map(),
+    unresolved: new Map(),
+  };
+  const assigned = new Map<string, IdentityPartitionName>();
+  let size = 0;
+
+  for (const partition of [
+    "included",
+    "excluded",
+    "unresolved",
+  ] as const) {
+    for (const chunk of chunks[partition] ?? []) {
+      for (const identity of chunk) {
+        const key = identityKey(identity);
+        const existingPartition = assigned.get(key);
+        if (existingPartition && existingPartition !== partition) {
+          throw new Error(
+            `Property cash parity identity ${key} appears in both ${existingPartition} and ${partition} for ${context}.`,
+          );
+        }
+        if (!existingPartition) {
+          if (size >= limit) {
+            throw new Error(
+              `Property cash parity identity limit exceeded for ${context}: more than ${limit}.`,
+            );
+          }
+          assigned.set(key, partition);
+          partitions[partition].set(key, identity);
+          size += 1;
+        }
+      }
     }
-    unique.set(key, identity);
   }
-  return [...unique.entries()]
-    .toSorted(([first], [second]) => first.localeCompare(second))
-    .map(([, identity]) => identity);
+
+  return Object.fromEntries(
+    (["excluded", "included", "unresolved"] as const).map((partition) => [
+      partition,
+      [...partitions[partition].entries()]
+        .toSorted(([first], [second]) => first.localeCompare(second))
+        .map(([, identity]) => identity),
+    ]),
+  ) as Pick<
+    PropertyCashParityRecord,
+    "excluded" | "included" | "unresolved"
+  >;
 }
 
 function identityKey(identity: PropertyCashParityIdentity) {
@@ -1316,11 +1698,11 @@ function identityKey(identity: PropertyCashParityIdentity) {
   if (identity.kind === "owner_link") {
     return `${identity.kind}:${identity.id}:${identity.ownerPersonId}`;
   }
-  if (
-    identity.kind === "ledger_source" ||
-    identity.kind === "current_cash_source"
-  ) {
+  if (identity.kind === "ledger_source") {
     return `${identity.kind}:${identity.id}`;
+  }
+  if (identity.kind === "current_cash_source") {
+    return `${identity.kind}:${identity.sourceType}:${identity.id}`;
   }
   return `${identity.kind}:${identity.journalEntryId}:${identity.journalLineId}`;
 }
@@ -1340,28 +1722,77 @@ function assertInputBounds(
   identityLimit: number,
 ) {
   const ownerRows = input.ownerStatementRows;
+  const trustedRows = input.trustedReportInput;
+  const summaryRows = input.propertySummaryInput;
+  const ownerCashContributorCount =
+    ownerRows.currentReceiptRows.length +
+    ownerRows.historicalReceiptRows.length +
+    ownerRows.paymentRows.length +
+    ownerRows.depositRows.length +
+    ownerRows.dueIncomeItems.length;
+  const matchingPlanLedgerCount = countMatchingPlanLedgerRows(
+    trustedRows.ledgerEntries,
+    input.financeInventorySourceRows,
+  );
   const sources = [
-    ["canonical events", input.canonicalEvents.length],
+    ["canonicalEvents", input.canonicalEvents.length],
     [
-      "finance inventory source identities",
+      "financeInventorySourceRows",
       input.financeInventorySourceRows.length,
     ],
     [
-      "finance inventory diagnostic identities",
+      "financeInventoryDiagnosticRows",
       input.financeInventoryDiagnosticRows.length,
     ],
-    ["Owner Statement owner links", ownerRows.ownerRows.length],
+    ["ownerStatementRows.contactRows", ownerRows.contactRows.length],
     [
-      "Owner Statement cash identities",
-      ownerRows.currentReceiptRows.length +
-        ownerRows.historicalReceiptRows.length +
-        ownerRows.paymentRows.length +
-        ownerRows.depositRows.length +
-        ownerRows.dueIncomeItems.length,
+      "ownerStatementRows.currentReceiptRows",
+      ownerRows.currentReceiptRows.length,
+    ],
+    ["ownerStatementRows.depositRows", ownerRows.depositRows.length],
+    ["ownerStatementRows.dueIncomeItems", ownerRows.dueIncomeItems.length],
+    [
+      "ownerStatementRows.historicalReceiptRows",
+      ownerRows.historicalReceiptRows.length,
+    ],
+    ["ownerStatementRows.ownerRows", ownerRows.ownerRows.length],
+    ["ownerStatementRows.paymentRows", ownerRows.paymentRows.length],
+    ["ownerStatementRows.personRows", ownerRows.personRows.length],
+    ["ownerStatementRows.propertyIds", ownerRows.propertyIds.length],
+    [
+      "ownerStatementRows.cashContributors",
+      ownerCashContributorCount,
     ],
     [
-      "TrustedReport Ledger identities",
-      input.trustedReportInput.ledgerEntries.length,
+      "ownerStatementRows.combinedAllocationContributors",
+      ownerCashContributorCount + ownerRows.ownerRows.length,
+    ],
+    ["trustedReportInput.documents", trustedRows.documents.length],
+    ["trustedReportInput.ledgerEntries", trustedRows.ledgerEntries.length],
+    ["trustedReportInput.leases", trustedRows.leases.length],
+    [
+      "trustedReportInput.maintenanceTasks",
+      trustedRows.maintenanceTasks.length,
+    ],
+    ["trustedReportInput.owners", trustedRows.owners.length],
+    ["trustedReportInput.people", trustedRows.people.length],
+    ["trustedReportInput.properties", trustedRows.properties.length],
+    ["trustedReportInput.timelineEvents", trustedRows.timelineEvents.length],
+    ["trustedReportInput.units", trustedRows.units.length],
+    [
+      "propertySummaryInput.ledgerEntries",
+      summaryRows.ledgerEntries.length,
+    ],
+    ["propertySummaryInput.units", summaryRows.units.length],
+    [
+      "combinedPropertyCashContributors",
+      input.canonicalEvents.length + ownerCashContributorCount,
+    ],
+    [
+      "combinedReportContributors",
+      input.canonicalEvents.length +
+        trustedRows.ledgerEntries.length +
+        matchingPlanLedgerCount,
     ],
   ] as const;
   const exceeded = sources.find(([, count]) => count > identityLimit);
@@ -1369,6 +1800,58 @@ function assertInputBounds(
     throw new Error(
       `Property cash parity identity limit exceeded for ${exceeded[0]}: ${exceeded[1]} identities exceeds ${identityLimit}.`,
     );
+  }
+}
+
+function countMatchingPlanLedgerRows(
+  ledgerEntries: Parameters<typeof buildTrustedReport>[0]["ledgerEntries"],
+  rows: FinanceInventoryPageRow[],
+) {
+  const directions = new Map(
+    ledgerEntries.map((entry) => [
+      entry.id,
+      entry.direction === "expense" ? "expense" : "income",
+    ] as const),
+  );
+  let count = 0;
+  for (const row of rows) {
+    if (
+      row.payload.sourceType !== "ledger_entry" ||
+      row.payload.archived === true
+    ) {
+      continue;
+    }
+    const sourceId =
+      typeof row.payload.sourceId === "string"
+        ? row.payload.sourceId
+        : row.stable_key.startsWith("ledger_entry:")
+          ? row.stable_key.slice("ledger_entry:".length)
+          : null;
+    const direction =
+      row.payload.direction === "expense" ? "expense" : "income";
+    if (sourceId !== null && directions.get(sourceId) === direction) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function assertCanonicalEventScope(input: PropertyCashShadowParityInput) {
+  for (const event of input.canonicalEvents) {
+    const inPeriod =
+      event.eventDate === null ||
+      (event.eventDate >= input.scope.periodStart &&
+        event.eventDate <= input.scope.periodEnd);
+    if (
+      event.organizationId !== input.scope.organizationId ||
+      event.propertyId !== input.scope.propertyId ||
+      event.currency !== input.scope.currency ||
+      !inPeriod
+    ) {
+      throw new Error(
+        `Canonical event ${event.eventKey} is outside the requested scope.`,
+      );
+    }
   }
 }
 
