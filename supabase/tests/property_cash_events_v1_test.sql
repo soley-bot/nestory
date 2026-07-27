@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(47);
+SELECT plan(49);
 
 CREATE TEMP TABLE property_cash_events_test_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -1248,6 +1248,26 @@ WHERE source_id IN (
 );
 
 SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_constraint constraint_record
+    WHERE constraint_record.conname = 'finance_income_items_payer_person_fk'
+      AND constraint_record.contype = 'f'
+      AND pg_catalog.pg_get_constraintdef(constraint_record.oid) LIKE
+        'FOREIGN KEY (organization_id, payer_person_id) REFERENCES people(organization_id, id)%'
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_constraint constraint_record
+    WHERE constraint_record.conname = 'leases_primary_tenant_person_fk'
+      AND constraint_record.contype = 'f'
+      AND pg_catalog.pg_get_constraintdef(constraint_record.oid) LIKE
+        'FOREIGN KEY (organization_id, primary_tenant_person_id) REFERENCES people(organization_id, id)%'
+  ),
+  'receipt owner and tenant people are organization-scoped by composite FKs'
+);
+
+SELECT ok(
   count(*) = 2
   AND bool_and(
     classification_status = 'unresolved_source_scope'
@@ -1273,6 +1293,34 @@ WHERE source_id IN (
     'SCOPE-PAYMENT-TASK-UNIT-HEADER',
     'SCOPE-PAYMENT-VENDOR-HEADER'
   )
+);
+
+SELECT ok(
+  count(*) = 1
+  AND bool_and(
+    classification_status = 'unresolved_source_scope'
+    AND requires_resolution
+    AND owner_person_id IS NULL
+    AND tenant_person_id IS NULL
+    AND vendor_person_id IS NULL
+    AND owner_cash_effect IS NULL
+    AND operating_cash_effect IS NULL
+    AND deposit_liability_effect IS NULL
+    AND management_fee_effect IS NULL
+  ),
+  'cross-organization payment vendor never escapes through person context'
+)
+FROM public.get_property_cash_events_v1_page(
+  (SELECT organization_id FROM property_cash_events_test_state),
+  (SELECT property_id FROM property_cash_events_test_state),
+  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+)
+WHERE source_id IN (
+  SELECT allocation.id
+  FROM public.finance_payment_allocations allocation
+  JOIN public.finance_payments payment
+    ON payment.id = allocation.payment_id
+  WHERE payment.reference = 'SCOPE-PAYMENT-VENDOR-HEADER'
 );
 
 SELECT is(

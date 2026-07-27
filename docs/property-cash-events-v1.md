@@ -68,7 +68,8 @@ unresolved non-counting evidence under the same null-effect rule.
 
 ## Person identity
 
-Person columns contain only IDs directly stored on the source chain:
+Person columns contain only IDs directly stored on the source chain. Receipt
+and payment person context is emitted from organization-scoped `people` joins:
 
 - tenant identity may come from the exact lease on an income or deposit row;
 - vendor identity may come from the exact expense obligation or maintenance
@@ -77,7 +78,10 @@ Person columns contain only IDs directly stored on the source chain:
 
 The current owner roster is never joined to allocate or infer historical cash.
 Labels, people roles, and current ownership percentages are not identity
-evidence.
+evidence. A malformed direct person reference never becomes linkable contract
+context; the row remains visible as `unresolved_source_scope` with null effects
+and null person fields. Receipt payer and lease-tenant references are also
+protected by composite organization/person foreign keys.
 
 ## Exact-only deduplication and reversals
 

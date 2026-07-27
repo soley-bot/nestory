@@ -110,8 +110,8 @@ BEGIN
       receipt.property_id,
       income.unit_id,
       income.lease_id,
-      income.payer_person_id,
-      lease.primary_tenant_person_id,
+      payer.id AS payer_person_id,
+      lease_tenant.id AS primary_tenant_person_id,
       receipt.received_date,
       receipt.currency,
       allocation.amount,
@@ -178,7 +178,11 @@ BEGIN
         )
         AND (
           income.payer_person_id IS NULL
-          OR payer.organization_id = receipt.organization_id
+          OR payer.id IS NOT NULL
+        )
+        AND (
+          lease.primary_tenant_person_id IS NULL
+          OR lease_tenant.id IS NOT NULL
         )
       ), false) AS scope_is_exact
     FROM public.finance_receipt_allocations AS allocation
@@ -197,6 +201,9 @@ BEGIN
     LEFT JOIN public.people AS payer
       ON payer.id = income.payer_person_id
      AND payer.organization_id = income.organization_id
+    LEFT JOIN public.people AS lease_tenant
+      ON lease_tenant.id = lease.primary_tenant_person_id
+     AND lease_tenant.organization_id = lease.organization_id
     LEFT JOIN public.finance_receipt_allocations AS original_allocation
       ON original_allocation.receipt_id = receipt.reversal_of_id
      AND original_allocation.income_item_id = allocation.income_item_id
@@ -361,7 +368,7 @@ BEGIN
       payment.property_id,
       expense.unit_id,
       expense.task_id,
-      expense.vendor_person_id,
+      vendor.id AS vendor_person_id,
       payment.paid_date,
       payment.currency,
       allocation.amount,
@@ -429,7 +436,7 @@ BEGIN
         )
         AND (
           expense.vendor_person_id IS NULL
-          OR vendor.organization_id = payment.organization_id
+          OR vendor.id IS NOT NULL
         )
       ), false) AS scope_is_exact
     FROM public.finance_payment_allocations AS allocation
