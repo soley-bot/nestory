@@ -1,6 +1,6 @@
 # Owner Close Financial Unification
 
-**Status:** Architecture ratified after one Codex Ultra review; implementation has not started.  
+**Status:** Plan 01 is merged and complete. Plan 02 is implemented in draft PR #36 and remains incomplete until this focused correction pass and its checks are accepted. Plan 03 is not authorized.
 **Planning baseline:** merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.  
 **External review:** `98-ultra-review-response.md` — `APPROVE WITH CHANGES`.  
 **Final Nestory decision:** `97-ratified-final-sequence.md`.  
@@ -18,6 +18,8 @@ Use these files in this order:
 6. `99-ultra-review-request.md` — retained historical review request; do not run it again.
 
 The Ultra response is the single external architecture review. Do not create a loop by asking Ultra to review the correction pass. ChatGPT owns the final synthesis, and Codex Standard + High owns narrow implementation work.
+
+No further Ultra architecture review is required for Plan 02.
 
 ## Product objective
 

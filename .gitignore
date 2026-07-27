@@ -16,6 +16,7 @@
 /artifacts/ui-redesign/*
 /artifacts/finance-inventory/*
 /artifacts/finance-inventory-stack/*
+/artifacts/property-cash-shadow/*
 !/artifacts/ui-redesign/.gitkeep
 
 # next.js

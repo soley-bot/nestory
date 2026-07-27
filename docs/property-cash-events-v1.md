@@ -10,8 +10,9 @@ The provisional canonical identity is the typed tuple
 `(organization_id, source_type, source_id)`. `event_key` is the deterministic
 text encoding `<source_type>:<source_id>` and is unique only within an
 organization. Source IDs are always IDs of the domain row at the contract
-grain; receipt and payment events therefore use allocation IDs, not headers or
-obligations.
+grain. Receipt and payment allocation events use allocation IDs; a nonzero
+header/allocation difference emits one separate residual event using the
+receipt or payment header ID. Obligations are never event identity.
 
 Rows are ordered by `event_date ASC NULLS LAST`, then `source_type ASC`, then
 `source_id ASC`. The RPC uses the last returned values as a checked cursor and
@@ -46,21 +47,30 @@ stands in for unknown economic meaning or an unproven cash date.
 `period_start` is derived from a non-null `event_date`; it remains null when
 the event date is unresolved.
 
+Every row exposes `resolution_codes text[]`, `reconciliation_source_id`, and
+`reconciliation_state`. Resolution codes are sorted and unique, and every
+`requires_resolution = true` row has at least one code. The current contract
+does not invent the future reconciliation source: its ID is null and its state
+is `missing_stable_identity`.
+
 ## Source matrix
 
 | Source at contract grain | Eligibility | Economic class | Status | Signed effects |
 | --- | --- | --- | --- | --- |
 | Receipt allocation for operating income | Exact source scope and, for reversals, exact header pairing | `operating_income` | `provisional_current_obligation` | owner and operating signed `amount`; deposit and fee `0` |
-| Receipt allocation for management fee families | Exact source scope and, for reversals, exact header pairing | `management_fee` | `provisional_current_obligation` | signed owner and fee effects; operating and deposit `0` |
+| Receipt allocation for management fee families | Exact source scope and, for reversals, exact header pairing; owner recognition policy not ratified | `management_fee` | `provisional_current_obligation` | signed fee effect; operating and deposit `0`; owner `NULL` |
 | Receipt allocation for owner contribution | Exact source scope and, for reversals, exact header pairing | `owner_contribution` | `provisional_current_obligation` | owner signed `amount`; other effects `0` |
 | Receipt allocation for security-deposit compatibility income | No exact deposit-event identity | `security_deposit` | `provisional_current_obligation` | all effects `NULL` |
 | Payment allocation for property expense | Exact source scope and, for reversals, exact header pairing | `operating_expense` | `provisional_current_obligation` | owner and operating signed `amount`; deposit and fee `0` |
 | Payment allocation for owner payout | Exact source scope and, for reversals, exact header pairing | `owner_distribution` | `provisional_current_obligation` | owner signed `amount`; other effects `0` |
 | Payment allocation for company-scope handling or refund | Property effect is not authoritative | `legacy_unclassified` | `provisional_current_obligation` | all effects `NULL` |
+| Receipt header residual | Header amount differs exactly from organization-scoped allocation total | `legacy_unclassified` | `unresolved_evidence` | all effects `NULL`; `unapplied_receipt` or `overallocated_receipt` |
+| Payment header residual | Header amount differs exactly from organization-scoped allocation total | `legacy_unclassified` | `unresolved_evidence` | all effects `NULL`; `unallocated_payment` or `overallocated_payment` |
 | Lease deposit event | Exact event, lease-deposit parent, and reversal scope | `security_deposit` | `source_stable` | owner and operating `0`; signed deposit liability; fee `0` |
 | Cleared or posted property-expense petty cash with `clear_date` | Exact petty-cash row | `operating_expense` | `source_stable` | owner and operating `-amount`; deposit and fee `0` |
 | Petty cash without `clear_date` | Invoice evidence only | `legacy_unclassified` | `unresolved_evidence` | all effects `NULL`; date null |
-| Maintenance task represented by its exact linked Ledger row | No finance expense for the task | `operating_expense` | `source_stable` | owner and operating `-ledger amount`; deposit and fee `0` |
+| Maintenance task with Ledger evidence but without exact finance expense plus payment allocation | Evidence-only task/Ledger identity; no proven cash settlement | `legacy_unclassified` | `unresolved_evidence` | all effects `NULL` |
+| Malformed task/Ledger/vendor/unit/property scope | Retained once through the maintenance family | `legacy_unclassified` | `unresolved_evidence` | all effects `NULL` |
 | Active unmatched positive Ledger row | No exact domain identity | `legacy_unclassified` | `unresolved_evidence` | all effects `NULL` |
 
 Company-scope petty-cash expenses, advances, and refunds remain visible as
@@ -82,6 +92,30 @@ evidence. A malformed direct person reference never becomes linkable contract
 context; the row remains visible as `unresolved_source_scope` with null effects
 and null person fields. Receipt payer and lease-tenant references are also
 protected by composite organization/person foreign keys.
+
+The adapter is property-level and has no owner filter. Direct
+`owner_person_id` values on contribution or distribution compatibility
+evidence are metadata, not a partition of ordinary property activity. The
+optional unit filter intentionally excludes property-level rows whose
+`unit_id` is null.
+
+## Resolution code matrix
+
+| Code | Meaning |
+| --- | --- |
+| `mutable_obligation_classification` | Allocation classification still follows a mutable obligation |
+| `missing_reconciliation_source` | No stable reconciliation source identity exists in v1 |
+| `management_fee_owner_recognition_unresolved` | IPS owner-liability recognition timing is not ratified |
+| `deposit_cash_identity_missing` | Compatibility deposit evidence lacks an exact deposit-cash identity |
+| `receipt_header_unapplied` | Receipt header exceeds its organization-scoped allocations |
+| `receipt_header_overallocated` | Receipt allocations exceed the header |
+| `payment_header_unallocated` | Payment header exceeds its organization-scoped allocations |
+| `payment_header_overallocated` | Payment allocations exceed the header |
+| `reversal_header_not_exact` | Reversal header is not an exact one-to-one allocation reversal |
+| `source_scope_invalid` | A typed source relation crosses or violates exact scope |
+| `maintenance_cash_settlement_unproven` | Task/Ledger evidence does not prove a finance settlement |
+| `petty_cash_date_unproven` | Petty-cash evidence has no proven disbursement date |
+| `legacy_ledger_unclassified` | Unmatched Ledger evidence has no exact domain classification |
 
 ## Exact-only deduplication and reversals
 
@@ -158,10 +192,13 @@ Every record includes:
 Identity variants cover canonical events, Plan 01 source stable keys and
 diagnostic stable keys, current obligations and settlement evidence, effective
 owner links, returned Ledger report sources, and journal controls. Identity
-collection fails closed before accepting identity 10,001. Inputs that can
-produce stored identities are rejected before any builder runs when an
-individual Owner Statement, TrustedReport, Property Summary, canonical, or
-Plan 01 collection exceeds the configured limit. Required combined
+collection for each raw source fails closed before accepting identity 10,001.
+Cross-representation parity records may retain up to 30,000 identities so a
+5,000-plus canonical set and its distinct current/Plan 01 evidence can be
+reported without truncation. Inputs that can produce stored identities are
+rejected before any builder runs when an individual Owner Statement,
+TrustedReport, Property Summary, canonical, or Plan 01 collection exceeds the
+raw limit. Required combined
 PropertyCash, owner-allocation, and report contributor sets are preflighted
 after all raw lengths pass. Before an Owner Statement adapter or builder runs,
 separate conservative bounds cover combined receipt rows, income items,
@@ -261,26 +298,42 @@ includes both source type and ID.
   passable to the existing builder. Those exact rows emit `ledger_source`
   identities; selected-period Plan 01 keys are not substituted.
 
+## Executable shadow artifact
+
+Run `npm run finance:property-cash-shadow` with explicit organization,
+property, `USD`, inclusive period, and the exact disposable Finance inventory
+stack workdir. The command proves the local project/API/workdir identity,
+rejects hosted and Vercel production/preview execution, authenticates as the
+fixture admin, traverses every checked RPC page, loads current-path and Plan 01
+evidence, and verifies an unchanged before/after source watermark. A dirty
+repository fails closed unless `--record-dirty` is explicitly supplied and
+recorded.
+
+Each ignored `artifacts/property-cash-shadow/<timestamp>/` directory contains
+deterministic normalized JSON, a readable Markdown summary, and runtime
+metadata. The normalized JSON records repository/schema/migration identity,
+scope, canonical counts/totals, parity records, included/excluded/projection
+and unresolved identities, header residuals, resolution-code counts, source
+watermark, and a reported SHA-256. `--strict` exits nonzero for unresolved or
+mismatched evidence while leaving expected `not_comparable` records
+informational. No application surface imports the runner or its artifacts.
+
 ### Local fixture and query-plan evidence
 
 No Plan 02 overlay or rewrite of
 `supabase/fixtures/finance_inventory_fixture.sql` was needed. The existing
-fixture already inserts 5,205 bounded-period Ledger rows. The existing focused
-`property_cash_events_v1_test.sql` passed all 49 assertions on the disposable
+fixture already inserts 5,205 bounded-period Ledger rows. The focused
+`property_cash_events_v1_test.sql` passed all 61 assertions on the disposable
 `artifacts/finance-inventory-stack`; it covers mixed source families, exact
 projection deduplication, archived settlements, deposit compatibility,
-resolved and unresolved reversals, unresolved petty cash/maintenance/legacy
-Ledger evidence, RLS, and deterministic traversal above 5,000 events.
+resolved and unresolved reversals, receipt/payment residuals, management-fee
+owner recognition, unresolved petty cash/maintenance/legacy Ledger evidence,
+RLS, sorted resolution codes, and deterministic traversal above 5,000 events.
 
 On that disposable fixture, an authenticated
 `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS)` of the first 1,000-row RPC page
-reported:
-
-- indexed property lookup through `properties_organization_id_code_key`;
-- a `Function Scan` over `get_property_cash_events_v1_page`;
-- 1,000 returned rows;
-- 307,093 shared-buffer hits inside the function scan; and
-- 993.894 ms total execution time.
+is recorded after the final exact-head run so the documentation and PR body
+carry one identical result.
 
 This is local diagnostic evidence from one Windows Docker stack, warm-cache
 state, fixture shape, and machine. The function boundary hides its internal

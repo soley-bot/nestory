@@ -144,7 +144,7 @@ export async function buildPropertyCashShadowParity(
     ) ?? emptyPropertyCashFacts(input.scope.propertyId);
   const canonical = await summarizePropertyCashMovements(
     toAsyncIterable(input.canonicalEvents),
-    { diagnosticSourceLimit: identityLimit },
+    { diagnosticSourceLimit: Math.min(identityLimit, 10_000) },
   );
   const ownerStatement = buildOwnerStatement(ownerStatementInput);
   const propertyRecords = buildPropertyCashRecords({
@@ -687,7 +687,7 @@ async function buildTrustedReportRecords({
   );
   const canonical = await summarizePropertyCashMovements(
     toAsyncIterable(events),
-    { diagnosticSourceLimit: identityLimit },
+    { diagnosticSourceLimit: Math.min(identityLimit, 10_000) },
   );
   const visibleUnitIds = new Set(unitReport.rows.map((row) => row.id));
   const unitEvents = events.filter(
@@ -695,7 +695,7 @@ async function buildTrustedReportRecords({
   );
   const unitCanonical = await summarizePropertyCashMovements(
     toAsyncIterable(unitEvents),
-    { diagnosticSourceLimit: identityLimit },
+    { diagnosticSourceLimit: Math.min(identityLimit, 10_000) },
   );
   const scopedLedgerEntries = input.trustedReportInput.ledgerEntries.filter(
     (entry) =>
@@ -1222,7 +1222,7 @@ function buildPropertySummaryRecords({
   );
   const values = {
     netIncome: parseUsdDisplay(summary.netIncome.primary),
-    netIncomeUsd: parseMoneyToMinor(String(summary.netIncomeUsd)),
+    netIncomeUsd: parseUsdDisplay(summary.netIncome.primary),
   };
 
   return Object.entries(values).map(([metric, currentCents]) =>
@@ -1729,9 +1729,9 @@ function identityKey(identity: PropertyCashParityIdentity) {
 
 function validateIdentityLimit(value: number | undefined) {
   const limit = value ?? 10_000;
-  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 10_000) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 30_000) {
     throw new Error(
-      "Property cash parity identity limit must be between 1 and 10,000.",
+      "Property cash parity identity limit must be between 1 and 30,000.",
     );
   }
   return limit;
@@ -1787,10 +1787,11 @@ function assertInputBounds(
     ],
     ["propertySummaryInput.units", summaryRows.units.length],
   ] as const;
-  const rawExceeded = rawSources.find(([, count]) => count > identityLimit);
+  const rawIdentityLimit = Math.min(identityLimit, 10_000);
+  const rawExceeded = rawSources.find(([, count]) => count > rawIdentityLimit);
   if (rawExceeded) {
     throw new Error(
-      `Property cash parity identity limit exceeded for ${rawExceeded[0]}: ${rawExceeded[1]} identities exceeds ${identityLimit}.`,
+      `Property cash parity identity limit exceeded for ${rawExceeded[0]}: ${rawExceeded[1]} identities exceeds ${rawIdentityLimit}.`,
     );
   }
 
