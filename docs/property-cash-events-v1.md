@@ -332,8 +332,13 @@ RLS, sorted resolution codes, and deterministic traversal above 5,000 events.
 
 On that disposable fixture, an authenticated
 `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS)` of the first 1,000-row RPC page
-is recorded after the final exact-head run so the documentation and PR body
-carry one identical result.
+at code head `93abb4a96b05b5ce3ee265d243da1d7821096227` reported:
+
+- a `Function Scan` over `get_property_cash_events_v1_page`;
+- 1,000 returned rows in one loop;
+- 16,050 shared-buffer hits;
+- 0.055 ms planning time; and
+- 102.140 ms total execution time.
 
 This is local diagnostic evidence from one Windows Docker stack, warm-cache
 state, fixture shape, and machine. The function boundary hides its internal
