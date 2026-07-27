@@ -104,7 +104,18 @@ export type PropertyCashShadowParityInput = {
   financeInventorySourceRows: FinanceInventoryPageRow[];
   identityLimit?: number;
   ownerStatementRows: Parameters<typeof toOwnerStatementInput>[0];
-  propertySummaryInput: Parameters<typeof buildPropertySummary>[0];
+  propertySummaryInput: Omit<
+    Parameters<typeof buildPropertySummary>[0],
+    "ledgerEntries"
+  > & {
+    ledgerEntries: Array<
+      Parameters<
+        typeof buildPropertySummary
+      >[0]["ledgerEntries"][number] & {
+        id: string;
+      }
+    >;
+  };
   scope: {
     currency: "USD";
     organizationId: string;
@@ -1205,9 +1216,10 @@ function buildPropertySummaryRecords({
   input: PropertyCashShadowParityInput;
 }) {
   const summary = buildPropertySummary(input.propertySummaryInput);
-  const ledgerIdentities = input.financeInventorySourceRows
-    .filter((row) => row.payload.sourceType === "ledger_entry")
-    .map(plan01SourceIdentity);
+  const ledgerIdentities = uniqueIdentities(
+    propertySummaryLedgerIdentities(input.propertySummaryInput.ledgerEntries),
+    identityLimit,
+  );
   const values = {
     netIncome: parseUsdDisplay(summary.netIncome.primary),
     netIncomeUsd: parseMoneyToMinor(String(summary.netIncomeUsd)),
@@ -1233,6 +1245,14 @@ function buildPropertySummaryRecords({
       identityLimit,
     ),
   );
+}
+
+function* propertySummaryLedgerIdentities(
+  rows: PropertyCashShadowParityInput["propertySummaryInput"]["ledgerEntries"],
+): Generator<PropertyCashParityIdentity> {
+  for (const row of rows) {
+    yield { id: row.id, kind: "ledger_source" };
+  }
 }
 
 function plan01SourceIdentity(
@@ -1339,10 +1359,10 @@ function canonicalIdentitiesForMetrics(
     );
     const identity = canonicalIdentity(event);
     const matchesCurrentLedger =
-      event.sourceType === "ledger_entry" &&
-      (relevantLedgerIds.has(event.sourceId) ||
-        (event.ledgerEntryId !== null &&
-          relevantLedgerIds.has(event.ledgerEntryId)));
+      (event.sourceType === "ledger_entry" &&
+        relevantLedgerIds.has(event.sourceId)) ||
+      (event.ledgerEntryId !== null &&
+        relevantLedgerIds.has(event.ledgerEntryId));
     if (
       matchesCurrentLedger &&
       event.economicClass === "legacy_unclassified" &&
@@ -1724,17 +1744,7 @@ function assertInputBounds(
   const ownerRows = input.ownerStatementRows;
   const trustedRows = input.trustedReportInput;
   const summaryRows = input.propertySummaryInput;
-  const ownerCashContributorCount =
-    ownerRows.currentReceiptRows.length +
-    ownerRows.historicalReceiptRows.length +
-    ownerRows.paymentRows.length +
-    ownerRows.depositRows.length +
-    ownerRows.dueIncomeItems.length;
-  const matchingPlanLedgerCount = countMatchingPlanLedgerRows(
-    trustedRows.ledgerEntries,
-    input.financeInventorySourceRows,
-  );
-  const sources = [
+  const rawSources = [
     ["canonicalEvents", input.canonicalEvents.length],
     [
       "financeInventorySourceRows",
@@ -1759,14 +1769,6 @@ function assertInputBounds(
     ["ownerStatementRows.paymentRows", ownerRows.paymentRows.length],
     ["ownerStatementRows.personRows", ownerRows.personRows.length],
     ["ownerStatementRows.propertyIds", ownerRows.propertyIds.length],
-    [
-      "ownerStatementRows.cashContributors",
-      ownerCashContributorCount,
-    ],
-    [
-      "ownerStatementRows.combinedAllocationContributors",
-      ownerCashContributorCount + ownerRows.ownerRows.length,
-    ],
     ["trustedReportInput.documents", trustedRows.documents.length],
     ["trustedReportInput.ledgerEntries", trustedRows.ledgerEntries.length],
     ["trustedReportInput.leases", trustedRows.leases.length],
@@ -1784,63 +1786,186 @@ function assertInputBounds(
       summaryRows.ledgerEntries.length,
     ],
     ["propertySummaryInput.units", summaryRows.units.length],
-    [
-      "combinedPropertyCashContributors",
-      input.canonicalEvents.length + ownerCashContributorCount,
-    ],
-    [
-      "combinedReportContributors",
-      input.canonicalEvents.length +
-        trustedRows.ledgerEntries.length +
-        matchingPlanLedgerCount,
-    ],
   ] as const;
-  const exceeded = sources.find(([, count]) => count > identityLimit);
-  if (exceeded) {
+  const rawExceeded = rawSources.find(([, count]) => count > identityLimit);
+  if (rawExceeded) {
     throw new Error(
-      `Property cash parity identity limit exceeded for ${exceeded[0]}: ${exceeded[1]} identities exceeds ${identityLimit}.`,
+      `Property cash parity identity limit exceeded for ${rawExceeded[0]}: ${rawExceeded[1]} identities exceeds ${identityLimit}.`,
+    );
+  }
+
+  assertPropertySummaryLedgerIds(summaryRows.ledgerEntries);
+
+  const ownerCashContributorCount =
+    ownerRows.currentReceiptRows.length +
+    ownerRows.historicalReceiptRows.length +
+    ownerRows.paymentRows.length +
+    ownerRows.depositRows.length +
+    ownerRows.dueIncomeItems.length;
+  if (ownerCashContributorCount > identityLimit) {
+    throw new Error(
+      `Property cash parity identity limit exceeded for ownerStatementRows.cashContributors: ${ownerCashContributorCount} identities exceeds ${identityLimit}.`,
+    );
+  }
+
+  const currentPropertyIdentities = collectIdentityPartitions(
+    { included: [rawPropertyCashIdentities(input)] },
+    identityLimit,
+    "combinedPropertyCashContributorIdentities",
+  ).included;
+  mergeIdentities(
+    identityLimit,
+    "combinedPropertyCashContributorIdentities",
+    input.canonicalEvents.map(canonicalIdentity),
+    currentPropertyIdentities,
+  );
+  assertOwnerAllocationFanout(
+    input,
+    currentPropertyIdentities.length,
+    identityLimit,
+  );
+
+  const ledgerDirections = new Map<string, "expense" | "income">();
+  for (const entry of trustedRows.ledgerEntries) {
+    ledgerDirections.set(
+      entry.id,
+      entry.direction === "expense" ? "expense" : "income",
+    );
+  }
+  mergeIdentities(
+    identityLimit,
+    "combinedReportContributors",
+    input.canonicalEvents.map(canonicalIdentity),
+    trustedReportLedgerIdentities(trustedRows.ledgerEntries),
+    matchingPlan01LedgerIdentities(
+      input.financeInventorySourceRows,
+      ledgerDirections,
+    ),
+  );
+}
+
+function assertPropertySummaryLedgerIds(
+  rows: PropertyCashShadowParityInput["propertySummaryInput"]["ledgerEntries"],
+) {
+  const ids = new Set<string>();
+  for (const [index, row] of rows.entries()) {
+    if (typeof row.id !== "string" || row.id.trim() === "") {
+      throw new Error(
+        `propertySummaryInput.ledgerEntries[${index}].id must be a nonempty exact Ledger identity.`,
+      );
+    }
+    if (ids.has(row.id)) {
+      throw new Error(`Duplicate PropertySummary Ledger id: ${row.id}.`);
+    }
+    ids.add(row.id);
+  }
+}
+
+function* rawPropertyCashIdentities(
+  input: PropertyCashShadowParityInput,
+): Generator<PropertyCashParityIdentity> {
+  const rows = input.ownerStatementRows;
+  for (const item of rows.dueIncomeItems) {
+    yield { id: item.id, kind: "obligation", obligationType: "income" };
+  }
+  for (const receipt of [
+    rows.currentReceiptRows,
+    rows.historicalReceiptRows,
+  ]) {
+    for (const row of receipt) {
+      yield {
+        id: row.income_item_id,
+        kind: "obligation",
+        obligationType: "income",
+      };
+      if (row.finance_receipts) {
+        yield {
+          id: row.id,
+          kind: "current_cash_source",
+          sourceType: "receipt_allocation",
+        };
+      }
+    }
+  }
+  for (const row of rows.paymentRows) {
+    yield {
+      id: row.expense_item_id,
+      kind: "obligation",
+      obligationType: "expense",
+    };
+    if (row.finance_payments) {
+      yield {
+        id: row.id,
+        kind: "current_cash_source",
+        sourceType: "payment_allocation",
+      };
+    }
+  }
+  for (const row of rows.depositRows) {
+    yield {
+      id: row.id,
+      kind: "current_cash_source",
+      sourceType: "deposit_event",
+    };
+  }
+}
+
+function assertOwnerAllocationFanout(
+  input: PropertyCashShadowParityInput,
+  currentIdentityCount: number,
+  identityLimit: number,
+) {
+  let ownerCandidateCount = 0;
+  for (const row of input.ownerStatementRows.ownerRows) {
+    if (
+      row.archived_at === null &&
+      row.property_id === input.scope.propertyId &&
+      (row.started_on === null || row.started_on <= input.scope.periodEnd) &&
+      (row.ended_on === null || row.ended_on >= input.scope.periodStart)
+    ) {
+      ownerCandidateCount += 1;
+    }
+  }
+  const identitiesPerOwner = currentIdentityCount + 1;
+  if (
+    ownerCandidateCount > 0 &&
+    identitiesPerOwner > Math.floor(identityLimit / ownerCandidateCount)
+  ) {
+    throw new Error(
+      `Property cash parity identity limit exceeded for ownerStatementRows.allocationFanout: more than ${identityLimit}.`,
     );
   }
 }
 
-function countMatchingPlanLedgerRows(
-  ledgerEntries: Parameters<typeof buildTrustedReport>[0]["ledgerEntries"],
-  rows: FinanceInventoryPageRow[],
-) {
-  const directions = new Map(
-    ledgerEntries.map((entry) => [
-      entry.id,
-      entry.direction === "expense" ? "expense" : "income",
-    ] as const),
-  );
-  let count = 0;
+function* trustedReportLedgerIdentities(
+  rows: Parameters<typeof buildTrustedReport>[0]["ledgerEntries"],
+): Generator<PropertyCashParityIdentity> {
   for (const row of rows) {
-    if (
-      row.payload.sourceType !== "ledger_entry" ||
-      row.payload.archived === true
-    ) {
-      continue;
-    }
-    const sourceId =
-      typeof row.payload.sourceId === "string"
-        ? row.payload.sourceId
-        : row.stable_key.startsWith("ledger_entry:")
-          ? row.stable_key.slice("ledger_entry:".length)
-          : null;
-    const direction =
-      row.payload.direction === "expense" ? "expense" : "income";
-    if (sourceId !== null && directions.get(sourceId) === direction) {
-      count += 1;
-    }
+    yield { id: row.id, kind: "ledger_source" };
   }
-  return count;
 }
 
 function assertCanonicalEventScope(input: PropertyCashShadowParityInput) {
   for (const event of input.canonicalEvents) {
+    const nullDateIsUnresolved =
+      event.eventDate === null &&
+      event.requiresResolution &&
+      (event.classificationStatus === "unresolved_source_scope" ||
+        event.classificationStatus === "unresolved_reversal_header" ||
+        event.classificationStatus === "unresolved_evidence") &&
+      event.depositLiabilityEffectCents === null &&
+      event.managementFeeEffectCents === null &&
+      event.operatingCashEffectCents === null &&
+      event.ownerCashEffectCents === null;
+    if (event.eventDate === null && !nullDateIsUnresolved) {
+      throw new Error(
+        `Null-dated canonical event ${event.eventKey} must be explicitly unresolved and non-counting.`,
+      );
+    }
     const inPeriod =
-      event.eventDate === null ||
-      (event.eventDate >= input.scope.periodStart &&
+      nullDateIsUnresolved ||
+      (event.eventDate !== null &&
+        event.eventDate >= input.scope.periodStart &&
         event.eventDate <= input.scope.periodEnd);
     if (
       event.organizationId !== input.scope.organizationId ||

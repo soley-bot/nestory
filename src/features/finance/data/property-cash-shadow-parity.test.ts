@@ -7,11 +7,11 @@ import {
 import type { FinanceInventoryPageRow } from "@/features/finance/inventory/finance-inventory";
 import { buildTrustedReport } from "@/features/reports/data/trusted-report";
 import { toOwnerStatementInput } from "@/features/reports/data/owner-statement-input";
-import { buildPropertySummary } from "@/features/properties/data/property-summary";
 
 type TrustedReportInput = Parameters<typeof buildTrustedReport>[0];
 type OwnerStatementRows = Parameters<typeof toOwnerStatementInput>[0];
-type PropertySummaryInput = Parameters<typeof buildPropertySummary>[0];
+type PropertySummaryInput =
+  PropertyCashShadowParityInput["propertySummaryInput"];
 
 describe("property cash shadow parity", () => {
   it("uses the required basis, signs, nulls, and statuses for all 12 property cash fields", async () => {
@@ -839,8 +839,18 @@ function propertySummaryInput(): PropertySummaryInput {
     activeOwner: null,
     hasActiveOwnerLink: false,
     ledgerEntries: [
-      { amount: 100, currency: "USD", direction: "income" },
-      { amount: 30, currency: "USD", direction: "expense" },
+      {
+        amount: 100,
+        currency: "USD",
+        direction: "income",
+        id: "summary-income",
+      },
+      {
+        amount: 30,
+        currency: "USD",
+        direction: "expense",
+        id: "summary-expense",
+      },
     ],
     property: {
       address: null,

@@ -13,6 +13,14 @@ import { buildPropertySummary } from "@/features/properties/data/property-summar
 type TrustedReportInput = Parameters<typeof buildTrustedReport>[0];
 type OwnerStatementRows = Parameters<typeof toOwnerStatementInput>[0];
 type PropertySummaryInput = Parameters<typeof buildPropertySummary>[0];
+type PropertySummaryParityInput = Omit<
+  PropertySummaryInput,
+  "ledgerEntries"
+> & {
+  ledgerEntries: Array<
+    PropertySummaryInput["ledgerEntries"][number] & { id: string }
+  >;
+};
 
 describe("property cash shadow parity review fixes", () => {
   it("rejects every Owner Statement collection before invoking a builder", async () => {
@@ -185,6 +193,81 @@ describe("property cash shadow parity review fixes", () => {
     ).rejects.toThrow("combinedReportContributors");
   });
 
+  it("rejects oversized raw report arrays before constructing derived maps", async () => {
+    const trusted = trustedReportInput();
+    const oversized = Array.from({ length: 3 }, (_, index) =>
+      ledgerRow(`raw-overflow-${index}`, 1, "income", "unit-1"),
+    );
+    Object.defineProperty(oversized, "map", {
+      value: () => {
+        throw new Error("derived report map constructed before raw bound");
+      },
+    });
+    trusted.ledgerEntries = oversized;
+
+    await expect(
+      buildPropertyCashShadowParity(
+        parityInput({
+          identityLimit: 2,
+          ownerStatementRows: emptyOwnerStatementRows(),
+          trustedReportInput: trusted,
+        }),
+      ),
+    ).rejects.toThrow("trustedReportInput.ledgerEntries");
+  });
+
+  it("preflights embedded receipt obligation and allocation identities", async () => {
+    const rows = emptyOwnerStatementRows();
+    const receipts = Array.from({ length: 3 }, (_, index) => {
+      const item = incomeItem(
+        `embedded-income-${index}`,
+        "rent",
+        "1.00",
+      );
+      return receiptRow(`embedded-allocation-${index}`, "1.00", item);
+    });
+    Object.defineProperty(receipts, "flatMap", {
+      value: () => {
+        throw new Error("Owner Statement builder ran before identity preflight");
+      },
+    });
+    rows.currentReceiptRows = receipts;
+
+    await expect(
+      buildPropertyCashShadowParity(
+        parityInput({
+          identityLimit: 4,
+          ownerStatementRows: rows,
+        }),
+      ),
+    ).rejects.toThrow("combinedPropertyCashContributorIdentities");
+  });
+
+  it("preflights multi-owner allocation evidence fanout", async () => {
+    const rows = emptyOwnerStatementRows();
+    rows.currentReceiptRows = Array.from({ length: 2 }, (_, index) => {
+      const item = incomeItem(`fanout-income-${index}`, "rent", "1.00");
+      return receiptRow(`fanout-allocation-${index}`, "1.00", item);
+    });
+    rows.ownerRows = [
+      ownerLinkRow("owner-link-1", "owner-1", "50"),
+      ownerLinkRow("owner-link-2", "owner-2", "50"),
+    ];
+    rows.personRows = [
+      personRow("owner-1", "Owner One"),
+      personRow("owner-2", "Owner Two"),
+    ];
+
+    await expect(
+      buildPropertyCashShadowParity(
+        parityInput({
+          identityLimit: 6,
+          ownerStatementRows: rows,
+        }),
+      ),
+    ).rejects.toThrow("ownerStatementRows.allocationFanout");
+  });
+
   it("fails closed when a canonical event is outside the stamped scope", async () => {
     const invalidEvents = [
       event({
@@ -229,6 +312,7 @@ describe("property cash shadow parity review fixes", () => {
           canonicalEvents: [
             event({
               classificationStatus: "unresolved_evidence",
+              depositLiabilityEffectCents: null,
               economicClass: "legacy_unclassified",
               eventDate: null,
               eventKey: "ledger_entry:null-date",
@@ -244,6 +328,24 @@ describe("property cash shadow parity review fixes", () => {
         }),
       ),
     ).resolves.toBeDefined();
+  });
+
+  it("rejects a null-dated canonical event that is countable or not explicitly unresolved", async () => {
+    await expect(
+      buildPropertyCashShadowParity(
+        parityInput({
+          canonicalEvents: [
+            event({
+              eventDate: null,
+              eventKey: "receipt_allocation:null-countable",
+              operatingCashEffectCents: BigInt(100),
+              ownerCashEffectCents: BigInt(100),
+              sourceId: "null-countable",
+            }),
+          ],
+        }),
+      ),
+    ).rejects.toThrow(/null-dated canonical event .* unresolved/i);
   });
 
   it("emits exact field-specific PropertyCash provenance and disjoint partitions", async () => {
@@ -580,6 +682,89 @@ describe("property cash shadow parity review fixes", () => {
     );
   });
 
+  it("matches unresolved projected petty cash by exact expense Ledger ID", async () => {
+    const result = await buildPropertyCashShadowParity(
+      parityInput({
+        canonicalEvents: [
+          event({
+            classificationStatus: "unresolved_evidence",
+            economicClass: "legacy_unclassified",
+            eventKey: "petty_cash_entry:uncleared",
+            ledgerEntryId: "ledger-expense",
+            managementFeeEffectCents: null,
+            operatingCashEffectCents: null,
+            ownerCashEffectCents: null,
+            requiresResolution: true,
+            sourceId: "petty-cash-1",
+            sourceType: "petty_cash_entry",
+          }),
+        ],
+      }),
+    );
+    const metrics = reportMetrics(result, "property_performance");
+
+    expect(metrics.expenses).toMatchObject({
+      canonicalCents: null,
+      deltaCents: null,
+      status: "unresolved",
+      unresolved: [
+        expect.objectContaining({ eventKey: "petty_cash_entry:uncleared" }),
+      ],
+    });
+    expect(metrics.noi).toMatchObject({
+      canonicalCents: null,
+      deltaCents: null,
+      status: "unresolved",
+    });
+    expect(metrics.income).toMatchObject({
+      canonicalCents: BigInt(0),
+      currentCents: BigInt(10_000),
+      deltaCents: BigInt(10_000),
+      status: "mismatch",
+      unresolved: [],
+    });
+  });
+
+  it("uses only exact all-time PropertySummary Ledger identities", async () => {
+    const result = await buildPropertyCashShadowParity(
+      parityInput({
+        financeInventorySourceRows: [
+          planLedgerRow("selected-period-unrelated", "income", false),
+        ],
+        propertySummaryInput: propertySummaryInput(),
+      }),
+    );
+
+    for (const record of Object.values(reportMetrics(result, "property_summary"))) {
+      expect(record.status).toBe("not_comparable");
+      expect(record.included.map(identityToken)).toEqual([
+        "ledger:summary-expense",
+        "ledger:summary-income",
+      ]);
+    }
+  });
+
+  it("rejects missing and duplicate PropertySummary Ledger identities before the builder", async () => {
+    const missing = propertySummaryInput();
+    delete (missing.ledgerEntries[0] as { id?: string }).id;
+    await expect(
+      buildPropertyCashShadowParity(
+        parityInput({
+          propertySummaryInput:
+            missing as unknown as PropertyCashShadowParityInput["propertySummaryInput"],
+        }),
+      ),
+    ).rejects.toThrow("propertySummaryInput.ledgerEntries[0].id");
+
+    const duplicate = propertySummaryInput();
+    duplicate.ledgerEntries[1]!.id = duplicate.ledgerEntries[0]!.id;
+    await expect(
+      buildPropertyCashShadowParity(
+        parityInput({ propertySummaryInput: duplicate }),
+      ),
+    ).rejects.toThrow(/duplicate PropertySummary Ledger id/i);
+  });
+
   it("keeps canonical deltas null for current-path controls and parses negative NOI", async () => {
     const trustedInput = trustedReportInput();
     trustedInput.ledgerEntries = [
@@ -739,6 +924,50 @@ function ownerStatementRows(): OwnerStatementRows {
       },
     ],
     propertyIds: ["property-1"],
+  };
+}
+
+function emptyOwnerStatementRows(): OwnerStatementRows {
+  return {
+    contactRows: [],
+    currentReceiptRows: [],
+    depositRows: [],
+    dueIncomeItems: [],
+    historicalReceiptRows: [],
+    monthScope: { before: "2026-08-01", from: "2026-07-01" },
+    ownerRows: [],
+    paymentRows: [],
+    personRows: [],
+    propertyIds: ["property-1"],
+  };
+}
+
+function ownerLinkRow(
+  id: string,
+  personId: string,
+  ownershipPercent: string,
+): OwnerStatementRows["ownerRows"][number] {
+  return {
+    archived_at: null,
+    ended_on: null,
+    id,
+    is_primary: id === "owner-link-1",
+    ownership_percent: ownershipPercent,
+    person_id: personId,
+    property_id: "property-1",
+    started_on: "2020-01-01",
+  };
+}
+
+function personRow(
+  id: string,
+  displayName: string,
+): OwnerStatementRows["personRows"][number] {
+  return {
+    display_name: displayName,
+    id,
+    primary_email: `${id}@example.com`,
+    primary_phone: null,
   };
 }
 
@@ -938,13 +1167,23 @@ function ledgerRow(
   };
 }
 
-function propertySummaryInput(): PropertySummaryInput {
+function propertySummaryInput(): PropertySummaryParityInput {
   return {
     activeOwner: null,
     hasActiveOwnerLink: false,
     ledgerEntries: [
-      { amount: 100, currency: "USD", direction: "income" },
-      { amount: 30, currency: "USD", direction: "expense" },
+      {
+        amount: 100,
+        currency: "USD",
+        direction: "income",
+        id: "summary-income",
+      },
+      {
+        amount: 30,
+        currency: "USD",
+        direction: "expense",
+        id: "summary-expense",
+      },
     ],
     property: {
       address: null,

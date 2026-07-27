@@ -162,16 +162,21 @@ collection fails closed before accepting identity 10,001. Inputs that can
 produce stored identities are rejected before any builder runs when an
 individual Owner Statement, TrustedReport, Property Summary, canonical, or
 Plan 01 collection exceeds the configured limit. Required combined
-PropertyCash, owner-allocation, and report contributor sets are preflighted as
-well. One required-limit collector consumes identity chunks without first
-concatenating them, stops before adding limit plus one, and rejects an identity
-assigned to more than one of included, excluded, and unresolved. The focused
-fixture proves 5,205 identities are retained without truncation.
+PropertyCash, owner-allocation, and report contributor sets are preflighted
+after all raw lengths pass. The PropertyCash preflight expands embedded
+obligation plus allocation identities, and owner allocation uses a
+division-checked upper bound for effective-owner evidence fanout before the
+builder runs. One required-limit collector consumes identity chunks without
+first concatenating them, stops before adding limit plus one, and rejects an
+identity assigned to more than one of included, excluded, and unresolved. The
+focused fixture proves 5,205 identities are retained without truncation.
 
 Every canonical input event must match the stamped organization, property, and
 USD currency. A dated event must fall inside the inclusive selected period.
-Null-dated unresolved evidence is accepted only when its organization,
-property, and currency still match the requested scope.
+Null-dated evidence is accepted only when its organization, property, and
+currency match, `requiresResolution` is true, its classification status is
+explicitly unresolved, and all four signed effects are null. A countable,
+source-stable, or provisional null-dated event is rejected.
 
 ### Property cash mapping
 
@@ -221,9 +226,11 @@ includes both source type and ID.
   Ledger source links and matching active Plan 01 stable keys are retained
   separately for income, expense, and their NOI union. Unrelated,
   opposite-direction, and archived Plan 01 keys are excluded. A null-effect
-  `legacy_unclassified` canonical Ledger event becomes relevant only when its
-  source or Ledger ID matches an exact current contributor, making that metric
-  unresolved without globally tainting unrelated controls. Unit Performance
+  `legacy_unclassified` canonical event becomes relevant when it is itself a
+  Ledger source with a matching source ID or when its non-null projection
+  `ledgerEntryId` matches an exact current contributor, regardless of the
+  canonical source family. This covers unresolved projected petty cash and
+  makes only the matching metric unresolved. Unit Performance
   summary totals and visible unit-row totals are separate records so legitimate
   property-level Ledger rows remain in the summary while visible-row
   provenance remains limited to returned visible-unit rows.
@@ -243,7 +250,10 @@ includes both source type and ID.
   unresolved evidence instead of inventing journal identifiers.
 - `buildPropertySummary` is invoked, but both `netIncome` and `netIncomeUsd`
   remain `not_comparable` because they are all-time current Ledger values and
-  the canonical scope is a selected period.
+  the canonical scope is a selected period. Its parity input requires a
+  nonempty, unique Ledger ID on every all-time row while remaining structurally
+  passable to the existing builder. Those exact rows emit `ledger_source`
+  identities; selected-period Plan 01 keys are not substituted.
 
 ### Local fixture and query-plan evidence
 
