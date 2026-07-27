@@ -5,6 +5,7 @@ import type {
 } from "@/features/finance/data/property-cash-events.types";
 
 const DEFAULT_DIAGNOSTIC_SOURCE_LIMIT = 10_000;
+const MAX_DIAGNOSTIC_SOURCE_LIMIT = 10_000;
 
 export type PropertyCashMovementTotals = {
   countedEffectCount: number;
@@ -40,6 +41,11 @@ export async function summarizePropertyCashMovements(
     diagnosticSourceLimit < 1
   ) {
     throw new Error("Property cash diagnostic source limit must be positive.");
+  }
+  if (diagnosticSourceLimit > MAX_DIAGNOSTIC_SOURCE_LIMIT) {
+    throw new Error(
+      "Property cash diagnostic source limit cannot exceed 10,000.",
+    );
   }
 
   const totals: PropertyCashMovementTotals = {

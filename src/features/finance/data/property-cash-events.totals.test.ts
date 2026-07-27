@@ -160,4 +160,19 @@ describe("property cash movement totals", () => {
       ),
     ).rejects.toThrow("mixed or unsupported currency");
   });
+
+  it("rejects a diagnostic identity limit above 10,000 before iteration", async () => {
+    let started = false;
+    async function* trackedEvents() {
+      started = true;
+      yield event("11111111-1111-4111-8111-111111111111");
+    }
+
+    await expect(
+      summarizePropertyCashMovements(trackedEvents(), {
+        diagnosticSourceLimit: 10_001,
+      }),
+    ).rejects.toThrow("cannot exceed 10,000");
+    expect(started).toBe(false);
+  });
 });

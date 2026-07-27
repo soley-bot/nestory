@@ -13,6 +13,7 @@ import {
 const DEFAULT_PAGE_SIZE = 500;
 const MAX_PAGE_SIZE = 1_000;
 const MAX_PERIOD_DAYS = 366;
+const MAX_TRACKED_EVENT_KEYS = 10_000;
 
 export async function loadPropertyCashEventPage(
   client: PropertyCashEventsRpcClient,
@@ -54,7 +55,7 @@ export async function* iteratePropertyCashEventPages(
   const validated = validateScope(scope);
   let cursor: PropertyCashEventCursor | null = null;
   let previousCursor: PropertyCashEventCursor | null = null;
-  let previousEventKey: string | null = null;
+  const seenEventKeys = new Set<string>();
 
   while (true) {
     const page = await loadPropertyCashEventPage(client, validated, cursor);
@@ -63,19 +64,26 @@ export async function* iteratePropertyCashEventPages(
     for (const row of page.rows) {
       const event = normalizePropertyCashEvent(row);
       assertEventScope(event, validated);
+      assertDeterministicEventKey(event);
       const eventCursor = cursorFor(event);
 
-      if (event.eventKey === previousEventKey) {
+      if (seenEventKeys.has(event.eventKey)) {
         throw new Error(
           `Property cash event duplicate event key: ${event.eventKey}`,
         );
       }
+      if (seenEventKeys.size >= MAX_TRACKED_EVENT_KEYS) {
+        throw new Error(
+          `Property cash event key tracking limit of ${MAX_TRACKED_EVENT_KEYS} exceeded.`,
+        );
+      }
+      seenEventKeys.add(event.eventKey);
+
       if (previousCursor && compareCursors(eventCursor, previousCursor) <= 0) {
         throw new Error("Property cash event cursor did not advance strictly.");
       }
 
       previousCursor = eventCursor;
-      previousEventKey = event.eventKey;
 
       if (
         (!validated.unitId || event.unitId === validated.unitId) &&
@@ -228,6 +236,15 @@ function assertEventScope(
   }
   if (event.currency !== scope.currency) {
     throw new Error("Property cash RPC returned mixed or unsupported currency.");
+  }
+}
+
+function assertDeterministicEventKey(event: PropertyCashEvent) {
+  const expected = `${event.sourceType}:${event.sourceId}`;
+  if (event.eventKey !== expected) {
+    throw new Error(
+      `Property cash event key ${event.eventKey} does not match its source identity ${expected}.`,
+    );
   }
 }
 

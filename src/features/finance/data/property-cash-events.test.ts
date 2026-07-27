@@ -179,6 +179,98 @@ describe("property cash event adapter", () => {
     await expect(iterator.next()).rejects.toThrow("duplicate event key");
   });
 
+  it.each([
+    {
+      label: "within one page",
+      pageSize: 3,
+      pages: [
+        [
+          row("11111111-1111-4111-8111-111111111111", {
+            event_date: "2026-07-10",
+          }),
+          row("22222222-2222-4222-8222-222222222222", {
+            event_date: "2026-07-11",
+          }),
+          row("11111111-1111-4111-8111-111111111111", {
+            event_date: "2026-07-12",
+          }),
+        ],
+      ],
+    },
+    {
+      label: "across page boundaries",
+      pageSize: 2,
+      pages: [
+        [
+          row("11111111-1111-4111-8111-111111111111", {
+            event_date: "2026-07-10",
+          }),
+          row("22222222-2222-4222-8222-222222222222", {
+            event_date: "2026-07-11",
+          }),
+        ],
+        [
+          row("11111111-1111-4111-8111-111111111111", {
+            event_date: "2026-07-12",
+          }),
+        ],
+      ],
+    },
+  ])(
+    "rejects a non-adjacent duplicate event key $label",
+    async ({ pageSize, pages }) => {
+      const iterator = iteratePropertyCashEventPages(
+        clientWithPages(pages),
+        { ...scope, pageSize },
+      );
+
+      await expect(async () => {
+        for await (const page of iterator) void page;
+      }).rejects.toThrow("duplicate event key");
+    },
+  );
+
+  it("rejects an event key that is not the deterministic source encoding", async () => {
+    const iterator = iteratePropertyCashEventPages(
+      clientWithPages([
+        [
+          row("11111111-1111-4111-8111-111111111111", {
+            event_key: "wrong:key",
+          }),
+        ],
+      ]),
+      { ...scope, pageSize: 1 },
+    );
+
+    await expect(iterator.next()).rejects.toThrow(
+      "does not match its source identity",
+    );
+  });
+
+  it("fails closed after tracking 10,000 unique event keys", async () => {
+    const rows = Array.from({ length: 10_001 }, (_, index) => {
+      const sourceId = `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+      return row(sourceId, {
+        event_date: "2026-07-15",
+        event_key: `receipt_allocation:${sourceId}`,
+      });
+    });
+    const pages = Array.from({ length: 11 }, (_, index) =>
+      rows.slice(index * 1_000, (index + 1) * 1_000),
+    );
+    let yielded = 0;
+
+    await expect(async () => {
+      for await (const page of iteratePropertyCashEventPages(
+        clientWithPages(pages),
+        { ...scope, pageSize: 1_000 },
+      )) {
+        yielded += page.length;
+      }
+    }).rejects.toThrow("event key tracking limit");
+    expect(yielded).toBe(10_000);
+  });
+
   it("rejects a cursor that does not advance strictly", async () => {
     const firstId = "22222222-2222-4222-8222-222222222222";
     const earlierId = "11111111-1111-4111-8111-111111111111";
