@@ -1,96 +1,130 @@
 # Owner Close Financial Unification
 
-**Status:** Proposed implementation sequence under architecture review.  
-**Planning baseline:** `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.  
-**Implementation rule:** Before starting any plan, fetch the latest merged `main`, replace the planning baseline with that SHA, confirm the new branch is clean, and re-check the referenced implementation.  
-**Scope:** Documentation only. Nothing in this directory describes merged behavior until the corresponding implementation pull request is merged.
+**Status:** Architecture ratified after one Codex Ultra review; implementation has not started.  
+**Planning baseline:** merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.  
+**External review:** `98-ultra-review-response.md` — `APPROVE WITH CHANGES`.  
+**Final Nestory decision:** `97-ratified-final-sequence.md`.  
+**Current implementation authorization:** Plan 01 only, after this documentation correction commit is complete.
 
-## Purpose
+## Authority order
 
-This package converts the 27 July 2026 product and technical due-diligence findings into a sequence of narrow implementation plans. The plans are intentionally separated so that finance, migrations, RLS, reporting, and historical-data changes are not mixed into one unreviewable refactor.
+Use these files in this order:
 
-The due-diligence review established five repository-verified problems that this sequence must resolve:
+1. `97-ratified-final-sequence.md` — final architecture, decisions, sequence, pilot boundary, and no-review-loop rule.
+2. `00-architecture-and-decision-gates.md` — ratified technical architecture and Gates A-I.
+3. `01-parity-diagnostics-and-safety-rails.md` — the first implementation-ready slice.
+4. `98-ultra-review-response.md` — retained external review evidence and detailed hazards.
+5. Plans 02-12 — reviewed design source material. Their broad boundaries are superseded by the final split sequence in file 97 and must not be handed directly to Codex as one implementation task.
+6. `99-ultra-review-request.md` — retained historical review request; do not run it again.
 
-1. Owner Statement reads finance obligations and settlement allocations, while Property, Unit, Ledger, maintenance, petty cash, and several reports rely on `ledger_entries`.
-2. Recording an expense payment and posting an expense to the ledger/journal are separate write paths.
-3. Maintenance and petty cash can create financial effects outside the Owner Statement's current payment-allocation source.
-4. Owner Statement readiness validates ownership but does not prove charge, settlement, expense, fee, deposit, reconciliation, or close completeness.
-5. Owner Statements are live calculations and exports, not immutable approved period artifacts.
+The Ultra response is the single external architecture review. Do not create a loop by asking Ultra to review the correction pass. ChatGPT owns the final synthesis, and Codex Standard + High owns narrow implementation work.
 
-The target is not a general accounting product. Nestory remains a property-operations and property-accounting system whose core financial output is a trustworthy property-period Owner Close.
+## Product objective
 
-## Proposed architecture in one sentence
+Nestory must support one trustworthy operating chain:
 
-Domain-owned operational records remain the write model; one normalized property-cash event contract becomes the reporting read model; `ledger_entries` and accounting journals become deterministic projections; and published Owner Statements become immutable snapshots of closed periods.
+```text
+Lease and authoritative rent terms
+→ expected charge occurrence
+→ income obligation and tenant outstanding balance
+→ receipt and allocation
+→ property expenses from bills, maintenance, and petty cash
+→ management-fee assessment
+→ owner liability and distribution
+→ reconciliation and property-period close
+→ immutable, itemized Owner Statement
+```
 
-The architecture decision is detailed in `00-architecture-and-decision-gates.md`. Ultra must review and either approve or change that decision before any implementation plan starts.
+A property/month must not have one result in Ledger, another in Property Performance, and another in Owner Statement.
 
-## Sequential plan
+## Ratified architecture
 
-| Order | Plan | Intended outcome | Depends on |
-|---:|---|---|---|
-| 00 | `00-architecture-and-decision-gates.md` | Ratify financial authority, source identity, close semantics, and product boundary | None |
-| 01 | `01-parity-diagnostics-and-safety-rails.md` | Produce a read-only inventory of mismatches, duplicates, orphans, and historical ambiguity | 00 |
-| 02 | `02-canonical-property-cash-contract.md` | Add one normalized, organization-scoped event read model without changing writes | 01 |
-| 03 | `03-income-settlement-and-reversal.md` | Make receipts, allocations, ledger projection, journal projection, reversal, and period checks atomic | 02 |
-| 04 | `04-expense-settlement-and-reversal.md` | Make payments, allocations, ledger projection, journal projection, reversal, and period checks atomic | 03 |
-| 05 | `05-maintenance-and-petty-cash-handoffs.md` | Route operational expenses into the canonical event contract exactly once | 04 |
-| 06 | `06-rent-schedules-and-charge-completeness.md` | Make expected rent deterministic and missing charges detectable | 02; may run after 05 only if isolated |
-| 07 | `07-security-deposit-custody.md` | Remove the dual income/deposit interpretation and make custody movements auditable | 02, 03, 04 |
-| 08 | `08-management-fee-agreements-and-assessments.md` | Calculate approved fees from IPS rules instead of relying on manual income rows | 02, 03, 04, 06 |
-| 09 | `09-owner-balances-and-distributions.md` | Add opening balances, contributions, reserves, payouts, reversals, and closing owner liability | 02, 07, 08 |
-| 10 | `10-property-period-close-and-readiness.md` | Replace technical queue readiness with a property-month close that blocks incomplete statements | 03-09 |
-| 11 | `11-immutable-owner-statement-publication.md` | Persist itemized versions, approvals, source manifests, PDFs, reissues, and delivery state | 10 |
-| 12 | `12-backfill-pilot-and-production-cutover.md` | Reconcile legacy data, cut reports over safely, and prove an IPS pilot end to end | 01-11 |
+```text
+Domain-owned operational write records
+                ↓
+read-only property_cash_events_v1
+                ↓
+atomic deterministic Ledger/journal projections
+                ↓
+append-only property close revision
+                ↓
+immutable Owner Statement version and artifacts
+```
 
-Plans are merge-ordered unless a plan explicitly allows isolated parallel work. No later plan may silently compensate for an unresolved invariant in an earlier plan.
+- Existing domain tables remain canonical writes.
+- Do not add a writable generic financial-event table.
+- Canonical identity is typed by organization, source type, and source ID.
+- Allocation IDs become settlement identities only after immutable classification and direct reversal constraints exist.
+- Ledger and journals are derived controls, not competing product truth.
+- Property close is the business lock; organization Ledger and book-period locks remain broader independent controls.
+- Published statement evidence and bytes are immutable.
+- Owner Balance is a liability chain distinct from property-period operating performance.
 
-## Cross-cutting invariants
+## Final implementation sequence
 
-Every implementation pull request must preserve all of the following:
+The detailed final order is in `97-ratified-final-sequence.md`. In summary:
 
-- Organization isolation at table, RLS, RPC, server-loader, and export boundaries.
-- Exact numeric money fields and explicit currency codes; no JavaScript floating-point business calculations.
-- Business dates separated from audit timestamps.
-- Property obligations separated from settlement events.
-- Cash reporting based on receipt/payment/event dates, not invoice or charge dates.
-- Security deposits and owner contributions excluded from property operating income.
-- Balanced and idempotent journal projections while the accounting compatibility kernel remains.
-- One stable source identity for every reportable event and every reversal.
-- No generic edit/archive of source-linked financial projections.
-- Closed periods reject source writes; corrections use a controlled reopen or a dated reversing event according to the ratified close policy.
-- Existing documents, activity logs, timeline links, and exact record links remain traceable.
-- Append-only migrations, backward-compatible reads during transition, generated-type checks, and no destructive production reset.
-- No corporate payroll, company overhead, tax accounting, generic chart-of-accounts UI, or broader ERP scope.
+1. read-only financial inventory and parity;
+2. shadow canonical read contract;
+3. shared authority, lock, reconciliation-source, idempotency, projection, and bypass kernel;
+4. authoritative lease-term policy;
+5. atomic income and expense settlement paths;
+6. maintenance, petty cash, rent occurrence, deposit, fee, and owner-balance integrations;
+7. reconciliation and append-only close lifecycle;
+8. immutable statement data and artifacts;
+9. exact migration/backfill and bounded IPS pilot;
+10. compatibility retirement only after an observation window.
 
-## Required verification depth
+All financial migrations merge sequentially. Parallel development is allowed only where the final sequence explicitly permits it, and still requires rebase, full reset, generated-type comparison, and sequential merge.
 
-Finance, RLS, migration, accounting, and cross-domain plans require:
+## Shared invariants
 
-1. A failing regression test first when practical.
-2. Focused Vitest and pgTAP coverage for the changed invariant.
-3. Full application tests.
-4. ESLint, TypeScript, and production build.
-5. Local Supabase reset, schema lint, generated-type drift check, and the full pgTAP suite.
-6. Direct-RPC bypass and cross-organization authorization tests.
-7. Authenticated browser verification for every changed operator workflow.
-8. `git diff --check`, clean worktree, remote parity, and hosted checks before review-ready status.
+Every implementation slice must preserve:
 
-Production writes, migrations, backfills, or verification require explicit authorization. A green application suite is not sufficient evidence unless the full lease-to-statement chain is proven.
+- organization, property, role, and workspace isolation;
+- exact money and currency values;
+- distinct obligation/service dates and actual cash dates;
+- stable typed source identity and exact source links;
+- append-only corrections and directly linked reversals;
+- payload-bound idempotency;
+- one canonical effect and zero or one projection per required projection type;
+- balanced journals and source-transaction atomicity;
+- property-period serialization against close and material parent edits;
+- historical ownership, recipient, and evidence preservation;
+- no direct Data API or generic RPC bypass of source authority;
+- no payroll, corporate overhead, tax, generic ERP, or product-facing general-ledger expansion.
 
-## Review workflow
+## Verification depth
 
-1. Codex Ultra reviews this entire package against the latest repository and writes one consolidated response as requested in `99-ultra-review-request.md`.
-2. The plans are revised until the architecture, sequence, invariants, and scope are clear.
-3. Only then does Codex Standard + High implement one plan per branch and pull request.
-4. Each implementation prompt uses the then-current merged `main` SHA and only the delta for that plan.
-5. Codex must not merge unless explicitly requested.
+Financial, migration, close, and statement work requires:
 
-## Review status
+- failing regression evidence before the fix when practical;
+- focused and full application tests;
+- lint, TypeScript, production build, and `git diff --check`;
+- database reset, schema lint, generated-type drift check, and full pgTAP;
+- actual privilege, RLS, private-helper, direct-DML, and direct-RPC bypass tests;
+- two-session close-versus-write and retry/projection races;
+- forced atomic-failure tests;
+- stateful authenticated browser verification;
+- pagination and production-shaped performance evidence;
+- exact branch, commit, schema, environment, and deployment evidence for any authorized release.
 
-- [ ] Ultra verified the repository references.
-- [ ] Ultra approved or amended the architecture decision.
-- [ ] IPS fee, proration, reserve, payout, and reconciliation rules are documented where required.
-- [ ] Plan sequence and pull-request boundaries are accepted.
-- [ ] No P0 invariant is deferred into an unspecified future phase.
-- [ ] Implementation may begin with Plan 01.
+## Business-rule stops
+
+Read-only Plan 01 is not blocked by unresolved IPS policy. Later plans stop at the named boundary in file 97 when IPS rules are still unknown, particularly:
+
+- reconciliation account/source topology;
+- rent due-day, proration, concessions, and non-monthly frequency;
+- maintenance task-to-bill cardinality;
+- petty-cash economic scope and variance;
+- deposit application or retention;
+- management-fee calculation and recognition;
+- owner reserves, deficits, distributions, and ownership transfer;
+- unpaid bill close treatment;
+- statement disclosure, approval, retention, and delivery.
+
+Do not invent policy to keep implementation moving. Unsupported cases must block clearly.
+
+## Current next step
+
+Prepare one Codex implementation prompt for Plan 01 only. Plan 01 must remain read-only, deterministic, paginated, fail-closed, environment guarded, and limited to local/test fixtures unless production diagnostic access is separately authorized. It must not repair data, backfill, cut over reports, deploy, or authorize Plan 02.
