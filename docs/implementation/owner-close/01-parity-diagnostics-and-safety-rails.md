@@ -61,7 +61,7 @@ Recommended issue codes:
 - `petty_cash_projection_missing`
 - `petty_cash_and_bill_possible_duplicate`
 - `deposit_income_without_deposit_event`
-- `deposit_event_without_supported cash evidence`
+- `deposit_event_without_supported_cash_evidence`
 - `journal_without_operational_source`
 - `ledger_and_journal_amount_or_date_mismatch`
 - `ownership_invalid_on_event_date`
