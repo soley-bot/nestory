@@ -48,6 +48,15 @@ AS $$
         'settlementAmount', to_char(income.amount_received, 'FM999999999999990.00'),
         'outstandingAmount', to_char(greatest(income.amount_due - income.amount_received, 0), 'FM999999999999990.00'),
         'status', income.status,
+        'incomeType', income.income_type,
+        'economicClass', CASE
+          WHEN income.income_type = 'owner_contribution' THEN 'owner_contribution'
+          WHEN income.income_type = 'security_deposit' THEN 'deposit_custody'
+          WHEN income.income_type IN (
+            'leasing_commission', 'maintenance_markup', 'management_fee', 'service_fee'
+          ) THEN 'management_fee'
+          ELSE 'operating_income'
+        END,
         'economicArea', CASE income.income_type
           WHEN 'security_deposit' THEN 'security_deposit'
           WHEN 'owner_contribution' THEN 'owner_contribution'
@@ -89,6 +98,16 @@ AS $$
         'amount', to_char(expense.amount, 'FM999999999999990.00'),
         'obligationAmount', to_char(expense.amount, 'FM999999999999990.00'),
         'status', expense.status,
+        'expenseType', expense.expense_type,
+        'economicScope', expense.economic_scope,
+        'economicClass', CASE
+          WHEN expense.expense_type = 'owner_payout' THEN 'owner_distribution'
+          WHEN expense.expense_type = 'refund' THEN 'refund'
+          WHEN expense.economic_scope = 'property_expense' THEN 'property_expense'
+          WHEN expense.economic_scope = 'company_advance' THEN 'company_advance'
+          WHEN expense.economic_scope = 'company_cost' THEN 'company_cost'
+          ELSE 'unclassified_expense'
+        END,
         'economicArea', CASE expense.expense_type
           WHEN 'owner_payout' THEN 'owner_payout'
           ELSE 'operating_expense'
@@ -113,17 +132,46 @@ AS $$
         'obligationId', allocation.income_item_id,
         'organizationId', allocation.organization_id,
         'propertyId', receipt.property_id,
+        'unitId', income.unit_id,
+        'leaseId', income.lease_id,
         'sourceReference', 'public.finance_receipt_allocations',
         'eventDate', receipt.received_date,
+        'obligationDate', income.due_date,
+        'dueOrInvoiceDate', income.due_date,
         'currency', receipt.currency,
         'amount', to_char(allocation.amount, 'FM999999999999990.00'),
         'settlementAmount', to_char(allocation.amount, 'FM999999999999990.00'),
+        'signedAmount', to_char(
+          CASE WHEN receipt.reversal_of_id IS NULL
+            THEN allocation.amount ELSE -allocation.amount END,
+          'FM999999999999990.00'
+        ),
+        'isReversal', receipt.reversal_of_id IS NOT NULL,
+        'reversalOfId', receipt.reversal_of_id,
+        'originalTransactionId', coalesce(receipt.reversal_of_id, receipt.id),
+        'incomeType', income.income_type,
+        'economicClass', CASE
+          WHEN income.income_type = 'owner_contribution' THEN 'owner_contribution'
+          WHEN income.income_type = 'security_deposit' THEN 'deposit_custody'
+          WHEN income.income_type IN (
+            'leasing_commission', 'maintenance_markup', 'management_fee', 'service_fee'
+          ) THEN 'management_fee'
+          ELSE 'operating_income'
+        END,
         'reconciliationSourceState', 'allocation_has_no_stable_projection_identity',
-        'economicArea', 'operating_cash',
+        'economicArea', CASE
+          WHEN income.income_type = 'owner_contribution' THEN 'owner_contribution'
+          WHEN income.income_type = 'security_deposit' THEN 'security_deposit'
+          WHEN income.income_type IN (
+            'leasing_commission', 'maintenance_markup', 'management_fee', 'service_fee'
+          ) THEN 'management_fee'
+          ELSE 'operating_income'
+        END,
         'affectedSurfaces', jsonb_build_array('owner_statement', 'property_cash')
       )
     FROM public.finance_receipt_allocations allocation
     JOIN public.finance_receipts receipt ON receipt.id = allocation.receipt_id
+    JOIN public.finance_income_items income ON income.id = allocation.income_item_id
     WHERE allocation.organization_id = p_organization_id
       AND receipt.property_id = p_property_id
       AND receipt.currency = p_currency
@@ -140,18 +188,45 @@ AS $$
         'obligationId', allocation.expense_item_id,
         'organizationId', allocation.organization_id,
         'propertyId', payment.property_id,
+        'unitId', expense.unit_id,
+        'taskId', expense.task_id,
+        'vendorPersonId', expense.vendor_person_id,
         'sourceReference', 'public.finance_payment_allocations',
         'eventDate', payment.paid_date,
+        'obligationDate', expense.invoice_date,
+        'dueOrInvoiceDate', coalesce(expense.due_date, expense.invoice_date),
         'currency', payment.currency,
         'amount', to_char(allocation.amount, 'FM999999999999990.00'),
         'settlementAmount', to_char(allocation.amount, 'FM999999999999990.00'),
+        'signedAmount', to_char(
+          CASE WHEN payment.reversal_of_id IS NULL
+            THEN allocation.amount ELSE -allocation.amount END,
+          'FM999999999999990.00'
+        ),
+        'isReversal', payment.reversal_of_id IS NOT NULL,
+        'reversalOfId', payment.reversal_of_id,
+        'originalTransactionId', coalesce(payment.reversal_of_id, payment.id),
+        'expenseType', expense.expense_type,
+        'economicScope', expense.economic_scope,
+        'economicClass', CASE
+          WHEN expense.expense_type = 'owner_payout' THEN 'owner_distribution'
+          WHEN expense.expense_type = 'refund' THEN 'refund'
+          WHEN expense.economic_scope = 'property_expense' THEN 'property_expense'
+          WHEN expense.economic_scope = 'company_advance' THEN 'company_advance'
+          WHEN expense.economic_scope = 'company_cost' THEN 'company_cost'
+          ELSE 'unclassified_expense'
+        END,
         'direction', 'expense',
         'reconciliationSourceState', 'allocation_has_no_stable_projection_identity',
-        'economicArea', 'operating_expense',
+        'economicArea', CASE
+          WHEN expense.expense_type = 'owner_payout' THEN 'owner_payout'
+          ELSE expense.economic_scope
+        END,
         'affectedSurfaces', jsonb_build_array('owner_statement', 'property_cash')
       )
     FROM public.finance_payment_allocations allocation
     JOIN public.finance_payments payment ON payment.id = allocation.payment_id
+    JOIN public.finance_expense_items expense ON expense.id = allocation.expense_item_id
     WHERE allocation.organization_id = p_organization_id
       AND payment.property_id = p_property_id
       AND payment.currency = p_currency
@@ -165,21 +240,48 @@ AS $$
         'sourceType', 'deposit_event',
         'sourceId', deposit.id,
         'parentTransactionId', deposit.lease_deposit_id,
+        'leaseId', lease_deposit.lease_id,
+        'unitId', lease.unit_id,
         'organizationId', deposit.organization_id,
         'propertyId', deposit.property_id,
         'sourceReference', 'public.lease_deposit_events',
         'eventDate', deposit.event_date,
+        'inSelectedPeriod', deposit.event_date BETWEEN p_period_start AND p_period_end,
         'currency', deposit.currency,
         'amount', to_char(deposit.amount, 'FM999999999999990.00'),
         'eventType', deposit.event_type,
+        'depositType', lease_deposit.deposit_type,
+        'isReversal', deposit.reversal_of_id IS NOT NULL,
+        'reversalOfId', deposit.reversal_of_id,
+        'originalTransactionId', coalesce(deposit.reversal_of_id, deposit.id),
+        'originalEventType', original_deposit.event_type,
+        'signedAmount', to_char(
+          CASE
+            WHEN deposit.event_type = 'reversed' THEN
+              -CASE original_deposit.event_type
+                WHEN 'received' THEN deposit.amount
+                ELSE -deposit.amount
+              END
+            WHEN deposit.event_type = 'received' THEN deposit.amount
+            ELSE -deposit.amount
+          END,
+          'FM999999999999990.00'
+        ),
+        'economicClass', 'deposit_custody',
         'economicArea', 'security_deposit',
         'affectedSurfaces', jsonb_build_array('owner_statement', 'property_cash')
       )
     FROM public.lease_deposit_events deposit
+    JOIN public.lease_deposits lease_deposit
+      ON lease_deposit.id = deposit.lease_deposit_id
+    JOIN public.leases lease
+      ON lease.id = lease_deposit.lease_id
+    LEFT JOIN public.lease_deposit_events original_deposit
+      ON original_deposit.id = deposit.reversal_of_id
     WHERE deposit.organization_id = p_organization_id
       AND deposit.property_id = p_property_id
       AND deposit.currency = p_currency
-      AND deposit.event_date BETWEEN p_period_start AND p_period_end
+      AND deposit.event_date <= p_period_end
 
     UNION ALL
 
@@ -316,7 +418,192 @@ AS $$
       AND journal.currency = p_currency
       AND journal.entry_date BETWEEN p_period_start AND p_period_end
   ),
+  relevant_dates AS (
+    SELECT DISTINCT candidate.relevant_date
+    FROM (
+      SELECT p_period_end AS relevant_date
+      UNION ALL
+      SELECT (source.payload ->> 'eventDate')::date
+      FROM source_rows source
+      WHERE source.payload ->> 'eventDate' IS NOT NULL
+      UNION ALL
+      SELECT (source.payload ->> 'obligationDate')::date
+      FROM source_rows source
+      WHERE source.payload ->> 'obligationDate' IS NOT NULL
+    ) candidate
+    WHERE candidate.relevant_date BETWEEN p_period_start AND p_period_end
+  ),
+  scope_violation_rows AS (
+    SELECT
+      'WRONG_LINKED_RECORD_SCOPE:receipt_allocation:' || allocation.id::text AS stable_key,
+      jsonb_build_object(
+        'issueCode', 'WRONG_LINKED_RECORD_SCOPE',
+        'severity', 'Critical',
+        'organizationId', allocation.organization_id,
+        'propertyId', receipt.property_id,
+        'unitId', income.unit_id,
+        'leaseId', income.lease_id,
+        'obligationId', income.id,
+        'sourceType', 'receipt_allocation',
+        'sourceId', allocation.id,
+        'parentTransactionId', receipt.id,
+        'sourceReference', 'public.finance_receipt_allocations->finance_income_items',
+        'eventDate', receipt.received_date,
+        'currency', receipt.currency,
+        'affectedSurfaces', jsonb_build_array('owner_statement', 'property_cash'),
+        'affectedEconomicArea', 'link_scope',
+        'explanation', 'Receipt allocation links to an obligation, unit, or lease outside the receipt property scope.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      ) AS payload
+    FROM public.finance_receipt_allocations allocation
+    JOIN public.finance_receipts receipt ON receipt.id = allocation.receipt_id
+    JOIN public.finance_income_items income ON income.id = allocation.income_item_id
+    LEFT JOIN public.units unit ON unit.id = income.unit_id
+    LEFT JOIN public.leases lease ON lease.id = income.lease_id
+    WHERE allocation.organization_id = p_organization_id
+      AND receipt.property_id = p_property_id
+      AND receipt.currency = p_currency
+      AND receipt.received_date BETWEEN p_period_start AND p_period_end
+      AND (
+        income.property_id IS DISTINCT FROM receipt.property_id
+        OR (income.unit_id IS NOT NULL
+          AND unit.property_id IS DISTINCT FROM receipt.property_id)
+        OR (income.lease_id IS NOT NULL
+          AND lease.property_id IS DISTINCT FROM receipt.property_id)
+      )
+
+    UNION ALL
+
+    SELECT
+      'WRONG_LINKED_RECORD_SCOPE:payment_allocation:' || allocation.id::text,
+      jsonb_build_object(
+        'issueCode', 'WRONG_LINKED_RECORD_SCOPE',
+        'severity', 'Critical',
+        'organizationId', allocation.organization_id,
+        'propertyId', payment.property_id,
+        'unitId', expense.unit_id,
+        'taskId', expense.task_id,
+        'vendorPersonId', expense.vendor_person_id,
+        'obligationId', expense.id,
+        'sourceType', 'payment_allocation',
+        'sourceId', allocation.id,
+        'parentTransactionId', payment.id,
+        'sourceReference', 'public.finance_payment_allocations->finance_expense_items',
+        'eventDate', payment.paid_date,
+        'currency', payment.currency,
+        'affectedSurfaces', jsonb_build_array('owner_statement', 'property_cash'),
+        'affectedEconomicArea', 'link_scope',
+        'explanation', 'Payment allocation links to an obligation, unit, task, or vendor outside the payment property or organization scope.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM public.finance_payment_allocations allocation
+    JOIN public.finance_payments payment ON payment.id = allocation.payment_id
+    JOIN public.finance_expense_items expense ON expense.id = allocation.expense_item_id
+    LEFT JOIN public.units unit ON unit.id = expense.unit_id
+    LEFT JOIN public.tasks task ON task.id = expense.task_id
+    LEFT JOIN public.people vendor ON vendor.id = expense.vendor_person_id
+    WHERE allocation.organization_id = p_organization_id
+      AND payment.property_id = p_property_id
+      AND payment.currency = p_currency
+      AND payment.paid_date BETWEEN p_period_start AND p_period_end
+      AND (
+        expense.property_id IS DISTINCT FROM payment.property_id
+        OR (expense.unit_id IS NOT NULL
+          AND unit.property_id IS DISTINCT FROM payment.property_id)
+        OR (expense.task_id IS NOT NULL
+          AND task.property_id IS DISTINCT FROM payment.property_id)
+        OR (expense.vendor_person_id IS NOT NULL
+          AND vendor.organization_id IS DISTINCT FROM payment.organization_id)
+      )
+
+    UNION ALL
+
+    SELECT
+      'WRONG_LINKED_RECORD_SCOPE:ledger_entry:' || ledger.id::text,
+      jsonb_build_object(
+        'issueCode', 'WRONG_LINKED_RECORD_SCOPE',
+        'severity', 'Critical',
+        'organizationId', ledger.organization_id,
+        'propertyId', ledger.property_id,
+        'unitId', ledger.unit_id,
+        'sourceType', 'ledger_entry',
+        'sourceId', ledger.id,
+        'parentTransactionId', ledger.source_id,
+        'typedProjectionSource', ledger.source_type,
+        'ledgerEntryId', ledger.id,
+        'sourceReference', 'public.ledger_entries unit/source identity',
+        'eventDate', ledger.transaction_date,
+        'currency', ledger.currency,
+        'affectedSurfaces', jsonb_build_array('ledger', 'property_performance', 'unit_performance'),
+        'affectedEconomicArea', 'link_scope',
+        'explanation', 'Ledger unit or typed domain source resolves outside the Ledger property scope.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM public.ledger_entries ledger
+    LEFT JOIN public.units unit ON unit.id = ledger.unit_id
+    LEFT JOIN public.finance_income_items income
+      ON ledger.source_type = 'finance_income' AND income.id = ledger.source_id
+    LEFT JOIN public.finance_expense_items expense
+      ON ledger.source_type = 'finance_expense' AND expense.id = ledger.source_id
+    LEFT JOIN public.petty_cash_entries petty
+      ON ledger.source_type = 'petty_cash' AND petty.id = ledger.source_id
+    LEFT JOIN public.tasks task
+      ON ledger.source_type = 'maintenance_task' AND task.id = ledger.source_id
+    WHERE ledger.organization_id = p_organization_id
+      AND ledger.property_id = p_property_id
+      AND ledger.currency = p_currency
+      AND ledger.transaction_date BETWEEN p_period_start AND p_period_end
+      AND (
+        (ledger.unit_id IS NOT NULL
+          AND unit.property_id IS DISTINCT FROM ledger.property_id)
+        OR (ledger.source_type = 'finance_income'
+          AND income.property_id IS DISTINCT FROM ledger.property_id)
+        OR (ledger.source_type = 'finance_expense'
+          AND expense.property_id IS DISTINCT FROM ledger.property_id)
+        OR (ledger.source_type = 'petty_cash'
+          AND petty.property_id IS DISTINCT FROM ledger.property_id)
+        OR (ledger.source_type = 'maintenance_task'
+          AND task.property_id IS DISTINCT FROM ledger.property_id)
+      )
+
+    UNION ALL
+
+    SELECT
+      'WRONG_LINKED_RECORD_SCOPE:deposit_event:' || deposit.id::text,
+      jsonb_build_object(
+        'issueCode', 'WRONG_LINKED_RECORD_SCOPE',
+        'severity', 'Critical',
+        'organizationId', deposit.organization_id,
+        'propertyId', deposit.property_id,
+        'unitId', lease.unit_id,
+        'leaseId', lease.id,
+        'sourceType', 'deposit_event',
+        'sourceId', deposit.id,
+        'parentTransactionId', deposit.lease_deposit_id,
+        'sourceReference', 'public.lease_deposit_events->lease_deposits->leases',
+        'eventDate', deposit.event_date,
+        'currency', deposit.currency,
+        'affectedSurfaces', jsonb_build_array('owner_statement', 'property_cash'),
+        'affectedEconomicArea', 'link_scope',
+        'explanation', 'Deposit event property differs from its exact lease property.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM public.lease_deposit_events deposit
+    JOIN public.lease_deposits lease_deposit
+      ON lease_deposit.id = deposit.lease_deposit_id
+    JOIN public.leases lease ON lease.id = lease_deposit.lease_id
+    WHERE deposit.organization_id = p_organization_id
+      AND deposit.property_id = p_property_id
+      AND deposit.currency = p_currency
+      AND deposit.event_date BETWEEN p_period_start AND p_period_end
+      AND lease.property_id IS DISTINCT FROM deposit.property_id
+  ),
   diagnostic_rows AS (
+    SELECT violation.stable_key, violation.payload
+    FROM scope_violation_rows violation
+
+    UNION ALL
+
     SELECT
       'MANUAL_LEDGER_ROW:' || ledger.id::text AS stable_key,
       jsonb_build_object(
@@ -422,7 +709,7 @@ AS $$
     UNION ALL
 
     SELECT
-      'BACKFILL_INFERRED_DATE:' || income.id::text,
+      'BACKFILL_INFERRED_DATE:income_obligation:' || income.id::text,
       jsonb_build_object(
         'issueCode', 'BACKFILL_INFERRED_DATE',
         'severity', 'High',
@@ -457,7 +744,7 @@ AS $$
     UNION ALL
 
     SELECT
-      'BACKFILL_INFERRED_DATE:' || expense.id::text,
+      'BACKFILL_INFERRED_DATE:expense_obligation:' || expense.id::text,
       jsonb_build_object(
         'issueCode', 'BACKFILL_INFERRED_DATE',
         'severity', 'High',
@@ -602,30 +889,30 @@ AS $$
     UNION ALL
 
     SELECT
-      'OWNERSHIP_INVALID_OR_AMBIGUOUS:' || p_property_id::text,
+      'OWNERSHIP_INVALID_ON_RELEVANT_DATE:' || p_property_id::text || ':' || relevant.relevant_date::text,
       jsonb_build_object(
-        'issueCode', 'OWNERSHIP_INVALID_OR_AMBIGUOUS',
+        'issueCode', 'OWNERSHIP_INVALID_ON_RELEVANT_DATE',
         'severity', 'Critical',
         'organizationId', p_organization_id,
         'propertyId', p_property_id,
         'sourceType', 'property_ownership',
         'sourceId', p_property_id,
         'sourceReference', 'public.property_owners',
-        'eventDate', p_period_end,
+        'eventDate', relevant.relevant_date,
         'affectedSurfaces', jsonb_build_array('owner_statement'),
         'affectedEconomicArea', 'ownership',
-        'explanation', 'Ownership on the reporting date is missing, overlapping, or does not total 100 percent.',
+        'explanation', 'IPS requires exactly one property owner at 100 percent on every financially relevant date and at period end.',
         'proposedResolutionClass', 'ambiguous_requires_resolution'
       )
+    FROM relevant_dates relevant
     WHERE (
       SELECT count(*) <> 1
         OR coalesce(sum(owner.ownership_percent), 0) <> 100
       FROM public.property_owners owner
       WHERE owner.organization_id = p_organization_id
         AND owner.property_id = p_property_id
-        AND owner.archived_at IS NULL
-        AND coalesce(owner.started_on, '-infinity'::date) <= p_period_end
-        AND coalesce(owner.ended_on, 'infinity'::date) >= p_period_end
+        AND coalesce(owner.started_on, '-infinity'::date) <= relevant.relevant_date
+        AND coalesce(owner.ended_on, 'infinity'::date) >= relevant.relevant_date
     )
 
     UNION ALL
@@ -643,7 +930,10 @@ AS $$
         'eventDate', p_period_end,
         'currency', p_currency,
         'settlementAmount', to_char(coalesce((
-          SELECT sum(allocation.amount)
+          SELECT sum(
+            CASE WHEN receipt.reversal_of_id IS NULL
+              THEN allocation.amount ELSE -allocation.amount END
+          )
           FROM public.finance_receipt_allocations allocation
           JOIN public.finance_receipts receipt ON receipt.id = allocation.receipt_id
           WHERE allocation.organization_id = p_organization_id
@@ -651,7 +941,10 @@ AS $$
             AND receipt.currency = p_currency
             AND receipt.received_date BETWEEN p_period_start AND p_period_end
         ), 0) - coalesce((
-          SELECT sum(allocation.amount)
+          SELECT sum(
+            CASE WHEN payment.reversal_of_id IS NULL
+              THEN allocation.amount ELSE -allocation.amount END
+          )
           FROM public.finance_payment_allocations allocation
           JOIN public.finance_payments payment ON payment.id = allocation.payment_id
           WHERE allocation.organization_id = p_organization_id
@@ -674,7 +967,10 @@ AS $$
         'proposedResolutionClass', 'ambiguous_requires_resolution'
       )
     WHERE coalesce((
-      SELECT sum(allocation.amount)
+      SELECT sum(
+        CASE WHEN receipt.reversal_of_id IS NULL
+          THEN allocation.amount ELSE -allocation.amount END
+      )
       FROM public.finance_receipt_allocations allocation
       JOIN public.finance_receipts receipt ON receipt.id = allocation.receipt_id
       WHERE allocation.organization_id = p_organization_id
@@ -682,7 +978,10 @@ AS $$
         AND receipt.currency = p_currency
         AND receipt.received_date BETWEEN p_period_start AND p_period_end
     ), 0) - coalesce((
-      SELECT sum(allocation.amount)
+      SELECT sum(
+        CASE WHEN payment.reversal_of_id IS NULL
+          THEN allocation.amount ELSE -allocation.amount END
+      )
       FROM public.finance_payment_allocations allocation
       JOIN public.finance_payments payment ON payment.id = allocation.payment_id
       WHERE allocation.organization_id = p_organization_id
@@ -702,7 +1001,7 @@ AS $$
     UNION ALL
 
     SELECT
-      issue_code || ':' || income.id::text,
+      issue_code || ':income_obligation:' || income.id::text,
       jsonb_build_object(
         'issueCode', issue_code,
         'severity', severity,
@@ -742,8 +1041,12 @@ AS $$
       AND income.due_date BETWEEN p_period_start AND p_period_end
       AND (
         income.amount_received <> coalesce((
-          SELECT sum(allocation.amount)
+          SELECT sum(
+            CASE WHEN receipt.reversal_of_id IS NULL
+              THEN allocation.amount ELSE -allocation.amount END
+          )
           FROM public.finance_receipt_allocations allocation
+          JOIN public.finance_receipts receipt ON receipt.id = allocation.receipt_id
           WHERE allocation.income_item_id = income.id
         ), 0)
         OR (income.status IN ('received', 'posted') AND income.amount_received < income.amount_due)
@@ -752,7 +1055,7 @@ AS $$
     UNION ALL
 
     SELECT
-      'OBLIGATION_LEVEL_POSTING_MULTI_SETTLEMENT:' || income.id::text,
+      'OBLIGATION_LEVEL_POSTING_MULTI_SETTLEMENT:income_obligation:' || income.id::text,
       jsonb_build_object(
         'issueCode', 'OBLIGATION_LEVEL_POSTING_MULTI_SETTLEMENT',
         'severity', 'High',
@@ -781,13 +1084,112 @@ AS $$
       AND 1 < (
         SELECT count(DISTINCT allocation.receipt_id)
         FROM public.finance_receipt_allocations allocation
+        JOIN public.finance_receipts receipt
+          ON receipt.id = allocation.receipt_id
         WHERE allocation.income_item_id = income.id
+          AND receipt.reversal_of_id IS NULL
       )
 
     UNION ALL
 
     SELECT
-      issue_code || ':' || income.id::text,
+      'OBLIGATION_COMPATIBILITY_MISMATCH:expense_obligation:' || expense.id::text,
+      jsonb_build_object(
+        'issueCode', 'OBLIGATION_COMPATIBILITY_MISMATCH',
+        'severity', 'High',
+        'organizationId', expense.organization_id,
+        'propertyId', expense.property_id,
+        'unitId', expense.unit_id,
+        'taskId', expense.task_id,
+        'vendorPersonId', expense.vendor_person_id,
+        'obligationId', expense.id,
+        'sourceType', 'expense_obligation',
+        'sourceId', expense.id,
+        'ledgerEntryId', expense.ledger_entry_id,
+        'sourceReference', 'public.finance_expense_items versus signed finance_payment_allocations',
+        'eventDate', expense.paid_date,
+        'obligationDate', expense.invoice_date,
+        'dueOrInvoiceDate', coalesce(expense.due_date, expense.invoice_date),
+        'currency', expense.currency,
+        'obligationAmount', to_char(expense.amount, 'FM999999999999990.00'),
+        'settlementAmount', to_char(payment_evidence.net_paid, 'FM999999999999990.00'),
+        'status', expense.status,
+        'affectedSurfaces', jsonb_build_array('owner_statement', 'property_cash', 'ledger', 'accounting_health'),
+        'affectedEconomicArea', CASE
+          WHEN expense.expense_type = 'owner_payout' THEN 'owner_payout'
+          ELSE expense.economic_scope
+        END,
+        'explanation', 'Expense compatibility status or paid date does not match exact signed payment-allocation evidence.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM public.finance_expense_items expense
+    CROSS JOIN LATERAL (
+      SELECT coalesce(sum(
+        CASE WHEN payment.reversal_of_id IS NULL
+          THEN allocation.amount ELSE -allocation.amount END
+      ), 0) AS net_paid
+      FROM public.finance_payment_allocations allocation
+      JOIN public.finance_payments payment ON payment.id = allocation.payment_id
+      WHERE allocation.expense_item_id = expense.id
+    ) payment_evidence
+    WHERE expense.organization_id = p_organization_id
+      AND expense.property_id = p_property_id
+      AND expense.currency = p_currency
+      AND expense.invoice_date BETWEEN p_period_start AND p_period_end
+      AND (
+        (expense.status = 'paid') IS DISTINCT FROM
+          (payment_evidence.net_paid >= expense.amount)
+        OR (expense.paid_date IS NOT NULL) IS DISTINCT FROM
+          (payment_evidence.net_paid > 0)
+      )
+
+    UNION ALL
+
+    SELECT
+      'OBLIGATION_LEVEL_POSTING_MULTI_SETTLEMENT:expense_obligation:' || expense.id::text,
+      jsonb_build_object(
+        'issueCode', 'OBLIGATION_LEVEL_POSTING_MULTI_SETTLEMENT',
+        'severity', 'High',
+        'organizationId', expense.organization_id,
+        'propertyId', expense.property_id,
+        'unitId', expense.unit_id,
+        'taskId', expense.task_id,
+        'vendorPersonId', expense.vendor_person_id,
+        'obligationId', expense.id,
+        'sourceType', 'expense_obligation',
+        'sourceId', expense.id,
+        'ledgerEntryId', expense.ledger_entry_id,
+        'sourceReference', 'public.finance_expense_items.ledger_entry_id',
+        'eventDate', expense.paid_date,
+        'obligationDate', expense.invoice_date,
+        'currency', expense.currency,
+        'obligationAmount', to_char(expense.amount, 'FM999999999999990.00'),
+        'affectedSurfaces', jsonb_build_array('owner_statement', 'ledger', 'accounting_health'),
+        'affectedEconomicArea', CASE
+          WHEN expense.expense_type = 'owner_payout' THEN 'owner_payout'
+          ELSE expense.economic_scope
+        END,
+        'explanation', 'One obligation-level posting link cannot represent multiple payment settlement events.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM public.finance_expense_items expense
+    WHERE expense.organization_id = p_organization_id
+      AND expense.property_id = p_property_id
+      AND expense.currency = p_currency
+      AND expense.invoice_date BETWEEN p_period_start AND p_period_end
+      AND 1 < (
+        SELECT count(DISTINCT allocation.payment_id)
+        FROM public.finance_payment_allocations allocation
+        JOIN public.finance_payments payment
+          ON payment.id = allocation.payment_id
+        WHERE allocation.expense_item_id = expense.id
+          AND payment.reversal_of_id IS NULL
+      )
+
+    UNION ALL
+
+    SELECT
+      issue_code || ':income_obligation:' || income.id::text,
       jsonb_build_object(
         'issueCode', issue_code,
         'severity', 'High',
@@ -860,6 +1262,318 @@ AS $$
     UNION ALL
 
     SELECT
+      'SOURCE_LINKED_LEDGER_WITHOUT_SETTLEMENT_IDENTITY:ledger_entry:' || ledger.id::text,
+      jsonb_build_object(
+        'issueCode', 'SOURCE_LINKED_LEDGER_WITHOUT_SETTLEMENT_IDENTITY',
+        'severity', 'High',
+        'organizationId', ledger.organization_id,
+        'propertyId', ledger.property_id,
+        'unitId', ledger.unit_id,
+        'sourceType', 'ledger_entry',
+        'sourceId', ledger.id,
+        'parentTransactionId', ledger.source_id,
+        'typedProjectionSource', ledger.source_type,
+        'ledgerEntryId', ledger.id,
+        'sourceReference', 'public.ledger_entries.source_type/source_id',
+        'eventDate', ledger.transaction_date,
+        'currency', ledger.currency,
+        'ledgerAmount', to_char(ledger.amount, 'FM999999999999990.00'),
+        'reconciliationSourceState', 'obligation_identity_without_settlement_identity',
+        'affectedSurfaces', jsonb_build_array('ledger', 'owner_statement', 'accounting_health'),
+        'affectedEconomicArea', 'reconciliation',
+        'explanation', 'Domain-linked Ledger row identifies an obligation or workflow row, but the current schema cannot identify the exact receipt or payment allocation settlement.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM public.ledger_entries ledger
+    WHERE ledger.organization_id = p_organization_id
+      AND ledger.property_id = p_property_id
+      AND ledger.currency = p_currency
+      AND ledger.transaction_date BETWEEN p_period_start AND p_period_end
+      AND ledger.source_id IS NOT NULL
+      AND ledger.source_type IN ('finance_income', 'finance_expense')
+
+    UNION ALL
+
+    SELECT
+      'MAINTENANCE_BILL_DUPLICATE_EXACT_TASK:maintenance_task:' || task.id::text,
+      jsonb_build_object(
+        'issueCode', 'MAINTENANCE_BILL_DUPLICATE_EXACT_TASK',
+        'severity', 'Critical',
+        'organizationId', task.organization_id,
+        'propertyId', task.property_id,
+        'unitId', task.unit_id,
+        'taskId', task.id,
+        'obligationId', expense.id,
+        'sourceType', 'maintenance_task',
+        'sourceId', task.id,
+        'ledgerEntryId', task.ledger_entry_id,
+        'sourceReference', 'public.finance_expense_items.task_id=public.tasks.id',
+        'eventDate', coalesce(task.completed_at::date, task.updated_at::date),
+        'currency', task.actual_cost_currency,
+        'obligationAmount', to_char(expense.amount, 'FM999999999999990.00'),
+        'ledgerAmount', to_char(ledger.amount, 'FM999999999999990.00'),
+        'affectedSurfaces', jsonb_build_array('maintenance', 'bills_and_expenses', 'ledger'),
+        'affectedEconomicArea', 'maintenance',
+        'explanation', 'The same exact task has a direct Ledger effect and a finance bill. This is duplicate-risk evidence; Plan 01 does not choose or repair either source.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM public.tasks task
+    JOIN public.finance_expense_items expense
+      ON expense.organization_id = task.organization_id
+     AND expense.task_id = task.id
+    JOIN public.ledger_entries ledger
+      ON ledger.id = task.ledger_entry_id
+    WHERE task.organization_id = p_organization_id
+      AND task.property_id = p_property_id
+      AND task.actual_cost_currency = p_currency
+      AND coalesce(task.completed_at::date, task.updated_at::date)
+        BETWEEN p_period_start AND p_period_end
+
+    UNION ALL
+
+    SELECT
+      'PETTY_CASH_BILL_DUPLICATE_EXACT_LEDGER:petty_cash_entry:' || petty.id::text,
+      jsonb_build_object(
+        'issueCode', 'PETTY_CASH_BILL_DUPLICATE_EXACT_LEDGER',
+        'severity', 'Critical',
+        'organizationId', petty.organization_id,
+        'propertyId', petty.property_id,
+        'unitId', petty.unit_id,
+        'obligationId', expense.id,
+        'sourceType', 'petty_cash_entry',
+        'sourceId', petty.id,
+        'ledgerEntryId', petty.ledger_entry_id,
+        'sourceReference', 'public.petty_cash_entries.ledger_entry_id=public.finance_expense_items.ledger_entry_id',
+        'eventDate', coalesce(petty.clear_date, petty.invoice_date),
+        'currency', petty.currency,
+        'affectedSurfaces', jsonb_build_array('petty_cash', 'bills_and_expenses', 'ledger'),
+        'affectedEconomicArea', 'petty_cash',
+        'explanation', 'Petty cash and a finance bill point to the same exact Ledger row.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM public.petty_cash_entries petty
+    JOIN public.finance_expense_items expense
+      ON expense.organization_id = petty.organization_id
+     AND expense.ledger_entry_id = petty.ledger_entry_id
+    WHERE petty.organization_id = p_organization_id
+      AND petty.property_id = p_property_id
+      AND petty.currency = p_currency
+      AND petty.ledger_entry_id IS NOT NULL
+      AND petty.invoice_date BETWEEN p_period_start AND p_period_end
+
+    UNION ALL
+
+    SELECT
+      'DEPOSIT_INCOME_WITHOUT_DEPOSIT_EVENT:income_obligation:' || income.id::text,
+      jsonb_build_object(
+        'issueCode', 'DEPOSIT_INCOME_WITHOUT_DEPOSIT_EVENT',
+        'severity', 'High',
+        'organizationId', income.organization_id,
+        'propertyId', income.property_id,
+        'unitId', income.unit_id,
+        'leaseId', income.lease_id,
+        'obligationId', income.id,
+        'sourceType', 'income_obligation',
+        'sourceId', income.id,
+        'sourceReference', 'public.finance_income_items.income_type=security_deposit',
+        'eventDate', income.received_date,
+        'obligationDate', income.due_date,
+        'currency', income.currency,
+        'obligationAmount', to_char(income.amount_due, 'FM999999999999990.00'),
+        'affectedSurfaces', jsonb_build_array('owner_statement', 'rent_and_income', 'property_cash'),
+        'affectedEconomicArea', 'security_deposit',
+        'explanation', 'Deposit-classified income has no deposit event reachable through its exact lease identity.',
+        'proposedResolutionClass', 'unsupported_current_source'
+      )
+    FROM public.finance_income_items income
+    WHERE income.organization_id = p_organization_id
+      AND income.property_id = p_property_id
+      AND income.currency = p_currency
+      AND income.due_date BETWEEN p_period_start AND p_period_end
+      AND income.income_type = 'security_deposit'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.lease_deposits lease_deposit
+        JOIN public.lease_deposit_events deposit
+          ON deposit.lease_deposit_id = lease_deposit.id
+        WHERE lease_deposit.organization_id = income.organization_id
+          AND lease_deposit.lease_id = income.lease_id
+          AND deposit.property_id = income.property_id
+      )
+
+    UNION ALL
+
+    SELECT
+      issue.issue_code || ':journal_entry:' || journal.id::text,
+      jsonb_build_object(
+        'issueCode', issue.issue_code,
+        'severity', 'High',
+        'organizationId', journal.organization_id,
+        'propertyId', ledger.property_id,
+        'unitId', ledger.unit_id,
+        'sourceType', 'journal_entry',
+        'sourceId', journal.id,
+        'parentTransactionId', journal.source_id,
+        'typedProjectionSource', journal.source_type,
+        'ledgerEntryId', ledger.id,
+        'journalId', journal.id,
+        'sourceReference', 'public.accounting_journal_entries.legacy_ledger_entry_id',
+        'eventDate', journal.entry_date,
+        'currency', journal.currency,
+        'ledgerAmount', to_char(ledger.amount, 'FM999999999999990.00'),
+        'journalAmount', to_char(greatest(control.debit_amount, control.credit_amount), 'FM999999999999990.00'),
+        'affectedSurfaces', jsonb_build_array('ledger', 'accounting_health'),
+        'affectedEconomicArea', 'accounting_control',
+        'explanation', issue.explanation,
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM public.accounting_journal_entries journal
+    JOIN public.ledger_entries ledger
+      ON ledger.id = journal.legacy_ledger_entry_id
+    CROSS JOIN LATERAL (
+      SELECT
+        coalesce(sum(line.debit_amount), 0) AS debit_amount,
+        coalesce(sum(line.credit_amount), 0) AS credit_amount,
+        bool_or(line.property_id IS DISTINCT FROM ledger.property_id) AS property_mismatch,
+        bool_or(
+          line.unit_id IS NOT NULL
+          AND line.unit_id IS DISTINCT FROM ledger.unit_id
+        ) AS unit_mismatch
+      FROM public.accounting_journal_lines line
+      WHERE line.journal_entry_id = journal.id
+    ) control
+    CROSS JOIN LATERAL (
+      SELECT candidate.issue_code, candidate.explanation
+      FROM (VALUES
+        (
+          'LEDGER_JOURNAL_AMOUNT_MISMATCH',
+          'Ledger amount differs from the linked journal debit or credit control.'
+        ),
+        (
+          'LEDGER_JOURNAL_DATE_MISMATCH',
+          'Ledger transaction date differs from the linked journal entry date.'
+        ),
+        (
+          'LEDGER_JOURNAL_PROPERTY_UNIT_MISMATCH',
+          'Ledger property or unit differs from at least one linked journal line.'
+        ),
+        (
+          'LEDGER_JOURNAL_SOURCE_REVERSAL_MISMATCH',
+          'Ledger and linked journal source or reversal identity differs.'
+        )
+      ) candidate(issue_code, explanation)
+      WHERE
+        (candidate.issue_code = 'LEDGER_JOURNAL_AMOUNT_MISMATCH'
+          AND (
+            control.debit_amount <> ledger.amount
+            OR control.credit_amount <> ledger.amount
+          ))
+        OR (candidate.issue_code = 'LEDGER_JOURNAL_DATE_MISMATCH'
+          AND journal.entry_date <> ledger.transaction_date)
+        OR (candidate.issue_code = 'LEDGER_JOURNAL_PROPERTY_UNIT_MISMATCH'
+          AND (control.property_mismatch OR control.unit_mismatch))
+        OR (candidate.issue_code = 'LEDGER_JOURNAL_SOURCE_REVERSAL_MISMATCH'
+          AND (
+            journal.source_type IS DISTINCT FROM ledger.source_type
+            OR journal.source_id IS DISTINCT FROM ledger.source_id
+            OR (journal.reversal_of_id IS NULL) IS DISTINCT FROM
+              (journal.status <> 'reversed')
+          ))
+    ) issue
+    WHERE journal.organization_id = p_organization_id
+      AND ledger.property_id = p_property_id
+      AND journal.currency = p_currency
+      AND journal.entry_date BETWEEN p_period_start AND p_period_end
+
+    UNION ALL
+
+    SELECT
+      'ARCHIVED_SOURCE_REMAINS_EFFECTIVE:' ||
+        (source.payload ->> 'sourceType') || ':' ||
+        (source.payload ->> 'sourceId'),
+      jsonb_build_object(
+        'issueCode', 'ARCHIVED_SOURCE_REMAINS_EFFECTIVE',
+        'severity', 'High',
+        'organizationId', p_organization_id,
+        'propertyId', p_property_id,
+        'sourceType', source.payload ->> 'sourceType',
+        'sourceId', source.payload ->> 'sourceId',
+        'sourceReference', source.payload ->> 'sourceReference',
+        'eventDate', source.payload ->> 'eventDate',
+        'currency', source.payload ->> 'currency',
+        'affectedSurfaces', source.payload -> 'affectedSurfaces',
+        'affectedEconomicArea', coalesce(source.payload ->> 'economicArea', 'financial_history'),
+        'explanation', 'Archived source remains financially effective in at least one current read path.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM source_rows source
+    WHERE source.payload ->> 'archived' = 'true'
+      AND coalesce((source.payload ->> 'amount')::numeric, 0) <> 0
+
+    UNION ALL
+
+    SELECT
+      'MISSING_STABLE_RECONCILIATION_IDENTITY:' ||
+        (source.payload ->> 'sourceType') || ':' ||
+        (source.payload ->> 'sourceId'),
+      jsonb_build_object(
+        'issueCode', 'MISSING_STABLE_RECONCILIATION_IDENTITY',
+        'severity', 'High',
+        'organizationId', p_organization_id,
+        'propertyId', p_property_id,
+        'sourceType', source.payload ->> 'sourceType',
+        'sourceId', source.payload ->> 'sourceId',
+        'parentTransactionId', source.payload ->> 'parentTransactionId',
+        'sourceReference', source.payload ->> 'sourceReference',
+        'eventDate', source.payload ->> 'eventDate',
+        'currency', source.payload ->> 'currency',
+        'reconciliationSourceState', coalesce(
+          source.payload ->> 'reconciliationSourceState',
+          'missing_exact_cash_identity'
+        ),
+        'affectedSurfaces', source.payload -> 'affectedSurfaces',
+        'affectedEconomicArea', coalesce(source.payload ->> 'economicArea', 'reconciliation'),
+        'explanation', 'Current source has no stable exact settlement, cash-source, or reconciliation identity.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM source_rows source
+    WHERE source.payload ->> 'sourceType' IN (
+      'receipt_allocation', 'payment_allocation', 'deposit_event'
+    )
+
+    UNION ALL
+
+    SELECT
+      'DUPLICATE_EXACT_SOURCE_IDENTITY:ledger_entry:' || ledger.source_type || ':' || ledger.source_id::text,
+      jsonb_build_object(
+        'issueCode', 'DUPLICATE_EXACT_SOURCE_IDENTITY',
+        'severity', 'Critical',
+        'organizationId', p_organization_id,
+        'propertyId', p_property_id,
+        'sourceType', 'ledger_entry',
+        'sourceId', ledger.source_id,
+        'typedProjectionSource', ledger.source_type,
+        'sourceReference', 'public.ledger_entries(source_type,source_id)',
+        'eventDate', min(ledger.transaction_date),
+        'currency', p_currency,
+        'duplicateCount', count(*),
+        'affectedSurfaces', jsonb_build_array('ledger', 'property_performance', 'unit_performance', 'income_and_expense'),
+        'affectedEconomicArea', 'duplicate_effect',
+        'explanation', 'More than one Ledger row uses the same exact typed source identity.',
+        'proposedResolutionClass', 'ambiguous_requires_resolution'
+      )
+    FROM public.ledger_entries ledger
+    WHERE ledger.organization_id = p_organization_id
+      AND ledger.property_id = p_property_id
+      AND ledger.currency = p_currency
+      AND ledger.transaction_date BETWEEN p_period_start AND p_period_end
+      AND ledger.source_id IS NOT NULL
+    GROUP BY ledger.source_type, ledger.source_id
+    HAVING count(*) > 1
+
+    UNION ALL
+
+    SELECT
       'DEPOSIT_EVENT_WITHOUT_CASH_EVIDENCE:' || deposit.id::text,
       jsonb_build_object(
         'issueCode', 'DEPOSIT_EVENT_WITHOUT_CASH_EVIDENCE',
@@ -869,36 +1583,45 @@ AS $$
         'sourceType', 'deposit_event',
         'sourceId', deposit.id,
         'parentTransactionId', deposit.lease_deposit_id,
+        'leaseId', lease_deposit.lease_id,
         'sourceReference', 'public.lease_deposit_events',
         'eventDate', deposit.event_date,
         'currency', deposit.currency,
         'settlementAmount', to_char(deposit.amount, 'FM999999999999990.00'),
+        'depositType', lease_deposit.deposit_type,
+        'reconciliationSourceState', 'missing_exact_cash_identity',
+        'nonAuthoritativeCandidateCount', (
+          SELECT count(*)
+          FROM (
+            SELECT receipt.id
+            FROM public.finance_receipts receipt
+            WHERE receipt.organization_id = deposit.organization_id
+              AND receipt.property_id = deposit.property_id
+              AND receipt.currency = deposit.currency
+              AND receipt.received_date = deposit.event_date
+              AND receipt.amount = deposit.amount
+            UNION ALL
+            SELECT payment.id
+            FROM public.finance_payments payment
+            WHERE payment.organization_id = deposit.organization_id
+              AND payment.property_id = deposit.property_id
+              AND payment.currency = deposit.currency
+              AND payment.paid_date = deposit.event_date
+              AND payment.amount = deposit.amount
+          ) candidates
+        ),
         'affectedSurfaces', jsonb_build_array('owner_statement', 'property_cash'),
         'affectedEconomicArea', 'security_deposit',
-        'explanation', 'Deposit event has no supported receipt or payment cash evidence with the same property, date, currency, and amount.',
+        'explanation', 'Deposit event has no exact receipt or payment identity. Any same-date and same-amount cash row is only a non-authoritative candidate and never suppresses this diagnostic.',
         'proposedResolutionClass', 'ambiguous_requires_resolution'
       )
     FROM public.lease_deposit_events deposit
+    JOIN public.lease_deposits lease_deposit
+      ON lease_deposit.id = deposit.lease_deposit_id
     WHERE deposit.organization_id = p_organization_id
       AND deposit.property_id = p_property_id
       AND deposit.currency = p_currency
       AND deposit.event_date BETWEEN p_period_start AND p_period_end
-      AND NOT EXISTS (
-        SELECT 1 FROM public.finance_receipts receipt
-        WHERE receipt.organization_id = deposit.organization_id
-          AND receipt.property_id = deposit.property_id
-          AND receipt.currency = deposit.currency
-          AND receipt.received_date = deposit.event_date
-          AND receipt.amount = deposit.amount
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM public.finance_payments payment
-        WHERE payment.organization_id = deposit.organization_id
-          AND payment.property_id = deposit.property_id
-          AND payment.currency = deposit.currency
-          AND payment.paid_date = deposit.event_date
-          AND payment.amount = deposit.amount
-      )
 
     UNION ALL
 
@@ -926,6 +1649,148 @@ AS $$
       AND coalesce(owner.started_on, '-infinity'::date) <= p_period_end
       AND coalesce(owner.ended_on, 'infinity'::date) >= p_period_start
       AND (owner.archived_at IS NOT NULL OR person.archived_at IS NOT NULL)
+
+    UNION ALL
+
+    SELECT
+      'ARCHIVED_HISTORICAL_PARTY_OMITTED:person_contact:' || contact.id::text,
+      jsonb_build_object(
+        'issueCode', 'ARCHIVED_HISTORICAL_PARTY_OMITTED',
+        'severity', 'High',
+        'organizationId', contact.organization_id,
+        'propertyId', owner.property_id,
+        'ownerPersonId', owner.person_id,
+        'sourceType', 'person_contact',
+        'sourceId', contact.id,
+        'parentTransactionId', owner.id,
+        'sourceReference', 'public.person_contacts linked to historical property owner',
+        'eventDate', p_period_end,
+        'affectedSurfaces', jsonb_build_array('owner_statement'),
+        'affectedEconomicArea', 'ownership',
+        'explanation', 'Archived historical owner contact is omitted by the live Owner Statement loader; no contact value is exposed by this diagnostic.',
+        'proposedResolutionClass', 'candidate_explicit_exclusion'
+      )
+    FROM public.property_owners owner
+    JOIN public.person_contacts contact
+      ON contact.organization_id = owner.organization_id
+     AND contact.person_id = owner.person_id
+    WHERE owner.organization_id = p_organization_id
+      AND owner.property_id = p_property_id
+      AND coalesce(owner.started_on, '-infinity'::date) <= p_period_end
+      AND coalesce(owner.ended_on, 'infinity'::date) >= p_period_start
+      AND contact.archived_at IS NOT NULL
+
+    UNION ALL
+
+    SELECT
+      'LOCK_STATE_DISAGREEMENT:' || p_property_id::text || ':' || p_period_start::text,
+      jsonb_build_object(
+        'issueCode', 'LOCK_STATE_DISAGREEMENT',
+        'severity', 'High',
+        'organizationId', p_organization_id,
+        'propertyId', p_property_id,
+        'sourceType', 'period_lock_state',
+        'sourceId', p_property_id,
+        'sourceReference', 'public.ledger_period_locks/public.accounting_periods',
+        'eventDate', p_period_end,
+        'ledgerLockState', CASE WHEN lock_state.ledger_locked THEN 'locked' ELSE 'open' END,
+        'accountingLockState', CASE
+          WHEN lock_state.accounting_period_count < lock_state.book_count THEN 'missing_for_one_or_more_books'
+          WHEN lock_state.accounting_locked THEN 'locked'
+          ELSE 'open'
+        END,
+        'propertyLockState', 'not_represented_by_current_schema',
+        'affectedSurfaces', jsonb_build_array('ledger', 'accounting_health', 'finance_close'),
+        'affectedEconomicArea', 'period_locking',
+        'explanation', 'Property close is not represented and organization Ledger lock state disagrees with or is not uniformly represented by accounting-book periods.',
+        'proposedResolutionClass', 'unsupported_current_source'
+      )
+    FROM LATERAL (
+      SELECT
+        EXISTS (
+          SELECT 1
+          FROM public.ledger_period_locks ledger_lock
+          WHERE ledger_lock.organization_id = p_organization_id
+            AND ledger_lock.period_start = date_trunc('month', p_period_start)::date
+            AND ledger_lock.locked_at IS NOT NULL
+        ) AS ledger_locked,
+        coalesce(bool_or(period.status = 'locked'), false) AS accounting_locked,
+        count(period.id)::bigint AS accounting_period_count,
+        count(book.id)::bigint AS book_count
+      FROM public.accounting_books book
+      LEFT JOIN public.accounting_periods period
+        ON period.book_id = book.id
+       AND period.period_start = date_trunc('month', p_period_start)::date
+      WHERE book.organization_id = p_organization_id
+        AND book.currency = p_currency
+        AND book.archived_at IS NULL
+    ) lock_state
+    WHERE lock_state.ledger_locked IS DISTINCT FROM lock_state.accounting_locked
+       OR lock_state.accounting_period_count < lock_state.book_count
+
+    UNION ALL
+
+    SELECT
+      'GENERIC_NAMESPACE_IMPERSONATION_CAPABILITY:' || capability.bypass_class || ':' || capability.function_name,
+      jsonb_build_object(
+        'issueCode', 'GENERIC_NAMESPACE_IMPERSONATION_CAPABILITY',
+        'severity', 'Critical',
+        'organizationId', p_organization_id,
+        'propertyId', p_property_id,
+        'sourceType', 'database_function',
+        'sourceId', capability.bypass_class,
+        'sourceReference', capability.function_name,
+        'eventDate', p_period_end,
+        'executeGrantPresent', true,
+        'runtimeEvidenceReference', 'supabase/tests/finance_inventory_authorization_test.sql',
+        'affectedSurfaces', jsonb_build_array('ledger', 'accounting_health'),
+        'affectedEconomicArea', 'financial_authority',
+        'explanation', 'The authenticated database role has EXECUTE on a generic financial RPC. Runtime pgTAP evidence separately records whether private-helper grants allow or deny the call; Plan 01 changes neither path.',
+        'proposedResolutionClass', 'unsupported_current_source'
+      )
+    FROM (VALUES
+      (
+        'public.create_ledger_entry(uuid,uuid,uuid,date,text,text,numeric,public.currency_code,text)',
+        'generic_ledger_create'
+      ),
+      (
+        'public.update_ledger_entry(uuid,uuid,uuid,uuid,date,text,text,numeric,public.currency_code,text)',
+        'generic_ledger_update'
+      ),
+      (
+        'public.post_accounting_journal(uuid,uuid,text,uuid,text,date,public.currency_code,text,text,jsonb)',
+        'generic_journal_post'
+      )
+    ) capability(function_name, bypass_class)
+    WHERE has_function_privilege(
+      'authenticated',
+      capability.function_name,
+      'EXECUTE'
+    )
+
+    UNION ALL
+
+    SELECT
+      'RESERVED_NAMESPACE_IMPERSONATION_CAPABILITY:ledger_entries:UPDATE',
+      jsonb_build_object(
+        'issueCode', 'RESERVED_NAMESPACE_IMPERSONATION_CAPABILITY',
+        'severity', 'Critical',
+        'organizationId', p_organization_id,
+        'propertyId', p_property_id,
+        'sourceType', 'table_privilege',
+        'sourceId', 'public.ledger_entries',
+        'sourceReference', 'authenticated UPDATE on public.ledger_entries',
+        'eventDate', p_period_end,
+        'affectedSurfaces', jsonb_build_array('ledger', 'accounting_health'),
+        'affectedEconomicArea', 'financial_authority',
+        'explanation', 'Direct authenticated UPDATE can attempt to replace Ledger source_type/source_id with a reserved domain namespace; RLS and link guards are tested separately.',
+        'proposedResolutionClass', 'unsupported_current_source'
+      )
+    WHERE has_table_privilege(
+      'authenticated',
+      'public.ledger_entries',
+      'UPDATE'
+    )
 
     UNION ALL
 
@@ -975,7 +1840,26 @@ AS $$
         'allowed', has_table_privilege(role_name, 'public.' || table_name, privilege_name),
         'currentStateOnly', true
       ) AS payload
-    FROM unnest(ARRAY['ledger_entries', 'accounting_journal_entries', 'finance_income_items', 'finance_expense_items']) table_name
+    FROM unnest(ARRAY[
+      'finance_income_items',
+      'finance_expense_items',
+      'finance_receipts',
+      'finance_receipt_allocations',
+      'finance_payments',
+      'finance_payment_allocations',
+      'lease_deposits',
+      'lease_deposit_events',
+      'ledger_entries',
+      'accounting_journal_entries',
+      'accounting_journal_lines',
+      'tasks',
+      'petty_cash_entries',
+      'property_owners',
+      'people',
+      'person_contacts',
+      'ledger_period_locks',
+      'accounting_periods'
+    ]) table_name
     CROSS JOIN unnest(ARRAY['anon', 'authenticated']) role_name
     CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) privilege_name
 
@@ -996,7 +1880,8 @@ AS $$
       ('public.create_ledger_entry(uuid,uuid,uuid,date,text,text,numeric,public.currency_code,text)', 'generic_ledger_write'),
       ('public.update_ledger_entry(uuid,uuid,uuid,uuid,date,text,text,numeric,public.currency_code,text)', 'generic_ledger_write'),
       ('public.archive_ledger_entry(uuid,uuid)', 'generic_ledger_archive'),
-      ('public.post_accounting_journal(uuid,uuid,text,uuid,text,date,public.currency_code,text,text,jsonb)', 'generic_journal_post')
+      ('public.post_accounting_journal(uuid,uuid,text,uuid,text,date,public.currency_code,text,text,jsonb)', 'generic_journal_post'),
+      ('public.reverse_accounting_journal(uuid,uuid,date,text)', 'generic_journal_reverse')
     ) functions(function_name, bypass_class)
     CROSS JOIN unnest(ARRAY['anon', 'authenticated']) role_name
 
@@ -1009,19 +1894,405 @@ AS $$
         'role', role_name,
         'organizationId', p_organization_id,
         'propertyId', p_property_id,
-        'diagnosticRpcExpected', CASE WHEN role_name = 'admin' THEN 'allowed' ELSE 'denied' END,
-        'crossOrganizationExpected', 'denied',
-        'wrongLinkedRecordExpected', 'denied',
+        'checkedWrapperPolicy', 'authenticated organization admin only',
+        'observedInPgTap', true,
+        'evidenceReference', 'supabase/tests/finance_inventory_authorization_test.sql',
         'currentStateOnly', true
       )
     FROM unnest(ARRAY['anonymous', 'member', 'manager', 'admin']) role_name
+  ),
+  watermark_dependencies AS (
+    SELECT
+      'source:' || source.stable_key AS dependency_key,
+      source.payload AS dependency_value
+    FROM source_rows source
+
+    UNION ALL
+
+    SELECT
+      'diagnostic:' || diagnostic.stable_key,
+      diagnostic.payload
+    FROM diagnostic_rows diagnostic
+
+    UNION ALL
+
+    SELECT
+      'access:' || access.stable_key,
+      access.payload
+    FROM access_rows access
+
+    UNION ALL
+
+    SELECT
+      'income_obligation:' || income.id::text,
+      to_jsonb(income) - 'payer_label' - 'description'
+    FROM public.finance_income_items income
+    WHERE income.organization_id = p_organization_id
+      AND income.property_id = p_property_id
+      AND income.currency = p_currency
+      AND (
+        income.due_date BETWEEN p_period_start AND p_period_end
+        OR income.received_date BETWEEN p_period_start AND p_period_end
+      )
+
+    UNION ALL
+
+    SELECT
+      'expense_obligation:' || expense.id::text,
+      to_jsonb(expense) - 'vendor_label' - 'description'
+    FROM public.finance_expense_items expense
+    WHERE expense.organization_id = p_organization_id
+      AND expense.property_id = p_property_id
+      AND expense.currency = p_currency
+      AND (
+        expense.invoice_date BETWEEN p_period_start AND p_period_end
+        OR expense.paid_date BETWEEN p_period_start AND p_period_end
+      )
+
+    UNION ALL
+
+    SELECT
+      'receipt:' || receipt.id::text,
+      to_jsonb(receipt) - 'payer_label'
+    FROM public.finance_receipts receipt
+    WHERE receipt.organization_id = p_organization_id
+      AND receipt.property_id = p_property_id
+      AND receipt.currency = p_currency
+      AND receipt.received_date BETWEEN p_period_start AND p_period_end
+
+    UNION ALL
+
+    SELECT
+      'receipt_allocation_dependency:' || allocation.id::text,
+      to_jsonb(allocation)
+    FROM public.finance_receipt_allocations allocation
+    JOIN public.finance_receipts receipt ON receipt.id = allocation.receipt_id
+    WHERE allocation.organization_id = p_organization_id
+      AND receipt.property_id = p_property_id
+      AND receipt.currency = p_currency
+      AND receipt.received_date BETWEEN p_period_start AND p_period_end
+
+    UNION ALL
+
+    SELECT
+      'payment:' || payment.id::text,
+      to_jsonb(payment) - 'payee_label'
+    FROM public.finance_payments payment
+    WHERE payment.organization_id = p_organization_id
+      AND payment.property_id = p_property_id
+      AND payment.currency = p_currency
+      AND payment.paid_date BETWEEN p_period_start AND p_period_end
+
+    UNION ALL
+
+    SELECT
+      'payment_allocation_dependency:' || allocation.id::text,
+      to_jsonb(allocation)
+    FROM public.finance_payment_allocations allocation
+    JOIN public.finance_payments payment ON payment.id = allocation.payment_id
+    WHERE allocation.organization_id = p_organization_id
+      AND payment.property_id = p_property_id
+      AND payment.currency = p_currency
+      AND payment.paid_date BETWEEN p_period_start AND p_period_end
+
+    UNION ALL
+
+    SELECT
+      'lease_deposit:' || lease_deposit.id::text,
+      to_jsonb(lease_deposit) - 'notes'
+    FROM public.lease_deposits lease_deposit
+    JOIN public.leases lease ON lease.id = lease_deposit.lease_id
+    WHERE lease_deposit.organization_id = p_organization_id
+      AND lease.property_id = p_property_id
+      AND lease_deposit.currency = p_currency
+
+    UNION ALL
+
+    SELECT
+      'deposit_event_dependency:' || deposit.id::text,
+      to_jsonb(deposit)
+    FROM public.lease_deposit_events deposit
+    WHERE deposit.organization_id = p_organization_id
+      AND deposit.property_id = p_property_id
+      AND deposit.currency = p_currency
+      AND deposit.event_date <= p_period_end
+
+    UNION ALL
+
+    SELECT
+      'ledger_dependency:' || ledger.id::text,
+      to_jsonb(ledger) - 'description'
+    FROM public.ledger_entries ledger
+    WHERE ledger.organization_id = p_organization_id
+      AND ledger.property_id = p_property_id
+      AND ledger.currency = p_currency
+      AND ledger.transaction_date BETWEEN p_period_start AND p_period_end
+
+    UNION ALL
+
+    SELECT
+      'journal_entry_dependency:' || journal.id::text,
+      to_jsonb(journal) - 'description'
+    FROM public.accounting_journal_entries journal
+    WHERE journal.organization_id = p_organization_id
+      AND journal.currency = p_currency
+      AND journal.entry_date BETWEEN p_period_start AND p_period_end
+      AND EXISTS (
+        SELECT 1
+        FROM public.accounting_journal_lines line
+        WHERE line.journal_entry_id = journal.id
+          AND line.property_id = p_property_id
+      )
+
+    UNION ALL
+
+    SELECT
+      'journal_line_dependency:' || line.id::text,
+      to_jsonb(line) - 'description'
+    FROM public.accounting_journal_lines line
+    JOIN public.accounting_journal_entries journal
+      ON journal.id = line.journal_entry_id
+    WHERE line.organization_id = p_organization_id
+      AND line.property_id = p_property_id
+      AND journal.currency = p_currency
+      AND journal.entry_date BETWEEN p_period_start AND p_period_end
+
+    UNION ALL
+
+    SELECT
+      'maintenance_dependency:' || task.id::text,
+      to_jsonb(task) - 'title' - 'description'
+    FROM public.tasks task
+    WHERE task.organization_id = p_organization_id
+      AND task.property_id = p_property_id
+      AND (
+        task.completed_at::date BETWEEN p_period_start AND p_period_end
+        OR task.updated_at::date BETWEEN p_period_start AND p_period_end
+      )
+
+    UNION ALL
+
+    SELECT
+      'petty_cash_dependency:' || petty.id::text,
+      to_jsonb(petty) - 'description' - 'supplier' - 'remark'
+    FROM public.petty_cash_entries petty
+    WHERE petty.organization_id = p_organization_id
+      AND petty.property_id = p_property_id
+      AND petty.currency = p_currency
+      AND petty.invoice_date BETWEEN p_period_start AND p_period_end
+
+    UNION ALL
+
+    SELECT
+      'ownership_dependency:' || owner.id::text,
+      to_jsonb(owner)
+    FROM public.property_owners owner
+    WHERE owner.organization_id = p_organization_id
+      AND owner.property_id = p_property_id
+      AND coalesce(owner.started_on, '-infinity'::date) <= p_period_end
+      AND coalesce(owner.ended_on, 'infinity'::date) >= p_period_start
+
+    UNION ALL
+
+    SELECT
+      'owner_person_dependency:' || person.id::text,
+      jsonb_build_object(
+        'id', person.id,
+        'organizationId', person.organization_id,
+        'archivedAt', person.archived_at,
+        'updatedAt', person.updated_at
+      )
+    FROM public.people person
+    WHERE person.organization_id = p_organization_id
+      AND EXISTS (
+        SELECT 1
+        FROM public.property_owners owner
+        WHERE owner.organization_id = person.organization_id
+          AND owner.person_id = person.id
+          AND owner.property_id = p_property_id
+          AND coalesce(owner.started_on, '-infinity'::date) <= p_period_end
+          AND coalesce(owner.ended_on, 'infinity'::date) >= p_period_start
+      )
+
+    UNION ALL
+
+    SELECT
+      'owner_contact_dependency:' || contact.id::text,
+      jsonb_build_object(
+        'id', contact.id,
+        'organizationId', contact.organization_id,
+        'personId', contact.person_id,
+        'contactType', contact.contact_type,
+        'isPrimary', contact.is_primary,
+        'archivedAt', contact.archived_at,
+        'updatedAt', contact.updated_at
+      )
+    FROM public.person_contacts contact
+    WHERE contact.organization_id = p_organization_id
+      AND EXISTS (
+        SELECT 1
+        FROM public.property_owners owner
+        WHERE owner.organization_id = contact.organization_id
+          AND owner.person_id = contact.person_id
+          AND owner.property_id = p_property_id
+          AND coalesce(owner.started_on, '-infinity'::date) <= p_period_end
+          AND coalesce(owner.ended_on, 'infinity'::date) >= p_period_start
+      )
+
+    UNION ALL
+
+    SELECT
+      'ledger_lock_dependency:' || ledger_lock.id::text,
+      to_jsonb(ledger_lock)
+    FROM public.ledger_period_locks ledger_lock
+    WHERE ledger_lock.organization_id = p_organization_id
+      AND ledger_lock.period_start = date_trunc('month', p_period_start)::date
+
+    UNION ALL
+
+    SELECT
+      'accounting_book_dependency:' || book.id::text,
+      to_jsonb(book) - 'name'
+    FROM public.accounting_books book
+    WHERE book.organization_id = p_organization_id
+      AND book.currency = p_currency
+
+    UNION ALL
+
+    SELECT
+      'accounting_period_dependency:' || period.id::text,
+      to_jsonb(period) - 'lock_reason'
+    FROM public.accounting_periods period
+    JOIN public.accounting_books book ON book.id = period.book_id
+    WHERE period.organization_id = p_organization_id
+      AND book.currency = p_currency
+      AND period.period_start = date_trunc('month', p_period_start)::date
+
+    UNION ALL
+
+    SELECT
+      'schema_migration:' || migration.version,
+      jsonb_build_object('version', migration.version)
+    FROM supabase_migrations.schema_migrations migration
+
+    UNION ALL
+
+    SELECT
+      'rls_policy:' || policy.schemaname || ':' || policy.tablename || ':' ||
+        policy.policyname,
+      to_jsonb(policy)
+    FROM pg_catalog.pg_policies policy
+    WHERE policy.schemaname = 'public'
+      AND policy.tablename = ANY(ARRAY[
+        'finance_income_items',
+        'finance_expense_items',
+        'finance_receipts',
+        'finance_receipt_allocations',
+        'finance_payments',
+        'finance_payment_allocations',
+        'lease_deposits',
+        'lease_deposit_events',
+        'ledger_entries',
+        'accounting_journal_entries',
+        'accounting_journal_lines',
+        'tasks',
+        'petty_cash_entries',
+        'property_owners',
+        'people',
+        'person_contacts',
+        'ledger_period_locks',
+        'accounting_periods'
+      ])
+
+    UNION ALL
+
+    SELECT
+      'rls_table_state:' || namespace.nspname || ':' || relation.relname,
+      jsonb_build_object(
+        'rowSecurity', relation.relrowsecurity,
+        'forceRowSecurity', relation.relforcerowsecurity
+      )
+    FROM pg_catalog.pg_class relation
+    JOIN pg_catalog.pg_namespace namespace
+      ON namespace.oid = relation.relnamespace
+    WHERE namespace.nspname = 'public'
+      AND relation.relname = ANY(ARRAY[
+        'finance_income_items',
+        'finance_expense_items',
+        'finance_receipts',
+        'finance_receipt_allocations',
+        'finance_payments',
+        'finance_payment_allocations',
+        'lease_deposits',
+        'lease_deposit_events',
+        'ledger_entries',
+        'accounting_journal_entries',
+        'accounting_journal_lines',
+        'tasks',
+        'petty_cash_entries',
+        'property_owners',
+        'people',
+        'person_contacts',
+        'ledger_period_locks',
+        'accounting_periods'
+      ])
+
+    UNION ALL
+
+    SELECT
+      'function_acl:' || namespace.nspname || ':' || routine.proname || '(' ||
+        pg_catalog.pg_get_function_identity_arguments(routine.oid) || ')',
+      jsonb_build_object(
+        'acl', routine.proacl,
+        'securityDefiner', routine.prosecdef,
+        'configuration', routine.proconfig
+      )
+    FROM pg_catalog.pg_proc routine
+    JOIN pg_catalog.pg_namespace namespace
+      ON namespace.oid = routine.pronamespace
+    WHERE namespace.nspname IN ('public', 'app_private')
+      AND routine.proname = ANY(ARRAY[
+        'get_finance_inventory_page',
+        'create_ledger_entry',
+        'update_ledger_entry',
+        'archive_ledger_entry',
+        'post_accounting_journal',
+        'reverse_accounting_journal'
+      ])
+
+    UNION ALL
+
+    SELECT
+      'organization_member_access:' || member.id::text,
+      jsonb_build_object(
+        'id', member.id,
+        'organizationId', member.organization_id,
+        'userId', member.user_id,
+        'role', member.role,
+        'branchId', member.branch_id,
+        'personId', member.person_id,
+        'createdAt', member.created_at
+      )
+    FROM public.organization_members member
+    WHERE member.organization_id = p_organization_id
   ),
   watermark_row AS (
     SELECT
       'watermark:' || p_organization_id::text || ':' || p_property_id::text || ':' || p_period_start::text || ':' || p_period_end::text AS stable_key,
       jsonb_build_object(
-        'hash', md5(coalesce(string_agg(source.stable_key || ':' || source.payload::text, '|' ORDER BY source.stable_key), '')),
+        'hash', md5(coalesce(string_agg(
+          dependency.dependency_key || ':' || dependency.dependency_value::text,
+          '|' ORDER BY dependency.dependency_key
+        ), '')),
         'rowCount', count(*)::bigint,
+        'migrationIdentity', (
+          SELECT max(migration.version)
+          FROM supabase_migrations.schema_migrations migration
+        ),
+        'schemaIdentity', (
+          SELECT md5(coalesce(string_agg(migration.version, '|' ORDER BY migration.version), ''))
+          FROM supabase_migrations.schema_migrations migration
+        ),
         'scope', jsonb_build_object(
           'organizationId', p_organization_id,
           'propertyId', p_property_id,
@@ -1030,7 +2301,7 @@ AS $$
           'periodEnd', p_period_end
         )
       ) AS payload
-    FROM source_rows source
+    FROM watermark_dependencies dependency
   ),
   selected AS (
     SELECT 'sources'::text AS section, source.stable_key, source.payload
@@ -1053,7 +2324,7 @@ AS $$
     WHERE p_section = 'watermark'
   )
   SELECT
-    'finance_inventory_v1'::text,
+    'finance_inventory_v2'::text,
     selected.section,
     selected.stable_key,
     selected.payload
