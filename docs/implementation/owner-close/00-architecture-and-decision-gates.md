@@ -1,246 +1,256 @@
-# Plan 00 — Architecture and Decision Gates
+# Plan 00 — Ratified Architecture and Decision Gates
 
 **Mode:** Standard  
 **Effort:** High  
-**Reason:** Financial authority, reversals, period locking, owner liability, and historical reporting must be settled before implementation can be safely divided.
+**Reason:** Financial authority, corrections, locking, owner liability, reconciliation, and historical evidence must be settled before implementation changes any write path.  
+**Status:** Complete in documentation. Do not request another architecture review.
 
 ## Context and baseline
 
-Planning baseline is `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.
+Planning and Ultra-review baseline is merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.
 
 Repository-verified current behavior:
 
 - `finance_income_items` and `finance_expense_items` model obligations.
-- `finance_receipts`, `finance_receipt_allocations`, `finance_payments`, and `finance_payment_allocations` model dated settlement activity.
-- `lease_deposit_events` separately models deposit custody activity.
-- `ledger_entries` remains independently editable and is used by property records, Unit Performance, Property Performance, Income & Expense, maintenance cost, petty cash, and the Ledger screen.
-- Accounting books, accounts, periods, journals, and lines form a separate compatibility kernel.
-- Owner Statement currently reads selected obligations and settlement allocations, not the operational ledger.
-- Source-linked financial flows do not share one atomic posting, reversal, and period-lock contract.
-- Owner Statement is a live report, not a persisted period close or immutable statement version.
+- receipts, receipt allocations, payments, and payment allocations model dated settlement activity.
+- `lease_deposit_events` models custody activity separately.
+- `ledger_entries` remains independently mutable and drives several property/reporting surfaces.
+- accounting books, accounts, periods, journals, and lines form a separate compatibility/control kernel.
+- Owner Statement reads selected obligations and settlement allocations rather than every operational financial source.
+- maintenance and petty cash can create Ledger/journal effects outside the Owner Statement settlement inputs.
+- source-linked writes do not yet share one atomic posting, reversal, period-lock, idempotency, or reconciliation-source contract.
+- Owner Statement is a live calculation rather than an immutable close-backed publication.
 
-The product boundary remains property operations and property accounting. The architecture must not turn Nestory into the property management company's corporate accounting, payroll, tax, or general ERP system.
+## Ratified product boundary
 
-## Objective
+Nestory is the operational property ledger, owner-liability, property-period close, and owner-reporting system.
 
-Ratify one financial authority model and the minimum business rules required by Plans 01-12. This plan produces an approved architecture decision, not product code.
+Nestory is not the property management company's:
 
-## Proposed architecture
+- corporate payroll system;
+- overhead or company-wide P&L system;
+- tax accounting product;
+- product-facing general ledger;
+- generic ERP.
+
+A hidden double-entry projection may remain for integrity and compatibility, but ordinary operators must work through property operations and Owner Close.
+
+## Ratified architecture
 
 ### 1. Canonical write model
 
-Do not introduce a second generic `financial_events` table as another independently writable source unless Ultra proves it is necessary.
+Keep a closed set of domain-owned records as canonical writes:
 
-The canonical write model is a closed set of domain-owned records:
+- obligations and assessments;
+- receipt/payment headers and allocations;
+- lease charge occurrences;
+- deposit custody events;
+- petty-cash entries;
+- management-fee agreements and assessments;
+- owner contributions, distributions, and controlled adjustments;
+- exact linked reversals.
 
-- Obligations: income items, expense items, lease charge occurrences, and management-fee assessments.
-- Settlements: receipt allocations and payment allocations.
-- Custody: lease deposit events.
-- Owner liability: owner cash events and owner distributions.
-- Operational expense sources: petty-cash entries and finance expense items linked from maintenance.
-- Explicit corrections: reversals and narrowly controlled adjustment events.
+Do not add another independently writable generic financial-event table.
 
-Each reportable effect must have one stable source identity. For allocation-based cash activity, the allocation row is the reportable identity because it carries the obligation classification and amount. A receipt or payment header may support multiple allocations later without changing statement identity.
-
-### 2. Canonical reporting read model
-
-Add one normalized, versioned property-cash event contract, provisionally named `property_cash_events_v1`.
-
-Preferred implementation is a security-invoker SQL view or checked RPC plus a feature-owned TypeScript adapter. It must produce one row per owner-relevant effect with at least:
-
-- `organization_id`
-- `property_id`
-- optional `unit_id`, `lease_id`, `task_id`, owner, tenant, and vendor identities
-- `event_date`
-- `period_start`
-- `currency`
-- exact positive amount plus an explicit signed owner-cash effect
-- economic class: operating income, operating expense, management fee, owner contribution, owner distribution, reserve movement, deposit custody, or adjustment
-- statement section and stable category code
-- `source_type` and `source_id`
-- original source identity for reversals
-- reversal flag and signed effect
-- projection state for ledger and journal controls
-- archive/void semantics that cannot silently remove a historical effect
-
-The contract is the only live source used by Owner Close, Owner Statement drafts, Property Performance, Unit Performance cash facts, Income & Expense cash reporting, and the financial summary shown on property records after cutover.
-
-### 3. Ledger and journal role
-
-`ledger_entries` and accounting journals become deterministic projections and controls, not competing sources of business truth.
-
-- A source-linked ledger row cannot be generically edited, archived, or re-dated.
-- Corrections occur through the source workflow, reversal, or an explicit adjustment event.
-- New projections use the canonical event source identity, not an obligation ID when the actual cash event is an allocation.
-- Journal posting remains balanced, idempotent, and hidden from ordinary operator workflow.
-- Existing manual ledger rows remain readable and are classified during backfill. New manual money entry is eventually replaced by an explicit adjustment workflow.
-- Compatibility columns such as one `ledger_entry_id` on an obligation may remain temporarily but cannot define the new authority.
-
-### 4. Close and statement role
-
-A property reporting period is the operational close object.
-
-- Readiness is computed from business completeness, not merely ownership validity or technical posting queues.
-- Closing locks every source date used by the canonical event contract.
-- A close stores the approved owner roster, reconciliation state, exception resolution, and source manifest/hash.
-- Owner Statements are immutable versions generated from a closed property period.
-- Reopening requires a reason. Published versions remain immutable; any corrected statement is a new version that supersedes the prior version.
-
-### 5. Owner liability model
-
-The Owner Statement and Owner Balance are related but distinct:
-
-- Owner Statement explains one property's period activity for one owner.
-- Owner Balance is the amount the property management company holds for or owes to that owner after prior balance, period activity, fees, reserves, contributions, and distributions.
-
-Proposed equation:
+Each reportable effect has a typed identity:
 
 ```text
-Opening owner balance
-+ Allocated owner operating cash received
-- Allocated property expenses paid
-- Approved management fees
-+ Owner contributions
-- Owner distributions
-+/- Reserve movements and approved adjustments
-= Closing owner balance
+(organization_id, source_type, source_id)
 ```
 
-Security deposits remain a separate custody liability and disclosure unless IPS explicitly treats a released or retained deposit as an owner operating effect.
+A bare UUID is not a complete financial identity.
 
-## Decision gates Ultra must resolve
+### 2. Canonical reporting contract
 
-Ultra must return an explicit decision for each item.
+Create a versioned `property_cash_events_v1` as either:
 
-### Gate A — View/RPC versus persisted event table
+- a `security_invoker = true` read-only SQL view; or
+- a checked, paginated set-returning RPC that enforces the same organization/role boundary.
 
-Proposed decision: use existing domain records as the write model and a normalized view/RPC as the live read model. Persist only close/statement snapshots.
+It produces property-level rows, not one duplicated row per owner. Owner allocation is performed from the frozen close roster.
 
-Reject this only if the current schema cannot guarantee performance, source identity, lock behavior, or historical reproducibility without a persisted event table.
+Required fields include:
+
+- organization, property, optional unit/lease/task/person identities;
+- typed source and parent transaction identities;
+- event date and period start;
+- obligation/service date when relevant;
+- reconciliation source identity;
+- currency and exact amount;
+- explicit signed owner-liability effect;
+- economic class, stable category, and statement section;
+- reversal identity and signed reversal effect;
+- archive/void/inferred/unsupported classification;
+- projection state and calculation-contract version.
+
+The contract has no DML surface and does not silently include unsupported or ambiguous sources.
+
+### 3. Conditional allocation authority
+
+Receipt and payment allocation IDs become canonical settlement-event IDs only after the database enforces:
+
+- immutable or snapshotted organization/property/unit/lease/person/economic/category scope;
+- direct allocation-to-allocation reversal identity or an equally strict bijection;
+- same organization, property, currency, and obligation for reversal;
+- exact opposite amount;
+- one reversal per original and no reversal chains;
+- header amount equals allocation total, unless an explicit unapplied-cash event owns the residual;
+- payload-bound idempotency and unique canonical projection identities.
+
+Do not use obligation-level `ledger_entry_id` compatibility columns as the new settlement authority.
+
+### 4. Shared authority kernel
+
+Before any settlement-write refactor, implement one shared kernel containing:
+
+- stable property-period headers;
+- append-only close-revision skeletons and one current revision pointer;
+- shared property-period serialization and documented lock order;
+- stable organization-scoped reconciliation-source records;
+- payload-bound idempotency requests, canonical payload hashes, actor ownership, and result IDs;
+- unique typed Ledger projection identity;
+- reserved journal source namespaces;
+- direct-DML, generic Ledger, generic journal, and compatibility-wrapper bypass guards;
+- trigger-level source/period immutability where RLS or grants alone are insufficient.
+
+Identical retry + identical payload returns the original result IDs. A changed payload or cross-actor key reuse fails without leaking prior result IDs.
+
+### 5. Lock hierarchy
+
+- Property close is the business lock for one property/currency/period.
+- Current organization-month Ledger locks remain broader additional blockers.
+- Accounting book-period locks remain broader additional blockers.
+- Closing one property does not lock unrelated properties.
+- Reopening one property does not reopen organization or accounting-book periods.
+- Source writes, reversals, material parent edits, ownership edits, projection creation, and close use the same property-period serialization order in one transaction.
+
+### 6. Corrections and reversals
+
+- Never mutate/delete an original economic event to correct it.
+- Normal correction creates an exact linked reversal in an open period and cannot predate the original.
+- A prior published statement remains retained evidence.
+- Historical restatement requires authorized reopen, reason, dated reversal or adjustment, new append-only close revision, ordered reclose, and replacement publication.
+- Reopen immediately withdraws the prior version's current-authority status.
+- The withdrawn version becomes superseded only after replacement publication.
+- Reopening an earlier period marks all dependent later periods/opening balances/statements stale until restated sequentially.
+- Generic Ledger/journal reversal cannot reverse domain projections independently.
+
+### 7. Ledger and journal role
+
+`ledger_entries` and accounting journals become atomic, idempotent projections and controls.
+
+- Source-linked projections cannot be generically edited, archived, re-dated, posted, or reversed.
+- Projections commit in the source transaction.
+- A projection failure rolls back the source write; a source failure leaves no projection.
+- Journals remain balanced and hidden from ordinary operator workflow.
+- The accounting kernel remains until all source/report/write parity, migration, rollback, and observation evidence passes.
+- New manual money entry is replaced by a controlled explicit adjustment workflow before generic manual Ledger writes are retired.
+
+### 8. Property close and statement evidence
+
+Use:
+
+- a stable property-period header;
+- append-only close revisions/runs;
+- a frozen owner roster and recipient/payment-instruction snapshot;
+- reconciliation evidence and a source manifest/hash;
+- calculation-contract version;
+- itemized immutable statement versions and lines;
+- immutable per-format artifacts in a dedicated private append-only boundary.
+
+Every statement version references one exact close revision. Current contacts, archive state, ownership edits, or source edits cannot rewrite published evidence.
+
+### 9. Owner liability
+
+```text
+Opening total owner liability
++ allocated operating cash received
+- allocated property expenses paid
+- ratified management-fee liability effects
++ owner contributions
+- owner distributions
++/- true owner/property adjustments
+= closing total owner liability
+
+available to distribute
+= closing total owner liability
+- reserved amount
+- approved pending or committed deductions
+```
+
+Reserve hold/release normally changes available versus reserved buckets, not total liability.
+
+Owner contributions are liability funding, not operating income. Owner distributions are liability reductions, not property expense. Deposits remain custody liabilities until approved disposition creates a separately classified effect.
+
+## Ratified decision gates
+
+### Gate A — Read contract
+
+**Decision:** read-only security-invoker view or checked paginated RPC. No writable or persisted live event table. Persist only close/statement/artifact/migration-resolution evidence.
 
 ### Gate B — Cash event identity
 
-Proposed decision: receipt allocation and payment allocation IDs are canonical cash event identities. Receipt/payment headers are transaction containers. Deposit events, petty-cash entries, owner cash events, fee assessments, and adjustment events retain their own IDs.
+**Decision:** allocation IDs conditionally, with typed identity, immutable classification/scope, direct reversal pairing, exact constraints, header/allocation balance, and explicit unapplied cash when needed.
 
 ### Gate C — Reversal policy
 
-Proposed decision:
+**Decision:** immutable dated reversal in an open period by default; historical correction uses authorized reopen and ordered restatement. Prior versions remain retained and correctly labeled.
 
-- Never mutate or delete the original event.
-- A reversal is a new event with its own date and exact original amount/effect.
-- An open period may receive a reversal of a prior closed-period event, but the already published prior statement remains unchanged.
-- Correcting the historical statement itself requires reopening the property period and publishing a new version.
+### Gate D — Lock scope
 
-Ultra must confirm whether any source must instead require reopening before reversal.
+**Decision:** property-period business lock plus existing organization and book locks as broader independent controls. Add the shared kernel before settlement changes.
 
-### Gate D — Period-lock scope
+### Gate E — Management fees
 
-Proposed decision: one property reporting-period lock governs all owner-relevant source event dates; compatibility ledger and accounting periods may remain but must agree mechanically.
+**Decision:** hard stop before fee implementation. IPS must provide agreement grain, basis, categories, recognition timing, rounding, tax, min/max, waiver/reversal, and worked examples. Do not calculate owner-specific and ownership-allocated fees twice.
 
-Ultra must identify whether the current organization-wide `ledger_period_locks` can be safely evolved or whether a property-scoped lock must coexist during migration.
+### Gate F — Rent frequency and proration
 
-### Gate E — Management-fee recognition
+**Decision:** monthly-only is the safe pilot default if IPS accepts it. Unsupported frequencies and undefined proration cases block. IPS must define due-day/short-month, timezone, start/end/notice, changes, concessions, and rent-free cases.
 
-IPS must confirm whether initial fees are:
+### Gate G — Owner balances and reserves
 
-- fixed monthly;
-- percentage of collected rent;
-- percentage of charged rent; or
-- a supported combination.
+**Decision:** pilot defaults to owner-property-USD, evidenced opening balance, one clean 100% owner per effective period, no reserve writes, no ownership transfer, and no negative distribution or override.
 
-The implementation must also distinguish fee assessment from actual internal transfer/collection where IPS requires that distinction. No generic rule engine should be built before the real contracts are documented.
+### Gate H — Reconciliation
 
-### Gate F — Rent proration
+**Decision:** stable reconciliation-source identity exists before cash-bearing write changes. Pilot variance is zero. Dedicated sources reconcile per property/source/period. Pooled sources reconcile once externally and expose a complete property-subledger manifest referenced by each close.
 
-IPS must confirm the initial proration convention and whether current production scope is monthly leases only. Unsupported payment frequencies must become explicit close blockers rather than silently receiving monthly full charges.
+### Gate I — Legacy Ledger classification
 
-### Gate G — Owner reserves and negative balances
+**Decision:** exact evidence only. Link through deterministic IDs/FKs, convert to a controlled immutable adjustment, exclude with explicit evidence, or block as `legacy_unclassified`. Never fuzzy-match. `BACKFILL-*` fallback-dated rows remain inferred until supported by evidence.
 
-IPS must confirm:
+## Shared invariants
 
-- whether minimum owner reserves exist;
-- whether distributions may exceed available owner balance;
-- how owner-funded deficits are recorded; and
-- whether balance is tracked by owner-property or owner across the whole portfolio.
+- One owner-relevant effect in the canonical contract and zero or one required projection of each type.
+- Actual cash date is never replaced by due/invoice date and presented as known cash.
+- Every cash-bearing event maps to a stable reconciliation source.
+- Every close freezes ownership, reconciliation, source manifest, opening-balance dependency, and calculation version.
+- Every published artifact is immutable and content-verified.
+- Direct Data API, generic RPC, and cross-organization bypasses fail.
+- Composite organization-aware constraints protect cross-domain links.
+- Reports paginate beyond configured PostgREST/report caps without silent truncation.
 
-Proposed initial scope is owner-property-currency, with negative distributions blocked unless an authorized override and reason are recorded.
+## Implementation sequence
 
-### Gate H — Reconciliation evidence
+The final split order and business-rule stops are authoritative in `97-ratified-final-sequence.md`.
 
-Proposed October scope is not a bank-reconciliation product. Close must still require evidence that recorded receipts, payments, petty cash, distributions, and deposit movements agree with an imported statement, cash register, or reviewed reconciliation record.
-
-Ultra must recommend the smallest durable reconciliation entity that proves this without expanding into general accounting.
-
-### Gate I — Legacy manual ledger entries
-
-Each legacy row must become one of:
-
-- linked to an existing canonical source;
-- converted to an explicit adjustment event;
-- preserved as a frozen legacy event with a documented classification; or
-- blocked as ambiguous for operator resolution.
-
-Unknown rows must never be silently included or excluded.
-
-## Invariants to preserve
-
-- Organization isolation and admin-only finance writes.
-- Exact money and USD compatibility.
-- Append-only migrations and backward-compatible reads.
-- Balanced journals and idempotent posting.
-- Existing operational links, documents, timeline, and activity history.
-- Property and unit context on every reportable event.
-- No generic accounting UI or corporate P&L expansion.
-- No removal of current tables during the migration sequence.
+Only Plan 01 is currently authorized for implementation prompt preparation. Plans 02 onward are not automatically authorized by this architecture approval.
 
 ## Acceptance criteria
 
-Plan 00 is approved only when:
+Plan 00 is complete because:
 
-1. Ultra returns `APPROVE` or `APPROVE WITH CHANGES` for the authority model.
-2. Every decision gate has an explicit answer, owner, or implementation stop condition.
-3. The final sequence has no circular dependency.
-4. Each later plan can be implemented and merged without relying on an unspecified future repair.
-5. The architecture explains how partial payments, reversals, archived records, historical ownership, deposits, fees, owner payouts, and manual legacy rows appear exactly once.
-6. The chosen model can produce identical cash totals across property records, Ledger projection, performance reports, Owner Close, Owner Statement, and journal controls.
-
-## Verification
-
-Architecture review must inspect the latest versions of:
-
-- finance obligation, settlement, and reversal migrations;
-- ledger and accounting migrations and tests;
-- Owner Statement data loaders and allocation logic;
-- property cash helpers and finance close summary;
-- maintenance and petty-cash posting paths;
-- current RLS and checked RPC boundaries;
-- current-state, engineering, and verification documentation.
-
-No implementation checks are required because this plan changes no code. The review response must cite exact repository paths and current commit evidence.
+1. the authority model is approved with the corrections above;
+2. Gates A-I have explicit decisions or named later-plan stops;
+3. the corrected sequence has no circular dependency;
+4. the authority kernel precedes write-path refactors;
+5. partial payments, reversals, archived history, ownership, deposits, fees, owner cash, legacy rows, close revisions, and artifacts have one defined authority;
+6. no second Ultra architecture review is required.
 
 ## Scope exclusions
 
-- No database migration.
-- No code changes.
-- No production data access or mutation.
-- No replacement of Supabase, Next.js, the accounting kernel, or existing modules.
-- No generic workflow engine, multi-currency, payroll, tax, or company accounting.
-
-## Deliverables
-
-- Approved or amended architecture decision.
-- Explicit answers to Gates A-I.
-- Revised dependency sequence if needed.
-- List of missing invariants or repository facts.
-- Clear authorization to begin Plan 01 only.
-
-## Stop conditions
-
-Stop before implementation if:
-
-- financial authority remains ambiguous;
-- Ultra finds a current merged change that invalidates the baseline;
-- the plan would require destructive replacement of production tables;
-- IPS fee, proration, reserve, or payout rules are necessary for an immediate plan but still unknown;
-- one event can still reach the Owner Statement through more than one un-deduplicated source; or
-- the proposal expands into corporate/general accounting rather than property Owner Close.
+- No migration, code, test, deployment, or production mutation.
+- No accounting-kernel retirement during the pilot path.
+- No corporate accounting, payroll, tax, multi-currency, generic ERP, or product-facing GL.
+- No invented IPS business policy.
