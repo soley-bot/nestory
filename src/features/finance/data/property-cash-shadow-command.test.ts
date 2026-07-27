@@ -5,10 +5,25 @@ import { describe, expect, it } from "vitest";
 
 describe("property cash shadow executable", () => {
   it("exposes a runnable command with explicit local-only usage", () => {
+    const npmInvocation =
+      process.platform === "win32"
+        ? {
+            command: process.execPath,
+            prefix: [
+              resolve(
+                dirname(process.execPath),
+                "node_modules",
+                "npm",
+                "bin",
+                "npm-cli.js",
+              ),
+            ],
+          }
+        : { command: "npm", prefix: [] };
     const result = spawnSync(
-      process.execPath,
+      npmInvocation.command,
       [
-        resolve(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"),
+        ...npmInvocation.prefix,
         "run",
         "finance:property-cash-shadow",
         "--",
