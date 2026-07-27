@@ -767,18 +767,41 @@ export function buildBusinessGapEvidence() {
     "Gas",
     "Labor Fee",
     "Other Expense",
-  ].map((category) => ({
-    ambiguity:
-      category === "Air Conditioner Cleaning" ||
-      category === "Laundry Services" ||
-      category === "Labor Fee"
-        ? "property_expense_vs_tenant_recharge"
-        : null,
-    category,
-    currentStableType: false,
-    freeTextCategoryAvailable: true,
-    state: "free_text_category_only" as const,
-  }));
+  ].map((category) => {
+    const mappedExpenseType =
+      category === "General Supplies"
+        ? "supplies"
+        : category === "Other Expense"
+          ? "other"
+          : null;
+    const broadCurrentType = [
+      "Cable and Internet",
+      "Electricity",
+      "Gas",
+      "Water",
+    ].includes(category)
+      ? "utilities"
+      : null;
+
+    return {
+      ambiguity:
+        category === "Air Conditioner Cleaning" ||
+        category === "Laundry Services" ||
+        category === "Labor Fee"
+          ? "property_expense_vs_tenant_recharge"
+          : null,
+      broadCurrentType,
+      category,
+      currentStableType: mappedExpenseType !== null,
+      freeTextCategoryAvailable: true,
+      mappedExpenseType,
+      state: mappedExpenseType
+        ? ("broad_current_type" as const)
+        : broadCurrentType
+          ? ("broad_type_not_specific" as const)
+          : ("free_text_category_only" as const),
+    };
+  });
 
   return {
     incomeCategories,
@@ -849,10 +872,15 @@ export function buildParitySummary({
       } else {
         unresolved(manifests, "operatingIncomeReceived", candidate.stable_key);
       }
-    } else if (sourceType === "income_obligation") {
-      addTotal(totals, "tenantCharges", amount);
+    } else if (
+      sourceType === "income_obligation" &&
+      economicClass === "operating_income"
+    ) {
+      addTotal(totals, "operatingObligations", amount);
       const outstanding = moneyValue(candidate.payload.outstandingAmount);
-      if (outstanding !== null) addTotal(totals, "tenantOutstandingBalance", outstanding);
+      if (outstanding !== null) {
+        addTotal(totals, "operatingOutstandingBalance", outstanding);
+      }
     } else if (sourceType === "payment_allocation") {
       if (economicClass === "property_expense") {
         addTotal(totals, "propertyExpensesPaid", signedAmount);
@@ -932,8 +960,8 @@ export function buildParitySummary({
 
   const grossEntries = [
     "operatingIncomeReceived",
-    "tenantCharges",
-    "tenantOutstandingBalance",
+    "operatingObligations",
+    "operatingOutstandingBalance",
     "propertyExpensesPaid",
     "maintenanceEffects",
     "pettyCashEffects",
