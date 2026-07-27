@@ -734,9 +734,9 @@ SELECT throws_ok(
     '2026-07-13',
     'Authorization generic reversal evidence'
   ),
-  '42501',
-  NULL,
-  'admin generic journal reversal RPC is exposed but fails at private-helper execute denial'
+  '23503',
+  'Accounting journal not found',
+  'admin generic journal reversal RPC is exposed but cannot reverse the journal that the denied post did not create'
 );
 
 SELECT set_config(

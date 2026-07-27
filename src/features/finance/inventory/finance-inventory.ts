@@ -1,4 +1,4 @@
-export const financeInventoryContractVersion = "finance_inventory_v2";
+export const financeInventoryContractVersion = "finance_inventory_v3";
 
 export type FinanceInventorySection =
   | "access"
