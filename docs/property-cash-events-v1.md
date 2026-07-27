@@ -163,16 +163,19 @@ produce stored identities are rejected before any builder runs when an
 individual Owner Statement, TrustedReport, Property Summary, canonical, or
 Plan 01 collection exceeds the configured limit. Required combined
 PropertyCash, owner-allocation, and report contributor sets are preflighted
-after all raw lengths pass. The PropertyCash preflight expands embedded
-obligation plus allocation identities. Owner allocation conservatively counts
-every raw owner row and the maximum raw source/evidence occurrences across all
-statement properties and months, then division-checks ownership evidence plus
-owner-by-source fanout before the builder runs. Repeated raw rows are not
-deduplicated for this work bound. One required-limit collector consumes
-identity chunks without first concatenating them, stops before adding limit plus
-one, and rejects an identity assigned to more than one of included, excluded,
-and unresolved. The focused fixture proves 5,205 identities are retained
-without truncation.
+after all raw lengths pass. Before an Owner Statement adapter or builder runs,
+separate conservative bounds cover combined receipt rows, income items,
+expense items, and maximum PropertyCash source-line candidates. The
+source-line, owner-link, and possible deposit-issue evidence bound applies even
+with no owners. Ready allocation reserves every raw ownership line and up to
+two evidence emissions per source line per owner through an overflow-safe
+division check. These bounds cover all statement properties and months, and
+repeated raw rows are not deduplicated. The PropertyCash identity preflight
+also expands obligation plus allocation identities. One required-limit
+collector consumes identity chunks without first concatenating them, stops
+before adding limit plus one, and rejects an identity assigned to more than one
+of included, excluded, and unresolved. The focused fixture proves 5,205
+identities are retained without truncation.
 
 Every canonical input event must match the stamped organization, property, and
 USD currency. A dated event must fall inside the inclusive selected period.

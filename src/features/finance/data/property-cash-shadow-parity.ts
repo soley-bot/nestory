@@ -1794,19 +1794,38 @@ function assertInputBounds(
     );
   }
 
+  const receiptRowCount = assertCombinedOwnerStatementBound(
+    "receiptRows",
+    identityLimit,
+    [
+      ownerRows.currentReceiptRows.length,
+      ownerRows.historicalReceiptRows.length,
+    ],
+  );
+  const incomeItemCount = assertCombinedOwnerStatementBound(
+    "incomeItems",
+    identityLimit,
+    [ownerRows.dueIncomeItems.length, ownerRows.currentReceiptRows.length],
+  );
+  assertCombinedOwnerStatementBound("expenseItems", identityLimit, [
+    ownerRows.paymentRows.length,
+  ]);
+  const sourceLineCount = assertCombinedOwnerStatementBound(
+    "sourceLines",
+    identityLimit,
+    [
+      incomeItemCount,
+      receiptRowCount,
+      ownerRows.paymentRows.length,
+      ownerRows.depositRows.length,
+    ],
+  );
+  assertCombinedOwnerStatementBound("allocationFanout", identityLimit, [
+    sourceLineCount,
+    ownerRows.ownerRows.length,
+    ownerRows.depositRows.length,
+  ]);
   assertPropertySummaryLedgerIds(summaryRows.ledgerEntries);
-
-  const ownerCashContributorCount =
-    ownerRows.currentReceiptRows.length +
-    ownerRows.historicalReceiptRows.length +
-    ownerRows.paymentRows.length +
-    ownerRows.depositRows.length +
-    ownerRows.dueIncomeItems.length;
-  if (ownerCashContributorCount > identityLimit) {
-    throw new Error(
-      `Property cash parity identity limit exceeded for ownerStatementRows.cashContributors: ${ownerCashContributorCount} identities exceeds ${identityLimit}.`,
-    );
-  }
 
   const currentPropertyIdentities = collectIdentityPartitions(
     { included: [rawPropertyCashIdentities(input)] },
@@ -1819,7 +1838,11 @@ function assertInputBounds(
     input.canonicalEvents.map(canonicalIdentity),
     currentPropertyIdentities,
   );
-  assertOwnerAllocationFanout(input, identityLimit);
+  assertOwnerAllocationFanout(
+    ownerRows.ownerRows.length,
+    sourceLineCount,
+    identityLimit,
+  );
 
   const ledgerDirections = new Map<string, "expense" | "income">();
   for (const entry of trustedRows.ledgerEntries) {
@@ -1906,24 +1929,34 @@ function* rawPropertyCashIdentities(
   }
 }
 
+function assertCombinedOwnerStatementBound(
+  label: string,
+  identityLimit: number,
+  counts: readonly number[],
+) {
+  let total = 0;
+  for (const count of counts) {
+    if (count > identityLimit - total) {
+      throw new Error(
+        `Property cash parity identity limit exceeded for ownerStatementRows.${label}: more than ${identityLimit}.`,
+      );
+    }
+    total += count;
+  }
+  return total;
+}
+
 function assertOwnerAllocationFanout(
-  input: PropertyCashShadowParityInput,
+  ownerCount: number,
+  sourceLineCount: number,
   identityLimit: number,
 ) {
-  const rows = input.ownerStatementRows;
-  const ownerCount = rows.ownerRows.length;
-  // A current receipt can add both its embedded obligation and allocation.
-  const rawSourceOccurrenceCount =
-    rows.dueIncomeItems.length +
-    rows.currentReceiptRows.length * 2 +
-    rows.historicalReceiptRows.length +
-    rows.paymentRows.length +
-    rows.depositRows.length;
   const remainingLimit = identityLimit - ownerCount;
   if (
     ownerCount > 0 &&
     (remainingLimit < 0 ||
-      rawSourceOccurrenceCount > Math.floor(remainingLimit / ownerCount))
+      sourceLineCount >
+        Math.floor(Math.floor(remainingLimit / ownerCount) / 2))
   ) {
     throw new Error(
       `Property cash parity identity limit exceeded for ownerStatementRows.allocationFanout: more than ${identityLimit}.`,

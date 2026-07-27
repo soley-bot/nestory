@@ -76,7 +76,7 @@ describe("property cash shadow parity review fixes", () => {
       buildPropertyCashShadowParity(
         parityInput({ identityLimit: 10, ownerStatementRows: combined }),
       ),
-    ).rejects.toThrow("ownerStatementRows.cashContributors");
+    ).rejects.toThrow("ownerStatementRows.sourceLines");
   });
 
   it("rejects every TrustedReport collection before invoking a builder", async () => {
@@ -216,22 +216,17 @@ describe("property cash shadow parity review fixes", () => {
     ).rejects.toThrow("trustedReportInput.ledgerEntries");
   });
 
-  it("preflights embedded receipt obligation and allocation identities", async () => {
+  it("preflights historical receipt obligation and allocation identities", async () => {
     const rows = emptyOwnerStatementRows();
     const receipts = Array.from({ length: 3 }, (_, index) => {
       const item = incomeItem(
-        `embedded-income-${index}`,
+        `historical-income-${index}`,
         "rent",
         "1.00",
       );
-      return receiptRow(`embedded-allocation-${index}`, "1.00", item);
+      return receiptRow(`historical-allocation-${index}`, "1.00", item);
     });
-    Object.defineProperty(receipts, "flatMap", {
-      value: () => {
-        throw new Error("Owner Statement builder ran before identity preflight");
-      },
-    });
-    rows.currentReceiptRows = receipts;
+    rows.historicalReceiptRows = receipts;
 
     await expect(
       buildPropertyCashShadowParity(
@@ -348,6 +343,93 @@ describe("property cash shadow parity review fixes", () => {
       "repeated receipt",
     ).rejects.toThrow("ownerStatementRows.allocationFanout");
   });
+
+  it.each([
+    ["fully paid", "10.00"],
+    ["partially paid", "5.00"],
+  ])(
+    "preflights %s management-fee evidence reused across statement facts",
+    async (_case, receiptAmount) => {
+      const rows = emptyOwnerStatementRows();
+      const fee = incomeItem(
+        "management-fee-income",
+        "management_fee",
+        "10.00",
+      );
+      rows.currentReceiptRows = [
+        receiptRow("management-fee-allocation", receiptAmount, fee),
+      ];
+      rows.ownerRows = [
+        ownerLinkRow("owner-link-1", "owner-1", "100"),
+      ];
+      rows.personRows = [personRow("owner-1", "Owner One")];
+
+      await expect(
+        buildPropertyCashShadowParity(
+          parityInput({
+            identityLimit: 3,
+            ownerStatementRows: rows,
+          }),
+        ),
+      ).rejects.toThrow("ownerStatementRows.allocationFanout");
+    },
+  );
+
+  it("bounds mixed repeated source work when no owner rows exist", async () => {
+    const rows = emptyOwnerStatementRows();
+    const rent = incomeItem("shared-rent-income", "rent", "10.00");
+    rows.currentReceiptRows = Array.from({ length: 5 }, (_, index) =>
+      receiptRow(`shared-rent-allocation-${index}`, "2.00", rent),
+    );
+    const repeatedPayment = paymentRow(
+      "repeated-payment",
+      "1.00",
+      "maintenance",
+    );
+    rows.paymentRows = Array.from({ length: 5 }, () => repeatedPayment);
+
+    await expect(
+      buildPropertyCashShadowParity(
+        parityInput({
+          identityLimit: 10,
+          ownerStatementRows: rows,
+        }),
+      ),
+    ).rejects.toThrow("ownerStatementRows.sourceLines");
+  });
+
+  it.each([
+    ["receiptRows", 6, 5],
+    ["incomeItems", 5, 6],
+  ])(
+    "bounds the combined Owner Statement %s candidate array before builders",
+    async (expectedLabel, currentCount, dueCount) => {
+      const rows = emptyOwnerStatementRows();
+      const item = incomeItem("combined-income", "rent", "1.00");
+      const receipt = receiptRow("combined-receipt", "1.00", item);
+      rows.currentReceiptRows = Array.from(
+        { length: currentCount },
+        () => receipt,
+      );
+      if (expectedLabel === "receiptRows") {
+        rows.historicalReceiptRows = Array.from(
+          { length: dueCount },
+          () => receipt,
+        );
+      } else {
+        rows.dueIncomeItems = Array.from({ length: dueCount }, () => item);
+      }
+
+      await expect(
+        buildPropertyCashShadowParity(
+          parityInput({
+            identityLimit: 10,
+            ownerStatementRows: rows,
+          }),
+        ),
+      ).rejects.toThrow(`ownerStatementRows.${expectedLabel}`);
+    },
+  );
 
   it("fails closed when a canonical event is outside the stamped scope", async () => {
     const invalidEvents = [
