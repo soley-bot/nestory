@@ -30,7 +30,13 @@ describe("property cash shadow parity", () => {
             economicClass: "management_fee",
             eventKey: "receipt_allocation:fee",
             managementFeeEffectCents: BigInt(1_000),
-            ownerCashEffectCents: -BigInt(1_000),
+            ownerCashEffectCents: null,
+            reconciliationState: "missing_stable_identity",
+            requiresResolution: true,
+            resolutionCodes: [
+              "management_fee_owner_recognition_unresolved",
+              "missing_reconciliation_source",
+            ],
             sourceId: "fee",
             sourceType: "receipt_allocation",
           }),
@@ -109,9 +115,9 @@ describe("property cash shadow parity", () => {
         "netOwnerCashMovementCents",
         "period_flow",
         BigInt(9_000),
-        BigInt(9_000),
-        BigInt(0),
-        "match",
+        null,
+        null,
+        "unresolved",
       ],
       [
         "operatingCashReceivedCents",
@@ -179,6 +185,13 @@ describe("property cash shadow parity", () => {
           },
         ]),
       });
+    expect(
+      records.find(
+        (record) => record.metric === "netOwnerCashMovementCents",
+      )?.unresolved,
+    ).toContainEqual(
+      expect.objectContaining({ eventKey: "receipt_allocation:fee" }),
+    );
   });
 
   it("retains original and reversal identities and fails closed on null canonical effects", async () => {
@@ -908,7 +921,10 @@ function event(
     periodStart: "2026-07-01",
     projectionStatus: null,
     propertyId: "property-1",
+    reconciliationSourceId: null,
+    reconciliationState: "not_required",
     requiresResolution: false,
+    resolutionCodes: [],
     reversalSourceId: null,
     reversalSourceType: null,
     sourceParentId: null,

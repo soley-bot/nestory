@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   iteratePropertyCashEventPages,
+  loadPropertyCashEventPage,
   normalizePropertyCashEvent,
 } from "@/features/finance/data/property-cash-events";
 import type {
   PropertyCashEventDatabaseRow,
+  PropertyCashEventScope,
   PropertyCashEventsRpcClient,
 } from "@/features/finance/data/property-cash-events.types";
 
@@ -41,11 +43,14 @@ function row(
     operating_cash_effect: "10.00",
     organization_id: organizationId,
     owner_cash_effect: "10.00",
-    owner_person_id: ownerId,
+    owner_person_id: null,
     period_start: "2026-07-01",
     projection_status: null,
     property_id: propertyId,
+    reconciliation_source_id: null,
+    reconciliation_state: "not_required",
     requires_resolution: false,
+    resolution_codes: [],
     reversal_source_id: null,
     reversal_source_type: null,
     source_id: sourceId,
@@ -80,7 +85,6 @@ function clientWithPages(
 const scope = {
   currency: "USD" as const,
   organizationId,
-  ownerPersonId: ownerId,
   pageSize: 2,
   periodEnd: "2026-07-31",
   periodStart: "2026-07-01",
@@ -106,7 +110,7 @@ describe("property cash event adapter", () => {
     expect(normalized.managementFeeEffectCents).toBeNull();
   });
 
-  it("traverses keyset pages and applies direct unit and owner filters per page", async () => {
+  it("traverses keyset pages and applies the direct unit filter per page", async () => {
     const firstId = "11111111-1111-4111-8111-111111111111";
     const filteredId = "22222222-2222-4222-8222-222222222222";
     const lastId = "33333333-3333-4333-8333-333333333333";
@@ -117,7 +121,7 @@ describe("property cash event adapter", () => {
           [
             row(firstId),
             row(filteredId, {
-              owner_person_id: "99999999-9999-4999-8999-999999999999",
+              unit_id: "99999999-9999-4999-8999-999999999999",
             }),
           ],
           [row(lastId, { event_date: null, period_start: null })],
@@ -156,6 +160,80 @@ describe("property cash event adapter", () => {
       },
     ]);
   });
+
+  it("does not filter ordinary property activity by direct owner metadata", async () => {
+    const ordinaryRentId = "77777777-7777-4777-8777-777777777777";
+    const legacyOwnerScopedInput = {
+      ...scope,
+      ownerPersonId: ownerId,
+      pageSize: 1,
+    } as unknown as PropertyCashEventScope;
+    const iterator = iteratePropertyCashEventPages(
+      clientWithPages([
+        [
+          row(ordinaryRentId, {
+            owner_person_id: null,
+            unit_id: unitId,
+          }),
+        ],
+        [],
+      ]),
+      legacyOwnerScopedInput,
+    );
+
+    const loaded = [];
+    for await (const page of iterator) loaded.push(...page);
+
+    expect(loaded.map((event) => event.sourceId)).toEqual([ordinaryRentId]);
+  });
+
+  it("validates every row returned by the public page loader", async () => {
+    await expect(
+      loadPropertyCashEventPage(
+        clientWithPages([
+          [
+            row("88888888-8888-4888-8888-888888888888", {
+              classification_status: "not-a-contract-status",
+            }),
+          ],
+        ]),
+        { ...scope, pageSize: 1 },
+      ),
+    ).rejects.toThrow("classification status");
+  });
+
+  it.each(["receipt_header_residual", "payment_header_residual"] as const)(
+    "accepts the checked %s source family",
+    (sourceType) => {
+      const sourceId = "99999999-9999-4999-8999-999999999999";
+      expect(
+        normalizePropertyCashEvent(
+          row(sourceId, {
+            category_code:
+              sourceType === "receipt_header_residual"
+                ? "unapplied_receipt"
+                : "unallocated_payment",
+            classification_status: "unresolved_evidence",
+            economic_class: "legacy_unclassified",
+            event_key: `${sourceType}:${sourceId}`,
+            owner_cash_effect: null,
+            operating_cash_effect: null,
+            deposit_liability_effect: null,
+            management_fee_effect: null,
+            requires_resolution: true,
+            reconciliation_state: "missing_stable_identity",
+            resolution_codes: [
+              sourceType === "receipt_header_residual"
+                ? "receipt_header_unapplied"
+                : "payment_header_unallocated",
+            ],
+            source_type: sourceType,
+            statement_section: "unresolved",
+          }),
+        ).sourceType,
+      ).toBe(sourceType);
+    },
+  );
 
   it.each([
     [{ ...scope, pageSize: 1_001 }, "page size"],

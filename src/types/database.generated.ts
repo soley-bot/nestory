@@ -4061,7 +4061,10 @@ export type Database = {
           period_start: string
           projection_status: string
           property_id: string
+          reconciliation_source_id: string
+          reconciliation_state: string
           requires_resolution: boolean
+          resolution_codes: string[]
           reversal_source_id: string
           reversal_source_type: string
           source_id: string

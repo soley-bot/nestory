@@ -38,7 +38,10 @@ function event(
     periodStart: "2026-07-01",
     projectionStatus: null,
     propertyId,
+    reconciliationSourceId: null,
+    reconciliationState: "not_required",
     requiresResolution: false,
+    resolutionCodes: [],
     reversalSourceId: null,
     reversalSourceType: null,
     sourceId,
@@ -74,6 +77,37 @@ describe("property cash source links", () => {
       ),
     ).toBe(
       `/bills-expenses?archiveState=all&dateBasis=paid&expenseItemId=${obligationId}&month=2026-07&propertyId=${propertyId}&unitId=${unitId}`,
+    );
+  });
+
+  it("keeps an unresolved receipt header residual in property receipt context", () => {
+    expect(
+      resolvePropertyCashEventHref(
+        event({
+          obligationId: null,
+          obligationType: null,
+          sourceType: "receipt_header_residual",
+          unitId: null,
+        }),
+      ),
+    ).toBe(
+      `/rent-income?archiveState=all&month=2026-07&propertyId=${propertyId}`,
+    );
+  });
+
+  it("keeps an unresolved payment header residual in property payment context", () => {
+    expect(
+      resolvePropertyCashEventHref(
+        event({
+          economicClass: "legacy_unclassified",
+          obligationId: null,
+          obligationType: null,
+          sourceType: "payment_header_residual",
+          unitId: null,
+        }),
+      ),
+    ).toBe(
+      `/bills-expenses?archiveState=all&dateBasis=paid&month=2026-07&propertyId=${propertyId}`,
     );
   });
 

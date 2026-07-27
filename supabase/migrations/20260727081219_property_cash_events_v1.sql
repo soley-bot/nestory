@@ -43,6 +43,9 @@ RETURNS TABLE (
   is_reversal boolean,
   is_legacy boolean,
   requires_resolution boolean,
+  resolution_codes text[],
+  reconciliation_source_id uuid,
+  reconciliation_state text,
   ledger_entry_id uuid,
   journal_entry_id uuid,
   projection_status text,
@@ -255,8 +258,7 @@ BEGIN
           'management_fee', 'leasing_commission', 'service_fee',
           'maintenance_markup'
         )
-          THEN CASE WHEN fact.reversal_of_id IS NULL
-            THEN -fact.amount ELSE fact.amount END
+          THEN NULL::numeric
         ELSE CASE WHEN fact.reversal_of_id IS NULL
           THEN fact.amount ELSE -fact.amount END
       END AS owner_cash_effect,
@@ -346,6 +348,25 @@ BEGIN
         OR NOT fact.scope_is_exact
       ) AS is_legacy,
       true AS requires_resolution,
+      pg_catalog.array_remove(
+        ARRAY[
+          CASE WHEN fact.income_type = 'security_deposit'
+            THEN 'deposit_cash_identity_missing' END,
+          CASE WHEN fact.income_type IN (
+            'management_fee', 'leasing_commission', 'service_fee',
+            'maintenance_markup'
+          ) THEN 'management_fee_owner_recognition_unresolved' END,
+          'missing_reconciliation_source',
+          'mutable_obligation_classification',
+          CASE WHEN NOT fact.reversal_header_is_exact
+            THEN 'reversal_header_not_exact' END,
+          CASE WHEN NOT fact.scope_is_exact
+            THEN 'source_scope_invalid' END
+        ]::text[],
+        NULL::text
+      ) AS resolution_codes,
+      NULL::uuid AS reconciliation_source_id,
+      'missing_stable_identity'::text AS reconciliation_state,
       fact.ledger_entry_id,
       fact.accounting_journal_entry_id AS journal_entry_id,
       CASE
@@ -360,6 +381,101 @@ BEGIN
       fact.updated_by,
       fact.archived_at
     FROM receipt_facts AS fact
+  ),
+  receipt_header_facts AS (
+    SELECT
+      receipt.id,
+      receipt.organization_id,
+      receipt.property_id,
+      receipt.received_date,
+      receipt.currency,
+      receipt.amount AS header_amount,
+      coalesce(pg_catalog.sum(allocation.amount), 0::numeric)
+        AS allocated_amount,
+      receipt.reversal_of_id,
+      receipt.created_at,
+      receipt.created_by
+    FROM public.finance_receipts AS receipt
+    LEFT JOIN public.finance_receipt_allocations AS allocation
+      ON allocation.receipt_id = receipt.id
+     AND allocation.organization_id = receipt.organization_id
+    WHERE receipt.organization_id = p_organization_id
+      AND receipt.property_id = p_property_id
+      AND receipt.currency = p_currency
+      AND receipt.received_date BETWEEN p_period_start AND p_period_end
+    GROUP BY
+      receipt.id,
+      receipt.organization_id,
+      receipt.property_id,
+      receipt.received_date,
+      receipt.currency,
+      receipt.amount,
+      receipt.reversal_of_id,
+      receipt.created_at,
+      receipt.created_by
+    HAVING receipt.amount
+      <> coalesce(pg_catalog.sum(allocation.amount), 0::numeric)
+  ),
+  receipt_header_residual_events AS (
+    SELECT
+      'property_cash_events_v1'::text AS contract_version,
+      'receipt_header_residual:' || fact.id::text AS event_key,
+      fact.organization_id,
+      fact.property_id,
+      NULL::uuid AS unit_id,
+      NULL::uuid AS lease_id,
+      NULL::uuid AS task_id,
+      NULL::uuid AS owner_person_id,
+      NULL::uuid AS tenant_person_id,
+      NULL::uuid AS vendor_person_id,
+      fact.received_date AS event_date,
+      pg_catalog.date_trunc('month', fact.received_date)::date AS period_start,
+      fact.currency,
+      pg_catalog.abs(fact.header_amount - fact.allocated_amount) AS amount,
+      NULL::numeric AS owner_cash_effect,
+      NULL::numeric AS operating_cash_effect,
+      NULL::numeric AS deposit_liability_effect,
+      NULL::numeric AS management_fee_effect,
+      'legacy_unclassified'::text AS economic_class,
+      'unresolved'::text AS statement_section,
+      CASE
+        WHEN fact.header_amount > fact.allocated_amount
+          THEN 'unapplied_receipt'
+        ELSE 'overallocated_receipt'
+      END::text AS category_code,
+      'unresolved_evidence'::text AS classification_status,
+      'receipt_header_residual'::text AS source_type,
+      fact.id AS source_id,
+      NULL::text AS source_parent_type,
+      NULL::uuid AS source_parent_id,
+      NULL::text AS obligation_type,
+      NULL::uuid AS obligation_id,
+      CASE WHEN fact.reversal_of_id IS NOT NULL
+        THEN 'receipt_header_residual'::text ELSE NULL::text END
+        AS reversal_source_type,
+      fact.reversal_of_id AS reversal_source_id,
+      fact.reversal_of_id IS NOT NULL AS is_reversal,
+      true AS is_legacy,
+      true AS requires_resolution,
+      ARRAY[
+        'missing_reconciliation_source',
+        CASE
+          WHEN fact.header_amount > fact.allocated_amount
+            THEN 'receipt_header_unapplied'
+          ELSE 'receipt_header_overallocated'
+        END
+      ]::text[] AS resolution_codes,
+      NULL::uuid AS reconciliation_source_id,
+      'missing_stable_identity'::text AS reconciliation_state,
+      NULL::uuid AS ledger_entry_id,
+      NULL::uuid AS journal_entry_id,
+      'no_exact_projection'::text AS projection_status,
+      fact.created_at,
+      fact.created_by,
+      NULL::timestamptz AS updated_at,
+      NULL::uuid AS updated_by,
+      NULL::timestamptz AS archived_at
+    FROM receipt_header_facts AS fact
   ),
   payment_facts AS (
     SELECT
@@ -566,6 +682,21 @@ BEGIN
         OR fact.expense_type = 'refund'
       ) AS is_legacy,
       true AS requires_resolution,
+      pg_catalog.array_remove(
+        ARRAY[
+          'missing_reconciliation_source',
+          'mutable_obligation_classification',
+          CASE WHEN NOT fact.reversal_header_is_exact
+            THEN 'reversal_header_not_exact' END,
+          CASE WHEN NOT fact.scope_is_exact
+            OR fact.economic_scope <> 'property_expense'
+            OR fact.expense_type = 'refund'
+            THEN 'source_scope_invalid' END
+        ]::text[],
+        NULL::text
+      ) AS resolution_codes,
+      NULL::uuid AS reconciliation_source_id,
+      'missing_stable_identity'::text AS reconciliation_state,
       fact.ledger_entry_id,
       fact.accounting_journal_entry_id AS journal_entry_id,
       CASE
@@ -580,6 +711,101 @@ BEGIN
       fact.updated_by,
       fact.archived_at
     FROM payment_facts AS fact
+  ),
+  payment_header_facts AS (
+    SELECT
+      payment.id,
+      payment.organization_id,
+      payment.property_id,
+      payment.paid_date,
+      payment.currency,
+      payment.amount AS header_amount,
+      coalesce(pg_catalog.sum(allocation.amount), 0::numeric)
+        AS allocated_amount,
+      payment.reversal_of_id,
+      payment.created_at,
+      payment.created_by
+    FROM public.finance_payments AS payment
+    LEFT JOIN public.finance_payment_allocations AS allocation
+      ON allocation.payment_id = payment.id
+     AND allocation.organization_id = payment.organization_id
+    WHERE payment.organization_id = p_organization_id
+      AND payment.property_id = p_property_id
+      AND payment.currency = p_currency
+      AND payment.paid_date BETWEEN p_period_start AND p_period_end
+    GROUP BY
+      payment.id,
+      payment.organization_id,
+      payment.property_id,
+      payment.paid_date,
+      payment.currency,
+      payment.amount,
+      payment.reversal_of_id,
+      payment.created_at,
+      payment.created_by
+    HAVING payment.amount
+      <> coalesce(pg_catalog.sum(allocation.amount), 0::numeric)
+  ),
+  payment_header_residual_events AS (
+    SELECT
+      'property_cash_events_v1'::text AS contract_version,
+      'payment_header_residual:' || fact.id::text AS event_key,
+      fact.organization_id,
+      fact.property_id,
+      NULL::uuid AS unit_id,
+      NULL::uuid AS lease_id,
+      NULL::uuid AS task_id,
+      NULL::uuid AS owner_person_id,
+      NULL::uuid AS tenant_person_id,
+      NULL::uuid AS vendor_person_id,
+      fact.paid_date AS event_date,
+      pg_catalog.date_trunc('month', fact.paid_date)::date AS period_start,
+      fact.currency,
+      pg_catalog.abs(fact.header_amount - fact.allocated_amount) AS amount,
+      NULL::numeric AS owner_cash_effect,
+      NULL::numeric AS operating_cash_effect,
+      NULL::numeric AS deposit_liability_effect,
+      NULL::numeric AS management_fee_effect,
+      'legacy_unclassified'::text AS economic_class,
+      'unresolved'::text AS statement_section,
+      CASE
+        WHEN fact.header_amount > fact.allocated_amount
+          THEN 'unallocated_payment'
+        ELSE 'overallocated_payment'
+      END::text AS category_code,
+      'unresolved_evidence'::text AS classification_status,
+      'payment_header_residual'::text AS source_type,
+      fact.id AS source_id,
+      NULL::text AS source_parent_type,
+      NULL::uuid AS source_parent_id,
+      NULL::text AS obligation_type,
+      NULL::uuid AS obligation_id,
+      CASE WHEN fact.reversal_of_id IS NOT NULL
+        THEN 'payment_header_residual'::text ELSE NULL::text END
+        AS reversal_source_type,
+      fact.reversal_of_id AS reversal_source_id,
+      fact.reversal_of_id IS NOT NULL AS is_reversal,
+      true AS is_legacy,
+      true AS requires_resolution,
+      ARRAY[
+        'missing_reconciliation_source',
+        CASE
+          WHEN fact.header_amount > fact.allocated_amount
+            THEN 'payment_header_unallocated'
+          ELSE 'payment_header_overallocated'
+        END
+      ]::text[] AS resolution_codes,
+      NULL::uuid AS reconciliation_source_id,
+      'missing_stable_identity'::text AS reconciliation_state,
+      NULL::uuid AS ledger_entry_id,
+      NULL::uuid AS journal_entry_id,
+      'no_exact_projection'::text AS projection_status,
+      fact.created_at,
+      fact.created_by,
+      NULL::timestamptz AS updated_at,
+      NULL::uuid AS updated_by,
+      NULL::timestamptz AS archived_at
+    FROM payment_header_facts AS fact
   ),
   deposit_facts AS (
     SELECT
@@ -718,13 +944,23 @@ BEGIN
       fact.reversal_of_id AS reversal_source_id,
       fact.reversal_of_id IS NOT NULL AS is_reversal,
       NOT fact.scope_is_exact AS is_legacy,
-      (
-        NOT fact.scope_is_exact
-        OR (
-          fact.reversal_of_id IS NOT NULL
-          AND fact.original_event_type IS NULL
-        )
-      ) AS requires_resolution,
+      true AS requires_resolution,
+      pg_catalog.array_remove(
+        ARRAY[
+          'missing_reconciliation_source',
+          CASE
+            WHEN NOT fact.scope_is_exact
+              OR (
+                fact.reversal_of_id IS NOT NULL
+                AND fact.original_event_type IS NULL
+              )
+              THEN 'source_scope_invalid'
+          END
+        ]::text[],
+        NULL::text
+      ) AS resolution_codes,
+      NULL::uuid AS reconciliation_source_id,
+      'missing_stable_identity'::text AS reconciliation_state,
       NULL::uuid AS ledger_entry_id,
       NULL::uuid AS journal_entry_id,
       'no_exact_projection'::text AS projection_status,
@@ -889,12 +1125,23 @@ BEGIN
         AND fact.economic_scope = 'property_expense'
         AND fact.clear_date IS NOT NULL
       ) AS is_legacy,
-      NOT (
-        fact.scope_is_exact
-        AND fact.entry_kind = 'expense'
-        AND fact.economic_scope = 'property_expense'
-        AND fact.clear_date IS NOT NULL
-      ) AS requires_resolution,
+      true AS requires_resolution,
+      pg_catalog.array_remove(
+        ARRAY[
+          'missing_reconciliation_source',
+          CASE WHEN fact.clear_date IS NULL
+            THEN 'petty_cash_date_unproven' END,
+          CASE
+            WHEN NOT fact.scope_is_exact
+              OR fact.entry_kind <> 'expense'
+              OR fact.economic_scope <> 'property_expense'
+              THEN 'source_scope_invalid'
+          END
+        ]::text[],
+        NULL::text
+      ) AS resolution_codes,
+      NULL::uuid AS reconciliation_source_id,
+      'missing_stable_identity'::text AS reconciliation_state,
       fact.ledger_entry_id,
       fact.accounting_journal_entry_id AS journal_entry_id,
       CASE
@@ -909,33 +1156,113 @@ BEGIN
       fact.archived_at
     FROM petty_cash_facts AS fact
   ),
+  maintenance_facts AS (
+    SELECT
+      task.id,
+      task.organization_id,
+      task.property_id,
+      unit.id AS unit_id,
+      vendor.id AS vendor_person_id,
+      task.ledger_entry_id,
+      ledger.transaction_date,
+      coalesce(
+        ledger.currency,
+        task.actual_cost_currency,
+        p_currency
+      ) AS currency,
+      coalesce(ledger.amount, task.actual_cost_amount) AS amount,
+      ledger.accounting_journal_entry_id,
+      task.created_at,
+      task.created_by,
+      task.updated_at,
+      task.updated_by,
+      task.archived_at,
+      coalesce((
+        task.ledger_entry_id IS NOT NULL
+        AND ledger.id IS NOT NULL
+        AND ledger.organization_id = task.organization_id
+        AND ledger.property_id = task.property_id
+        AND ledger.unit_id IS NOT DISTINCT FROM task.unit_id
+        AND ledger.direction = 'expense'
+        AND ledger.amount > 0
+        AND ledger.currency = p_currency
+        AND ledger.archived_at IS NULL
+        AND (
+          task.unit_id IS NULL
+          OR (
+            unit.id IS NOT NULL
+            AND unit.property_id = task.property_id
+          )
+        )
+        AND (
+          task.vendor_person_id IS NULL
+          OR vendor.id IS NOT NULL
+        )
+      ), false) AS scope_is_exact
+    FROM public.tasks AS task
+    LEFT JOIN public.ledger_entries AS ledger
+      ON ledger.id = task.ledger_entry_id
+    LEFT JOIN public.units AS unit
+      ON unit.id = task.unit_id
+     AND unit.organization_id = task.organization_id
+    LEFT JOIN public.people AS vendor
+      ON vendor.id = task.vendor_person_id
+     AND vendor.organization_id = task.organization_id
+    WHERE task.organization_id = p_organization_id
+      AND task.property_id = p_property_id
+      AND coalesce(
+        ledger.transaction_date,
+        task.completed_at::date,
+        task.updated_at::date,
+        task.created_at::date
+      ) BETWEEN p_period_start AND p_period_end
+      AND coalesce(ledger.amount, task.actual_cost_amount, 0::numeric) > 0
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.finance_expense_items AS represented_expense
+        JOIN public.finance_payment_allocations AS represented_allocation
+          ON represented_allocation.expense_item_id = represented_expense.id
+         AND represented_allocation.organization_id =
+           represented_expense.organization_id
+        JOIN public.finance_payments AS represented_payment
+          ON represented_payment.id = represented_allocation.payment_id
+         AND represented_payment.organization_id =
+           represented_allocation.organization_id
+        WHERE represented_expense.organization_id = task.organization_id
+          AND represented_expense.property_id = task.property_id
+          AND represented_expense.task_id = task.id
+          AND represented_payment.property_id = task.property_id
+          AND represented_payment.currency = p_currency
+      )
+  ),
   maintenance_events AS (
     SELECT
       'property_cash_events_v1'::text AS contract_version,
-      'maintenance_task:' || task.id::text AS event_key,
-      task.organization_id,
-      task.property_id,
-      task.unit_id,
+      'maintenance_task:' || fact.id::text AS event_key,
+      fact.organization_id,
+      fact.property_id,
+      fact.unit_id,
       NULL::uuid AS lease_id,
-      task.id AS task_id,
+      fact.id AS task_id,
       NULL::uuid AS owner_person_id,
       NULL::uuid AS tenant_person_id,
-      task.vendor_person_id,
-      ledger.transaction_date AS event_date,
-      pg_catalog.date_trunc('month', ledger.transaction_date)::date
-        AS period_start,
-      ledger.currency,
-      ledger.amount,
-      -ledger.amount AS owner_cash_effect,
-      -ledger.amount AS operating_cash_effect,
-      0::numeric AS deposit_liability_effect,
-      0::numeric AS management_fee_effect,
-      'operating_expense'::text AS economic_class,
-      'expenses'::text AS statement_section,
+      fact.vendor_person_id,
+      fact.transaction_date AS event_date,
+      CASE WHEN fact.transaction_date IS NULL THEN NULL::date
+        ELSE pg_catalog.date_trunc('month', fact.transaction_date)::date
+      END AS period_start,
+      fact.currency,
+      fact.amount,
+      NULL::numeric AS owner_cash_effect,
+      NULL::numeric AS operating_cash_effect,
+      NULL::numeric AS deposit_liability_effect,
+      NULL::numeric AS management_fee_effect,
+      'legacy_unclassified'::text AS economic_class,
+      'unresolved'::text AS statement_section,
       'maintenance'::text AS category_code,
-      'source_stable'::text AS classification_status,
+      'unresolved_evidence'::text AS classification_status,
       'maintenance_task'::text AS source_type,
-      task.id AS source_id,
+      fact.id AS source_id,
       NULL::text AS source_parent_type,
       NULL::uuid AS source_parent_id,
       NULL::text AS obligation_type,
@@ -943,45 +1270,31 @@ BEGIN
       NULL::text AS reversal_source_type,
       NULL::uuid AS reversal_source_id,
       false AS is_reversal,
-      false AS is_legacy,
-      false AS requires_resolution,
-      ledger.id AS ledger_entry_id,
-      ledger.accounting_journal_entry_id AS journal_entry_id,
+      true AS is_legacy,
+      true AS requires_resolution,
+      pg_catalog.array_remove(
+        ARRAY[
+          'maintenance_cash_settlement_unproven',
+          CASE WHEN NOT fact.scope_is_exact
+            THEN 'source_scope_invalid' END
+        ]::text[],
+        NULL::text
+      ) AS resolution_codes,
+      NULL::uuid AS reconciliation_source_id,
+      'missing_stable_identity'::text AS reconciliation_state,
+      fact.ledger_entry_id,
+      fact.accounting_journal_entry_id AS journal_entry_id,
       CASE
-        WHEN ledger.accounting_journal_entry_id IS NULL THEN 'linked_ledger'
+        WHEN NOT fact.scope_is_exact THEN 'invalid_linked_ledger_scope'
+        WHEN fact.accounting_journal_entry_id IS NULL THEN 'linked_ledger'
         ELSE 'linked_ledger_and_journal'
       END::text AS projection_status,
-      task.created_at,
-      task.created_by,
-      task.updated_at,
-      task.updated_by,
-      task.archived_at
-    FROM public.tasks AS task
-    JOIN public.ledger_entries AS ledger
-      ON ledger.id = task.ledger_entry_id
-     AND ledger.organization_id = task.organization_id
-     AND ledger.property_id = task.property_id
-     AND ledger.unit_id IS NOT DISTINCT FROM task.unit_id
-     AND ledger.direction = 'expense'
-     AND ledger.amount > 0
-     AND ledger.archived_at IS NULL
-    LEFT JOIN public.people AS vendor
-      ON vendor.id = task.vendor_person_id
-     AND vendor.organization_id = task.organization_id
-    WHERE task.organization_id = p_organization_id
-      AND task.property_id = p_property_id
-      AND ledger.currency = p_currency
-      AND ledger.transaction_date BETWEEN p_period_start AND p_period_end
-      AND (
-        task.vendor_person_id IS NULL
-        OR vendor.id IS NOT NULL
-      )
-      AND NOT EXISTS (
-        SELECT 1
-        FROM public.finance_expense_items AS represented_expense
-        WHERE represented_expense.organization_id = task.organization_id
-          AND represented_expense.task_id = task.id
-      )
+      fact.created_at,
+      fact.created_by,
+      fact.updated_at,
+      fact.updated_by,
+      fact.archived_at
+    FROM maintenance_facts AS fact
   ),
   unmatched_ledger_events AS (
     SELECT
@@ -1021,6 +1334,9 @@ BEGIN
       false AS is_reversal,
       true AS is_legacy,
       true AS requires_resolution,
+      ARRAY['legacy_ledger_unclassified']::text[] AS resolution_codes,
+      NULL::uuid AS reconciliation_source_id,
+      'missing_stable_identity'::text AS reconciliation_state,
       ledger.id AS ledger_entry_id,
       ledger.accounting_journal_entry_id AS journal_entry_id,
       'unmatched_legacy'::text AS projection_status,
@@ -1101,7 +1417,11 @@ BEGIN
   all_events AS (
     SELECT * FROM receipt_events
     UNION ALL
+    SELECT * FROM receipt_header_residual_events
+    UNION ALL
     SELECT * FROM payment_events
+    UNION ALL
+    SELECT * FROM payment_header_residual_events
     UNION ALL
     SELECT * FROM deposit_events
     UNION ALL

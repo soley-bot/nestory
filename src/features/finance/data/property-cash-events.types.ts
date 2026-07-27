@@ -19,6 +19,7 @@ type NullablePropertyCashEventColumns = {
   owner_person_id: string | null;
   period_start: string | null;
   projection_status: string | null;
+  reconciliation_source_id: string | null;
   reversal_source_id: string | null;
   reversal_source_type: string | null;
   source_parent_id: string | null;
@@ -33,10 +34,15 @@ type NullablePropertyCashEventColumns = {
 
 export type PropertyCashEventDatabaseRow = Omit<
   GeneratedPropertyCashEventRow,
-  "amount" | keyof NullablePropertyCashEventColumns
+  | "amount"
+  | "reconciliation_state"
+  | "resolution_codes"
+  | keyof NullablePropertyCashEventColumns
 > &
   NullablePropertyCashEventColumns & {
     amount: number | string;
+    reconciliation_state: string;
+    resolution_codes: string[];
   };
 
 export const propertyCashEconomicClasses = [
@@ -67,7 +73,9 @@ export type PropertyCashClassificationStatus =
 
 export const propertyCashSourceTypes = [
   "receipt_allocation",
+  "receipt_header_residual",
   "payment_allocation",
+  "payment_header_residual",
   "deposit_event",
   "petty_cash_entry",
   "maintenance_task",
@@ -75,6 +83,33 @@ export const propertyCashSourceTypes = [
 ] as const;
 
 export type PropertyCashSourceType = (typeof propertyCashSourceTypes)[number];
+
+export const propertyCashResolutionCodes = [
+  "deposit_cash_identity_missing",
+  "legacy_ledger_unclassified",
+  "maintenance_cash_settlement_unproven",
+  "management_fee_owner_recognition_unresolved",
+  "missing_reconciliation_source",
+  "mutable_obligation_classification",
+  "payment_header_overallocated",
+  "payment_header_unallocated",
+  "petty_cash_date_unproven",
+  "receipt_header_overallocated",
+  "receipt_header_unapplied",
+  "reversal_header_not_exact",
+  "source_scope_invalid",
+] as const;
+
+export type PropertyCashResolutionCode =
+  (typeof propertyCashResolutionCodes)[number];
+
+export const propertyCashReconciliationStates = [
+  "missing_stable_identity",
+  "not_required",
+] as const;
+
+export type PropertyCashReconciliationState =
+  (typeof propertyCashReconciliationStates)[number];
 
 export type PropertyCashEvent = {
   amountCents: bigint;
@@ -104,7 +139,10 @@ export type PropertyCashEvent = {
   periodStart: string | null;
   projectionStatus: string | null;
   propertyId: string;
+  reconciliationSourceId: string | null;
+  reconciliationState: PropertyCashReconciliationState;
   requiresResolution: boolean;
+  resolutionCodes: PropertyCashResolutionCode[];
   reversalSourceId: string | null;
   reversalSourceType: string | null;
   sourceId: string;
@@ -129,7 +167,6 @@ export type PropertyCashEventCursor = {
 export type PropertyCashEventScope = {
   currency: "USD";
   organizationId: string;
-  ownerPersonId?: string;
   pageSize?: number;
   periodEnd: string;
   periodStart: string;

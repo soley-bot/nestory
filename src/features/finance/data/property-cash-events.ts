@@ -2,6 +2,8 @@ import { parseExactMoneyToCents } from "@/features/finance/data/property-cash-ev
 import {
   propertyCashClassificationStatuses,
   propertyCashEconomicClasses,
+  propertyCashReconciliationStates,
+  propertyCashResolutionCodes,
   propertyCashSourceTypes,
   type PropertyCashEvent,
   type PropertyCashEventCursor,
@@ -21,10 +23,11 @@ export async function loadPropertyCashEventPage(
   cursor: PropertyCashEventCursor | null = null,
 ) {
   const validated = validateScope(scope);
+  const validatedCursor = cursor ? validateCursor(cursor) : null;
   const { data, error } = await client.rpc("get_property_cash_events_v1_page", {
-    p_after_event_date: cursor?.eventDate ?? null,
-    p_after_source_id: cursor?.sourceId ?? null,
-    p_after_source_type: cursor?.sourceType ?? null,
+    p_after_event_date: validatedCursor?.eventDate ?? null,
+    p_after_source_id: validatedCursor?.sourceId ?? null,
+    p_after_source_type: validatedCursor?.sourceType ?? null,
     p_currency: validated.currency,
     p_organization_id: validated.organizationId,
     p_page_size: validated.pageSize,
@@ -42,9 +45,39 @@ export async function loadPropertyCashEventPage(
     throw new Error("Property cash RPC returned more than the bounded page size.");
   }
 
+  const normalized: PropertyCashEvent[] = [];
+  const pageEventKeys = new Set<string>();
+  let previousCursor = validatedCursor;
+  for (const row of rows) {
+    const event = normalizePropertyCashEvent(row);
+    assertEventScope(event, validated);
+    assertDeterministicEventKey(event);
+    if (
+      validatedCursor &&
+      event.eventKey ===
+        `${validatedCursor.sourceType}:${validatedCursor.sourceId}`
+    ) {
+      throw new Error(
+        `Property cash event duplicate event key: ${event.eventKey}`,
+      );
+    }
+    if (pageEventKeys.has(event.eventKey)) {
+      throw new Error(
+        `Property cash event duplicate event key: ${event.eventKey}`,
+      );
+    }
+    pageEventKeys.add(event.eventKey);
+    const eventCursor = cursorFor(event);
+    if (previousCursor && compareCursors(eventCursor, previousCursor) <= 0) {
+      throw new Error("Property cash event cursor did not advance strictly.");
+    }
+    previousCursor = eventCursor;
+    normalized.push(event);
+  }
+
   return {
     pageSize: validated.pageSize,
-    rows,
+    rows: normalized,
   };
 }
 
@@ -61,10 +94,7 @@ export async function* iteratePropertyCashEventPages(
     const page = await loadPropertyCashEventPage(client, validated, cursor);
     const normalized: PropertyCashEvent[] = [];
 
-    for (const row of page.rows) {
-      const event = normalizePropertyCashEvent(row);
-      assertEventScope(event, validated);
-      assertDeterministicEventKey(event);
+    for (const event of page.rows) {
       const eventCursor = cursorFor(event);
 
       if (seenEventKeys.has(event.eventKey)) {
@@ -85,11 +115,7 @@ export async function* iteratePropertyCashEventPages(
 
       previousCursor = eventCursor;
 
-      if (
-        (!validated.unitId || event.unitId === validated.unitId) &&
-        (!validated.ownerPersonId ||
-          event.ownerPersonId === validated.ownerPersonId)
-      ) {
+      if (!validated.unitId || event.unitId === validated.unitId) {
         normalized.push(event);
       }
     }
@@ -128,6 +154,30 @@ export function normalizePropertyCashEvent(
   const amountCents = parseExactMoneyToCents(row.amount);
   if (amountCents <= BigInt(0)) {
     throw new Error("Property cash event amount must be positive.");
+  }
+  const resolutionCodes = normalizeResolutionCodes(row.resolution_codes);
+  if (row.requires_resolution && resolutionCodes.length === 0) {
+    throw new Error(
+      "Property cash event requires resolution but has no resolution code.",
+    );
+  }
+  if (!row.requires_resolution && resolutionCodes.length > 0) {
+    throw new Error(
+      "Property cash event has resolution codes without requiring resolution.",
+    );
+  }
+  const reconciliationState = assertMember(
+    row.reconciliation_state,
+    propertyCashReconciliationStates,
+    "reconciliation state",
+  );
+  if (
+    reconciliationState === "missing_stable_identity" &&
+    row.reconciliation_source_id !== null
+  ) {
+    throw new Error(
+      "Property cash event cannot expose a reconciliation source while its identity is missing.",
+    );
   }
 
   return {
@@ -168,7 +218,10 @@ export function normalizePropertyCashEvent(
     periodStart: row.period_start,
     projectionStatus: row.projection_status,
     propertyId: row.property_id,
+    reconciliationSourceId: row.reconciliation_source_id,
+    reconciliationState,
     requiresResolution: row.requires_resolution,
+    resolutionCodes,
     reversalSourceId: row.reversal_source_id,
     reversalSourceType: row.reversal_source_type,
     sourceId: row.source_id,
@@ -222,6 +275,15 @@ function parseBusinessDate(value: string) {
     throw new Error(`Invalid property cash business date: ${value}`);
   }
   return parsed;
+}
+
+function validateCursor(cursor: PropertyCashEventCursor) {
+  if (!cursor.sourceId || !cursor.sourceType) {
+    throw new Error("Property cash cursor requires source type and source ID.");
+  }
+  assertMember(cursor.sourceType, propertyCashSourceTypes, "cursor source type");
+  if (cursor.eventDate !== null) parseBusinessDate(cursor.eventDate);
+  return cursor;
 }
 
 function assertEventScope(
@@ -285,4 +347,23 @@ function assertMember<T extends string>(
     throw new Error(`Unknown property cash ${label}: ${value}`);
   }
   return value as T;
+}
+
+function normalizeResolutionCodes(values: string[]) {
+  if (!Array.isArray(values)) {
+    throw new Error("Property cash resolution codes must be an array.");
+  }
+  const normalized = values.map((value) =>
+    assertMember(value, propertyCashResolutionCodes, "resolution code"),
+  );
+  const sortedUnique = [...new Set(normalized)].toSorted();
+  if (
+    sortedUnique.length !== normalized.length ||
+    sortedUnique.some((value, index) => value !== normalized[index])
+  ) {
+    throw new Error(
+      "Property cash resolution codes must be sorted and unique.",
+    );
+  }
+  return normalized;
 }

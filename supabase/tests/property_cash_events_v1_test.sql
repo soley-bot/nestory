@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(49);
+SELECT plan(61);
 
 CREATE TEMP TABLE property_cash_events_test_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -62,6 +62,8 @@ CREATE TEMP TABLE property_cash_events_test_state (
   request_id uuid NOT NULL DEFAULT gen_random_uuid(),
   maintenance_task_id uuid NOT NULL DEFAULT gen_random_uuid(),
   maintenance_ledger_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  malformed_maintenance_task_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  malformed_maintenance_ledger_id uuid NOT NULL DEFAULT gen_random_uuid(),
   represented_request_id uuid NOT NULL DEFAULT gen_random_uuid(),
   represented_task_id uuid NOT NULL DEFAULT gen_random_uuid(),
   represented_ledger_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -198,6 +200,12 @@ SELECT maintenance_ledger_id, organization_id, property_id, unit_id,
   'Exact maintenance link only', 'maintenance_task', maintenance_task_id
 FROM property_cash_events_test_state
 UNION ALL
+SELECT malformed_maintenance_ledger_id, organization_id, property_id, unit_id,
+  '2026-07-25', 'expense', 'Maintenance', 17, 'USD',
+  'Malformed maintenance link evidence', 'maintenance_task',
+  malformed_maintenance_task_id
+FROM property_cash_events_test_state
+UNION ALL
 SELECT represented_ledger_id, organization_id, property_id, unit_id,
   '2026-07-21', 'expense', 'Maintenance', 35, 'USD',
   'Maintenance represented by finance expense', 'finance_expense',
@@ -305,6 +313,11 @@ SELECT maintenance_task_id, organization_id, request_id, property_id, unit_id,
   maintenance_ledger_id, '2026-07-20'::timestamptz
 FROM property_cash_events_test_state
 UNION ALL
+SELECT malformed_maintenance_task_id, organization_id, request_id, property_id,
+  unit_id, 'Malformed linked repair', 'Plumbing', 'completed', vendor_id, 17,
+  'USD', malformed_maintenance_ledger_id, '2026-07-25'
+FROM property_cash_events_test_state
+UNION ALL
 SELECT represented_task_id, organization_id, represented_request_id,
   property_id, unit_id, 'Represented repair', 'Electrical', 'completed',
   vendor_id, 35, 'USD', represented_ledger_id, '2026-07-21'
@@ -400,6 +413,133 @@ UNION ALL
 SELECT payment_maintenance_allocation_id, organization_id,
   payment_maintenance_id, expense_maintenance_id, 35
 FROM property_cash_events_test_state;
+
+-- Header residual fixtures prove both unapplied cash and over-allocation are
+-- visible without assigning an economic meaning.
+INSERT INTO public.finance_income_items (
+  organization_id, property_id, income_type, payer_label, due_date, amount_due,
+  currency, status, reference
+)
+SELECT
+  state.organization_id, state.property_id, 'rent', 'Residual receipt payer',
+  '2026-07-26', fixture.amount, 'USD', 'open', fixture.reference
+FROM property_cash_events_test_state state
+CROSS JOIN (VALUES
+  ('RESIDUAL-RECEIPT-UNAPPLIED-ITEM', 60::numeric),
+  ('RESIDUAL-RECEIPT-OVERALLOCATED-ITEM', 80::numeric)
+) fixture(reference, amount);
+
+INSERT INTO public.finance_receipts (
+  organization_id, property_id, received_date, amount, currency, payer_label,
+  reference
+)
+SELECT
+  state.organization_id, state.property_id, '2026-07-26', fixture.amount,
+  'USD', 'Residual receipt payer', fixture.reference
+FROM property_cash_events_test_state state
+CROSS JOIN (VALUES
+  ('RESIDUAL-RECEIPT-UNAPPLIED', 100::numeric),
+  ('RESIDUAL-RECEIPT-OVERALLOCATED', 50::numeric)
+) fixture(reference, amount);
+
+INSERT INTO public.finance_receipt_allocations (
+  organization_id, receipt_id, income_item_id, amount
+)
+SELECT
+  state.organization_id, receipt.id, income.id,
+  CASE receipt.reference
+    WHEN 'RESIDUAL-RECEIPT-UNAPPLIED' THEN 60
+    ELSE 80
+  END
+FROM property_cash_events_test_state state
+JOIN public.finance_receipts receipt
+  ON receipt.organization_id = state.organization_id
+ AND receipt.reference IN (
+   'RESIDUAL-RECEIPT-UNAPPLIED',
+   'RESIDUAL-RECEIPT-OVERALLOCATED'
+ )
+JOIN public.finance_income_items income
+  ON income.organization_id = state.organization_id
+ AND income.reference =
+   CASE receipt.reference
+     WHEN 'RESIDUAL-RECEIPT-UNAPPLIED'
+       THEN 'RESIDUAL-RECEIPT-UNAPPLIED-ITEM'
+     ELSE 'RESIDUAL-RECEIPT-OVERALLOCATED-ITEM'
+   END;
+
+INSERT INTO public.finance_expense_items (
+  organization_id, property_id, expense_type, vendor_label, invoice_date,
+  amount, currency, category, status, economic_scope, reference
+)
+SELECT
+  state.organization_id, state.property_id, 'vendor_bill',
+  'Residual payment vendor', '2026-07-26', fixture.amount, 'USD', 'Repairs',
+  'approved', 'property_expense', fixture.reference
+FROM property_cash_events_test_state state
+CROSS JOIN (VALUES
+  ('RESIDUAL-PAYMENT-UNALLOCATED-ITEM', 60::numeric),
+  ('RESIDUAL-PAYMENT-OVERALLOCATED-ITEM', 80::numeric)
+) fixture(reference, amount);
+
+INSERT INTO public.finance_payments (
+  organization_id, property_id, paid_date, amount, currency, payee_label,
+  reference
+)
+SELECT
+  state.organization_id, state.property_id, '2026-07-26', fixture.amount,
+  'USD', 'Residual payment vendor', fixture.reference
+FROM property_cash_events_test_state state
+CROSS JOIN (VALUES
+  ('RESIDUAL-PAYMENT-UNALLOCATED', 100::numeric),
+  ('RESIDUAL-PAYMENT-OVERALLOCATED', 50::numeric)
+) fixture(reference, amount);
+
+INSERT INTO public.finance_payment_allocations (
+  organization_id, payment_id, expense_item_id, amount
+)
+SELECT
+  state.organization_id, payment.id, expense.id,
+  CASE payment.reference
+    WHEN 'RESIDUAL-PAYMENT-UNALLOCATED' THEN 60
+    ELSE 80
+  END
+FROM property_cash_events_test_state state
+JOIN public.finance_payments payment
+  ON payment.organization_id = state.organization_id
+ AND payment.reference IN (
+   'RESIDUAL-PAYMENT-UNALLOCATED',
+   'RESIDUAL-PAYMENT-OVERALLOCATED'
+ )
+JOIN public.finance_expense_items expense
+  ON expense.organization_id = state.organization_id
+ AND expense.reference =
+   CASE payment.reference
+     WHEN 'RESIDUAL-PAYMENT-UNALLOCATED'
+       THEN 'RESIDUAL-PAYMENT-UNALLOCATED-ITEM'
+     ELSE 'RESIDUAL-PAYMENT-OVERALLOCATED-ITEM'
+   END;
+
+INSERT INTO public.finance_receipts (
+  organization_id, property_id, received_date, amount, currency, payer_label,
+  reference, reversal_of_id
+)
+SELECT
+  state.organization_id, state.property_id, '2026-07-27', original.amount,
+  original.currency, original.payer_label, 'CASH-FEE-RECEIPT-REVERSAL',
+  original.id
+FROM property_cash_events_test_state state
+JOIN public.finance_receipts original
+  ON original.organization_id = state.organization_id
+ AND original.reference = 'CASH-FEE-RECEIPT';
+
+INSERT INTO public.finance_receipt_allocations (
+  organization_id, receipt_id, income_item_id, amount
+)
+SELECT state.organization_id, reversal.id, state.income_fee_id, reversal.amount
+FROM property_cash_events_test_state state
+JOIN public.finance_receipts reversal
+  ON reversal.organization_id = state.organization_id
+ AND reversal.reference = 'CASH-FEE-RECEIPT-REVERSAL';
 
 INSERT INTO public.lease_deposits (
   id, organization_id, lease_id, deposit_type, amount, currency, status,
@@ -662,6 +802,21 @@ JOIN public.finance_income_items income
 INSERT INTO public.people (organization_id, display_name)
 SELECT cross_organization_id, 'Cross-organization scope vendor'
 FROM property_cash_events_test_state;
+
+-- Simulate legacy corruption that current checked task writes prevent. The
+-- shadow read contract must retain one unresolved maintenance evidence row
+-- without leaking the invalid cross-organization vendor or unit identity.
+SET LOCAL session_replication_role = replica;
+UPDATE public.tasks AS task
+SET
+  unit_id = gen_random_uuid(),
+  vendor_person_id = cross_vendor.id
+FROM property_cash_events_test_state AS state
+JOIN public.people AS cross_vendor
+  ON cross_vendor.organization_id = state.cross_organization_id
+ AND cross_vendor.display_name = 'Cross-organization scope vendor'
+WHERE task.id = state.malformed_maintenance_task_id;
+SET LOCAL session_replication_role = origin;
 
 INSERT INTO public.finance_expense_items (
   organization_id, property_id, unit_id, task_id, vendor_person_id,
@@ -1003,7 +1158,8 @@ SELECT ok(
     'source_type', 'source_id',
     'source_parent_type', 'source_parent_id', 'obligation_type',
     'obligation_id', 'reversal_source_type', 'reversal_source_id',
-    'is_reversal', 'is_legacy', 'requires_resolution', 'ledger_entry_id',
+    'is_reversal', 'is_legacy', 'requires_resolution', 'resolution_codes',
+    'reconciliation_source_id', 'reconciliation_state', 'ledger_entry_id',
     'journal_entry_id', 'projection_status', 'created_at', 'created_by',
     'updated_at', 'updated_by', 'archived_at'
   ]
@@ -1413,19 +1569,151 @@ SELECT ok(
   AND statement_section = 'management_fees'
   AND classification_status = 'provisional_current_obligation'
   AND requires_resolution
-  AND owner_cash_effect = -25
+  AND owner_cash_effect IS NULL
   AND operating_cash_effect = 0
   AND deposit_liability_effect = 0
-  AND management_fee_effect = 25,
-  'management fee compatibility effects remain explicitly provisional'
+  AND management_fee_effect = 25
+  AND (to_jsonb(event)->'resolution_codes')
+    ? 'management_fee_owner_recognition_unresolved',
+  'management fee keeps its fee effect while owner recognition remains unknown'
 )
 FROM public.get_property_cash_events_v1_page(
   (SELECT organization_id FROM property_cash_events_test_state),
   (SELECT property_id FROM property_cash_events_test_state),
   'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
-)
+) event
 WHERE source_id = (
   SELECT receipt_fee_allocation_id FROM property_cash_events_test_state
+);
+
+SELECT ok(
+  is_reversal
+  AND owner_cash_effect IS NULL
+  AND operating_cash_effect = 0
+  AND deposit_liability_effect = 0
+  AND management_fee_effect = -25
+  AND (to_jsonb(event)->'resolution_codes')
+    ? 'management_fee_owner_recognition_unresolved',
+  'management fee reversal exactly reverses only the fee effect'
+)
+FROM public.get_property_cash_events_v1_page(
+  (SELECT organization_id FROM property_cash_events_test_state),
+  (SELECT property_id FROM property_cash_events_test_state),
+  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+) event
+WHERE source_id = (
+  SELECT allocation.id
+  FROM public.finance_receipt_allocations allocation
+  JOIN public.finance_receipts receipt ON receipt.id = allocation.receipt_id
+  WHERE receipt.reference = 'CASH-FEE-RECEIPT-REVERSAL'
+);
+
+SELECT ok(
+  (
+    SELECT count(*) = 1
+      AND bool_and(
+        event.event_key = 'receipt_header_residual:' || receipt.id::text
+        AND event.category_code = 'unapplied_receipt'
+        AND event.amount = 40
+        AND event.event_date = receipt.received_date
+        AND event.economic_class = 'legacy_unclassified'
+        AND event.statement_section = 'unresolved'
+        AND event.owner_cash_effect IS NULL
+        AND event.operating_cash_effect IS NULL
+        AND event.deposit_liability_effect IS NULL
+        AND event.management_fee_effect IS NULL
+        AND event.requires_resolution
+        AND (to_jsonb(event)->'resolution_codes')
+          ? 'receipt_header_unapplied'
+      )
+    FROM public.finance_receipts receipt
+    LEFT JOIN public.get_property_cash_events_v1_page(
+      (SELECT organization_id FROM property_cash_events_test_state),
+      (SELECT property_id FROM property_cash_events_test_state),
+      'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+    ) event
+      ON event.source_type = 'receipt_header_residual'
+     AND event.source_id = receipt.id
+    WHERE receipt.reference = 'RESIDUAL-RECEIPT-UNAPPLIED'
+  ),
+  'receipt header amount above allocations emits one unapplied residual'
+);
+
+SELECT ok(
+  (
+    SELECT count(*) = 1
+      AND bool_and(
+        event.category_code = 'overallocated_receipt'
+        AND event.amount = 30
+        AND event.requires_resolution
+        AND (to_jsonb(event)->'resolution_codes')
+          ? 'receipt_header_overallocated'
+      )
+    FROM public.finance_receipts receipt
+    LEFT JOIN public.get_property_cash_events_v1_page(
+      (SELECT organization_id FROM property_cash_events_test_state),
+      (SELECT property_id FROM property_cash_events_test_state),
+      'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+    ) event
+      ON event.source_type = 'receipt_header_residual'
+     AND event.source_id = receipt.id
+    WHERE receipt.reference = 'RESIDUAL-RECEIPT-OVERALLOCATED'
+  ),
+  'receipt allocations above header emit one over-allocation residual'
+);
+
+SELECT ok(
+  (
+    SELECT count(*) = 1
+      AND bool_and(
+        event.event_key = 'payment_header_residual:' || payment.id::text
+        AND event.category_code = 'unallocated_payment'
+        AND event.amount = 40
+        AND event.event_date = payment.paid_date
+        AND event.economic_class = 'legacy_unclassified'
+        AND event.statement_section = 'unresolved'
+        AND event.owner_cash_effect IS NULL
+        AND event.operating_cash_effect IS NULL
+        AND event.deposit_liability_effect IS NULL
+        AND event.management_fee_effect IS NULL
+        AND event.requires_resolution
+        AND (to_jsonb(event)->'resolution_codes')
+          ? 'payment_header_unallocated'
+      )
+    FROM public.finance_payments payment
+    LEFT JOIN public.get_property_cash_events_v1_page(
+      (SELECT organization_id FROM property_cash_events_test_state),
+      (SELECT property_id FROM property_cash_events_test_state),
+      'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+    ) event
+      ON event.source_type = 'payment_header_residual'
+     AND event.source_id = payment.id
+    WHERE payment.reference = 'RESIDUAL-PAYMENT-UNALLOCATED'
+  ),
+  'payment header amount above allocations emits one unallocated residual'
+);
+
+SELECT ok(
+  (
+    SELECT count(*) = 1
+      AND bool_and(
+        event.category_code = 'overallocated_payment'
+        AND event.amount = 30
+        AND event.requires_resolution
+        AND (to_jsonb(event)->'resolution_codes')
+          ? 'payment_header_overallocated'
+      )
+    FROM public.finance_payments payment
+    LEFT JOIN public.get_property_cash_events_v1_page(
+      (SELECT organization_id FROM property_cash_events_test_state),
+      (SELECT property_id FROM property_cash_events_test_state),
+      'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+    ) event
+      ON event.source_type = 'payment_header_residual'
+     AND event.source_id = payment.id
+    WHERE payment.reference = 'RESIDUAL-PAYMENT-OVERALLOCATED'
+  ),
+  'payment allocations above header emit one over-allocation residual'
 );
 
 SELECT ok(
@@ -1491,14 +1779,16 @@ SELECT ok(
   AND classification_status = 'source_stable'
   AND owner_cash_effect = -15
   AND operating_cash_effect = -15
-  AND NOT requires_resolution,
-  'posted property petty cash uses only its explicit clear date'
+  AND requires_resolution
+  AND (to_jsonb(event)->'resolution_codes')
+    ? 'missing_reconciliation_source',
+  'posted property petty cash keeps exact effects but exposes missing reconciliation'
 )
 FROM public.get_property_cash_events_v1_page(
   (SELECT organization_id FROM property_cash_events_test_state),
   (SELECT property_id FROM property_cash_events_test_state),
   'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
-)
+) event
 WHERE source_id = (
   SELECT petty_cleared_id FROM property_cash_events_test_state
 );
@@ -1550,17 +1840,80 @@ SELECT ok(
   AND vendor_person_id = (
     SELECT vendor_id FROM property_cash_events_test_state
   )
-  AND classification_status = 'source_stable'
-  AND operating_cash_effect = -40,
-  'maintenance effect exists only through its exact linked Ledger row'
+  AND economic_class = 'legacy_unclassified'
+  AND statement_section = 'unresolved'
+  AND classification_status = 'unresolved_evidence'
+  AND is_legacy
+  AND requires_resolution
+  AND owner_cash_effect IS NULL
+  AND operating_cash_effect IS NULL
+  AND deposit_liability_effect IS NULL
+  AND management_fee_effect IS NULL
+  AND (to_jsonb(event)->'resolution_codes')
+    ? 'maintenance_cash_settlement_unproven',
+  'maintenance-only Ledger evidence is visible but never treated as paid cash'
 )
 FROM public.get_property_cash_events_v1_page(
   (SELECT organization_id FROM property_cash_events_test_state),
   (SELECT property_id FROM property_cash_events_test_state),
   'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
-)
+) event
 WHERE source_id = (
   SELECT maintenance_task_id FROM property_cash_events_test_state
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_property_cash_events_v1_page(
+      (SELECT organization_id FROM property_cash_events_test_state),
+      (SELECT property_id FROM property_cash_events_test_state),
+      'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+    )
+    WHERE source_type = 'maintenance_task'
+      AND source_id = (
+        SELECT maintenance_task_id FROM property_cash_events_test_state
+      )
+  ),
+  1::bigint,
+  'valid maintenance-only Ledger evidence emits exactly one unresolved row'
+);
+
+SELECT ok(
+  coalesce(
+    (
+      SELECT
+        ledger_entry_id = (
+          SELECT malformed_maintenance_ledger_id
+          FROM property_cash_events_test_state
+        )
+        AND unit_id IS NULL
+        AND vendor_person_id IS NULL
+        AND economic_class = 'legacy_unclassified'
+        AND classification_status = 'unresolved_evidence'
+        AND is_legacy
+        AND requires_resolution
+        AND owner_cash_effect IS NULL
+        AND operating_cash_effect IS NULL
+        AND deposit_liability_effect IS NULL
+        AND management_fee_effect IS NULL
+        AND (to_jsonb(event)->'resolution_codes')
+          ? 'maintenance_cash_settlement_unproven'
+        AND (to_jsonb(event)->'resolution_codes') ? 'source_scope_invalid'
+      FROM public.get_property_cash_events_v1_page(
+        (SELECT organization_id FROM property_cash_events_test_state),
+        (SELECT property_id FROM property_cash_events_test_state),
+        'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+      ) event
+      WHERE source_type = 'maintenance_task'
+        AND source_id = (
+          SELECT malformed_maintenance_task_id
+          FROM property_cash_events_test_state
+        )
+    ),
+    false
+  ),
+  'malformed maintenance scope remains visible once and unresolved'
 );
 
 SELECT is(
@@ -1622,8 +1975,10 @@ SELECT ok(
     'ledger_entry',
     'maintenance_task',
     'payment_allocation',
+    'payment_header_residual',
     'petty_cash_entry',
-    'receipt_allocation'
+    'receipt_allocation',
+    'receipt_header_residual'
   ] <@ array_agg(DISTINCT source_type ORDER BY source_type),
   'mixed supported source families are present in one contract'
 )
@@ -1645,6 +2000,111 @@ FROM public.get_property_cash_events_v1_page(
 WHERE source_id <> (
   SELECT receipt_owner_allocation_id FROM property_cash_events_test_state
 );
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.get_property_cash_events_v1_page(
+      (SELECT organization_id FROM property_cash_events_test_state),
+      (SELECT property_id FROM property_cash_events_test_state),
+      'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+    )
+    WHERE (
+      source_type = 'receipt_header_residual'
+      AND source_id = (
+        SELECT receipt_rent_id FROM property_cash_events_test_state
+      )
+    )
+    OR (
+      source_type = 'payment_header_residual'
+      AND source_id = (
+        SELECT payment_operating_id FROM property_cash_events_test_state
+      )
+    )
+  ),
+  0::bigint,
+  'balanced receipt and payment headers emit no residual event'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.get_property_cash_events_v1_page(
+      (SELECT organization_id FROM property_cash_events_test_state),
+      (SELECT property_id FROM property_cash_events_test_state),
+      'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+    ) event
+    WHERE event.requires_resolution
+      AND (
+        coalesce(
+          pg_catalog.jsonb_typeof(to_jsonb(event)->'resolution_codes'),
+          'missing'
+        ) <> 'array'
+        OR coalesce(
+          pg_catalog.jsonb_array_length(
+            to_jsonb(event)->'resolution_codes'
+          ),
+          0
+        ) = 0
+      )
+  ),
+  'every requires-resolution row exposes at least one reason code'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.get_property_cash_events_v1_page(
+      (SELECT organization_id FROM property_cash_events_test_state),
+      (SELECT property_id FROM property_cash_events_test_state),
+      'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+    ) event
+    WHERE pg_catalog.jsonb_typeof(
+      to_jsonb(event)->'resolution_codes'
+    ) = 'array'
+      AND (
+        SELECT array_agg(code ORDER BY ordinal)
+          IS DISTINCT FROM array_agg(DISTINCT code ORDER BY code)
+        FROM pg_catalog.jsonb_array_elements_text(
+          to_jsonb(event)->'resolution_codes'
+        ) WITH ORDINALITY AS codes(code, ordinal)
+      )
+  ),
+  'resolution codes are deterministic, sorted, and unique'
+);
+
+SELECT ok(
+  bool_and(
+    (to_jsonb(event)->'reconciliation_source_id') = 'null'::jsonb
+    AND (
+      NOT event.requires_resolution
+      OR to_jsonb(event)->>'reconciliation_state' =
+        'missing_stable_identity'
+    )
+  ),
+  'current reconciliation identity and state are explicit'
+)
+FROM public.get_property_cash_events_v1_page(
+  (SELECT organization_id FROM property_cash_events_test_state),
+  (SELECT property_id FROM property_cash_events_test_state),
+  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+) event;
+
+SELECT ok(
+  count(*) = 2
+  AND bool_and(owner_cash_effect IS NULL)
+  AND sum(management_fee_effect) = 0,
+  'management fee original and exact reversal net only the fee effect'
+)
+FROM public.get_property_cash_events_v1_page(
+  (SELECT organization_id FROM property_cash_events_test_state),
+  (SELECT property_id FROM property_cash_events_test_state),
+  'USD', '2026-07-01', '2026-07-31', NULL, NULL, NULL, 1000
+)
+WHERE source_type = 'receipt_allocation'
+  AND obligation_id = (
+    SELECT income_fee_id FROM property_cash_events_test_state
+  );
 
 SELECT is(
   (

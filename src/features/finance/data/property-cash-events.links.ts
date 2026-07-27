@@ -16,6 +16,12 @@ export function resolvePropertyCashEventHref(event: PropertyCashEvent): string {
         propertyId: event.propertyId,
         unitId: event.unitId,
       });
+    case "receipt_header_residual":
+      return buildHref("/rent-income", {
+        archiveState: "all",
+        month,
+        propertyId: event.propertyId,
+      });
     case "payment_allocation":
       return buildHref("/bills-expenses", {
         archiveState: "all",
@@ -27,6 +33,13 @@ export function resolvePropertyCashEventHref(event: PropertyCashEvent): string {
         month,
         propertyId: event.propertyId,
         unitId: event.unitId,
+      });
+    case "payment_header_residual":
+      return buildHref("/bills-expenses", {
+        archiveState: "all",
+        dateBasis: "paid",
+        month,
+        propertyId: event.propertyId,
       });
     case "deposit_event":
       return event.leaseId

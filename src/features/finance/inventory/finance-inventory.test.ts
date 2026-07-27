@@ -451,6 +451,52 @@ describe("finance inventory artifact contract", () => {
     ).not.toContain("deposit_event:security");
   });
 
+  it("counts only operating income obligations under a non-tenant-specific label", () => {
+    const summary = buildParitySummary({
+      diagnosticRows: [],
+      scope,
+      sourceRows: [
+        row("sources", "income_obligation:rent", {
+          amount: "1000.00",
+          economicClass: "operating_income",
+          incomeType: "rent",
+          outstandingAmount: "250.00",
+          sourceType: "income_obligation",
+        }),
+        row("sources", "income_obligation:owner", {
+          amount: "500.00",
+          economicClass: "owner_contribution",
+          incomeType: "owner_contribution",
+          outstandingAmount: "500.00",
+          sourceType: "income_obligation",
+        }),
+        row("sources", "income_obligation:fee", {
+          amount: "125.00",
+          economicClass: "management_fee",
+          incomeType: "management_fee",
+          outstandingAmount: "125.00",
+          sourceType: "income_obligation",
+        }),
+        row("sources", "income_obligation:deposit", {
+          amount: "300.00",
+          economicClass: "deposit_custody",
+          incomeType: "security_deposit",
+          outstandingAmount: "300.00",
+          sourceType: "income_obligation",
+        }),
+      ],
+    });
+
+    expect(summary.currentGrossTotals).toMatchObject({
+      operatingObligations: "1000.00",
+      operatingOutstandingBalance: "250.00",
+    });
+    expect(summary.currentGrossTotals).not.toHaveProperty("tenantCharges");
+    expect(summary.currentGrossTotals).not.toHaveProperty(
+      "tenantOutstandingBalance",
+    );
+  });
+
   it("rejects any row returned under a different diagnostic contract", () => {
     expect(() =>
       assertInventoryContractVersions([
@@ -573,6 +619,24 @@ describe("finance inventory artifact contract", () => {
     );
     expect(gaps.expenseCategories).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          category: "General Supplies",
+          currentStableType: true,
+          mappedExpenseType: "supplies",
+          state: "broad_current_type",
+        }),
+        expect.objectContaining({
+          category: "Other Expense",
+          currentStableType: true,
+          mappedExpenseType: "other",
+          state: "broad_current_type",
+        }),
+        expect.objectContaining({
+          broadCurrentType: "utilities",
+          category: "Electricity",
+          currentStableType: false,
+          state: "broad_type_not_specific",
+        }),
         expect.objectContaining({
           category: "Property Taxes",
           state: "free_text_category_only",
