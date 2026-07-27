@@ -133,3 +133,106 @@ It rejects a property outside the organization, a range over 366 days, invalid
 or partial cursors, and a page size outside `1..1000`. Execution is revoked
 from `PUBLIC` and `anon` and granted only to `authenticated`. Fully qualified
 base relations and the caller's RLS policies preserve organization isolation.
+
+## Shadow parity manifest
+
+`src/features/finance/data/property-cash-shadow-parity.ts` is an engineering
+adapter only. No page, report, export, or mutation imports it. It invokes the
+existing pure builders and records their returned values beside canonical
+event totals without declaring either side authoritative.
+
+Every record includes:
+
+- surface and metric identity;
+- organization, property, USD currency, and selected-period scope;
+- `period_flow`, `period_obligation`, `closing_balance`, or `control` basis;
+- exact `bigint` current, canonical, and delta cents, with `null` used when the
+  comparison cannot be made safely;
+- `match`, `mismatch`, `unresolved`, or `not_comparable` status;
+- exact included, excluded, and unresolved typed identities; and
+- a non-authoritative explanation of the comparison boundary.
+
+Identity variants cover canonical events, Plan 01 source stable keys and
+diagnostic stable keys, current obligations and settlement evidence, effective
+owner links, returned Ledger report sources, and journal controls. Identity
+collection fails closed before accepting identity 10,001. Inputs that can
+produce stored identities are also rejected before aggregation when they exceed
+the configured limit. The focused fixture proves 5,205 identities are retained
+without truncation.
+
+### Property cash mapping
+
+| Current `PropertyCashTotals` field | Basis | Canonical comparison |
+| --- | --- | --- |
+| `rentDueCents` | `period_obligation` | `not_comparable`; canonical events are settlement flows |
+| `rentReceivedCents` | `period_obligation` | `not_comparable`; current value is obligation-bounded receipt state |
+| `arrearsCents` | `period_obligation` | `not_comparable`; no zero substitute |
+| `managementFeesEarnedCents` | `period_obligation` | `not_comparable` |
+| `managementFeesOutstandingCents` | `period_obligation` | `not_comparable` |
+| `managementFeesReceivedCents` | `period_flow` | `managementFeeEffectCents` |
+| `operatingCashReceivedCents` | `period_flow` | `operatingIncomeCents` |
+| `ownerContributionCents` | `period_flow` | signed owner-contribution effect |
+| `ownerPayoutCents` | `period_flow` | negated signed owner-distribution effect |
+| `propertyExpensesPaidCents` | `period_flow` | negated signed operating-expense effect |
+| `netOwnerCashMovementCents` | `period_flow` | signed owner-cash movement |
+| `securityDepositHeldCents` | `closing_balance` | `not_comparable`; v1 exposes selected-period deposit movement |
+
+Any relevant canonical event with a null effect makes that metric unresolved:
+canonical and delta cents remain null while the event identity stays visible.
+Original and reversal identities remain separate. Current archived-settlement
+differences remain mismatches rather than being normalized away.
+
+### Current read surfaces
+
+- Owner Statement input is normalized through `toOwnerStatementInput`.
+  Property-level cash is built first with `buildPropertyCash`, then
+  `buildOwnerStatement` is invoked. Effective-roster owner allocations are
+  separate `not_comparable` records because a direct canonical owner ID is not
+  an allocation roster. Readiness records retain exact blockers and evidence.
+  Blocked summary omissions remain unresolved nulls, never zero mismatches.
+  Separate controls compare ready current allocations with current
+  property-level cash.
+- Property Performance, Unit Performance, and Income & Expense are all built by
+  `buildTrustedReport`. Returned USD strings are parsed exactly. Returned
+  Ledger source links and Plan 01 stable keys are retained. Unit Performance
+  summary totals and visible unit-row totals are separate records so legitimate
+  property-level Ledger rows do not disappear into a unit-row comparison.
+- Plan 01 output is rebuilt through `buildReadPathParity`,
+  `buildUnitContextCoverage`, and `buildParitySummary`. Proposed bucket
+  included/excluded/unresolved stable keys remain diagnostic and carry an
+  explicit non-authority disclaimer. `REPORT_TOTAL_CONTRADICTION` retains its
+  diagnostic key plus `settlementAmount` and `ledgerAmount`;
+  `SOURCE_LOAD_LIMIT_EXCEEDED` remains unresolved. Gross settlement
+  diagnostics are not forced into canonical economic buckets.
+- Journal debit, credit, and balance are current internal `control` records,
+  not canonical cash comparisons.
+- `buildPropertySummary` is invoked, but both `netIncome` and `netIncomeUsd`
+  remain `not_comparable` because they are all-time current Ledger values and
+  the canonical scope is a selected period.
+
+### Local fixture and query-plan evidence
+
+No Plan 02 overlay or rewrite of
+`supabase/fixtures/finance_inventory_fixture.sql` was needed. The existing
+fixture already inserts 5,205 bounded-period Ledger rows. The existing focused
+`property_cash_events_v1_test.sql` passed all 49 assertions on the disposable
+`artifacts/finance-inventory-stack`; it covers mixed source families, exact
+projection deduplication, archived settlements, deposit compatibility,
+resolved and unresolved reversals, unresolved petty cash/maintenance/legacy
+Ledger evidence, RLS, and deterministic traversal above 5,000 events.
+
+On that disposable fixture, an authenticated
+`EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS)` of the first 1,000-row RPC page
+reported:
+
+- indexed property lookup through `properties_organization_id_code_key`;
+- a `Function Scan` over `get_property_cash_events_v1_page`;
+- 1,000 returned rows;
+- 307,093 shared-buffer hits inside the function scan; and
+- 993.894 ms total execution time.
+
+This is local diagnostic evidence from one Windows Docker stack, warm-cache
+state, fixture shape, and machine. The function boundary hides its internal
+subplans in this outer `EXPLAIN`; the measurement is not a production latency
+claim, throughput guarantee, or proof that every source-family branch has an
+optimal plan.
