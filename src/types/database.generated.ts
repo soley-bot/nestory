@@ -4021,6 +4021,62 @@ export type Database = {
           staff_name: string
         }[]
       }
+      get_property_cash_events_v1_page: {
+        Args: {
+          p_after_event_date?: string
+          p_after_source_id?: string
+          p_after_source_type?: string
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_organization_id: string
+          p_page_size?: number
+          p_period_end: string
+          p_period_start: string
+          p_property_id: string
+        }
+        Returns: {
+          amount: number
+          archived_at: string
+          category_code: string
+          classification_status: string
+          contract_version: string
+          created_at: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          deposit_liability_effect: number
+          economic_class: string
+          event_date: string
+          event_key: string
+          is_legacy: boolean
+          is_reversal: boolean
+          journal_entry_id: string
+          lease_id: string
+          ledger_entry_id: string
+          management_fee_effect: number
+          obligation_id: string
+          obligation_type: string
+          operating_cash_effect: number
+          organization_id: string
+          owner_cash_effect: number
+          owner_person_id: string
+          period_start: string
+          projection_status: string
+          property_id: string
+          requires_resolution: boolean
+          reversal_source_id: string
+          reversal_source_type: string
+          source_id: string
+          source_parent_id: string
+          source_parent_type: string
+          source_type: string
+          statement_section: string
+          task_id: string
+          tenant_person_id: string
+          unit_id: string
+          updated_at: string
+          updated_by: string
+          vendor_person_id: string
+        }[]
+      }
       mark_organization_invitation_delivery_failed: {
         Args: { p_error: string; p_invitation_id: string }
         Returns: string
