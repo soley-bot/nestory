@@ -164,12 +164,15 @@ individual Owner Statement, TrustedReport, Property Summary, canonical, or
 Plan 01 collection exceeds the configured limit. Required combined
 PropertyCash, owner-allocation, and report contributor sets are preflighted
 after all raw lengths pass. The PropertyCash preflight expands embedded
-obligation plus allocation identities, and owner allocation uses a
-division-checked upper bound for effective-owner evidence fanout before the
-builder runs. One required-limit collector consumes identity chunks without
-first concatenating them, stops before adding limit plus one, and rejects an
-identity assigned to more than one of included, excluded, and unresolved. The
-focused fixture proves 5,205 identities are retained without truncation.
+obligation plus allocation identities. Owner allocation conservatively counts
+every raw owner row and the maximum raw source/evidence occurrences across all
+statement properties and months, then division-checks ownership evidence plus
+owner-by-source fanout before the builder runs. Repeated raw rows are not
+deduplicated for this work bound. One required-limit collector consumes
+identity chunks without first concatenating them, stops before adding limit plus
+one, and rejects an identity assigned to more than one of included, excluded,
+and unresolved. The focused fixture proves 5,205 identities are retained
+without truncation.
 
 Every canonical input event must match the stamped organization, property, and
 USD currency. A dated event must fall inside the inclusive selected period.

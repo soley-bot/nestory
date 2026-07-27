@@ -268,6 +268,87 @@ describe("property cash shadow parity review fixes", () => {
     ).rejects.toThrow("ownerStatementRows.allocationFanout");
   });
 
+  it("preflights owner fanout across off-scope properties and the actual statement month", async () => {
+    const rows = emptyOwnerStatementRows();
+    rows.propertyIds = ["property-1", "property-2"];
+    const otherPropertyItem = incomeItem(
+      "other-property-income",
+      "rent",
+      "1.00",
+    );
+    otherPropertyItem.property_id = "property-2";
+    rows.currentReceiptRows = [
+      receiptRow("other-property-allocation", "1.00", otherPropertyItem),
+    ];
+    rows.ownerRows = [
+      {
+        ...ownerLinkRow("other-owner-link-1", "other-owner-1", "50"),
+        property_id: "property-2",
+      },
+      {
+        ...ownerLinkRow("other-owner-link-2", "other-owner-2", "50"),
+        property_id: "property-2",
+      },
+    ];
+    rows.personRows = [
+      personRow("other-owner-1", "Other Owner One"),
+      personRow("other-owner-2", "Other Owner Two"),
+    ];
+    rows.monthScope = { before: "2026-09-01", from: "2026-08-01" };
+
+    await expect(
+      buildPropertyCashShadowParity(
+        parityInput({
+          identityLimit: 5,
+          ownerStatementRows: rows,
+        }),
+      ),
+    ).rejects.toThrow("ownerStatementRows.allocationFanout");
+  });
+
+  it("counts repeated raw payment, deposit, and receipt occurrences in owner fanout", async () => {
+    const repeatedPaymentAndDeposit = emptyOwnerStatementRows();
+    repeatedPaymentAndDeposit.ownerRows = [
+      ownerLinkRow("owner-link-1", "owner-1", "100"),
+    ];
+    repeatedPaymentAndDeposit.personRows = [
+      personRow("owner-1", "Owner One"),
+    ];
+    const payment = paymentRow("repeated-payment", "1.00", "maintenance");
+    const deposit = ownerStatementRows().depositRows[0]!;
+    repeatedPaymentAndDeposit.paymentRows = [payment, payment];
+    repeatedPaymentAndDeposit.depositRows = [deposit, deposit];
+
+    await expect(
+      buildPropertyCashShadowParity(
+        parityInput({
+          identityLimit: 4,
+          ownerStatementRows: repeatedPaymentAndDeposit,
+        }),
+      ),
+      "repeated payment and deposit",
+    ).rejects.toThrow("ownerStatementRows.allocationFanout");
+
+    const repeatedReceipt = emptyOwnerStatementRows();
+    repeatedReceipt.ownerRows = [
+      ownerLinkRow("owner-link-1", "owner-1", "100"),
+    ];
+    repeatedReceipt.personRows = [personRow("owner-1", "Owner One")];
+    const item = incomeItem("repeated-income", "rent", "1.00");
+    const receipt = receiptRow("repeated-receipt", "1.00", item);
+    repeatedReceipt.currentReceiptRows = [receipt, receipt];
+
+    await expect(
+      buildPropertyCashShadowParity(
+        parityInput({
+          identityLimit: 4,
+          ownerStatementRows: repeatedReceipt,
+        }),
+      ),
+      "repeated receipt",
+    ).rejects.toThrow("ownerStatementRows.allocationFanout");
+  });
+
   it("fails closed when a canonical event is outside the stamped scope", async () => {
     const invalidEvents = [
       event({
