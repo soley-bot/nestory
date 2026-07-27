@@ -16,6 +16,9 @@ import {
   buildPropertyCashShadowParity,
 } from "../src/features/finance/data/property-cash-shadow-parity.ts";
 import {
+  buildPropertyCashShadowMaterialStateToken,
+} from "../src/features/finance/data/property-cash-shadow-material.ts";
+import {
   assertDisposableStackIdentity,
   assertRepositoryState,
   collectInventoryPages,
@@ -103,6 +106,7 @@ if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 1000) {
 }
 
 const watermarkBeforeRows = await inventorySection("watermark");
+const currentBefore = await loadCurrentPathEvidence();
 const canonicalEvents = [];
 for await (const event of iteratePropertyCashEvents(client, {
   ...scope,
@@ -110,17 +114,31 @@ for await (const event of iteratePropertyCashEvents(client, {
 })) {
   canonicalEvents.push(event);
 }
-const [financeInventorySourceRows, financeInventoryDiagnosticRows, current] =
+const [financeInventorySourceRows, financeInventoryDiagnosticRows] =
   await Promise.all([
     inventorySection("sources"),
     inventorySection("diagnostics"),
-    loadCurrentPathEvidence(),
   ]);
+const current = await loadCurrentPathEvidence();
 const watermarkAfterRows = await inventorySection("watermark");
 const watermarkBefore = readWatermark(watermarkBeforeRows);
-const watermarkAfter = readWatermark(watermarkAfterRows);
-const staleness = compareWatermarks(watermarkBefore, watermarkAfter);
+const baseWatermarkAfter = readWatermark(watermarkAfterRows);
+const staleness = compareWatermarks(watermarkBefore, baseWatermarkAfter);
 if (staleness.stale) throw new Error(staleness.reason);
+const currentPathBefore =
+  buildPropertyCashShadowMaterialStateToken(currentBefore);
+const currentPathAfter =
+  buildPropertyCashShadowMaterialStateToken(current);
+if (currentPathBefore.hash !== currentPathAfter.hash) {
+  throw new Error(
+    "Shadow current-path inputs changed while the evidence snapshot was being collected.",
+  );
+}
+const watermarkAfter = {
+  ...baseWatermarkAfter,
+  currentPathHash: currentPathAfter.hash,
+  currentPathRowCount: currentPathAfter.rowCount,
+};
 
 const parity = await buildPropertyCashShadowParity({
   canonicalEvents,
@@ -258,7 +276,7 @@ async function loadCurrentPathEvidence() {
         .order("id"),
     "units",
   );
-  const ledgerEntries = await loadPaged(
+  const periodLedgerEntries = await loadPaged(
     () =>
       client
         .from("ledger_entries")
@@ -271,6 +289,18 @@ async function loadCurrentPathEvidence() {
         .order("transaction_date")
         .order("id"),
     "period Ledger",
+  );
+  const allTimeLedgerEntries = await loadPaged(
+    () =>
+      client
+        .from("ledger_entries")
+        .select("id, property_id, unit_id, transaction_date, direction, category, amount, currency, description")
+        .eq("organization_id", scope.organizationId)
+        .eq("property_id", scope.propertyId)
+        .is("archived_at", null)
+        .order("transaction_date")
+        .order("id"),
+    "all-time property-summary Ledger",
   );
   const dueIncomeItems = await loadPaged(
     () =>
@@ -418,6 +448,7 @@ async function loadCurrentPathEvidence() {
           .from("documents")
           .select("id, property_id, unit_id, lease_id, ledger_entry_id, timeline_event_id, file_name")
           .eq("organization_id", scope.organizationId)
+          .eq("property_id", scope.propertyId)
           .is("archived_at", null)
           .order("id"),
       "documents",
@@ -460,14 +491,14 @@ async function loadCurrentPathEvidence() {
     propertySummaryInput: {
       activeOwner,
       hasActiveOwnerLink: currentOwners.length > 0,
-      ledgerEntries,
+      ledgerEntries: allTimeLedgerEntries,
       property: propertyRows[0],
       units,
     },
     trustedReportInput: {
       documents,
       generatedAt: `${monthBefore}T00:00:00.000Z`,
-      ledgerEntries,
+      ledgerEntries: periodLedgerEntries,
       leases,
       maintenanceTasks,
       owners: currentOwners,
