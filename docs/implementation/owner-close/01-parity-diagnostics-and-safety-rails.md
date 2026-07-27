@@ -1,161 +1,225 @@
-# Plan 01 — Financial Parity Diagnostics and Safety Rails
+# Plan 01 — Financial Inventory, Parity Diagnostics, and Safety Rails
 
 **Mode:** Standard  
 **Effort:** High  
-**Reason:** The repository contains several financial representations; a read-only parity inventory is required before any write path or historical data is changed.
+**Reason:** Before changing financial writes, Nestory needs a read-only, exact inventory of every current representation, bypass path, inferred historical row, and report contradiction.  
+**Authorization:** This is the first and only implementation slice authorized for prompt preparation. It does not authorize Plan 02.
 
 ## Context and baseline
 
-Planning baseline is `main` at `823deb4735b8124edefd1e68e451c21f1962b075`. Implementation must start from the latest merged `main` after Plan 00 is approved.
+Planning baseline is merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`. The implementation branch must instead record the latest merged `main` SHA at start and stop if relevant finance code has changed materially.
 
 Verified current behavior:
 
-- Owner Statement reads income obligations, receipt allocations, payment allocations, deposit events, and ownership.
-- Property records and several reports read `ledger_entries`.
-- Accounting journals maintain a separate posting-control representation.
-- Maintenance and petty cash may create ledger/journal effects without matching Owner Statement settlement sources.
-- Expense payment recording and expense ledger posting are separable.
-- Existing local fixture evidence already demonstrated a month where Ledger reported rent while Owner Statement reported zero.
+- Owner Statement reads obligations, receipt/payment allocations, deposit events, and ownership.
+- Property records and several performance/reporting paths read `ledger_entries`.
+- Accounting journals maintain a separate control representation.
+- Maintenance and petty cash may create Ledger/journal effects without matching Owner Statement settlement sources.
+- Expense payment recording and expense Ledger/journal posting are separable.
+- Direct Data API grants and generic Ledger/journal RPCs may bypass intended domain authority.
+- Historical `BACKFILL-INCOME-*` and `BACKFILL-EXPENSE-*` settlement rows may use due/invoice fallback dates rather than evidenced cash dates.
+- Existing fixture evidence demonstrated a property/month where Ledger reported rent while Owner Statement reported zero and still reported readiness.
 
-This plan changes no financial write behavior. It creates evidence that later migrations and backfills can use safely.
+This plan changes no financial write behavior and mutates no business data.
 
 ## Objective
 
-Build an organization-scoped, read-only reconciliation toolkit that identifies every mismatch among obligations, settlements, operational ledger rows, accounting journals, deposit events, maintenance, petty cash, and Owner Statement source facts.
+Build an organization-scoped reconciliation toolkit that produces two deliberately separate outputs:
 
-## Verified current behavior to preserve
+1. **Current-state inventory:** exact facts about records, grants, links, dates, totals, report sources, locks, and mismatches.
+2. **Proposed canonical classification:** a non-authoritative recommendation describing how each source could map into the ratified future contract.
 
-- Existing operational screens continue using their current loaders.
-- Existing RPCs continue accepting or rejecting writes exactly as before.
-- No current row is updated, archived, relinked, or backfilled.
-- The accounting compatibility kernel remains unchanged.
-- Diagnostics remain administrator-only and cannot expose another organization's data.
+Never present the proposed classification as current truth. Ambiguity remains explicit.
 
 ## Required changes
 
-### 1. Add a read-only diagnostic contract
+### 1. Add a read-only diagnostic boundary
 
-Create a checked SQL function or security-invoker view plus a feature-owned TypeScript loader that emits one diagnostic row per issue. Each row must include:
+Prefer a checked set-returning SQL function or `security_invoker` view plus a feature-owned TypeScript loader. It must be read-only and emit one stable diagnostic row per issue.
 
+Each row includes:
+
+- stable diagnostic key;
 - organization and property;
-- optional unit, lease, task, owner, vendor, and source IDs;
+- optional unit, lease, task, owner, tenant, vendor, obligation, settlement, Ledger, and journal IDs;
+- current source type/id and exact operator/developer source link;
 - issue code and severity;
-- source type and exact source record link;
-- affected event/transaction date and currency;
-- obligation amount, settlement amount, ledger amount, and journal amount when applicable;
-- whether the mismatch would affect operating income, expenses, deposits, management fees, owner balance, or statement readiness;
-- deterministic explanation and recommended resolution class.
+- event, obligation, due/invoice, and inferred-date fields kept distinct;
+- currency and exact obligation/settlement/Ledger/journal amounts;
+- reconciliation-source state;
+- current lock state for property, organization Ledger period, and accounting book period where applicable;
+- affected reporting surfaces;
+- whether the issue affects operating income, expense, deposit custody, management fees, owner liability, reconciliation, close, or statement publication;
+- deterministic explanation;
+- proposed resolution class, explicitly labeled non-authoritative.
 
-Recommended issue codes:
+### 2. Inventory current-state issue classes
 
-- `receipt_allocation_missing_ledger_projection`
-- `receipt_allocation_missing_journal_projection`
-- `payment_allocation_missing_ledger_projection`
-- `payment_allocation_missing_journal_projection`
-- `obligation_compatibility_total_mismatch`
-- `source_linked_ledger_without_canonical_settlement`
-- `manual_ledger_unclassified`
-- `duplicate_financial_effect`
-- `maintenance_ledger_without_expense_handoff`
-- `maintenance_and_bill_possible_duplicate`
-- `petty_cash_projection_missing`
-- `petty_cash_and_bill_possible_duplicate`
-- `deposit_income_without_deposit_event`
-- `deposit_event_without_supported_cash_evidence`
-- `journal_without_operational_source`
-- `ledger_and_journal_amount_or_date_mismatch`
-- `ownership_invalid_on_event_date`
-- `archived_source_still_financially_effective`
-- `locked_period_contains_mutable_statement_source`
+At minimum detect:
 
-Use valid identifiers in implementation; the list is semantic, not a required SQL enum spelling.
+- receipt allocation without exact Ledger projection;
+- receipt allocation without exact journal projection;
+- payment allocation without exact Ledger projection;
+- payment allocation without exact journal projection;
+- obligation compatibility amount/status mismatch;
+- obligation-level projection that cannot represent multiple settlement events;
+- source-linked Ledger row without canonical settlement identity;
+- manual Ledger row;
+- maintenance Ledger row linked only through `tasks.ledger_entry_id`;
+- maintenance and bill possible duplicate;
+- petty-cash projection missing or possible duplicate;
+- petty-cash row using invoice date where cash/disbursement date is unproven;
+- deposit income without deposit event;
+- deposit event without supported receipt/cash evidence;
+- owner contribution written through more than one authority;
+- owner payout/expense state without a distribution authority;
+- management-fee obligation without reproducible agreement/assessment evidence;
+- journal without operational source;
+- Ledger/journal amount, date, property, unit, source, or reversal mismatch;
+- generic Ledger or journal source namespace that can impersonate a domain projection;
+- ownership invalid or ambiguous on candidate allocation date;
+- archived source still financially effective;
+- archived historical owner/contact omitted from live statement inputs;
+- report-source contradiction among Owner Statement, property record, Property/Unit Performance, Income & Expense, Ledger, and journal controls;
+- property lock, organization Ledger lock, and book-period lock disagreement;
+- missing stable reconciliation/cash-source identity;
+- `BACKFILL-INCOME-*` or `BACKFILL-EXPENSE-*` row with inferred due/invoice fallback date;
+- duplicate effect across settlement, Ledger, maintenance, petty cash, deposit, fee, or owner-cash source;
+- canonical candidate that exceeds configured pagination/report caps;
+- direct table privilege or public/generic RPC path capable of bypassing intended authority.
 
-### 2. Build a deterministic parity summary
+Use valid implementation identifiers; this list is the required semantic coverage, not a required SQL enum spelling.
 
-For each organization/property/month, calculate:
+### 3. Build deterministic parity summaries
 
-- operating cash from receipt allocations;
-- operating cash from ledger rows;
-- property expenses from payment allocations;
-- property expenses from ledger rows;
-- maintenance and petty-cash direct effects;
+For every selected organization/property/currency/period, show gross totals by current source and a separately labeled proposed de-duplicated total for:
+
+- operating cash received;
+- tenant charge and outstanding balance context;
+- property expenses paid;
+- maintenance and petty-cash effects;
+- security-deposit custody;
 - management-fee effects;
-- owner contribution/payout effects;
-- deposit held balance;
+- owner contributions and payouts;
+- Ledger income/expense;
 - journal debit/credit control totals;
-- unresolved issue counts by severity.
+- unresolved diagnostics by severity;
+- current report totals from each named financial read path.
 
-The summary must show both gross source totals and de-duplicated proposed canonical totals. It must not silently choose one truth.
+Do not silently choose one source as truth. A proposed de-duplicated result must list every included/excluded typed source and confidence/resolution state.
 
-### 3. Add an internal execution path
+### 4. Inventory grants and bypass paths
 
-Prefer a non-public engineering command such as `npm run finance:parity` that:
+Produce exact evidence for:
 
-- requires explicit local or authorized preview environment configuration;
-- accepts organization, property, and month filters;
-- fails closed when scope is missing;
-- writes JSON and Markdown results under ignored `artifacts/finance-parity/<timestamp>/`;
-- never prints secrets or private document URLs;
-- exits non-zero when Critical mismatches exist if `--strict` is supplied.
+- table privileges for `anon`, `authenticated`, admin, manager, and member fixtures;
+- RLS visibility and write policies;
+- public versus private RPC execute privileges;
+- direct DML attempts against finance items, allocations, Ledger rows, journals, deposits, petty cash, and related sources;
+- generic Ledger update/archive and generic journal post/reverse behavior against domain-linked/reserved-source rows;
+- cross-organization and same-organization/wrong-property link attempts.
 
-A temporary admin UI is not required. Do not add a permanent dashboard merely to display engineering diagnostics.
+This is inventory only. Do not revoke grants or change guards in Plan 01.
 
-### 4. Establish safety rails before later plans
+### 5. Add an internal execution command
 
-Add tests or database guards proving:
+Add an engineering-only command such as:
 
-- diagnostic functions are read-only;
-- cross-organization calls fail or return no rows;
-- direct anonymous/authenticated access cannot bypass the intended admin boundary;
-- source-linked rows are identified deterministically even when archived or reversed;
-- diagnostics paginate or stream beyond 5,000 records rather than silently truncating;
-- one issue has one stable key so repeated runs can be compared.
+```text
+npm run finance:inventory
+```
 
-### 5. Capture a baseline fixture
+The command must:
 
-Create a production-shaped local fixture containing at least:
+- require an explicit environment/project identity;
+- default to local/test fixture execution;
+- require organization, property, currency, and period scope;
+- fail closed when scope or project identity is absent or mismatched;
+- accept optional source/issue filters;
+- paginate/cursor beyond PostgREST 1,000 and current report 5,000 caps without silent truncation;
+- write normalized JSON and Markdown under ignored `artifacts/finance-inventory/<timestamp>/`;
+- include source counts, amount totals, query contract version, repository SHA, schema/migration identity, parameters, and source watermark/hash;
+- detect source changes during or after analysis and mark the run stale rather than presenting a mixed snapshot;
+- omit secrets, signed URLs, owner payment instructions, and unnecessary personal data;
+- return non-zero in `--strict` mode when Critical issues exist.
 
-- an active monthly lease and generated rent charge;
-- a partial and final receipt;
-- an approved bill with partial payment;
-- a maintenance cost posted directly to ledger;
-- a cleared petty-cash expense;
-- a deposit receipt and refund/reversal;
-- a management-fee compatibility row;
-- an owner contribution and owner payout compatibility row;
-- one manual ledger row;
-- a reversed receipt and payment;
-- one valid and one ambiguous ownership history.
+Production/preview execution is not authorized by this plan. It requires separate explicit authorization and environment safeguards.
 
-The fixture must intentionally produce known mismatches so RED diagnostics are proven before later plans eliminate them.
+### 6. Add an isolated production-shaped fixture
+
+Create a test-only fixture isolated from fixed seed IDs and existing local user state. It must include:
+
+- active monthly lease and generated rent obligation;
+- partial and final receipt;
+- approved expense with partial and final payment;
+- maintenance cost posted directly to Ledger;
+- cleared petty-cash property expense;
+- deposit receipt and refund/reversal;
+- management-fee compatibility row without agreement evidence;
+- owner contribution through the current income path;
+- owner payout compatibility row;
+- manual Ledger row;
+- `BACKFILL-*` row with inferred fallback date;
+- reversed receipt and payment;
+- one valid and one ambiguous ownership history;
+- one archived historical owner/contact used by a past event;
+- mismatched organization/property lock state;
+- enough generated rows to prove pagination beyond configured caps.
+
+The fixture deliberately creates known mismatches so RED diagnostics prove coverage. It is never a production backfill fixture.
+
+### 7. Define a stable artifact contract
+
+Normalized JSON must be deterministic apart from explicit run metadata. Stable rows sort by documented typed identity and issue key. Amounts use exact decimal/string representation rather than floating-point output.
+
+Each proposed classification uses one of:
+
+- `exact_existing_link`;
+- `candidate_controlled_adjustment`;
+- `candidate_explicit_exclusion`;
+- `ambiguous_requires_resolution`;
+- `inferred_date_requires_evidence`;
+- `unsupported_current_source`.
+
+These are diagnostics, not mutation instructions.
 
 ## Invariants to preserve
 
-- Read-only behavior; no repair or auto-linking.
-- Organization and role isolation.
-- Exact money and currency.
-- Stable source identities and exact record links.
-- Reversals reported as separate dated effects, not negative mutation of originals.
-- Archived operational records remain visible to diagnostics when they have financial history.
-- No assumptions that `ledger_entries`, settlement allocations, or journals are already authoritative.
+- Entire plan is read-only for business data.
+- Existing UI totals and write behavior remain unchanged.
+- No row is repaired, relinked, archived, reversed, classified as authoritative, or backfilled.
+- No report read path is cut over.
+- No grant, RLS policy, trigger, RPC, migration history, or production configuration is changed except append-only read-only diagnostic schema required for the tool.
+- Organization/role isolation applies to diagnostic SQL and application loaders.
+- Actual cash dates and inferred fallback dates remain distinct.
+- Reversals remain separate dated records.
+- Archived/reversed historical rows remain visible to diagnostics when financially relevant.
+- No assumption that settlements, Ledger, or journals are already authoritative.
 
 ## Acceptance criteria
 
-1. One command produces a bounded, deterministic parity report for a selected organization/property/month.
-2. The fixture's expected mismatches are all detected with exact source links.
-3. A known Ledger-versus-Owner-Statement contradiction appears explicitly in the output.
-4. Clean, fully linked fixture events produce no false Critical issue.
-5. Cross-organization and direct-RPC bypass tests pass.
-6. The diagnostic can process more than 5,000 source rows without silent truncation.
-7. Re-running without data changes produces byte-stable normalized JSON apart from generated metadata.
-8. No current UI total or write behavior changes.
+1. One explicit command produces current-state inventory and separately labeled proposed classification for a selected local/test scope.
+2. Every deliberately seeded mismatch is detected with exact typed source links and expected severity.
+3. The known Ledger-versus-Owner-Statement contradiction appears explicitly.
+4. `BACKFILL-*` fallback-dated rows are labeled inferred and unresolved.
+5. Direct privilege, DML, public/private RPC, generic Ledger/journal, and cross-organization bypass evidence is captured.
+6. Clean fully linked fixture events do not produce a false Critical issue.
+7. The tool processes more than PostgREST 1,000 and report 5,000 rows without truncation.
+8. A source change makes a run stale/fail-closed rather than mixing snapshots.
+9. Re-running unchanged data produces byte-stable normalized JSON apart from explicit metadata.
+10. No current write, report total, production data, or deployment changes.
 
 ## Verification
 
 Required evidence:
 
-- RED pgTAP/Vitest fixtures for each Critical issue class.
-- GREEN focused tests for SQL diagnostic functions and TypeScript normalization.
+- RED pgTAP/Vitest coverage for every Critical semantic issue class.
+- GREEN focused SQL and TypeScript tests.
+- Test-only fixture isolation proof.
+- `has_table_privilege`, `has_function_privilege`, RLS visibility, private-helper denial, direct DML, direct RPC, role matrix, cross-organization, and wrong-linked-record tests.
+- Pagination tests above 1,000 and 5,000 rows.
+- Stale/source-change and environment/project mismatch tests.
+- Exact-money and deterministic artifact tests.
 - Full `npm run test`.
 - `npm run lint`.
 - `npx tsc --noEmit`.
@@ -164,36 +228,39 @@ Required evidence:
 - `npm run db:lint`.
 - `npm run db:types` plus generated-type drift check.
 - Full `npx supabase test db --local supabase/tests`.
-- Direct-RPC and cross-organization authorization tests.
 - `git diff --check`.
 
-Browser verification is not required unless an admin UI is added, which is discouraged for this plan.
+Browser verification is not required unless an admin UI is added. A permanent diagnostic dashboard is discouraged.
 
 ## Scope exclusions
 
-- No canonical event view yet.
-- No posting, reversal, lock, fee, deposit, owner balance, statement, or backfill behavior change.
-- No automatic repair.
-- No production diagnostic execution without explicit authorization.
-- No replacement of existing reports.
+- No canonical event read contract implementation beyond diagnostic normalization.
+- No authority kernel, source write, settlement, reversal, lock, fee, deposit, owner-balance, close, statement, artifact, report-cutover, migration, or backfill change.
+- No automatic repair or fuzzy matching.
+- No production/preview diagnostic execution without explicit authorization.
+- No deployment.
+- No Plan 02 authorization.
 
 ## Deliverables
 
-- Append-only migration for read-only diagnostic SQL when needed.
-- Feature-owned diagnostic types and loader.
-- `finance:parity` command and artifact format.
-- Production-shaped mismatch fixture.
+- Append-only read-only diagnostic migration/view/RPC where necessary.
+- Feature-owned types, loader, normalization, and issue taxonomy.
+- `finance:inventory` command and deterministic artifact schema.
+- Isolated production-shaped mismatch fixture.
 - Focused Vitest and pgTAP coverage.
-- Documentation of issue codes and interpretation.
-- Draft PR with baseline SHA, evidence, and no merge request.
+- Current-state inventory documentation and proposed-classification disclaimer.
+- Draft PR with exact latest-main baseline, changed files, RED/GREEN evidence, checks, branch/remote parity, and no merge request.
 
 ## Stop conditions
 
 Stop and return findings without continuing if:
 
-- source identity cannot be determined for a material class of rows;
-- diagnostics require mutating records to calculate parity;
-- the tool cannot distinguish duplicates from legitimate separate events;
-- archived or reversed sources disappear from historical evidence;
-- the result depends on an unbounded in-memory load; or
-- the current database contains a new financial path not covered by Plan 00.
+- a material source family cannot be identified exactly;
+- a diagnostic requires mutating records;
+- duplicates cannot be distinguished from legitimate independent events without fuzzy inference;
+- archived/reversed sources disappear from historical evidence;
+- the result depends on an unbounded in-memory load or default API cap;
+- the command cannot prove project/environment identity;
+- a run cannot detect source changes/staleness;
+- current merged `main` contains a new financial path not covered by this plan; or
+- the implementation begins changing authority rather than inventorying it.
