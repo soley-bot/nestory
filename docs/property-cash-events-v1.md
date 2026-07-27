@@ -49,9 +49,11 @@ the event date is unresolved.
 
 Every row exposes `resolution_codes text[]`, `reconciliation_source_id`, and
 `reconciliation_state`. Resolution codes are sorted and unique, and every
-`requires_resolution = true` row has at least one code. The current contract
-does not invent the future reconciliation source: its ID is null and its state
-is `missing_stable_identity`.
+`requires_resolution = true` row has at least one code. An exact Plan 03 source
+link has state `linked_exact_identity`; an unlinked row has null ID and state
+`missing_stable_identity`. The contract never infers or fuzzy-matches a source.
+`missing_reconciliation_source` appears only for the missing state, while
+unrelated resolution reasons remain intact after a link is added.
 
 ## Source matrix
 
@@ -104,7 +106,7 @@ optional unit filter intentionally excludes property-level rows whose
 | Code | Meaning |
 | --- | --- |
 | `mutable_obligation_classification` | Allocation classification still follows a mutable obligation |
-| `missing_reconciliation_source` | No stable reconciliation source identity exists in v1 |
+| `missing_reconciliation_source` | This cash-bearing row has no exact reconciliation-source link |
 | `management_fee_owner_recognition_unresolved` | IPS owner-liability recognition timing is not ratified |
 | `deposit_cash_identity_missing` | Compatibility deposit evidence lacks an exact deposit-cash identity |
 | `receipt_header_unapplied` | Receipt header exceeds its organization-scoped allocations |
@@ -305,18 +307,24 @@ property, `USD`, inclusive period, and the exact disposable Finance inventory
 stack workdir. The command proves the local project/API/workdir identity,
 rejects hosted and Vercel production/preview execution, authenticates as the
 fixture admin, traverses every checked RPC page, loads current-path and Plan 01
-evidence, and verifies an unchanged before/after source watermark. A dirty
-repository fails closed unless `--record-dirty` is explicitly supplied and
-recorded.
+evidence, and verifies an unchanged before/after Plan 01 watermark. It also
+loads every current-path input twice and compares a deterministic SHA-256
+material-state token, so changes to properties, units, leases, all-time
+PropertySummary Ledger rows, period report Ledger rows, timeline, maintenance,
+documents, owner data, obligations, or settlements fail the collection.
+PropertySummary receives all-time active Ledger evidence; period reports retain
+the selected period only. A dirty repository fails closed unless
+`--record-dirty` is explicitly supplied and recorded.
 
 Each ignored `artifacts/property-cash-shadow/<timestamp>/` directory contains
 deterministic normalized JSON, a readable Markdown summary, and runtime
 metadata. The normalized JSON records repository/schema/migration identity,
 scope, canonical counts/totals, parity records, included/excluded/projection
 and unresolved identities, header residuals, resolution-code counts, source
-watermark, and a reported SHA-256. `--strict` exits nonzero for unresolved or
-mismatched evidence while leaving expected `not_comparable` records
-informational. No application surface imports the runner or its artifacts.
+watermark plus current-path material hash, and a reported SHA-256. `--strict`
+exits nonzero for unresolved or mismatched evidence while leaving expected
+`not_comparable` records informational. No application surface imports the
+runner or its artifacts.
 
 ### Local fixture and query-plan evidence
 
