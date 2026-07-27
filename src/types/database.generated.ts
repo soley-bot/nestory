@@ -3939,6 +3939,26 @@ export type Database = {
           unposted_count: number
         }[]
       }
+      get_finance_inventory_page: {
+        Args: {
+          p_after_key?: string
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_issue_codes?: string[]
+          p_limit?: number
+          p_organization_id: string
+          p_period_end: string
+          p_period_start: string
+          p_property_id: string
+          p_section: string
+          p_source_types?: string[]
+        }
+        Returns: {
+          contract_version: string
+          payload: Json
+          section: string
+          stable_key: string
+        }[]
+      }
       get_finance_payment_drilldown: {
         Args: {
           p_expense_type?: string
