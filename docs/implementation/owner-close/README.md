@@ -1,25 +1,48 @@
 # Owner Close Financial Unification
 
-**Status:** Plans 01 and 02 are merged and complete. Plan 03 is the only authorized implementation slice and is in progress on `codex/financial-authority-kernel`. Plan 04 remains unauthorized.
-**Planning baseline:** merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.  
+**Status:** Plans 00 through 03 are merged and complete. Plan 04 authoritative lease terms and rent-policy contract is the current implementation slice.
+**Current merged baseline:** `64d72fcb545fa2feedebb05a2a261af23cc49bd6`, merge commit for PR #37 (`Add shared financial authority kernel`).
+**Historical planning baseline:** merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.
 **External review:** `98-ultra-review-response.md` — `APPROVE WITH CHANGES`.  
 **Final Nestory decision:** `97-ratified-final-sequence.md`.  
-**Current implementation authorization:** Plan 03 shared financial-authority infrastructure only.
+**Current implementation authorization:** `04-authoritative-lease-terms-and-rent-policy.md` only.
 
 ## Authority order
 
 Use these files in this order:
 
 1. `97-ratified-final-sequence.md` — final architecture, decisions, sequence, pilot boundary, and no-review-loop rule.
-2. `00-architecture-and-decision-gates.md` — ratified technical architecture and Gates A-I.
-3. `01-parity-diagnostics-and-safety-rails.md` — the first implementation-ready slice.
+2. `04-authoritative-lease-terms-and-rent-policy.md` — the current implementation-ready slice.
+3. `00-architecture-and-decision-gates.md` and the completed Plan 01-03 evidence.
 4. `98-ultra-review-response.md` — retained external review evidence and detailed hazards.
-5. Plans 02-12 — reviewed design source material. Their broad boundaries are superseded by the final split sequence in file 97 and must not be handed directly to Codex as one implementation task.
+5. Legacy broad Plans 02-12 — design source material only. Their filename numbers and broad boundaries were superseded by file 97 and must not be pasted directly into Codex.
 6. `99-ultra-review-request.md` — retained historical review request; do not run it again.
 
 The Ultra response is the single external architecture review. Do not create a loop by asking Ultra to review the correction pass. ChatGPT owns the final synthesis, and Codex Standard + High owns narrow implementation work.
 
 No further Ultra architecture review is required for Plan 02 or Plan 03.
+
+## Legacy plan mapping
+
+The broad source files remain useful analysis, but only the ratified sequence
+row and a current implementation-ready file authorize work.
+
+| Legacy source file | Ratified sequence slice |
+| --- | --- |
+| `02-canonical-property-cash-contract.md` | 02 — shadow canonical read contract (complete) |
+| `03-income-settlement-and-reversal.md` | 05 — atomic income settlement |
+| `04-expense-settlement-and-reversal.md` | 06 — atomic expense settlement |
+| `05-maintenance-and-petty-cash-handoffs.md` | 07 maintenance handoff and 08 petty cash |
+| `06-rent-schedules-and-charge-completeness.md` | 04 authoritative terms/policy and 09 rent occurrences/generation |
+| `07-security-deposit-custody.md` | 10 — security-deposit custody |
+| `08-management-fee-agreements-and-assessments.md` | 11 agreements/calculation and 12 assessment lifecycle |
+| `09-owner-balances-and-distributions.md` | 13 owner authority/opening balances and 14 balance/reserve/distribution |
+| `10-property-period-close-and-readiness.md` | 15 reconciliation/readiness and 16 close lifecycle |
+| `11-immutable-owner-statement-publication.md` | 17 statement data, 18 artifacts, and 19 delivery/history |
+| `12-backfill-pilot-and-production-cutover.md` | 20 migration manifest, 21 backfill, 22 pilot/cutover, and 23 retirement |
+
+Charge occurrence generation remains Plan 09. Expense settlement remains Plan
+06. The file prefix on a legacy source is not current implementation authority.
 
 ## Product objective
 
@@ -129,6 +152,7 @@ Do not invent policy to keep implementation moving. Unsupported cases must block
 
 ## Current next step
 
-Complete Plan 03 as one draft PR without merging it. Keep current source
-workflows and reports unchanged. Plan 04 remains unauthorized until the Plan 03
-kernel, bypass tests, race evidence, and full verification are accepted.
+Complete Plan 04 from
+`04-authoritative-lease-terms-and-rent-policy.md` as one draft PR without
+merging it. Keep charge generation, settlement, close, and report workflows
+unchanged. Unknown IPS policy must remain explicitly blocked or unconfirmed.

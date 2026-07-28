@@ -1,5 +1,10 @@
 # Plan 05 — Maintenance and Petty-Cash Financial Handoffs
 
+> **Legacy broad design source — not current Plan 05.** The ratified sequence
+> split this analysis into **sequence 07, maintenance handoff**, and **sequence
+> 08, petty-cash authority**. Use `97-ratified-final-sequence.md`; do not paste
+> this file directly into Codex.
+
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** Maintenance and petty cash currently create owner-relevant costs outside the same settlement path used by Bills & Expenses and Owner Statement.

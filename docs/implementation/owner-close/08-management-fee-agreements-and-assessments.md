@@ -1,5 +1,10 @@
 # Plan 08 — Management-Fee Agreements and Assessments
 
+> **Legacy broad design source — not current Plan 08.** The ratified sequence
+> split this analysis into **sequence 11, fee agreements/calculation**, and
+> **sequence 12, assessment lifecycle**. Use
+> `97-ratified-final-sequence.md`; do not paste this file directly into Codex.
+
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** Management fees currently exist as manually entered income categories rather than reproducible owner/property contract calculations.
