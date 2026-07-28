@@ -293,16 +293,14 @@ async function loadCurrentPathEvidence() {
         .order("id"),
     "period Ledger",
   );
-  const allTimeLedgerEntries = await loadPaged(
+  const allTimeLedgerEntries = await loadSingleRequest(
     () =>
       client
         .from("ledger_entries")
         .select("id, property_id, unit_id, transaction_date, direction, category, amount, currency, description")
         .eq("organization_id", scope.organizationId)
         .eq("property_id", scope.propertyId)
-        .is("archived_at", null)
-        .order("transaction_date")
-        .order("id"),
+        .is("archived_at", null),
     "all-time property-summary Ledger",
   );
   const dueIncomeItems = await loadPaged(
@@ -523,6 +521,14 @@ async function loadPaged(buildQuery, label) {
       throw new Error(`Shadow ${label} exceeded the 10,000 exact-identity bound.`);
     }
   }
+}
+
+async function loadSingleRequest(buildQuery, label) {
+  const result = await buildQuery();
+  if (result.error) {
+    throw new Error(`Could not load shadow ${label}: ${result.error.message}`);
+  }
+  return result.data ?? [];
 }
 
 function readWatermark(rows) {

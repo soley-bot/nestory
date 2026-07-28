@@ -311,16 +311,21 @@ rejects hosted and Vercel production/preview execution, authenticates as the
 fixture admin, traverses every checked RPC page, loads current-path and Plan 01
 evidence, and verifies an unchanged before/after Plan 01 watermark. It also
 loads every current-path input twice and compares a deterministic SHA-256
-material-state token, so changes to properties, units, leases, all-time
-PropertySummary Ledger rows, period report Ledger rows, timeline, maintenance,
-organization-wide active documents, owner data, obligations, or settlements
-fail the collection. The document input exactly follows the trusted report:
+material-state token, so changes to properties, units, leases, the
+PropertySummary Ledger response, period report Ledger rows, timeline,
+maintenance, organization-wide active documents, owner data, obligations, or
+settlements fail the collection. The PropertySummary Ledger input deliberately
+uses one unpaginated request with the same filters and no explicit ordering as
+the current page loader, so it retains that loader's API row cap instead of
+claiming completeness that the current surface does not have. The document
+input exactly follows the trusted report:
 the same selected columns, archive exclusion, ID ordering, exact count, and
 5,000-row completeness boundary. A document linked to another property in the
 same organization therefore participates in both before and after material
 tokens, while an archived document does not.
-PropertySummary receives all-time active Ledger evidence; period reports retain
-the selected period only. A dirty repository fails closed unless
+PropertySummary receives the current loader's single-response all-time active
+Ledger evidence; period reports retain the selected period only. A dirty
+repository fails closed unless
 `--record-dirty` is explicitly supplied and recorded.
 
 Each ignored `artifacts/property-cash-shadow/<timestamp>/` directory contains

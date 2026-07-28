@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -40,5 +41,17 @@ describe("property cash shadow executable", () => {
     expect(`${result.stdout}\n${result.stderr}`).toContain(
       "--organization <uuid>",
     );
+  });
+
+  it("matches the current Property Summary single-request Ledger contract", () => {
+    const command = readFileSync(
+      resolve(process.cwd(), "scripts/property-cash-shadow.mjs"),
+      "utf8",
+    );
+    const propertySummaryLedgerLoad = command.match(
+      /const allTimeLedgerEntries = await ([^(]+)\([\s\S]*?"all-time property-summary Ledger",[\s\S]*?\);/,
+    );
+
+    expect(propertySummaryLedgerLoad?.[1]).toBe("loadSingleRequest");
   });
 });
