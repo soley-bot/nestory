@@ -8,6 +8,7 @@ CREATE TEMP TABLE financial_authority_test_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
   member_id uuid NOT NULL DEFAULT gen_random_uuid(),
   manager_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  deleted_actor_id uuid NOT NULL DEFAULT gen_random_uuid(),
   cross_admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
   cross_organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -77,6 +78,9 @@ FROM (
   SELECT member_id, 'authority-member' FROM financial_authority_test_state
   UNION ALL
   SELECT manager_id, 'authority-manager' FROM financial_authority_test_state
+  UNION ALL
+  SELECT deleted_actor_id, 'authority-deleted-actor'
+  FROM financial_authority_test_state
   UNION ALL
   SELECT cross_admin_id, 'authority-cross-admin'
   FROM financial_authority_test_state
@@ -883,9 +887,14 @@ SELECT is(
   'linked_exact_identity',
   'property cash event exposes linked reconciliation state'
 );
-SELECT isnt(
+SELECT is(
   (
-    SELECT 'missing_reconciliation_source' = ANY(resolution_codes)
+    SELECT
+      resolution_codes IS NOT NULL
+      AND NOT coalesce(
+        'missing_reconciliation_source' = ANY(resolution_codes),
+        false
+      )
     FROM public.get_property_cash_events_v1_page(
       (SELECT organization_id FROM financial_authority_test_state),
       (SELECT property_id FROM financial_authority_test_state),
@@ -904,7 +913,7 @@ SELECT isnt(
       )
   ),
   true,
-  'linked property cash event removes the missing-source code'
+  'linked property cash event returns non-null codes without the missing-source code'
 );
 SELECT is(
   (
@@ -1411,6 +1420,39 @@ SELECT throws_ok(
   '22023',
   'Conflicting financial idempotency request',
   'cross-actor key reuse returns a generic conflict without result leakage'
+);
+
+SELECT *
+FROM app_private.claim_financial_idempotency(
+  (SELECT organization_id FROM financial_authority_test_state),
+  'record_receipt',
+  'authority-test-key-deleted-actor',
+  (SELECT deleted_actor_id FROM financial_authority_test_state),
+  '{"amount":"12.00","source":"receipt"}'::jsonb
+);
+DELETE FROM auth.users
+WHERE id = (SELECT deleted_actor_id FROM financial_authority_test_state);
+SELECT is(
+  (
+    SELECT actor_id
+    FROM app_private.financial_idempotency_requests
+    WHERE idempotency_key = 'authority-test-key-deleted-actor'
+  ),
+  NULL::uuid,
+  'retained idempotency history does not block actor deletion'
+);
+SELECT throws_ok(
+  format(
+    'SELECT * FROM app_private.claim_financial_idempotency(%L,%L,%L,%L,%L::jsonb)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    'record_receipt',
+    'authority-test-key-deleted-actor',
+    (SELECT admin_id FROM financial_authority_test_state),
+    '{"amount":"12.00","source":"receipt"}'
+  ),
+  '22023',
+  'Conflicting financial idempotency request',
+  'a deleted actor idempotency key cannot leak results to another actor'
 );
 
 CREATE OR REPLACE FUNCTION pg_temp.claim_then_fail()

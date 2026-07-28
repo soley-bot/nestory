@@ -29,12 +29,14 @@ petty-cash reversals retain their parent/original identity and use the exact
 opposite signed effect.
 
 Cash-bearing source rows expose `reconciliationSourceId` and
-`reconciliationSourceState`. Exact links use `linked_exact_identity`; null
-links use `missing_stable_identity`. Missing-source diagnostics are emitted
-only for unlinked rows. The watermark includes the applicable reconciliation
-source catalog and property reporting-period/revision state so source-label,
-archive, scope, lifecycle, or close-history changes invalidate an in-flight
-artifact.
+`reconciliationSourceState`. Exact links use `linked_exact_identity`; a null
+required link uses `missing_stable_identity`. Plan 03 appends
+`MISSING_STABLE_RECONCILIATION_IDENTITY` diagnostics only for unlinked
+`petty_cash_entry` rows. Receipt allocations, payment allocations, and deposit
+events receive linkage metadata only in this patch. The watermark includes the
+applicable reconciliation source catalog and property
+reporting-period/revision state so source-label, archive, scope, lifecycle, or
+close-history changes invalidate an in-flight artifact.
 
 ## Disposable local command
 

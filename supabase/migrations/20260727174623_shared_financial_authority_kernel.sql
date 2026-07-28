@@ -1005,7 +1005,7 @@ CREATE TABLE app_private.financial_idempotency_requests (
     REFERENCES public.organizations(id) ON DELETE RESTRICT,
   operation text NOT NULL,
   idempotency_key text NOT NULL,
-  actor_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+  actor_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   payload_hash text NOT NULL,
   status text NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'completed')),
@@ -1631,16 +1631,19 @@ DECLARE
     event.is_legacy,
     CASE
       WHEN event.linked_reconciliation_source_id IS NOT NULL THEN
-        cardinality(array_remove(
-          event.resolution_codes,
-          'missing_reconciliation_source'
-        )) > 0
+        coalesce(
+          cardinality(array_remove(
+            coalesce(event.resolution_codes, ARRAY[]::text[]),
+            'missing_reconciliation_source'
+          )),
+          0
+        ) > 0
       ELSE event.requires_resolution
     END AS requires_resolution,
     CASE
       WHEN event.linked_reconciliation_source_id IS NOT NULL THEN
         array_remove(
-          event.resolution_codes,
+          coalesce(event.resolution_codes, ARRAY[]::text[]),
           'missing_reconciliation_source'
         )
       ELSE event.resolution_codes
@@ -1816,6 +1819,7 @@ DO $migration$
 DECLARE
   v_definition text;
   v_patched text;
+  v_before text;
   v_old_fragment text := $old$
   SELECT
     'finance_inventory_v2'::text,
@@ -2018,6 +2022,7 @@ BEGIN
   INTO v_definition;
 
   v_definition := replace(v_definition, E'\r\n', E'\n');
+  v_before := v_definition;
   v_definition := replace(
     v_definition,
     $old$      'accounting_periods'
@@ -2029,6 +2034,12 @@ BEGIN
     ])$new$
   );
 
+  IF v_definition = v_before THEN
+    RAISE EXCEPTION
+      'Finance inventory watermark privilege list did not match the reviewed baseline';
+  END IF;
+
+  v_before := v_definition;
   v_definition := replace(
     v_definition,
     $old$        'accounting_periods'
@@ -2037,8 +2048,13 @@ BEGIN
         'property_reporting_periods',
         'property_close_revisions',
         'financial_reconciliation_sources'
-      ])$new$
+    ])$new$
   );
+
+  IF v_definition = v_before THEN
+    RAISE EXCEPTION
+      'Finance inventory watermark policy lists did not match the reviewed baseline';
+  END IF;
 
   v_patched := replace(v_definition, v_old_fragment, v_new_fragment);
 

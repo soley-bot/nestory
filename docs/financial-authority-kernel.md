@@ -100,6 +100,8 @@ actor plus the SHA-256 of canonical `jsonb` payload text.
 - A changed payload fails closed.
 - Another actor receives the same generic conflict and never receives prior
   result IDs.
+- Deleting an actor nulls the retained actor reference without deleting
+  idempotency history; any later reuse by another actor still conflicts.
 - A transaction advisory lock serializes concurrent claims.
 - Completion stores result IDs only in the caller's source transaction.
 - A failed surrounding transaction rolls back its pending claim.

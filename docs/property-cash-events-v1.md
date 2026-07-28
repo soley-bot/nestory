@@ -50,10 +50,12 @@ the event date is unresolved.
 Every row exposes `resolution_codes text[]`, `reconciliation_source_id`, and
 `reconciliation_state`. Resolution codes are sorted and unique, and every
 `requires_resolution = true` row has at least one code. An exact Plan 03 source
-link has state `linked_exact_identity`; an unlinked row has null ID and state
-`missing_stable_identity`. The contract never infers or fuzzy-matches a source.
-`missing_reconciliation_source` appears only for the missing state, while
-unrelated resolution reasons remain intact after a link is added.
+link has state `linked_exact_identity`. An unlinked row has a null ID:
+`missing_stable_identity` means a required stable identity is absent, while
+`not_required` means reconciliation does not apply to that row. The contract
+never infers or fuzzy-matches a source. `missing_reconciliation_source`
+appears only for the missing state, while unrelated resolution reasons remain
+intact after a link is added.
 
 ## Source matrix
 
