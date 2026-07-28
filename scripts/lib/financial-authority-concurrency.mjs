@@ -12,6 +12,7 @@ const fixture = {
 };
 
 const markerTimeoutMs = 10_000;
+let psqlProcessSequence = 0;
 const startedPsqlProcesses = new Set();
 
 export async function runFinancialAuthorityConcurrency(system) {
@@ -124,7 +125,7 @@ async function proveSourceFirst({ container, system }) {
   }
 
   const transition = startPsql(container, transitionSql(system, false));
-  await delay(300);
+  await waitForDatabaseLock(container, transition);
 
   if (
     transition.output.includes("TRANSITION_MUTATED") ||
@@ -159,7 +160,7 @@ async function proveTransitionFirst({ container, system }) {
     container,
     sourceSql({ marker: "SOURCE_AUTHORITY_ACQUIRED" }),
   );
-  await delay(300);
+  await waitForDatabaseLock(container, source);
 
   if (source.output.includes("SOURCE_AUTHORITY_ACQUIRED") || source.completed) {
     transition.release();
@@ -218,7 +219,7 @@ WHERE book_id = '${fixture.bookId}'::uuid
     container,
     sourceSql({ marker: "SOURCE_AUTHORITY_ACQUIRED" }),
   );
-  await delay(300);
+  await waitForDatabaseLock(container, source);
 
   if (source.output.includes("SOURCE_AUTHORITY_ACQUIRED") || source.completed) {
     transition.release();
@@ -355,7 +356,7 @@ async function proveMultipleBooks({ container }) {
       bookId: fixture.secondBookId,
     }),
   );
-  await delay(300);
+  await waitForDatabaseLock(container, secondTransition);
   if (
     secondTransition.output.includes("TRANSITION_MUTATED") ||
     secondTransition.completed
@@ -593,12 +594,14 @@ ${holdOpen ? "" : "COMMIT;\n\\echo SOURCE_COMMITTED"}
 }
 
 function startPsql(container, sql, { holdOpen = false } = {}) {
+  const applicationName =
+    `nestory-financial-authority-concurrency-${++psqlProcessSequence}`;
   const child = spawn(
     "docker",
     [
       "exec",
       "-e",
-      "PGAPPNAME=nestory-financial-authority-concurrency",
+      `PGAPPNAME=${applicationName}`,
       "-i",
       container,
       "psql",
@@ -655,6 +658,7 @@ function startPsql(container, sql, { holdOpen = false } = {}) {
   });
 
   processHandle = {
+    applicationName,
     get completed() {
       return completed;
     },
@@ -707,6 +711,34 @@ function startPsql(container, sql, { holdOpen = false } = {}) {
     child.stdin.end(sql);
   }
   return processHandle;
+}
+
+async function waitForDatabaseLock(container, processHandle) {
+  const deadline = Date.now() + markerTimeoutMs;
+  while (Date.now() < deadline) {
+    if (processHandle.completed) {
+      throw new Error(
+        `psql contender ${processHandle.applicationName} exited before reaching a database lock wait.\n${processHandle.output}`,
+      );
+    }
+
+    const waiting = queryScalar(
+      container,
+      `SELECT count(*)
+FROM pg_catalog.pg_stat_activity
+WHERE application_name = '${processHandle.applicationName}'
+  AND state = 'active'
+  AND wait_event_type = 'Lock';`,
+    );
+    if (waiting === "1") {
+      return;
+    }
+    await delay(50);
+  }
+
+  throw new Error(
+    `Timed out waiting for contender ${processHandle.applicationName} to reach a database lock wait.\n${processHandle.output}`,
+  );
 }
 
 async function cleanupStartedPsqlProcesses() {
@@ -821,6 +853,33 @@ function runSql(container, sql) {
       `Fixture SQL failed.\n${result.stdout ?? ""}${result.stderr ?? ""}`,
     );
   }
+}
+
+function queryScalar(container, sql) {
+  const result = spawnSync(
+    "docker",
+    [
+      "exec",
+      container,
+      "psql",
+      "-X",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+      "-Atc",
+      sql,
+    ],
+    { encoding: "utf8" },
+  );
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(
+      `Database lock-state query failed.\n${result.stdout ?? ""}${result.stderr ?? ""}`,
+    );
+  }
+  return result.stdout.trim();
 }
 
 function assertContainer(container) {

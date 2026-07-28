@@ -97,10 +97,17 @@ describe("property cash shadow document input", () => {
     ).resolves.toHaveLength(5_000);
     expect(client.requestedRanges).toEqual([
       [0, 4_999],
-      [1_000, 4_999],
-      [2_000, 4_999],
-      [3_000, 4_999],
-      [4_000, 4_999],
+      [0, 4_999],
+      [0, 4_999],
+      [0, 4_999],
+      [0, 4_999],
+    ]);
+    expect(client.requestedAfterIds).toEqual([
+      null,
+      "document-00999",
+      "document-01999",
+      "document-02999",
+      "document-03999",
     ]);
   });
 
@@ -123,6 +130,29 @@ describe("property cash shadow document input", () => {
       "report documents has 5,001 rows, which exceeds the 5,000 row report source limit. Narrow the report scope before exporting.",
     );
   });
+
+  it("fails closed when a count-preserving mutation shifts later pages", async () => {
+    const rows = Array.from({ length: 2_000 }, (_, index) =>
+      documentRow({ id: `document-${index.toString().padStart(5, "0")}` }),
+    );
+    const client = createDocumentClient(rows, {
+      afterRange({ call, sourceRows }) {
+        if (call === 1) {
+          sourceRows.shift();
+          sourceRows.push(documentRow({ id: "document-z-new" }));
+        }
+      },
+    });
+
+    await expect(
+      loadPropertyCashShadowDocuments({
+        client: client as never,
+        organizationId: "organization-a",
+      }),
+    ).rejects.toThrow(
+      "Report document population changed during collection",
+    );
+  });
 });
 
 function documentRow(overrides: Partial<DocumentRow>): DocumentRow {
@@ -140,9 +170,19 @@ function documentRow(overrides: Partial<DocumentRow>): DocumentRow {
   };
 }
 
-function createDocumentClient(rows: DocumentRow[]) {
+function createDocumentClient(
+  rows: DocumentRow[],
+  options: {
+    afterRange?: (context: {
+      call: number;
+      sourceRows: DocumentRow[];
+    }) => void;
+  } = {},
+) {
   const state = {
     filters: new Map<string, unknown>(),
+    greaterThanId: null as string | null,
+    requestedAfterIds: [] as Array<string | null>,
     requestedExactCount: false,
     requestedRanges: [] as Array<[number, number]>,
     selectedColumns: "",
@@ -151,6 +191,13 @@ function createDocumentClient(rows: DocumentRow[]) {
   const query = {
     eq(column: string, value: string) {
       state.filters.set(column, value);
+      return query;
+    },
+    gt(column: string, value: string) {
+      if (column !== "id") {
+        throw new Error(`Unexpected greater-than column ${column}`);
+      }
+      state.greaterThanId = value;
       return query;
     },
     is(column: string, value: null) {
@@ -162,6 +209,7 @@ function createDocumentClient(rows: DocumentRow[]) {
     },
     async range(from: number, to: number) {
       state.requestedRanges.push([from, to]);
+      state.requestedAfterIds.push(state.greaterThanId);
       const filtered = rows
         .filter((row) =>
           [...state.filters].every(
@@ -169,8 +217,12 @@ function createDocumentClient(rows: DocumentRow[]) {
               row[column as keyof DocumentRow] === value,
           ),
         )
+        .filter(
+          (row) =>
+            state.greaterThanId === null || row.id > state.greaterThanId,
+        )
         .sort((left, right) => left.id.localeCompare(right.id));
-      return {
+      const result = {
         count: state.requestedExactCount ? filtered.length : null,
         data: filtered.slice(from, Math.min(to + 1, from + 1_000)).map((row) => ({
           file_name: row.file_name,
@@ -183,6 +235,11 @@ function createDocumentClient(rows: DocumentRow[]) {
         })),
         error: null,
       };
+      options.afterRange?.({
+        call: state.requestedRanges.length,
+        sourceRows: rows,
+      });
+      return result;
     },
   };
 
@@ -198,6 +255,9 @@ function createDocumentClient(rows: DocumentRow[]) {
     },
     get requestedExactCount() {
       return state.requestedExactCount;
+    },
+    get requestedAfterIds() {
+      return state.requestedAfterIds;
     },
     get requestedRanges() {
       return state.requestedRanges;

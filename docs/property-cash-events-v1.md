@@ -323,7 +323,9 @@ material hash is ordered by its required unique Ledger ID so equivalent
 unordered responses cannot create a false mutation signal. The document input
 exactly follows the trusted report because both import the same document loader:
 the same selected columns, archive exclusion, ID ordering, exact count, repeated
-API-capped ranges, and 5,000-row completeness boundary. A document
+API-capped ID-keyset pages, and 5,000-row completeness boundary. Every page
+revalidates the exact remaining count, so a count-preserving archive/insert that
+changes later identities fails closed. A document
 linked to another property in the same organization therefore participates in
 both before and after material tokens, while an archived document does not.
 PropertySummary receives the current loader's single-response all-time active

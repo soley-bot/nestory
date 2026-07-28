@@ -71,8 +71,10 @@ existing and absent rows plus isolation. Accounting covers the same cases plus
 multiple active client books. The current product currency enum contains only
 `USD`; the harness does not add unsupported enum values. A held transaction
 keeps its interactive `psql` input open until the parent observes the competing
-operation and explicitly sends `COMMIT`; no wall-clock sleep determines the
-authority overlap. Every scenario terminates and awaits its child `psql`
+operation waiting on a database lock in `pg_stat_activity`, then explicitly
+sends `COMMIT`; no absence-of-output delay or wall-clock sleep is treated as
+proof of authority overlap. Each child has a unique application name for this
+wait-state handshake. Every scenario terminates and awaits its child `psql`
 processes, then removes its fixed local or CI fixtures. A fault-injection hook
 proves the same cleanup path after a transaction has acquired authority and the
 runner fails.

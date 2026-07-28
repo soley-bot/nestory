@@ -14,5 +14,8 @@ describe("financial authority concurrency harness contract", () => {
     expect(source).toContain("release()");
     expect(source).toContain("child.stdin.write(sql)");
     expect(source).toContain("child.stdin.end(releaseSql)");
+    expect(source).not.toContain("delay(300)");
+    expect(source).toContain("waitForDatabaseLock");
+    expect(source).toContain("wait_event_type = 'Lock'");
   });
 });
