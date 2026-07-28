@@ -11,6 +11,25 @@ export function buildPropertyCashShadowMaterialStateToken(value: unknown) {
   };
 }
 
+export function canonicalizePropertySummaryLedgerForMaterial<
+  T extends {
+    propertySummaryInput: {
+      ledgerEntries: Array<{ id: string }>;
+    };
+  },
+>(value: T): T {
+  return {
+    ...value,
+    propertySummaryInput: {
+      ...value.propertySummaryInput,
+      ledgerEntries: [...value.propertySummaryInput.ledgerEntries].sort(
+        (first, second) =>
+          first.id < second.id ? -1 : first.id > second.id ? 1 : 0,
+      ),
+    },
+  };
+}
+
 function normalizeMaterialState(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(normalizeMaterialState);

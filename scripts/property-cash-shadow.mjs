@@ -17,6 +17,7 @@ import {
 } from "../src/features/finance/data/property-cash-shadow-parity.ts";
 import {
   buildPropertyCashShadowMaterialStateToken,
+  canonicalizePropertySummaryLedgerForMaterial,
 } from "../src/features/finance/data/property-cash-shadow-material.ts";
 import {
   loadPropertyCashShadowDocuments,
@@ -129,9 +130,13 @@ const baseWatermarkAfter = readWatermark(watermarkAfterRows);
 const staleness = compareWatermarks(watermarkBefore, baseWatermarkAfter);
 if (staleness.stale) throw new Error(staleness.reason);
 const currentPathBefore =
-  buildPropertyCashShadowMaterialStateToken(currentBefore);
+  buildPropertyCashShadowMaterialStateToken(
+    canonicalizePropertySummaryLedgerForMaterial(currentBefore),
+  );
 const currentPathAfter =
-  buildPropertyCashShadowMaterialStateToken(current);
+  buildPropertyCashShadowMaterialStateToken(
+    canonicalizePropertySummaryLedgerForMaterial(current),
+  );
 if (currentPathBefore.hash !== currentPathAfter.hash) {
   throw new Error(
     "Shadow current-path inputs changed while the evidence snapshot was being collected.",

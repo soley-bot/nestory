@@ -12,7 +12,6 @@ const fixture = {
 };
 
 const markerTimeoutMs = 10_000;
-const holdSeconds = 1.5;
 const startedPsqlProcesses = new Set();
 
 export async function runFinancialAuthorityConcurrency(system) {
@@ -113,6 +112,7 @@ async function proveSourceFirst({ container, system }) {
       holdOpen: true,
       marker: "SOURCE_AUTHORITY_ACQUIRED",
     }),
+    { holdOpen: true },
   );
   await source.waitFor("SOURCE_AUTHORITY_ACQUIRED");
   if (
@@ -130,12 +130,14 @@ async function proveSourceFirst({ container, system }) {
     transition.output.includes("TRANSITION_MUTATED") ||
     transition.completed
   ) {
+    source.release();
     await Promise.all([source.result, transition.result]);
     throw new Error(
       `${system} transition did not wait for the already-running source transaction.\n${transition.output}`,
     );
   }
 
+  source.release();
   const [sourceResult, transitionResult] = await Promise.all([
     source.result,
     transition.result,
@@ -148,7 +150,9 @@ async function proveSourceFirst({ container, system }) {
 }
 
 async function proveTransitionFirst({ container, system }) {
-  const transition = startPsql(container, transitionSql(system, true));
+  const transition = startPsql(container, transitionSql(system, true), {
+    holdOpen: true,
+  });
   await transition.waitFor("TRANSITION_MUTATED");
 
   const source = startPsql(
@@ -158,12 +162,14 @@ async function proveTransitionFirst({ container, system }) {
   await delay(300);
 
   if (source.output.includes("SOURCE_AUTHORITY_ACQUIRED") || source.completed) {
+    transition.release();
     await Promise.all([transition.result, source.result]);
     throw new Error(
       `Source did not wait for the already-running ${system} transition.\n${source.output}`,
     );
   }
 
+  transition.release();
   const [transitionResult, sourceResult] = await Promise.all([
     transition.result,
     source.result,
@@ -205,6 +211,7 @@ WHERE book_id = '${fixture.bookId}'::uuid
   const transition = startPsql(
     container,
     transitionSql(system, true, { locked: false }),
+    { holdOpen: true },
   );
   await transition.waitFor("TRANSITION_MUTATED");
   const source = startPsql(
@@ -214,12 +221,14 @@ WHERE book_id = '${fixture.bookId}'::uuid
   await delay(300);
 
   if (source.output.includes("SOURCE_AUTHORITY_ACQUIRED") || source.completed) {
+    transition.release();
     await Promise.all([transition.result, source.result]);
     throw new Error(
       `Source did not wait for the already-running ${system} unlock transition.\n${source.output}`,
     );
   }
 
+  transition.release();
   const [transitionResult, sourceResult] = await Promise.all([
     transition.result,
     source.result,
@@ -232,7 +241,9 @@ WHERE book_id = '${fixture.bookId}'::uuid
 }
 
 async function proveIsolation({ container, system }) {
-  const transition = startPsql(container, transitionSql(system, true));
+  const transition = startPsql(container, transitionSql(system, true), {
+    holdOpen: true,
+  });
   await transition.waitFor("TRANSITION_MUTATED");
   const independentSources = [
     {
@@ -270,16 +281,19 @@ async function proveIsolation({ container, system }) {
       );
     }
   }
-  const independentResults = await Promise.all([
-    transition.result,
-    ...independentSources.map((source) => source.process.result),
-  ]);
-  for (const [index, result] of independentResults.entries()) {
-    assertSucceeded(
-      index === 0 ? `${system} transition` : "unrelated source",
-      result,
+  const independentResults = await Promise.all(
+    independentSources.map((source) => source.process.result),
+  );
+  for (const result of independentResults) {
+    assertSucceeded("unrelated source", result);
+  }
+  if (transition.completed) {
+    throw new Error(
+      `${system} transition exited before the parent release handshake.\n${transition.output}`,
     );
   }
+  transition.release();
+  assertSucceeded(`${system} transition`, await transition.result);
 
   runSql(
     container,
@@ -299,6 +313,7 @@ WHERE organization_id = '${fixture.organizationId}'::uuid
       holdOpen: true,
       marker: "FIRST_PROPERTY_SOURCE_ACQUIRED",
     }),
+    { holdOpen: true },
   );
   await firstPropertySource.waitFor("FIRST_PROPERTY_SOURCE_ACQUIRED");
   const secondPropertySource = startPsql(
@@ -318,6 +333,7 @@ WHERE organization_id = '${fixture.organizationId}'::uuid
       `The second property source waited for the first source transaction to commit.\n${secondPropertySource.output}`,
     );
   }
+  firstPropertySource.release();
   const [firstResult, secondResult] = await Promise.all([
     firstPropertySource.result,
     secondPropertySource.result,
@@ -330,6 +346,7 @@ async function proveMultipleBooks({ container }) {
   const firstTransition = startPsql(
     container,
     transitionSql("accounting", true, { bookId: fixture.bookId }),
+    { holdOpen: true },
   );
   await firstTransition.waitFor("TRANSITION_MUTATED");
   const secondTransition = startPsql(
@@ -343,12 +360,14 @@ async function proveMultipleBooks({ container }) {
     secondTransition.output.includes("TRANSITION_MUTATED") ||
     secondTransition.completed
   ) {
+    firstTransition.release();
     await Promise.all([firstTransition.result, secondTransition.result]);
     throw new Error(
       `Second client-book transition did not share the currency/month authority.\n${secondTransition.output}`,
     );
   }
 
+  firstTransition.release();
   const [firstResult, secondResult] = await Promise.all([
     firstTransition.result,
     secondTransition.result,
@@ -548,9 +567,7 @@ SELECT set_config(
 SET LOCAL ROLE authenticated;
 ${call}
 \\echo TRANSITION_MUTATED
-${holdOpen ? `SELECT pg_catalog.pg_sleep(${holdSeconds});` : ""}
-COMMIT;
-\\echo TRANSITION_COMMITTED
+${holdOpen ? "" : "COMMIT;\n\\echo TRANSITION_COMMITTED"}
 `;
 }
 
@@ -571,13 +588,11 @@ SELECT app_private.lock_open_property_reporting_period(
   '${effectiveDate}'::date
 );
 \\echo ${marker}
-${holdOpen ? `SELECT pg_catalog.pg_sleep(${holdSeconds});` : ""}
-COMMIT;
-\\echo SOURCE_COMMITTED
+${holdOpen ? "" : "COMMIT;\n\\echo SOURCE_COMMITTED"}
 `;
 }
 
-function startPsql(container, sql) {
+function startPsql(container, sql, { holdOpen = false } = {}) {
   const child = spawn(
     "docker",
     [
@@ -599,6 +614,7 @@ function startPsql(container, sql) {
   );
   let output = "";
   let completed = false;
+  let released = false;
   const waiters = new Set();
 
   const append = (chunk) => {
@@ -651,6 +667,17 @@ function startPsql(container, sql) {
         child.kill();
       }
     },
+    release() {
+      if (!holdOpen) {
+        throw new Error("Cannot release a psql process that is not held open.");
+      }
+      if (released || completed) {
+        throw new Error("Held psql process was already released or completed.");
+      }
+      released = true;
+      const releaseSql = "COMMIT;\n\\echo TRANSACTION_RELEASED\n";
+      child.stdin.end(releaseSql);
+    },
     waitFor(marker) {
       if (output.includes(marker)) {
         return Promise.resolve();
@@ -674,7 +701,11 @@ function startPsql(container, sql) {
     },
   };
   startedPsqlProcesses.add(processHandle);
-  child.stdin.end(sql);
+  if (holdOpen) {
+    child.stdin.write(sql);
+  } else {
+    child.stdin.end(sql);
+  }
   return processHandle;
 }
 

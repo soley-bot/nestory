@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPropertyCashShadowMaterialStateToken } from "@/features/finance/data/property-cash-shadow-material";
+import {
+  buildPropertyCashShadowMaterialStateToken,
+  canonicalizePropertySummaryLedgerForMaterial,
+} from "@/features/finance/data/property-cash-shadow-material";
 
 describe("property cash shadow material-state token", () => {
   it("is stable across object key order", () => {
@@ -41,5 +44,34 @@ describe("property cash shadow material-state token", () => {
     });
 
     expect(after.hash).not.toBe(before.hash);
+  });
+
+  it("canonicalizes unordered Property Summary Ledger rows without mutating parity input", () => {
+    const input = {
+      propertySummaryInput: {
+        ledgerEntries: [
+          { amount: "20.00", id: "ledger-b" },
+          { amount: "10.00", id: "ledger-a" },
+        ],
+      },
+      trustedReportInput: { documents: [{ id: "document-1" }] },
+    };
+    const reversed = {
+      ...input,
+      propertySummaryInput: {
+        ledgerEntries: [...input.propertySummaryInput.ledgerEntries].reverse(),
+      },
+    };
+
+    const first = canonicalizePropertySummaryLedgerForMaterial(input);
+    const second = canonicalizePropertySummaryLedgerForMaterial(reversed);
+
+    expect(buildPropertyCashShadowMaterialStateToken(first)).toEqual(
+      buildPropertyCashShadowMaterialStateToken(second),
+    );
+    expect(input.propertySummaryInput.ledgerEntries.map((row) => row.id)).toEqual([
+      "ledger-b",
+      "ledger-a",
+    ]);
   });
 });
