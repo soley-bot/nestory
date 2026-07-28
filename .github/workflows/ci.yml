@@ -88,6 +88,12 @@ jobs:
       - name: Test database
         run: npx supabase test db --local supabase/tests
 
+      - name: Test Ledger authority concurrency
+        run: npm run finance:test-ledger-authority
+
+      - name: Test accounting authority concurrency
+        run: npm run finance:test-accounting-authority
+
       - name: Stop local Supabase
         if: always()
         run: npm run supabase:stop

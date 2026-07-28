@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(124);
+SELECT plan(155);
 
 CREATE TEMP TABLE financial_authority_test_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -425,10 +425,38 @@ SELECT table_privs_are(
 );
 SELECT table_privs_are(
   'public',
+  'property_reporting_periods',
+  'anon',
+  ARRAY[]::text[],
+  'anonymous actors have no property reporting-period privileges'
+);
+SELECT table_privs_are(
+  'public',
+  'property_reporting_periods',
+  'service_role',
+  ARRAY[]::text[],
+  'service role has no direct property reporting-period privileges'
+);
+SELECT table_privs_are(
+  'public',
   'property_close_revisions',
   'authenticated',
   ARRAY['SELECT'],
   'authenticated actors have read-only revision metadata privileges'
+);
+SELECT table_privs_are(
+  'public',
+  'property_close_revisions',
+  'anon',
+  ARRAY[]::text[],
+  'anonymous actors have no property close-revision privileges'
+);
+SELECT table_privs_are(
+  'public',
+  'property_close_revisions',
+  'service_role',
+  ARRAY[]::text[],
+  'service role has no direct property close-revision privileges'
 );
 SELECT table_privs_are(
   'public',
@@ -438,11 +466,46 @@ SELECT table_privs_are(
   'authenticated actors have read-only reconciliation metadata privileges'
 );
 SELECT table_privs_are(
+  'public',
+  'financial_reconciliation_sources',
+  'anon',
+  ARRAY[]::text[],
+  'anonymous actors have no reconciliation metadata privileges'
+);
+SELECT table_privs_are(
+  'public',
+  'financial_reconciliation_sources',
+  'service_role',
+  ARRAY[]::text[],
+  'service role has no direct reconciliation metadata privileges'
+);
+SELECT table_privs_are(
   'app_private',
   'financial_idempotency_requests',
   'authenticated',
   ARRAY[]::text[],
   'authenticated actors have no private idempotency table privileges'
+);
+SELECT table_privs_are(
+  'app_private',
+  'financial_idempotency_requests',
+  'anon',
+  ARRAY[]::text[],
+  'anonymous actors have no private idempotency table privileges'
+);
+SELECT table_privs_are(
+  'app_private',
+  'financial_idempotency_requests',
+  'service_role',
+  ARRAY[]::text[],
+  'service role has no private idempotency table privileges'
+);
+SELECT table_privs_are(
+  'app_private',
+  'financial_projection_context_capability',
+  'anon',
+  ARRAY[]::text[],
+  'anonymous actors cannot read the projection capability'
 );
 SELECT table_privs_are(
   'app_private',
@@ -457,6 +520,90 @@ SELECT table_privs_are(
   'service_role',
   ARRAY[]::text[],
   'service role cannot read the projection capability'
+);
+SELECT table_privs_are(
+  'public',
+  'ledger_period_locks',
+  'anon',
+  ARRAY[]::text[],
+  'anonymous actors have no direct Ledger authority privileges'
+);
+SELECT table_privs_are(
+  'public',
+  'ledger_period_locks',
+  'service_role',
+  ARRAY[]::text[],
+  'service role has no direct Ledger authority privileges'
+);
+SELECT table_privs_are(
+  'public',
+  'accounting_periods',
+  'anon',
+  ARRAY[]::text[],
+  'anonymous actors have no direct accounting authority privileges'
+);
+SELECT table_privs_are(
+  'public',
+  'accounting_periods',
+  'authenticated',
+  ARRAY['SELECT'],
+  'authenticated actors have read-only accounting authority privileges'
+);
+SELECT table_privs_are(
+  'public',
+  'accounting_periods',
+  'service_role',
+  ARRAY[]::text[],
+  'service role has no direct accounting authority privileges'
+);
+
+SELECT function_privs_are(
+  'public',
+  'set_ledger_period_lock',
+  ARRAY['uuid', 'date', 'boolean', 'text'],
+  'anon',
+  ARRAY[]::text[],
+  'anonymous actors cannot execute the Ledger authority transition'
+);
+SELECT function_privs_are(
+  'public',
+  'set_ledger_period_lock',
+  ARRAY['uuid', 'date', 'boolean', 'text'],
+  'authenticated',
+  ARRAY['EXECUTE'],
+  'authenticated actors can execute the checked Ledger authority transition'
+);
+SELECT function_privs_are(
+  'public',
+  'set_ledger_period_lock',
+  ARRAY['uuid', 'date', 'boolean', 'text'],
+  'service_role',
+  ARRAY[]::text[],
+  'service role cannot execute the Ledger authority transition'
+);
+SELECT function_privs_are(
+  'public',
+  'set_accounting_period_lock',
+  ARRAY['uuid', 'uuid', 'date', 'boolean', 'text'],
+  'anon',
+  ARRAY[]::text[],
+  'anonymous actors cannot execute the accounting authority transition'
+);
+SELECT function_privs_are(
+  'public',
+  'set_accounting_period_lock',
+  ARRAY['uuid', 'uuid', 'date', 'boolean', 'text'],
+  'authenticated',
+  ARRAY['EXECUTE'],
+  'authenticated actors can execute the checked accounting authority transition'
+);
+SELECT function_privs_are(
+  'public',
+  'set_accounting_period_lock',
+  ARRAY['uuid', 'uuid', 'date', 'boolean', 'text'],
+  'service_role',
+  ARRAY[]::text[],
+  'service role cannot execute the accounting authority transition'
 );
 
 SELECT function_privs_are(
@@ -508,6 +655,46 @@ SELECT function_privs_are(
   'service_role',
   ARRAY[]::text[],
   'service role cannot execute the private exclusive authority helper'
+);
+SELECT function_privs_are(
+  'app_private',
+  'lock_financial_authority_period_shared',
+  ARRAY['uuid', 'currency_code', 'date'],
+  'service_role',
+  ARRAY[]::text[],
+  'service role cannot execute the private shared authority helper'
+);
+SELECT function_privs_are(
+  'app_private',
+  'lock_ledger_authority_period_exclusive',
+  ARRAY['uuid', 'date'],
+  'service_role',
+  ARRAY[]::text[],
+  'service role cannot execute the private Ledger authority helper'
+);
+SELECT function_privs_are(
+  'app_private',
+  'set_accounting_period_lock_internal',
+  ARRAY['uuid', 'uuid', 'date', 'boolean', 'text', 'uuid'],
+  'service_role',
+  ARRAY[]::text[],
+  'service role cannot execute the internal accounting-period writer'
+);
+SELECT function_privs_are(
+  'app_private',
+  'lock_property_reporting_period_internal',
+  ARRAY['uuid', 'uuid', 'currency_code', 'date', 'boolean'],
+  'service_role',
+  ARRAY[]::text[],
+  'service role cannot execute the private property-period writer'
+);
+SELECT function_privs_are(
+  'app_private',
+  'set_financial_projection_context',
+  ARRAY['boolean'],
+  'service_role',
+  ARRAY[]::text[],
+  'service role cannot enable the reserved-projection capability'
 );
 SELECT table_privs_are(
   'public',
@@ -1260,6 +1447,16 @@ SELECT lives_ok(
   ),
   'authorized public accounting-period unlock path reaches its private writer'
 );
+SELECT lives_ok(
+  format(
+    'SELECT public.set_accounting_period_lock(%L,%L,%L,false,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT book_id FROM financial_authority_test_state),
+    '2026-09-01',
+    'Accounting reopen audit reason'
+  ),
+  'accounting reopen accepts a supplied append-only audit reason'
+);
 SELECT is(
   (
     SELECT lock_reason
@@ -1271,6 +1468,37 @@ SELECT is(
   ),
   NULL::text,
   'accounting unlock clears the visible lock reason'
+);
+SELECT is(
+  (
+    SELECT action
+    FROM public.activity_logs
+    WHERE organization_id = (
+      SELECT organization_id FROM financial_authority_test_state
+    )
+      AND entity_type = 'accounting_period'
+      AND action = 'accounting_period_reopened'
+      AND new_values ->> 'period_start' = '2026-09-01'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  ),
+  'accounting_period_reopened',
+  'accounting reopen activity uses the distinct reopen action'
+);
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.activity_logs
+    WHERE organization_id = (
+      SELECT organization_id FROM financial_authority_test_state
+    )
+      AND entity_type = 'accounting_period'
+      AND action = 'accounting_period_reopened'
+      AND new_values ->> 'period_start' = '2026-09-01'
+      AND new_values ->> 'reason' = 'Accounting reopen audit reason'
+  ),
+  1,
+  'accounting reopen activity retains the supplied audit reason'
 );
 SELECT throws_ok(
   format(
@@ -1313,6 +1541,49 @@ SELECT is(
   ),
   NULL::text,
   'Ledger unlock clears the visible lock reason'
+);
+SELECT is(
+  (
+    SELECT action
+    FROM public.activity_logs
+    WHERE organization_id = (
+      SELECT organization_id FROM financial_authority_test_state
+    )
+      AND entity_type = 'ledger_period'
+      AND action = 'unlocked'
+      AND new_values ->> 'period_start' = '2026-09-01'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  ),
+  'unlocked',
+  'Ledger unlock activity uses the distinct unlock action'
+);
+SELECT is(
+  (
+    SELECT new_values ->> 'reason'
+    FROM public.activity_logs
+    WHERE organization_id = (
+      SELECT organization_id FROM financial_authority_test_state
+    )
+      AND entity_type = 'ledger_period'
+      AND action = 'unlocked'
+      AND new_values ->> 'period_start' = '2026-09-01'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  ),
+  'Unlock audit reason',
+  'Ledger unlock activity retains the supplied audit reason'
+);
+SELECT throws_ok(
+  format(
+    'SELECT public.set_ledger_period_lock(%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    '2026-09-01',
+    repeat('x', 401)
+  ),
+  '22023',
+  'Reason is too long',
+  'Ledger lock rejects reasons beyond the shared 400-character limit'
 );
 RESET ROLE;
 

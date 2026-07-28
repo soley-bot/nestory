@@ -65,6 +65,49 @@ sources for different properties retain independent property locks and share
 the broader authority lock, so they remain concurrent when no transition is
 running.
 
+The repository concurrency commands run the complete supported matrix by
+default. Ledger covers source-first, transition-first, and unlock against both
+existing and absent rows plus isolation. Accounting covers the same cases plus
+multiple active client books. The current product currency enum contains only
+`USD`; the harness does not add unsupported enum values. Every scenario
+terminates and awaits its child `psql` processes, then removes its fixed local
+or CI fixtures. A fault-injection hook proves the same cleanup path after a
+transaction has acquired authority and the runner fails.
+
+## Effective privilege boundary
+
+Authority state and private capability data use this effective role boundary:
+
+| Relation or function | `anon` | `authenticated` | `service_role` |
+| --- | --- | --- | --- |
+| `ledger_period_locks` | none | `SELECT` | none |
+| `accounting_periods` | none | `SELECT` | none |
+| `property_reporting_periods` | none | `SELECT` through RLS | none |
+| `property_close_revisions` | none | `SELECT` through RLS | none |
+| private idempotency/capability relations | none | none | none |
+| public Ledger/accounting transition RPCs | none | `EXECUTE`, with admin checks | none |
+| private shared/exclusive authority helpers | none | none | none |
+| private accounting/property writers | none | none | none |
+| reserved-projection capability setter | none | none | none |
+
+The pure `is_reserved_financial_source_type` classifier is the deliberate
+exception: `authenticated` and `service_role` may execute it because
+invoker-owned generic RPCs and table triggers use it to reject reserved-source
+writes. It exposes no rows and cannot enable the reserved-projection
+capability.
+
+PostgreSQL table ownership is an unavoidable database-owner escape hatch.
+Nestory application and server code do not connect as the database owner and
+do not write either authority table directly. Owner access is limited to
+migrations, pgTAP, and fixed-ID local/CI concurrency-fixture setup or cleanup.
+The harness cleanup temporarily disables the property-period deletion trigger
+inside one owner transaction only after all child transactions have ended,
+deletes only its fixed fixture identities, re-enables the trigger, and proves
+the identities are gone. Any future hosted break-glass authority repair would
+require a separate approved DBA procedure with the same exclusive authority
+locks, a transaction, pre/post evidence, and an append-only audit record; Plan
+03 authorizes no such hosted operation.
+
 ## Reconciliation sources
 
 `public.financial_reconciliation_sources` stores stable, non-sensitive source
@@ -119,6 +162,66 @@ actor plus the SHA-256 of canonical `jsonb` payload text.
 - A failed surrounding transaction rolls back its pending claim.
 
 No public generic idempotency RPC or UI exists.
+
+## Migration locking disposition
+
+The initial kernel migration replaces one validated Ledger `CHECK`, adds one
+validated journal `CHECK`, and builds two non-concurrent partial unique
+indexes. PostgreSQL takes `ACCESS EXCLUSIVE` for the `ALTER TABLE` constraint
+work; validation scans the existing rows. A normal `CREATE INDEX` takes a
+`SHARE` table lock, so reads continue but writes wait. The later serialization
+and acceptance-hardening migrations replace functions and tighten ACLs; they
+do not rewrite either finance table or build another index.
+
+The disposable scale fixture measured:
+
+| Relation | Rows | Total relation size |
+| --- | ---: | ---: |
+| `ledger_entries` | 5,208 | 8,696 KiB |
+| `accounting_journal_entries` | 1 | 160 KiB |
+| `accounting_books` | 2 | 112 KiB |
+
+Both reserved-source duplicate preflights returned zero groups. At that scale,
+the repository reset and database suite complete without material lock
+pressure. This is local fixture evidence only.
+
+Before any hosted migration, a database operator must run:
+
+```sql
+SELECT
+  'ledger_entries' AS relation,
+  count(*) AS rows,
+  pg_total_relation_size('public.ledger_entries') AS total_bytes
+FROM public.ledger_entries
+UNION ALL
+SELECT
+  'accounting_journal_entries',
+  count(*),
+  pg_total_relation_size('public.accounting_journal_entries')
+FROM public.accounting_journal_entries;
+
+SELECT organization_id, lower(btrim(source_type)), source_id, count(*)
+FROM public.ledger_entries
+WHERE app_private.is_reserved_financial_source_type(source_type)
+  AND source_id IS NOT NULL
+GROUP BY organization_id, lower(btrim(source_type)), source_id
+HAVING count(*) > 1;
+
+SELECT organization_id, book_id, lower(btrim(source_type)), source_id, count(*)
+FROM public.accounting_journal_entries
+WHERE app_private.is_reserved_financial_source_type(source_type)
+GROUP BY organization_id, book_id, lower(btrim(source_type)), source_id
+HAVING count(*) > 1;
+```
+
+Hosted size is an external deployment gate. If either hosted relation exceeds
+the locally proven row count or size, rehearse the migration against a
+representative copy before approval. Use a 5-second `lock_timeout` so the
+deployment fails rather than waiting behind live work. If the rehearsal cannot
+acquire and release each blocking operation within that threshold, or writes
+cannot be paused, require a maintenance window and reconsider a separate
+concurrent-index migration based on measured evidence. Plan 03 authorizes no
+hosted preflight or migration.
 
 ## Reserved projections
 

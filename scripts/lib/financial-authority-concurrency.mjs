@@ -1,14 +1,14 @@
 import { spawn, spawnSync } from "node:child_process";
 
 const fixture = {
-  adminId: "10000000-0000-0000-0000-000000000001",
-  bookId: "10000000-0000-0000-0000-000000000005",
-  secondBookId: "10000000-0000-0000-0000-000000000006",
-  organizationId: "10000000-0000-0000-0000-000000000002",
-  otherOrganizationId: "10000000-0000-0000-0000-000000000007",
-  otherOrganizationPropertyId: "10000000-0000-0000-0000-000000000008",
-  otherPropertyId: "10000000-0000-0000-0000-000000000004",
-  propertyId: "10000000-0000-0000-0000-000000000003",
+  adminId: "f3700000-0000-4000-8000-000000000001",
+  bookId: "f3700000-0000-4000-8000-000000000005",
+  secondBookId: "f3700000-0000-4000-8000-000000000006",
+  organizationId: "f3700000-0000-4000-8000-000000000002",
+  otherOrganizationId: "f3700000-0000-4000-8000-000000000007",
+  otherOrganizationPropertyId: "f3700000-0000-4000-8000-000000000008",
+  otherPropertyId: "f3700000-0000-4000-8000-000000000004",
+  propertyId: "f3700000-0000-4000-8000-000000000003",
 };
 
 const markerTimeoutMs = 10_000;
@@ -17,53 +17,93 @@ const startedPsqlProcesses = new Set();
 
 export async function runFinancialAuthorityConcurrency(system) {
   const options = parseOptions(process.argv.slice(2));
-  const scenario = options.get("scenario") ?? "source-first";
-  const rowState = options.get("row") ?? "existing";
+  const requestedScenario = options.get("scenario") ?? "all";
+  const requestedRow =
+    options.get("row") ?? (requestedScenario === "all" ? "all" : "existing");
   const container =
-    options.get("container") ?? "supabase_db_nestory-finance-inventory";
+    options.get("container") ??
+    process.env.SUPABASE_DB_CONTAINER ??
+    "supabase_db_nestory";
 
   if (
     ![
+      "all",
       "source-first",
       "transition-first",
       "unlock",
       "isolation",
       "multiple-books",
-    ].includes(scenario)
+    ].includes(requestedScenario)
   ) {
     throw new Error(
-      "Expected --scenario source-first, transition-first, unlock, isolation, or multiple-books.",
+      "Expected --scenario all, source-first, transition-first, unlock, isolation, or multiple-books.",
     );
   }
-  if (scenario === "multiple-books" && system !== "accounting") {
+  if (requestedScenario === "multiple-books" && system !== "accounting") {
     throw new Error("The multiple-books scenario applies only to accounting.");
   }
-  if (!["existing", "absent"].includes(rowState)) {
-    throw new Error("Expected --row existing or --row absent.");
+  if (!["all", "existing", "absent"].includes(requestedRow)) {
+    throw new Error("Expected --row all, existing, or absent.");
   }
 
   assertContainer(container);
-  runSql(container, fixtureSql(system, rowState));
-
+  const cases = scenarioCases(system, requestedScenario, requestedRow);
+  cleanupFixture(container);
   try {
-    if (scenario === "source-first") {
-      await proveSourceFirst({ container, system });
-    } else if (scenario === "transition-first") {
-      await proveTransitionFirst({ container, system });
-    } else if (scenario === "unlock") {
-      await proveUnlock({ container, system });
-    } else if (scenario === "isolation") {
-      await proveIsolation({ container, system });
-    } else {
-      await proveMultipleBooks({ container });
+    for (const testCase of cases) {
+      runSql(container, fixtureSql(system, testCase.rowState));
+      try {
+        if (testCase.scenario === "source-first") {
+          await proveSourceFirst({ container, system });
+        } else if (testCase.scenario === "transition-first") {
+          await proveTransitionFirst({ container, system });
+        } else if (testCase.scenario === "unlock") {
+          await proveUnlock({ container, system });
+        } else if (testCase.scenario === "isolation") {
+          await proveIsolation({ container, system });
+        } else {
+          await proveMultipleBooks({ container });
+        }
+      } finally {
+        await cleanupStartedPsqlProcesses();
+        cleanupFixture(container);
+      }
+
+      process.stdout.write(
+        `PASS ${system} ${testCase.scenario} ${testCase.rowState}: transaction authority serialized correctly.\n`,
+      );
     }
   } finally {
     await cleanupStartedPsqlProcesses();
+    cleanupFixture(container);
   }
 
   process.stdout.write(
-    `PASS ${system} ${scenario} ${rowState}: transaction authority serialized correctly.\n`,
+    `PASS ${system} complete harness: ${cases.length} scenarios; fixtures and child processes cleaned.\n`,
   );
+}
+
+function scenarioCases(system, requestedScenario, requestedRow) {
+  if (requestedScenario !== "all") {
+    const rowStates =
+      requestedRow === "all" ? ["existing", "absent"] : [requestedRow];
+    return rowStates.map((rowState) => ({
+      rowState,
+      scenario: requestedScenario,
+    }));
+  }
+
+  const cases = [];
+  for (const scenario of ["source-first", "transition-first", "unlock"]) {
+    for (const rowState of ["existing", "absent"]) {
+      cases.push({ rowState, scenario });
+    }
+  }
+  cases.push({ rowState: "existing", scenario: "isolation" });
+  if (system === "accounting") {
+    cases.push({ rowState: "existing", scenario: "multiple-books" });
+  }
+  return cases;
 }
 
 async function proveSourceFirst({ container, system }) {
@@ -75,6 +115,13 @@ async function proveSourceFirst({ container, system }) {
     }),
   );
   await source.waitFor("SOURCE_AUTHORITY_ACQUIRED");
+  if (
+    process.env.FINANCE_AUTHORITY_TEST_FORCE_FAILURE_AFTER_MARKER === "1"
+  ) {
+    throw new Error(
+      "Forced authority-concurrency failure after the source marker.",
+    );
+  }
 
   const transition = startPsql(container, transitionSql(system, false));
   await delay(300);
@@ -185,13 +232,6 @@ WHERE book_id = '${fixture.bookId}'::uuid
 }
 
 async function proveIsolation({ container, system }) {
-  if (system === "accounting") {
-    runSql(
-      container,
-      "ALTER TYPE public.currency_code ADD VALUE IF NOT EXISTS 'EUR';",
-    );
-  }
-
   const transition = startPsql(container, transitionSql(system, true));
   await transition.waitFor("TRANSITION_MUTATED");
   const independentSources = [
@@ -217,18 +257,6 @@ async function proveIsolation({ container, system }) {
       ),
     },
   ];
-  if (system === "accounting") {
-    independentSources.push({
-      marker: "OTHER_CURRENCY_SOURCE_ACQUIRED",
-      process: startPsql(
-        container,
-        sourceSql({
-          currency: "EUR",
-          marker: "OTHER_CURRENCY_SOURCE_ACQUIRED",
-        }),
-      ),
-    });
-  }
 
   for (const source of independentSources) {
     await source.process.waitFor(source.marker);
@@ -554,6 +582,8 @@ function startPsql(container, sql) {
     "docker",
     [
       "exec",
+      "-e",
+      "PGAPPNAME=nestory-financial-authority-concurrency",
       "-i",
       container,
       "psql",
@@ -655,6 +685,85 @@ async function cleanupStartedPsqlProcesses() {
   }
   await Promise.allSettled(
     running.map((processHandle) => processHandle.result),
+  );
+}
+
+function cleanupFixture(container) {
+  runSql(
+    container,
+    `\\set ON_ERROR_STOP on
+BEGIN;
+SELECT pg_catalog.set_config(
+  'app.financial_authority_period_context',
+  'on',
+  true
+);
+DELETE FROM public.activity_logs
+WHERE organization_id IN (
+  '${fixture.organizationId}'::uuid,
+  '${fixture.otherOrganizationId}'::uuid
+);
+ALTER TABLE public.property_reporting_periods
+  DISABLE TRIGGER enforce_property_period_mutation_context;
+DELETE FROM public.property_reporting_periods
+WHERE organization_id IN (
+  '${fixture.organizationId}'::uuid,
+  '${fixture.otherOrganizationId}'::uuid
+);
+ALTER TABLE public.property_reporting_periods
+  ENABLE TRIGGER enforce_property_period_mutation_context;
+DELETE FROM public.ledger_period_locks
+WHERE organization_id IN (
+  '${fixture.organizationId}'::uuid,
+  '${fixture.otherOrganizationId}'::uuid
+);
+DELETE FROM public.accounting_periods
+WHERE organization_id IN (
+  '${fixture.organizationId}'::uuid,
+  '${fixture.otherOrganizationId}'::uuid
+);
+DELETE FROM public.accounting_books
+WHERE organization_id IN (
+  '${fixture.organizationId}'::uuid,
+  '${fixture.otherOrganizationId}'::uuid
+);
+DELETE FROM public.properties
+WHERE organization_id IN (
+  '${fixture.organizationId}'::uuid,
+  '${fixture.otherOrganizationId}'::uuid
+);
+DELETE FROM public.organization_members
+WHERE organization_id IN (
+  '${fixture.organizationId}'::uuid,
+  '${fixture.otherOrganizationId}'::uuid
+);
+DELETE FROM public.organizations
+WHERE id IN (
+  '${fixture.organizationId}'::uuid,
+  '${fixture.otherOrganizationId}'::uuid
+);
+DELETE FROM auth.users
+WHERE id = '${fixture.adminId}'::uuid;
+
+DO $cleanup$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.organizations
+    WHERE id IN (
+      '${fixture.organizationId}'::uuid,
+      '${fixture.otherOrganizationId}'::uuid
+    )
+  ) OR EXISTS (
+    SELECT 1
+    FROM auth.users
+    WHERE id = '${fixture.adminId}'::uuid
+  ) THEN
+    RAISE EXCEPTION 'Authority concurrency fixtures remain after cleanup';
+  END IF;
+END;
+$cleanup$;
+COMMIT;`,
   );
 }
 
