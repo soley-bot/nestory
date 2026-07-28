@@ -16,7 +16,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   return (
     <div>
       <PageHeader
-        description="Organization structure and workspace access."
+        description="Organization structure, workspace configuration, and access."
         title="Settings"
       />
       <OrganizationSettingsScreen
@@ -34,5 +34,9 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
 function readSection(value: string | string[] | undefined): SettingsSection {
   const section = Array.isArray(value) ? value[0] : value;
-  return section === "branches" || section === "teams" ? section : "organization";
+  return section === "branches" ||
+    section === "teams" ||
+    section === "configuration"
+    ? section
+    : "organization";
 }
