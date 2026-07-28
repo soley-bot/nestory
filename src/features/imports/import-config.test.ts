@@ -87,6 +87,15 @@ describe("import config", () => {
     ]);
   });
 
+  it("keeps prefilled property rows aligned to the eight-column template", () => {
+    const template = buildImportTemplateCsv("properties", referenceData);
+
+    expect(template.split("\r\n")).toEqual([
+      "Property Code,Property Name,Property Type,Address,Owner,Status,Acquisition Date,Notes",
+      "CTR,Central Residence,,,,Active,,",
+    ]);
+  });
+
   it("prefills lease templates with existing unit anchors", () => {
     const template = buildImportTemplateCsv("leases", referenceData);
 
@@ -243,6 +252,7 @@ describe("import config", () => {
         }),
       ]),
     );
+    expect(rows[0].actionLabel).toBe("Needs review");
   });
 
   it("blocks lease imports when a unit already has open occupancy", () => {

@@ -345,10 +345,10 @@ BEGIN
       AND coalesce(
         current_setting('app.lease_creation_context', true),
         ''
-      ) NOT IN ('checked-v1', 'test-fixture-v1')
+      ) <> 'checked-v1'
     ) THEN
     RAISE EXCEPTION
-      'Lease import requires explicit due day, frequency, and term status through the checked authority workflow'
+      'Lease creation requires the checked authoritative-term workflow'
       USING ERRCODE = '42501';
   END IF;
 
@@ -626,173 +626,6 @@ BEGIN
 END;
 $$;
 
-CREATE TABLE app_private.lease_authority_idempotency_requests (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id uuid NOT NULL
-    REFERENCES public.organizations(id) ON DELETE RESTRICT,
-  operation text NOT NULL,
-  idempotency_key text NOT NULL,
-  actor_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  payload_hash text NOT NULL,
-  status text NOT NULL DEFAULT 'pending',
-  result_ids jsonb,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  completed_at timestamptz,
-  CONSTRAINT lease_authority_idempotency_identity_unique
-    UNIQUE (organization_id, operation, idempotency_key),
-  CONSTRAINT lease_authority_idempotency_status_check
-    CHECK (status IN ('pending', 'completed')),
-  CONSTRAINT lease_authority_idempotency_payload_hash_check
-    CHECK (payload_hash ~ '^[0-9a-f]{64}$')
-);
-
-REVOKE ALL ON TABLE app_private.lease_authority_idempotency_requests
-FROM PUBLIC, anon, authenticated, service_role;
-
-CREATE OR REPLACE FUNCTION app_private.claim_lease_authority_idempotency(
-  p_organization_id uuid,
-  p_operation text,
-  p_idempotency_key text,
-  p_actor_id uuid,
-  p_payload jsonb
-)
-RETURNS TABLE (
-  request_id uuid,
-  is_replay boolean,
-  result_ids jsonb
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-DECLARE
-  v_operation text := lower(trim(coalesce(p_operation, '')));
-  v_key text := trim(coalesce(p_idempotency_key, ''));
-  v_hash text;
-  v_existing app_private.lease_authority_idempotency_requests%ROWTYPE;
-BEGIN
-  IF p_organization_id IS NULL
-    OR p_actor_id IS NULL
-    OR p_payload IS NULL
-    OR length(v_operation) < 2
-    OR length(v_key) < 8 THEN
-    RAISE EXCEPTION 'Lease authority idempotency identity is required'
-      USING ERRCODE = '22023';
-  END IF;
-
-  v_hash := app_private.canonical_financial_payload_hash(p_payload);
-
-  PERFORM pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended(
-      concat_ws(
-        ':',
-        'lease_authority_idempotency_v1',
-        p_organization_id,
-        v_operation,
-        v_key
-      ),
-      0
-    )
-  );
-
-  SELECT request.*
-  INTO v_existing
-  FROM app_private.lease_authority_idempotency_requests AS request
-  WHERE request.organization_id = p_organization_id
-    AND request.operation = v_operation
-    AND request.idempotency_key = v_key
-  FOR UPDATE;
-
-  IF FOUND THEN
-    IF v_existing.actor_id IS DISTINCT FROM p_actor_id
-      OR v_existing.payload_hash IS DISTINCT FROM v_hash THEN
-      RAISE EXCEPTION 'Conflicting lease authority idempotency request'
-        USING ERRCODE = '22023';
-    END IF;
-
-    RETURN QUERY
-    SELECT
-      v_existing.id,
-      v_existing.status = 'completed',
-      CASE
-        WHEN v_existing.status = 'completed' THEN v_existing.result_ids
-        ELSE NULL::jsonb
-      END;
-    RETURN;
-  END IF;
-
-  INSERT INTO app_private.lease_authority_idempotency_requests (
-    organization_id,
-    operation,
-    idempotency_key,
-    actor_id,
-    payload_hash
-  )
-  VALUES (
-    p_organization_id,
-    v_operation,
-    v_key,
-    p_actor_id,
-    v_hash
-  )
-  RETURNING * INTO v_existing;
-
-  RETURN QUERY
-  SELECT v_existing.id, false, NULL::jsonb;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION app_private.complete_lease_authority_idempotency(
-  p_request_id uuid,
-  p_organization_id uuid,
-  p_actor_id uuid,
-  p_result_ids jsonb
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-DECLARE
-  v_request app_private.lease_authority_idempotency_requests%ROWTYPE;
-BEGIN
-  SELECT request.*
-  INTO v_request
-  FROM app_private.lease_authority_idempotency_requests AS request
-  WHERE request.id = p_request_id
-    AND request.organization_id = p_organization_id
-  FOR UPDATE;
-
-  IF NOT FOUND
-    OR v_request.actor_id IS DISTINCT FROM p_actor_id THEN
-    RAISE EXCEPTION 'Conflicting lease authority idempotency request'
-      USING ERRCODE = '22023';
-  END IF;
-
-  IF v_request.status = 'completed' THEN
-    IF v_request.result_ids IS DISTINCT FROM p_result_ids THEN
-      RAISE EXCEPTION 'Conflicting lease authority idempotency result'
-        USING ERRCODE = '22023';
-    END IF;
-    RETURN v_request.result_ids;
-  END IF;
-
-  UPDATE app_private.lease_authority_idempotency_requests
-  SET
-    status = 'completed',
-    result_ids = p_result_ids,
-    completed_at = now()
-  WHERE id = p_request_id;
-
-  RETURN p_result_ids;
-END;
-$$;
-
-REVOKE ALL ON FUNCTION
-  app_private.claim_lease_authority_idempotency(uuid, text, text, uuid, jsonb),
-  app_private.complete_lease_authority_idempotency(uuid, uuid, uuid, jsonb)
-FROM PUBLIC, anon, authenticated, service_role;
-
 CREATE OR REPLACE FUNCTION public.resolve_authoritative_lease_term(
   p_organization_id uuid,
   p_lease_id uuid,
@@ -842,6 +675,15 @@ BEGIN
       p_lease_id, NULL::uuid, NULL::integer, NULL::daterange, NULL::date,
       NULL::date, NULL::numeric, NULL::public.currency_code, NULL::integer,
       NULL::text;
+    RETURN;
+  END IF;
+
+  IF v_lease.status IN ('ended', 'terminated', 'cancelled') THEN
+    RETURN QUERY SELECT
+      'blocked', 'inactive_lease', v_lease.organization_id,
+      v_lease.property_id, v_lease.unit_id, v_lease.id, NULL::uuid,
+      NULL::integer, NULL::daterange, NULL::date, NULL::date, NULL::numeric,
+      NULL::public.currency_code, NULL::integer, NULL::text;
     RETURN;
   END IF;
 
@@ -953,7 +795,14 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_actor_id uuid := (SELECT auth.uid());
 BEGIN
+  IF v_actor_id IS NULL
+    OR NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
   PERFORM 1
   FROM public.lease_terms AS terms
   WHERE terms.id = p_term_id
@@ -999,8 +848,14 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
+  v_actor_id uuid := (SELECT auth.uid());
   v_legacy public.lease_terms%ROWTYPE;
 BEGIN
+  IF v_actor_id IS NULL
+    OR NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
   SELECT terms.*
   INTO v_legacy
   FROM public.lease_terms AS terms
@@ -1218,7 +1073,9 @@ BEGIN
   ) THEN
     RAISE EXCEPTION
       'Legacy rent generation is blocked until Plan 09 consumes authoritative term and policy identities'
-      USING ERRCODE = '0A000';
+      USING
+        ERRCODE = '0A000',
+        DETAIL = 'rent_generation_blocked_plan_09';
   END IF;
 
   RETURN public.generate_monthly_rent_income_items_legacy_unchecked(
@@ -1279,7 +1136,7 @@ BEGIN
 
   SELECT *
   INTO v_claim
-  FROM app_private.claim_lease_authority_idempotency(
+  FROM app_private.claim_financial_idempotency(
     p_organization_id,
     'create_lease_with_authoritative_term',
     p_idempotency_key,
@@ -1346,7 +1203,7 @@ BEGIN
     p_idempotency_key || ':term'
   );
 
-  PERFORM app_private.complete_lease_authority_idempotency(
+  PERFORM app_private.complete_financial_idempotency(
     v_claim.request_id,
     p_organization_id,
     v_actor_id,
@@ -1410,14 +1267,6 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
-  PERFORM app_private.lock_open_lease_term_periods(
-    p_organization_id,
-    p_property_id,
-    p_rent_currency,
-    p_lease_start_date,
-    p_lease_end_date
-  );
-
   PERFORM 1
   FROM public.leases AS leases
   WHERE leases.id = p_lease_id
@@ -1434,7 +1283,7 @@ BEGIN
 
   SELECT *
   INTO v_claim
-  FROM app_private.claim_lease_authority_idempotency(
+  FROM app_private.claim_financial_idempotency(
     p_organization_id,
     'update_lease_with_authoritative_term',
     p_idempotency_key,
@@ -1459,6 +1308,13 @@ BEGIN
 
   IF v_claim.is_replay THEN
     RETURN (v_claim.result_ids ->> 'leaseId')::uuid;
+  END IF;
+
+  IF lower(trim(p_lease_status)) IN ('ended', 'terminated', 'cancelled')
+    AND lower(trim(p_term_status)) IN ('active', 'upcoming') THEN
+    RAISE EXCEPTION
+      'An inactive lease cannot retain an active or upcoming authoritative term'
+      USING ERRCODE = '23514';
   END IF;
 
   SELECT terms.*
@@ -1522,6 +1378,14 @@ BEGIN
     ) THEN
     v_term_id := v_current_term.id;
   ELSE
+    PERFORM app_private.lock_open_lease_term_periods(
+      p_organization_id,
+      p_property_id,
+      p_rent_currency,
+      p_lease_start_date,
+      p_lease_end_date
+    );
+
     v_term_id := public.create_authoritative_lease_term(
       p_organization_id,
       p_lease_id,
@@ -1537,7 +1401,7 @@ BEGIN
     );
   END IF;
 
-  PERFORM app_private.complete_lease_authority_idempotency(
+  PERFORM app_private.complete_financial_idempotency(
     v_claim.request_id,
     p_organization_id,
     v_actor_id,
@@ -1659,7 +1523,7 @@ BEGIN
 
   SELECT *
   INTO v_claim
-  FROM app_private.claim_lease_authority_idempotency(
+  FROM app_private.claim_financial_idempotency(
     p_organization_id,
     'create_rent_policy_draft',
     p_idempotency_key,
@@ -1716,7 +1580,7 @@ BEGIN
     )
   );
 
-  PERFORM app_private.complete_lease_authority_idempotency(
+  PERFORM app_private.complete_financial_idempotency(
     v_claim.request_id,
     p_organization_id,
     v_actor_id,
@@ -1845,7 +1709,7 @@ AS $$
 DECLARE
   v_actor_id uuid := (SELECT auth.uid());
   v_policy public.rent_policy_versions%ROWTYPE;
-  v_property_id uuid;
+  v_property_scope record;
 BEGIN
   IF v_actor_id IS NULL
     OR NOT app_private.is_org_admin(p_organization_id) THEN
@@ -1873,6 +1737,12 @@ BEGIN
   IF v_policy.lifecycle <> 'draft' THEN
     RAISE EXCEPTION 'Only draft rent policy versions can be approved'
       USING ERRCODE = '42501';
+  END IF;
+
+  IF v_policy.effective_from < current_date THEN
+    RAISE EXCEPTION
+      'Rent policy effective date cannot be in the past'
+      USING ERRCODE = '22023';
   END IF;
 
   IF v_policy.supported_frequencies IS NULL
@@ -1904,19 +1774,21 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  FOR v_property_id IN
-    SELECT DISTINCT leases.property_id
+  FOR v_property_scope IN
+    SELECT DISTINCT
+      leases.property_id,
+      leases.monthly_rent_currency AS currency
     FROM public.leases AS leases
     WHERE leases.organization_id = p_organization_id
       AND leases.archived_at IS NULL
       AND leases.property_id IS NOT NULL
       AND leases.lease_end_date >= v_policy.effective_from
-    ORDER BY leases.property_id
+    ORDER BY leases.property_id, leases.monthly_rent_currency
   LOOP
     PERFORM app_private.lock_open_lease_term_periods(
       p_organization_id,
-      v_property_id,
-      'USD'::public.currency_code,
+      v_property_scope.property_id,
+      v_property_scope.currency,
       v_policy.effective_from,
       greatest(v_policy.effective_from, current_date)
     );
@@ -2261,6 +2133,13 @@ BEGIN
       USING ERRCODE = '23503';
   END IF;
 
+  IF v_lease.status IN ('ended', 'terminated', 'cancelled')
+    AND v_status IN ('active', 'upcoming') THEN
+    RAISE EXCEPTION
+      'An inactive lease cannot retain an active or upcoming authoritative term'
+      USING ERRCODE = '23514';
+  END IF;
+
   PERFORM app_private.lock_open_lease_term_periods(
     p_organization_id,
     v_lease.property_id,
@@ -2297,7 +2176,7 @@ BEGIN
 
   SELECT *
   INTO v_claim
-  FROM app_private.claim_lease_authority_idempotency(
+  FROM app_private.claim_financial_idempotency(
     p_organization_id,
     'create_authoritative_lease_term',
     p_idempotency_key,
@@ -2447,7 +2326,7 @@ BEGIN
     )
   );
 
-  PERFORM app_private.complete_lease_authority_idempotency(
+  PERFORM app_private.complete_financial_idempotency(
     v_claim.request_id,
     p_organization_id,
     v_actor_id,
@@ -2741,6 +2620,7 @@ DECLARE
   v_run public.import_runs%ROWTYPE;
   v_row public.import_rows%ROWTYPE;
   v_row_error text;
+  v_candidate_total integer := 0;
   v_created_total integer := 0;
   v_failed_total integer := 0;
   v_skipped_total integer := 0;
@@ -2775,6 +2655,19 @@ BEGIN
   IF v_run.status IN ('committed', 'committed_with_errors') THEN
     RAISE EXCEPTION 'Import run has already been committed'
       USING ERRCODE = '22023';
+  END IF;
+
+  SELECT count(*)::integer
+  INTO v_candidate_total
+  FROM public.import_rows AS rows
+  WHERE rows.import_run_id = v_run.id
+    AND rows.organization_id = p_organization_id
+    AND rows.row_status IN ('ready', 'warning');
+
+  IF v_candidate_total > 250 THEN
+    RAISE EXCEPTION
+      'Lease import runs are limited to 250 commit-ready rows'
+      USING ERRCODE = '54000';
   END IF;
 
   UPDATE public.import_runs

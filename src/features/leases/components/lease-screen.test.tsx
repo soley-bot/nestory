@@ -104,7 +104,13 @@ describe("LeaseScreen redesign contract", () => {
     const firstQuickView = screen.getByRole("dialog", {
       name: "Alice Tenant lease quick view",
     });
-    expect(within(firstQuickView).getByText("Rent blocked")).not.toBeNull();
+    const firstScheduleKey = firstQuickView
+      .querySelector<HTMLInputElement>('input[name="idempotencyKey"]')
+      ?.value;
+    expect(firstScheduleKey).toContain("lease-1");
+    expect(
+      within(firstQuickView).getByText("Readiness not checked"),
+    ).not.toBeNull();
     expect(within(firstQuickView).getByText("USD 1,200.00 held")).not.toBeNull();
     expect(within(firstQuickView).getByText("Event type")).not.toBeNull();
     expect(within(firstQuickView).getByText("Event date")).not.toBeNull();
@@ -124,9 +130,20 @@ describe("LeaseScreen redesign contract", () => {
 
     fireEvent.click(rows[1]!);
     expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
+    const secondQuickView = screen.getByRole("dialog", {
+      name: "Ben Tenant lease quick view",
+    });
+    expect(secondQuickView).not.toBeNull();
     expect(
-      screen.getByRole("dialog", { name: "Ben Tenant lease quick view" }),
-    ).not.toBeNull();
+      secondQuickView.querySelector<HTMLInputElement>(
+        'input[name="idempotencyKey"]',
+      )?.value,
+    ).toContain("lease-2");
+    expect(
+      secondQuickView.querySelector<HTMLInputElement>(
+        'input[name="idempotencyKey"]',
+      )?.value,
+    ).not.toBe(firstScheduleKey);
     expect(screen.queryByText(/select a lease row/i)).toBeNull();
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });

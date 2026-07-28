@@ -1,7 +1,7 @@
 # Owner Close Financial Unification
 
-**Status:** Plans 00 through 03 are merged and complete. Plan 04 authoritative lease terms and rent-policy contract is implemented on its review branch and remains unmerged pending draft-PR review.
-**Current merged baseline:** `64d72fcb545fa2feedebb05a2a261af23cc49bd6`, merge commit for PR #37 (`Add shared financial authority kernel`).
+**Status:** Plans 00 through 04 define the accepted sequence through authoritative lease terms and rent policy. Plan 04 implementation is complete; later slices remain unauthorized.
+**Required merged baseline:** Plan 03 shared financial-authority kernel from PR #37.
 **Historical planning baseline:** merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.
 **External review:** `98-ultra-review-response.md` — `APPROVE WITH CHANGES`.  
 **Final Nestory decision:** `97-ratified-final-sequence.md`.  
@@ -20,7 +20,7 @@ Use these files in this order:
 
 The Ultra response is the single external architecture review. Do not create a loop by asking Ultra to review the correction pass. ChatGPT owns the final synthesis, and Codex Standard + High owns narrow implementation work.
 
-No further Ultra architecture review is required for Plan 02 or Plan 03.
+No further Ultra architecture review is required for Plans 02 through 04.
 
 ## Legacy plan mapping
 
@@ -152,8 +152,7 @@ Do not invent policy to keep implementation moving. Unsupported cases must block
 
 ## Current next step
 
-Review the Plan 04 draft PR from
-`04-authoritative-lease-terms-and-rent-policy.md` without merging or deploying
-it from this implementation run. Keep charge generation, settlement, close,
-and report workflows unchanged. Unknown IPS policy remains explicitly blocked
-or unconfirmed.
+Land the verified Plan 04 implementation from
+`04-authoritative-lease-terms-and-rent-policy.md`. Keep charge generation,
+settlement, close, and report workflows unchanged. Unknown IPS policy remains
+explicitly blocked or unconfirmed.

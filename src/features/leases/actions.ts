@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  getMonthlyRentGenerationErrorMessage,
+  parseFutureRentTermInput,
+  parseIdempotencyKey,
+} from "@/features/leases/lease-action-input";
 
 type LeaseFieldErrors = {
   amount?: string[];
@@ -134,26 +139,6 @@ const leaseMutationSchema = z
     }
   });
 
-const futureRentTermSchema = z
-  .object({
-    endDate: dateSchema,
-    leaseId: leaseIdSchema,
-    paymentFrequency: paymentFrequencySchema,
-    rentAmount: z.coerce.number().nonnegative(),
-    rentDueDay: z.coerce.number().int().min(1).max(31),
-    startDate: dateSchema,
-    supersedesTermId: z.uuid("Choose the active term."),
-  })
-  .superRefine((data, context) => {
-    if (data.endDate <= data.startDate) {
-      context.addIssue({
-        code: "custom",
-        message: "End date must be after the start date.",
-        path: ["endDate"],
-      });
-    }
-  });
-
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
@@ -209,13 +194,19 @@ export async function createLeaseAction(
     return invalidFormState(parsed.error);
   }
 
+  const idempotencyKey = readIdempotencyKey(formData);
+
+  if (!idempotencyKey) {
+    return { message: "Refresh the form and try again.", status: "error" };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: leaseId, error } = await supabase.rpc(
     "create_lease_with_authoritative_term",
     leaseAuthorityRpcPayload(
       context.organizationId,
       parsed.data,
-      readIdempotencyKey(formData),
+      idempotencyKey,
     ),
   );
 
@@ -258,6 +249,12 @@ export async function updateLeaseAction(
     return invalidFormState(parsed.error);
   }
 
+  const idempotencyKey = readIdempotencyKey(formData);
+
+  if (!idempotencyKey) {
+    return { message: "Refresh the form and try again.", status: "error" };
+  }
+
   const supabase = await createSupabaseServerClient();
   const pathContext = await getLeasePathContext(
     supabase,
@@ -278,7 +275,7 @@ export async function updateLeaseAction(
       ...leaseAuthorityRpcPayload(
         context.organizationId,
         parsed.data,
-        readIdempotencyKey(formData),
+        idempotencyKey,
       ),
       p_lease_id: parsedLeaseId.data,
     },
@@ -309,7 +306,7 @@ export async function scheduleFutureRentTermAction(
   formData: FormData,
 ): Promise<LeaseActionState> {
   const context = await requireAdminContext();
-  const parsed = futureRentTermSchema.safeParse({
+  const parsed = parseFutureRentTermInput({
     endDate: readString(formData, "endDate"),
     leaseId: readString(formData, "leaseId"),
     paymentFrequency: readString(formData, "paymentFrequency"),
@@ -328,6 +325,12 @@ export async function scheduleFutureRentTermAction(
     };
   }
 
+  const idempotencyKey = readIdempotencyKey(formData);
+
+  if (!idempotencyKey) {
+    return { message: "Refresh the form and try again.", status: "error" };
+  }
+
   const supabase = await createSupabaseServerClient();
   const pathContext = await getLeasePathContext(
     supabase,
@@ -343,7 +346,7 @@ export async function scheduleFutureRentTermAction(
     "schedule_authoritative_lease_term",
     {
       p_end_date: parsed.data.endDate,
-      p_idempotency_key: readIdempotencyKey(formData),
+      p_idempotency_key: idempotencyKey,
       p_lease_id: parsed.data.leaseId,
       p_organization_id: context.organizationId,
       p_payment_frequency: parsed.data.paymentFrequency,
@@ -477,9 +480,7 @@ export async function generateMonthlyRentAction(
 
   if (error) {
     return {
-      message: error.message.includes("Plan 09")
-        ? "Automatic rent generation is paused until the authoritative term-and-policy generator is implemented in Plan 09."
-        : "We could not generate this month's rent charges. Please try again.",
+      message: getMonthlyRentGenerationErrorMessage(error),
       status: "error",
     };
   }
@@ -518,8 +519,8 @@ function readLeaseMutationInput(formData: FormData) {
 }
 
 function readIdempotencyKey(formData: FormData) {
-  const candidate = readString(formData, "idempotencyKey").trim();
-  return candidate.length >= 8 ? candidate : crypto.randomUUID();
+  const parsed = parseIdempotencyKey(readString(formData, "idempotencyKey"));
+  return parsed.success ? parsed.data : null;
 }
 
 async function getLeasePathContext(
@@ -658,12 +659,18 @@ export async function createRentPolicyDraftAction(
     return { message: "Choose an effective date.", status: "error" };
   }
 
+  const idempotencyKey = readIdempotencyKey(formData);
+
+  if (!idempotencyKey) {
+    return { message: "Refresh the form and try again.", status: "error" };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: policyId, error } = await supabase.rpc(
     "create_rent_policy_draft",
     {
       p_effective_from: effectiveFrom.data,
-      p_idempotency_key: readIdempotencyKey(formData),
+      p_idempotency_key: idempotencyKey,
       p_organization_id: context.organizationId,
     },
   );
@@ -753,10 +760,22 @@ export async function updateRentPolicyDraftAction(
     };
   }
 
-  const defaultDueDay =
+  let defaultDueDay =
     parsed.data.policyDefaultDueDay.length === 0
       ? null
       : Number(parsed.data.policyDefaultDueDay);
+  if (parsed.data.dueDaySource === "term") {
+    defaultDueDay = null;
+  }
+  if (
+    parsed.data.dueDaySource === "policy_default" &&
+    defaultDueDay === null
+  ) {
+    return {
+      message: "Policy default due day must be from 1 to 31.",
+      status: "error",
+    };
+  }
   if (
     defaultDueDay !== null &&
     (!Number.isInteger(defaultDueDay) ||

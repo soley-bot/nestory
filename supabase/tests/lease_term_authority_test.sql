@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(17);
+SELECT plan(19);
 
 SELECT has_column(
   'public',
@@ -113,6 +113,24 @@ SELECT table_privs_are(
   'service_role',
   ARRAY['SELECT'],
   'service-role callers cannot bypass checked term mutations'
+);
+
+SELECT hasnt_table(
+  'app_private',
+  'lease_authority_idempotency_requests',
+  'lease authority reuses the shared Plan 03 financial idempotency kernel'
+);
+
+SELECT is(
+  position(
+    'test-fixture-v1' IN (
+      SELECT pg_get_functiondef(
+        'app_private.guard_checked_lease_creation()'::regprocedure
+      )
+    )
+  ),
+  0,
+  'lease creation guard has no fixture-only bypass context'
 );
 
 SELECT is(

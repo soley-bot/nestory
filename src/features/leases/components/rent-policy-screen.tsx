@@ -153,6 +153,9 @@ function CreateDraftForm() {
 }
 
 function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
+  const [dueDaySource, setDueDaySource] = useState(
+    draft.due_day_source ?? "",
+  );
   const [updateState, updateAction, updatePending] = useActionState(
     updateRentPolicyDraftAction,
     initialState,
@@ -211,19 +214,23 @@ function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
             defaultValue={draft.due_day_source}
             label="Due-day source"
             name="dueDaySource"
+            onValueChange={setDueDaySource}
             options={[
               ["term", "Lease term"],
               ["policy_default", "Policy default"],
             ]}
           />
-          <PolicyField label="Policy default due day (only if selected)">
-            <NumberInput
-              defaultValue={draft.policy_default_due_day ?? ""}
-              max="31"
-              min="1"
-              name="policyDefaultDueDay"
-            />
-          </PolicyField>
+          {dueDaySource === "policy_default" ? (
+            <PolicyField label="Policy default due day">
+              <NumberInput
+                defaultValue={draft.policy_default_due_day ?? ""}
+                max="31"
+                min="1"
+                name="policyDefaultDueDay"
+                required
+              />
+            </PolicyField>
+          ) : null}
           <PolicySelect
             defaultValue={draft.short_month_due_day_rule}
             label="Short-month due day"
@@ -331,11 +338,13 @@ function PolicySelect({
   defaultValue,
   label,
   name,
+  onValueChange,
   options,
 }: {
   defaultValue: string | null;
   label: string;
   name: string;
+  onValueChange?: (value: string) => void;
   options: Array<readonly [string, string]>;
 }) {
   return (
@@ -344,6 +353,7 @@ function PolicySelect({
         ariaLabel={label}
         defaultValue={defaultValue ?? ""}
         name={name}
+        onValueChange={onValueChange}
         options={[
           { label: "Resolve this rule", value: "" },
           ...options.map(([value, optionLabel]) => ({

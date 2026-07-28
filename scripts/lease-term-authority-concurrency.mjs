@@ -21,6 +21,7 @@ let sequence = 0;
 
 assertContainer();
 
+let proofError;
 try {
   cleanup();
   fixture();
@@ -38,10 +39,24 @@ try {
   process.stdout.write(
     "PASS lease-term authority: overlap and period-transition concurrency serialized correctly while unrelated properties remained concurrent.\n",
   );
+} catch (error) {
+  proofError = error;
 } finally {
   await stopProcesses();
-  cleanup();
+  try {
+    cleanup();
+  } catch (cleanupError) {
+    if (proofError) {
+      proofError = new AggregateError(
+        [proofError, cleanupError],
+        "Lease-term concurrency proof and cleanup both failed.",
+      );
+    } else {
+      throw cleanupError;
+    }
+  }
 }
+if (proofError) throw proofError;
 
 async function proveConcurrentOverlapFailsClosed() {
   const first = startPsql(
@@ -284,7 +299,6 @@ VALUES (
 );
 INSERT INTO public.person_roles(organization_id, person_id, role)
 VALUES ('${ids.organization}'::uuid, '${ids.tenant}'::uuid, 'tenant');
-SELECT set_config('app.lease_creation_context', 'test-fixture-v1', true);
 INSERT INTO public.leases(
   id, organization_id, property_id, unit_id, primary_tenant_person_id,
   tenant_name, lease_start_date, lease_end_date, monthly_rent_amount,
@@ -317,7 +331,6 @@ VALUES
   'USD',
   'active'
 );
-SELECT set_config('app.lease_creation_context', 'off', true);
 COMMIT;`);
 }
 
@@ -401,6 +414,9 @@ function startPsql(sql, holdOpen = false) {
   };
   child.stdout.on("data", append);
   child.stderr.on("data", append);
+  child.stdin.on("error", (error) => {
+    append(`stdin error: ${error.message}\n`);
+  });
 
   const result = new Promise((resolve) => {
     child.on("error", (error) => append(`spawn error: ${error.message}\n`));
@@ -476,7 +492,7 @@ DELETE FROM public.activity_logs
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.ledger_period_locks
 WHERE organization_id = '${ids.organization}'::uuid;
-DELETE FROM app_private.lease_authority_idempotency_requests
+DELETE FROM app_private.financial_idempotency_requests
 WHERE organization_id = '${ids.organization}'::uuid;
 ALTER TABLE public.property_reporting_periods
   DISABLE TRIGGER enforce_property_period_mutation_context;
@@ -513,8 +529,11 @@ function runSql(sql) {
       "-d",
       "postgres",
     ],
-    { encoding: "utf8", input: sql },
+    { encoding: "utf8", input: sql, timeout: timeoutMs },
   );
+  if (result.error) {
+    throw result.error;
+  }
   if ((result.status ?? 1) !== 0) {
     throw new Error(`${result.stdout ?? ""}${result.stderr ?? ""}`);
   }
@@ -537,8 +556,11 @@ function queryScalar(sql) {
       "-Atc",
       sql,
     ],
-    { encoding: "utf8" },
+    { encoding: "utf8", timeout: timeoutMs },
   );
+  if (result.error) {
+    throw result.error;
+  }
   if ((result.status ?? 1) !== 0) {
     throw new Error(`${result.stdout ?? ""}${result.stderr ?? ""}`);
   }
@@ -549,8 +571,11 @@ function assertContainer() {
   const result = spawnSync(
     "docker",
     ["inspect", "--format", "{{.State.Running}}", container],
-    { encoding: "utf8" },
+    { encoding: "utf8", timeout: timeoutMs },
   );
+  if (result.error) {
+    throw result.error;
+  }
   if ((result.status ?? 1) !== 0 || result.stdout.trim() !== "true") {
     throw new Error(`Local Supabase container ${container} is not running.`);
   }

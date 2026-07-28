@@ -306,12 +306,6 @@ function buildImportTemplateRows(
           "",
           "",
           "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
           "Active",
           "",
           "",
@@ -815,12 +809,13 @@ function buildLeasePreviewRow({
   const rent = parseMoney(readMappedValue(record.raw, mapping.monthlyRentAmount));
   const rentDueDayValue = readMappedValue(record.raw, mapping.rentDueDay);
   const rentDueDay = Number(rentDueDayValue);
-  const paymentFrequency = normalizePaymentFrequency(
-    readMappedValue(record.raw, mapping.paymentFrequency),
+  const paymentFrequencyValue = readMappedValue(
+    record.raw,
+    mapping.paymentFrequency,
   );
-  const termStatus = normalizeTermStatus(
-    readMappedValue(record.raw, mapping.termStatus),
-  );
+  const paymentFrequency = normalizePaymentFrequency(paymentFrequencyValue);
+  const termStatusValue = readMappedValue(record.raw, mapping.termStatus);
+  const termStatus = normalizeTermStatus(termStatusValue);
   const deposit = parseOptionalMoney(readMappedValue(record.raw, mapping.depositAmount));
   const status = normalizeLeaseStatus(readMappedValue(record.raw, mapping.status));
   const openOccupancy =
@@ -840,10 +835,10 @@ function buildLeasePreviewRow({
   requireValue(
     issues,
     mapping.paymentFrequency,
-    paymentFrequency ?? "",
+    paymentFrequencyValue,
     "Payment frequency",
   );
-  requireValue(issues, mapping.termStatus, termStatus ?? "", "Term status");
+  requireValue(issues, mapping.termStatus, termStatusValue, "Term status");
 
   if (propertyInput && !property) {
     issues.push({
@@ -1138,32 +1133,30 @@ function normalizeLeaseStatus(value: string) {
   return null;
 }
 
+const paymentFrequencies = [
+  "monthly",
+  "quarterly",
+  "semi_annual",
+  "annual",
+  "one_time",
+] as const;
+
 function normalizePaymentFrequency(value: string) {
   const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
-
-  if (
-    ["monthly", "quarterly", "semi_annual", "annual", "one_time"].includes(
-      normalized,
-    )
-  ) {
-    return normalized;
-  }
-
-  return null;
+  return paymentFrequencies.find((frequency) => frequency === normalized) ?? null;
 }
+
+const termStatuses = [
+  "active",
+  "upcoming",
+  "draft",
+  "expired",
+  "terminated",
+] as const;
 
 function normalizeTermStatus(value: string) {
   const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
-
-  if (
-    ["active", "upcoming", "draft", "expired", "terminated"].includes(
-      normalized,
-    )
-  ) {
-    return normalized;
-  }
-
-  return null;
+  return termStatuses.find((status) => status === normalized) ?? null;
 }
 
 function parseRoles(value: string) {

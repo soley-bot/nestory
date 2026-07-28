@@ -182,29 +182,33 @@ export function buildLeaseSummary({
     ) ??
     terms.find((term) => !term.archived_at && term.status !== "superseded") ??
     null;
+  const authoritativeFormTerm =
+    formTerm?.authority_kind === "authoritative" ? formTerm : null;
   const formValues: LeaseFormValues = {
     depositAmount,
     depositCurrency: lease.deposit_currency,
-    leaseEndDate: lease.lease_end_date,
-    leaseStartDate: lease.lease_start_date,
-    monthlyRentAmount: rentAmount,
-    monthlyRentCurrency: rentCurrency,
-    paymentFrequency: formTerm?.payment_frequency
-      ? (formTerm.payment_frequency as LeaseFormValues["paymentFrequency"])
-      : null,
+    leaseEndDate: authoritativeFormTerm?.end_date ?? lease.lease_end_date,
+    leaseStartDate:
+      authoritativeFormTerm?.start_date ?? lease.lease_start_date,
+    monthlyRentAmount: authoritativeFormTerm
+      ? Number(authoritativeFormTerm.rent_amount)
+      : rentAmount,
+    monthlyRentCurrency:
+      authoritativeFormTerm?.rent_currency ?? rentCurrency,
+    paymentFrequency:
+      authoritativeFormTerm?.payment_frequency &&
+      isLeasePaymentFrequency(authoritativeFormTerm.payment_frequency)
+        ? authoritativeFormTerm.payment_frequency
+        : null,
     propertyId: lease.property_id,
-    rentDueDay: formTerm?.rent_due_day ?? null,
+    rentDueDay: authoritativeFormTerm?.rent_due_day ?? null,
     status: statusValue,
     tenantPersonId: lease.primary_tenant_person_id ?? "",
     tenantName: lease.tenant_name,
     termStatus:
-      formTerm?.authority_kind === "authoritative" &&
-      (formTerm.status === "active" ||
-        formTerm.status === "draft" ||
-        formTerm.status === "expired" ||
-        formTerm.status === "terminated" ||
-        formTerm.status === "upcoming")
-        ? (formTerm.status as LeaseFormValues["termStatus"])
+      authoritativeFormTerm &&
+      isLeaseTermStatus(authoritativeFormTerm.status)
+        ? authoritativeFormTerm.status
         : null,
     unitId: lease.unit_id,
   };
@@ -422,9 +426,11 @@ function toTermContext(term: LeaseTermRow): LeaseTermContext {
       : "Due day missing",
     endDate: term.end_date,
     id: term.id,
-    paymentFrequency: term.payment_frequency
-      ? (term.payment_frequency as LeaseTermContext["paymentFrequency"])
-      : null,
+    paymentFrequency:
+      term.payment_frequency &&
+      isLeasePaymentFrequency(term.payment_frequency)
+        ? term.payment_frequency
+        : null,
     paymentFrequencyLabel: term.payment_frequency
       ? formatStoredLabel(term.payment_frequency)
       : "Frequency missing",
@@ -434,7 +440,7 @@ function toTermContext(term: LeaseTermRow): LeaseTermContext {
     rentDisplay: formatMoneyDisplay(term.rent_amount, term.rent_currency),
     rentLabel: formatMoney(term.rent_amount, term.rent_currency),
     startDate: term.start_date,
-    status: term.status as LeaseTermContext["status"],
+    status: isLeaseTermContextStatus(term.status) ? term.status : "draft",
     statusLabel: formatStoredLabel(term.status),
   };
 }
@@ -442,7 +448,7 @@ function toTermContext(term: LeaseTermRow): LeaseTermContext {
 function toRentReadiness(
   readiness?: LeaseReadinessRow | null,
 ): LeaseRentReadiness {
-  const status = readiness?.readiness_status ?? "blocked";
+  const status = readiness?.readiness_status ?? "unknown";
   const reasonCode = readiness?.reason_code ?? "readiness_not_checked";
   const labels: Record<string, string> = {
     blocked: "Rent blocked",
@@ -450,6 +456,19 @@ function toRentReadiness(
     missing_due_day: "Due day missing",
     policy_unapproved: "Policy unapproved",
     ready: "Rent ready",
+    unknown: "Readiness not checked",
+    term_conflict: "Term conflict",
+    unsupported_frequency: "Frequency unsupported",
+    inactive_lease: "Lease inactive",
+  };
+  const reasonLabels: Record<string, string> = {
+    inactive_lease: "Lease inactive",
+    legacy_unconfirmed: "Legacy term unconfirmed",
+    missing_due_day: "Due day missing",
+    no_authoritative_term: "Authoritative term missing",
+    policy_not_effective: "Policy not effective",
+    policy_unapproved: "Policy unapproved",
+    scope_mismatch: "Lease scope mismatch",
     term_conflict: "Term conflict",
     unsupported_frequency: "Frequency unsupported",
   };
@@ -463,10 +482,14 @@ function toRentReadiness(
     scope_mismatch: "Repair the lease, property, and unit scope.",
     term_conflict: "Resolve overlapping authoritative terms.",
     unsupported_frequency: "Approve the frequency or replace the term.",
+    inactive_lease: "Restore the lease or close its active term.",
   };
 
   return {
-    label: labels[status] ?? "Rent blocked",
+    label:
+      status === "unknown"
+        ? labels.unknown
+        : reasonLabels[reasonCode] ?? labels[status] ?? "Rent blocked",
     policyId: readiness?.policy_id ?? undefined,
     reasonCode,
     repairLabel: repairs[reasonCode] ?? "Review rent authority.",
@@ -477,8 +500,40 @@ function toRentReadiness(
         ? "success"
         : status === "blocked" || status === "term_conflict"
           ? "danger"
-          : "warning",
+          : status === "unknown"
+            ? "neutral"
+            : "warning",
   };
+}
+
+function isLeaseTermStatus(
+  value: string,
+): value is LeaseFormValues["termStatus"] & string {
+  return (
+    value === "active" ||
+    value === "draft" ||
+    value === "expired" ||
+    value === "terminated" ||
+    value === "upcoming"
+  );
+}
+
+function isLeasePaymentFrequency(
+  value: string,
+): value is NonNullable<LeaseFormValues["paymentFrequency"]> {
+  return (
+    value === "annual" ||
+    value === "monthly" ||
+    value === "one_time" ||
+    value === "quarterly" ||
+    value === "semi_annual"
+  );
+}
+
+function isLeaseTermContextStatus(
+  value: string,
+): value is LeaseTermContext["status"] {
+  return isLeaseTermStatus(value) || value === "superseded";
 }
 
 function toOccupancyContext(

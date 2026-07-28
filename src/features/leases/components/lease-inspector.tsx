@@ -62,6 +62,7 @@ export function LeaseInspector({
   );
   const scheduleIdempotencyKey = [
     scheduleIdempotencySeed,
+    lease.id,
     activeAuthoritativeTerm?.endDate ?? "no-active-term",
     authoritativeTerms.length,
   ].join(":");
@@ -155,7 +156,11 @@ export function LeaseInspector({
               The active term keeps its identity. Only its unused future range
               is shortened when the upcoming term is saved.
             </p>
-            <form action={scheduleFutureTerm} className="mt-3 grid gap-3">
+            <form
+              action={scheduleFutureTerm}
+              className="mt-3 grid gap-3"
+              key={`${lease.id}:${activeAuthoritativeTerm.id}`}
+            >
               <input name="leaseId" type="hidden" value={lease.id} />
               <input
                 name="supersedesTermId"

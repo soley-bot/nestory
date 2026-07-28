@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(42);
+SELECT plan(49);
 
 CREATE TEMP TABLE lease_authority_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -20,7 +20,9 @@ CREATE TEMP TABLE lease_authority_state (
   lease_id uuid NOT NULL DEFAULT gen_random_uuid(),
   import_run_id uuid NOT NULL DEFAULT gen_random_uuid(),
   incomplete_import_run_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  oversized_import_run_id uuid NOT NULL DEFAULT gen_random_uuid(),
   policy_id uuid,
+  past_policy_id uuid,
   term_id uuid,
   scheduled_term_id uuid,
   created_lease_id uuid
@@ -168,7 +170,6 @@ INSERT INTO public.person_roles(organization_id, person_id, role)
 SELECT organization_id, tenant_id, 'tenant'
 FROM lease_authority_state;
 
-SELECT set_config('app.lease_creation_context', 'test-fixture-v1', true);
 
 INSERT INTO public.leases(
   id, organization_id, property_id, unit_id, primary_tenant_person_id,
@@ -191,7 +192,6 @@ SELECT
   'active'
 FROM lease_authority_state;
 
-SELECT set_config('app.lease_creation_context', 'off', true);
 
 SELECT is(
   (
@@ -295,6 +295,41 @@ SELECT lives_ok(
   'complete policy can be approved'
 );
 
+UPDATE lease_authority_state
+SET past_policy_id = public.create_rent_policy_draft(
+  organization_id,
+  current_date - 1,
+  'rent-policy-past-draft-0001'
+);
+
+SELECT public.update_rent_policy_draft(
+  (SELECT organization_id FROM lease_authority_state),
+  (SELECT past_policy_id FROM lease_authority_state),
+  ARRAY['monthly']::text[],
+  'Asia/Bangkok',
+  'term',
+  NULL,
+  'last_calendar_day',
+  'actual_days',
+  'actual_days',
+  'through_lease_end',
+  'prorate_actual_days',
+  'unsupported',
+  'unsupported',
+  'unsupported'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.approve_rent_policy_version(%L,%L)',
+    (SELECT organization_id FROM lease_authority_state),
+    (SELECT past_policy_id FROM lease_authority_state)
+  ),
+  '22023',
+  'Rent policy effective date cannot be in the past',
+  'policy approval rejects an unbounded historical lock window'
+);
+
 SELECT lives_ok(
   format(
     'UPDATE lease_authority_state SET created_lease_id = public.create_lease_with_authoritative_term(%L,%L,%L,%L,current_date - 10,current_date + 355,900,%L,12,%L,%L,NULL,NULL,%L,%L)',
@@ -342,6 +377,76 @@ SELECT results_eq(
   $$VALUES ('ready'::text, 'ready'::text)$$,
   'checked lease creation is ready against the approved policy'
 );
+
+SELECT public.set_ledger_period_lock(
+  (SELECT organization_id FROM lease_authority_state),
+  date_trunc('month', current_date)::date,
+  true,
+  'Metadata-only lease edit proof'
+);
+
+SELECT lives_ok(
+  format(
+    'SELECT public.update_lease_with_authoritative_term(%L,%L,%L,%L,%L,current_date - 10,current_date + 355,900,%L,12,%L,%L,100,%L,%L,%L)',
+    (SELECT created_lease_id FROM lease_authority_state),
+    (SELECT organization_id FROM lease_authority_state),
+    (SELECT property_id FROM lease_authority_state),
+    (SELECT second_unit_id FROM lease_authority_state),
+    (SELECT tenant_id FROM lease_authority_state),
+    'USD',
+    'monthly',
+    'active',
+    'USD',
+    'active',
+    'lease-metadata-only-update-0001'
+  ),
+  'metadata-only lease edits do not acquire economic-period locks'
+);
+
+SELECT public.set_ledger_period_lock(
+  (SELECT organization_id FROM lease_authority_state),
+  date_trunc('month', current_date)::date,
+  false,
+  'Metadata-only lease edit proof complete'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.update_lease_with_authoritative_term(%L,%L,%L,%L,%L,current_date - 10,current_date + 355,900,%L,12,%L,%L,100,%L,%L,%L)',
+    (SELECT created_lease_id FROM lease_authority_state),
+    (SELECT organization_id FROM lease_authority_state),
+    (SELECT property_id FROM lease_authority_state),
+    (SELECT second_unit_id FROM lease_authority_state),
+    (SELECT tenant_id FROM lease_authority_state),
+    'USD',
+    'monthly',
+    'active',
+    'USD',
+    'ended',
+    'lease-invalid-inactive-update-0001'
+  ),
+  '23514',
+  'An inactive lease cannot retain an active or upcoming authoritative term',
+  'lease lifecycle cannot become inactive while its authority remains active'
+);
+
+UPDATE public.leases
+SET status = 'ended'
+WHERE id = (SELECT created_lease_id FROM lease_authority_state);
+
+SELECT results_eq(
+  format(
+    'SELECT readiness_status,reason_code FROM public.resolve_lease_rent_readiness(%L,%L,current_date)',
+    (SELECT organization_id FROM lease_authority_state),
+    (SELECT created_lease_id FROM lease_authority_state)
+  ),
+  $$VALUES ('blocked'::text, 'inactive_lease'::text)$$,
+  'pre-existing inactive leases fail closed even if an active term remains'
+);
+
+UPDATE public.leases
+SET status = 'active'
+WHERE id = (SELECT created_lease_id FROM lease_authority_state);
 
 SELECT is(
   public.create_lease_with_authoritative_term(
@@ -569,7 +674,7 @@ SELECT throws_ok(
     'lease-term-create-0001'
   ),
   '22023',
-  'Conflicting lease authority idempotency request',
+  'Conflicting financial idempotency request',
   'payload-changed retry fails closed'
 );
 
@@ -645,6 +750,15 @@ SELECT
   'incomplete-lease-import.csv',
   1,
   1
+FROM lease_authority_state
+UNION ALL
+SELECT
+  oversized_import_run_id,
+  organization_id,
+  'leases',
+  'oversized-lease-import.csv',
+  251,
+  251
 FROM lease_authority_state;
 
 INSERT INTO public.import_rows(
@@ -693,6 +807,35 @@ SELECT
     'status', 'active'
   )
 FROM lease_authority_state;
+
+INSERT INTO public.import_rows(
+  import_run_id,
+  organization_id,
+  source_row_number,
+  row_status,
+  action_label,
+  normalized_data
+)
+SELECT
+  state.oversized_import_run_id,
+  state.organization_id,
+  row_number,
+  'ready',
+  'Create',
+  '{}'::jsonb
+FROM lease_authority_state AS state
+CROSS JOIN generate_series(1, 251) AS rows(row_number);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.commit_generic_import_run(%L,%L)',
+    (SELECT oversized_import_run_id FROM lease_authority_state),
+    (SELECT organization_id FROM lease_authority_state)
+  ),
+  '54000',
+  'Lease import runs are limited to 250 commit-ready rows',
+  'lease import commit bounds advisory-lock work per transaction'
+);
 
 SELECT lives_ok(
   format(
@@ -768,6 +911,37 @@ SELECT throws_ok(
   '42501',
   'Not authorized',
   'manager cannot mutate lease-term authority'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.correct_authoritative_lease_term(%L,%L,%L,current_date,current_date + 30,1000,%L,10,%L,%L,%L)',
+    (SELECT organization_id FROM lease_authority_state),
+    (SELECT lease_id FROM lease_authority_state),
+    (SELECT term_id FROM lease_authority_state),
+    'USD',
+    'monthly',
+    'draft',
+    'manager-term-correct-0001'
+  ),
+  '42501',
+  'Not authorized',
+  'manager cannot correct authoritative terms'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.confirm_legacy_lease_term(%L,%L,%L,10,%L,%L,%L)',
+    (SELECT organization_id FROM lease_authority_state),
+    (SELECT lease_id FROM lease_authority_state),
+    (SELECT term_id FROM lease_authority_state),
+    'monthly',
+    'active',
+    'manager-term-confirm-0001'
+  ),
+  '42501',
+  'Not authorized',
+  'manager cannot confirm legacy terms'
 );
 
 RESET ROLE;
