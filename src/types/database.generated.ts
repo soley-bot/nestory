@@ -1873,8 +1873,12 @@ export type Database = {
         Row: {
           archived_at: string | null
           archived_by: string | null
+          authority_kind: string
+          confirmed_at: string | null
+          confirmed_by: string | null
           created_at: string
           created_by: string | null
+          effective_range: unknown
           end_date: string
           id: string
           lease_id: string
@@ -1886,6 +1890,7 @@ export type Database = {
           rent_due_day: number | null
           start_date: string
           status: string
+          supersedes_term_id: string | null
           term_sequence: number
           updated_at: string
           updated_by: string | null
@@ -1893,8 +1898,12 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           archived_by?: string | null
+          authority_kind?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           created_by?: string | null
+          effective_range?: unknown
           end_date: string
           id?: string
           lease_id: string
@@ -1906,6 +1915,7 @@ export type Database = {
           rent_due_day?: number | null
           start_date: string
           status?: string
+          supersedes_term_id?: string | null
           term_sequence: number
           updated_at?: string
           updated_by?: string | null
@@ -1913,8 +1923,12 @@ export type Database = {
         Update: {
           archived_at?: string | null
           archived_by?: string | null
+          authority_kind?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           created_by?: string | null
+          effective_range?: unknown
           end_date?: string
           id?: string
           lease_id?: string
@@ -1926,6 +1940,7 @@ export type Database = {
           rent_due_day?: number | null
           start_date?: string
           status?: string
+          supersedes_term_id?: string | null
           term_sequence?: number
           updated_at?: string
           updated_by?: string | null
@@ -1944,6 +1959,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_terms_supersedes_term_fk"
+            columns: ["organization_id", "lease_id", "supersedes_term_id"]
+            isOneToOne: false
+            referencedRelation: "lease_terms"
+            referencedColumns: ["organization_id", "lease_id", "id"]
           },
         ]
       }
@@ -3285,6 +3307,114 @@ export type Database = {
         }
         Relationships: []
       }
+      rent_policy_versions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          concessions_support_state: string | null
+          created_at: string
+          created_by: string | null
+          due_day_source: string | null
+          effective_from: string
+          id: string
+          lease_end_proration_rule: string | null
+          lease_start_proration_rule: string | null
+          lifecycle: string
+          mid_period_rent_change_rule: string | null
+          notice_period_charging_rule: string | null
+          organization_id: string
+          policy_default_due_day: number | null
+          rent_calculation_timezone: string | null
+          rent_free_support_state: string | null
+          retired_at: string | null
+          retired_by: string | null
+          short_month_due_day_rule: string | null
+          superseded_at: string | null
+          superseded_by: string | null
+          supersedes_policy_id: string | null
+          supported_frequencies: string[] | null
+          updated_at: string
+          updated_by: string | null
+          version_number: number
+          waivers_support_state: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          concessions_support_state?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_day_source?: string | null
+          effective_from: string
+          id?: string
+          lease_end_proration_rule?: string | null
+          lease_start_proration_rule?: string | null
+          lifecycle?: string
+          mid_period_rent_change_rule?: string | null
+          notice_period_charging_rule?: string | null
+          organization_id: string
+          policy_default_due_day?: number | null
+          rent_calculation_timezone?: string | null
+          rent_free_support_state?: string | null
+          retired_at?: string | null
+          retired_by?: string | null
+          short_month_due_day_rule?: string | null
+          superseded_at?: string | null
+          superseded_by?: string | null
+          supersedes_policy_id?: string | null
+          supported_frequencies?: string[] | null
+          updated_at?: string
+          updated_by?: string | null
+          version_number: number
+          waivers_support_state?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          concessions_support_state?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_day_source?: string | null
+          effective_from?: string
+          id?: string
+          lease_end_proration_rule?: string | null
+          lease_start_proration_rule?: string | null
+          lifecycle?: string
+          mid_period_rent_change_rule?: string | null
+          notice_period_charging_rule?: string | null
+          organization_id?: string
+          policy_default_due_day?: number | null
+          rent_calculation_timezone?: string | null
+          rent_free_support_state?: string | null
+          retired_at?: string | null
+          retired_by?: string | null
+          short_month_due_day_rule?: string | null
+          superseded_at?: string | null
+          superseded_by?: string | null
+          supersedes_policy_id?: string | null
+          supported_frequencies?: string[] | null
+          updated_at?: string
+          updated_by?: string | null
+          version_number?: number
+          waivers_support_state?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_policy_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_policy_versions_supersedes_fk"
+            columns: ["organization_id", "supersedes_policy_id"]
+            isOneToOne: false
+            referencedRelation: "rent_policy_versions"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           actual_cost_amount: number | null
@@ -3807,6 +3937,10 @@ export type Database = {
         Args: { p_invitation_id: string }
         Returns: string
       }
+      approve_rent_policy_version: {
+        Args: { p_organization_id: string; p_policy_id: string }
+        Returns: string
+      }
       archive_asset_photo: {
         Args: { p_organization_id: string; p_photo_id: string }
         Returns: string
@@ -3860,9 +3994,41 @@ export type Database = {
         Args: { p_import_run_id: string; p_organization_id: string }
         Returns: Json
       }
+      commit_generic_import_run_legacy_unchecked: {
+        Args: { p_import_run_id: string; p_organization_id: string }
+        Returns: Json
+      }
       commit_unit_import_run: {
         Args: { p_import_run_id: string; p_organization_id: string }
         Returns: Json
+      }
+      confirm_legacy_lease_term: {
+        Args: {
+          p_idempotency_key: string
+          p_lease_id: string
+          p_legacy_term_id: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_rent_due_day: number
+          p_status: string
+        }
+        Returns: string
+      }
+      correct_authoritative_lease_term: {
+        Args: {
+          p_end_date: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_start_date: string
+          p_status: string
+          p_term_id: string
+        }
+        Returns: string
       }
       create_asset_photo: {
         Args: {
@@ -3876,6 +4042,22 @@ export type Database = {
           p_storage_path: string
           p_taken_at?: string
           p_unit_id: string
+        }
+        Returns: string
+      }
+      create_authoritative_lease_term: {
+        Args: {
+          p_end_date: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_start_date: string
+          p_status: string
+          p_supersedes_term_id: string
         }
         Returns: string
       }
@@ -3967,6 +4149,26 @@ export type Database = {
           p_primary_tenant_person_id: string
           p_property_id: string
           p_status: string
+          p_unit_id: string
+        }
+        Returns: string
+      }
+      create_lease_with_authoritative_term: {
+        Args: {
+          p_deposit_amount: number
+          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
+          p_idempotency_key: string
+          p_lease_end_date: string
+          p_lease_start_date: string
+          p_lease_status: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_term_status: string
           p_unit_id: string
         }
         Returns: string
@@ -4102,6 +4304,14 @@ export type Database = {
         }
         Returns: string
       }
+      create_rent_policy_draft: {
+        Args: {
+          p_effective_from: string
+          p_idempotency_key: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
       create_timeline_event: {
         Args: {
           p_cost_amount: number
@@ -4150,6 +4360,10 @@ export type Database = {
         Returns: string
       }
       generate_monthly_rent_income_items: {
+        Args: { p_month?: string; p_organization_id: string }
+        Returns: number
+      }
+      generate_monthly_rent_income_items_legacy_unchecked: {
         Args: { p_month?: string; p_organization_id: string }
         Returns: number
       }
@@ -4475,6 +4689,54 @@ export type Database = {
         Args: { p_member_id: string; p_organization_id: string }
         Returns: string
       }
+      resolve_authoritative_lease_term: {
+        Args: {
+          p_effective_date: string
+          p_lease_id: string
+          p_organization_id: string
+        }
+        Returns: {
+          blocker_code: string
+          effective_range: unknown
+          end_date: string
+          lease_id: string
+          organization_id: string
+          payment_frequency: string
+          property_id: string
+          rent_amount: number
+          rent_currency: Database["public"]["Enums"]["currency_code"]
+          rent_due_day: number
+          resolution_status: string
+          start_date: string
+          term_id: string
+          term_sequence: number
+          unit_id: string
+        }[]
+      }
+      resolve_lease_rent_readiness: {
+        Args: {
+          p_effective_date: string
+          p_lease_id: string
+          p_organization_id: string
+        }
+        Returns: {
+          effective_date: string
+          lease_id: string
+          organization_id: string
+          payment_frequency: string
+          policy_id: string
+          policy_version: number
+          property_id: string
+          readiness_status: string
+          reason_code: string
+          rent_amount: number
+          rent_currency: Database["public"]["Enums"]["currency_code"]
+          rent_due_day: number
+          repair_context: Json
+          term_id: string
+          unit_id: string
+        }[]
+      }
       restore_document: {
         Args: { p_document_id: string; p_organization_id: string }
         Returns: string
@@ -4556,6 +4818,21 @@ export type Database = {
         Args: { p_invitation_id: string }
         Returns: string
       }
+      schedule_authoritative_lease_term: {
+        Args: {
+          p_end_date: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_start_date: string
+          p_supersedes_term_id: string
+        }
+        Returns: string
+      }
       set_accounting_period_lock: {
         Args: {
           p_book_id: string
@@ -4584,6 +4861,16 @@ export type Database = {
           p_organization_id: string
           p_period_start: string
           p_reason: string
+        }
+        Returns: string
+      }
+      terminate_authoritative_lease_term: {
+        Args: {
+          p_effective_date: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+          p_term_id: string
         }
         Returns: string
       }
@@ -4625,6 +4912,27 @@ export type Database = {
           p_primary_tenant_person_id: string
           p_property_id: string
           p_status: string
+          p_unit_id: string
+        }
+        Returns: string
+      }
+      update_lease_with_authoritative_term: {
+        Args: {
+          p_deposit_amount: number
+          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
+          p_idempotency_key: string
+          p_lease_end_date: string
+          p_lease_id: string
+          p_lease_start_date: string
+          p_lease_status: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_term_status: string
           p_unit_id: string
         }
         Returns: string
@@ -4735,6 +5043,25 @@ export type Database = {
           p_property_id: string
           p_property_type: string
           p_status: string
+        }
+        Returns: string
+      }
+      update_rent_policy_draft: {
+        Args: {
+          p_concessions_support_state: string
+          p_due_day_source: string
+          p_lease_end_proration_rule: string
+          p_lease_start_proration_rule: string
+          p_mid_period_rent_change_rule: string
+          p_notice_period_charging_rule: string
+          p_organization_id: string
+          p_policy_default_due_day: number
+          p_policy_id: string
+          p_rent_calculation_timezone: string
+          p_rent_free_support_state: string
+          p_short_month_due_day_rule: string
+          p_supported_frequencies: string[]
+          p_waivers_support_state: string
         }
         Returns: string
       }

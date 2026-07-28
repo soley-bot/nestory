@@ -166,6 +166,7 @@ INSERT INTO public.property_owners (
 SELECT organization_id, property_id, owner_id, 100, true, '2026-01-01'
 FROM property_cash_events_test_state;
 
+
 INSERT INTO public.leases (
   id, organization_id, property_id, unit_id, primary_tenant_person_id,
   tenant_name, lease_start_date, lease_end_date, monthly_rent_amount,

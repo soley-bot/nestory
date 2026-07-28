@@ -2001,6 +2001,78 @@
     }
   },
   {
+    "route": "/settings/rent-policy",
+    "source": "src/app/(dashboard)/settings/rent-policy/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/settings/rent-policy",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
     "route": "/users-roles",
     "source": "src/app/(dashboard)/users-roles/page.tsx",
     "phase": 4,

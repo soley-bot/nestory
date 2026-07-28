@@ -1,13 +1,15 @@
 # UI Redesign Verification Evidence
 
-Generated from `config/ui-route-coverage.json` on 2026-07-24T06:38:35.530Z.
-Browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
+Baseline generated from `config/ui-route-coverage.json` on
+2026-07-24T06:38:35.530Z. Plan 04 adds the focused rent-policy route evidence
+recorded below.
+Baseline browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
 
 ## Verdict
 
-- 159 admin route/viewport captures completed across desktop, compact desktop, and phone.
-- 159 manager, member, and anonymous access checks matched the manifest.
-- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: 9.
+- 159 baseline admin route/viewport captures plus 3 focused Plan 04 captures completed across desktop, compact desktop, and phone.
+- 159 baseline access checks plus 3 focused Plan 04 role checks matched the manifest.
+- The baseline recorded 9 serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, or query-contract failures. The focused Plan 04 route recorded none.
 - Local fixture evidence only; this is not hosted production certification.
 
 ## Route matrix
@@ -70,6 +72,8 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
 | /people-reports | /people-reports?report=staff-access&archiveState=archived | /reports/people-readiness?peopleView=staff&archiveState=archived | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-preserved | None |
 <!-- route-evidence:/settings -->
 | /settings | /settings | /settings | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | None |
+<!-- route-evidence:/settings/rent-policy -->
+| /settings/rent-policy | /settings/rent-policy | /settings/rent-policy | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | Local disposable stack: incomplete approval blocked, complete policy approved, Manager/Member denied, and no overflow at 1440x900, 1024x768, or 390x844. |
 <!-- route-evidence:/users-roles -->
 | /users-roles | /users-roles | /users-roles | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
 <!-- route-evidence:/account -->

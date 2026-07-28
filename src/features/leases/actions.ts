@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  getMonthlyRentGenerationErrorMessage,
+  parseFutureRentTermInput,
+  parseIdempotencyKey,
+} from "@/features/leases/lease-action-input";
 
 type LeaseFieldErrors = {
   amount?: string[];
@@ -15,9 +20,12 @@ type LeaseFieldErrors = {
   leaseId?: string[];
   leaseStartDate?: string[];
   monthlyRentAmount?: string[];
+  paymentFrequency?: string[];
   propertyId?: string[];
+  rentDueDay?: string[];
   status?: string[];
   tenantPersonId?: string[];
+  termStatus?: string[];
   unitId?: string[];
 };
 
@@ -25,6 +33,13 @@ export type LeaseActionState = {
   fieldErrors?: LeaseFieldErrors;
   leaseId?: string;
   message?: string;
+  status?: "error" | "success";
+  termId?: string;
+};
+
+export type RentPolicyActionState = {
+  message?: string;
+  policyId?: string;
   status?: "error" | "success";
 };
 
@@ -38,6 +53,20 @@ const leaseStatusSchema = z.enum([
 ]);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date.");
 const leaseIdSchema = z.uuid("Choose a lease.");
+const paymentFrequencySchema = z.enum([
+  "annual",
+  "monthly",
+  "one_time",
+  "quarterly",
+  "semi_annual",
+]);
+const termStatusSchema = z.enum([
+  "active",
+  "draft",
+  "expired",
+  "terminated",
+  "upcoming",
+]);
 const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "applied", "retained", "refunded"]), leaseDepositId: z.uuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
 
 const leaseMutationSchema = z
@@ -46,16 +75,19 @@ const leaseMutationSchema = z
     leaseEndDate: dateSchema,
     leaseStartDate: dateSchema,
     monthlyRentAmount: z.string().trim(),
+    paymentFrequency: paymentFrequencySchema,
     propertyId: z.uuid("Choose a property."),
+    rentDueDay: z.string().trim(),
     status: leaseStatusSchema,
     tenantPersonId: z.uuid("Choose a tenant."),
+    termStatus: termStatusSchema,
     unitId: z.string().trim(),
   })
   .superRefine((data, context) => {
-    if (data.unitId.length > 0 && !z.uuid().safeParse(data.unitId).success) {
+    if (!z.uuid().safeParse(data.unitId).success) {
       context.addIssue({
         code: "custom",
-        message: "Choose a valid unit.",
+        message: "Choose a unit. Authoritative rent terms require one unit.",
         path: ["unitId"],
       });
     }
@@ -67,6 +99,20 @@ const leaseMutationSchema = z
         code: "custom",
         message: "Enter a valid non-negative rent amount.",
         path: ["monthlyRentAmount"],
+      });
+    }
+
+    const rentDueDay = Number(data.rentDueDay);
+
+    if (
+      !Number.isInteger(rentDueDay) ||
+      rentDueDay < 1 ||
+      rentDueDay > 31
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter a due day from 1 to 31.",
+        path: ["rentDueDay"],
       });
     }
 
@@ -109,26 +155,31 @@ function nullableNumber(value: string) {
   return value.length > 0 ? Number(value) : null;
 }
 
-function nullableUuid(value: string) {
-  return value.length > 0 ? value : null;
-}
-
-function leaseRpcPayload(
+function leaseAuthorityRpcPayload(
   organizationId: string,
   values: z.infer<typeof leaseMutationSchema>,
+  idempotencyKey: string,
 ) {
   return {
-    p_deposit_amount: nullableNumber(values.depositAmount),
-    p_deposit_currency: values.depositAmount.length > 0 ? "USD" : null,
+    // Supabase's generated RPC signature cannot express nullable SQL
+    // parameters, but the database contract intentionally accepts NULL here.
+    p_deposit_amount: nullableNumber(values.depositAmount) as number,
+    p_deposit_currency: (
+      values.depositAmount.length > 0 ? "USD" : null
+    ) as "USD",
+    p_idempotency_key: idempotencyKey,
     p_lease_end_date: values.leaseEndDate,
     p_lease_start_date: values.leaseStartDate,
-    p_monthly_rent_amount: Number(values.monthlyRentAmount),
-    p_monthly_rent_currency: "USD",
+    p_lease_status: values.status,
     p_organization_id: organizationId,
+    p_payment_frequency: values.paymentFrequency,
     p_primary_tenant_person_id: values.tenantPersonId,
     p_property_id: values.propertyId,
-    p_status: values.status,
-    p_unit_id: nullableUuid(values.unitId),
+    p_rent_amount: Number(values.monthlyRentAmount),
+    p_rent_currency: "USD",
+    p_rent_due_day: Number(values.rentDueDay),
+    p_term_status: values.termStatus,
+    p_unit_id: values.unitId,
   } as const;
 }
 
@@ -143,10 +194,21 @@ export async function createLeaseAction(
     return invalidFormState(parsed.error);
   }
 
+  const idempotencyKey = readIdempotencyKey(formData);
+
+  if (!idempotencyKey) {
+    return { message: "Refresh the form and try again.", status: "error" };
+  }
+
   const supabase = await createSupabaseServerClient();
-  const { data: leaseId, error } = await supabase.rpc("create_lease", {
-    ...leaseRpcPayload(context.organizationId, parsed.data),
-  });
+  const { data: leaseId, error } = await supabase.rpc(
+    "create_lease_with_authoritative_term",
+    leaseAuthorityRpcPayload(
+      context.organizationId,
+      parsed.data,
+      idempotencyKey,
+    ),
+  );
 
   if (error) {
     return {
@@ -187,6 +249,12 @@ export async function updateLeaseAction(
     return invalidFormState(parsed.error);
   }
 
+  const idempotencyKey = readIdempotencyKey(formData);
+
+  if (!idempotencyKey) {
+    return { message: "Refresh the form and try again.", status: "error" };
+  }
+
   const supabase = await createSupabaseServerClient();
   const pathContext = await getLeasePathContext(
     supabase,
@@ -201,10 +269,17 @@ export async function updateLeaseAction(
     };
   }
 
-  const { error } = await supabase.rpc("update_lease", {
-    ...leaseRpcPayload(context.organizationId, parsed.data),
-    p_lease_id: parsedLeaseId.data,
-  });
+  const { error } = await supabase.rpc(
+    "update_lease_with_authoritative_term",
+    {
+      ...leaseAuthorityRpcPayload(
+        context.organizationId,
+        parsed.data,
+        idempotencyKey,
+      ),
+      p_lease_id: parsedLeaseId.data,
+    },
+  );
 
   if (error) {
     return {
@@ -223,6 +298,84 @@ export async function updateLeaseAction(
     leaseId: parsedLeaseId.data,
     message: "Lease updated.",
     status: "success",
+  };
+}
+
+export async function scheduleFutureRentTermAction(
+  _state: LeaseActionState,
+  formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requireAdminContext();
+  const parsed = parseFutureRentTermInput({
+    endDate: readString(formData, "endDate"),
+    leaseId: readString(formData, "leaseId"),
+    paymentFrequency: readString(formData, "paymentFrequency"),
+    rentAmount: readString(formData, "rentAmount"),
+    rentDueDay: readString(formData, "rentDueDay"),
+    startDate: readString(formData, "startDate"),
+    supersedesTermId: readString(formData, "supersedesTermId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message:
+        parsed.error.issues[0]?.message ??
+        "Complete the future term before scheduling it.",
+      status: "error",
+    };
+  }
+
+  const idempotencyKey = readIdempotencyKey(formData);
+
+  if (!idempotencyKey) {
+    return { message: "Refresh the form and try again.", status: "error" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const pathContext = await getLeasePathContext(
+    supabase,
+    context.organizationId,
+    parsed.data.leaseId,
+  );
+
+  if (!pathContext) {
+    return { message: "We could not find that lease.", status: "error" };
+  }
+
+  const { data: termId, error } = await supabase.rpc(
+    "schedule_authoritative_lease_term",
+    {
+      p_end_date: parsed.data.endDate,
+      p_idempotency_key: idempotencyKey,
+      p_lease_id: parsed.data.leaseId,
+      p_organization_id: context.organizationId,
+      p_payment_frequency: parsed.data.paymentFrequency,
+      p_rent_amount: parsed.data.rentAmount,
+      p_rent_currency: "USD",
+      p_rent_due_day: parsed.data.rentDueDay,
+      p_start_date: parsed.data.startDate,
+      p_supersedes_term_id: parsed.data.supersedesTermId,
+    },
+  );
+
+  if (error) {
+    return {
+      message: leaseActionErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidateLeasePaths(
+    [pathContext.property_id],
+    [pathContext.unit_id],
+    parsed.data.leaseId,
+  );
+
+  return {
+    leaseId: parsed.data.leaseId,
+    message: "Future rent term scheduled. Prior term history was preserved.",
+    status: "success",
+    termId,
   };
 }
 
@@ -327,7 +480,7 @@ export async function generateMonthlyRentAction(
 
   if (error) {
     return {
-      message: "We could not generate this month's rent charges. Please try again.",
+      message: getMonthlyRentGenerationErrorMessage(error),
       status: "error",
     };
   }
@@ -355,11 +508,19 @@ function readLeaseMutationInput(formData: FormData) {
     leaseEndDate: readString(formData, "leaseEndDate"),
     leaseStartDate: readString(formData, "leaseStartDate"),
     monthlyRentAmount: readString(formData, "monthlyRentAmount"),
+    paymentFrequency: readString(formData, "paymentFrequency"),
     propertyId: readString(formData, "propertyId"),
+    rentDueDay: readString(formData, "rentDueDay"),
     status: readString(formData, "status"),
     tenantPersonId: readString(formData, "tenantPersonId"),
+    termStatus: readString(formData, "termStatus"),
     unitId: readString(formData, "unitId"),
   };
+}
+
+function readIdempotencyKey(formData: FormData) {
+  const parsed = parseIdempotencyKey(readString(formData, "idempotencyKey"));
+  return parsed.success ? parsed.data : null;
 }
 
 async function getLeasePathContext(
@@ -428,6 +589,29 @@ function leaseActionErrorMessage(message: string) {
     return "We could not find that lease.";
   }
 
+  if (message.includes("overlaps existing key")) {
+    return "These dates overlap another authoritative term. End the existing term before scheduling this one.";
+  }
+
+  if (
+    message.includes("conflicting key value violates exclusion constraint") ||
+    message.includes("lease_terms_authoritative_effective_range_excl")
+  ) {
+    return "These dates overlap another authoritative term. Choose a non-overlapping effective range.";
+  }
+
+  if (message.includes("future rent change must begin")) {
+    return "A future rent change must begin after today and after the active term starts.";
+  }
+
+  if (message.includes("reporting period is locked")) {
+    return "This term intersects a locked reporting period and cannot be changed.";
+  }
+
+  if (message.includes("Authoritative lease term inputs")) {
+    return "Complete the due day, frequency, dates, amount, and term status.";
+  }
+
   if (message.includes("violates foreign key")) {
     return "Choose valid property and unit records before saving this lease.";
   }
@@ -460,4 +644,211 @@ export async function reverseLeaseDepositEventAction(_state: LeaseActionState, f
   if (error) return { message: leaseActionErrorMessage(error.message), status: "error" };
   revalidatePath("/leases"); revalidatePath("/overview");
   return { message: "Deposit event reversed.", status: "success" };
+}
+
+export async function createRentPolicyDraftAction(
+  _state: RentPolicyActionState,
+  formData: FormData,
+): Promise<RentPolicyActionState> {
+  const context = await requireAdminContext();
+  const effectiveFrom = dateSchema.safeParse(
+    readString(formData, "effectiveFrom"),
+  );
+
+  if (!effectiveFrom.success) {
+    return { message: "Choose an effective date.", status: "error" };
+  }
+
+  const idempotencyKey = readIdempotencyKey(formData);
+
+  if (!idempotencyKey) {
+    return { message: "Refresh the form and try again.", status: "error" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: policyId, error } = await supabase.rpc(
+    "create_rent_policy_draft",
+    {
+      p_effective_from: effectiveFrom.data,
+      p_idempotency_key: idempotencyKey,
+      p_organization_id: context.organizationId,
+    },
+  );
+
+  if (error) {
+    return { message: leaseActionErrorMessage(error.message), status: "error" };
+  }
+
+  revalidatePath("/settings/rent-policy");
+  revalidatePath("/leases");
+  return {
+    message: "Rent-policy draft created. Unresolved rules remain blocked.",
+    policyId,
+    status: "success",
+  };
+}
+
+const rentPolicyDraftSchema = z.object({
+  concessionsSupportState: z.enum(["supported", "unsupported"]),
+  dueDaySource: z.enum(["policy_default", "term"]),
+  leaseEndProrationRule: z.enum([
+    "actual_days",
+    "no_proration",
+    "thirty_day",
+    "through_move_out",
+  ]),
+  leaseStartProrationRule: z.enum([
+    "actual_days",
+    "no_proration",
+    "thirty_day",
+  ]),
+  midPeriodRentChangeRule: z.enum([
+    "next_full_period",
+    "prorate_actual_days",
+    "prorate_thirty_day",
+  ]),
+  noticePeriodChargingRule: z.enum([
+    "stop_on_notice",
+    "through_lease_end",
+    "through_move_out",
+  ]),
+  policyDefaultDueDay: z.string().trim(),
+  policyId: z.uuid(),
+  rentCalculationTimezone: z.string().trim().min(1).max(100),
+  rentFreeSupportState: z.enum(["supported", "unsupported"]),
+  shortMonthDueDayRule: z.enum([
+    "last_calendar_day",
+    "next_calendar_month",
+  ]),
+  supportedFrequencies: z.array(paymentFrequencySchema).min(1),
+  waiversSupportState: z.enum(["supported", "unsupported"]),
+});
+
+export async function updateRentPolicyDraftAction(
+  _state: RentPolicyActionState,
+  formData: FormData,
+): Promise<RentPolicyActionState> {
+  const context = await requireAdminContext();
+  const parsed = rentPolicyDraftSchema.safeParse({
+    concessionsSupportState: readString(formData, "concessionsSupportState"),
+    dueDaySource: readString(formData, "dueDaySource"),
+    leaseEndProrationRule: readString(formData, "leaseEndProrationRule"),
+    leaseStartProrationRule: readString(formData, "leaseStartProrationRule"),
+    midPeriodRentChangeRule: readString(formData, "midPeriodRentChangeRule"),
+    noticePeriodChargingRule: readString(
+      formData,
+      "noticePeriodChargingRule",
+    ),
+    policyDefaultDueDay: readString(formData, "policyDefaultDueDay"),
+    policyId: readString(formData, "policyId"),
+    rentCalculationTimezone: readString(
+      formData,
+      "rentCalculationTimezone",
+    ),
+    rentFreeSupportState: readString(formData, "rentFreeSupportState"),
+    shortMonthDueDayRule: readString(formData, "shortMonthDueDayRule"),
+    supportedFrequencies: formData
+      .getAll("supportedFrequencies")
+      .filter((value): value is string => typeof value === "string"),
+    waiversSupportState: readString(formData, "waiversSupportState"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Resolve every policy field before saving.",
+      status: "error",
+    };
+  }
+
+  let defaultDueDay =
+    parsed.data.policyDefaultDueDay.length === 0
+      ? null
+      : Number(parsed.data.policyDefaultDueDay);
+  if (parsed.data.dueDaySource === "term") {
+    defaultDueDay = null;
+  }
+  if (
+    parsed.data.dueDaySource === "policy_default" &&
+    defaultDueDay === null
+  ) {
+    return {
+      message: "Policy default due day must be from 1 to 31.",
+      status: "error",
+    };
+  }
+  if (
+    defaultDueDay !== null &&
+    (!Number.isInteger(defaultDueDay) ||
+      defaultDueDay < 1 ||
+      defaultDueDay > 31)
+  ) {
+    return {
+      message: "Policy default due day must be from 1 to 31.",
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_rent_policy_draft", {
+    p_concessions_support_state: parsed.data.concessionsSupportState,
+    p_due_day_source: parsed.data.dueDaySource,
+    p_lease_end_proration_rule: parsed.data.leaseEndProrationRule,
+    p_lease_start_proration_rule: parsed.data.leaseStartProrationRule,
+    p_mid_period_rent_change_rule: parsed.data.midPeriodRentChangeRule,
+    p_notice_period_charging_rule: parsed.data.noticePeriodChargingRule,
+    p_organization_id: context.organizationId,
+    p_policy_default_due_day: defaultDueDay as number,
+    p_policy_id: parsed.data.policyId,
+    p_rent_calculation_timezone: parsed.data.rentCalculationTimezone,
+    p_rent_free_support_state: parsed.data.rentFreeSupportState,
+    p_short_month_due_day_rule: parsed.data.shortMonthDueDayRule,
+    p_supported_frequencies: parsed.data.supportedFrequencies,
+    p_waivers_support_state: parsed.data.waiversSupportState,
+  });
+
+  if (error) {
+    return { message: leaseActionErrorMessage(error.message), status: "error" };
+  }
+
+  revalidatePath("/settings/rent-policy");
+  revalidatePath("/leases");
+  return {
+    message: "Rent-policy draft saved. Approval is still required.",
+    policyId: parsed.data.policyId,
+    status: "success",
+  };
+}
+
+export async function approveRentPolicyVersionAction(
+  _state: RentPolicyActionState,
+  formData: FormData,
+): Promise<RentPolicyActionState> {
+  const context = await requireAdminContext();
+  const policyId = z.uuid().safeParse(readString(formData, "policyId"));
+  if (!policyId.success) {
+    return { message: "Choose a policy version.", status: "error" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("approve_rent_policy_version", {
+    p_organization_id: context.organizationId,
+    p_policy_id: policyId.data,
+  });
+
+  if (error) {
+    return {
+      message: error.message.includes("incomplete")
+        ? "Resolve every policy rule before approval."
+        : leaseActionErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidatePath("/settings/rent-policy");
+  revalidatePath("/leases");
+  return {
+    message: "Rent-policy version approved.",
+    policyId: policyId.data,
+    status: "success",
+  };
 }

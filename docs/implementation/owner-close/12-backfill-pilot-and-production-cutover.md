@@ -1,5 +1,11 @@
 # Plan 12 — Backfill, IPS Pilot, and Production Cutover
 
+> **Legacy broad design source — not current Plan 12.** The ratified sequence
+> split this analysis into **sequence 20, migration manifest**, **sequence 21,
+> resumable backfill**, **sequence 22, pilot/cutover**, and **sequence 23,
+> compatibility retirement**. Use `97-ratified-final-sequence.md`; do not paste
+> this file directly into Codex.
+
 **Mode:** Standard  
 **Effort:** Extra High  
 **Reason:** Historical financial records are ambiguous and the cutover changes the reporting authority used for owner accountability; migration must be rehearsed, reversible, and explicitly approved.

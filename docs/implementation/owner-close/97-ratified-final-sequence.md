@@ -3,7 +3,7 @@
 **Status:** Final planning decision after one Codex Ultra review.  
 **External review verdict:** `APPROVE WITH CHANGES`.  
 **Planning baseline:** merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.  
-**Implementation started:** No.  
+**Implementation status:** Plans 00 through 03 are merged. Plan 04 authoritative lease terms and rent-policy contract is the current authorized slice.
 **Further architecture-review loop:** No. The Ultra response in `98-ultra-review-response.md` is the single external review. This document records the final Nestory decision.
 
 ## Final decision

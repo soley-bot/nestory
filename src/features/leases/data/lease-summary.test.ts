@@ -66,6 +66,162 @@ describe("buildLeaseSummary", () => {
     expect(summary.depositLabel).toBe("No deposit recorded");
   });
 
+  it("surfaces exact term authority and rent readiness without compatibility inference", () => {
+    const summary = buildLeaseSummary({
+      lease,
+      property,
+      readiness: {
+        policy_id: "policy-1",
+        reason_code: "ready",
+        readiness_status: "ready",
+        repair_context: {
+          policyId: "policy-1",
+          termId: "term-1",
+        },
+        term_id: "term-1",
+      },
+      terms: [
+        {
+          archived_at: null,
+          authority_kind: "authoritative",
+          end_date: "2027-01-31",
+          id: "term-1",
+          lease_id: "lease-1",
+          payment_frequency: "monthly",
+          rent_amount: 850,
+          rent_currency: "USD",
+          rent_due_day: 10,
+          start_date: "2026-02-01",
+          status: "active",
+          term_sequence: 2,
+        },
+      ],
+      unit,
+    });
+
+    expect(summary.formValues).toMatchObject({
+      paymentFrequency: "monthly",
+      rentDueDay: 10,
+      termStatus: "active",
+    });
+    expect(summary.rentReadiness).toMatchObject({
+      label: "Rent ready",
+      policyId: "policy-1",
+      reasonCode: "ready",
+      termId: "term-1",
+      tone: "success",
+    });
+    expect(summary.terms[0]).toMatchObject({
+      authorityLabel: "Authoritative",
+      dueLabel: "Day 10",
+      paymentFrequencyLabel: "Monthly",
+    });
+  });
+
+  it("keeps every editable economic field on the selected upcoming term", () => {
+    const summary = buildLeaseSummary({
+      lease,
+      property,
+      terms: [
+        {
+          archived_at: null,
+          authority_kind: "authoritative",
+          end_date: "2028-01-31",
+          id: "term-upcoming",
+          lease_id: "lease-1",
+          payment_frequency: "quarterly",
+          rent_amount: 925,
+          rent_currency: "USD",
+          rent_due_day: 15,
+          start_date: "2027-02-01",
+          status: "upcoming",
+          term_sequence: 2,
+        },
+        {
+          archived_at: null,
+          authority_kind: "authoritative",
+          end_date: "2027-01-31",
+          id: "term-active",
+          lease_id: "lease-1",
+          payment_frequency: "monthly",
+          rent_amount: 850,
+          rent_currency: "USD",
+          rent_due_day: 10,
+          start_date: "2026-02-01",
+          status: "active",
+          term_sequence: 1,
+        },
+      ],
+      unit,
+    });
+
+    expect(summary.formValues).toMatchObject({
+      leaseEndDate: "2028-01-31",
+      leaseStartDate: "2027-02-01",
+      monthlyRentAmount: 925,
+      paymentFrequency: "quarterly",
+      rentDueDay: 15,
+      termStatus: "upcoming",
+    });
+  });
+
+  it("does not infer editable authority fields or a blocked verdict for unchecked legacy data", () => {
+    const summary = buildLeaseSummary({
+      lease,
+      property,
+      terms: [
+        {
+          archived_at: null,
+          authority_kind: "legacy_inferred",
+          end_date: "2027-01-31",
+          id: "term-legacy",
+          lease_id: "lease-1",
+          payment_frequency: "monthly",
+          rent_amount: 850,
+          rent_currency: "USD",
+          rent_due_day: 1,
+          start_date: "2026-02-01",
+          status: "active",
+          term_sequence: 1,
+        },
+      ],
+      unit,
+    });
+
+    expect(summary.formValues).toMatchObject({
+      paymentFrequency: null,
+      rentDueDay: null,
+      termStatus: null,
+    });
+    expect(summary.rentReadiness).toMatchObject({
+      label: "Readiness not checked",
+      reasonCode: "readiness_not_checked",
+      tone: "neutral",
+    });
+  });
+
+  it("keeps specific readiness blockers visible", () => {
+    const summary = buildLeaseSummary({
+      lease,
+      property,
+      readiness: {
+        policy_id: null,
+        reason_code: "no_authoritative_term",
+        readiness_status: "blocked",
+        repair_context: null,
+        term_id: null,
+      },
+      unit,
+    });
+
+    expect(summary.rentReadiness).toMatchObject({
+      label: "Authoritative term missing",
+      reasonCode: "no_authoritative_term",
+      repairLabel: "Create an authoritative lease term.",
+      tone: "danger",
+    });
+  });
+
   it("builds linked operational context for the lease inspector", () => {
     const summary = buildLeaseSummary({
       activity: [

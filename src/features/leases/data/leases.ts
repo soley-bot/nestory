@@ -13,6 +13,7 @@ import {
   type LeaseOccupancyRow,
   type LeasePartyRow,
   type LeasePropertyRow,
+  type LeaseReadinessRow,
   type LeaseRow,
   type LeaseTermRow,
   type LeaseTimelineRow,
@@ -255,7 +256,6 @@ export async function getLeasesScreenData(
 
     return {
       leases: await enrichLeaseSummaries({
-        focusedLeaseId: viewQuery.leaseId,
         leases: visibleLeases,
         organizationId,
         propertiesById,
@@ -307,7 +307,6 @@ export async function getLeasesScreenData(
 
   return {
     leases: await enrichLeaseSummaries({
-      focusedLeaseId: viewQuery.leaseId,
       leases,
       organizationId,
       propertiesById,
@@ -322,14 +321,12 @@ export async function getLeasesScreenData(
 }
 
 async function enrichLeaseSummaries({
-  focusedLeaseId,
   leases,
   organizationId,
   propertiesById,
   supabase,
   unitsById,
 }: {
-  focusedLeaseId: string | null;
   leases: LeaseSummary[];
   organizationId: string;
   propertiesById: Map<string, LeasePropertyRow>;
@@ -340,11 +337,37 @@ async function enrichLeaseSummaries({
     return leases;
   }
 
-  const detailLease =
-    leases.find((lease) => lease.id === focusedLeaseId) ?? leases[0];
-  const detailLeaseIds = [detailLease.id];
-  const unitIds = new Set(detailLease.unitId ? [detailLease.unitId] : []);
-  const propertyIds = new Set([detailLease.propertyId]);
+  const detailLeaseIds = leases.map((lease) => lease.id);
+  const unitIds = new Set(
+    leases
+      .map((lease) => lease.unitId)
+      .filter((unitId): unitId is string => Boolean(unitId)),
+  );
+  const propertyIds = new Set(leases.map((lease) => lease.propertyId));
+  const rentPolicyResult = await supabase
+    .from("rent_policy_versions")
+    .select("rent_calculation_timezone")
+    .eq("organization_id", organizationId)
+    .eq("lifecycle", "approved")
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (
+    rentPolicyResult.error &&
+    !isMissingSchemaObjectMessage(rentPolicyResult.error.message, [
+      "rent_policy_versions",
+    ])
+  ) {
+    throw new Error(
+      `Could not load rent policy timezone: ${rentPolicyResult.error.message}`,
+    );
+  }
+
+  const readinessDate = getCalendarDateInTimeZone(
+    new Date(),
+    rentPolicyResult.data?.rent_calculation_timezone ?? "UTC",
+  );
   const [
     partiesResult,
     termsResult,
@@ -354,6 +377,7 @@ async function enrichLeaseSummaries({
     timelineResult,
     activityResult,
     ledgerResult,
+    readinessResults,
   ] = await Promise.all([
     supabase
       .from("lease_parties")
@@ -367,7 +391,7 @@ async function enrichLeaseSummaries({
     supabase
       .from("lease_terms")
       .select(
-        "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, status, archived_at",
+        "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, rent_due_day, payment_frequency, status, authority_kind, archived_at",
       )
       .eq("organization_id", organizationId)
       .in("lease_id", detailLeaseIds)
@@ -415,6 +439,16 @@ async function enrichLeaseSummaries({
       .in("entity_id", detailLeaseIds)
       .order("created_at", { ascending: false }),
     buildLeaseLedgerQuery(supabase, organizationId, propertyIds, unitIds),
+    Promise.all(
+      leases.map(async (lease) => ({
+        leaseId: lease.id,
+        result: await supabase.rpc("resolve_lease_rent_readiness", {
+          p_effective_date: readinessDate,
+          p_lease_id: lease.id,
+          p_organization_id: organizationId,
+        }),
+      })),
+    ),
   ]);
 
   const partyData = getOptionalLeaseBackboneRows(
@@ -473,6 +507,19 @@ async function enrichLeaseSummaries({
     );
   }
 
+  for (const { result } of readinessResults) {
+    if (
+      result.error &&
+      !isMissingSchemaObjectMessage(result.error.message, [
+        "resolve_lease_rent_readiness",
+      ])
+    ) {
+      throw new Error(
+        `Could not resolve lease rent readiness: ${result.error.message}`,
+      );
+    }
+  }
+
   const partyRows = await addLeasePartyPeople(
     partyData,
     organizationId,
@@ -494,12 +541,16 @@ async function enrichLeaseSummaries({
   );
   const activityByLeaseId = groupActivityByLeaseId(activityResult.data ?? []);
   const ledgerRows = ledgerResult.data ?? [];
+  const readinessByLeaseId = new Map(
+    readinessResults.map(({ leaseId, result }) => [
+      leaseId,
+      result.error
+        ? null
+        : ((result.data?.[0] ?? null) as LeaseReadinessRow | null),
+    ]),
+  );
 
   return leases.map((lease) => {
-    if (lease.id !== detailLease.id) {
-      return lease;
-    }
-
     const leaseRow = summaryToLeaseRow(lease);
 
     return buildLeaseSummary({
@@ -510,12 +561,22 @@ async function enrichLeaseSummaries({
       occupancies: occupanciesByLeaseId.get(lease.id) ?? [],
       parties: partiesByLeaseId.get(lease.id) ?? [],
       property: propertiesById.get(lease.propertyId),
+      readiness: readinessByLeaseId.get(lease.id) ?? null,
       terms: termsByLeaseId.get(lease.id) ?? [],
       deposits: depositsByLeaseId.get(lease.id) ?? [],
       timelineEvents: timelineByLeaseId.get(lease.id) ?? [],
       unit: lease.unitId ? unitsById.get(lease.unitId) : undefined,
     });
   });
+}
+
+export function getCalendarDateInTimeZone(date: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone,
+    year: "numeric",
+  }).format(date);
 }
 
 export function getOptionalLeaseBackboneRows<T>(

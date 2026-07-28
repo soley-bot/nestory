@@ -47,6 +47,9 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
       { key: "leaseStartDate", label: "Start date", required: true },
       { key: "leaseEndDate", label: "End date", required: true },
       { key: "monthlyRentAmount", label: "Rent", required: true },
+      { key: "rentDueDay", label: "Due day", required: true },
+      { key: "paymentFrequency", label: "Frequency", required: true },
+      { key: "termStatus", label: "Term status", required: true },
       { key: "depositAmount", label: "Deposit" },
       { key: "status", label: "Status" },
     ],
@@ -61,6 +64,9 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
         "Start Date",
         "End Date",
         "Monthly Rent",
+        "Due Day",
+        "Payment Frequency",
+        "Term Status",
         "Deposit",
         "Status",
       ],
@@ -72,6 +78,9 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
         "2026-01-01",
         "2026-12-31",
         "850",
+        "10",
+        "Monthly",
+        "Active",
         "850",
         "Active",
       ],
@@ -178,10 +187,13 @@ const fieldCandidates: Record<ImportType, Record<string, string[]>> = {
     leaseEndDate: ["enddate", "leaseend", "leaseenddate", "to"],
     leaseStartDate: ["startdate", "leasestart", "leasestartdate", "from"],
     monthlyRentAmount: ["rent", "monthlyrent", "price", "amount"],
+    paymentFrequency: ["frequency", "paymentfrequency", "rentfrequency"],
     property: ["property", "propertycode", "propertyname", "building"],
+    rentDueDay: ["dueday", "rentdueday", "paymentday"],
     status: ["status", "leasestatus"],
     tenantEmail: ["tenantemail", "email"],
     tenantName: ["tenant", "tenantname", "name"],
+    termStatus: ["termstatus", "renttermstatus"],
     unitNumber: ["unit", "unitno", "unitnumber", "room"],
   },
   people: {
@@ -376,6 +388,9 @@ function buildImportTemplateRows(
         .map((unit) => [
           unit.propertyCode,
           unit.unitNumber,
+          "",
+          "",
+          "",
           "",
           "",
           "",
@@ -792,6 +807,15 @@ function buildLeasePreviewRow({
   const leaseStartDate = readMappedValue(record.raw, mapping.leaseStartDate);
   const leaseEndDate = readMappedValue(record.raw, mapping.leaseEndDate);
   const rent = parseMoney(readMappedValue(record.raw, mapping.monthlyRentAmount));
+  const rentDueDayValue = readMappedValue(record.raw, mapping.rentDueDay);
+  const rentDueDay = Number(rentDueDayValue);
+  const paymentFrequencyValue = readMappedValue(
+    record.raw,
+    mapping.paymentFrequency,
+  );
+  const paymentFrequency = normalizePaymentFrequency(paymentFrequencyValue);
+  const termStatusValue = readMappedValue(record.raw, mapping.termStatus);
+  const termStatus = normalizeTermStatus(termStatusValue);
   const deposit = parseOptionalMoney(readMappedValue(record.raw, mapping.depositAmount));
   const status = normalizeLeaseStatus(readMappedValue(record.raw, mapping.status));
   const openOccupancy =
@@ -807,6 +831,14 @@ function buildLeasePreviewRow({
   requireValue(issues, mapping.leaseStartDate, leaseStartDate, "Start date");
   requireValue(issues, mapping.leaseEndDate, leaseEndDate, "End date");
   requireValue(issues, mapping.monthlyRentAmount, String(rent.amount ?? ""), "Rent");
+  requireValue(issues, mapping.rentDueDay, rentDueDayValue, "Due day");
+  requireValue(
+    issues,
+    mapping.paymentFrequency,
+    paymentFrequencyValue,
+    "Payment frequency",
+  );
+  requireValue(issues, mapping.termStatus, termStatusValue, "Term status");
 
   if (propertyInput && !property) {
     issues.push({
@@ -851,6 +883,29 @@ function buildLeasePreviewRow({
     issues.push({ level: "error", message: rent.error });
   }
 
+  if (!Number.isInteger(rentDueDay) || rentDueDay < 1 || rentDueDay > 31) {
+    issues.push({
+      level: "error",
+      message: "Due day must be a whole number from 1 to 31.",
+    });
+  }
+
+  if (!paymentFrequency) {
+    issues.push({
+      level: "error",
+      message:
+        "Payment frequency must be monthly, quarterly, semi-annual, annual, or one time.",
+    });
+  }
+
+  if (!termStatus) {
+    issues.push({
+      level: "error",
+      message:
+        "Term status must be active, upcoming, draft, expired, or terminated.",
+    });
+  }
+
   if (deposit.error) {
     issues.push({ level: "error", message: deposit.error });
   }
@@ -879,9 +934,12 @@ function buildLeasePreviewRow({
       leaseEndDate,
       leaseStartDate,
       monthlyRentAmount: rent.amount,
+      paymentFrequency,
       propertyId: property?.id ?? null,
       status: status ?? "active",
       tenantPersonId: tenant?.id ?? null,
+      rentDueDay: Number.isInteger(rentDueDay) ? rentDueDay : null,
+      termStatus,
       unitId: unit?.id ?? null,
     },
     primaryLabel: unitNumber || "Not mapped",
@@ -1073,6 +1131,32 @@ function normalizeLeaseStatus(value: string) {
   }
 
   return null;
+}
+
+const paymentFrequencies = [
+  "monthly",
+  "quarterly",
+  "semi_annual",
+  "annual",
+  "one_time",
+] as const;
+
+function normalizePaymentFrequency(value: string) {
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return paymentFrequencies.find((frequency) => frequency === normalized) ?? null;
+}
+
+const termStatuses = [
+  "active",
+  "upcoming",
+  "draft",
+  "expired",
+  "terminated",
+] as const;
+
+function normalizeTermStatus(value: string) {
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return termStatuses.find((status) => status === normalized) ?? null;
 }
 
 function parseRoles(value: string) {

@@ -1,6 +1,6 @@
 # Current State
 
-Last rebuilt from code inventory on 2026-07-24. This file describes what is
+Last rebuilt from code inventory on 2026-07-28. This file describes what is
 implemented now. It is not a roadmap or early-stage plan.
 
 ## Product Baseline
@@ -135,16 +135,27 @@ People and leases:
   linked-member eligibility boundary.
 - `/leases` supports lease list, filters, create/update/archive/restore, linked
   tenant/person data, terms, occupancy, deposits, documents, timeline context,
-  risk, and next actions.
+  risk, and next actions. Checked create/update/import operations require
+  explicit due day, payment frequency, dates, amount, currency, and lifecycle,
+  then write an authoritative normalized term atomically. Existing inferred
+  term rows remain labeled `legacy_inferred`; compatibility rent/date columns
+  on `leases` are display projections and cannot rewrite term authority.
+- The lease inspector shows exact term authority, due day, frequency,
+  lifecycle, rent-readiness evidence, and preserved term history. Admins may
+  schedule a non-overlapping future term without changing the active term's
+  identity. `/settings/rent-policy` is the Admin-only effective-dated policy
+  workspace: unresolved drafts are allowed, incomplete approval is blocked,
+  and approved versions are immutable.
 
 Finance and history:
 
 - `/rent-income` supports expected and received incoming money across rent,
   deposits, reimbursements, parking, late fees, owner contributions, company
-  revenue compatibility categories, and other income. Leases can generate
-  idempotent monthly rent charge rows for active/notice leases. Confirmed
-  receipts post into the official ledger; property reporting excludes deposits
-  and owner contributions from operating income.
+  revenue compatibility categories, and other income. Confirmed receipts post
+  into the official ledger; property reporting excludes deposits and owner
+  contributions from operating income. The legacy monthly lease generator is
+  blocked: Plan 09 must consume exact authoritative term and approved-policy
+  identities before automated rent obligations resume.
 - `/bills-expenses` supports outgoing vendor bills, maintenance, utilities,
   supplies, owner payouts, refunds, and other property expenses. Approved
   obligations can be settled through dated payments and allocations.

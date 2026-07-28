@@ -1,5 +1,9 @@
 # Plan 07 — Security-Deposit Custody
 
+> **Legacy broad design source — not current Plan 07.** The ratified sequence
+> moved this work to **sequence 10, security-deposit custody**. Use
+> `97-ratified-final-sequence.md`; do not paste this file directly into Codex.
+
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** Security deposits currently exist as both an income category and a separate deposit-custody event chain, creating contradictory balances and statement treatment.

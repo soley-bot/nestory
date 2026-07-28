@@ -87,12 +87,21 @@ describe("import config", () => {
     ]);
   });
 
+  it("keeps prefilled property rows aligned to the eight-column template", () => {
+    const template = buildImportTemplateCsv("properties", referenceData);
+
+    expect(template.split("\r\n")).toEqual([
+      "Property Code,Property Name,Property Type,Address,Owner,Status,Acquisition Date,Notes",
+      "CTR,Central Residence,,,,Active,,",
+    ]);
+  });
+
   it("prefills lease templates with existing unit anchors", () => {
     const template = buildImportTemplateCsv("leases", referenceData);
 
     expect(template.split("\r\n")).toEqual([
-      "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Deposit,Status",
-      "CTR,12A,,,,,,,Active",
+      "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Deposit,Status",
+      "CTR,12A,,,,,,,,,,Active",
     ]);
   });
 
@@ -150,9 +159,9 @@ describe("import config", () => {
   it("requires matched properties, units, and people before leases commit", () => {
     const parsed = parseCsv(
       [
-        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Deposit,Status",
-        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-12-31,850,850,Active",
-        "CTR,12A,missing@example.com,Missing Tenant,2026-01-01,2026-12-31,850,850,Active",
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Deposit,Status",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-12-31,850,10,Monthly,Active,850,Active",
+        "CTR,12A,missing@example.com,Missing Tenant,2026-01-01,2026-12-31,850,10,Monthly,Active,850,Active",
       ].join("\n"),
     );
     const rows = buildGenericImportPreviewRows({
@@ -186,8 +195,8 @@ describe("import config", () => {
   it("blocks same-day lease date ranges before staging", () => {
     const parsed = parseCsv(
       [
-        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Status",
-        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-01-01,850,Active",
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-01-01,850,10,Monthly,Active,Active",
       ].join("\n"),
     );
     const rows = buildGenericImportPreviewRows({
@@ -211,12 +220,47 @@ describe("import config", () => {
     });
   });
 
-  it("blocks lease imports when a unit already has open occupancy", () => {
-    const leaseId = "44444444-4444-4444-8444-444444444444";
+  it("blocks lease imports that omit explicit term authority fields", () => {
     const parsed = parseCsv(
       [
         "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Status",
         "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-12-31,850,Active",
+      ].join("\n"),
+    );
+    const rows = buildGenericImportPreviewRows({
+      mapping: autoMapImportHeaders("leases", parsed.headers),
+      records: parsed.records,
+      referenceData,
+      type: "leases",
+    });
+
+    expect(rows[0].issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: "error",
+          message: "Due day must be a whole number from 1 to 31.",
+        }),
+        expect.objectContaining({
+          level: "error",
+          message:
+            "Payment frequency must be monthly, quarterly, semi-annual, annual, or one time.",
+        }),
+        expect.objectContaining({
+          level: "error",
+          message:
+            "Term status must be active, upcoming, draft, expired, or terminated.",
+        }),
+      ]),
+    );
+    expect(rows[0].actionLabel).toBe("Needs review");
+  });
+
+  it("blocks lease imports when a unit already has open occupancy", () => {
+    const leaseId = "44444444-4444-4444-8444-444444444444";
+    const parsed = parseCsv(
+      [
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-12-31,850,10,Monthly,Active,Active",
       ].join("\n"),
     );
     const rows = buildGenericImportPreviewRows({
@@ -253,8 +297,8 @@ describe("import config", () => {
   it("allows ended historical leases even when a unit has open occupancy", () => {
     const parsed = parseCsv(
       [
-        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Status",
-        "CTR,12A,tenant@example.com,Sok Dara,2025-01-01,2025-12-31,800,Ended",
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status",
+        "CTR,12A,tenant@example.com,Sok Dara,2025-01-01,2025-12-31,800,10,Monthly,Expired,Ended",
       ].join("\n"),
     );
     const rows = buildGenericImportPreviewRows({
@@ -285,9 +329,9 @@ describe("import config", () => {
   it("blocks overlapping open lease rows for the same unit in one import", () => {
     const parsed = parseCsv(
       [
-        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Status",
-        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-06-30,850,Active",
-        "CTR,12A,tenant@example.com,Sok Dara,2026-03-01,2026-12-31,900,Notice Given",
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-06-30,850,10,Monthly,Active,Active",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-03-01,2026-12-31,900,10,Monthly,Active,Notice Given",
       ].join("\n"),
     );
     const rows = buildGenericImportPreviewRows({

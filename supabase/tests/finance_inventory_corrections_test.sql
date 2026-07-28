@@ -60,6 +60,7 @@ UNION ALL
 SELECT organization_id, owner_id, 'owner'
 FROM finance_inventory_correction_state;
 
+
 INSERT INTO public.leases (
   id, organization_id, property_id, unit_id, primary_tenant_person_id,
   tenant_name, lease_start_date, lease_end_date, monthly_rent_amount,

@@ -1755,6 +1755,8 @@ BEGIN
   END IF;
 
   v_definition := replace(v_definition, E'\r\n', E'\n');
+  v_old_fragment := replace(v_old_fragment, E'\r\n', E'\n');
+  v_new_fragment := replace(v_new_fragment, E'\r\n', E'\n');
   v_patched := replace(v_definition, v_old_fragment, v_new_fragment);
 
   IF v_patched = v_definition THEN
@@ -2022,16 +2024,26 @@ BEGIN
   INTO v_definition;
 
   v_definition := replace(v_definition, E'\r\n', E'\n');
+  v_old_fragment := replace(v_old_fragment, E'\r\n', E'\n');
+  v_new_fragment := replace(v_new_fragment, E'\r\n', E'\n');
   v_before := v_definition;
   v_definition := replace(
     v_definition,
-    $old$      'accounting_periods'
+    replace(
+      $old$      'accounting_periods'
     ])$old$,
-    $new$      'accounting_periods',
+      E'\r\n',
+      E'\n'
+    ),
+    replace(
+      $new$      'accounting_periods',
       'property_reporting_periods',
       'property_close_revisions',
       'financial_reconciliation_sources'
-    ])$new$
+    ])$new$,
+      E'\r\n',
+      E'\n'
+    )
   );
 
   IF v_definition = v_before THEN
@@ -2042,13 +2054,21 @@ BEGIN
   v_before := v_definition;
   v_definition := replace(
     v_definition,
-    $old$        'accounting_periods'
+    replace(
+      $old$        'accounting_periods'
       ])$old$,
-    $new$        'accounting_periods',
+      E'\r\n',
+      E'\n'
+    ),
+    replace(
+      $new$        'accounting_periods',
         'property_reporting_periods',
         'property_close_revisions',
         'financial_reconciliation_sources'
-    ])$new$
+      ])$new$,
+      E'\r\n',
+      E'\n'
+    )
   );
 
   IF v_definition = v_before THEN

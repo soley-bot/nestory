@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   Archive,
   ExternalLink,
@@ -16,7 +16,11 @@ import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
-import { recordLeaseDepositEventAction, reverseLeaseDepositEventAction } from "@/features/leases/actions";
+import {
+  recordLeaseDepositEventAction,
+  reverseLeaseDepositEventAction,
+  scheduleFutureRentTermAction,
+} from "@/features/leases/actions";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import type { LeaseSummary } from "@/features/leases/lease.types";
 
@@ -37,10 +41,31 @@ export function LeaseInspector({
 }: LeaseInspectorProps) {
   const [depositState, recordDepositEvent, depositPending] = useActionState(recordLeaseDepositEventAction, {});
   const [reversalState, reverseDepositEvent, reversalPending] = useActionState(reverseLeaseDepositEventAction, {});
+  const [scheduleState, scheduleFutureTerm, schedulePending] = useActionState(
+    scheduleFutureRentTermAction,
+    {},
+  );
+  const [scheduleIdempotencySeed] = useState(() => crypto.randomUUID());
   if (!lease) {
     return null;
   }
 
+  const displayedTerm =
+    lease.terms.find((term) => term.id === lease.rentReadiness.termId) ??
+    lease.terms[0];
+  const activeAuthoritativeTerm = lease.terms.find(
+    (term) =>
+      term.authorityKind === "authoritative" && term.status === "active",
+  );
+  const authoritativeTerms = lease.terms.filter(
+    (term) => term.authorityKind === "authoritative",
+  );
+  const scheduleIdempotencyKey = [
+    scheduleIdempotencySeed,
+    lease.id,
+    activeAuthoritativeTerm?.endDate ?? "no-active-term",
+    authoritativeTerms.length,
+  ].join(":");
   const iconButtonClassName =
     "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
   const primaryIconButtonClassName =
@@ -81,6 +106,159 @@ export function LeaseInspector({
           />
           <Detail label="Deposit" value={getDepositSummary(lease)} wide />
         </dl>
+
+        <section
+          aria-label="Rent readiness"
+          className="rounded-md border border-border p-3"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold">
+                {lease.rentReadiness.label}
+              </h3>
+              <p className="mt-1 text-xs text-muted">
+                {lease.rentReadiness.repairLabel}
+              </p>
+            </div>
+            <Badge tone={lease.rentReadiness.tone}>
+              {lease.rentReadiness.reasonCode.replaceAll("_", " ")}
+            </Badge>
+          </div>
+          {displayedTerm ? (
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <Detail
+                label="Term authority"
+                value={displayedTerm.authorityLabel}
+              />
+              <Detail label="Due" value={displayedTerm.dueLabel} />
+              <Detail
+                label="Frequency"
+                value={displayedTerm.paymentFrequencyLabel}
+              />
+              <Detail label="Lifecycle" value={displayedTerm.statusLabel} />
+            </dl>
+          ) : null}
+          <Link
+            className="mt-3 inline-flex text-xs font-medium text-accent hover:underline"
+            href="/settings/rent-policy"
+          >
+            Open rent policy
+          </Link>
+        </section>
+
+        {activeAuthoritativeTerm && !lease.isArchived ? (
+          <section
+            aria-label="Future rent term"
+            className="rounded-md border border-border p-3"
+          >
+            <h3 className="text-sm font-semibold">Schedule future rent</h3>
+            <p className="mt-1 text-xs text-muted">
+              The active term keeps its identity. Only its unused future range
+              is shortened when the upcoming term is saved.
+            </p>
+            <form
+              action={scheduleFutureTerm}
+              className="mt-3 grid gap-3"
+              key={`${lease.id}:${activeAuthoritativeTerm.id}`}
+            >
+              <input name="leaseId" type="hidden" value={lease.id} />
+              <input
+                name="supersedesTermId"
+                type="hidden"
+                value={activeAuthoritativeTerm.id}
+              />
+              <input
+                name="idempotencyKey"
+                type="hidden"
+                value={scheduleIdempotencyKey}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <label className="grid gap-1 text-xs font-medium">
+                  <span>Effective date</span>
+                  <DatePickerField
+                    ariaLabel="Future term effective date"
+                    name="startDate"
+                    required
+                  />
+                </label>
+                <label className="grid gap-1 text-xs font-medium">
+                  <span>Term end</span>
+                  <DatePickerField
+                    ariaLabel="Future term end date"
+                    name="endDate"
+                    required
+                  />
+                </label>
+                <label className="grid gap-1 text-xs font-medium">
+                  <span>Rent amount</span>
+                  <NumberInput
+                    defaultValue={activeAuthoritativeTerm.rentAmount}
+                    min="0"
+                    name="rentAmount"
+                    required
+                  />
+                </label>
+                <label className="grid gap-1 text-xs font-medium">
+                  <span>Due day</span>
+                  <NumberInput
+                    defaultValue={
+                      activeAuthoritativeTerm.rentDueDay ?? undefined
+                    }
+                    max="31"
+                    min="1"
+                    name="rentDueDay"
+                    required
+                  />
+                </label>
+              </div>
+              <label className="grid gap-1 text-xs font-medium">
+                <span>Payment frequency</span>
+                <SelectControl
+                  ariaLabel="Future term payment frequency"
+                  defaultValue={
+                    activeAuthoritativeTerm.paymentFrequency ?? "monthly"
+                  }
+                  name="paymentFrequency"
+                  options={[
+                    { label: "Monthly", value: "monthly" },
+                    { label: "Quarterly", value: "quarterly" },
+                    { label: "Semi-annual", value: "semi_annual" },
+                    { label: "Annual", value: "annual" },
+                    { label: "One time", value: "one_time" },
+                  ]}
+                  required
+                />
+              </label>
+              <Button disabled={schedulePending} type="submit">
+                {schedulePending ? "Scheduling..." : "Schedule future term"}
+              </Button>
+              {scheduleState.message ? (
+                <p
+                  className={
+                    scheduleState.status === "error"
+                      ? "text-xs text-danger"
+                      : "text-xs text-muted"
+                  }
+                  role="status"
+                >
+                  {scheduleState.message}
+                </p>
+              ) : null}
+            </form>
+            {authoritativeTerms.length > 1 ? (
+              <div className="mt-3 border-t border-border pt-3">
+                <p className="text-xs font-medium">Term history</p>
+                <ul className="mt-2 space-y-1 text-xs text-muted">
+                  {authoritativeTerms.map((term) => (
+                    <li key={term.id}>
+                      {term.datesLabel} · {term.rentLabel} · {term.statusLabel}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         {lease.deposits.length ? (
           <section className="space-y-3 border-t border-border pt-4" aria-label="Security deposit events">
