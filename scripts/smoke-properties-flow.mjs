@@ -201,7 +201,7 @@ try {
 async function renamePropertyCard({ fromName, toName }) {
   await page
     .getByRole("button", {
-      name: new RegExp(`Preview ${escapeRegExp(fromName)}`),
+      name: new RegExp(`^Preview ${escapeRegExp(fromName)}$`),
     })
     .click();
   await page

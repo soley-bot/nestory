@@ -8,10 +8,13 @@ import { findLocalDatabaseContainer } from "./reset-demo-data.mjs";
 export const MANIFEST_SQL = String.raw`
 SELECT jsonb_build_object(
   'schemaVersion', 1,
-  'referenceDate', (
-    SELECT lease_start_date + 300
-    FROM public.leases
-    WHERE id = '30000000-0000-0000-0000-000000000001'
+  'referenceDate', coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    (
+      SELECT lease_start_date + 300
+      FROM public.leases
+      WHERE id = '30000000-0000-0000-0000-000000000001'
+    )
   ),
   'visibleIds', jsonb_build_object(
     'properties', (

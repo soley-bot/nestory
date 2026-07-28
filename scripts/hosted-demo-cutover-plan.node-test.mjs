@@ -84,3 +84,36 @@ test("incomplete snapshots are rejected", () => {
   missingAdmins.organizations[0].adminUserIds = [];
   assert.throws(() => validateInventory(missingAdmins), /adminUserId/);
 });
+
+test("impossible reference dates are rejected", () => {
+  assert.throws(
+    () => buildCutoverManifest(validInventory(), "2030-02-30"),
+    /valid calendar date/,
+  );
+});
+
+test("inventory fingerprints ignore set ordering", () => {
+  const first = validInventory();
+  first.organizations[0].adminUserIds.push(
+    "00000000-0000-0000-0000-000000000102",
+  );
+  first.organizations.push({
+    id: "33333333-3333-3333-3333-333333333333",
+    name: "Another Preserved Company",
+    slug: "another-preserved-company",
+  });
+
+  const reordered = structuredClone(first);
+  reordered.organizations.reverse();
+  reordered.organizations
+    .find(
+      (organization) =>
+        organization.id === CUTOVER_EXPECTATIONS.targetOrganizationId,
+    )
+    .adminUserIds.reverse();
+
+  assert.equal(
+    buildCutoverManifest(first, "2030-01-15").inventorySha256,
+    buildCutoverManifest(reordered, "2030-01-15").inventorySha256,
+  );
+});

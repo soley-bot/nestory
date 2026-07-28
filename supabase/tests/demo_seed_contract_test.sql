@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(31);
+SELECT plan(37);
 
 SELECT is(
   (SELECT count(*) FROM public.organizations),
@@ -375,6 +375,102 @@ SELECT ok(
       AND income.ledger_entry_id IS NULL
   ),
   'settled income remains traceable to ledger rows'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.leases AS leases
+    JOIN public.people AS people
+      ON people.organization_id = leases.organization_id
+     AND people.id = leases.primary_tenant_person_id
+    WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND leases.archived_at IS NULL
+      AND people.archived_at IS NOT NULL
+  ),
+  'visible leases never reference archived primary tenants'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.leases AS leases
+    JOIN public.lease_terms AS terms
+      ON terms.organization_id = leases.organization_id
+     AND terms.lease_id = leases.id
+     AND terms.archived_at IS NULL
+    JOIN public.lease_occupancies AS occupancies
+      ON occupancies.organization_id = leases.organization_id
+     AND occupancies.lease_id = leases.id
+     AND occupancies.archived_at IS NULL
+    WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND leases.archived_at IS NULL
+      AND leases.status = 'notice_given'
+      AND (
+        terms.notice_date IS NULL
+        OR terms.notice_date IS DISTINCT FROM occupancies.notice_date
+      )
+  ),
+  'notice dates agree across authoritative terms and occupancy state'
+);
+
+SELECT is(
+  (
+    SELECT count(DISTINCT requested_at)
+    FROM public.tenant_requests
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND archived_at IS NULL
+  ),
+  12::bigint,
+  'tenant requests have a deterministic age spread'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.timeline_events AS timeline
+    JOIN public.leases AS leases
+      ON leases.organization_id = timeline.organization_id
+     AND leases.id = timeline.lease_id
+    WHERE timeline.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND timeline.event_type IN ('Lease Started', 'Tenant Move In')
+      AND timeline.event_date IS DISTINCT FROM leases.lease_start_date
+  ),
+  'lease lifecycle timeline events stay anchored to their lease start dates'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.finance_income_items AS income
+    JOIN public.ledger_entries AS ledger
+      ON ledger.id = income.ledger_entry_id
+    WHERE income.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND income.archived_at IS NULL
+      AND (
+        ledger.organization_id IS DISTINCT FROM income.organization_id
+        OR ledger.property_id IS DISTINCT FROM income.property_id
+        OR ledger.unit_id IS DISTINCT FROM income.unit_id
+        OR ledger.amount IS DISTINCT FROM income.amount_received
+        OR ledger.currency IS DISTINCT FROM income.currency
+        OR ledger.direction <> 'income'
+      )
+  ),
+  'linked income and ledger rows agree on scope, amount, currency, and direction'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.finance_expense_items AS expenses
+    JOIN public.tasks AS tasks
+      ON tasks.organization_id = expenses.organization_id
+     AND tasks.id = expenses.task_id
+    WHERE expenses.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND expenses.archived_at IS NULL
+      AND expenses.property_id IS DISTINCT FROM tasks.property_id
+  ),
+  'task-linked expenses remain scoped to the task property'
 );
 
 SELECT * FROM finish();

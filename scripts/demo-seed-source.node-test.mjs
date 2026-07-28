@@ -30,7 +30,7 @@ test("all documented local login fixtures remain present", () => {
     "member@nestory.com",
     "demo@nestory.com",
   ]) {
-    assert.match(seedSql, new RegExp(email.replace(".", String.raw`\.`)));
+    assert.ok(seedSql.includes(email), `${email} must remain seeded`);
   }
 });
 

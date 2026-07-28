@@ -1,6 +1,6 @@
 # Fresh Demo Data Rebuild Implementation Plan
 
-**Status:** Implementation and local verification complete; draft PR pending
+**Status:** Implementation and local verification complete; draft PR #40 open
 **Branch:** `codex/rebuild-fresh-demo-data`  
 **Merged baseline:** `b592557f3d2919ab5bd7932426fc218a1bea5d4d`  
 **Scope:** Deterministic local demo data plus fail-closed hosted cutover preparation. No hosted mutation, hosted migration apply, production deployment, or PR merge.
@@ -138,10 +138,10 @@ snapshot remain a separately approved cutover task.
 - Repeated local resets succeeded, including a controlled
   `2030-01-15` replay.
 - Consecutive reset manifests were byte-identical:
-  `4FF2BEF76BC27464A1D119D1BE046B8352EBF687685EB9B5A9272BA5A7FB72BC`.
-- pgTAP passed 26 files and 894 assertions.
+  `AE4F6E5188E11B21C9693AB5C061E703E7EE8B64D380D35311B56EA40E569B38`.
+- pgTAP passed 26 files and 900 assertions.
 - Vitest passed 168 files and 1,317 tests; the native demo-tool suite passed
-  15 tests.
+  17 tests.
 - ESLint, TypeScript, DB lint, production build, 54/54 route coverage, UI copy,
   and all ledger/accounting/lease concurrency harnesses passed.
 - Authenticated UI baseline, property mutation flow, and maintenance workspace

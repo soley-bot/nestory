@@ -29,7 +29,13 @@ function fail(message) {
 
 function canonicalize(value) {
   if (Array.isArray(value)) {
-    return value.map(canonicalize);
+    return value
+      .map(canonicalize)
+      .sort((left, right) => {
+        const leftJson = JSON.stringify(left);
+        const rightJson = JSON.stringify(right);
+        return leftJson < rightJson ? -1 : leftJson > rightJson ? 1 : 0;
+      });
   }
   if (value && typeof value === "object") {
     return Object.fromEntries(
@@ -133,6 +139,13 @@ export function buildCutoverManifest(inventory, referenceDate) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(referenceDate)) {
     fail("referenceDate must use YYYY-MM-DD");
   }
+  const parsedReferenceDate = new Date(`${referenceDate}T00:00:00.000Z`);
+  if (
+    Number.isNaN(parsedReferenceDate.valueOf()) ||
+    parsedReferenceDate.toISOString().slice(0, 10) !== referenceDate
+  ) {
+    fail("referenceDate must be a valid calendar date");
+  }
 
   const { target, preservedOrganizations } = validateInventory(inventory);
   const inventorySha256 = createHash("sha256")
@@ -159,11 +172,13 @@ export function buildCutoverManifest(inventory, referenceDate) {
       invitationsByStatus: target.invitationsByStatus,
       adminUserIds: [...target.adminUserIds].sort(),
     },
-    preservedOrganizations: preservedOrganizations.map((organization) => ({
-      id: organization.id,
-      name: organization.name,
-      slug: organization.slug,
-    })),
+    preservedOrganizations: [...preservedOrganizations]
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((organization) => ({
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+      })),
     requiredSnapshot: {
       scope: "target organization plus target-linked auth identities",
       includes: [

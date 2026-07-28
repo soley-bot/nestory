@@ -1179,7 +1179,6 @@ WHERE person_id IN (
   '80000000-0000-0000-0000-000000000015',
   '80000000-0000-0000-0000-000000000016',
   '80000000-0000-0000-0000-000000000017',
-  '80000000-0000-0000-0000-000000000018',
   '80000000-0000-0000-0000-000000000019',
   '80000000-0000-0000-0000-000000000020',
   '80000000-0000-0000-0000-000000000021',
@@ -1205,7 +1204,6 @@ WHERE id IN (
   '80000000-0000-0000-0000-000000000015',
   '80000000-0000-0000-0000-000000000016',
   '80000000-0000-0000-0000-000000000017',
-  '80000000-0000-0000-0000-000000000018',
   '80000000-0000-0000-0000-000000000019',
   '80000000-0000-0000-0000-000000000020',
   '80000000-0000-0000-0000-000000000021',
@@ -1283,6 +1281,10 @@ SET
     WHEN 'ended' THEN 'expired'
     ELSE 'active'
   END,
+  notice_date = CASE
+    WHEN leases.status = 'notice_given' THEN context.reference_date - 20
+    ELSE NULL
+  END,
   authority_kind = 'authoritative',
   confirmed_at = coalesce(
     nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
@@ -1291,6 +1293,12 @@ SET
   confirmed_by = '00000000-0000-0000-0000-000000000101',
   updated_by = '00000000-0000-0000-0000-000000000101'
 FROM public.leases AS leases
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context
 WHERE terms.lease_id = leases.id
   AND leases.archived_at IS NULL;
 
@@ -1383,27 +1391,49 @@ SET
   archived_by = '00000000-0000-0000-0000-000000000101'
 WHERE lease_id >= '30000000-0000-0000-0000-000000000014'::uuid;
 
-UPDATE public.tenant_requests
+WITH desired_requests (id, age_offset) AS (
+  VALUES
+    ('90000000-0000-0000-0000-000000000001'::uuid, 0),
+    ('90000000-0000-0000-0000-000000000002'::uuid, 1),
+    ('90000000-0000-0000-0000-000000000003'::uuid, 2),
+    ('90000000-0000-0000-0000-000000000004'::uuid, 3),
+    ('90000000-0000-0000-0000-000000000005'::uuid, 4),
+    ('90000000-0000-0000-0000-000000000006'::uuid, 5),
+    ('90000000-0000-0000-0000-000000000007'::uuid, 6),
+    ('90000000-0000-0000-0000-000000000008'::uuid, 7),
+    ('90000000-0000-0000-0000-000000000009'::uuid, 8),
+    ('90000000-0000-0000-0000-000000000010'::uuid, 9),
+    ('90000000-0000-0000-0000-000000000011'::uuid, 10),
+    ('90000000-0000-0000-0000-000000000012'::uuid, 11)
+)
+UPDATE public.tenant_requests AS requests
 SET
-  property_id = CASE property_id
+  property_id = CASE requests.property_id
     WHEN '10000000-0000-0000-0000-000000000004' THEN '10000000-0000-0000-0000-000000000002'::uuid
     WHEN '10000000-0000-0000-0000-000000000005' THEN '10000000-0000-0000-0000-000000000003'::uuid
     WHEN '10000000-0000-0000-0000-000000000006' THEN '10000000-0000-0000-0000-000000000001'::uuid
-    ELSE property_id
+    ELSE requests.property_id
   END,
-  unit_id = CASE unit_id
+  unit_id = CASE requests.unit_id
     WHEN '20000000-0000-0000-0000-000000000020' THEN '20000000-0000-0000-0000-000000000008'::uuid
-    ELSE unit_id
+    ELSE requests.unit_id
   END,
-  requested_by_person_id = CASE requested_by_person_id
+  requested_by_person_id = CASE requests.requested_by_person_id
     WHEN '80000000-0000-0000-0000-000000000014' THEN '80000000-0000-0000-0000-000000000006'::uuid
-    ELSE requested_by_person_id
+    ELSE requests.requested_by_person_id
   END,
-  requested_at = coalesce(
+  requested_at = context.reference_date::timestamptz
+    - interval '7 days'
+    - desired.age_offset * interval '1 day',
+  updated_by = '00000000-0000-0000-0000-000000000101'
+FROM desired_requests AS desired
+CROSS JOIN LATERAL (
+  SELECT coalesce(
     nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
     current_date
-  )::timestamptz - interval '7 days',
-  updated_by = '00000000-0000-0000-0000-000000000101';
+  ) AS reference_date
+) AS context
+WHERE requests.id = desired.id;
 
 WITH desired_tasks (id, due_offset, reminder_offset) AS (
   VALUES
@@ -1474,6 +1504,15 @@ SET
   END,
   updated_by = '00000000-0000-0000-0000-000000000101';
 
+UPDATE public.ledger_entries
+SET
+  property_id = '10000000-0000-0000-0000-000000000002',
+  unit_id = '20000000-0000-0000-0000-000000000008',
+  amount = 650,
+  description = 'Monthly rent received for Northline unit 02B.',
+  updated_by = '00000000-0000-0000-0000-000000000101'
+WHERE id = '40000000-0000-0000-0000-000000000004';
+
 UPDATE public.timeline_events
 SET
   property_id = CASE property_id
@@ -1490,10 +1529,19 @@ SET
     WHEN '30000000-0000-0000-0000-000000000015' THEN '30000000-0000-0000-0000-000000000006'::uuid
     ELSE lease_id
   END,
-  event_date = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) - 5,
+  event_date = CASE
+    WHEN timeline_events.lease_id IS NOT NULL
+      AND timeline_events.event_type IN ('Lease Started', 'Tenant Move In')
+      THEN (
+        SELECT leases.lease_start_date
+        FROM public.leases AS leases
+        WHERE leases.id = timeline_events.lease_id
+      )
+    ELSE coalesce(
+      nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+      current_date
+    ) - 5
+  END,
   updated_by = '00000000-0000-0000-0000-000000000101';
 
 UPDATE public.activity_logs
@@ -1969,7 +2017,7 @@ FROM (
     ),
     (
       'b9000000-0000-0000-0000-000000000005'::uuid,
-      '10000000-0000-0000-0000-000000000003'::uuid,
+      '10000000-0000-0000-0000-000000000002'::uuid,
       NULL::uuid,
       '91000000-0000-0000-0000-000000000006'::uuid,
       '80200000-0000-0000-0000-000000000006'::uuid,
