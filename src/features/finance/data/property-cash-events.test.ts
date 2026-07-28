@@ -110,6 +110,44 @@ describe("property cash event adapter", () => {
     expect(normalized.managementFeeEffectCents).toBeNull();
   });
 
+  it("accepts an exact linked reconciliation source without a missing code", () => {
+    const reconciliationSourceId =
+      "55555555-5555-4555-8555-555555555555";
+    const normalized = normalizePropertyCashEvent(
+      row("44444444-4444-4444-8444-444444444444", {
+        reconciliation_source_id: reconciliationSourceId,
+        reconciliation_state: "linked_exact_identity",
+      }),
+    );
+
+    expect(normalized.reconciliationSourceId).toBe(reconciliationSourceId);
+    expect(normalized.reconciliationState).toBe("linked_exact_identity");
+  });
+
+  it("rejects a linked reconciliation state without an exact source ID", () => {
+    expect(() =>
+      normalizePropertyCashEvent(
+        row("44444444-4444-4444-8444-444444444444", {
+          reconciliation_state: "linked_exact_identity",
+        }),
+      ),
+    ).toThrow("without a source identity");
+  });
+
+  it("rejects a linked source that remains marked missing", () => {
+    expect(() =>
+      normalizePropertyCashEvent(
+        row("44444444-4444-4444-8444-444444444444", {
+          reconciliation_source_id:
+            "55555555-5555-4555-8555-555555555555",
+          reconciliation_state: "linked_exact_identity",
+          requires_resolution: true,
+          resolution_codes: ["missing_reconciliation_source"],
+        }),
+      ),
+    ).toThrow("cannot remain marked missing");
+  });
+
   it("traverses keyset pages and applies the direct unit filter per page", async () => {
     const firstId = "11111111-1111-4111-8111-111111111111";
     const filteredId = "22222222-2222-4222-8222-222222222222";

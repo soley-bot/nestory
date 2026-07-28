@@ -104,6 +104,7 @@ export type PropertyCashResolutionCode =
   (typeof propertyCashResolutionCodes)[number];
 
 export const propertyCashReconciliationStates = [
+  "linked_exact_identity",
   "missing_stable_identity",
   "not_required",
 ] as const;
