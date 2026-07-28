@@ -95,6 +95,13 @@ describe("property cash shadow document input", () => {
         organizationId: "organization-a",
       }),
     ).resolves.toHaveLength(5_000);
+    expect(client.requestedRanges).toEqual([
+      [0, 4_999],
+      [1_000, 4_999],
+      [2_000, 4_999],
+      [3_000, 4_999],
+      [4_000, 4_999],
+    ]);
   });
 
   it("fails with trusted-report completeness semantics at 5,001 active organization documents", async () => {
@@ -137,6 +144,7 @@ function createDocumentClient(rows: DocumentRow[]) {
   const state = {
     filters: new Map<string, unknown>(),
     requestedExactCount: false,
+    requestedRanges: [] as Array<[number, number]>,
     selectedColumns: "",
   };
 
@@ -153,6 +161,7 @@ function createDocumentClient(rows: DocumentRow[]) {
       return query;
     },
     async range(from: number, to: number) {
+      state.requestedRanges.push([from, to]);
       const filtered = rows
         .filter((row) =>
           [...state.filters].every(
@@ -163,7 +172,7 @@ function createDocumentClient(rows: DocumentRow[]) {
         .sort((left, right) => left.id.localeCompare(right.id));
       return {
         count: state.requestedExactCount ? filtered.length : null,
-        data: filtered.slice(from, to + 1).map((row) => ({
+        data: filtered.slice(from, Math.min(to + 1, from + 1_000)).map((row) => ({
           file_name: row.file_name,
           id: row.id,
           lease_id: row.lease_id,
@@ -189,6 +198,9 @@ function createDocumentClient(rows: DocumentRow[]) {
     },
     get requestedExactCount() {
       return state.requestedExactCount;
+    },
+    get requestedRanges() {
+      return state.requestedRanges;
     },
     get selectedColumns() {
       return state.selectedColumns;

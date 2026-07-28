@@ -10,9 +10,12 @@ import { getOwnerStatementReport } from "@/features/reports/data/owner-statement
 import { getPeopleReadinessReport } from "@/features/people/data/people-readiness";
 import {
   assertCompleteReportSource,
-  reportDocumentSelect,
   reportSourceRangeEnd,
 } from "@/features/reports/data/report-source-completeness";
+import {
+  loadReportDocuments,
+  type ReportDocumentClient,
+} from "@/features/reports/data/report-documents";
 import type {
   ReportKind,
   ReportSourceLink,
@@ -291,7 +294,10 @@ export async function getTrustedReport({
         ? loadReportTimeline(supabase, organizationId, propertyIds, period)
         : Promise.resolve<TimelineRow[]>([]),
       sources.documents
-        ? loadReportDocuments(supabase, organizationId)
+        ? loadReportDocuments(
+            supabase as unknown as ReportDocumentClient,
+            organizationId,
+          )
         : Promise.resolve<DocumentRow[]>([]),
       sources.owners
         ? loadReportOwners(supabase, organizationId, propertyIds)
@@ -1884,27 +1890,6 @@ async function loadReportMaintenanceTasks(
   return ((result.data ?? []) as MaintenanceTaskRow[]).filter((task) =>
     taskFallsInPeriod(task, period),
   );
-}
-
-async function loadReportDocuments(
-  supabase: SupabaseServerClient,
-  organizationId: string,
-) {
-  const result = await supabase
-    .from("documents")
-    .select(reportDocumentSelect, { count: "exact" })
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .order("id")
-    .range(0, reportSourceRangeEnd);
-
-  if (result.error) {
-    throw new Error(`Could not load report documents: ${result.error.message}`);
-  }
-
-  assertCompleteReportSource("report documents", result);
-
-  return result.data ?? [];
 }
 
 async function loadReportOwners(

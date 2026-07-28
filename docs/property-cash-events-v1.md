@@ -318,11 +318,11 @@ settlements fail the collection. The PropertySummary Ledger input deliberately
 uses one unpaginated request with the same filters and no explicit ordering as
 the current page loader, so it retains that loader's API row cap instead of
 claiming completeness that the current surface does not have. The document
-input exactly follows the trusted report:
-the same selected columns, archive exclusion, ID ordering, exact count, and
-5,000-row completeness boundary. A document linked to another property in the
-same organization therefore participates in both before and after material
-tokens, while an archived document does not.
+input exactly follows the trusted report because both import the same document
+loader: the same selected columns, archive exclusion, ID ordering, exact count,
+repeated API-capped ranges, and 5,000-row completeness boundary. A document
+linked to another property in the same organization therefore participates in
+both before and after material tokens, while an archived document does not.
 PropertySummary receives the current loader's single-response all-time active
 Ledger evidence; period reports retain the selected period only. A dirty
 repository fails closed unless

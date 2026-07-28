@@ -10,10 +10,27 @@ export function assertCompleteReportSource(
   const loadedRows = result.data?.length ?? 0;
   const totalRows = result.count ?? loadedRows;
 
+  assertReportSourceWithinLimit(sourceName, totalRows);
+
   if (totalRows <= loadedRows) {
     return;
   }
 
+  throwReportSourceLimitError(sourceName, totalRows);
+}
+
+export function assertReportSourceWithinLimit(
+  sourceName: string,
+  totalRows: number,
+) {
+  if (totalRows <= maxReportSourceRows) {
+    return;
+  }
+
+  throwReportSourceLimitError(sourceName, totalRows);
+}
+
+function throwReportSourceLimitError(sourceName: string, totalRows: number): never {
   throw new Error(
     `${sourceName} has ${totalRows.toLocaleString()} rows, which exceeds the ${maxReportSourceRows.toLocaleString()} row report source limit. Narrow the report scope before exporting.`,
   );
