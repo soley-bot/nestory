@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(118);
+SELECT plan(124);
 
 CREATE TEMP TABLE financial_authority_test_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -508,6 +508,13 @@ SELECT function_privs_are(
   'service_role',
   ARRAY[]::text[],
   'service role cannot execute the private exclusive authority helper'
+);
+SELECT table_privs_are(
+  'public',
+  'ledger_period_locks',
+  'authenticated',
+  ARRAY['SELECT'],
+  'authenticated actors can read Ledger authority but cannot bypass its transition RPC'
 );
 SELECT ok(
   position(
@@ -1252,6 +1259,60 @@ SELECT lives_ok(
     '2026-09-01'
   ),
   'authorized public accounting-period unlock path reaches its private writer'
+);
+SELECT is(
+  (
+    SELECT lock_reason
+    FROM public.accounting_periods
+    WHERE book_id = (
+      SELECT book_id FROM financial_authority_test_state
+    )
+      AND period_start = '2026-09-01'
+  ),
+  NULL::text,
+  'accounting unlock clears the visible lock reason'
+);
+SELECT throws_ok(
+  format(
+    'SELECT public.set_accounting_period_lock(%L,%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT book_id FROM financial_authority_test_state),
+    '2026-09-01',
+    repeat('x', 401)
+  ),
+  '22023',
+  'Reason is too long',
+  'accounting lock rejects reasons beyond the shared 400-character limit'
+);
+SELECT lives_ok(
+  format(
+    'SELECT public.set_ledger_period_lock(%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    '2026-09-01',
+    'Ledger lock reason'
+  ),
+  'serialized Ledger lock RPC remains available to organization admins'
+);
+SELECT lives_ok(
+  format(
+    'SELECT public.set_ledger_period_lock(%L,%L,false,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    '2026-09-01',
+    'Unlock audit reason'
+  ),
+  'serialized Ledger unlock RPC remains available to organization admins'
+);
+SELECT is(
+  (
+    SELECT reason
+    FROM public.ledger_period_locks
+    WHERE organization_id = (
+      SELECT organization_id FROM financial_authority_test_state
+    )
+      AND period_start = '2026-09-01'
+  ),
+  NULL::text,
+  'Ledger unlock clears the visible lock reason'
 );
 RESET ROLE;
 

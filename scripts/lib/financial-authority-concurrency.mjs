@@ -13,6 +13,7 @@ const fixture = {
 
 const markerTimeoutMs = 10_000;
 const holdSeconds = 1.5;
+const startedPsqlProcesses = new Set();
 
 export async function runFinancialAuthorityConcurrency(system) {
   const options = parseOptions(process.argv.slice(2));
@@ -44,16 +45,20 @@ export async function runFinancialAuthorityConcurrency(system) {
   assertContainer(container);
   runSql(container, fixtureSql(system, rowState));
 
-  if (scenario === "source-first") {
-    await proveSourceFirst({ container, system });
-  } else if (scenario === "transition-first") {
-    await proveTransitionFirst({ container, system });
-  } else if (scenario === "unlock") {
-    await proveUnlock({ container, system });
-  } else if (scenario === "isolation") {
-    await proveIsolation({ container, system });
-  } else {
-    await proveMultipleBooks({ container });
+  try {
+    if (scenario === "source-first") {
+      await proveSourceFirst({ container, system });
+    } else if (scenario === "transition-first") {
+      await proveTransitionFirst({ container, system });
+    } else if (scenario === "unlock") {
+      await proveUnlock({ container, system });
+    } else if (scenario === "isolation") {
+      await proveIsolation({ container, system });
+    } else {
+      await proveMultipleBooks({ container });
+    }
+  } finally {
+    await cleanupStartedPsqlProcesses();
   }
 
   process.stdout.write(
@@ -578,11 +583,15 @@ function startPsql(container, sql) {
   };
   child.stdout.on("data", append);
   child.stderr.on("data", append);
-  child.stdin.end(sql);
 
+  let processHandle;
   const result = new Promise((resolveResult) => {
+    child.on("error", (error) => {
+      append(`psql spawn error: ${error.message}\n`);
+    });
     child.on("close", (code) => {
       completed = true;
+      startedPsqlProcesses.delete(processHandle);
       for (const waiter of waiters) {
         clearTimeout(waiter.timeout);
         waiter.reject(
@@ -592,11 +601,14 @@ function startPsql(container, sql) {
         );
       }
       waiters.clear();
-      resolveResult({ code, output });
+      resolveResult({ code: code ?? 1, output });
     });
   });
+  child.stdin.on("error", (error) => {
+    append(`psql stdin error: ${error.message}\n`);
+  });
 
-  return {
+  processHandle = {
     get completed() {
       return completed;
     },
@@ -604,6 +616,11 @@ function startPsql(container, sql) {
       return output;
     },
     result,
+    kill() {
+      if (!completed) {
+        child.kill();
+      }
+    },
     waitFor(marker) {
       if (output.includes(marker)) {
         return Promise.resolve();
@@ -626,6 +643,19 @@ function startPsql(container, sql) {
       });
     },
   };
+  startedPsqlProcesses.add(processHandle);
+  child.stdin.end(sql);
+  return processHandle;
+}
+
+async function cleanupStartedPsqlProcesses() {
+  const running = [...startedPsqlProcesses];
+  for (const processHandle of running) {
+    processHandle.kill();
+  }
+  await Promise.allSettled(
+    running.map((processHandle) => processHandle.result),
+  );
 }
 
 function runSql(container, sql) {

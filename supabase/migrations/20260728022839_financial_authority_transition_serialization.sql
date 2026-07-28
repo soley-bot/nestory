@@ -326,7 +326,7 @@ BEGIN
     v_normalized_period,
     CASE WHEN p_locked THEN pg_catalog.now() ELSE NULL END,
     CASE WHEN p_locked THEN v_actor_id ELSE NULL END,
-    v_normalized_reason
+    CASE WHEN p_locked THEN v_normalized_reason ELSE NULL END
   )
   ON CONFLICT (organization_id, period_start) DO UPDATE
   SET
@@ -334,7 +334,7 @@ BEGIN
       CASE WHEN p_locked THEN pg_catalog.now() ELSE NULL END,
     locked_by =
       CASE WHEN p_locked THEN v_actor_id ELSE NULL END,
-    reason = v_normalized_reason
+    reason = CASE WHEN p_locked THEN v_normalized_reason ELSE NULL END
   RETURNING id INTO v_lock_id;
 
   INSERT INTO public.activity_logs (
@@ -376,6 +376,8 @@ SET search_path = ''
 AS $$
 DECLARE
   v_book_currency public.currency_code;
+  v_normalized_reason text :=
+    NULLIF(pg_catalog.btrim(coalesce(p_reason, '')), '');
   v_normalized_period_start date;
   v_target_period_id uuid;
 BEGIN
@@ -385,6 +387,11 @@ BEGIN
     OR p_locked IS NULL THEN
     RAISE EXCEPTION 'Accounting period lock details are required'
       USING ERRCODE = '22023';
+  END IF;
+
+  IF v_normalized_reason IS NOT NULL
+    AND pg_catalog.length(v_normalized_reason) > 400 THEN
+    RAISE EXCEPTION 'Reason is too long' USING ERRCODE = '22023';
   END IF;
 
   SELECT book.currency
@@ -428,7 +435,7 @@ BEGIN
     CASE WHEN p_locked THEN p_actor_id ELSE NULL END,
     CASE
       WHEN p_locked
-      THEN NULLIF(pg_catalog.btrim(coalesce(p_reason, '')), '')
+      THEN v_normalized_reason
       ELSE NULL
     END,
     p_actor_id,
@@ -467,7 +474,7 @@ BEGIN
       'reason',
       CASE
         WHEN p_locked
-        THEN NULLIF(pg_catalog.btrim(coalesce(p_reason, '')), '')
+        THEN v_normalized_reason
         ELSE NULL
       END
     )
@@ -528,4 +535,13 @@ FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION
   public.set_ledger_period_lock(uuid, date, boolean, text),
   public.set_accounting_period_lock(uuid, uuid, date, boolean, text)
+TO authenticated;
+
+-- Ledger authority transitions must pass through the exclusive-lock RPC.
+REVOKE ALL
+ON TABLE public.ledger_period_locks
+FROM authenticated;
+
+GRANT SELECT
+ON TABLE public.ledger_period_locks
 TO authenticated;
