@@ -1,10 +1,10 @@
 # Owner Close Financial Unification
 
-**Status:** Plan 01 is merged and complete. Plan 02 is implemented in draft PR #36 and remains incomplete until this focused correction pass and its checks are accepted. Plan 03 is not authorized.
+**Status:** Plans 01 and 02 are merged and complete. Plan 03 is the only authorized implementation slice and is in progress on `codex/financial-authority-kernel`. Plan 04 remains unauthorized.
 **Planning baseline:** merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.  
 **External review:** `98-ultra-review-response.md` — `APPROVE WITH CHANGES`.  
 **Final Nestory decision:** `97-ratified-final-sequence.md`.  
-**Current implementation authorization:** Plan 01 only, after this documentation correction commit is complete.
+**Current implementation authorization:** Plan 03 shared financial-authority infrastructure only.
 
 ## Authority order
 
@@ -19,7 +19,7 @@ Use these files in this order:
 
 The Ultra response is the single external architecture review. Do not create a loop by asking Ultra to review the correction pass. ChatGPT owns the final synthesis, and Codex Standard + High owns narrow implementation work.
 
-No further Ultra architecture review is required for Plan 02.
+No further Ultra architecture review is required for Plan 02 or Plan 03.
 
 ## Product objective
 
@@ -129,4 +129,6 @@ Do not invent policy to keep implementation moving. Unsupported cases must block
 
 ## Current next step
 
-Prepare one Codex implementation prompt for Plan 01 only. Plan 01 must remain read-only, deterministic, paginated, fail-closed, environment guarded, and limited to local/test fixtures unless production diagnostic access is separately authorized. It must not repair data, backfill, cut over reports, deploy, or authorize Plan 02.
+Complete Plan 03 as one draft PR without merging it. Keep current source
+workflows and reports unchanged. Plan 04 remains unauthorized until the Plan 03
+kernel, bypass tests, race evidence, and full verification are accepted.

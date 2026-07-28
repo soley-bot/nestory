@@ -1435,7 +1435,7 @@ function inventoryRow(
   payload: Record<string, unknown>,
 ): FinanceInventoryPageRow {
   return {
-    contract_version: "finance_inventory_v2",
+    contract_version: "finance_inventory_v3",
     payload,
     section,
     stable_key: stableKey,

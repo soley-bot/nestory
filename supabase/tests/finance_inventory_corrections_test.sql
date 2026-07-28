@@ -377,7 +377,7 @@ SELECT is(
       'USD', '2026-07-01', '2026-07-31', 'sources', NULL, 1000, NULL, NULL
     )
   ),
-  'finance_inventory_v2',
+  'finance_inventory_v3',
   'database diagnostic contract matches the corrected artifact contract'
 );
 

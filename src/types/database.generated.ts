@@ -994,6 +994,7 @@ export type Database = {
           paid_date: string
           payee_label: string
           property_id: string
+          reconciliation_source_id: string | null
           reference: string | null
           reversal_of_id: string | null
         }
@@ -1007,6 +1008,7 @@ export type Database = {
           paid_date: string
           payee_label: string
           property_id: string
+          reconciliation_source_id?: string | null
           reference?: string | null
           reversal_of_id?: string | null
         }
@@ -1020,6 +1022,7 @@ export type Database = {
           paid_date?: string
           payee_label?: string
           property_id?: string
+          reconciliation_source_id?: string | null
           reference?: string | null
           reversal_of_id?: string | null
         }
@@ -1029,6 +1032,13 @@ export type Database = {
             columns: ["organization_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_payments_org_reconciliation_source_fkey"
+            columns: ["organization_id", "reconciliation_source_id"]
+            isOneToOne: false
+            referencedRelation: "financial_reconciliation_sources"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -1148,6 +1158,7 @@ export type Database = {
           payer_label: string
           property_id: string
           received_date: string
+          reconciliation_source_id: string | null
           reference: string | null
           reversal_of_id: string | null
         }
@@ -1161,6 +1172,7 @@ export type Database = {
           payer_label: string
           property_id: string
           received_date: string
+          reconciliation_source_id?: string | null
           reference?: string | null
           reversal_of_id?: string | null
         }
@@ -1174,6 +1186,7 @@ export type Database = {
           payer_label?: string
           property_id?: string
           received_date?: string
+          reconciliation_source_id?: string | null
           reference?: string | null
           reversal_of_id?: string | null
         }
@@ -1183,6 +1196,13 @@ export type Database = {
             columns: ["organization_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_receipts_org_reconciliation_source_fkey"
+            columns: ["organization_id", "reconciliation_source_id"]
+            isOneToOne: false
+            referencedRelation: "financial_reconciliation_sources"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -1222,6 +1242,75 @@ export type Database = {
               "currency",
               "id",
             ]
+          },
+        ]
+      }
+      financial_reconciliation_sources: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          display_name: string
+          id: string
+          masked_reference: string | null
+          organization_id: string
+          property_id: string | null
+          scope_kind: string
+          source_kind: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          display_name: string
+          id?: string
+          masked_reference?: string | null
+          organization_id: string
+          property_id?: string | null
+          scope_kind: string
+          source_kind: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          display_name?: string
+          id?: string
+          masked_reference?: string | null
+          organization_id?: string
+          property_id?: string | null
+          scope_kind?: string
+          source_kind?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_reconciliation_sources_org_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "financial_reconciliation_sources_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1443,6 +1532,7 @@ export type Database = {
           lease_deposit_id: string
           organization_id: string
           property_id: string
+          reconciliation_source_id: string | null
           reference: string | null
           reversal_of_id: string | null
         }
@@ -1457,6 +1547,7 @@ export type Database = {
           lease_deposit_id: string
           organization_id: string
           property_id: string
+          reconciliation_source_id?: string | null
           reference?: string | null
           reversal_of_id?: string | null
         }
@@ -1471,6 +1562,7 @@ export type Database = {
           lease_deposit_id?: string
           organization_id?: string
           property_id?: string
+          reconciliation_source_id?: string | null
           reference?: string | null
           reversal_of_id?: string | null
         }
@@ -1494,6 +1586,13 @@ export type Database = {
             columns: ["organization_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_deposit_events_org_reconciliation_source_fkey"
+            columns: ["organization_id", "reconciliation_source_id"]
+            isOneToOne: false
+            referencedRelation: "financial_reconciliation_sources"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -2644,6 +2743,7 @@ export type Database = {
           period_id: string
           property_id: string | null
           receipt_reference: string | null
+          reconciliation_source_id: string | null
           remark: string | null
           status: string
           supplier: string | null
@@ -2680,6 +2780,7 @@ export type Database = {
           period_id: string
           property_id?: string | null
           receipt_reference?: string | null
+          reconciliation_source_id?: string | null
           remark?: string | null
           status?: string
           supplier?: string | null
@@ -2716,6 +2817,7 @@ export type Database = {
           period_id?: string
           property_id?: string | null
           receipt_reference?: string | null
+          reconciliation_source_id?: string | null
           remark?: string | null
           status?: string
           supplier?: string | null
@@ -2747,6 +2849,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "ledger_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petty_cash_entries_org_reconciliation_source_fkey"
+            columns: ["organization_id", "reconciliation_source_id"]
+            isOneToOne: false
+            referencedRelation: "financial_reconciliation_sources"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "petty_cash_entries_organization_id_fkey"
@@ -2912,6 +3021,84 @@ export type Database = {
           },
         ]
       }
+      property_close_revisions: {
+        Row: {
+          calculation_contract_version: string
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          owner_roster_hash: string | null
+          previous_revision_id: string | null
+          property_reporting_period_id: string
+          reason: string | null
+          reconciliation_manifest_hash: string | null
+          revision_kind: string
+          revision_number: number
+          source_manifest_hash: string | null
+        }
+        Insert: {
+          calculation_contract_version: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          owner_roster_hash?: string | null
+          previous_revision_id?: string | null
+          property_reporting_period_id: string
+          reason?: string | null
+          reconciliation_manifest_hash?: string | null
+          revision_kind: string
+          revision_number: number
+          source_manifest_hash?: string | null
+        }
+        Update: {
+          calculation_contract_version?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          owner_roster_hash?: string | null
+          previous_revision_id?: string | null
+          property_reporting_period_id?: string
+          reason?: string | null
+          reconciliation_manifest_hash?: string | null
+          revision_kind?: string
+          revision_number?: number
+          source_manifest_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_close_revisions_org_period_fkey"
+            columns: ["organization_id", "property_reporting_period_id"]
+            isOneToOne: false
+            referencedRelation: "property_reporting_periods"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "property_close_revisions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_close_revisions_previous_fkey"
+            columns: [
+              "organization_id",
+              "property_reporting_period_id",
+              "previous_revision_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "property_close_revisions"
+            referencedColumns: [
+              "organization_id",
+              "property_reporting_period_id",
+              "id",
+            ]
+          },
+        ]
+      }
       property_owners: {
         Row: {
           archived_at: string | null
@@ -2985,6 +3172,74 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      property_reporting_periods: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          current_close_revision_id: string | null
+          id: string
+          lifecycle_status: string
+          organization_id: string
+          period_start: string
+          property_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          current_close_revision_id?: string | null
+          id?: string
+          lifecycle_status?: string
+          organization_id: string
+          period_start: string
+          property_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          current_close_revision_id?: string | null
+          id?: string
+          lifecycle_status?: string
+          organization_id?: string
+          period_start?: string
+          property_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_reporting_periods_current_revision_fkey"
+            columns: ["organization_id", "id", "current_close_revision_id"]
+            isOneToOne: false
+            referencedRelation: "property_close_revisions"
+            referencedColumns: [
+              "organization_id",
+              "property_reporting_period_id",
+              "id",
+            ]
+          },
+          {
+            foreignKeyName: "property_reporting_periods_org_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "property_reporting_periods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3560,6 +3815,10 @@ export type Database = {
         Args: { p_document_id: string; p_organization_id: string }
         Returns: string
       }
+      archive_financial_reconciliation_source: {
+        Args: { p_organization_id: string; p_source_id: string }
+        Returns: string
+      }
       archive_lease: {
         Args: { p_lease_id: string; p_organization_id: string }
         Returns: string
@@ -3680,6 +3939,19 @@ export type Database = {
           p_received_date: string
           p_reference: string
           p_unit_id: string
+        }
+        Returns: string
+      }
+      create_financial_reconciliation_source: {
+        Args: {
+          p_code: string
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_display_name: string
+          p_masked_reference?: string
+          p_organization_id: string
+          p_property_id?: string
+          p_scope_kind: string
+          p_source_kind: string
         }
         Returns: string
       }
@@ -4080,6 +4352,10 @@ export type Database = {
           vendor_person_id: string
         }[]
       }
+      get_report_documents_snapshot: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
       mark_organization_invitation_delivery_failed: {
         Args: { p_error: string; p_invitation_id: string }
         Returns: string
@@ -4324,6 +4600,15 @@ export type Database = {
           p_storage_path?: string
           p_task_id?: string
           p_unit_id?: string
+        }
+        Returns: string
+      }
+      update_financial_reconciliation_source_label: {
+        Args: {
+          p_display_name: string
+          p_masked_reference?: string
+          p_organization_id: string
+          p_source_id: string
         }
         Returns: string
       }

@@ -179,6 +179,22 @@ export function normalizePropertyCashEvent(
       "Property cash event cannot expose a reconciliation source while its identity is missing.",
     );
   }
+  if (
+    reconciliationState === "linked_exact_identity" &&
+    row.reconciliation_source_id === null
+  ) {
+    throw new Error(
+      "Property cash event has a linked reconciliation state without a source identity.",
+    );
+  }
+  if (
+    reconciliationState === "linked_exact_identity" &&
+    resolutionCodes.includes("missing_reconciliation_source")
+  ) {
+    throw new Error(
+      "Property cash event with a linked reconciliation source cannot remain marked missing.",
+    );
+  }
 
   return {
     amountCents,

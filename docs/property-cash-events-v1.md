@@ -49,9 +49,13 @@ the event date is unresolved.
 
 Every row exposes `resolution_codes text[]`, `reconciliation_source_id`, and
 `reconciliation_state`. Resolution codes are sorted and unique, and every
-`requires_resolution = true` row has at least one code. The current contract
-does not invent the future reconciliation source: its ID is null and its state
-is `missing_stable_identity`.
+`requires_resolution = true` row has at least one code. An exact Plan 03 source
+link has state `linked_exact_identity`. An unlinked row has a null ID:
+`missing_stable_identity` means a required stable identity is absent, while
+`not_required` means reconciliation does not apply to that row. The contract
+never infers or fuzzy-matches a source. `missing_reconciliation_source`
+appears only for the missing state, while unrelated resolution reasons remain
+intact after a link is added.
 
 ## Source matrix
 
@@ -104,7 +108,7 @@ optional unit filter intentionally excludes property-level rows whose
 | Code | Meaning |
 | --- | --- |
 | `mutable_obligation_classification` | Allocation classification still follows a mutable obligation |
-| `missing_reconciliation_source` | No stable reconciliation source identity exists in v1 |
+| `missing_reconciliation_source` | This cash-bearing row has no exact reconciliation-source link |
 | `management_fee_owner_recognition_unresolved` | IPS owner-liability recognition timing is not ratified |
 | `deposit_cash_identity_missing` | Compatibility deposit evidence lacks an exact deposit-cash identity |
 | `receipt_header_unapplied` | Receipt header exceeds its organization-scoped allocations |
@@ -305,18 +309,44 @@ property, `USD`, inclusive period, and the exact disposable Finance inventory
 stack workdir. The command proves the local project/API/workdir identity,
 rejects hosted and Vercel production/preview execution, authenticates as the
 fixture admin, traverses every checked RPC page, loads current-path and Plan 01
-evidence, and verifies an unchanged before/after source watermark. A dirty
-repository fails closed unless `--record-dirty` is explicitly supplied and
-recorded.
+evidence, and verifies an unchanged before/after Plan 01 watermark. It also
+loads every current-path input twice and compares a deterministic SHA-256
+material-state token, so changes to properties, units, leases, the
+PropertySummary Ledger response, period report Ledger rows, timeline,
+maintenance, organization-wide active documents, owner data, obligations, or
+settlements fail the collection. The PropertySummary Ledger input deliberately
+uses one unpaginated request with the same filters and descending
+`transaction_date`, then descending `id`, ordering as the current page loader,
+so it retains that loader's exact capped subset and API row cap instead of
+claiming completeness that the current surface does not have. The parity input
+keeps that response unchanged; only a shallow copy used by the before/after
+material hash is ordered by its required unique Ledger ID so equivalent
+responses cannot create a false mutation signal. The document input
+exactly follows the trusted report because both import the same document loader:
+the same selected columns, organization and archive boundary, ID ordering,
+exact count, and 5,000-row completeness limit. Both use the read-only
+`get_report_documents_snapshot` RPC, which returns one JSON value from one
+PostgreSQL statement under the authenticated caller's document RLS. The
+statement materializes at most 5,001 ordered rows so the caller can distinguish
+the accepted boundary from overflow without the Data API's row cap creating
+multiple snapshots. A concurrent insert, archive, rename, or relink is therefore
+observed either before or after the statement, never as a mixed page set. A document
+linked to another property in the same organization therefore participates in
+both before and after material tokens, while an archived document does not.
+PropertySummary receives the current loader's single-response all-time active
+Ledger evidence; period reports retain the selected period only. A dirty
+repository fails closed unless
+`--record-dirty` is explicitly supplied and recorded.
 
 Each ignored `artifacts/property-cash-shadow/<timestamp>/` directory contains
 deterministic normalized JSON, a readable Markdown summary, and runtime
 metadata. The normalized JSON records repository/schema/migration identity,
 scope, canonical counts/totals, parity records, included/excluded/projection
 and unresolved identities, header residuals, resolution-code counts, source
-watermark, and a reported SHA-256. `--strict` exits nonzero for unresolved or
-mismatched evidence while leaving expected `not_comparable` records
-informational. No application surface imports the runner or its artifacts.
+watermark plus current-path material hash, and a reported SHA-256. `--strict`
+exits nonzero for unresolved or mismatched evidence while leaving expected
+`not_comparable` records informational. No application surface imports the
+runner or its artifacts.
 
 ### Local fixture and query-plan evidence
 
@@ -332,13 +362,13 @@ RLS, sorted resolution codes, and deterministic traversal above 5,000 events.
 
 On that disposable fixture, an authenticated
 `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS)` of the first 1,000-row RPC page
-at code head `93abb4a96b05b5ce3ee265d243da1d7821096227` reported:
+at code head `e70a147ade1139f626587f07087c9f8c617906a5` reported:
 
 - a `Function Scan` over `get_property_cash_events_v1_page`;
 - 1,000 returned rows in one loop;
-- 16,050 shared-buffer hits;
-- 0.055 ms planning time; and
-- 102.140 ms total execution time.
+- 6,173 shared-buffer hits;
+- 0.062 ms planning time; and
+- 68.385 ms total execution time.
 
 This is local diagnostic evidence from one Windows Docker stack, warm-cache
 state, fixture shape, and machine. The function boundary hides its internal

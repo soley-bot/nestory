@@ -17,15 +17,26 @@ watermark. The public wrapper:
 - exposes only `sources`, `diagnostics`, `access`, and `watermark` sections; and
 - delegates to a private, read-only helper that API roles cannot execute.
 
-The unmerged Plan 01 migration is
-`20260727010101_finance_inventory_diagnostics.sql`. It adds diagnostic functions
-only. It does not change a financial grant, RLS policy, table, write RPC, lock,
-or report.
+The merged Plan 01 migration is
+`20260727010101_finance_inventory_diagnostics.sql`. Plan 03 appends
+reconciliation-source awareness in
+`20260727174623_shared_financial_authority_kernel.sql`; it does not switch a
+report or current mutation to the diagnostic contract.
 
-Every row uses contract version `finance_inventory_v2`. Source rows preserve
-typed identities and exact two-decimal strings. Receipt, payment, and deposit
-reversals retain their parent/original identity and use the exact opposite
-signed effect.
+Every row uses contract version `finance_inventory_v3`. Source rows preserve
+typed identities and exact two-decimal strings. Receipt, payment, deposit, and
+petty-cash reversals retain their parent/original identity and use the exact
+opposite signed effect.
+
+Cash-bearing source rows expose `reconciliationSourceId` and
+`reconciliationSourceState`. Exact links use `linked_exact_identity`; a null
+required link uses `missing_stable_identity`. Plan 03 appends
+`MISSING_STABLE_RECONCILIATION_IDENTITY` diagnostics only for unlinked
+`petty_cash_entry` rows. Receipt allocations, payment allocations, and deposit
+events receive linkage metadata only in this patch. The watermark includes the
+applicable reconciliation source catalog and property
+reporting-period/revision state so source-label, archive, scope, lifecycle, or
+close-history changes invalidate an in-flight artifact.
 
 ## Disposable local command
 
@@ -187,9 +198,10 @@ The source watermark covers obligations, settlement headers and allocations,
 deposit definitions/events, Ledger, journals/lines, maintenance, petty cash,
 ownership, people/contact archival metadata, property/organization Ledger
 locks, accounting books/period locks, migrations/schema identity, table
-privileges/RLS policies, function ACLs, and organization membership. The CLI
-checks the watermark before and after collection and validates every page's
-contract version.
+privileges/RLS policies, function ACLs, organization membership, and the
+selected property's reporting-period and close-revision state. The CLI checks
+the watermark before and after collection and validates every page's contract
+version.
 
 The `access` section records privilege metadata; it does not claim that metadata
 is an observed runtime outcome. `finance_inventory_authorization_test.sql`
