@@ -22,9 +22,18 @@ const frequencyLabels = {
 } as const;
 
 export function ConfigurationRegistryCatalog() {
-  const grouped = Object.entries(
-    Object.groupBy(configurationRegistry, (definition) => definition.module),
-  ) as [ConfigurationModule, (typeof configurationRegistry)[number][]][];
+  const grouped = configurationRegistry.reduce(
+    (groups, definition) => {
+      const current = groups.get(definition.module) ?? [];
+      current.push(definition);
+      groups.set(definition.module, current);
+      return groups;
+    },
+    new Map<
+      ConfigurationModule,
+      (typeof configurationRegistry)[number][]
+    >(),
+  );
 
   return (
     <>
@@ -45,7 +54,7 @@ export function ConfigurationRegistryCatalog() {
         </div>
 
         <div className="mt-5 space-y-6">
-          {grouped.map(([module, definitions]) => (
+          {Array.from(grouped.entries()).map(([module, definitions]) => (
             <section key={module}>
               <div className="flex items-center justify-between gap-4 border-b border-border pb-2">
                 <h3 className="text-sm font-semibold text-foreground">
