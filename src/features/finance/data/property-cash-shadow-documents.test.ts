@@ -153,6 +153,29 @@ describe("property cash shadow document input", () => {
       "Report document population changed during collection",
     );
   });
+
+  it("fails closed when a count-preserving mutation occurs behind the keyset cursor", async () => {
+    const rows = Array.from({ length: 2_000 }, (_, index) =>
+      documentRow({ id: `document-${index.toString().padStart(5, "0")}` }),
+    );
+    const client = createDocumentClient(rows, {
+      afterRange({ call, sourceRows }) {
+        if (call === 1) {
+          sourceRows.shift();
+          sourceRows.push(documentRow({ id: "document-00000-new" }));
+        }
+      },
+    });
+
+    await expect(
+      loadPropertyCashShadowDocuments({
+        client: client as never,
+        organizationId: "organization-a",
+      }),
+    ).rejects.toThrow(
+      "Report document population changed during collection",
+    );
+  });
 });
 
 function documentRow(overrides: Partial<DocumentRow>): DocumentRow {
@@ -180,68 +203,107 @@ function createDocumentClient(
   } = {},
 ) {
   const state = {
-    filters: new Map<string, unknown>(),
-    greaterThanId: null as string | null,
     requestedAfterIds: [] as Array<string | null>,
     requestedExactCount: false,
     requestedRanges: [] as Array<[number, number]>,
     selectedColumns: "",
+    totalCalls: 0,
   };
 
-  const query = {
-    eq(column: string, value: string) {
-      state.filters.set(column, value);
-      return query;
-    },
-    gt(column: string, value: string) {
-      if (column !== "id") {
-        throw new Error(`Unexpected greater-than column ${column}`);
-      }
-      state.greaterThanId = value;
-      return query;
-    },
-    is(column: string, value: null) {
-      state.filters.set(column, value);
-      return query;
-    },
-    order() {
-      return query;
-    },
-    async range(from: number, to: number) {
-      state.requestedRanges.push([from, to]);
-      state.requestedAfterIds.push(state.greaterThanId);
-      const filtered = rows
-        .filter((row) =>
-          [...state.filters].every(
-            ([column, value]) =>
-              row[column as keyof DocumentRow] === value,
-          ),
-        )
-        .filter(
-          (row) =>
-            state.greaterThanId === null || row.id > state.greaterThanId,
-        )
-        .sort((left, right) => left.id.localeCompare(right.id));
-      const result = {
-        count: state.requestedExactCount ? filtered.length : null,
-        data: filtered.slice(from, Math.min(to + 1, from + 1_000)).map((row) => ({
-          file_name: row.file_name,
-          id: row.id,
-          lease_id: row.lease_id,
-          ledger_entry_id: row.ledger_entry_id,
-          property_id: row.property_id,
-          timeline_event_id: row.timeline_event_id,
-          unit_id: row.unit_id,
-        })),
-        error: null,
-      };
-      options.afterRange?.({
-        call: state.requestedRanges.length,
-        sourceRows: rows,
-      });
-      return result;
-    },
-  };
+  function createQuery() {
+    const filters = new Map<string, unknown>();
+    let greaterThanId: string | null = null;
+    let greaterThanOrEqualId: string | null = null;
+    let lessThanOrEqualId: string | null = null;
+
+    const query = {
+      eq(column: string, value: string) {
+        filters.set(column, value);
+        return query;
+      },
+      gte(column: string, value: string) {
+        if (column !== "id") {
+          throw new Error(`Unexpected greater-than-or-equal column ${column}`);
+        }
+        greaterThanOrEqualId = value;
+        return query;
+      },
+      gt(column: string, value: string) {
+        if (column !== "id") {
+          throw new Error(`Unexpected greater-than column ${column}`);
+        }
+        greaterThanId = value;
+        return query;
+      },
+      is(column: string, value: null) {
+        filters.set(column, value);
+        return query;
+      },
+      lte(column: string, value: string) {
+        if (column !== "id") {
+          throw new Error(`Unexpected less-than-or-equal column ${column}`);
+        }
+        lessThanOrEqualId = value;
+        return query;
+      },
+      order() {
+        return query;
+      },
+      async range(from: number, to: number) {
+        state.totalCalls += 1;
+        if (
+          greaterThanOrEqualId === null &&
+          lessThanOrEqualId === null &&
+          to === 4_999
+        ) {
+          state.requestedRanges.push([from, to]);
+          state.requestedAfterIds.push(greaterThanId);
+        }
+        const filtered = rows
+          .filter((row) =>
+            [...filters].every(
+              ([column, value]) =>
+                row[column as keyof DocumentRow] === value,
+            ),
+          )
+          .filter(
+            (row) => greaterThanId === null || row.id > greaterThanId,
+          )
+          .filter(
+            (row) =>
+              greaterThanOrEqualId === null ||
+              row.id >= greaterThanOrEqualId,
+          )
+          .filter(
+            (row) =>
+              lessThanOrEqualId === null || row.id <= lessThanOrEqualId,
+          )
+          .sort((left, right) => left.id.localeCompare(right.id));
+        const result = {
+          count: state.requestedExactCount ? filtered.length : null,
+          data: filtered
+            .slice(from, Math.min(to + 1, from + 1_000))
+            .map((row) => ({
+              file_name: row.file_name,
+              id: row.id,
+              lease_id: row.lease_id,
+              ledger_entry_id: row.ledger_entry_id,
+              property_id: row.property_id,
+              timeline_event_id: row.timeline_event_id,
+              unit_id: row.unit_id,
+            })),
+          error: null,
+        };
+        options.afterRange?.({
+          call: state.totalCalls,
+          sourceRows: rows,
+        });
+        return result;
+      },
+    };
+
+    return query;
+  }
 
   return {
     from() {
@@ -249,7 +311,7 @@ function createDocumentClient(
         select(columns: string, options?: { count?: string }) {
           state.selectedColumns = columns;
           state.requestedExactCount = options?.count === "exact";
-          return query;
+          return createQuery();
         },
       };
     },

@@ -326,7 +326,11 @@ exactly follows the trusted report because both import the same document loader:
 the same selected columns, archive exclusion, ID ordering, exact count, repeated
 API-capped ID-keyset pages, and 5,000-row completeness boundary. Every page
 revalidates the exact remaining count, so a count-preserving archive/insert that
-changes later identities fails closed. A document
+changes later identities fails closed. After collection, each original
+1,000-row ID span is re-read with an exact active count and compared field by
+field, then the full organization-wide active count is checked again. A
+count-preserving mutation at or behind an earlier keyset cursor therefore also
+fails closed. A document
 linked to another property in the same organization therefore participates in
 both before and after material tokens, while an archived document does not.
 PropertySummary receives the current loader's single-response all-time active
