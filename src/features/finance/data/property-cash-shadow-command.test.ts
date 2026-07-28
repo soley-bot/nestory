@@ -53,11 +53,8 @@ describe("property cash shadow executable", () => {
     );
 
     expect(propertySummaryLedgerLoad?.[1]).toBe("loadSingleRequest");
-    expect(propertySummaryLedgerLoad?.[0]).toContain(
-      '.order("transaction_date", { ascending: false })',
-    );
-    expect(propertySummaryLedgerLoad?.[0]).toContain(
-      '.order("id", { ascending: false })',
+    expect(propertySummaryLedgerLoad?.[0]).toMatch(
+      /\.order\("transaction_date", \{ ascending: false \}\)[\s\S]*\.order\("id", \{ ascending: false \}\)/,
     );
   });
 });
