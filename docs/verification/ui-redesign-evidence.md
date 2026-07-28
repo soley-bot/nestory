@@ -70,6 +70,8 @@ Browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
 | /people-reports | /people-reports?report=staff-access&archiveState=archived | /reports/people-readiness?peopleView=staff&archiveState=archived | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-preserved | None |
 <!-- route-evidence:/settings -->
 | /settings | /settings | /settings | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | None |
+<!-- route-evidence:/settings/rent-policy -->
+| /settings/rent-policy | /settings/rent-policy | /settings/rent-policy | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | populated, empty, error, permission-blocked, draft, saving, success | 3/3 Plan 04 pass | not-applicable | Local disposable stack: incomplete approval blocked, complete policy approved, Manager/Member denied, and no overflow at 1440x900, 1024x768, or 390x844. |
 <!-- route-evidence:/users-roles -->
 | /users-roles | /users-roles | /users-roles | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | preserved | None |
 <!-- route-evidence:/account -->

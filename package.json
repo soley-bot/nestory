@@ -19,6 +19,7 @@
     "finance:inventory:stack": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/finance-inventory-stack.mjs",
     "finance:test-ledger-authority": "node scripts/finance-ledger-period-concurrency.mjs",
     "finance:test-accounting-authority": "node scripts/finance-accounting-period-concurrency.mjs",
+    "leases:test-term-authority": "node scripts/lease-term-authority-concurrency.mjs",
     "finance:property-cash-shadow": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --experimental-loader ./scripts/typescript-alias-loader.mjs scripts/property-cash-shadow.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",

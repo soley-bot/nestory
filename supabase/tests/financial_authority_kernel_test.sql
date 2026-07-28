@@ -164,6 +164,8 @@ INSERT INTO public.person_roles(organization_id, person_id, role)
 SELECT organization_id, tenant_id, 'tenant'
 FROM financial_authority_test_state;
 
+SELECT set_config('app.lease_creation_context', 'test-fixture-v1', true);
+
 INSERT INTO public.leases(
   id, organization_id, property_id, unit_id, primary_tenant_person_id,
   tenant_name, lease_start_date, lease_end_date, monthly_rent_amount,

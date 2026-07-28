@@ -30,6 +30,7 @@ vi.mock("@/features/leases/actions", () => ({
   recordLeaseDepositEventAction: async () => ({}),
   restoreLeaseAction: async () => ({}),
   reverseLeaseDepositEventAction: async () => ({}),
+  scheduleFutureRentTermAction: async () => ({}),
   updateLeaseAction: async () => ({}),
 }));
 
@@ -103,11 +104,22 @@ describe("LeaseScreen redesign contract", () => {
     const firstQuickView = screen.getByRole("dialog", {
       name: "Alice Tenant lease quick view",
     });
+    expect(within(firstQuickView).getByText("Rent blocked")).not.toBeNull();
     expect(within(firstQuickView).getByText("USD 1,200.00 held")).not.toBeNull();
     expect(within(firstQuickView).getByText("Event type")).not.toBeNull();
     expect(within(firstQuickView).getByText("Event date")).not.toBeNull();
     expect(within(firstQuickView).getByText("Amount")).not.toBeNull();
     expect(within(firstQuickView).getByText("Reference")).not.toBeNull();
+    expect(
+      within(firstQuickView).getByRole("heading", {
+        name: "Schedule future rent",
+      }),
+    ).not.toBeNull();
+    expect(
+      within(firstQuickView).getByRole("button", {
+        name: "Schedule future term",
+      }),
+    ).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
 
     fireEvent.click(rows[1]!);
@@ -146,6 +158,29 @@ describe("LeaseScreen redesign contract", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(screen.getByRole("dialog", { name: "Edit lease" })).not.toBeNull();
     expect(screen.queryByRole("dialog", { name: "Alice Tenant lease quick view" })).toBeNull();
+  });
+
+  it("requires explicit due day, frequency, and term lifecycle in the create drawer", async () => {
+    const user = userEvent.setup();
+    renderLeases();
+
+    await user.click(screen.getByRole("button", { name: "Add lease" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Add lease" });
+    expect(
+      within(drawer).getByRole("group", { name: /Rent due day/ }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("group", { name: /Payment frequency/ }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("group", { name: /Term status/ }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByText(
+        /no policy default is inferred/i,
+      ),
+    ).not.toBeNull();
   });
 
   it("distinguishes filtered and true empty states and hides unauthorized actions", () => {
@@ -329,6 +364,22 @@ function makeLease(id: string, tenantName: string, unitNumber: string) {
       },
     ],
     property: { code: "RIVER", id: "property-1", name: "Riverside House" },
+    terms: [
+      {
+        archived_at: null,
+        authority_kind: "authoritative",
+        end_date: "2027-06-30",
+        id: `${id}-term`,
+        lease_id: id,
+        payment_frequency: "monthly",
+        rent_amount: 850,
+        rent_currency: "USD",
+        rent_due_day: 10,
+        start_date: "2026-07-01",
+        status: "active",
+        term_sequence: 1,
+      },
+    ],
     unit: {
       floor: id === "lease-1" ? null : "3",
       id: unitId,

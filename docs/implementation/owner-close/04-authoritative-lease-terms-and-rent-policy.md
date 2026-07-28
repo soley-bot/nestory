@@ -2,7 +2,7 @@
 
 **Mode:** Standard
 **Effort:** High
-**Status:** Current authorized implementation slice.
+**Status:** Implemented on `codex/plan-04-authoritative-lease-terms`; draft-PR review is the remaining release boundary.
 **Baseline:** `main` at `64d72fcb545fa2feedebb05a2a261af23cc49bd6`, the merge commit for PR #37.
 **Reason:** Future rent occurrence generation cannot be deterministic while compatibility lease columns can overwrite normalized terms and unresolved IPS rent rules are silently inferred.
 
@@ -240,6 +240,65 @@ Demonstrate the current failure before implementation:
 - Generated types and complete RED/GREEN evidence.
 - PR #38 conflict/disposition report.
 - Draft PR only.
+
+## Implemented evidence and operational assessment
+
+The candidate implements the ratified slice without hosted access, production
+mutation, deployment, merge, charge occurrences, or settlement cutover.
+
+- Migration:
+  `20260728120841_authoritative_lease_terms_and_rent_policy.sql`.
+- Focused Plan 04 pgTAP: 70/70 assertions across the schema, policy, and
+  behavior suites.
+- Full pgTAP: 25/25 files and 854/854 assertions on a clean disposable reset
+  and seed.
+- Database lint: zero findings in `public` and `app_private`; freshly generated
+  TypeScript database types match the committed file.
+- Application: 1,304/1,304 Vitest assertions across 166 files; UI route
+  coverage 54/54; ESLint, TypeScript, production build, and diff checks pass.
+- Concurrency: the Plan 03 Ledger and accounting harnesses pass; the Plan 04
+  harness passes three consecutive runs, proving same-lease overlap waits then
+  fails closed, a period transition serializes and rejects a material edit,
+  and unrelated properties remain concurrent. Forced checked-create failure
+  leaves no compatibility lease row.
+- Browser: an Admin saved an unresolved draft, was blocked from incomplete
+  approval, completed and approved the explicit policy, created a checked
+  authoritative lease, scheduled a future term without replacing active-term
+  identity, and received a precise error for a second overlapping term. The
+  post-error database state retained one shortened active term and one linked
+  upcoming term. Seeded Manager and Member accounts both reached
+  `/no-access`; anonymous access reached `/login`. Policy and lease screens had
+  no horizontal overflow at 1440x900, 1024x768, or 390x844.
+
+### Compatibility and migration-lock assessment
+
+- Existing economic values are not rewritten as confirmed. Pre-existing rows
+  are labeled `legacy_inferred`; their due day remains unresolved, and they
+  require checked confirmation or replacement.
+- `leases` date/rent fields remain compatibility displays. Only the checked
+  term transaction may project an exact authoritative term to them.
+- Material term and policy operations acquire Plan 03 property-period
+  authority for every affected month in stable order. Long terms therefore
+  create or lock one reporting-period header per intersected month; this is an
+  intentional correctness cost and should be measured on production-shaped
+  data before hosted application.
+- Adding the generated effective range and GiST exclusion constraint requires
+  table/index locks while the migration runs. Enabling `btree_gist`, validating
+  the authoritative-range constraint, and replacing RPC definitions should be
+  scheduled in a bounded maintenance window after a production-data diagnostic.
+- No compatibility column is removed, no historical obligation or cash record
+  is changed, and the legacy generator fails closed until Plan 09 consumes the
+  resolved term and policy identities.
+
+### PR #38 disposition
+
+PR #38 is currently open and marked ready, but it must not be stacked or merged
+into this candidate. Its pre-Plan-03 configuration registry still hard-codes
+`daily_actual` proration and rent due day `1`; those values conflict with the
+normalized, effective-dated policy authority here. After Plan 04 lands, reduce
+or replace PR #38: rebase it on the Plan 04 head, remove every
+rent-policy/default path, and retain only independently justified non-rent
+settings work. It contributes no code or policy value to this draft.
 
 ## Stop conditions
 

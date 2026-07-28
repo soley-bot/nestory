@@ -13,6 +13,7 @@ import {
   type LeaseOccupancyRow,
   type LeasePartyRow,
   type LeasePropertyRow,
+  type LeaseReadinessRow,
   type LeaseRow,
   type LeaseTermRow,
   type LeaseTimelineRow,
@@ -354,6 +355,7 @@ async function enrichLeaseSummaries({
     timelineResult,
     activityResult,
     ledgerResult,
+    readinessResult,
   ] = await Promise.all([
     supabase
       .from("lease_parties")
@@ -367,7 +369,7 @@ async function enrichLeaseSummaries({
     supabase
       .from("lease_terms")
       .select(
-        "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, status, archived_at",
+        "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, rent_due_day, payment_frequency, status, authority_kind, archived_at",
       )
       .eq("organization_id", organizationId)
       .in("lease_id", detailLeaseIds)
@@ -415,6 +417,11 @@ async function enrichLeaseSummaries({
       .in("entity_id", detailLeaseIds)
       .order("created_at", { ascending: false }),
     buildLeaseLedgerQuery(supabase, organizationId, propertyIds, unitIds),
+    supabase.rpc("resolve_lease_rent_readiness", {
+      p_effective_date: new Date().toISOString().slice(0, 10),
+      p_lease_id: detailLease.id,
+      p_organization_id: organizationId,
+    }),
   ]);
 
   const partyData = getOptionalLeaseBackboneRows(
@@ -473,6 +480,12 @@ async function enrichLeaseSummaries({
     );
   }
 
+  if (readinessResult.error) {
+    throw new Error(
+      `Could not resolve lease rent readiness: ${readinessResult.error.message}`,
+    );
+  }
+
   const partyRows = await addLeasePartyPeople(
     partyData,
     organizationId,
@@ -510,6 +523,8 @@ async function enrichLeaseSummaries({
       occupancies: occupanciesByLeaseId.get(lease.id) ?? [],
       parties: partiesByLeaseId.get(lease.id) ?? [],
       property: propertiesById.get(lease.propertyId),
+      readiness:
+        ((readinessResult.data?.[0] ?? null) as LeaseReadinessRow | null),
       terms: termsByLeaseId.get(lease.id) ?? [],
       deposits: depositsByLeaseId.get(lease.id) ?? [],
       timelineEvents: timelineByLeaseId.get(lease.id) ?? [],

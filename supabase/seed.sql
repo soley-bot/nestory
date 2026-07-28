@@ -9,6 +9,7 @@
 -- - demo@nestory.com / 123456789 -> empty demo workspace
 
 SELECT set_config('app.people_leases_skip_sync', 'on', false);
+SELECT set_config('app.lease_creation_context', 'test-fixture-v1', false);
 
 INSERT INTO auth.users (
   instance_id,
@@ -1071,4 +1072,5 @@ VALUES
 ('60000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '2026-05-01', '2026-06-05 09:30:00+07', '00000000-0000-0000-0000-000000000101', 'May rent, maintenance, and service invoices reconciled.');
 
 SELECT set_config('app.people_leases_skip_sync', 'off', false);
+SELECT set_config('app.lease_creation_context', 'off', false);
 SELECT app_private.backfill_accounting_journals();

@@ -1,6 +1,6 @@
 # Owner Close Financial Unification
 
-**Status:** Plans 00 through 03 are merged and complete. Plan 04 authoritative lease terms and rent-policy contract is the current implementation slice.
+**Status:** Plans 00 through 03 are merged and complete. Plan 04 authoritative lease terms and rent-policy contract is implemented on its review branch and remains unmerged pending draft-PR review.
 **Current merged baseline:** `64d72fcb545fa2feedebb05a2a261af23cc49bd6`, merge commit for PR #37 (`Add shared financial authority kernel`).
 **Historical planning baseline:** merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.
 **External review:** `98-ultra-review-response.md` — `APPROVE WITH CHANGES`.  
@@ -152,7 +152,8 @@ Do not invent policy to keep implementation moving. Unsupported cases must block
 
 ## Current next step
 
-Complete Plan 04 from
-`04-authoritative-lease-terms-and-rent-policy.md` as one draft PR without
-merging it. Keep charge generation, settlement, close, and report workflows
-unchanged. Unknown IPS policy must remain explicitly blocked or unconfirmed.
+Review the Plan 04 draft PR from
+`04-authoritative-lease-terms-and-rent-policy.md` without merging or deploying
+it from this implementation run. Keep charge generation, settlement, close,
+and report workflows unchanged. Unknown IPS policy remains explicitly blocked
+or unconfirmed.

@@ -15,6 +15,7 @@ import type {
   LeaseNextAction,
   LeaseOccupancyContext,
   LeaseRecordCounts,
+  LeaseRentReadiness,
   LeaseRiskIndicator,
   LeaseStatusValue,
   LeaseSummary,
@@ -65,14 +66,25 @@ export type LeasePartyRow = {
 
 export type LeaseTermRow = {
   archived_at: string | null;
+  authority_kind?: string;
   end_date: string;
   id: string;
   lease_id: string;
   rent_amount: number;
   rent_currency: LeaseRow["monthly_rent_currency"];
+  rent_due_day?: number | null;
+  payment_frequency?: string;
   status: string;
   term_sequence: number;
   start_date: string;
+};
+
+export type LeaseReadinessRow = {
+  policy_id: string | null;
+  reason_code: string;
+  readiness_status: string;
+  repair_context: Record<string, unknown> | null;
+  term_id: string | null;
 };
 
 export type LeaseOccupancyRow = {
@@ -126,6 +138,7 @@ type BuildLeaseSummaryInput = {
   occupancies?: LeaseOccupancyRow[];
   parties?: LeasePartyRow[];
   property?: LeasePropertyRow;
+  readiness?: LeaseReadinessRow | null;
   terms?: LeaseTermRow[];
   deposits?: LeaseDepositRow[];
   timelineEvents?: LeaseTimelineRow[];
@@ -140,6 +153,7 @@ export function buildLeaseSummary({
   occupancies = [],
   parties = [],
   property,
+  readiness,
   terms = [],
   deposits = [],
   timelineEvents = [],
@@ -159,6 +173,15 @@ export function buildLeaseSummary({
     lease.deposit_amount === null ? null : Number(lease.deposit_amount);
   const depositCurrency = lease.deposit_currency ?? rentCurrency;
   const hasDeposit = depositAmount !== null;
+  const formTerm =
+    terms.find(
+      (term) =>
+        !term.archived_at &&
+        term.authority_kind === "authoritative" &&
+        (term.status === "active" || term.status === "upcoming"),
+    ) ??
+    terms.find((term) => !term.archived_at && term.status !== "superseded") ??
+    null;
   const formValues: LeaseFormValues = {
     depositAmount,
     depositCurrency: lease.deposit_currency,
@@ -166,10 +189,23 @@ export function buildLeaseSummary({
     leaseStartDate: lease.lease_start_date,
     monthlyRentAmount: rentAmount,
     monthlyRentCurrency: rentCurrency,
+    paymentFrequency: formTerm?.payment_frequency
+      ? (formTerm.payment_frequency as LeaseFormValues["paymentFrequency"])
+      : null,
     propertyId: lease.property_id,
+    rentDueDay: formTerm?.rent_due_day ?? null,
     status: statusValue,
     tenantPersonId: lease.primary_tenant_person_id ?? "",
     tenantName: lease.tenant_name,
+    termStatus:
+      formTerm?.authority_kind === "authoritative" &&
+      (formTerm.status === "active" ||
+        formTerm.status === "draft" ||
+        formTerm.status === "expired" ||
+        formTerm.status === "terminated" ||
+        formTerm.status === "upcoming")
+        ? (formTerm.status as LeaseFormValues["termStatus"])
+        : null,
     unitId: lease.unit_id,
   };
   const hrefs = buildLeaseDetailHrefs(lease);
@@ -223,6 +259,7 @@ export function buildLeaseSummary({
     recordCounts,
     rentDisplay: formatMoneyDisplay(rentAmount, rentCurrency),
     rentLabel: formatMoney(rentAmount, rentCurrency),
+    rentReadiness: toRentReadiness(readiness),
     rentUsd,
     riskIndicators: buildLeaseRiskIndicators({
       endRisk,
@@ -371,11 +408,76 @@ function toPartyContext(party: LeasePartyRow): LeaseLinkedPerson {
 
 function toTermContext(term: LeaseTermRow): LeaseTermContext {
   return {
+    authorityKind:
+      term.authority_kind === "authoritative"
+        ? "authoritative"
+        : "legacy_inferred",
+    authorityLabel:
+      term.authority_kind === "authoritative"
+        ? "Authoritative"
+        : "Legacy unconfirmed",
     datesLabel: `${formatDate(term.start_date)} - ${formatDate(term.end_date)}`,
+    dueLabel: term.rent_due_day
+      ? `Day ${term.rent_due_day}`
+      : "Due day missing",
+    endDate: term.end_date,
     id: term.id,
+    paymentFrequency: term.payment_frequency
+      ? (term.payment_frequency as LeaseTermContext["paymentFrequency"])
+      : null,
+    paymentFrequencyLabel: term.payment_frequency
+      ? formatStoredLabel(term.payment_frequency)
+      : "Frequency missing",
+    rentAmount: Number(term.rent_amount),
+    rentCurrency: term.rent_currency,
+    rentDueDay: term.rent_due_day ?? null,
     rentDisplay: formatMoneyDisplay(term.rent_amount, term.rent_currency),
     rentLabel: formatMoney(term.rent_amount, term.rent_currency),
+    startDate: term.start_date,
+    status: term.status as LeaseTermContext["status"],
     statusLabel: formatStoredLabel(term.status),
+  };
+}
+
+function toRentReadiness(
+  readiness?: LeaseReadinessRow | null,
+): LeaseRentReadiness {
+  const status = readiness?.readiness_status ?? "blocked";
+  const reasonCode = readiness?.reason_code ?? "readiness_not_checked";
+  const labels: Record<string, string> = {
+    blocked: "Rent blocked",
+    legacy_unconfirmed: "Legacy term unconfirmed",
+    missing_due_day: "Due day missing",
+    policy_unapproved: "Policy unapproved",
+    ready: "Rent ready",
+    term_conflict: "Term conflict",
+    unsupported_frequency: "Frequency unsupported",
+  };
+  const repairs: Record<string, string> = {
+    legacy_unconfirmed: "Confirm or replace the legacy term.",
+    missing_due_day: "Replace the term with an explicit due day.",
+    no_authoritative_term: "Create an authoritative lease term.",
+    policy_not_effective: "Create an effective rent-policy version.",
+    policy_unapproved: "Complete and approve the rent policy.",
+    ready: "Term and policy identities are resolved.",
+    scope_mismatch: "Repair the lease, property, and unit scope.",
+    term_conflict: "Resolve overlapping authoritative terms.",
+    unsupported_frequency: "Approve the frequency or replace the term.",
+  };
+
+  return {
+    label: labels[status] ?? "Rent blocked",
+    policyId: readiness?.policy_id ?? undefined,
+    reasonCode,
+    repairLabel: repairs[reasonCode] ?? "Review rent authority.",
+    status,
+    termId: readiness?.term_id ?? undefined,
+    tone:
+      status === "ready"
+        ? "success"
+        : status === "blocked" || status === "term_conflict"
+          ? "danger"
+          : "warning",
   };
 }
 

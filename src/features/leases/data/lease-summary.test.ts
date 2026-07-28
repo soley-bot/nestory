@@ -66,6 +66,58 @@ describe("buildLeaseSummary", () => {
     expect(summary.depositLabel).toBe("No deposit recorded");
   });
 
+  it("surfaces exact term authority and rent readiness without compatibility inference", () => {
+    const summary = buildLeaseSummary({
+      lease,
+      property,
+      readiness: {
+        policy_id: "policy-1",
+        reason_code: "ready",
+        readiness_status: "ready",
+        repair_context: {
+          policyId: "policy-1",
+          termId: "term-1",
+        },
+        term_id: "term-1",
+      },
+      terms: [
+        {
+          archived_at: null,
+          authority_kind: "authoritative",
+          end_date: "2027-01-31",
+          id: "term-1",
+          lease_id: "lease-1",
+          payment_frequency: "monthly",
+          rent_amount: 850,
+          rent_currency: "USD",
+          rent_due_day: 10,
+          start_date: "2026-02-01",
+          status: "active",
+          term_sequence: 2,
+        },
+      ],
+      unit,
+    });
+
+    expect(summary.formValues).toMatchObject({
+      paymentFrequency: "monthly",
+      rentDueDay: 10,
+      termStatus: "active",
+    });
+    expect(summary.rentReadiness).toMatchObject({
+      label: "Rent ready",
+      policyId: "policy-1",
+      reasonCode: "ready",
+      termId: "term-1",
+      tone: "success",
+    });
+    expect(summary.terms[0]).toMatchObject({
+      authorityLabel: "Authoritative",
+      dueLabel: "Day 10",
+      paymentFrequencyLabel: "Monthly",
+    });
+  });
+
   it("builds linked operational context for the lease inspector", () => {
     const summary = buildLeaseSummary({
       activity: [

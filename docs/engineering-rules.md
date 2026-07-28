@@ -84,6 +84,22 @@ These rules are grounded in the current implementation.
 - Private documents live in Supabase Storage with database metadata.
 - New schema work must be append-only migrations unless the user explicitly
   asks for a reset or destructive local cleanup.
+- `lease_terms` is the rent-term authority. The duplicated dates and rent
+  values on `leases` are compatibility projections only; application writes,
+  imports, and stale clients must use the checked lease/term RPCs and must not
+  restore `leases -> lease_terms` synchronization.
+- Authoritative term mutations require explicit due day and frequency,
+  payload-bound idempotency, organization/lease scope checks, non-overlapping
+  effective ranges, activity history, and Plan 03 property-period authority
+  for every affected month. Preserve historical term identity through
+  supersession instead of rewriting material history.
+- Rent policy uses normalized, effective-dated `rent_policy_versions`.
+  Unresolved rules may exist only in drafts; approval requires a complete
+  explicit policy, and approved rows are immutable. Do not replace this with a
+  generic JSON settings blob or infer IPS defaults.
+- Automated rent generation remains blocked until Plan 09 consumes the exact
+  resolved term and policy identities. Readiness from compatibility rent alone
+  is never sufficient.
 - Keep property obligations separate from settlement events. Cash reporting
   uses receipt and payment dates; future accrual reporting uses charge and
   invoice dates.
