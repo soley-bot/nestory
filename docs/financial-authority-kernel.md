@@ -91,6 +91,7 @@ Authority state and private capability data use this effective role boundary:
 | `property_close_revisions` | none | `SELECT` through RLS | none |
 | private idempotency/capability relations | none | none | none |
 | public Ledger/accounting transition RPCs | none | `EXECUTE`, with admin checks | none |
+| public report-document snapshot RPC | none | `EXECUTE`, with document RLS | none |
 | private shared/exclusive authority helpers | none | none | none |
 | private accounting/property writers | none | none | none |
 | reserved-projection capability setter | none | none | none |
@@ -207,14 +208,34 @@ FROM public.accounting_journal_entries;
 
 SELECT organization_id, lower(btrim(source_type)), source_id, count(*)
 FROM public.ledger_entries
-WHERE app_private.is_reserved_financial_source_type(source_type)
+WHERE lower(btrim(source_type)) = ANY (ARRAY[
+    'receipt_allocation',
+    'payment_allocation',
+    'deposit_event',
+    'petty_cash_entry',
+    'rent_charge_occurrence',
+    'maintenance_handoff',
+    'management_fee_assessment',
+    'owner_cash_event',
+    'financial_adjustment'
+  ])
   AND source_id IS NOT NULL
 GROUP BY organization_id, lower(btrim(source_type)), source_id
 HAVING count(*) > 1;
 
 SELECT organization_id, book_id, lower(btrim(source_type)), source_id, count(*)
 FROM public.accounting_journal_entries
-WHERE app_private.is_reserved_financial_source_type(source_type)
+WHERE lower(btrim(source_type)) = ANY (ARRAY[
+    'receipt_allocation',
+    'payment_allocation',
+    'deposit_event',
+    'petty_cash_entry',
+    'rent_charge_occurrence',
+    'maintenance_handoff',
+    'management_fee_assessment',
+    'owner_cash_event',
+    'financial_adjustment'
+  ])
 GROUP BY organization_id, book_id, lower(btrim(source_type)), source_id
 HAVING count(*) > 1;
 ```

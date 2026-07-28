@@ -323,14 +323,14 @@ keeps that response unchanged; only a shallow copy used by the before/after
 material hash is ordered by its required unique Ledger ID so equivalent
 responses cannot create a false mutation signal. The document input
 exactly follows the trusted report because both import the same document loader:
-the same selected columns, archive exclusion, ID ordering, exact count, repeated
-API-capped ID-keyset pages, and 5,000-row completeness boundary. Every page
-revalidates the exact remaining count, so a count-preserving archive/insert that
-changes later identities fails closed. After collection, each original
-1,000-row ID span is re-read with an exact active count and compared field by
-field, then the full organization-wide active count is checked again. A
-count-preserving mutation at or behind an earlier keyset cursor therefore also
-fails closed. A document
+the same selected columns, organization and archive boundary, ID ordering,
+exact count, and 5,000-row completeness limit. Both use the read-only
+`get_report_documents_snapshot` RPC, which returns one JSON value from one
+PostgreSQL statement under the authenticated caller's document RLS. The
+statement materializes at most 5,001 ordered rows so the caller can distinguish
+the accepted boundary from overflow without the Data API's row cap creating
+multiple snapshots. A concurrent insert, archive, rename, or relink is therefore
+observed either before or after the statement, never as a mixed page set. A document
 linked to another property in the same organization therefore participates in
 both before and after material tokens, while an archived document does not.
 PropertySummary receives the current loader's single-response all-time active

@@ -4352,6 +4352,10 @@ export type Database = {
           vendor_person_id: string
         }[]
       }
+      get_report_documents_snapshot: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
       mark_organization_invitation_delivery_failed: {
         Args: { p_error: string; p_invitation_id: string }
         Returns: string

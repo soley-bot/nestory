@@ -19,7 +19,7 @@ type DocumentRow = {
 };
 
 describe("property cash shadow document input", () => {
-  it("loads the same active organization-wide document population as the trusted report", async () => {
+  it("loads one active organization-wide snapshot shared with trusted reports", async () => {
     const client = createDocumentClient([
       documentRow({ id: "selected", property_id: "property-a" }),
       documentRow({ id: "other", property_id: "property-b" }),
@@ -27,6 +27,10 @@ describe("property cash shadow document input", () => {
         archived_at: "2026-07-01T00:00:00.000Z",
         id: "archived",
         property_id: "property-a",
+      }),
+      documentRow({
+        id: "other-organization",
+        organization_id: "organization-b",
       }),
     ]);
 
@@ -36,8 +40,13 @@ describe("property cash shadow document input", () => {
     });
 
     expect(rows.map((row) => row.id)).toEqual(["other", "selected"]);
-    expect(client.selectedColumns).toEqual(propertyCashShadowDocumentSelect);
-    expect(client.requestedExactCount).toBe(true);
+    expect(client.requestedFunctions).toEqual([
+      "get_report_documents_snapshot",
+    ]);
+    expect(client.requestedOrganizationIds).toEqual(["organization-a"]);
+    expect(propertyCashShadowDocumentSelect).toBe(
+      "id, property_id, unit_id, lease_id, ledger_entry_id, timeline_event_id, file_name",
+    );
   });
 
   it("keeps organization document ordering and material tokens deterministic", async () => {
@@ -82,7 +91,7 @@ describe("property cash shadow document input", () => {
     );
   });
 
-  it("accepts exactly 5,000 active organization documents", async () => {
+  it("accepts exactly 5,000 active organization documents in one snapshot", async () => {
     const client = createDocumentClient(
       Array.from({ length: 5_000 }, (_, index) =>
         documentRow({ id: `document-${index.toString().padStart(5, "0")}` }),
@@ -95,20 +104,7 @@ describe("property cash shadow document input", () => {
         organizationId: "organization-a",
       }),
     ).resolves.toHaveLength(5_000);
-    expect(client.requestedRanges).toEqual([
-      [0, 4_999],
-      [0, 4_999],
-      [0, 4_999],
-      [0, 4_999],
-      [0, 4_999],
-    ]);
-    expect(client.requestedAfterIds).toEqual([
-      null,
-      "document-00999",
-      "document-01999",
-      "document-02999",
-      "document-03999",
-    ]);
+    expect(client.requestedFunctions).toHaveLength(1);
   });
 
   it("fails with trusted-report completeness semantics at 5,001 active organization documents", async () => {
@@ -131,50 +127,40 @@ describe("property cash shadow document input", () => {
     );
   });
 
-  it("fails closed when a count-preserving mutation shifts later pages", async () => {
+  it("returns one consistent snapshot when the source changes after the statement", async () => {
     const rows = Array.from({ length: 2_000 }, (_, index) =>
       documentRow({ id: `document-${index.toString().padStart(5, "0")}` }),
     );
     const client = createDocumentClient(rows, {
-      afterRange({ call, sourceRows }) {
-        if (call === 1) {
-          sourceRows.shift();
-          sourceRows.push(documentRow({ id: "document-z-new" }));
-        }
+      afterSnapshot(sourceRows) {
+        sourceRows.shift();
+        sourceRows.push(documentRow({ id: "document-z-new" }));
       },
     });
 
-    await expect(
-      loadPropertyCashShadowDocuments({
-        client: client as never,
-        organizationId: "organization-a",
-      }),
-    ).rejects.toThrow(
-      "Report document population changed during collection",
-    );
+    const snapshot = await loadPropertyCashShadowDocuments({
+      client: client as never,
+      organizationId: "organization-a",
+    });
+
+    expect(snapshot).toHaveLength(2_000);
+    expect(snapshot[0].id).toBe("document-00000");
+    expect(snapshot.at(-1)?.id).toBe("document-01999");
+    expect(snapshot.some((row) => row.id === "document-z-new")).toBe(false);
   });
 
-  it("fails closed when a count-preserving mutation occurs behind the keyset cursor", async () => {
-    const rows = Array.from({ length: 2_000 }, (_, index) =>
-      documentRow({ id: `document-${index.toString().padStart(5, "0")}` }),
-    );
-    const client = createDocumentClient(rows, {
-      afterRange({ call, sourceRows }) {
-        if (call === 1) {
-          sourceRows.shift();
-          sourceRows.push(documentRow({ id: "document-00000-new" }));
-        }
-      },
-    });
-
+  it("rejects a malformed snapshot payload", async () => {
     await expect(
       loadPropertyCashShadowDocuments({
-        client: client as never,
+        client: {
+          rpc: async () => ({
+            data: { count: 1, documents: [{ id: "missing-fields" }] },
+            error: null,
+          }),
+        },
         organizationId: "organization-a",
       }),
-    ).rejects.toThrow(
-      "Report document population changed during collection",
-    );
+    ).rejects.toThrow("Report document snapshot returned an invalid payload.");
   });
 });
 
@@ -196,136 +182,42 @@ function documentRow(overrides: Partial<DocumentRow>): DocumentRow {
 function createDocumentClient(
   rows: DocumentRow[],
   options: {
-    afterRange?: (context: {
-      call: number;
-      sourceRows: DocumentRow[];
-    }) => void;
+    afterSnapshot?: (sourceRows: DocumentRow[]) => void;
   } = {},
 ) {
-  const state = {
-    requestedAfterIds: [] as Array<string | null>,
-    requestedExactCount: false,
-    requestedRanges: [] as Array<[number, number]>,
-    selectedColumns: "",
-    totalCalls: 0,
-  };
-
-  function createQuery() {
-    const filters = new Map<string, unknown>();
-    let greaterThanId: string | null = null;
-    let greaterThanOrEqualId: string | null = null;
-    let lessThanOrEqualId: string | null = null;
-
-    const query = {
-      eq(column: string, value: string) {
-        filters.set(column, value);
-        return query;
-      },
-      gte(column: string, value: string) {
-        if (column !== "id") {
-          throw new Error(`Unexpected greater-than-or-equal column ${column}`);
-        }
-        greaterThanOrEqualId = value;
-        return query;
-      },
-      gt(column: string, value: string) {
-        if (column !== "id") {
-          throw new Error(`Unexpected greater-than column ${column}`);
-        }
-        greaterThanId = value;
-        return query;
-      },
-      is(column: string, value: null) {
-        filters.set(column, value);
-        return query;
-      },
-      lte(column: string, value: string) {
-        if (column !== "id") {
-          throw new Error(`Unexpected less-than-or-equal column ${column}`);
-        }
-        lessThanOrEqualId = value;
-        return query;
-      },
-      order() {
-        return query;
-      },
-      async range(from: number, to: number) {
-        state.totalCalls += 1;
-        if (
-          greaterThanOrEqualId === null &&
-          lessThanOrEqualId === null &&
-          to === 4_999
-        ) {
-          state.requestedRanges.push([from, to]);
-          state.requestedAfterIds.push(greaterThanId);
-        }
-        const filtered = rows
-          .filter((row) =>
-            [...filters].every(
-              ([column, value]) =>
-                row[column as keyof DocumentRow] === value,
-            ),
-          )
-          .filter(
-            (row) => greaterThanId === null || row.id > greaterThanId,
-          )
-          .filter(
-            (row) =>
-              greaterThanOrEqualId === null ||
-              row.id >= greaterThanOrEqualId,
-          )
-          .filter(
-            (row) =>
-              lessThanOrEqualId === null || row.id <= lessThanOrEqualId,
-          )
-          .sort((left, right) => left.id.localeCompare(right.id));
-        const result = {
-          count: state.requestedExactCount ? filtered.length : null,
-          data: filtered
-            .slice(from, Math.min(to + 1, from + 1_000))
-            .map((row) => ({
-              file_name: row.file_name,
-              id: row.id,
-              lease_id: row.lease_id,
-              ledger_entry_id: row.ledger_entry_id,
-              property_id: row.property_id,
-              timeline_event_id: row.timeline_event_id,
-              unit_id: row.unit_id,
-            })),
-          error: null,
-        };
-        options.afterRange?.({
-          call: state.totalCalls,
-          sourceRows: rows,
-        });
-        return result;
-      },
-    };
-
-    return query;
-  }
+  const requestedFunctions: string[] = [];
+  const requestedOrganizationIds: string[] = [];
 
   return {
-    from() {
-      return {
-        select(columns: string, options?: { count?: string }) {
-          state.selectedColumns = columns;
-          state.requestedExactCount = options?.count === "exact";
-          return createQuery();
-        },
+    async rpc(
+      functionName: string,
+      arguments_: { p_organization_id: string },
+    ) {
+      requestedFunctions.push(functionName);
+      requestedOrganizationIds.push(arguments_.p_organization_id);
+      const activeRows = rows
+        .filter(
+          (row) =>
+            row.organization_id === arguments_.p_organization_id &&
+            row.archived_at === null,
+        )
+        .sort((left, right) => left.id.localeCompare(right.id));
+      const data = {
+        count: activeRows.length,
+        documents: activeRows.slice(0, 5_001).map((row) => ({
+          file_name: row.file_name,
+          id: row.id,
+          lease_id: row.lease_id,
+          ledger_entry_id: row.ledger_entry_id,
+          property_id: row.property_id,
+          timeline_event_id: row.timeline_event_id,
+          unit_id: row.unit_id,
+        })),
       };
+      options.afterSnapshot?.(rows);
+      return { data, error: null };
     },
-    get requestedExactCount() {
-      return state.requestedExactCount;
-    },
-    get requestedAfterIds() {
-      return state.requestedAfterIds;
-    },
-    get requestedRanges() {
-      return state.requestedRanges;
-    },
-    get selectedColumns() {
-      return state.selectedColumns;
-    },
+    requestedFunctions,
+    requestedOrganizationIds,
   };
 }
