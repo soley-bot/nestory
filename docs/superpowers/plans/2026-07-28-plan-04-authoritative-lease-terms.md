@@ -217,7 +217,7 @@ handoff.
 - [x] Run disposable Supabase reset, schema lint, generated-type diff, focused pgTAP, and full pgTAP.
 - [x] Run Plan 03 concurrency harnesses and the Plan 04 harness three times.
 - [x] Run authenticated Admin/Manager/Member browser verification at desktop and mobile widths.
-- [ ] Run `git diff --check` and require a clean tree after commit.
+- [x] Run `git diff --check` and require a clean tree after commit.
 - [x] Record PR #38 rebase/reduction/replacement disposition.
-- [ ] Push `codex/plan-04-authoritative-lease-terms`.
-- [ ] Open a draft PR with exact evidence; do not merge.
+- [x] Push `codex/plan-04-authoritative-lease-terms`.
+- [x] Open a draft PR with exact evidence; do not merge.
