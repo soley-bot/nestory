@@ -240,6 +240,18 @@ BEGIN
       RAISE EXCEPTION 'Close revisions must append to the exact latest revision'
         USING ERRCODE = '22023';
     END IF;
+
+    IF (
+      v_latest_revision.revision_kind IN ('initial_close', 'reclose')
+      AND NEW.revision_kind <> 'reopen'
+    ) OR (
+      v_latest_revision.revision_kind = 'reopen'
+      AND NEW.revision_kind <> 'reclose'
+    ) THEN
+      RAISE EXCEPTION
+        'Close revision kind must alternate reopen and reclose after initial close'
+        USING ERRCODE = '22023';
+    END IF;
   END IF;
 
   RETURN NEW;
@@ -639,7 +651,8 @@ BEGIN
   INTO v_source
   FROM public.financial_reconciliation_sources AS source
   WHERE source.id = NEW.reconciliation_source_id
-    AND source.organization_id = NEW.organization_id;
+    AND source.organization_id = NEW.organization_id
+  FOR SHARE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Financial reconciliation source is outside the organization'
@@ -1218,18 +1231,38 @@ ALTER TABLE public.ledger_entries
 ALTER TABLE public.ledger_entries
   ADD CONSTRAINT ledger_entries_source_type_check
   CHECK (
-    source_type IN (
-      'manual',
-      'finance_income',
-      'finance_expense',
-      'petty_cash',
-      'maintenance_task'
+    (
+      source_type IN (
+        'manual',
+        'finance_income',
+        'finance_expense',
+        'petty_cash',
+        'maintenance_task'
+      )
+      OR app_private.is_reserved_financial_source_type(source_type)
     )
-    OR app_private.is_reserved_financial_source_type(source_type)
+    AND (
+      NOT app_private.is_reserved_financial_source_type(source_type)
+      OR (
+        source_type = lower(btrim(source_type))
+        AND source_id IS NOT NULL
+      )
+    )
+  );
+
+ALTER TABLE public.accounting_journal_entries
+  ADD CONSTRAINT accounting_journal_reserved_source_canonical_check
+  CHECK (
+    NOT app_private.is_reserved_financial_source_type(source_type)
+    OR source_type = lower(btrim(source_type))
   );
 
 CREATE UNIQUE INDEX ledger_entries_reserved_source_unique_idx
-  ON public.ledger_entries(organization_id, source_type, source_id)
+  ON public.ledger_entries(
+    organization_id,
+    (lower(btrim(source_type))),
+    source_id
+  )
   WHERE source_id IS NOT NULL
     AND app_private.is_reserved_financial_source_type(source_type);
 
@@ -1237,10 +1270,59 @@ CREATE UNIQUE INDEX accounting_journal_reserved_source_unique_idx
   ON public.accounting_journal_entries(
     organization_id,
     book_id,
-    source_type,
+    (lower(btrim(source_type))),
     source_id
   )
   WHERE app_private.is_reserved_financial_source_type(source_type);
+
+CREATE TABLE app_private.financial_projection_context_capability (
+  singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+  capability_token text NOT NULL UNIQUE
+    CHECK (capability_token ~ '^[0-9a-f]{64}$')
+);
+
+INSERT INTO app_private.financial_projection_context_capability(
+  singleton,
+  capability_token
+)
+VALUES (
+  true,
+  encode(extensions.gen_random_bytes(32), 'hex')
+);
+
+REVOKE ALL ON TABLE
+  app_private.financial_projection_context_capability
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION app_private.set_financial_projection_context(
+  p_enabled boolean
+)
+RETURNS void
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_capability_token text;
+BEGIN
+  IF p_enabled IS NULL THEN
+    RAISE EXCEPTION 'Projection context state is required'
+      USING ERRCODE = '22004';
+  END IF;
+
+  SELECT capability.capability_token
+  INTO STRICT v_capability_token
+  FROM app_private.financial_projection_context_capability AS capability
+  WHERE capability.singleton;
+
+  PERFORM set_config(
+    'app.financial_projection_context',
+    CASE WHEN p_enabled THEN v_capability_token ELSE 'off' END,
+    true
+  );
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION app_private.enforce_reserved_ledger_projection()
 RETURNS trigger
@@ -1251,6 +1333,7 @@ AS $$
 DECLARE
   v_old_reserved boolean := false;
   v_new_reserved boolean := false;
+  v_capability_token text;
 BEGIN
   IF TG_OP <> 'INSERT' THEN
     v_old_reserved :=
@@ -1262,11 +1345,16 @@ BEGIN
       app_private.is_reserved_financial_source_type(NEW.source_type);
   END IF;
 
+  SELECT capability.capability_token
+  INTO STRICT v_capability_token
+  FROM app_private.financial_projection_context_capability AS capability
+  WHERE capability.singleton;
+
   IF (v_old_reserved OR v_new_reserved)
-    AND coalesce(
-      current_setting('app.financial_projection_context', true),
-      'off'
-    ) <> 'reserved-v1' THEN
+    AND current_setting(
+      'app.financial_projection_context',
+      true
+    ) IS DISTINCT FROM v_capability_token THEN
     RAISE EXCEPTION
       'Reserved financial projection must use its domain source workflow'
       USING ERRCODE = '42501';
@@ -1289,6 +1377,7 @@ AS $$
 DECLARE
   v_old_reserved boolean := false;
   v_new_reserved boolean := false;
+  v_capability_token text;
 BEGIN
   IF TG_OP <> 'INSERT' THEN
     v_old_reserved :=
@@ -1300,11 +1389,16 @@ BEGIN
       app_private.is_reserved_financial_source_type(NEW.source_type);
   END IF;
 
+  SELECT capability.capability_token
+  INTO STRICT v_capability_token
+  FROM app_private.financial_projection_context_capability AS capability
+  WHERE capability.singleton;
+
   IF (v_old_reserved OR v_new_reserved)
-    AND coalesce(
-      current_setting('app.financial_projection_context', true),
-      'off'
-    ) <> 'reserved-v1' THEN
+    AND current_setting(
+      'app.financial_projection_context',
+      true
+    ) IS DISTINCT FROM v_capability_token THEN
     RAISE EXCEPTION
       'Reserved financial projection must use its domain source workflow'
       USING ERRCODE = '42501';
@@ -1319,6 +1413,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION
+  app_private.set_financial_projection_context(boolean),
   app_private.enforce_reserved_ledger_projection(),
   app_private.enforce_reserved_journal_projection()
 FROM PUBLIC, anon, authenticated, service_role;
@@ -1391,8 +1486,8 @@ CREATE OR REPLACE FUNCTION public.reverse_accounting_journal(
 )
 RETURNS uuid
 LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = public, app_private
+SECURITY DEFINER
+SET search_path = ''
 AS $$
 DECLARE
   actor_id uuid := (SELECT auth.uid());
@@ -1410,7 +1505,8 @@ BEGIN
   INTO v_source_type
   FROM public.accounting_journal_entries AS journal
   WHERE journal.id = p_journal_id
-    AND journal.organization_id = p_organization_id;
+    AND journal.organization_id = p_organization_id
+  FOR SHARE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Accounting journal not found'
@@ -1755,6 +1851,39 @@ DECLARE
                   OR source.property_id = p_property_id
                 )
             ), '')
+            || '|property_reporting_periods:'
+            || coalesce((
+              SELECT string_agg(
+                to_jsonb(reporting_period)::text,
+                '|' ORDER BY reporting_period.id
+              )
+              FROM public.property_reporting_periods AS reporting_period
+              WHERE reporting_period.organization_id = p_organization_id
+                AND reporting_period.property_id = p_property_id
+                AND reporting_period.currency = p_currency
+                AND reporting_period.period_start BETWEEN
+                  date_trunc('month', p_period_start)::date
+                  AND date_trunc('month', p_period_end)::date
+            ), '')
+            || '|property_close_revisions:'
+            || coalesce((
+              SELECT string_agg(
+                to_jsonb(revision)::text,
+                '|' ORDER BY revision.id
+              )
+              FROM public.property_close_revisions AS revision
+              JOIN public.property_reporting_periods AS reporting_period
+                ON reporting_period.id =
+                  revision.property_reporting_period_id
+               AND reporting_period.organization_id =
+                  revision.organization_id
+              WHERE reporting_period.organization_id = p_organization_id
+                AND reporting_period.property_id = p_property_id
+                AND reporting_period.currency = p_currency
+                AND reporting_period.period_start BETWEEN
+                  date_trunc('month', p_period_start)::date
+                  AND date_trunc('month', p_period_end)::date
+            ), '')
           ),
           'rowCount',
           (inventory.payload ->> 'rowCount')::bigint + (
@@ -1766,6 +1895,27 @@ DECLARE
                 source.scope_kind = 'organization_pooled'
                 OR source.property_id = p_property_id
               )
+          ) + (
+            SELECT count(*)
+            FROM public.property_reporting_periods AS reporting_period
+            WHERE reporting_period.organization_id = p_organization_id
+              AND reporting_period.property_id = p_property_id
+              AND reporting_period.currency = p_currency
+              AND reporting_period.period_start BETWEEN
+                date_trunc('month', p_period_start)::date
+                AND date_trunc('month', p_period_end)::date
+          ) + (
+            SELECT count(*)
+            FROM public.property_close_revisions AS revision
+            JOIN public.property_reporting_periods AS reporting_period
+              ON reporting_period.id = revision.property_reporting_period_id
+             AND reporting_period.organization_id = revision.organization_id
+            WHERE reporting_period.organization_id = p_organization_id
+              AND reporting_period.property_id = p_property_id
+              AND reporting_period.currency = p_currency
+              AND reporting_period.period_start BETWEEN
+                date_trunc('month', p_period_start)::date
+                AND date_trunc('month', p_period_end)::date
           )
         )
       WHEN inventory.payload ->> 'sourceType' IN (

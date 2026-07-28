@@ -43,7 +43,8 @@ CREATE TEMP TABLE financial_authority_test_state (
 ) ON COMMIT DROP;
 
 INSERT INTO financial_authority_test_state DEFAULT VALUES;
-GRANT SELECT ON financial_authority_test_state TO anon, authenticated;
+GRANT SELECT ON financial_authority_test_state
+TO anon, authenticated, service_role;
 GRANT UPDATE ON financial_authority_test_state TO authenticated;
 
 INSERT INTO auth.users (
@@ -373,6 +374,11 @@ SELECT has_table(
   'financial_idempotency_requests',
   'private shared financial idempotency exists'
 );
+SELECT has_table(
+  'app_private',
+  'financial_projection_context_capability',
+  'private reserved-projection capability exists'
+);
 SELECT ok(
   (
     SELECT c.relrowsecurity
@@ -434,6 +440,20 @@ SELECT table_privs_are(
   ARRAY[]::text[],
   'authenticated actors have no private idempotency table privileges'
 );
+SELECT table_privs_are(
+  'app_private',
+  'financial_projection_context_capability',
+  'authenticated',
+  ARRAY[]::text[],
+  'authenticated actors cannot read the projection capability'
+);
+SELECT table_privs_are(
+  'app_private',
+  'financial_projection_context_capability',
+  'service_role',
+  ARRAY[]::text[],
+  'service role cannot read the projection capability'
+);
 
 SELECT function_privs_are(
   'app_private',
@@ -466,6 +486,38 @@ SELECT function_privs_are(
   'service_role',
   ARRAY[]::text[],
   'service role cannot execute private idempotency completion'
+);
+SELECT function_privs_are(
+  'app_private',
+  'set_financial_projection_context',
+  ARRAY['boolean'],
+  'authenticated',
+  ARRAY[]::text[],
+  'authenticated actors cannot enable the private projection context'
+);
+SELECT function_privs_are(
+  'app_private',
+  'set_financial_projection_context',
+  ARRAY['boolean'],
+  'service_role',
+  ARRAY[]::text[],
+  'service role cannot enable the private projection context'
+);
+SELECT ok(
+  position(
+    'FOR SHARE' IN pg_get_functiondef(
+      'app_private.enforce_reconciliation_source_link()'::regprocedure
+    )
+  ) > 0,
+  'reconciliation links lock their active source against archival races'
+);
+SELECT ok(
+  position(
+    'FOR SHARE' IN pg_get_functiondef(
+      'public.reverse_accounting_journal(uuid,uuid,date,text)'::regprocedure
+    )
+  ) > 0,
+  'generic journal reversal locks the inspected source row'
 );
 
 SELECT set_config(
@@ -946,6 +998,20 @@ SELECT throws_ok(
 );
 RESET ROLE;
 
+CREATE TEMP TABLE financial_authority_period_watermark_before AS
+SELECT payload ->> 'hash' AS hash
+FROM public.get_finance_inventory_page(
+  (SELECT organization_id FROM financial_authority_test_state),
+  (SELECT property_id FROM financial_authority_test_state),
+  'USD',
+  '2026-07-01',
+  '2026-07-31',
+  'watermark',
+  NULL,
+  1000,
+  NULL,
+  NULL
+);
 UPDATE financial_authority_test_state
 SET period_id = app_private.lock_property_reporting_period(
   organization_id,
@@ -962,6 +1028,25 @@ SELECT is(
   ),
   (SELECT period_id FROM financial_authority_test_state),
   'one property/currency/month resolves to one stable header'
+);
+SELECT isnt(
+  (SELECT hash FROM financial_authority_period_watermark_before),
+  (
+    SELECT payload ->> 'hash'
+    FROM public.get_finance_inventory_page(
+      (SELECT organization_id FROM financial_authority_test_state),
+      (SELECT property_id FROM financial_authority_test_state),
+      'USD',
+      '2026-07-01',
+      '2026-07-31',
+      'watermark',
+      NULL,
+      1000,
+      NULL,
+      NULL
+    )
+  ),
+  'property reporting-period mutations alter the material watermark'
 );
 SELECT is(
   (
@@ -983,6 +1068,18 @@ SELECT isnt(
   (SELECT period_id FROM financial_authority_test_state),
   (SELECT other_period_id FROM financial_authority_test_state),
   'different properties have independent period headers'
+);
+SELECT throws_ok(
+  format(
+    'SELECT app_private.lock_property_reporting_period(%L,%L,%L,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT cross_property_id FROM financial_authority_test_state),
+    'USD',
+    '2026-07-01'
+  ),
+  '23503',
+  'Property is outside the requested organization',
+  'property-period helper rejects cross-organization property identity'
 );
 
 SELECT set_config('app.financial_authority_period_context', 'on', true);
@@ -1012,6 +1109,28 @@ SELECT lives_ok(
   ),
   'closed property does not block another property'
 );
+SELECT set_config('app.financial_authority_period_context', 'on', true);
+UPDATE public.property_reporting_periods
+SET lifecycle_status = 'in_review'
+WHERE id = (SELECT other_period_id FROM financial_authority_test_state);
+SELECT set_config('app.financial_authority_period_context', 'off', true);
+SELECT throws_ok(
+  format(
+    'SELECT app_private.lock_open_property_reporting_period(%L,%L,%L,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT other_property_id FROM financial_authority_test_state),
+    'USD',
+    '2026-07-15'
+  ),
+  '22023',
+  'Property reporting period is not open',
+  'in-review property period is rejected by the open-check helper'
+);
+SELECT set_config('app.financial_authority_period_context', 'on', true);
+UPDATE public.property_reporting_periods
+SET lifecycle_status = 'open'
+WHERE id = (SELECT other_period_id FROM financial_authority_test_state);
+SELECT set_config('app.financial_authority_period_context', 'off', true);
 
 INSERT INTO public.ledger_period_locks(
   organization_id, period_start, locked_at, locked_by
@@ -1073,6 +1192,19 @@ SET initial_revision_id = (
   FROM public.property_close_revisions
   WHERE property_reporting_period_id =
     financial_authority_test_state.period_id
+);
+SELECT throws_ok(
+  format(
+    'INSERT INTO public.property_close_revisions (organization_id,property_reporting_period_id,revision_number,revision_kind,previous_revision_id,calculation_contract_version) VALUES (%L,%L,2,%L,%L,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT period_id FROM financial_authority_test_state),
+    'initial_close',
+    (SELECT initial_revision_id FROM financial_authority_test_state),
+    'test-v1'
+  ),
+  '22023',
+  'Close revision kind must alternate reopen and reclose after initial close',
+  'initial close cannot be appended more than once'
 );
 SELECT throws_ok(
   format(
@@ -1139,6 +1271,54 @@ SET current_close_revision_id = (
 )
 WHERE id = (SELECT period_id FROM financial_authority_test_state);
 SELECT set_config('app.financial_authority_period_context', 'off', true);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM financial_authority_test_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+SELECT is(
+  (SELECT count(*)::integer FROM public.property_reporting_periods),
+  2,
+  'same-organization admin reads property reporting periods'
+);
+SELECT is(
+  (SELECT count(*)::integer FROM public.property_close_revisions),
+  2,
+  'same-organization admin reads property close revisions'
+);
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT member_id::text FROM financial_authority_test_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  'SELECT 1 FROM public.property_reporting_periods',
+  'same-organization member cannot read admin-only reporting periods'
+);
+SELECT is_empty(
+  'SELECT 1 FROM public.property_close_revisions',
+  'same-organization member cannot read admin-only close revisions'
+);
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT cross_admin_id::text FROM financial_authority_test_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+SELECT is_empty(
+  'SELECT 1 FROM public.property_reporting_periods',
+  'cross-organization admin cannot read reporting periods'
+);
+SELECT is_empty(
+  'SELECT 1 FROM public.property_close_revisions',
+  'cross-organization admin cannot read close revisions'
+);
+RESET ROLE;
 
 SELECT is(
   app_private.canonical_financial_payload_hash(
@@ -1305,6 +1485,64 @@ SELECT throws_ok(
   'Reserved financial projection must use its domain source workflow',
   'authenticated direct reserved Ledger insertion is denied'
 );
+SELECT set_config(
+  'app.financial_projection_context',
+  'reserved-v1',
+  true
+);
+SELECT throws_ok(
+  format(
+    'INSERT INTO public.ledger_entries (organization_id,property_id,transaction_date,direction,category,amount,currency,source_type,source_id) VALUES (%L,%L,%L,%L,%L,10,%L,%L,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT property_id FROM financial_authority_test_state),
+    '2026-07-08',
+    'income',
+    'Spoofed reserved namespace',
+    'USD',
+    reserved_source_type,
+    gen_random_uuid()
+  ),
+  '42501',
+  'Reserved financial projection must use its domain source workflow',
+  format(
+    'authenticated context spoof cannot write %s projections',
+    reserved_source_type
+  )
+)
+FROM unnest(ARRAY[
+  'receipt_allocation',
+  'payment_allocation',
+  'deposit_event',
+  'petty_cash_entry',
+  'rent_charge_occurrence',
+  'maintenance_handoff',
+  'management_fee_assessment',
+  'owner_cash_event',
+  'financial_adjustment'
+]) AS reserved_source_type;
+RESET ROLE;
+SET LOCAL ROLE service_role;
+SELECT set_config(
+  'app.financial_projection_context',
+  'reserved-v1',
+  true
+);
+SELECT throws_ok(
+  format(
+    'INSERT INTO public.ledger_entries (organization_id,property_id,transaction_date,direction,category,amount,currency,source_type,source_id) VALUES (%L,%L,%L,%L,%L,10,%L,%L,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT property_id FROM financial_authority_test_state),
+    '2026-07-08',
+    'income',
+    'Service-role context spoof',
+    'USD',
+    'receipt_allocation',
+    gen_random_uuid()
+  ),
+  '42501',
+  'Reserved financial projection must use its domain source workflow',
+  'service-role context spoof cannot write reserved projections'
+);
 RESET ROLE;
 SELECT throws_ok(
   format(
@@ -1323,7 +1561,7 @@ SELECT throws_ok(
   'Reserved financial projection must use its domain source workflow',
   'direct reserved Ledger insertion is denied'
 );
-SELECT set_config('app.financial_projection_context', 'reserved-v1', true);
+SELECT app_private.set_financial_projection_context(true);
 INSERT INTO public.ledger_entries(
   id, organization_id, property_id, transaction_date, direction, category,
   amount, currency, source_type, source_id
@@ -1356,7 +1594,38 @@ SELECT throws_ok(
   NULL,
   'reserved Ledger source identity is exact-once'
 );
-SELECT set_config('app.financial_projection_context', 'off', true);
+SELECT throws_ok(
+  format(
+    'INSERT INTO public.ledger_entries (organization_id,property_id,transaction_date,direction,category,amount,currency,source_type,source_id) VALUES (%L,%L,%L,%L,%L,10,%L,%L,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT property_id FROM financial_authority_test_state),
+    '2026-07-08',
+    'income',
+    'Non-canonical reserved receipt',
+    'USD',
+    ' RECEIPT_ALLOCATION ',
+    gen_random_uuid()
+  ),
+  '23514',
+  NULL,
+  'reserved Ledger source type must use canonical lower-case spelling'
+);
+SELECT throws_ok(
+  format(
+    'INSERT INTO public.ledger_entries (organization_id,property_id,transaction_date,direction,category,amount,currency,source_type) VALUES (%L,%L,%L,%L,%L,10,%L,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT property_id FROM financial_authority_test_state),
+    '2026-07-08',
+    'income',
+    'Reserved receipt without identity',
+    'USD',
+    'receipt_allocation'
+  ),
+  '23514',
+  NULL,
+  'reserved Ledger projection requires a source identity'
+);
+SELECT app_private.set_financial_projection_context(false);
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -1392,11 +1661,11 @@ SELECT throws_ok(
 );
 RESET ROLE;
 
-SELECT set_config('app.financial_projection_context', 'reserved-v1', true);
+SELECT app_private.set_financial_projection_context(true);
 UPDATE public.ledger_entries
 SET archived_at = now()
 WHERE id = (SELECT reserved_ledger_id FROM financial_authority_test_state);
-SELECT set_config('app.financial_projection_context', 'off', true);
+SELECT app_private.set_financial_projection_context(false);
 SELECT set_config(
   'request.jwt.claim.sub',
   (SELECT admin_id::text FROM financial_authority_test_state),
@@ -1455,7 +1724,7 @@ SELECT throws_ok(
   'Reserved financial projection must use its domain source workflow',
   'direct reserved journal insertion is denied'
 );
-SELECT set_config('app.financial_projection_context', 'reserved-v1', true);
+SELECT app_private.set_financial_projection_context(true);
 INSERT INTO public.accounting_journal_entries(
   id, organization_id, book_id, entry_date, currency, description,
   source_type, source_id, posting_key, payload_hash
@@ -1489,7 +1758,24 @@ SELECT throws_ok(
   NULL,
   'reserved journal identity is exact-once per book'
 );
-SELECT set_config('app.financial_projection_context', 'off', true);
+SELECT throws_ok(
+  format(
+    'INSERT INTO public.accounting_journal_entries (organization_id,book_id,entry_date,currency,description,source_type,source_id,posting_key,payload_hash) VALUES (%L,%L,%L,%L,%L,%L,%L,%L,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT book_id FROM financial_authority_test_state),
+    '2026-07-08',
+    'USD',
+    'Non-canonical reserved journal',
+    ' RECEIPT_ALLOCATION ',
+    gen_random_uuid(),
+    'non-canonical',
+    repeat('c', 64)
+  ),
+  '23514',
+  NULL,
+  'reserved journal source type must use canonical lower-case spelling'
+);
+SELECT app_private.set_financial_projection_context(false);
 
 SELECT set_config(
   'request.jwt.claim.sub',

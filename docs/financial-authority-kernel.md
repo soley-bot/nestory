@@ -20,11 +20,13 @@ header. Revisions have a monotonically increasing number, an
 `initial_close`, `reopen`, or `reclose` kind, an exact previous-revision
 identity, calculation-contract version, optional manifest hashes, and a
 mandatory reason for reopen/reclose. Existing revisions cannot be updated or
-deleted. The header's current pointer has a composite foreign key that cannot
-cross property periods.
+deleted. After the single initial close, revision kinds must alternate from
+`reopen` to `reclose`. The header's current pointer has a composite foreign
+key that cannot cross property periods.
 
-Authenticated users can read organization-scoped rows through RLS. They have
-no direct insert, update, or delete privileges. Plan 03 deliberately adds no
+Authenticated organization admins can read organization-scoped rows through
+RLS. Other authenticated members cannot read them, and no authenticated role
+has direct insert, update, or delete privileges. Plan 03 deliberately adds no
 public close, reopen, readiness, publication, or statement RPC.
 
 ## Mandatory transaction lock order
@@ -124,9 +126,13 @@ reject prohibited writes; it exposes no rows or mutation authority.
 
 Reserved Ledger identities are unique on
 `(organization_id, source_type, source_id)`. Reserved journal identities are
-unique per accounting book. Table triggers reject direct insert, update,
-archive, restore, or delete unless a private future domain workflow sets the
-transaction-local `app.financial_projection_context = 'reserved-v1'`.
+unique per accounting book. Reserved source types must use canonical
+lower-case spelling, and Ledger projections require an exact source ID. Table
+triggers reject direct insert, update, archive, restore, or delete unless a
+private future domain workflow enables an unguessable transaction-local
+capability. The capability table and context-setting helper are private and
+unavailable to API roles and `service_role`; caller-set configuration values
+do not grant projection authority.
 Generic Ledger and journal RPCs fail with a controlled instruction to use the
 domain source workflow. Generic journal reversal cannot reverse a reserved
 projection.

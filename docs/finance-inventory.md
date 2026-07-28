@@ -32,8 +32,9 @@ Cash-bearing source rows expose `reconciliationSourceId` and
 `reconciliationSourceState`. Exact links use `linked_exact_identity`; null
 links use `missing_stable_identity`. Missing-source diagnostics are emitted
 only for unlinked rows. The watermark includes the applicable reconciliation
-source catalog so source-label, archive, or scope changes invalidate an
-in-flight artifact.
+source catalog and property reporting-period/revision state so source-label,
+archive, scope, lifecycle, or close-history changes invalidate an in-flight
+artifact.
 
 ## Disposable local command
 
@@ -195,9 +196,10 @@ The source watermark covers obligations, settlement headers and allocations,
 deposit definitions/events, Ledger, journals/lines, maintenance, petty cash,
 ownership, people/contact archival metadata, property/organization Ledger
 locks, accounting books/period locks, migrations/schema identity, table
-privileges/RLS policies, function ACLs, and organization membership. The CLI
-checks the watermark before and after collection and validates every page's
-contract version.
+privileges/RLS policies, function ACLs, organization membership, and the
+selected property's reporting-period and close-revision state. The CLI checks
+the watermark before and after collection and validates every page's contract
+version.
 
 The `access` section records privilege metadata; it does not claim that metadata
 is an observed runtime outcome. `finance_inventory_authorization_test.sql`
