@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(8);
+SELECT plan(9);
 
 CREATE TEMP TABLE report_document_snapshot_test_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -195,6 +195,15 @@ SELECT ok(
     WHERE oid = 'public.get_report_documents_snapshot(uuid)'::regprocedure
   ),
   'the snapshot RPC is security invoker and retains document RLS'
+);
+SELECT ok(
+  pg_catalog.strpos(
+    pg_catalog.pg_get_functiondef(
+      'public.get_report_documents_snapshot(uuid)'::regprocedure
+    ),
+    'AS MATERIALIZED'
+  ) = 0,
+  'the bounded snapshot payload does not materialize the full active population'
 );
 
 GRANT SELECT ON report_document_snapshot_test_state TO authenticated;

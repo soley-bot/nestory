@@ -13,30 +13,13 @@ STABLE
 SECURITY INVOKER
 SET search_path = ''
 AS $$
-  WITH active_documents AS MATERIALIZED (
-    SELECT
-      documents.id,
-      documents.property_id,
-      documents.unit_id,
-      documents.lease_id,
-      documents.ledger_entry_id,
-      documents.timeline_event_id,
-      documents.file_name
-    FROM public.documents
-    WHERE documents.organization_id = p_organization_id
-      AND documents.archived_at IS NULL
-  ),
-  bounded_documents AS (
-    SELECT *
-    FROM active_documents
-    ORDER BY id
-    LIMIT 5001
-  )
   SELECT pg_catalog.jsonb_build_object(
     'count',
     (
       SELECT pg_catalog.count(*)
-      FROM active_documents
+      FROM public.documents
+      WHERE documents.organization_id = p_organization_id
+        AND documents.archived_at IS NULL
     ),
     'documents',
     COALESCE(
@@ -53,7 +36,21 @@ AS $$
           )
           ORDER BY bounded_documents.id
         )
-        FROM bounded_documents
+        FROM (
+          SELECT
+            documents.id,
+            documents.property_id,
+            documents.unit_id,
+            documents.lease_id,
+            documents.ledger_entry_id,
+            documents.timeline_event_id,
+            documents.file_name
+          FROM public.documents
+          WHERE documents.organization_id = p_organization_id
+            AND documents.archived_at IS NULL
+          ORDER BY documents.id
+          LIMIT 5001
+        ) AS bounded_documents
       ),
       '[]'::jsonb
     )
