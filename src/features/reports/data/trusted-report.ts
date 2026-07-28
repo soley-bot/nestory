@@ -8,6 +8,11 @@ import {
 import { getReportMonthRange } from "@/features/reports/reports.filters";
 import { getOwnerStatementReport } from "@/features/reports/data/owner-statement-report";
 import { getPeopleReadinessReport } from "@/features/people/data/people-readiness";
+import {
+  assertCompleteReportSource,
+  reportDocumentSelect,
+  reportSourceRangeEnd,
+} from "@/features/reports/data/report-source-completeness";
 import type {
   ReportKind,
   ReportSourceLink,
@@ -34,9 +39,6 @@ export const REPORT_OPTIONS: Array<{ label: string; value: ReportKind }> = [
 
 const reportLeaseSelect =
   "id, property_id, unit_id, tenant_name, primary_tenant_person_id, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency";
-const maxReportSourceRows = 5_000;
-const reportSourceRangeEnd = maxReportSourceRows - 1;
-
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 type PropertyRow = {
@@ -1890,12 +1892,10 @@ async function loadReportDocuments(
 ) {
   const result = await supabase
     .from("documents")
-    .select(
-      "id, property_id, unit_id, lease_id, ledger_entry_id, timeline_event_id, file_name",
-      { count: "exact" },
-    )
+    .select(reportDocumentSelect, { count: "exact" })
     .eq("organization_id", organizationId)
     .is("archived_at", null)
+    .order("id")
     .range(0, reportSourceRangeEnd);
 
   if (result.error) {
@@ -1957,22 +1957,6 @@ async function loadReportPeople(
   assertCompleteReportSource("report owner people", result);
 
   return result.data ?? [];
-}
-
-function assertCompleteReportSource(
-  sourceName: string,
-  result: { count: number | null; data: unknown[] | null },
-) {
-  const loadedRows = result.data?.length ?? 0;
-  const totalRows = result.count ?? loadedRows;
-
-  if (totalRows <= loadedRows) {
-    return;
-  }
-
-  throw new Error(
-    `${sourceName} has ${totalRows.toLocaleString()} rows, which exceeds the ${maxReportSourceRows.toLocaleString()} row report source limit. Narrow the report scope before exporting.`,
-  );
 }
 
 function addIsoDays(date: string, days: number) {

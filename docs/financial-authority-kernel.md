@@ -37,11 +37,13 @@ this order:
 1. take the property/currency/month transaction advisory lock;
 2. get or create the stable `property_reporting_periods` header and lock it
    `FOR UPDATE`;
-3. evaluate the property lifecycle, organization Ledger lock, and applicable
-   locked client accounting-book period;
-4. take the operation/idempotency advisory lock and lock its request row;
-5. write or lock the domain source rows; and
-6. write reserved Ledger and journal projections.
+3. take the shared organization/currency/month broader-authority transaction
+   lock;
+4. evaluate the property lifecycle, organization Ledger lock, and applicable
+   locked client accounting-book periods in stable book-ID order;
+5. take the operation/idempotency advisory lock and lock its request row;
+6. write or lock the domain source rows; and
+7. write reserved Ledger and journal projections.
 
 `app_private.lock_property_reporting_period` provides lock-only semantics for
 a future close transition.
@@ -52,6 +54,16 @@ first advisory/header locks. The helpers are private, use a hardened empty
 
 Existing source RPCs are not wired to these helpers in Plan 03. Their later
 atomic-settlement plans must adopt this order without reversing it.
+
+Organization Ledger and client-accounting lock or unlock transitions take the
+exclusive form of the same broader-authority transaction lock before their
+period-row upsert. Already-running source transactions therefore finish first;
+once a transition holds exclusive authority, later sources wait and then
+re-read committed status. The advisory identity does not depend on a period
+row, so an absent-row `INSERT`/`UPSERT` cannot bypass the protocol. Ordinary
+sources for different properties retain independent property locks and share
+the broader authority lock, so they remain concurrent when no transition is
+running.
 
 ## Reconciliation sources
 

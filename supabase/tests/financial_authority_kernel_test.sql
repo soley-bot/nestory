@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT no_plan();
+SELECT plan(118);
 
 CREATE TEMP TABLE financial_authority_test_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -474,6 +474,93 @@ SELECT function_privs_are(
   'service_role',
   ARRAY[]::text[],
   'service role cannot execute the private open-check helper'
+);
+SELECT has_function(
+  'app_private',
+  'lock_financial_authority_period_shared',
+  ARRAY['uuid', 'currency_code', 'date'],
+  'shared broader-period authority helper exists'
+);
+SELECT has_function(
+  'app_private',
+  'lock_financial_authority_period_exclusive',
+  ARRAY['uuid', 'currency_code', 'date'],
+  'exclusive broader-period authority helper exists'
+);
+SELECT has_function(
+  'app_private',
+  'lock_ledger_authority_period_exclusive',
+  ARRAY['uuid', 'date'],
+  'organization Ledger transition helper exists'
+);
+SELECT function_privs_are(
+  'app_private',
+  'lock_financial_authority_period_shared',
+  ARRAY['uuid', 'currency_code', 'date'],
+  'authenticated',
+  ARRAY[]::text[],
+  'authenticated actors cannot execute the private shared authority helper'
+);
+SELECT function_privs_are(
+  'app_private',
+  'lock_financial_authority_period_exclusive',
+  ARRAY['uuid', 'currency_code', 'date'],
+  'service_role',
+  ARRAY[]::text[],
+  'service role cannot execute the private exclusive authority helper'
+);
+SELECT ok(
+  position(
+    'lock_financial_authority_period_shared' IN pg_get_functiondef(
+      'app_private.lock_property_reporting_period_internal(uuid,uuid,public.currency_code,date,boolean)'::regprocedure
+    )
+  ) > 0,
+  'property source authority takes the shared broader-period lock'
+);
+SELECT ok(
+  position(
+    'lock_ledger_authority_period_exclusive' IN pg_get_functiondef(
+      'public.set_ledger_period_lock(uuid,date,boolean,text)'::regprocedure
+    )
+  ) > 0,
+  'organization Ledger transitions take exclusive broader authority'
+);
+SELECT ok(
+  position(
+    'lock_financial_authority_period_exclusive' IN pg_get_functiondef(
+      'app_private.set_accounting_period_lock_internal(uuid,uuid,date,boolean,text,uuid)'::regprocedure
+    )
+  ) > 0,
+  'client-accounting transitions take exclusive broader authority'
+);
+SELECT ok(
+  position(
+    'ORDER BY book.id' IN pg_get_functiondef(
+      'app_private.lock_property_reporting_period_internal(uuid,uuid,public.currency_code,date,boolean)'::regprocedure
+    )
+  ) > 0,
+  'multiple active client books are checked in stable identifier order'
+);
+SELECT set_config(
+  'app.financial_authority_period_context',
+  'on',
+  true
+);
+SELECT app_private.lock_property_reporting_period(
+  (SELECT organization_id FROM financial_authority_test_state),
+  (SELECT other_property_id FROM financial_authority_test_state),
+  'USD',
+  '2026-10-15'
+);
+SELECT is(
+  current_setting('app.financial_authority_period_context', true),
+  'on',
+  'property-period helper restores a caller-owned mutation context'
+);
+SELECT set_config(
+  'app.financial_authority_period_context',
+  'off',
+  true
 );
 SELECT function_privs_are(
   'app_private',
@@ -1141,6 +1228,33 @@ SET lifecycle_status = 'open'
 WHERE id = (SELECT other_period_id FROM financial_authority_test_state);
 SELECT set_config('app.financial_authority_period_context', 'off', true);
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM financial_authority_test_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+SELECT lives_ok(
+  format(
+    'SELECT public.set_accounting_period_lock(%L,%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT book_id FROM financial_authority_test_state),
+    '2026-09-01',
+    'Authenticated RPC regression'
+  ),
+  'authorized public accounting-period lock path reaches its private writer'
+);
+SELECT lives_ok(
+  format(
+    'SELECT public.set_accounting_period_lock(%L,%L,%L,false,NULL)',
+    (SELECT organization_id FROM financial_authority_test_state),
+    (SELECT book_id FROM financial_authority_test_state),
+    '2026-09-01'
+  ),
+  'authorized public accounting-period unlock path reaches its private writer'
+);
+RESET ROLE;
+
 INSERT INTO public.ledger_period_locks(
   organization_id, period_start, locked_at, locked_by
 )
@@ -1289,7 +1403,7 @@ SELECT set_config(
 SET LOCAL ROLE authenticated;
 SELECT is(
   (SELECT count(*)::integer FROM public.property_reporting_periods),
-  2,
+  3,
   'same-organization admin reads property reporting periods'
 );
 SELECT is(

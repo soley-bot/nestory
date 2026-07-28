@@ -313,7 +313,12 @@ evidence, and verifies an unchanged before/after Plan 01 watermark. It also
 loads every current-path input twice and compares a deterministic SHA-256
 material-state token, so changes to properties, units, leases, all-time
 PropertySummary Ledger rows, period report Ledger rows, timeline, maintenance,
-documents, owner data, obligations, or settlements fail the collection.
+organization-wide active documents, owner data, obligations, or settlements
+fail the collection. The document input exactly follows the trusted report:
+the same selected columns, archive exclusion, ID ordering, exact count, and
+5,000-row completeness boundary. A document linked to another property in the
+same organization therefore participates in both before and after material
+tokens, while an archived document does not.
 PropertySummary receives all-time active Ledger evidence; period reports retain
 the selected period only. A dirty repository fails closed unless
 `--record-dirty` is explicitly supplied and recorded.

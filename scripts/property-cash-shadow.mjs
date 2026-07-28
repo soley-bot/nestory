@@ -19,6 +19,9 @@ import {
   buildPropertyCashShadowMaterialStateToken,
 } from "../src/features/finance/data/property-cash-shadow-material.ts";
 import {
+  loadPropertyCashShadowDocuments,
+} from "../src/features/finance/data/property-cash-shadow-documents.ts";
+import {
   assertDisposableStackIdentity,
   assertRepositoryState,
   collectInventoryPages,
@@ -442,17 +445,10 @@ async function loadCurrentPathEvidence() {
           .order("id"),
       "maintenance",
     ),
-    loadPaged(
-      () =>
-        client
-          .from("documents")
-          .select("id, property_id, unit_id, lease_id, ledger_entry_id, timeline_event_id, file_name")
-          .eq("organization_id", scope.organizationId)
-          .eq("property_id", scope.propertyId)
-          .is("archived_at", null)
-          .order("id"),
-      "documents",
-    ),
+    loadPropertyCashShadowDocuments({
+      client,
+      organizationId: scope.organizationId,
+    }),
   ]);
   const currentOwners = ownerRows.filter(
     (row) => row.is_primary && row.ended_on === null,
