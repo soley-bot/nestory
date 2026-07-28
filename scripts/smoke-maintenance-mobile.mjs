@@ -79,11 +79,6 @@ try {
 
       if (recordCount === 0) {
         failures.push(`${label} has no record trigger for Preview verification.`);
-      } else if (viewport.width >= 1280) {
-        const inspector = page.getByRole("complementary", { name: /Preview$/ }).first();
-        if (!(await inspector.isVisible())) {
-          failures.push(`${label} does not expose the docked record Preview.`);
-        }
       } else {
         const dismissReminders = page.getByRole("button", {
           name: "Dismiss reminders",
@@ -95,7 +90,9 @@ try {
         if (route.label === "cases-calendar") {
           await page.getByRole("button", { name: "Open Preview" }).click();
         }
-        const preview = page.getByRole("dialog", { name: /Preview$/ }).first();
+        const preview = page
+          .getByRole("dialog", { name: /quick view$/i })
+          .first();
         await preview.waitFor();
         const previewMeasurement = await measureLayout(`${label}-preview`, {
           drawer: preview,
@@ -104,7 +101,7 @@ try {
         measurements.push(previewMeasurement);
         failures.push(...getDocumentOverflowFailures(previewMeasurement));
         failures.push(...getDrawerFailures(previewMeasurement));
-        await preview.getByRole("button", { name: "Close drawer" }).click();
+        await preview.getByRole("button", { name: "Close quick view" }).click();
         await preview.waitFor({ state: "hidden" });
 
         const recordTriggerId = await recordTrigger.getAttribute(
@@ -422,7 +419,11 @@ async function measureLayout(label, { drawer, primary, table } = {}) {
     }),
     drawer
       ? drawer.evaluate((element) => {
-          const drawerPanel = element.querySelector(":scope > aside");
+          const drawerPanel = element.matches(
+            '[data-slot="record-quick-view-dialog"]',
+          )
+            ? element
+            : element.querySelector(":scope > aside");
           if (!drawerPanel) throw new Error("Maintenance drawer is missing its panel.");
           const bounds = drawerPanel.getBoundingClientRect();
           return {

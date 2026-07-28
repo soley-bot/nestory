@@ -4,6 +4,9 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
 SELECT plan(59);
 
+-- This migration contract creates its own isolated deposit-event history.
+DELETE FROM public.lease_deposit_events;
+
 SELECT has_table('public', 'finance_receipts', 'finance_receipts exists');
 SELECT has_table('public', 'finance_receipt_allocations', 'receipt allocations exist');
 SELECT has_table('public', 'finance_payments', 'finance_payments exists');

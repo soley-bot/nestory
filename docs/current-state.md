@@ -370,6 +370,15 @@ Implemented RPC families include:
 
 - The default local workflow runs Next.js directly against the Supabase CLI
   stack using the repository scripts and local environment variables.
+- The local seed exposes three operating properties, 18 units, 13 normalized
+  leases with authoritative terms, two owners, current finance/deposit/petty
+  cash/maintenance examples, and a separate empty Demo workspace. Additional
+  fixed rows used by rollback-based accounting verification are archived from
+  normal operator views.
+- `npm run db:reset:demo -- --reference-date YYYY-MM-DD` performs a local reset
+  and replays the deterministic fixture at an explicit business date.
+  `npm run demo:seed:manifest` emits only stable fixture IDs and counts for
+  reset comparison.
 - A Docker workflow is also implemented for the production Next.js runtime:
   `Dockerfile` builds the Next.js standalone output on Node.js 24,
   `compose.yaml` runs the non-root app container with a health check, and the
@@ -391,7 +400,7 @@ Compatibility database tests still cover the accounting schema and security
 boundary, balanced/idempotent posting, period locks and reversals, historical
 backfill, transaction rollback, and seeded ledger-to-journal parity.
 
-The UI route manifest currently covers all 53 page routes. Local redesign
+The UI route manifest currently covers all 54 page routes. Local redesign
 verification captures every route at 1440x900, 1024x768, and 390x844, audits
 admin/manager/member/anonymous access outcomes, and rejects serious/critical
 axe findings, application errors, document overflow, unreachable actions,

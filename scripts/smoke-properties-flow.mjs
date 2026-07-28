@@ -85,12 +85,12 @@ try {
   }
 
   await renamePropertyCard({
-    fromName: "Chroy Changvar River View",
-    toName: "Chroy Changvar River View Smoke",
+    fromName: "Street 178 Residence",
+    toName: "Street 178 Residence Smoke",
   });
   await renamePropertyCard({
-    fromName: "Chroy Changvar River View Smoke",
-    toName: "Chroy Changvar River View",
+    fromName: "Street 178 Residence Smoke",
+    toName: "Street 178 Residence",
   });
 
   await page.getByTitle("Table view").click();
@@ -123,11 +123,10 @@ try {
     throw new Error(`Expected create owner href, got ${createOwnerHref}`);
   }
   await page
-    .getByRole("combobox", { name: "Current owner link" })
+    .getByRole("combobox", { name: "Property owner" })
     .click();
   const ownerMenuText = await page
-    .locator("[data-radix-popper-content-wrapper]")
-    .last()
+    .getByRole("listbox", { name: "Property owner person options" })
     .innerText();
   if (/BrightLine Electrical|CoolAir Service Cambodia/i.test(ownerMenuText)) {
     throw new Error("Owner dropdown should not include vendor records.");
@@ -172,7 +171,11 @@ try {
     throw new Error("Property records should keep mutations in the inspector.");
   }
 
-  await page.getByRole("button", { name: /^archive /i }).first().click();
+  await page.locator('tr[aria-label^="Preview "]').first().click();
+  await page
+    .getByRole("button", { name: /More actions for /i })
+    .click();
+  await page.getByRole("button", { name: "Archive property" }).click();
   await page.waitForSelector('form[data-flow-state="blocked"]');
   const archiveDisabled = await page
     .getByRole("button", { name: /^Archive property$/ })
@@ -196,9 +199,7 @@ try {
 }
 
 async function renamePropertyCard({ fromName, toName }) {
-  const card = page.locator("article").filter({ hasText: fromName }).first();
-  await card.waitFor();
-  await card
+  await page
     .getByRole("button", {
       name: new RegExp(`Preview ${escapeRegExp(fromName)}`),
     })

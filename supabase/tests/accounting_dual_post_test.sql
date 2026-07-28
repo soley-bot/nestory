@@ -10,6 +10,15 @@ SELECT set_config(
   true
 );
 
+-- Compatibility anchors are archived in the demo workspace. This transaction
+-- restores only the two properties needed by the accounting fixture.
+UPDATE public.properties
+SET archived_at = NULL, archived_by = NULL
+WHERE id IN (
+  '10000000-0000-0000-0000-000000000004',
+  '10000000-0000-0000-0000-000000000005'
+);
+
 INSERT INTO public.finance_income_items (
   id,
   organization_id,

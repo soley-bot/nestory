@@ -1,6 +1,6 @@
 # Fresh Demo Data Rebuild Implementation Plan
 
-**Status:** In progress  
+**Status:** Implementation and local verification complete; draft PR pending
 **Branch:** `codex/rebuild-fresh-demo-data`  
 **Merged baseline:** `b592557f3d2919ab5bd7932426fc218a1bea5d4d`  
 **Scope:** Deterministic local demo data plus fail-closed hosted cutover preparation. No hosted mutation, hosted migration apply, production deployment, or PR merge.
@@ -27,9 +27,10 @@ snapshot remain a separately approved cutover task.
   do not pollute normal operator views.
 - Keep two active branches, two active owners, 18 active units, a bounded
   tenant/staff/vendor directory, and one empty Demo organization.
-- Use one temporary seed context row. Its reference date is
-  `app.demo_seed_reference_date` when explicitly supplied, otherwise
-  `current_date`. Every demo business date derives from that value.
+- Use `app.demo_seed_reference_date` when explicitly supplied, otherwise
+  `current_date`. Every demo business date derives from that expression. The
+  reset wrapper replays the seed in one local PostgreSQL session when an
+  override is requested.
 - Keep deterministic IDs for all committed seed rows. Seed SQL may therefore
   insert exact relational fixtures directly as the local superuser. This is a
   deliberate fixture boundary, not an application write path. Contract tests
@@ -46,16 +47,18 @@ snapshot remain a separately approved cutover task.
 
 **Files**
 
-- Add `scripts/demo-seed-contract.mjs`
-- Add `scripts/demo-seed-contract.test.mjs`
+- Add `scripts/demo-seed-manifest.mjs`
+- Add `scripts/demo-seed-manifest.node-test.mjs`
+- Add `scripts/reset-demo-data.mjs`
+- Add `scripts/reset-demo-data.node-test.mjs`
 - Add `supabase/tests/demo_seed_contract_test.sql`
 - Update `package.json`
 
 **Work**
 
-1. Add RED source-contract tests for the local-only guard, one reference date,
-   required login identities, deterministic anchor IDs, and the absence of
-   document/photo metadata inserts.
+1. Add contract tests for the local-only guard, one reference date, required
+   login identities, deterministic anchor IDs, and the absence of broken
+   document/photo metadata.
 2. Add RED database assertions for portfolio counts, owner/occupancy/lease
    invariants, role links, finance cases, petty-cash linkage, maintenance
    states, empty Demo workspace, and current-date bounds.
@@ -89,9 +92,9 @@ snapshot remain a separately approved cutover task.
 **Files**
 
 - Add `scripts/hosted-demo-cutover-plan.mjs`
-- Add `scripts/hosted-demo-cutover-plan.test.mjs`
-- Add `config/hosted-demo-cutover.json`
-- Add `docs/verification/hosted-demo-cutover-preparation.md`
+- Add `scripts/hosted-demo-cutover-plan-core.mjs`
+- Add `scripts/hosted-demo-cutover-plan.node-test.mjs`
+- Add `docs/verification/hosted-demo-cutover-runbook.md`
 
 **Work**
 
@@ -107,7 +110,7 @@ snapshot remain a separately approved cutover task.
 
 ## Verification
 
-1. Two consecutive `npx supabase db reset --local --yes` runs.
+1. Two consecutive `npx supabase db reset` runs.
 2. Compare the two generated seed manifests byte-for-byte.
 3. `npm run db:lint`
 4. `npm run db:types` and clean generated-type diff.
@@ -130,3 +133,17 @@ snapshot remain a separately approved cutover task.
   invitation preservation checks.
 - Any command would mutate hosted Supabase.
 
+## Completion evidence
+
+- Repeated local resets succeeded, including a controlled
+  `2030-01-15` replay.
+- Consecutive reset manifests were byte-identical:
+  `4FF2BEF76BC27464A1D119D1BE046B8352EBF687685EB9B5A9272BA5A7FB72BC`.
+- pgTAP passed 26 files and 894 assertions.
+- Vitest passed 168 files and 1,317 tests; the native demo-tool suite passed
+  15 tests.
+- ESLint, TypeScript, DB lint, production build, 54/54 route coverage, UI copy,
+  and all ledger/accounting/lease concurrency harnesses passed.
+- Authenticated UI baseline, property mutation flow, and maintenance workspace
+  smoke passed against the rebuilt local data.
+- No hosted database, migration, deployment, or organization was mutated.
