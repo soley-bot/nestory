@@ -305,7 +305,9 @@ async function loadCurrentPathEvidence() {
         .select("id, property_id, unit_id, transaction_date, direction, category, amount, currency, description")
         .eq("organization_id", scope.organizationId)
         .eq("property_id", scope.propertyId)
-        .is("archived_at", null),
+        .is("archived_at", null)
+        .order("transaction_date", { ascending: false })
+        .order("id", { ascending: false }),
     "all-time property-summary Ledger",
   );
   const dueIncomeItems = await loadPaged(

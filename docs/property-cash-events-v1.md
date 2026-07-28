@@ -315,12 +315,13 @@ material-state token, so changes to properties, units, leases, the
 PropertySummary Ledger response, period report Ledger rows, timeline,
 maintenance, organization-wide active documents, owner data, obligations, or
 settlements fail the collection. The PropertySummary Ledger input deliberately
-uses one unpaginated request with the same filters and no explicit ordering as
-the current page loader, so it retains that loader's API row cap instead of
+uses one unpaginated request with the same filters and descending
+`transaction_date`, then descending `id`, ordering as the current page loader,
+so it retains that loader's exact capped subset and API row cap instead of
 claiming completeness that the current surface does not have. The parity input
 keeps that response unchanged; only a shallow copy used by the before/after
 material hash is ordered by its required unique Ledger ID so equivalent
-unordered responses cannot create a false mutation signal. The document input
+responses cannot create a false mutation signal. The document input
 exactly follows the trusted report because both import the same document loader:
 the same selected columns, archive exclusion, ID ordering, exact count, repeated
 API-capped ID-keyset pages, and 5,000-row completeness boundary. Every page
