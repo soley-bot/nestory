@@ -60,7 +60,7 @@ export function evaluateCreateAgainstArchivedPerson(result) {
 
   if (
     !result.output.match(
-      /ERROR:\s+An active Tenant role is required for the primary tenant(?:\r?\n|$)/,
+      /ERROR:\s+An active Tenant role is required for (?:the exact primary Tenant|the primary tenant)(?:\r?\n|$)/,
     )
   ) {
     throw new Error(

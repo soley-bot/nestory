@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
-
-const harness = await import("./lease-history-integrity-concurrency.mjs").catch(
-  () => ({}),
-);
+import {
+  evaluateArchiveAttempt,
+  evaluateCreateAgainstArchivedPerson,
+  evaluateUnrelatedArchive,
+} from "./lease-history-integrity-concurrency.mjs";
 
 describe("lease-history integrity concurrency result contract", () => {
   it("accepts only the exact relationship-transition rejection", () => {
     expect(
-      harness.evaluateArchiveAttempt?.({
+      evaluateArchiveAttempt({
         code: 1,
         output:
           "ERROR: End the open Lease role first\nDETAIL: relationship_transition_required\n",
@@ -20,14 +21,14 @@ describe("lease-history integrity concurrency result contract", () => {
 
   it("rejects a successful archive and an unrelated database failure", () => {
     expect(() =>
-      harness.evaluateArchiveAttempt?.({
+      evaluateArchiveAttempt({
         code: 0,
         output: "archive_person\n",
       }),
     ).toThrow(/archive unexpectedly succeeded/);
 
     expect(() =>
-      harness.evaluateArchiveAttempt?.({
+      evaluateArchiveAttempt({
         code: 1,
         output: "ERROR: deadlock detected\n",
       }),
@@ -36,14 +37,14 @@ describe("lease-history integrity concurrency result contract", () => {
 
   it("requires the unrelated-person control to commit successfully", () => {
     expect(
-      harness.evaluateUnrelatedArchive?.({
+      evaluateUnrelatedArchive({
         code: 0,
         output: "UNRELATED_PERSON_ARCHIVED\n",
       }),
     ).toEqual({ outcome: "archived" });
 
     expect(() =>
-      harness.evaluateUnrelatedArchive?.({
+      evaluateUnrelatedArchive({
         code: 1,
         output: "ERROR: permission denied\n",
       }),
@@ -52,7 +53,7 @@ describe("lease-history integrity concurrency result contract", () => {
 
   it("accepts only the active-Tenant rejection after Person archival", () => {
     expect(
-      harness.evaluateCreateAgainstArchivedPerson?.({
+      evaluateCreateAgainstArchivedPerson({
         code: 1,
         output:
           "ERROR: An active Tenant role is required for the primary tenant\n",
@@ -62,15 +63,26 @@ describe("lease-history integrity concurrency result contract", () => {
       reason: "active_tenant_required",
     });
 
+    expect(
+      evaluateCreateAgainstArchivedPerson({
+        code: 1,
+        output:
+          "ERROR: An active Tenant role is required for the exact primary Tenant\n",
+      }),
+    ).toEqual({
+      outcome: "blocked",
+      reason: "active_tenant_required",
+    });
+
     expect(() =>
-      harness.evaluateCreateAgainstArchivedPerson?.({
+      evaluateCreateAgainstArchivedPerson({
         code: 0,
         output: "create_lease_with_authoritative_term\n",
       }),
     ).toThrow(/Lease creation unexpectedly succeeded/);
 
     expect(() =>
-      harness.evaluateCreateAgainstArchivedPerson?.({
+      evaluateCreateAgainstArchivedPerson({
         code: 1,
         output: "ERROR: deadlock detected\n",
       }),

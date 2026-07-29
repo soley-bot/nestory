@@ -84,6 +84,11 @@ describe("lease action input", () => {
       "End or cancel the open occupancy",
     ],
     [
+      "archive",
+      "relationship_transition_required",
+      "End or cancel the open Lease role",
+    ],
+    [
       "restore",
       "lease_restore_transition_required",
       "Restore is unavailable",

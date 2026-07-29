@@ -254,6 +254,12 @@ DECLARE
       current_setting('app.lease_archive_context', true),
       ''
     ) = 'checked-lease-archive-v1';
+  v_checked_term_termination boolean :=
+    current_user IN ('postgres', 'supabase_admin')
+    AND coalesce(
+      current_setting('app.lease_term_projection_context', true),
+      ''
+    ) = 'checked-v1';
   v_trusted_fixture boolean :=
     current_user IN ('postgres', 'supabase_admin')
     AND coalesce(current_setting('role', true), 'none')
@@ -306,7 +312,11 @@ BEGIN
         DETAIL = 'occupancy_transition_required';
   END IF;
 
-  IF NEW.status IS DISTINCT FROM OLD.status THEN
+  IF NEW.status IS DISTINCT FROM OLD.status
+    AND NOT (
+      v_checked_term_termination
+      AND NEW.status = 'terminated'
+    ) THEN
     RAISE EXCEPTION
       'Changing Lease lifecycle status requires a checked occupancy transition'
       USING
@@ -780,6 +790,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+ALTER FUNCTION public.sync_lease_backbone_records() OWNER TO postgres;
 
 REVOKE ALL ON FUNCTION public.sync_lease_backbone_records()
 FROM PUBLIC, anon, authenticated, service_role;

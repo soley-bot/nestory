@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(31);
+SELECT plan(32);
 
 SELECT table_privs_are(
   'public',
@@ -176,6 +176,17 @@ SELECT is(
   ),
   true,
   'the compatibility trigger owns its minimum internal write capability'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.pg_get_userbyid(routines.proowner)
+    FROM pg_catalog.pg_proc AS routines
+    WHERE routines.oid =
+      'public.sync_lease_backbone_records()'::regprocedure
+  ),
+  'postgres',
+  'the privileged compatibility trigger is owned by the trusted postgres role'
 );
 
 SELECT is(

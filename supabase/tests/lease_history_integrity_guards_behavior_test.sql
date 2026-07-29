@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(77);
+SELECT plan(82);
 
 CREATE OR REPLACE FUNCTION pg_temp.capture_error(p_sql text)
 RETURNS jsonb
@@ -84,7 +84,6 @@ CREATE TEMP TABLE lease_history_guard_state (
   person_archive_lease_id uuid,
   cancelled_lease_id uuid,
   restore_lease_id uuid,
-  restore_conflict_lease_id uuid,
   active_import_lease_id uuid,
   cancelled_import_lease_id uuid,
   checked_party_id uuid,
@@ -460,25 +459,6 @@ SET restore_lease_id = public.create_lease_with_authoritative_term(
   NULL,
   'cancelled',
   'tb01-restore-create'
-);
-
-UPDATE lease_history_guard_state
-SET restore_conflict_lease_id = public.create_lease_with_authoritative_term(
-  organization_id,
-  property_id,
-  restore_unit_id,
-  replacement_tenant_id,
-  current_date - 5,
-  current_date + 355,
-  1100,
-  'USD',
-  6,
-  'monthly',
-  'active',
-  NULL,
-  NULL,
-  'active',
-  'tb01-restore-conflict-create'
 );
 
 UPDATE lease_history_guard_state AS state
@@ -985,6 +965,26 @@ SELECT is(
   'generic Lease status change requires a checked occupancy transition'
 );
 
+SELECT set_config('app.lease_term_projection_context', 'checked-v1', true);
+
+SELECT is(
+  (
+    SELECT pg_temp.capture_error(
+      format(
+        'UPDATE public.leases SET status = %L WHERE organization_id = %L AND id = %L',
+        'terminated',
+        organization_id,
+        direct_lease_id
+      )
+    ) ->> 'detail'
+    FROM lease_history_guard_state
+  ),
+  'occupancy_transition_required',
+  'authenticated callers cannot spoof the checked Plan 04 termination context'
+);
+
+SELECT set_config('app.lease_term_projection_context', 'off', true);
+
 RESET ROLE;
 SET LOCAL ROLE service_role;
 
@@ -1026,6 +1026,88 @@ SELECT set_config(
   true
 );
 SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  format(
+    'SELECT public.terminate_authoritative_lease_term(%L,%L,%L,current_date,%L)',
+    (SELECT organization_id FROM lease_history_guard_state),
+    (SELECT checked_lease_id FROM lease_history_guard_state),
+    (
+      SELECT terms.id
+      FROM public.lease_terms AS terms
+      WHERE terms.organization_id =
+        (SELECT organization_id FROM lease_history_guard_state)
+        AND terms.lease_id =
+          (SELECT checked_lease_id FROM lease_history_guard_state)
+        AND terms.authority_kind = 'authoritative'
+        AND terms.archived_at IS NULL
+        AND terms.status = 'active'
+      ORDER BY terms.term_sequence DESC
+      LIMIT 1
+    ),
+    'tb01-checked-termination'
+  ),
+  'checked Plan 04 term termination remains available'
+);
+
+SELECT is(
+  (
+    SELECT leases.status
+    FROM public.leases AS leases
+    WHERE leases.id =
+      (SELECT checked_lease_id FROM lease_history_guard_state)
+  ),
+  'terminated',
+  'checked Plan 04 termination projects the Lease header status'
+);
+
+SELECT is(
+  (
+    SELECT jsonb_build_object(
+      'id', parties.id,
+      'person_id', parties.person_id,
+      'started_on', parties.started_on,
+      'ended_on', parties.ended_on
+    )
+    FROM public.lease_parties AS parties
+    WHERE parties.id =
+      (SELECT checked_party_id FROM lease_history_guard_state)
+  ),
+  jsonb_build_object(
+    'id', (SELECT checked_party_id FROM lease_history_guard_state),
+    'person_id', (SELECT tenant_id FROM lease_history_guard_state),
+    'started_on', NULL,
+    'ended_on', NULL
+  ),
+  'checked Plan 04 termination preserves exact unknown party history'
+);
+
+SELECT is(
+  (
+    SELECT jsonb_build_object(
+      'id', occupancies.id,
+      'unit_id', occupancies.unit_id,
+      'status', occupancies.status,
+      'scheduled_move_in_date', occupancies.scheduled_move_in_date,
+      'actual_move_in_date', occupancies.actual_move_in_date,
+      'scheduled_move_out_date', occupancies.scheduled_move_out_date,
+      'actual_move_out_date', occupancies.actual_move_out_date
+    )
+    FROM public.lease_occupancies AS occupancies
+    WHERE occupancies.id =
+      (SELECT checked_occupancy_id FROM lease_history_guard_state)
+  ),
+  jsonb_build_object(
+    'id', (SELECT checked_occupancy_id FROM lease_history_guard_state),
+    'unit_id', (SELECT checked_unit_id FROM lease_history_guard_state),
+    'status', 'occupied',
+    'scheduled_move_in_date', NULL,
+    'actual_move_in_date', NULL,
+    'scheduled_move_out_date', NULL,
+    'actual_move_out_date', NULL
+  ),
+  'checked Plan 04 termination does not rewrite occupancy history'
+);
 
 SELECT is(
   (

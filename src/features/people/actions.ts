@@ -130,7 +130,7 @@ export async function createPersonAction(
 
   if (error) {
     return {
-      message: getPeopleMutationErrorMessage(error),
+      message: getPeopleMutationErrorMessage(error, "create"),
       status: "error",
     };
   }
@@ -172,7 +172,7 @@ export async function updatePersonAction(
 
   if (error) {
     return {
-      message: getPeopleMutationErrorMessage(error),
+      message: getPeopleMutationErrorMessage(error, "update"),
       status: "error",
     };
   }
@@ -239,7 +239,10 @@ async function updatePersonArchiveState({
 
   if (error) {
     return {
-      message: getPeopleMutationErrorMessage(error),
+      message: getPeopleMutationErrorMessage(
+        error,
+        archived ? "archive" : "restore",
+      ),
       status: "error",
     };
   }
