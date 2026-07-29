@@ -204,7 +204,10 @@ draft candidate before approval while retaining earlier hashes and actors.
 Ratified Plan 20 may later call a separate checked migration-invoice entry point for an
 open legacy obligation named by the reviewed manifest. That path uses the real
 current issue date, migration disclosure, exact obligation/manifest links, and
-the typed occurrence absence above.
+the typed occurrence absence above. It never attaches a new invoice to already
+settled legacy cash. It can support a later Plan 05 payment only after the
+migration invoice is issued and that allocation stores its exact invoice
+header/version/line.
 
 ### 3. Separate lifecycle, delivery, and settlement axes
 
@@ -279,15 +282,20 @@ while locks are held, and only then invokes the selected invoice action.
 ### 5. Allocate a unique invoice number at issuance
 
 Use a dedicated organization-scoped invoice document series, not a
-configuration catalogue counter. The checked issuance transaction locks the
-series and:
+configuration catalogue counter. In one checked transaction, issuance:
 
-- verifies the approved payload hash is still current;
-- allocates the next number once;
+- validates actor/organization capability, canonicalizes the approved issuance
+  payload, and locks the organization/invoice/operation idempotency key before
+  any series allocation;
+- returns the existing invoice/number/artifact identities when the locked key
+  already has the same payload hash, and fails changed-payload reuse;
+- for a genuinely new request only, locks and rechecks the invoice approval
+  payload, then locks the series and allocates the next number once;
 - stores the exact series/version/format snapshot;
 - freezes issued economics and recipient/context snapshots;
 - creates the immutable artifact identity and durable issuance request; and
-- records actor/time/idempotency result.
+- records actor/time and the payload-bound result against the locked operation
+  key before commit.
 
 Numbers are unique and never reused. A retry returns the same number and
 invoice. An issuance render failure stays recoverable under the same invoice,
@@ -362,7 +370,10 @@ failure policy and the provider capability exists.
 ### 9. Handle cancellation, replacement, and credit explicitly
 
 - Drafts may be regenerated through checked history.
-- An unpaid issued invoice may be cancelled by append-only event with reason.
+- An unpaid issued invoice may be cancelled by append-only event with reason
+  only after the cancellation command takes the shared
+  obligation/invoice/property-period locks and rechecks that no valid allocation
+  has committed.
 - Replacement is a new approved invoice, number, version, and artifact linked
   to the cancelled original.
 - No issued invoice is edited, regenerated in place, deleted, or renumbered.
@@ -376,8 +387,18 @@ failure policy and the provider capability exists.
 ### 10. Link Plan 05 settlement without owning it
 
 For new invoice-era receipts, a Plan 05 allocation must retain the exact
-invoice-line identity or a checked deterministic link from the one obligation
-to its one issued invoice line. The invoice never creates or mutates cash.
+invoice header, issued version, and line identities as immutable source scope.
+Later obligation-only resolution is forbidden because cancellation/replacement
+can leave multiple historical invoice lines. The invoice never creates or
+mutates cash.
+
+Under the same shared obligation/invoice/property-period locks, settlement
+rechecks that the referenced line belongs to the current active `issued`
+invoice for the obligation and is not `cancelled`, `superseded`, or
+`issuance_abandoned`. Cancellation and settlement use the same lock order. If
+settlement commits first, cancellation fails under the paid/partial rule; if
+cancellation commits first, settlement fails until an approved replacement is
+issued. The stored allocation identity never retargets to that replacement.
 
 Outstanding and settlement display is derived from obligation plus signed
 allocations. Delivery failure, cancellation, or artifact state cannot change
@@ -387,10 +408,11 @@ Plan 09 and this tenant-invoice coordination slice share one new-business
 activation gate. Plan 09 may land in shadow/readiness mode, but a generated
 obligation is not exposed as collectable until the invoice slice can issue its
 required invoice. After cutover, Plan 05 rejects settlement of a
-Plan 09-generated obligation without one exact issued invoice line. Classified
-pre-invoice/manual/legacy obligations retain the explicit obligation-only
-settlement path. This gate prevents the Plan 09-to-invoice deployment interval
-from creating normally uninvoiceable cash.
+Plan 09-generated obligation without the exact current-active issued invoice
+header/version/line. Classified pre-invoice/manual/legacy obligations retain
+the explicit obligation-only settlement path, but that cash is not eligible for
+formal-receipt publication. This gate prevents the Plan 09-to-invoice
+deployment interval from creating normally uninvoiceable cash.
 
 ### 11. Introduce routes without changing bookmark meaning
 
@@ -437,12 +459,17 @@ do not calculate Owner Statement cash or owner liability.
 - Exact numeric money and currency are preserved without conversion.
 - Organization/property/unit/lease/party scope is checked at the database.
 - Series allocation and material commands are payload-idempotent.
+- Issuance operation-key replay is resolved before series allocation; a
+  same-key race cannot allocate a second number or artifact.
 - Generic documents and generic Ledger actions cannot alter invoice truth.
 - Track B relationship evidence is immutable input to the Track A-approved
   debtor/recipient/calculation snapshot; Track B never owns those decisions.
 - Owner-adapter actions and every affected source/destination property-period
   lock are rechecked in the same execution transaction.
 - Receipt allocations determine outstanding/settlement presentation.
+- Post-activation settlement stores immutable invoice header/version/line
+  identities and accepts new cash only against the current active issued
+  invoice under the shared lock; obligation-only retargeting is forbidden.
 - Unsupported combined invoices, credit notes, and paid corrections fail
   closed.
 - Deposits remain outside ordinary rent invoices in the pilot.
@@ -458,9 +485,12 @@ do not calculate Owner Statement cash or owner liability.
    amount, currency, policy, or capability.
 3. Review, approval, issuance, artifact finalization, delivery, and settlement
    are separately evidenced.
-4. Issuance allocates one unique non-reusable number and freezes the exact
-   economic/recipient/source snapshot.
-5. Retried issuance returns the same invoice/number/artifact identity.
+4. Issuance locks and resolves the operation key before series allocation,
+   allocates one unique non-reusable number for a new payload, and freezes the
+   exact economic/recipient/source snapshot in the same transaction.
+5. Sequential or concurrent same-key/same-payload issuance returns the same
+   invoice/number/artifact identity; changed-payload reuse fails before number
+   allocation.
 6. Official print/PDF uses retained checksum-verified bytes that generic
    document actions cannot replace or delete.
 7. An unrecoverable `issuing` record can transition only to
@@ -470,13 +500,18 @@ do not calculate Owner Statement cash or owner liability.
    outstanding balance.
 9. Receipt reversal changes derived status without mutating invoice history.
 10. Unpaid cancellation/replacement retains both numbered documents and exact
-   links; partial/paid correction and credit cases block.
+    links; partial/paid correction and credit cases block. A
+    cancellation-versus-settlement race produces one lock-ordered winner:
+    committed cash blocks cancellation, while committed cancellation blocks
+    settlement until a replacement is issued.
 11. Delivery retries append attempts against the same artifact.
 12. Cross-organization, unauthorized, direct-DML, generic-RPC, stale-approval,
     duplicate-source, closed-period, and altered-idempotency attempts fail.
 13. A Plan 09-generated obligation cannot accept new-business settlement before
-    its exact issued invoice line exists; classified legacy obligations remain
-    explicit.
+    its exact current-active issued invoice header/version/line exists and is
+    frozen on the allocation; cancelled, superseded, abandoned, or
+    obligation-only resolution fails. Classified legacy obligations remain
+    explicit and outside formal-receipt publication.
 14. `/invoices` is not silently repurposed and vendor bills remain distinct.
 15. Later close/statement reads use the canonical `artifact_available`,
     `artifact_not_historically_created`, `artifact_required_missing`, and
@@ -500,7 +535,9 @@ Required evidence includes:
   concurrency, number non-reuse, idempotency, immutability, cancellation and
   replacement;
 - two-session races for draft generation, approval-versus-source change,
-  issuance-versus-issuance, issuance-versus-close, and receipt-versus-cancel;
+  same-key issuance-versus-issuance, changed-payload key reuse,
+  issuance-versus-close, and settlement-versus-cancellation, proving both
+  lock-ordered outcomes and immutable allocation linkage;
 - forced failures between series allocation, issued snapshot, artifact upload,
   finalization, and delivery, proving same-identity recovery;
 - Vitest for action validation/error mapping, lifecycle display, independent
@@ -574,5 +611,5 @@ Stop if:
 | Track A — Plan 09 and unnumbered tenant-invoice coordination slice | Financial selection/snapshot and invoice owner adapter | Plan 09 owns term/policy calculation plus debtor/recipient identity selection; the invoice slice owns lifecycle, issue-time contact approval, and issued evidence | Plan 09 stores the approved calculation/evidence and debtor/recipient identity snapshot. The invoice slice freezes it, approves contact/address/delivery evidence for that recipient, returns exact invoice states/actions/scopes through its adapter, and acquires every deterministic property-period lock before a relationship-driven action | Draft regeneration/reset/replacement must be stale-safe while issued evidence remains immutable | Yes | No |
 | Generic Documents / unnumbered tenant-invoice coordination slice | Operational-document versioning versus invoice artifact authority | Generic documents are mutable operational records and cannot own an official invoice artifact | The invoice slice owns invoice versions/artifacts/replacements; Generic Documents owns operational document versions and may only cite exact invoice artifacts through checked links | Prevents either document family from silently replacing the other's evidence | Yes before artifact adoption | No |
 | Track A — Plan 09 | Occurrence/obligation output contract | The legacy generator is blocked and current obligations lack term/policy identity | Produce one occurrence and obligation with exact calculation/source snapshots and immutable IDs | These are mandatory normal new-business invoice-line sources; Plan 20 alone owns the reviewed legacy-migration exception | Yes | No |
-| Track A — Plan 05 | Settlement-to-invoice link | Current allocations target obligations only | Preserve exact obligation/allocation identities and add checked invoice-line linkage for new invoice-era receipts without making invoice the cash source | Derived settlement status and receipt evidence need exact links | Yes for payment display; issuance can land first if receipt entry remains gated | No |
+| Track A — Plan 05 | Settlement-to-invoice link | Current allocations target obligations only | Persist exact invoice header/version/line identity for new invoice-era allocations, recheck current-active issued state under shared locks, and forbid later obligation-only resolution without making invoice the cash source | Derived settlement status and receipt evidence need immutable links across cancellation/replacement | Yes for payment display; issuance can land first if receipt entry remains gated | No |
 | Configuration registry / PR #38 | Approval and delivery catalogue entries | Registry is open, catalogue-only, and has proposed defaults/roles without runtime authority | Do not activate; future catalogue text must point to versioned billing policy, actual capability, invoice series, and delivery configuration | Prevent a UI catalogue from bypassing financial policy | Yes before configuration-driven behavior | Yes |

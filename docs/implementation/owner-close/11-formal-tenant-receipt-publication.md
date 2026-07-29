@@ -115,12 +115,13 @@ Implementation requires:
 1. Plan 05 committed receipt/allocation IDs, deterministic settlement sequence
    or post-allocation balance snapshot, direct reversal identity, idempotency,
    and atomic projections;
-2. tenant-invoice coordination identity for normal new-business receipts;
+2. the exact tenant-invoice header/version/line identities frozen on the
+   committed Plan 05 allocation;
 3. approved receipt document-series format/reset policy;
 4. approved capability for publication/reissue;
 5. accepted manual retained delivery for the pilot;
-6. the tenant-invoice issued snapshot retaining its Track A-selected debtor/recipient,
-   approved calculation snapshot, and exact consumed Track B
+6. the tenant-invoice issued snapshot retaining its Track A-selected
+   debtor/recipient, approved calculation snapshot, and exact consumed Track B
    relationship-evidence IDs/versions/material hash; and
 7. IPS confirmation of any payment-method vocabulary or a decision to omit it.
 
@@ -141,41 +142,49 @@ Create organization-scoped entities for:
 
 Do not add formal-document fields to the cash header in a way that makes the
 document the cash authority. The publication has exact foreign identities to
-the Plan 05 receipt header and allocation, and for normal invoice-era cash, the
-  tenant-invoice version/line.
+the Plan 05 receipt header and allocation and to the exact tenant-invoice
+header/version/line frozen on that allocation.
 
 The safe MVP publishes exactly one formal receipt for one receipt header with
-one allocation to one obligation/invoice line. Multi-allocation publication is
-deferred even though the underlying allocation schema can represent it.
+one allocation to one obligation and its exact frozen invoice line.
+Multi-allocation publication is deferred even though the underlying allocation
+schema can represent it.
 
 ### 2. Create publication eligibility from committed cash
 
 A checked read model classifies each non-reversal receipt:
 
-- `eligible_invoice_linked` — committed Plan 05 source, one allocation, exact
-  issued tenant-invoice line;
-- `eligible_legacy_obligation` — only when a reviewed migration manifest
-  explicitly authorizes a current publication type;
+- `eligible_invoice_linked` — committed Plan 05 source, one allocation, and the
+  exact issued tenant-invoice header/version/line frozen on that allocation;
+- `legacy_cash_non_publishable` — classified pre-invoice, manual, or legacy
+  cash for which `invoice_identity_not_historically_available` and
+  `artifact_not_historically_created` remain explicit evidence;
 - `already_published`;
 - `reversed_requires_reversal_document`;
 - `blocked_missing_source_or_snapshot`; or
 - `unsupported_cardinality`.
 
-Normal post-cutover publication requires the invoice-linked case. A historical
-cash row is never silently turned into a historical formal receipt.
+Every formal receipt publication requires the invoice-linked case. Legacy cash
+cannot enter this publication lifecycle and is never silently turned into a
+historical formal receipt. Any future contemporary acknowledgment of a legacy
+payment is a separate, currently unapproved document type; it is not a formal
+tenant receipt.
 
-The publication request is created only after the cash transaction commits. An
-automatic future policy may enqueue a durable request in the settlement
-transaction, but the request is not the artifact and cannot make uncommitted
-cash publishable.
+Publication work cannot be processed until the cash transaction commits. An
+automatic future policy may insert a durable outbox row inside the settlement
+transaction, but that row is only a post-commit trigger: it is not the formal
+receipt artifact, is invisible to workers if the cash transaction rolls back,
+and cannot make uncommitted cash publishable.
 
 Plan 09 and the tenant-invoice coordination slice share the new-business
 activation gate defined in the reconciliation. After cutover, Plan 05 rejects
-cash against a Plan 09-generated obligation until its exact tenant-invoice line
-is issued. This formal-receipt slice therefore never receives a newly generated
-source that is both normally settled and uninvoiceable. Classified
-pre-invoice/manual/legacy cash remains a separate eligibility class and is
-never disguised as new invoice-era publication.
+cash against a Plan 09-generated obligation until its exact tenant-invoice
+header/version/line is issued and can be frozen on the allocation. A Plan 20
+migration invoice supports a later payment only when it is issued before that
+payment and the allocation freezes its exact header/version/line; it never
+attaches invoice identity or formal-receipt eligibility to cash that was
+already settled. Classified pre-invoice/manual/legacy cash remains typed
+non-publishable cash evidence.
 
 ### 3. Use explicit independent state machines
 
@@ -185,12 +194,13 @@ Publication lifecycle:
 |---|---|---|
 | committed eligible receipt | Create idempotent publication request | `pending_publication` |
 | committed reversing receipt whose original formal receipt is not yet published | Create reversal publication request with exact dependency | `blocked_dependency` |
-| `blocked_dependency` | Original formal receipt reaches `published` | `pending_publication` |
+| `blocked_dependency` | Original formal receipt or its approved linked replacement for the same committed source and frozen economic snapshot reaches `published` | `pending_publication` |
 | `pending_publication` | Validate source/capability, reserve number, freeze snapshot, and create artifact identity | `publishing` |
 | `publishing` | Finalize write-once bytes and verified checksum | `published` |
 | `publishing` | Record render/upload/finalization failure without changing cash | `failed` |
 | `failed` | Retry the same payload, number, and artifact identity | `publishing` |
 | `publishing` or `failed` | Capability-based abandonment retaining number, frozen snapshot, actor, and reason without a published claim | `publication_abandoned` |
+| `publication_abandoned` | Create an approved linked replacement for the same committed source and frozen economic snapshot with a new operation key, number, and artifact identity | Linked replacement enters `pending_publication`; abandoned row and number remain retained |
 | `published` | Begin approved non-economic reissue with linked new publication | Original remains retained and displays `superseded` after the replacement publishes |
 
 Delivery lifecycle is separate:
@@ -198,11 +208,15 @@ Delivery lifecycle is separate:
 retry appended against the same published artifact.
 
 Cash-reversal state is also separate and derived only from Plan 05:
-`active` -> `reversed`. A committed reversing receipt creates a new
-`pending_publication` for the separately numbered reversal/void document when
-the original is already published; otherwise the reversal document starts in
-`blocked_dependency`. The original publication is never changed into the
-reversal document.
+`active` -> `reversed`. When the original allocation is formal-receipt eligible
+or already has a formal-publication chain, a committed reversing receipt
+creates a new `pending_publication` for the separately numbered reversal/void
+document when the original or an approved linked replacement for the same
+committed source and frozen economic snapshot is already published; otherwise
+the reversal document starts in `blocked_dependency`. The original publication
+chain is never changed into the reversal document. Reversal of
+`legacy_cash_non_publishable` remains Plan 05 cash/reconciliation evidence and
+creates neither an original nor a reversal formal receipt.
 
 This formal-receipt slice exposes a versioned read-only owner adapter for exact publication,
 version, artifact, and delivery identities; material owner-classified state;
@@ -230,9 +244,9 @@ The immutable formal receipt version includes:
 - received date and committed timestamp;
 - exact amount and currency;
 - reconciliation source and external reference;
-- exact invoice number/version/line and obligation reference, or explicit
-  reviewed legacy classification;
-- for invoice-era cash, exact charge occurrence, authoritative term/version,
+- exact tenant-invoice header, number, version, line, and obligation reference
+  frozen on the committed allocation;
+- exact charge occurrence, authoritative term/version,
   Track A-approved calculation snapshot/hash, selected debtor party/Person,
   recipient snapshot, and all accepted Track B
   party/Person/occupancy/participant/notice source IDs and versions plus
@@ -261,17 +275,27 @@ authority by role.
 Use a dedicated organization-scoped formal-receipt document series. Never
 share the invoice series or derive a number from a database UUID/reference.
 
-The checked publication transaction locks the series, validates the committed
-source/snapshot and capability, allocates one number, freezes the publication
-payload, creates an immutable artifact identity/request, and stores a
-payload-bound idempotency result.
+The checked publication transaction validates authorization/organization scope,
+canonicalizes the payload, and locks the organization/publication
+operation-idempotency key before it touches the receipt-number series. Under
+that key lock, the same key and canonical payload hash returns the previously
+stored publication number/artifact result, while the same key with a changed
+payload fails before source validation or series allocation.
 
-Numbers are unique and never reused. Same key and payload returns the existing
-publication. A render retry uses the same publication, number, and artifact
-identity. An explicit `publication_abandoned` record retains its reserved
-number, frozen snapshot, actor, and reason without claiming a published
-artifact; a later replacement uses a new number and the audited record explains
-the gap.
+Only a new request then locks and validates the committed source/allocation,
+exact frozen invoice identity, capability, and receipt-number series; allocates
+one number; freezes the publication payload; creates the immutable artifact
+identity/request; and stores the result against the locked operation key, all
+in the same transaction.
+
+Numbers are unique and never reused. Concurrent same-key/same-payload requests
+serialize to the same stored publication, number, and artifact identity. A
+render retry uses that same identity. An explicit `publication_abandoned`
+record retains its reserved number, frozen snapshot, actor, and reason without
+claiming a published artifact. An approved linked replacement uses a new
+operation key, number, and artifact identity while copying the same committed
+source and frozen economic snapshot; the abandoned row and number remain
+retained and explain the gap.
 
 ### 6. Render and retain official bytes
 
@@ -293,7 +317,10 @@ If rendering/finalization fails, cash remains committed and visible while the
 publication remains in an actionable `publishing` or `failed` state. Retry
 cannot create a second receipt event, publication, or number.
 Capability-based abandonment uses the explicit terminal state above and leaves
-`artifact_required_missing` evidence when publication remains required.
+`artifact_required_missing` evidence when publication remains required. An
+approved recovery creates the linked replacement described above from the same
+committed source and frozen economic snapshot; it never edits the abandoned
+publication or reuses its number.
 
 ### 7. Keep delivery independent
 
@@ -316,7 +343,8 @@ policy are approved.
 
 ### 8. Publish reversal/void evidence without overwriting
 
-When Plan 05 creates a reversing receipt:
+When Plan 05 creates a reversing receipt whose original allocation is
+formal-receipt eligible or already has a formal-publication chain:
 
 - never delay or reject the actual cash reversal because original receipt
   rendering/publication is pending, failed, or absent;
@@ -337,11 +365,20 @@ If cash reverses before the original formal receipt is published, the checked
 workflow ensures an idempotent original publication request exists and places
 the reversal document in `blocked_dependency`. It finalizes/retains the
 original receipt snapshot first, then publishes the separately numbered
-reversal document. A failed or abandoned required original classifies as
-`artifact_required_missing` or `artifact_publication_failed` with an
-original-receipt reason; the dependent reversal document carries its own reason
-and close remains blocked until both required artifacts are available. Cash
-remains reversed throughout.
+reversal document. If the original reaches `publication_abandoned`, an approved
+linked replacement must copy the same committed source and frozen economic
+snapshot while receiving a new number/artifact; the abandoned row and number
+remain retained. Publication of either the original or that approved linked
+replacement satisfies the reversal document's `blocked_dependency`. A failed
+or abandoned chain remains `artifact_required_missing` or
+`artifact_publication_failed` with an original-receipt reason; the dependent
+reversal document carries its own reason, and close remains blocked until the
+required original-or-replacement artifact and reversal artifact are available.
+Cash remains reversed throughout.
+
+Reversal of `legacy_cash_non_publishable` cash does not enter this section's
+publication state machine. It remains exact Plan 05 reversal and reconciliation
+evidence without either an original or reversal formal receipt.
 
 ### 9. Correct document errors append-only
 
@@ -397,8 +434,10 @@ Statement delivery remains separate.
 - Receipt event/allocation remains cash authority.
 - Formal receipt publication never creates, changes, allocates, re-dates, or
   reverses cash.
-- Safe MVP is one receipt, one allocation, one obligation, and one invoice
-  line where an invoice exists.
+- Safe MVP is one receipt, one allocation, one obligation, and exactly one
+  issued tenant-invoice header/version/line frozen on that allocation.
+- Classified pre-invoice, manual, and legacy cash is typed non-publishable cash
+  evidence and cannot enter the formal-receipt lifecycle.
 - Multiple partial receipts create separate cash events and separate formal
   receipt publications.
 - Received, publication, issue, posting, and delivery dates remain distinct.
@@ -407,8 +446,12 @@ Statement delivery remains separate.
   balance.
 - Published number, snapshot, checksum, and bytes are never reused,
   overwritten, or deleted.
-- Reversal preserves the original and creates separate source and document
-  evidence.
+- An abandoned publication and number remain retained; its approved linked
+  replacement uses a new number/artifact and the same committed source and
+  frozen economic snapshot.
+- For formal-receipt-eligible cash, reversal preserves the original and creates
+  separate source and document evidence. Legacy non-publishable cash creates
+  only exact Plan 05 reversal/reconciliation evidence.
 - Generic documents, Ledger, journals, and Owner Statements are not receipt
   authority.
 - Delivery attempts are append-only and separate by document family.
@@ -424,24 +467,33 @@ Statement delivery remains separate.
 ## Acceptance criteria
 
 1. No publication can begin before a committed Plan 05 receipt/allocation.
-2. Normal new-business publication requires one exact issued invoice line.
+2. Every formal publication requires the exact issued tenant-invoice
+   header/version/line frozen on that allocation. Legacy cash remains
+   `legacy_cash_non_publishable`; any future contemporary acknowledgment is a
+   separate, unapproved document type.
 3. The immutable snapshot includes every required payer/tenant/context/source,
    amount/date/currency, partial-payment, and remaining-balance field.
-4. One transactional, non-reusable receipt number is allocated per
-   publication and retries return the same identity.
+4. The operation/idempotency-key lock and replay check precede receipt-series
+   allocation in the same transaction. Concurrent same-key/same-payload
+   requests return one stored identity; a changed payload fails before number
+   allocation.
 5. PDF/print returns retained checksum-verified bytes that generic document
    actions cannot replace or delete.
 6. Rendering or delivery failure leaves cash intact and supports
    same-identity retry.
-7. `publication_abandoned` retains the reserved number/snapshot/reason, makes
-   no published-artifact claim, and leaves canonical missing-artifact evidence
-   when the document is required.
+7. `publication_abandoned` retains the reserved number/snapshot/reason and
+   makes no published-artifact claim. Approved recovery creates a linked
+   replacement for the same committed source/frozen economic snapshot with a
+   new number/artifact while retaining the abandoned row and number.
 8. Multiple partial payments publish separate receipts with historically
    correct balance-after snapshots.
-9. Cash reversal commits regardless of publication state; if the original
-   formal receipt is not published, the reversal document waits on the
-   original publication and both required artifacts remain explicit close
-   evidence.
+9. Cash reversal commits regardless of publication state. For an original
+   allocation that is formal-receipt eligible or already has a publication
+   chain, an unpublished original leaves the reversal document in
+   `blocked_dependency` until the original or its approved linked replacement
+   for the same source/snapshot publishes; that artifact and the reversal
+   artifact remain explicit close evidence. Reversal of
+   `legacy_cash_non_publishable` creates neither document.
 10. Non-economic document correction is append-only; economic correction must
    follow Plan 05.
 11. Every publication, delivery, and cash-reversal state transition follows
@@ -460,6 +512,9 @@ Statement delivery remains separate.
 16. Relationship-driven publication reset/reissue is available only through
     the formal-receipt owner adapter and the complete deterministic property-period
     lock set.
+17. A Plan 20 migration invoice supports a later payment only when the invoice
+    is issued first and the allocation freezes its exact identity; it never
+    retroactively makes settled legacy cash publishable.
 
 ## Verification
 
@@ -467,12 +522,16 @@ Required evidence includes:
 
 - RED tests proving current receipt rows have no number/artifact/delivery
   identity and generic document bytes are replaceable;
-- pgTAP for source eligibility, one-publication-per-source/version, capability,
+- pgTAP for source eligibility, one publication chain per source/version with
+  only approved linked abandonment replacements, capability,
   RLS/grants/bypass, series concurrency, number non-reuse, idempotency,
   immutable snapshots, source/reversal relations, unsupported cardinality, and
   artifact metadata;
-- two-session races for publication-versus-publication,
-  publication-versus-reversal, publication-versus-close, and reissue;
+- two-session races for same-key publication-versus-publication,
+  publication-versus-reversal, publication-versus-close, abandonment
+  replacement, and reissue, proving one number per operation key and that a
+  published original or approved linked replacement releases the reversal
+  dependency;
 - forced failures between source validation, number allocation, artifact
   upload, finalization, and delivery, proving no cash mutation and
   same-identity recovery;
@@ -522,7 +581,8 @@ Stop if:
 - any formal receipt can precede actual committed cash;
 - document publication creates or mutates a receipt/allocation;
 - Plan 05 cannot provide deterministic balance-after and reversal identity;
-- a new-business receipt lacks exact invoice-line identity;
+- any formal receipt lacks exact allocation-frozen tenant-invoice
+  header/version/line identity;
 - a historical row is made to look like a historical issued receipt;
 - number allocation is race-prone/reusable;
 - bytes or snapshots can be silently overwritten/deleted;
@@ -540,7 +600,7 @@ Stop if:
 |---|---|---|---|---|---|---|
 | Track A — Plan 05 | Deterministic settlement order and balance-after snapshot | Current receipt rows expose amounts/dates but do not preserve a formal historical remaining-balance value | Persist or return under lock an immutable settlement sequence and post-allocation outstanding snapshot for publication | A later receipt must not rewrite what an earlier formal receipt says remained after payment | Yes | No |
 | Track A — Plan 05 | Direct allocation reversal identity | Current reversal links headers but clones allocations without exact allocation-to-allocation relation | Add exact original/reversing allocation identity and signed canonical effect | Reversal/void receipt must cite the exact reversed allocation | Yes | No |
-| Track A — unnumbered tenant-invoice coordination slice | Invoice/version/line identity | Current obligations/receipts have no invoice source | Require new invoice-era allocations to retain or deterministically resolve one exact issued invoice line | Normal formal receipts must identify what invoice was paid | Yes for new business | No |
+| Track A — unnumbered tenant-invoice coordination slice | Invoice/version/line identity | Current obligations/receipts have no invoice source | Require every formal-receipt-eligible allocation to retain the exact issued tenant-invoice header/version/line; legacy obligation-only cash remains non-publishable | Formal receipts must identify exactly what invoice line was paid without retroactive resolution | Yes | No |
 | Track B — Lease and Occupancy History | Exact relationship/date evidence retained through the tenant-invoice snapshot | Current party/contact data can change after cash is received, but Track B owns evidence candidates rather than a financial recipient/debtor selection | TB-05 supplies accepted source IDs/versions/reasons/hash to Plan 09 and the invoice slice. The formal-receipt slice copies the issued invoice and Plan 05 settlement snapshots and never re-resolves current rows; `billing_contact` is not debtor authority | Published receipt history cannot change with today's tenant/contact or transfer selection authority to Track B | Yes through tenant-invoice issuance | No before new-business publication |
 | Track A — unnumbered formal-receipt coordination slice | Publication owner adapter and composed locks | A relationship correction can affect draft/approved publication evidence but must not rewrite committed cash or published artifacts | Return exact publication states/actions/scopes through the formal-receipt adapter and acquire all deterministic property-period locks before reset/reissue action; preserve issued/published originals | Makes cross-track impact actionable without Track B owning document or cash lifecycle | Yes before affected execution | No |
 | Generic Documents / unnumbered formal-receipt coordination slice | Operational-document versioning versus formal-receipt artifact authority | Generic document replacement cannot provide immutable numbered receipt publication | The formal-receipt domain owns versions/artifacts/reissues; Generic Documents owns operational versions and may only cite exact receipt artifacts through checked links | Prevents silent cross-domain byte replacement | Yes before artifact adoption | No |

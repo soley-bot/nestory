@@ -85,9 +85,11 @@ debtor authority.
   safe-MVP obligation as one reviewed and issued tenant invoice line. It does
   not create another receivable.
 - Plan 05 receipt/allocation is actual cash and can operate before invoice
-  identity for classified current/legacy obligations.
-- For new invoice-era cash, the unnumbered formal-receipt coordination slice
-  publishes from the exact Plan 05 source and tenant-invoice line.
+  identity for classified pre-invoice/manual/legacy obligations, but that cash
+  is not formal-receipt eligible.
+- The unnumbered formal-receipt coordination slice publishes only from the
+  exact Plan 05 source and issued tenant-invoice header/version/line frozen on
+  its allocation.
 - Invoice approval, issuance, delivery, and derived settlement are independent
   axes.
 - Formal receipt publication and delivery are independent from cash commit.
@@ -285,8 +287,12 @@ The October safe model is:
 - one charge occurrence -> one obligation;
 - one obligation -> at most one active/current invoice with one source-bound
   line, while cancelled/superseded replacements remain retained;
-- one receipt -> one allocation to one obligation/invoice line; and
-- multiple sequential partial receipts -> separate receipt events/documents.
+- one receipt -> one allocation to one obligation; activated Plan 09 cash also
+  freezes exactly one current active issued invoice header/version/line, while
+  classified pre-invoice/manual/legacy obligation-only cash remains
+  non-publishable; and
+- multiple sequential partial receipts -> separate receipt events and, when
+  formal-receipt eligible, separate documents.
 
 Combined invoices, multi-allocation receipts, unapplied cash, overpayments,
 advance payments, deposits on ordinary invoices, and credit notes are deferred
@@ -303,18 +309,45 @@ claiming an issued artifact or reusing its number.
 `sent/delivered` is a separate delivery axis;
 `unpaid/partially_paid/paid` is allocation-derived. Unpaid issued invoices may
 be linked-cancelled/replaced. Paid/partial correction blocks without approved
-credit/refund policy.
+credit/refund policy. Issuance locks and resolves its operation/idempotency key
+before series allocation, so same-key replay returns the stored identity and a
+changed payload fails before consuming a number. Cancellation and settlement
+share the obligation/invoice/property-period locks: settlement freezes only
+the current active `issued` header/version/line; whichever commits first
+determines whether cancellation is paid/partial-blocked or settlement must wait
+for an issued replacement. A committed allocation is never retargeted.
 
 ### Gate L — Formal receipt publication
 
-A formal receipt can only publish from committed Plan 05 cash. Publication and
-delivery are retriable outside the cash transaction. Reversal/void evidence is
-separately numbered and retains the original. Generic document mutation cannot
-alter official bytes. Cash reversal never waits for rendering: if the original
-receipt document is not yet published, the reversal document records a blocked
-dependency until the original snapshot is retained, and missing artifacts
-remain explicit close blockers. A reserved but unpublished terminal record is
-`publication_abandoned`, never a cash void.
+A formal receipt can only publish from committed Plan 05 cash with the exact
+issued tenant-invoice header/version/line frozen on its allocation. Classified
+pre-invoice/manual/legacy cash remains typed
+`legacy_cash_non_publishable` with
+`invoice_identity_not_historically_available` and
+`artifact_not_historically_created`; any future contemporary acknowledgment is
+a separate, currently unapproved document type and is not a formal receipt.
+
+An automatic policy may insert a durable outbox row in the settlement
+transaction, but publication work processes it only after commit; the row is a
+post-commit trigger, not an artifact or uncommitted-cash authority. Formal
+publication locks and resolves its operation/idempotency key before receipt
+series allocation. Same-key/same-payload races return one stored
+number/artifact; changed payload fails before number allocation.
+
+Publication and delivery remain retriable outside the cash transaction. For an
+original allocation that is formal-receipt eligible or already has a
+formal-publication chain, reversal/void evidence is separately numbered and
+retains the original. Generic document mutation cannot alter official bytes.
+Cash reversal never waits for rendering. If that original is not published,
+the reversal document records `blocked_dependency` until the original or an
+approved linked replacement for the same committed source and frozen economic
+snapshot publishes. A `publication_abandoned` row and number remain retained;
+its approved replacement uses a new number/artifact. Publication of the
+original or linked replacement satisfies the dependency, while that artifact
+and the reversal artifact remain explicit close evidence. Reversal of
+`legacy_cash_non_publishable` remains Plan 05 cash/reconciliation evidence and
+creates neither an original nor reversal formal receipt. Abandonment is never a
+cash void.
 
 ### Gate M — Routes, configuration, and migration
 
@@ -326,6 +359,9 @@ remain explicit close blockers. A reserved but unpublished terminal record is
   activation gate: Plan 09 may run in shadow/readiness mode, but generated
   obligations are not collectable until the invoice slice can issue the
   required invoice and Plan 05 enforces that link.
+- A Plan 20 migration invoice supports only a later payment after real issuance
+  and exact header/version/line freeze; it never retroactively attaches to
+  already settled legacy cash or makes that cash formal-receipt eligible.
 - PR #38 remains catalogue-only. Billing policy, document series, delivery
   configuration, organization settings, and Plan 04 rent policy retain separate
   authority.
@@ -371,7 +407,7 @@ numbered matrix:
 | Unnumbered coordination slice | Status | Prerequisites | Authority created |
 |---|---|---|---|
 | `10-tenant-invoice-issuance-and-delivery.md` | Planned; gated; separate prompt required | Plan 05, Plan 09, TB-05, invoice policy/series | Tenant invoice lifecycle, approved issue-time contact snapshot, immutable issued artifact, owner adapter, and delivery history |
-| `11-formal-tenant-receipt-publication.md` | Planned; gated; separate prompt required | Plan 05 and issued tenant-invoice identity | Formal tenant receipt publication/reversal artifact, owner adapter, and delivery history |
+| `11-formal-tenant-receipt-publication.md` | Planned; gated; separate prompt required | Plan 05 committed cash and exact issued tenant-invoice header/version/line frozen on its allocation | Formal tenant receipt publication/reversal artifact, owner adapter, and delivery history |
 
 ## Sequence decisions
 
@@ -408,9 +444,11 @@ tenant-invoice line exists.
 ### Why the formal-receipt coordination slice follows tenant invoicing
 
 The unnumbered formal-receipt slice publishes separately from cash so
-artifact/delivery failure cannot affect settlement. New-business receipts need
-exact invoice-line references. Classified legacy obligation-only cash remains
-readable but is never fabricated into a historical receipt document.
+artifact/delivery failure cannot affect settlement. Every formal receipt needs
+the exact issued tenant-invoice header/version/line frozen on its Plan 05
+allocation. Classified legacy obligation-only cash remains typed, readable
+cash evidence but cannot enter formal-receipt publication and is never
+fabricated into a historical receipt document.
 
 ### Which later slices consume document identity
 
@@ -464,8 +502,13 @@ contribution/distribution, carried owner balance, close, and Owner Statement.
   `term_authority_not_historically_available`, or
   `rent_policy_not_historically_available` as applicable and never fabricates
   those historical authorities.
-- Settled legacy receipts remain cash evidence without a claimed historical
-  formal receipt.
+- A Plan 20 migration invoice supports a later payment only when it is issued
+  first and the allocation freezes its exact header/version/line. It never
+  attaches to already settled legacy cash.
+- Settled legacy receipts remain cash evidence without a claimed historical or
+  formal receipt and retain `invoice_identity_not_historically_available` plus
+  `artifact_not_historically_created`. Any future contemporary acknowledgment
+  requires a separate approved document type.
 - Required-missing, unresolved cash, ambiguous source/recipient, or unsupported
   cardinality blocks pilot/close according to Plan 15.
 - Owner Statement evidence names `artifact_available`,
@@ -503,5 +546,5 @@ contribution/distribution, carried owner balance, close, and Owner Statement.
 | Track A Plan 09 | Term/policy calculation and approved snapshot | Plan 04 term authority and Track B occupancy/notice facts can differ | Track A applies precedence, selects service/due/proration/notice outcomes and blockers, records selected/ignored evidence reasons, and stores the approved calculation snapshot/hash | Occurrence/invoice calculation must have one financial owner | Yes for Plan 09 | No |
 | Track A domain owners | Typed impact adapter/actions and deterministic locks | Later term/party/occupancy changes can affect occurrences and downstream drafts | Each owner returns exact identities/states/actions/scopes/hash; execution acquires every source/destination property-period lock in deterministic order before owner action. Track B only transports the result | Track A owns append-only financial consequences without Track B table mutation | Yes before each affected TB-03/TB-06 execution | No for enabled paths |
 | Generic Documents and Track A document owners | Operational versions versus billing/close/statement evidence | A signed operational document may support a close but is not a tenant invoice, formal receipt, or Owner Statement artifact | Generic Documents owns operational versioning; Track A owns its document families and freezes exact generic-document version/checksum references in close evidence | Avoids a second or ambiguous publication authority | Yes before official evidence adoption | No |
-| Track A — Plan 05 plus the two unnumbered tenant-document slices | Settlement and document identity contract | Current obligations/receipts have no invoice/formal-document identity | Plan 05 creates exact cash source; the tenant-invoice slice binds a normal line to one occurrence/obligation or a Plan 20 migration line to one exact legacy obligation/manifest item with typed authority absences; the formal-receipt slice publishes from committed receipt and the applicable invoice line | Prevent circular or competing authority | No, fixed by this authority chain | No |
+| Track A — Plan 05 plus the two unnumbered tenant-document slices | Settlement and document identity contract | Current obligations/receipts have no invoice/formal-document identity | Plan 05 creates exact cash source; the tenant-invoice slice binds a normal line to one occurrence/obligation or a Plan 20 migration line to one exact legacy obligation/manifest item with typed authority absences; the formal-receipt slice publishes only from committed cash and the exact issued tenant-invoice header/version/line frozen on its allocation, while legacy obligation-only cash remains non-publishable | Prevent circular or competing authority | No, fixed by this authority chain | No |
 | Configuration registry / PR #38 | Billing rules and roles | PR #38 is catalogue-only and proposes non-runtime defaults/role labels | Future catalogue maps to versioned billing policy, actual capability, separate document series, delivery config, org settings, and Plan 04 policy | Generic configuration cannot replace effective financial authority | Yes before the unnumbered tenant-document slices use it | Yes |

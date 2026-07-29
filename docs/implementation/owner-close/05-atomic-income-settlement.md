@@ -157,11 +157,23 @@ Plan 05 also defines a checked eligibility hook for the joint Plan 09 and
 tenant-invoice coordination activation gate:
 
 - classified pre-invoice/manual/legacy obligations may settle by obligation
-  identity;
+  identity, remain explicitly classified, and never become formal-receipt
+  publication sources merely because cash exists;
 - Plan 09-generated new-business obligations remain non-collectable while
   Plan 09 is shadow/readiness-only; and
 - after the joint Plan 09/tenant-invoice cutover, a Plan 09-generated
-  obligation requires one exact issued tenant-invoice line before settlement.
+  obligation requires one exact tenant-invoice header/version/line before
+  settlement. Plan 05 persists those exact identities on the allocation and
+  never resolves them later from obligation identity alone.
+
+For that post-activation path, the checked settlement command acquires the
+shared obligation/invoice/property-period locks and rechecks that the referenced
+line belongs to the current active `issued` invoice for the obligation. A
+`cancelled`, `superseded`, or `issuance_abandoned` invoice cannot receive new
+cash. Cancellation and settlement use the same lock order: settlement winning
+first makes cancellation fail under the paid/partial rule; cancellation winning
+first makes settlement fail until an approved replacement is issued. A later
+invoice lifecycle change never retargets an already committed allocation.
 
 The initial Plan 05 implementation does not create invoice tables or activate
 Plan 09. It must leave an explicit source classification/guard contract so a
@@ -216,8 +228,8 @@ When the obligation comes from Plan 09, the immutable scope also retains:
 - every accepted Track B party/Person/occupancy/participant/notice source ID
   and version consumed by that selection, plus the relationship-evidence
   material hash; and
-- the issued invoice-line identity once the joint Plan 09/tenant-invoice
-  activation gate is enabled.
+- the exact issued invoice header/version/line identities once the joint
+  Plan 09/tenant-invoice activation gate is enabled.
 
 A `billing_contact` may be part of recipient/contact evidence but never becomes
 the debtor automatically. Classified pre-invoice/manual/legacy obligations
@@ -234,13 +246,21 @@ Use the canonical lower-case reserved source type and exact allocation ID for
 the Ledger and journal source identity. Do not project by obligation ID or
 receipt description/reference.
 
-Each allocation creates, in the same source transaction:
+Before any source mutation, the checked command resolves the allocation's
+immutable economic class against the merged Ledger and accounting-book mapping,
+including at least one applicable accounting book. An unsupported or unmapped
+class, or a zero, missing, or duplicate book mapping, fails closed.
 
-- zero or one required Ledger projection according to its immutable economic
-  class;
-- exactly one required balanced journal entry and lines for classes adopted by
-  the accounting kernel; and
-- the unique source links needed for canonical event parity.
+Each supported allocation creates, in the same source transaction:
+
+- exactly one allocation-linked Ledger projection;
+- exactly one balanced journal entry with its complete lines for every
+  applicable accounting book; and
+- the unique canonical allocation-to-Ledger-to-journal/line source links needed
+  for event parity.
+
+Any missing mapping, projection, book entry, line, or balance fails the
+transaction and leaves no receipt/allocation source.
 
 Cash date is the receipt's `received_date`. Projection date, amount, currency,
 property, unit, and class must match the source snapshot exactly.
@@ -259,16 +279,23 @@ idempotency mechanism.
 
 The checked reversal command:
 
-1. validates capability, original source, requested reversal date, open-period
-   policy, reconciliation source, and mandatory reason;
-2. rejects reversal chains and duplicate reversal;
-3. creates one reversing receipt and exact reversing allocation;
-4. stores direct original-allocation-to-reversing-allocation identity;
-5. creates reversing Ledger and balanced journal projections;
-6. refreshes compatibility balance/status;
-7. preserves both original and reversal;
-8. logs all identities and returns an idempotent result; and
-9. never asks the operator to reverse a derived row first.
+1. validates actor capability and organization scope, canonicalizes the
+   material payload, and locks the organization-scoped reversal
+   operation/idempotency key;
+2. returns the committed reversal identities for the same key and payload, or
+   fails a changed-payload reuse, before any new-request validation;
+3. only for a genuinely new request, validates the original source, requested
+   reversal date, open-period policy, reconciliation source, and mandatory
+   reason, then rejects reversal chains or an existing reversal;
+4. creates one reversing receipt and exact reversing allocation;
+5. stores direct original-allocation-to-reversing-allocation identity;
+6. creates the exact reversing Ledger projection and exactly one balanced
+   journal entry with its complete lines for every applicable accounting book;
+7. refreshes compatibility balance/status;
+8. preserves both original and reversal;
+9. logs all identities and commits the payload-bound result against the locked
+   operation key; and
+10. never asks the operator to reverse a derived row first.
 
 Normal correction is dated in an open period. Historical restatement follows
 the Plan 00 reopen/reclose sequence and never rewrites a published statement.
@@ -328,6 +355,10 @@ Ledger, and journal controls.
 - Reconciliation-source identity is mandatory for new cash.
 - Header total equals signed allocation total in the safe model.
 - Allocation identity is the source of cash projections.
+- Every supported allocation has exactly one allocation-linked Ledger
+  projection and exactly one balanced journal entry with complete lines for
+  each of at least one applicable accounting book; zero, missing, duplicate, or
+  unmapped book mappings never create a source.
 - Receipt, Ledger, journal, compatibility, and audit effects are atomic.
 - Journals are balanced and deterministic.
 - Source-linked projections are not generic operator records.
@@ -338,19 +369,25 @@ Ledger, and journal controls.
 - Settlement never re-resolves debtor, Lease/Unit, or occupancy context from
   current compatibility headers. Future Plan 09 scope is frozen from the Track
   A-approved decision and exact consumed relationship evidence.
+- Post-activation new-business allocations retain immutable invoice
+  header/version/line identities; classified pre-invoice/manual/legacy cash
+  remains obligation-only and is not a formal-receipt source.
 
 ## Acceptance criteria
 
-1. One checked receipt commits source, allocation, compatibility, Ledger,
-   journal, audit, and idempotency result together.
+1. One checked receipt with a supported allocation commits one immutable
+   receipt header, exactly one allocation, exactly one allocation-linked Ledger
+   projection, exactly one balanced journal entry with complete lines for every
+   applicable accounting book, compatibility, audit, and idempotency result
+   together.
 2. Forced failure at each write boundary leaves none of those effects.
 3. Partial receipts on different dates create separate allocation-based cash
    events and projections with stable historical balance-after snapshots.
-4. A same-key/same-payload retry returns the same identities; altered payload
-   fails.
-5. Over-allocation, unsupported unapplied cash, closed period, wrong
-   reconciliation source, cross-scope, unauthenticated, and unauthorized calls
-   fail before mutation.
+4. A same-key/same-payload receipt or reversal retry returns the same identities
+   before new-request duplicate checks; altered payload fails.
+5. Over-allocation, unsupported or unmapped economic class, unapplied cash,
+   closed period, wrong reconciliation source, cross-scope, unauthenticated,
+   and unauthorized calls fail before mutation.
 6. Reversal creates exact linked reversing source/projection effects without
    modifying the original or requiring a prior Ledger action.
 7. Direct material obligation mutation and generic source-linked projection
@@ -361,8 +398,10 @@ Ledger, and journal controls.
 10. Existing legacy records remain readable and explicitly classified.
 11. The settlement eligibility contract distinguishes classified
     pre-invoice/manual/legacy obligations from Plan 09-generated new business;
-    the latter cannot accept cash after activation without an issued
-    tenant-invoice coordination line.
+    the latter persists an exact current-active issued invoice
+    header/version/line under the shared lock and cannot accept cash against a
+    cancelled, superseded, or abandoned invoice. Cancellation-versus-settlement
+    races produce one lock-ordered winner and never retarget committed cash.
 12. The read-only Plan 05 owner adapter returns exact typed source
     identities/states/actions/scopes, and a composed executor holds every
     deterministic property-period lock in the same transaction before
