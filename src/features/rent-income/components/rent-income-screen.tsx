@@ -645,8 +645,14 @@ function RentIncomeInspector({
   const workflow = getRentIncomeWorkflow(item);
   const isReadOnly = Boolean(item.archivedAt);
   const canRecordPayment = !isReadOnly && workflow.canRecordReceipt;
+  const hasCanonicalSettlementHistory = item.receipts.some(
+    (receipt) => receipt.settlementBasis !== "legacy_unclassified",
+  );
   const canVoid =
-    !isReadOnly && item.status !== "posted" && item.amountReceived <= 0;
+    !isReadOnly &&
+    !hasCanonicalSettlementHistory &&
+    item.status !== "posted" &&
+    item.amountReceived <= 0;
   const statementParams = new URLSearchParams({
     month: (item.receivedDate ?? item.dueDate).slice(0, 7),
     propertyId: item.propertyId,

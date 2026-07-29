@@ -1510,6 +1510,11 @@ BEGIN
     RAISE EXCEPTION 'Finance receipt not found' USING ERRCODE = '23503';
   END IF;
 
+  IF p_reversal_date < v_preflight_receipt.received_date THEN
+    RAISE EXCEPTION 'Reversal date cannot precede original receipt date'
+      USING ERRCODE = '22023';
+  END IF;
+
   SELECT allocation.*
   INTO v_original_allocation
   FROM public.finance_receipt_allocations AS allocation

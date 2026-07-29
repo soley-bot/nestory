@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(47);
+SELECT plan(48);
 
 SELECT has_function(
   'public',
@@ -558,6 +558,23 @@ SELECT is(
   ),
   (SELECT value FROM plan05_activity_count),
   'owner adapter preview is read-only'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.reverse_finance_receipt_v2(
+      organization_id,
+      (first_result->>'receipt_id')::uuid,
+      '2026-07-09',
+      reconciliation_source_id,
+      'Invalid historical reversal',
+      'plan05-predating-reversal'
+    )
+    FROM plan05_test_state
+  $$,
+  '22023',
+  'Reversal date cannot precede original receipt date',
+  'a reversal cannot create negative cash before the original receipt'
 );
 
 SELECT lives_ok(

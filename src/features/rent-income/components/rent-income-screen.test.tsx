@@ -486,6 +486,59 @@ describe("RentIncomeScreen", () => {
       document.querySelector('input[name="idempotencyKey"]'),
     ).not.toBeNull();
   });
+
+  it("hides Void after canonical settlement history is fully reversed", () => {
+    const item = {
+      ...partialIncome,
+      amountReceived: 0,
+      amountReceivedDisplay: { primary: "USD 0.00" },
+      balanceDisplay: { primary: "USD 500.00" },
+      nextAction: "Record receipt",
+      receipts: [
+        {
+          allocationId: "allocation-1",
+          amount: 500,
+          amountDisplay: { primary: "USD 500.00" },
+          canReverse: false,
+          id: "receipt-1",
+          journalEntryIds: ["journal-1"],
+          ledgerEntryId: "ledger-1",
+          publicationSourceClass: "legacy_cash_non_publishable",
+          receivedDate: "2026-07-05",
+          reconciliationSourceId: "source-1",
+          reconciliationSourceLabel: "BANK Â· Operating",
+          reference: "BANK-500",
+          reversalOfAllocationId: null,
+          reversed: false,
+          settlementBasis: "pre_cutover_uninvoiced",
+        },
+        {
+          allocationId: "allocation-2",
+          amount: -500,
+          amountDisplay: { primary: "-USD 500.00" },
+          canReverse: false,
+          id: "receipt-2",
+          journalEntryIds: ["journal-2"],
+          ledgerEntryId: "ledger-2",
+          publicationSourceClass: "legacy_cash_non_publishable",
+          receivedDate: "2026-07-06",
+          reconciliationSourceId: "source-1",
+          reconciliationSourceLabel: "BANK Â· Operating",
+          reference: "Payment returned",
+          reversalOfAllocationId: "allocation-1",
+          reversed: true,
+          settlementBasis: "pre_cutover_uninvoiced",
+        },
+      ],
+      status: "open",
+      statusLabel: "Open",
+    } satisfies RentIncomeItem;
+    renderIncome("all", [item]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
+
+    expect(screen.queryByRole("button", { name: "Void" })).toBeNull();
+  });
 });
 
 function renderIncome(
