@@ -278,6 +278,10 @@ Any composed correction resolves all affected source and destination scopes,
 acquires every Plan 03 property-period lock in the owner-defined deterministic
 order inside the same transaction, rechecks the adapter and impact material
 while locks are held, and only then invokes the selected invoice action.
+Standalone invoice actions use the same prefix: read-only scope resolution,
+then every applicable Plan 03 property-period/header, broader Ledger, and
+accounting-book lock, then the operation key, domain source, and document
+series.
 
 ### 5. Allocate a unique invoice number at issuance
 
@@ -285,17 +289,27 @@ Use a dedicated organization-scoped invoice document series, not a
 configuration catalogue counter. In one checked transaction, issuance:
 
 - validates actor/organization capability, canonicalizes the approved issuance
-  payload, and locks the organization/invoice/operation idempotency key before
-  any series allocation;
+  payload, resolves every affected property/currency/month scope without
+  mutation, and acquires the complete applicable Plan 03
+  property-period/header, broader Ledger, and accounting-book lock set in
+  deterministic order;
+- only after those earlier-order locks, locks the
+  organization/invoice/operation idempotency key before any domain-source or
+  series lock;
 - returns the existing invoice/number/artifact identities when the locked key
   already has the same payload hash, and fails changed-payload reuse;
 - for a genuinely new request only, locks and rechecks the invoice approval
-  payload, then locks the series and allocates the next number once;
+  payload and captured lifecycle/book state, then locks the series and
+  allocates the next number once;
 - stores the exact series/version/format snapshot;
 - freezes issued economics and recipient/context snapshots;
 - creates the immutable artifact identity and durable issuance request; and
 - records actor/time and the payload-bound result against the locked operation
   key before commit.
+
+Captured lifecycle/book status gates only a genuinely new issuance. A completed
+same-payload replay still returns its stored identity if the period later
+closes; it performs no new source or series mutation.
 
 Numbers are unique and never reused. A retry returns the same number and
 invoice. An issuance render failure stays recoverable under the same invoice,
@@ -466,8 +480,9 @@ do not calculate Owner Statement cash or owner liability.
 - Exact numeric money and currency are preserved without conversion.
 - Organization/property/unit/lease/party scope is checked at the database.
 - Series allocation and material commands are payload-idempotent.
-- Issuance operation-key replay is resolved before series allocation; a
-  same-key race cannot allocate a second number or artifact.
+- Issuance follows Plan 03 locks, then operation-key replay, then domain-source
+  and series locks; a same-key race cannot allocate a second number or
+  artifact.
 - Generic documents and generic Ledger actions cannot alter invoice truth.
 - Track B relationship evidence is immutable input to the Track A-approved
   debtor/recipient/calculation snapshot; Track B never owns those decisions.
@@ -492,7 +507,8 @@ do not calculate Owner Statement cash or owner liability.
    amount, currency, policy, or capability.
 3. Review, approval, issuance, artifact finalization, delivery, and settlement
    are separately evidenced.
-4. Issuance locks and resolves the operation key before series allocation,
+4. Issuance acquires the complete applicable Plan 03 lock hierarchy, then locks
+   and resolves the operation key before domain-source and series locks,
    allocates one unique non-reusable number for a new payload, and freezes the
    exact economic/recipient/source snapshot in the same transaction.
 5. Sequential or concurrent same-key/same-payload issuance returns the same
@@ -545,9 +561,11 @@ Required evidence includes:
   replacement;
 - two-session races for draft generation, approval-versus-source change,
   same-key issuance-versus-issuance, changed-payload key reuse,
-  issuance-versus-close, settlement-versus-cancellation, and
+  issuance-versus-close/composed-correction in both start orders,
+  settlement-versus-cancellation, and
   reversal-versus-cancellation, proving partial reversal blocks, complete exact
-  reversal can restore eligibility, and every outcome retains immutable
+  reversal can restore eligibility, no path holds the issuance key while
+  waiting on an earlier Plan 03 lock, and every outcome retains immutable
   allocation/reversal linkage;
 - forced failures between series allocation, issued snapshot, artifact upload,
   finalization, and delivery, proving same-identity recovery;

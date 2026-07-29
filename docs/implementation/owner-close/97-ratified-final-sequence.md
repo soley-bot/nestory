@@ -141,6 +141,14 @@ owner adapter and impact material while locks are held, and only then invokes
 the selected action. Preview/adapter reads write no activity. Track B may
 transport the opaque adapter result but never updates Track A tables.
 
+Standalone and composed financial actions use the same complete Plan 03 order:
+resolve scopes read-only; acquire property-period/header, broader Ledger, and
+accounting-book locks in deterministic order; then claim the operation key;
+then lock domain sources and any document series. No action may hold an
+operation key while waiting for an earlier-order Plan 03 lock. Captured
+lifecycle/book status gates only a new mutation; a completed same-payload replay
+still returns after a later period closure.
+
 ### Corrections and reversals
 
 - Original economic and published-document evidence is never mutated or
@@ -309,9 +317,10 @@ claiming an issued artifact or reusing its number.
 `sent/delivered` is a separate delivery axis;
 `unpaid/partially_paid/paid` is allocation-derived. Unpaid issued invoices may
 be linked-cancelled/replaced. Paid/partial correction blocks without approved
-credit/refund policy. Issuance locks and resolves its operation/idempotency key
-before series allocation, so same-key replay returns the stored identity and a
-changed payload fails before consuming a number. Settlement, exact reversal,
+credit/refund policy. Issuance acquires the complete applicable Plan 03 lock
+hierarchy, then locks and resolves its operation/idempotency key before
+domain-source and series locks, so same-key replay returns the stored identity
+and a changed payload fails before consuming a number. Settlement, exact reversal,
 and cancellation share the obligation/invoice/property-period locks.
 Settlement freezes only the current active `issued` header/version/line.
 Cancellation requires no allocation or exact committed reversal of every
@@ -333,9 +342,10 @@ a separate, currently unapproved document type and is not a formal receipt.
 An automatic policy may insert a durable outbox row in the settlement
 transaction, but publication work processes it only after commit; the row is a
 post-commit trigger, not an artifact or uncommitted-cash authority. Formal
-publication locks and resolves its operation/idempotency key before receipt
-series allocation. Same-key/same-payload races return one stored
-number/artifact; changed payload fails before number allocation.
+publication acquires the complete applicable Plan 03 lock hierarchy, then locks
+and resolves its operation/idempotency key before domain-source and receipt
+series locks. Same-key/same-payload races return one stored number/artifact;
+changed payload fails before number allocation.
 
 Publication and delivery remain retriable outside the cash transaction. For an
 original allocation that is formal-receipt eligible or already has a

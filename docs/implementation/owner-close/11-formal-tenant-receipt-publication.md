@@ -231,6 +231,10 @@ property-period lock in the Plan 03 deterministic order inside the same
 transaction, rechecks source/adapter material, and only then invokes the
 selected formal-receipt action. Rendering and delivery remain outside the cash source
 transaction and never become Track B writes.
+Standalone publication, reset, and reissue commands use the same prefix:
+read-only scope resolution, then every applicable Plan 03
+property-period/header, broader Ledger, and accounting-book lock, then the
+operation key, domain source, and receipt-number series.
 
 ### 4. Snapshot the exact receipt evidence
 
@@ -276,17 +280,25 @@ Use a dedicated organization-scoped formal-receipt document series. Never
 share the invoice series or derive a number from a database UUID/reference.
 
 The checked publication transaction validates authorization/organization scope,
-canonicalizes the payload, and locks the organization/publication
-operation-idempotency key before it touches the receipt-number series. Under
-that key lock, the same key and canonical payload hash returns the previously
-stored publication number/artifact result, while the same key with a changed
-payload fails before source validation or series allocation.
+canonicalizes the payload, resolves every affected property/currency/month
+scope without mutation, and acquires the complete applicable Plan 03
+property-period/header, broader Ledger, and accounting-book lock set in
+deterministic order. Only then does it lock the
+organization/publication operation-idempotency key before it touches the
+domain source or receipt-number series. Under that key lock, the same key and
+canonical payload hash returns the previously stored publication
+number/artifact result, while the same key with a changed payload fails before
+new-request source validation or series allocation.
 
 Only a new request then locks and validates the committed source/allocation,
-exact frozen invoice identity, capability, and receipt-number series; allocates
-one number; freezes the publication payload; creates the immutable artifact
-identity/request; and stores the result against the locked operation key, all
-in the same transaction.
+exact frozen invoice identity, capability, captured lifecycle/book state, and
+receipt-number series; allocates one number; freezes the publication payload;
+creates the immutable artifact identity/request; and stores the result against
+the locked operation key, all in the same transaction.
+
+Captured lifecycle/book status gates only a genuinely new publication. A
+completed same-payload replay still returns its stored identity if the period
+later closes; it performs no new source or series mutation.
 
 Numbers are unique and never reused. Concurrent same-key/same-payload requests
 serialize to the same stored publication, number, and artifact identity. A
@@ -480,10 +492,11 @@ Statement delivery remains separate.
    separate, unapproved document type.
 3. The immutable snapshot includes every required payer/tenant/context/source,
    amount/date/currency, partial-payment, and remaining-balance field.
-4. The operation/idempotency-key lock and replay check precede receipt-series
-   allocation in the same transaction. Concurrent same-key/same-payload
-   requests return one stored identity; a changed payload fails before number
-   allocation.
+4. The complete applicable Plan 03 lock hierarchy precedes the
+   operation/idempotency-key lock and replay check, which precede domain-source
+   and receipt-series locks in the same transaction. Concurrent
+   same-key/same-payload requests return one stored identity; a changed payload
+   fails before number allocation.
 5. PDF/print returns retained checksum-verified bytes that generic document
    actions cannot replace or delete.
 6. Rendering or delivery failure leaves cash intact and supports
@@ -537,10 +550,11 @@ Required evidence includes:
   immutable snapshots, source/reversal relations, unsupported cardinality, and
   artifact metadata;
 - two-session races for same-key publication-versus-publication,
-  publication-versus-reversal, publication-versus-close, abandonment
-  replacement, and reissue, proving one number per operation key and that a
-  published original or approved linked replacement releases the reversal
-  dependency;
+  publication-versus-reversal, publication-versus-close/composed-correction in
+  both start orders, abandonment replacement, and reissue, proving Plan 03
+  locks precede the operation key, no `40P01` occurs, one number is allocated
+  per operation key, and a published original or approved linked replacement
+  releases the reversal dependency;
 - forced failures between source validation, number allocation, artifact
   upload, finalization, and delivery, proving no cash mutation and
   same-identity recovery;

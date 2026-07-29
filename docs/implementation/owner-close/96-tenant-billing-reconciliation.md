@@ -349,8 +349,16 @@ projections, activity, and invoice links remain immutable and never retarget.
 
 ### Payment receipt event
 
-The receipt event exists only after money is actually received. A checked Plan
-05 transaction must atomically:
+The receipt event exists only after money is actually received. Every checked
+Plan 05 receipt or reversal first resolves every affected scope without
+mutation and acquires the complete Plan 03 property-period/header, broader
+Ledger, and accounting-book lock hierarchy in deterministic order. It then
+claims the operation/idempotency key and resolves replay. No command holds an
+operation key while waiting for an earlier-order Plan 03 lock, and a completed
+same-payload replay remains returnable after a later period closure.
+
+Only for a genuinely new request, the checked transaction locks domain sources
+and must atomically:
 
 1. validate actor, organization/property/lease scope, reconciliation source,
    open period, currency, remaining balance, and idempotency payload;
@@ -413,9 +421,10 @@ pre-invoice, manual, or legacy cash is typed
 contemporary legacy-payment acknowledgment is a separate, currently unapproved
 document type and is not a formal receipt.
 
-The checked publication command locks its operation/idempotency key and
-resolves same-payload replay before it touches the receipt-number series. Only
-a new request reserves a stable number and snapshots the payer,
+The checked publication command resolves scopes and acquires the complete
+applicable Plan 03 lock hierarchy before it locks its operation/idempotency key.
+It resolves same-payload replay before it touches the domain source or
+receipt-number series. Only a new request reserves a stable number and snapshots the payer,
 tenant/recipient, lease, property, unit, received date, exact amount/currency,
 allocation, frozen invoice identity, and remaining balance immediately after
 that payment. It explicitly labels partial payment. Payment method is included
@@ -506,13 +515,16 @@ Unsupported cardinalities are fail-closed capabilities, not hidden assumptions.
 Tenant invoices and formal receipts use separate organization-scoped document
 series. Each series is an auditable configuration entity with immutable
 format/version metadata. For both invoice issuance and formal receipt
-publication, the checked transaction canonicalizes the payload and locks the
-organization-scoped operation/idempotency key before it locks or allocates from
-the relevant series. Same key/same hash returns the stored number/artifact
-result; same key/changed payload fails before series allocation. Only a new
-request locks the source and series, allocates one unique non-reusable number,
-freezes the snapshot/artifact identity, and stores the result against that key
-in the same transaction. Draft previews consume no number.
+publication, the checked transaction resolves scopes read-only and acquires the
+complete applicable Plan 03 property-period/header, broader Ledger, and
+accounting-book lock hierarchy before it locks the organization-scoped
+operation/idempotency key. Same key/same hash then returns the stored
+number/artifact result; same key/changed payload fails before domain-source or
+series locks. Only a new request locks the source and series, allocates one
+unique non-reusable number, freezes the snapshot/artifact identity, and stores
+the result against that key in the same transaction. Draft previews consume no
+number. Captured lifecycle/book status applies only to that new request; a
+completed replay remains returnable after later closure.
 
 After reservation, render/finalization failure retains the same audited number
 and artifact identity for retry. Explicit `issuance_abandoned` or
@@ -704,9 +716,10 @@ narrower rule. This record does not claim tax-invoice compliance.
 - Every formal receipt consumes the exact issued invoice header/version/line
   frozen on its Plan 05 allocation; legacy obligation-only cash is
   non-publishable.
-- Invoice and formal-receipt operation-key replay resolves before series
-  allocation, and abandoned formal-receipt recovery retains the original
-  row/number while linking a new number/artifact to the same source/snapshot.
+- Invoice and formal-receipt commands acquire Plan 03 locks before
+  operation-key replay, which resolves before domain-source/series locks;
+  abandoned formal-receipt recovery retains the original row/number while
+  linking a new number/artifact to the same source/snapshot.
 - No generic mutation of source-linked projections.
 - Track B evidence stays accepted/versioned relationship input; Track A owns
   debtor/recipient selection, term/policy calculation, owner states/actions,
@@ -747,8 +760,9 @@ This decision record is complete when:
     consuming exact Track B evidence; and
 13. every affected financial action comes from the owning Track A adapter and
     executes only after all deterministic property-period locks are held;
-14. invoice/formal-receipt operation-key locks resolve replay before their
-    separate series allocate a number; and
+14. invoice/formal-receipt commands acquire the complete applicable Plan 03
+    lock hierarchy before operation-key replay, which resolves before their
+    domain sources and separate series allocate a number; and
 15. abandonment recovery and reversal dependencies retain the abandoned formal
     receipt while accepting only a published original or approved linked
     same-source/same-snapshot replacement.

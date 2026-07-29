@@ -112,24 +112,29 @@ Primary evidence:
 
 ### 1. Adopt the Plan 03 authority and lock order
 
-Add a versioned checked receipt command, or compatibly replace the public
-wrapper, that authenticates/authorizes the actor and then acquires the exact
-documented Plan 03 order before source mutation:
+Add versioned checked receipt and reversal commands, or compatibly replace the
+public wrappers, that authenticate/authorize the actor, resolve every affected
+scope without mutation, and then acquire the exact documented Plan 03 order
+before source mutation:
 
 1. take the property/currency/month transaction advisory lock;
 2. get or create the stable property-reporting-period header and lock it
    `FOR UPDATE`;
 3. take the shared organization/currency/month broader-authority transaction
    lock;
-4. evaluate property lifecycle, organization Ledger lock, and all applicable
-   client accounting-book period locks in stable book-ID order;
+4. lock and capture property lifecycle, organization Ledger, and all applicable
+   client accounting-book period states in stable book-ID order;
 5. take the operation/idempotency advisory lock and lock its request row;
-6. lock and validate the active reconciliation source, obligation, and
-   immutable classification/scope sources, then calculate exact signed open
-   balance; and
+6. only for a genuinely new request, lock and validate the active
+   reconciliation source, obligation, captured period states, and immutable
+   classification/scope sources, then calculate exact signed open balance; and
 7. write receipt/allocation, compatibility fields, reserved Ledger/journal
    projections, audit evidence, and the idempotent result in the same
    transaction.
+
+After step 5, same-key/same-payload replay returns the stored result before the
+captured lifecycle/book status is applied to a new mutation. A later period
+closure cannot turn an already committed replay into a new business rejection.
 
 The command rejects void/archived obligations, cross-organization/property/unit
 or lease mismatches, unsupported currency, locked/closed periods, inactive or
@@ -285,22 +290,34 @@ idempotency mechanism.
 The checked reversal command:
 
 1. validates actor capability and organization scope, canonicalizes the
-   material payload, and locks the organization-scoped reversal
-   operation/idempotency key;
-2. returns the committed reversal identities for the same key and payload, or
-   fails a changed-payload reuse, before any new-request validation;
-3. only for a genuinely new request, validates the original source, requested
-   reversal date, open-period policy, reconciliation source, and mandatory
-   reason, then rejects reversal chains or an existing reversal;
-4. creates one reversing receipt and exact reversing allocation;
-5. stores direct original-allocation-to-reversing-allocation identity;
-6. creates the exact reversing Ledger projection and exactly one balanced
+   material payload, and resolves every affected original/reversal
+   property/currency/month scope without mutation;
+2. acquires all affected property-period advisory locks and reporting-period
+   headers in deterministic order, followed by the broader
+   organization/Ledger/accounting-book locks, and captures the lifecycle/book
+   state required by Plan 03 without applying new-request rejection;
+3. only after those earlier-order locks, locks the organization-scoped reversal
+   operation/idempotency key and request row;
+4. returns the committed reversal identities for the same key and payload, or
+   fails a changed-payload reuse, before any new-request source, duplicate, or
+   period-status rejection;
+5. only for a genuinely new request, locks and validates the original source,
+   requested reversal date, captured open-period policy, reconciliation source,
+   and mandatory reason, then rejects reversal chains or an existing reversal;
+6. creates one reversing receipt and exact reversing allocation;
+7. stores direct original-allocation-to-reversing-allocation identity;
+8. creates the exact reversing Ledger projection and exactly one balanced
    journal entry with its complete lines for every applicable accounting book;
-7. refreshes compatibility balance/status;
-8. preserves both original and reversal;
-9. logs all identities and commits the payload-bound result against the locked
+9. refreshes compatibility balance/status;
+10. preserves both original and reversal;
+11. logs all identities and commits the payload-bound result against the locked
    operation key; and
-10. never asks the operator to reverse a derived row first.
+12. never asks the operator to reverse a derived row first.
+
+No reversal path may hold the operation key while waiting for an earlier-order
+Plan 03 lock. A completed same-payload replay returns its stored result even if
+the period later closes; the captured lifecycle/book status gates only a
+genuinely new mutation.
 
 Normal correction is dated in an open period. Historical restatement follows
 the Plan 00 reopen/reclose sequence and never rewrites a published statement.
@@ -388,8 +405,9 @@ Ledger, and journal controls.
 2. Forced failure at each write boundary leaves none of those effects.
 3. Partial receipts on different dates create separate allocation-based cash
    events and projections with stable historical balance-after snapshots.
-4. A same-key/same-payload receipt or reversal retry returns the same identities
-   before new-request duplicate checks; altered payload fails.
+4. After the complete earlier-order Plan 03 lock set and before new-request
+   source/duplicate validation, a same-key/same-payload receipt or reversal
+   retry returns the same identities; altered payload fails.
 5. Over-allocation, unsupported or unmapped economic class, unapplied cash,
    closed period, wrong reconciliation source, cross-scope, unauthenticated,
    and unauthorized calls fail before mutation.
@@ -437,6 +455,11 @@ Add and run:
 - two-session races for receipt-versus-receipt, receipt-versus-close,
   reversal-versus-close, same-key retry, and, after invoice activation,
   invoice-bound reversal-versus-cancellation;
+- same-key reversal-versus-composed-correction in both start orders, plus
+  reversal against organization-Ledger/accounting-book transitions and
+  different original/reversal periods, proving Plan 03 locks precede the
+  operation key, no `40P01` occurs, and completed replay survives later period
+  closure;
 - focused Vitest for server validation, error mapping, all route revalidation,
   removed post action/copy, source evidence, and reversal flow;
 - canonical cash and journal parity against a production-shaped fixture;
