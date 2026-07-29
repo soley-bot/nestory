@@ -1422,6 +1422,11 @@ SET
     WHEN '80000000-0000-0000-0000-000000000014' THEN '80000000-0000-0000-0000-000000000006'::uuid
     ELSE requests.requested_by_person_id
   END,
+  title = CASE requests.id
+    WHEN '90000000-0000-0000-0000-000000000011'
+      THEN 'Quarterly AC cleaning for Northline 02B'
+    ELSE requests.title
+  END,
   requested_at = context.reference_date::timestamptz
     - interval '7 days'
     - desired.age_offset * interval '1 day',
@@ -1462,6 +1467,11 @@ SET
     WHEN '20000000-0000-0000-0000-000000000020' THEN '20000000-0000-0000-0000-000000000008'::uuid
     ELSE tasks.unit_id
   END,
+  title = CASE tasks.id
+    WHEN '91000000-0000-0000-0000-000000000011'
+      THEN 'Quarterly AC cleaning for Northline 02B'
+    ELSE tasks.title
+  END,
   due_date = context.reference_date + desired.due_offset,
   reminder_date = context.reference_date + desired.reminder_offset,
   completed_at = CASE
@@ -1494,6 +1504,19 @@ SET
     WHEN '20000000-0000-0000-0000-000000000030' THEN '20000000-0000-0000-0000-000000000015'::uuid
     WHEN '20000000-0000-0000-0000-000000000031' THEN '20000000-0000-0000-0000-000000000003'::uuid
     ELSE unit_id
+  END,
+  description = CASE id
+    WHEN '40000000-0000-0000-0000-000000000005'
+      THEN 'July rent received for Street 178 Residence 02-01.'
+    WHEN '40000000-0000-0000-0000-000000000006'
+      THEN 'July rent received for Central Residence 10A.'
+    WHEN '40000000-0000-0000-0000-000000000103'
+      THEN 'Quarterly AC cleaning completed for Northline 02B.'
+    WHEN '40000000-0000-0000-0000-000000000104'
+      THEN 'Replaced common-area corridor lights at Central Residence.'
+    WHEN '40000000-0000-0000-0000-000000000106'
+      THEN 'June security contract for Street 178 Residence.'
+    ELSE description
   END,
   transaction_date = coalesce(
     nullif(current_setting('app.demo_seed_reference_date', true), '')::date,

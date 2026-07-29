@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(37);
+SELECT plan(39);
 
 SELECT is(
   (SELECT count(*) FROM public.organizations),
@@ -471,6 +471,66 @@ SELECT ok(
       AND expenses.property_id IS DISTINCT FROM tasks.property_id
   ),
   'task-linked expenses remain scoped to the task property'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM (
+      SELECT organization_id, description AS body
+      FROM public.ledger_entries
+      WHERE archived_at IS NULL
+      UNION ALL
+      SELECT organization_id, concat_ws(' ', title, description)
+      FROM public.tasks
+      WHERE archived_at IS NULL
+      UNION ALL
+      SELECT organization_id, concat_ws(' ', title, description)
+      FROM public.tenant_requests
+      WHERE archived_at IS NULL
+      UNION ALL
+      SELECT organization_id, concat_ws(' ', title, description)
+      FROM public.timeline_events
+      WHERE archived_at IS NULL
+    ) AS visible_records
+    JOIN public.properties AS archived_properties
+      ON archived_properties.organization_id = visible_records.organization_id
+     AND archived_properties.archived_at IS NOT NULL
+     AND visible_records.body ILIKE '%' || archived_properties.name || '%'
+    WHERE visible_records.organization_id =
+      '00000000-0000-0000-0000-000000000001'
+  ),
+  'visible operational rows never retain archived property names'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM (
+      SELECT organization_id, description AS body
+      FROM public.ledger_entries
+      WHERE archived_at IS NULL
+      UNION ALL
+      SELECT organization_id, concat_ws(' ', title, description)
+      FROM public.tasks
+      WHERE archived_at IS NULL
+      UNION ALL
+      SELECT organization_id, concat_ws(' ', title, description)
+      FROM public.tenant_requests
+      WHERE archived_at IS NULL
+      UNION ALL
+      SELECT organization_id, concat_ws(' ', title, description)
+      FROM public.timeline_events
+      WHERE archived_at IS NULL
+    ) AS visible_records
+    JOIN public.units AS archived_units
+      ON archived_units.organization_id = visible_records.organization_id
+     AND archived_units.archived_at IS NOT NULL
+     AND visible_records.body ILIKE '%' || archived_units.unit_number || '%'
+    WHERE visible_records.organization_id =
+      '00000000-0000-0000-0000-000000000001'
+  ),
+  'visible operational rows never retain archived unit labels'
 );
 
 SELECT * FROM finish();

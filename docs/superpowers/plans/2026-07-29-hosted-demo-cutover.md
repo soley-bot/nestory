@@ -1,6 +1,6 @@
 # Hosted Demo Data Cutover Plan
 
-**Status:** Authorized and in progress
+**Status:** Cutover complete; merge and production parity verification pending
 **Branch:** `codex/rebuild-fresh-demo-data`
 **Target project:** `pfvmztxktkwyewvxfgot` (`nestory`)
 **Target organization:** `1221152a-3a7d-48f6-a109-45f2b2173813`
@@ -78,12 +78,32 @@ coherent current data.
 
 ## Verification evidence
 
-Record outside Git:
+Completed:
 
-- full and target-only dump paths, sizes, and SHA-256 hashes;
-- pre/post per-table inventory for every organization;
-- local deterministic seed manifest;
-- hosted transaction result and final migration head;
-- target membership/auth preservation result;
-- report source counts and trusted-report smoke results;
-- production SHA and route smoke result.
+- Backups live outside Git at
+  `C:\Users\USer\AppData\Local\Temp\nestory-hosted-cutover-20260729-081458`.
+  The full data dump SHA-256 is
+  `D7634E13189065E29E58CB92635AB6803F304C7843A959CAF6EF4AB8D3B64D09`;
+  the schema dump SHA-256 is
+  `BBD3C2C123EC0F2EAA65393F583EB6BC876F7818B1675D806FF1E0287AD85086`.
+- The target-only backup restored locally with the two hosted auth identities,
+  and the complete guarded cutover transaction passed a local rehearsal.
+- Linked migrations remain at
+  `20260728120841_authoritative_lease_terms_and_rent_policy`.
+- Hosted cutover committed with 3 visible properties, 18 visible units,
+  13 visible leases, 12 maintenance tasks, 8 income items, 6 expense items,
+  12 ledger entries, and 12 balanced accounting journals.
+- The existing admin and manager memberships remain attached. The two
+  non-target organizations retained identical per-table inventories and
+  digests across all 92 organization-scoped comparisons.
+- Hosted foreign-key/orphan checks and unbalanced-journal checks returned zero.
+  The July 2026 income-expense report rendered 12 traced rows with USD 6,570
+  income, USD 2,594 expenses, and USD 3,976 NOI.
+- A browser coherence pass found and corrected seven stale visible text labels.
+  The final hosted scan reports zero visible operational rows containing an
+  archived property name or unit label.
+
+Pending:
+
+- Merge PR 40 after all required checks finish, then prove that the production
+  Vercel deployment and public/protected route smokes serve the merged SHA.
