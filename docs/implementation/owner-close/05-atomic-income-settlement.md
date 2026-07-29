@@ -286,6 +286,12 @@ an exact typed source it returns:
   and destination scope affected by a reversal or composed correction; and
 - an explicit unavailable reason when a requested action is not merged.
 
+For `record_receipt` and `reverse_receipt`, the caller supplies the proposed
+receipt or reversal date as action material. The adapter fails closed when that
+date is missing or unbound, includes it in the material hash, and returns its
+destination month together with every distinct source month in deterministic
+order.
+
 The adapter and any preview that transports its result write no activity or
 idempotency state. A composed Track B/Track A execution acquires every returned
 property-period lock in the documented deterministic order inside the same
@@ -560,10 +566,12 @@ Ledger, and journal controls.
     header/version/line exactly reversed. Historical
     `legacy_cash_non_publishable` cash is outside invoice cancellation
     eligibility, and no outcome deletes or retargets committed history.
-12. The read-only Plan 05 owner adapter returns exact typed source
-    identities/states/actions/scopes, and a composed executor holds every
-    deterministic property-period lock in the same transaction before
-    settlement or reversal mutation.
+12. The read-only Plan 05 owner adapter binds the proposed receipt/reversal
+    date into its material hash, returns exact typed source
+    identities/states/actions and every distinct source/destination period
+    scope in deterministic order, and a composed executor holds every returned
+    property-period lock in the same transaction before settlement or reversal
+    mutation.
 
 ## Verification
 

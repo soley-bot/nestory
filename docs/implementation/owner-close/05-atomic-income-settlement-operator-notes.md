@@ -32,6 +32,11 @@ original evidence.
 There is no separate Post to Ledger action. Operators must not edit or archive
 the derived Ledger or journal rows.
 
+The read-only owner-state preview requires the proposed receipt or reversal
+date. Its lock scope includes both the obligation or original-cash month and
+the proposed cash-action month, deduplicated and ordered, so a cross-month
+action cannot omit its destination period.
+
 ## Expected blockers
 
 - The amount must be positive and cannot exceed the exact remaining balance.

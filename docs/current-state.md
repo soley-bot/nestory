@@ -314,7 +314,9 @@ RPC write boundaries. Current table families include:
   negative amount, so generic Ledger consumers net the receipt without
   misclassifying returned rent as an expense. Direct obligation-level Ledger
   links and transitions into or out of `posted` require the checked settlement
-  context even before the first allocation.
+  context even before the first allocation. The Plan 05 owner-state adapter
+  binds a proposed receipt/reversal date into its material hash and returns
+  every distinct source and destination month in deterministic lock order.
   Checked public RPCs record and reverse deposit events while private
   implementations and direct event-table writes remain unavailable to API
   callers. The lease quick view shows held balance and immutable event history.

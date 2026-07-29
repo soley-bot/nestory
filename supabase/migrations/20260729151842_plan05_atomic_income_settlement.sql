@@ -244,7 +244,8 @@ CREATE OR REPLACE FUNCTION public.get_finance_income_owner_state_v1(
   p_organization_id uuid,
   p_source_type text,
   p_source_id uuid,
-  p_requested_action text DEFAULT NULL
+  p_requested_action text DEFAULT NULL,
+  p_action_date date DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -280,6 +281,18 @@ BEGIN
       'receipt_allocation'
     ) THEN
     RAISE EXCEPTION 'Plan 05 owner source type is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF v_requested_action IN ('record_receipt', 'reverse_receipt')
+    AND p_action_date IS NULL THEN
+    RAISE EXCEPTION 'Plan 05 owner action date is required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF v_requested_action IS NULL
+    AND p_action_date IS NOT NULL THEN
+    RAISE EXCEPTION 'Plan 05 owner action is required for an action date'
       USING ERRCODE = '22023';
   END IF;
 
@@ -334,18 +347,26 @@ BEGIN
       v_actions := '["record_receipt"]'::jsonb;
     END IF;
 
-    v_scopes := pg_catalog.jsonb_build_array(
+    SELECT pg_catalog.jsonb_agg(
       pg_catalog.jsonb_build_object(
         'organization_id', p_organization_id,
-        'property_id', v_source->>'property_id',
+        'property_id', (v_source->>'property_id')::uuid,
         'currency', v_source->>'currency',
-        'period_start',
-          pg_catalog.date_trunc(
-            'month',
-            (v_source->>'due_date')::date
-          )::date
+        'period_start', scope.period_start
       )
-    );
+      ORDER BY scope.period_start
+    )
+    INTO v_scopes
+    FROM (
+      SELECT pg_catalog.date_trunc(
+        'month',
+        (v_source->>'due_date')::date
+      )::date AS period_start
+      UNION
+      SELECT pg_catalog.date_trunc('month', p_action_date)::date
+      WHERE v_requested_action = 'record_receipt'
+        AND p_action_date IS NOT NULL
+    ) AS scope;
   ELSIF v_source_type = 'finance_receipt' THEN
     SELECT pg_catalog.jsonb_build_object(
       'receipt', pg_catalog.to_jsonb(receipt),
@@ -395,29 +416,47 @@ BEGIN
     SELECT coalesce(
       pg_catalog.jsonb_agg(
         pg_catalog.jsonb_build_object(
-          'organization_id', receipt.organization_id,
-          'property_id', receipt.property_id,
-          'currency', receipt.currency,
-          'period_start',
-            pg_catalog.date_trunc('month', receipt.received_date)::date
+          'organization_id', scope.organization_id,
+          'property_id', scope.property_id,
+          'currency', scope.currency,
+          'period_start', scope.period_start
         )
-        ORDER BY receipt.received_date, receipt.id
+        ORDER BY
+          scope.period_start,
+          scope.property_id,
+          scope.currency
       ),
       '[]'::jsonb
     )
     INTO v_scopes
-    FROM public.finance_receipts AS receipt
-    WHERE receipt.organization_id = p_organization_id
-      AND (
-        receipt.id = p_source_id
-        OR receipt.reversal_of_id = p_source_id
-        OR receipt.id = (
-          SELECT original.reversal_of_id
-          FROM public.finance_receipts AS original
-          WHERE original.id = p_source_id
-            AND original.organization_id = p_organization_id
+    FROM (
+      SELECT
+        receipt.organization_id,
+        receipt.property_id,
+        receipt.currency,
+        pg_catalog.date_trunc('month', receipt.received_date)::date
+          AS period_start
+      FROM public.finance_receipts AS receipt
+      WHERE receipt.organization_id = p_organization_id
+        AND (
+          receipt.id = p_source_id
+          OR receipt.reversal_of_id = p_source_id
+          OR receipt.id = (
+            SELECT original.reversal_of_id
+            FROM public.finance_receipts AS original
+            WHERE original.id = p_source_id
+              AND original.organization_id = p_organization_id
+          )
         )
-      );
+      UNION
+      SELECT
+        p_organization_id,
+        (v_source#>>'{receipt,property_id}')::uuid,
+        (v_source#>>'{receipt,currency}')::public.currency_code,
+        pg_catalog.date_trunc('month', p_action_date)::date
+      WHERE v_requested_action = 'reverse_receipt'
+        AND p_action_date IS NOT NULL
+    ) AS scope;
   ELSE
     SELECT pg_catalog.jsonb_build_object(
       'allocation', pg_catalog.to_jsonb(allocation),
@@ -465,18 +504,26 @@ BEGIN
       v_actions := '["reverse_receipt"]'::jsonb;
     END IF;
 
-    v_scopes := pg_catalog.jsonb_build_array(
+    SELECT pg_catalog.jsonb_agg(
       pg_catalog.jsonb_build_object(
         'organization_id', p_organization_id,
-        'property_id', v_source#>>'{allocation,property_id}',
+        'property_id', (v_source#>>'{allocation,property_id}')::uuid,
         'currency', v_source#>>'{allocation,currency}',
-        'period_start',
-          pg_catalog.date_trunc(
-            'month',
-            (v_source#>>'{allocation,received_date}')::date
-          )::date
+        'period_start', scope.period_start
       )
-    );
+      ORDER BY scope.period_start
+    )
+    INTO v_scopes
+    FROM (
+      SELECT pg_catalog.date_trunc(
+        'month',
+        (v_source#>>'{allocation,received_date}')::date
+      )::date AS period_start
+      UNION
+      SELECT pg_catalog.date_trunc('month', p_action_date)::date
+      WHERE v_requested_action = 'reverse_receipt'
+        AND p_action_date IS NOT NULL
+    ) AS scope;
   END IF;
 
   IF v_requested_action IS NOT NULL
@@ -507,6 +554,8 @@ BEGIN
         'source_id', p_source_id,
         'state', v_state,
         'source', v_source,
+        'requested_action', v_requested_action,
+        'action_date', p_action_date,
         'actions', v_actions,
         'scopes', v_scopes
       )
@@ -523,6 +572,7 @@ BEGIN
       'actions', v_actions,
       'scopes', v_scopes,
       'requested_action', v_requested_action,
+      'action_date', p_action_date,
       'unavailable_reason', v_unavailable_reason,
       'source', v_source
     )
@@ -534,14 +584,16 @@ REVOKE ALL ON FUNCTION public.get_finance_income_owner_state_v1(
   uuid,
   text,
   uuid,
-  text
+  text,
+  date
 )
 FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_finance_income_owner_state_v1(
   uuid,
   text,
   uuid,
-  text
+  text,
+  date
 )
 TO authenticated;
 
@@ -2546,6 +2598,7 @@ COMMENT ON FUNCTION public.get_finance_income_owner_state_v1(
   uuid,
   text,
   uuid,
-  text
+  text,
+  date
 ) IS
-  'Read-only Plan 05 owner adapter. It returns typed state, checked actions, material hash, and deterministic financial scopes without writing preview state.';
+  'Read-only Plan 05 owner adapter. It binds a proposed cash-action date into the material hash and returns typed state, checked actions, and deterministic source/destination financial scopes without writing preview state.';

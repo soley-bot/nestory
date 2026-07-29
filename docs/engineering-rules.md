@@ -103,6 +103,10 @@ These rules are grounded in the current implementation.
 - Keep property obligations separate from settlement events. Cash reporting
   uses receipt and payment dates; future accrual reporting uses charge and
   invoice dates.
+- A Plan 05 owner-state preview for receipt or reversal must bind the proposed
+  cash-action date and return every distinct source and destination
+  property-period scope in deterministic order. Never derive a cash-action
+  lock only from the obligation due date.
 - Security deposits and owner contributions do not count as property operating
   income.
 - Do not add management-company payroll, overhead, P&L, general-ledger, tax, or

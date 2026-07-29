@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(56);
+SELECT plan(61);
 
 SELECT has_function(
   'public',
@@ -21,7 +21,7 @@ SELECT has_function(
 SELECT has_function(
   'public',
   'get_finance_income_owner_state_v1',
-  ARRAY['uuid', 'text', 'uuid', 'text'],
+  ARRAY['uuid', 'text', 'uuid', 'text', 'date'],
   'Plan 05 exposes the read-only owner adapter'
 );
 
@@ -480,7 +480,8 @@ SELECT ok(
         organization_id,
         'finance_income_item',
         unsupported_income_id,
-        'record_receipt'
+        'record_receipt',
+        '2026-07-04'
       ) AS owner_state
       FROM plan05_test_state
     ) AS adapter
@@ -538,7 +539,8 @@ SELECT ok(
         organization_id,
         'finance_receipt',
         legacy_receipt_id,
-        'reverse_receipt'
+        'reverse_receipt',
+        '2026-07-05'
       ) AS owner_state
       FROM plan05_test_state
     ) AS adapter
@@ -562,6 +564,68 @@ SELECT throws_ok(
   '22023',
   'Receipt amount must use currency precision',
   'receipt settlement rejects amounts that cannot be stored exactly'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.get_finance_income_owner_state_v1(
+      organization_id,
+      'finance_income_item',
+      income_id,
+      'record_receipt',
+      NULL
+    )
+    FROM plan05_test_state
+  $$,
+  '22023',
+  'Plan 05 owner action date is required',
+  'the owner adapter fails closed when a cash action omits its destination date'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.get_finance_income_owner_state_v1(
+      organization_id,
+      'finance_income_item',
+      income_id,
+      NULL,
+      '2026-08-10'
+    )
+    FROM plan05_test_state
+  $$,
+  '22023',
+  'Plan 05 owner action is required for an action date',
+  'the owner adapter rejects an unbound destination date'
+);
+
+SELECT ok(
+  (
+    SELECT
+      owner_state->>'action_date' = '2026-08-10'
+      AND owner_state->'scopes' = pg_catalog.jsonb_build_array(
+        pg_catalog.jsonb_build_object(
+          'organization_id', organization_id,
+          'property_id', property_id,
+          'currency', 'USD',
+          'period_start', '2026-07-01'::date
+        ),
+        pg_catalog.jsonb_build_object(
+          'organization_id', organization_id,
+          'property_id', property_id,
+          'currency', 'USD',
+          'period_start', '2026-08-01'::date
+        )
+      )
+    FROM plan05_test_state
+    CROSS JOIN LATERAL public.get_finance_income_owner_state_v1(
+      organization_id,
+      'finance_income_item',
+      income_id,
+      'record_receipt',
+      '2026-08-10'
+    ) AS adapter(owner_state)
+  ),
+  'the owner adapter returns both obligation and proposed receipt periods'
 );
 
 SELECT lives_ok(
@@ -627,6 +691,62 @@ SELECT is(
   ),
   1::bigint,
   'the allocation owns one journal in its one applicable book'
+);
+
+SELECT ok(
+  (
+    SELECT owner_state->'scopes' = pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_object(
+        'organization_id', organization_id,
+        'property_id', property_id,
+        'currency', 'USD',
+        'period_start', '2026-07-01'::date
+      ),
+      pg_catalog.jsonb_build_object(
+        'organization_id', organization_id,
+        'property_id', property_id,
+        'currency', 'USD',
+        'period_start', '2026-09-01'::date
+      )
+    )
+    FROM plan05_test_state
+    CROSS JOIN LATERAL public.get_finance_income_owner_state_v1(
+      organization_id,
+      'finance_receipt',
+      (first_result->>'receipt_id')::uuid,
+      'reverse_receipt',
+      '2026-09-10'
+    ) AS adapter(owner_state)
+  ),
+  'the owner adapter returns both receipt source and reversal destination periods'
+);
+
+SELECT ok(
+  (
+    SELECT owner_state->'scopes' = pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_object(
+        'organization_id', organization_id,
+        'property_id', property_id,
+        'currency', 'USD',
+        'period_start', '2026-07-01'::date
+      ),
+      pg_catalog.jsonb_build_object(
+        'organization_id', organization_id,
+        'property_id', property_id,
+        'currency', 'USD',
+        'period_start', '2026-09-01'::date
+      )
+    )
+    FROM plan05_test_state
+    CROSS JOIN LATERAL public.get_finance_income_owner_state_v1(
+      organization_id,
+      'receipt_allocation',
+      (first_result->>'allocation_id')::uuid,
+      'reverse_receipt',
+      '2026-09-10'
+    ) AS adapter(owner_state)
+  ),
+  'the allocation owner adapter includes the reversal destination period'
 );
 
 SELECT ok(
@@ -801,7 +921,8 @@ SELECT ok(
         organization_id,
         'finance_income_item',
         income_id,
-        'record_receipt'
+        'record_receipt',
+        '2026-07-31'
       ) AS owner_state
       FROM plan05_test_state
     ) AS adapter
@@ -995,6 +1116,7 @@ SELECT throws_ok(
       organization_id,
       'finance_income_item',
       income_id,
+      NULL,
       NULL
     )
     FROM plan05_test_state

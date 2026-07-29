@@ -4618,6 +4618,7 @@ export type Database = {
       }
       get_finance_income_owner_state_v1: {
         Args: {
+          p_action_date?: string
           p_organization_id: string
           p_requested_action?: string
           p_source_id: string
