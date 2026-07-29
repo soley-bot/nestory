@@ -147,11 +147,11 @@ CREATE INDEX finance_receipt_allocation_journals_org_allocation_idx
 
 ALTER TABLE public.finance_receipt_allocation_journals ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Organization members can read receipt allocation journals"
+CREATE POLICY "Organization admins can read receipt allocation journals"
 ON public.finance_receipt_allocation_journals
 FOR SELECT
 TO authenticated
-USING ((SELECT app_private.is_org_member(organization_id)));
+USING ((SELECT app_private.is_org_admin(organization_id)));
 
 REVOKE ALL ON TABLE public.finance_receipt_allocation_journals
 FROM PUBLIC, anon, authenticated, service_role;
@@ -257,7 +257,7 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
   END IF;
 
-  IF NOT app_private.is_org_member(p_organization_id) THEN
+  IF NOT app_private.is_org_admin(p_organization_id) THEN
     RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
   END IF;
 
@@ -2166,33 +2166,36 @@ BEGIN
   WHERE policy.organization_id = NEW.organization_id
   FOR SHARE;
 
+  -- Plan 05 cannot authenticate future Plan 09 evidence. Until the joint
+  -- activation migration replaces this trigger with an evidence-verifying
+  -- creator, every post-activation rent insert fails closed. A caller-supplied
+  -- provenance label is never treated as authority.
   IF coalesce(v_activation_state, 'disabled') = 'activated'
-    AND NEW.income_type = 'rent'
-    AND NEW.settlement_creation_provenance IS DISTINCT FROM
-      'plan09_charge_occurrence' THEN
+    AND NEW.income_type = 'rent' THEN
     RAISE EXCEPTION 'rent_occurrence_generation_required'
       USING ERRCODE = '22023';
   END IF;
 
-  IF NEW.settlement_creation_provenance IS NULL THEN
-    NEW.settlement_creation_provenance := 'manual_pre_activation';
-    NEW.settlement_creation_version := 1;
-    NEW.settlement_creation_hash :=
-      app_private.canonical_financial_payload_hash(
-        pg_catalog.jsonb_build_object(
-          'income_item_id', NEW.id,
-          'organization_id', NEW.organization_id,
-          'property_id', NEW.property_id,
-          'unit_id', NEW.unit_id,
-          'lease_id', NEW.lease_id,
-          'income_type', NEW.income_type,
-          'amount_due', NEW.amount_due,
-          'currency', NEW.currency,
-          'due_date', NEW.due_date,
-          'provenance', 'manual_pre_activation'
-        )
-      );
-  END IF;
+  NEW.settlement_creation_provenance := 'manual_pre_activation';
+  NEW.settlement_creation_version := 1;
+  NEW.settlement_creation_hash :=
+    app_private.canonical_financial_payload_hash(
+      pg_catalog.jsonb_build_object(
+        'income_item_id', NEW.id,
+        'organization_id', NEW.organization_id,
+        'property_id', NEW.property_id,
+        'unit_id', NEW.unit_id,
+        'lease_id', NEW.lease_id,
+        'income_type', NEW.income_type,
+        'amount_due', NEW.amount_due,
+        'currency', NEW.currency,
+        'due_date', NEW.due_date,
+        'provenance', 'manual_pre_activation'
+      )
+    );
+  NEW.remaining_balance_disposition := NULL;
+  NEW.remaining_balance_disposition_version := NULL;
+  NEW.remaining_balance_disposition_hash := NULL;
 
   RETURN NEW;
 END;

@@ -269,7 +269,7 @@ export async function recordRentIncomePaymentAction(
   const supabase = await createSupabaseServerClient();
   const { data: incomeItem, error: incomeItemError } = await supabase
     .from("finance_income_items")
-    .select("amount_due, amount_received, property_id, unit_id")
+    .select("property_id, unit_id")
     .eq("organization_id", context.organizationId)
     .eq("id", parsed.data.incomeItemId)
     .is("archived_at", null)
@@ -283,28 +283,18 @@ export async function recordRentIncomePaymentAction(
   }
 
   const receiptAmount = Number(parsed.data.amountReceived);
-  const remainingBefore = Math.max(
-    0,
-    incomeItem.amount_due - incomeItem.amount_received,
+  const { data: settlement, error } = await supabase.rpc(
+    "record_finance_receipt_v2",
+    {
+      p_amount: receiptAmount,
+      p_idempotency_key: parsed.data.idempotencyKey,
+      p_income_item_id: parsed.data.incomeItemId,
+      p_organization_id: context.organizationId,
+      p_reconciliation_source_id: parsed.data.reconciliationSourceId,
+      p_received_date: parsed.data.receivedDate,
+      p_reference: parsed.data.reference || "",
+    },
   );
-  if (receiptAmount > remainingBefore) {
-    return {
-      fieldErrors: {
-        amountReceived: ["Receipt amount cannot exceed the remaining balance."],
-      },
-      status: "error",
-    };
-  }
-
-  const { error } = await supabase.rpc("record_finance_receipt_v2", {
-    p_amount: receiptAmount,
-    p_idempotency_key: parsed.data.idempotencyKey,
-    p_income_item_id: parsed.data.incomeItemId,
-    p_organization_id: context.organizationId,
-    p_reconciliation_source_id: parsed.data.reconciliationSourceId,
-    p_received_date: parsed.data.receivedDate,
-    p_reference: parsed.data.reference || "",
-  });
 
   if (error) {
     return {
@@ -315,9 +305,17 @@ export async function recordRentIncomePaymentAction(
 
   revalidateFinanceIncomePaths(incomeItem.property_id, incomeItem.unit_id);
 
+  const outstandingAfter =
+    settlement &&
+    typeof settlement === "object" &&
+    !Array.isArray(settlement) &&
+    "outstanding_balance_after" in settlement
+      ? Number(settlement.outstanding_balance_after)
+      : Number.NaN;
+
   return {
     message:
-      receiptAmount >= remainingBefore
+      Number.isFinite(outstandingAfter) && outstandingAfter <= 0
         ? "Receipt recorded and projected. The income balance is fully settled."
         : "Receipt recorded and projected. The remaining balance can still accept another receipt.",
     status: "success",

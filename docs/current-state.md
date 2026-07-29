@@ -341,9 +341,9 @@ Implemented RPC families include:
   create/update/archive/restore.
 - Finance income and expense workflow creation and status changes. Versioned
   Plan 05 income RPCs provide payload-idempotent, property-period-safe receipt
-  and exact reversal transactions with a read-only owner-state adapter; dated
-  expense payment and deposit-event workflows retain their existing
-  boundaries.
+  and exact reversal transactions with an admin-only, read-only owner-state
+  adapter; dated expense payment and deposit-event workflows retain their
+  existing boundaries.
 - Compatibility journal posting, accounting period locking, reversals, and
   historical ledger backfill retained behind existing workflows.
 - Ledger period locking.

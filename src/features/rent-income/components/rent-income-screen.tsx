@@ -500,7 +500,10 @@ function RentIncomeSummaryStrip({ summary }: { summary: RentIncomeSummary }) {
       <SummaryCard label="Received" value={<MoneyDisplay value={summary.receivedTotal} />} />
       <SummaryCard label="Open rows" value={summary.openCount} />
       <SummaryCard label="Overdue" value={summary.overdueCount} />
-      <SummaryCard label="Receipt rows" value={summary.receiptRowCount} />
+      <SummaryCard
+        label="Received obligations"
+        value={summary.receivedObligationCount}
+      />
     </section>
   );
 }

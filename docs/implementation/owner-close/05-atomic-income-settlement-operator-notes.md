@@ -56,7 +56,10 @@ invoices or formal receipt artifacts.
 
 Plan 05 installs dormant creation and settlement policy hooks for the future
 Plan 09 and tenant-invoice cutover. Those hooks are not activated by this
-change, and no production classification or backfill is performed.
+change, and no production classification or backfill is performed. Until the
+joint cutover installs an evidence-verifying Plan 09 creator, the dormant
+activation hook rejects every new rent insert after activation and never trusts
+caller-supplied provenance.
 
 ## Local verification
 

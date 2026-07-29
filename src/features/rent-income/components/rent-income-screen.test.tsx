@@ -394,7 +394,7 @@ describe("RentIncomeScreen", () => {
           overdueCount: "0",
           receivableTotal: { primary: "USD 400.00" },
           receivedTotal: { primary: "USD 100.00" },
-          receiptRowCount: "1",
+          receivedObligationCount: "1",
         }}
         unitOptions={[]}
         viewQuery={{
@@ -419,6 +419,7 @@ describe("RentIncomeScreen", () => {
       (document.querySelector('input[name="amountReceived"]') as HTMLInputElement)
         .value,
     ).toBe("400");
+    expect(screen.getByText("Received obligations")).toBeTruthy();
   });
 
   it("shows fully received income as settled with no post-to-ledger action", () => {
@@ -492,7 +493,7 @@ function renderIncome(
   incomeItems: RentIncomeItem[] = [partialIncome],
   viewQuery: Partial<ComponentProps<typeof RentIncomeScreen>["viewQuery"]> = {},
 ) {
-  return render(<RentIncomeScreen incomeItems={incomeItems} leaseOptions={[]} pagination={{ from: incomeItems.length ? 1 : 0, page: 1, pageSize: 25, to: incomeItems.length, totalCount: incomeItems.length, totalPages: incomeItems.length ? 1 : 0 }} payerOptions={[]} propertyOptions={[{ id: "property-1", label: "HOME / Home" }]} reconciliationSources={[{ currency: "USD", id: "source-1", label: "BANK · Operating", propertyId: "property-1" }]} summary={{ openCount: "1", overdueCount: "0", receiptRowCount: "1", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" } }} unitOptions={[]} viewQuery={{ archiveState: "active", incomeGroup, incomeType: "all", month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all", ...viewQuery }} />);
+  return render(<RentIncomeScreen incomeItems={incomeItems} leaseOptions={[]} pagination={{ from: incomeItems.length ? 1 : 0, page: 1, pageSize: 25, to: incomeItems.length, totalCount: incomeItems.length, totalPages: incomeItems.length ? 1 : 0 }} payerOptions={[]} propertyOptions={[{ id: "property-1", label: "HOME / Home" }]} reconciliationSources={[{ currency: "USD", id: "source-1", label: "BANK · Operating", propertyId: "property-1" }]} summary={{ openCount: "1", overdueCount: "0", receivedObligationCount: "1", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" } }} unitOptions={[]} viewQuery={{ archiveState: "active", incomeGroup, incomeType: "all", month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all", ...viewQuery }} />);
 }
 
 const partialIncome: RentIncomeItem = {

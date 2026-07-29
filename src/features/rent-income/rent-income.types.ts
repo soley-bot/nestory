@@ -144,7 +144,7 @@ export type RentIncomeItem = {
 export type RentIncomeSummary = {
   openCount: string;
   overdueCount: string;
-  receiptRowCount: string;
+  receivedObligationCount: string;
   receivedTotal: MoneyDisplayValue;
   receivableTotal: MoneyDisplayValue;
 };

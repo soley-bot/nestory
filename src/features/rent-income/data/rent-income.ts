@@ -372,7 +372,7 @@ function buildRentIncomeSummary(
   return {
     openCount: String(row?.open_count ?? 0),
     overdueCount: String(row?.overdue_count ?? 0),
-    receiptRowCount: String(row?.unposted_count ?? 0),
+    receivedObligationCount: String(row?.unposted_count ?? 0),
     receivedTotal: formatMoneyDisplay(row?.received_total ?? 0),
     receivableTotal: formatMoneyDisplay(row?.receivable_total ?? 0),
   };

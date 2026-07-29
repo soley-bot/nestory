@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(43);
+SELECT plan(47);
 
 SELECT has_function(
   'public',
@@ -259,6 +259,25 @@ SELECT set_config(
   'request.jwt.claim.sub',
   (SELECT admin_id::text FROM plan05_test_state),
   true
+);
+
+SELECT ok(
+  (
+    SELECT pg_catalog.bool_and(
+      income.settlement_creation_provenance = 'manual_pre_activation'
+      AND income.settlement_creation_version = 1
+      AND length(income.settlement_creation_hash) = 64
+      AND income.remaining_balance_disposition IS NULL
+      AND income.remaining_balance_disposition_version IS NULL
+      AND income.remaining_balance_disposition_hash IS NULL
+    )
+    FROM public.finance_income_items AS income
+    WHERE income.id IN (
+      (SELECT income_id FROM plan05_test_state),
+      (SELECT unsupported_income_id FROM plan05_test_state)
+    )
+  ),
+  'pre-activation inserts receive canonical provenance instead of caller authority'
 );
 
 UPDATE plan05_test_state
@@ -643,6 +662,34 @@ SELECT set_config(
   true
 );
 
+SET LOCAL ROLE authenticated;
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.finance_receipt_allocation_journals
+  ),
+  0::bigint,
+  'non-admin members cannot read allocation-to-journal identities'
+);
+
+RESET ROLE;
+
+SELECT throws_ok(
+  $$
+    SELECT public.get_finance_income_owner_state_v1(
+      organization_id,
+      'finance_income_item',
+      income_id,
+      NULL
+    )
+    FROM plan05_test_state
+  $$,
+  '42501',
+  'Not authorized',
+  'non-admin members cannot read the finance owner adapter'
+);
+
 SELECT throws_ok(
   $$
     SELECT public.record_finance_receipt_v2(
@@ -779,6 +826,74 @@ SELECT is(
   3::bigint,
   'only two receipts and their one exact reversal committed'
 );
+
+INSERT INTO app_private.finance_income_settlement_policies(
+  organization_id,
+  activation_state,
+  activation_version,
+  activation_manifest_hash,
+  activated_at,
+  activated_by
+)
+SELECT
+  organization_id,
+  'activated',
+  1,
+  repeat('a', 64),
+  clock_timestamp(),
+  admin_id
+FROM plan05_test_state;
+
+SELECT throws_ok(
+  pg_catalog.format(
+    $statement$
+      SET LOCAL ROLE authenticated;
+      INSERT INTO public.finance_income_items(
+        id,
+        organization_id,
+        property_id,
+        unit_id,
+        lease_id,
+        payer_person_id,
+        income_type,
+        payer_label,
+        due_date,
+        amount_due,
+        currency,
+        status,
+        settlement_creation_provenance,
+        settlement_creation_version,
+        settlement_creation_hash
+      )
+      VALUES (
+        gen_random_uuid(),
+        %L::uuid,
+        %L::uuid,
+        %L::uuid,
+        %L::uuid,
+        %L::uuid,
+        'rent',
+        'Spoofed Plan 09 tenant',
+        '2026-11-01'::date,
+        300,
+        'USD'::public.currency_code,
+        'open',
+        'plan09_charge_occurrence',
+        1,
+        repeat('b', 64)
+      )
+    $statement$,
+    organization_id,
+    property_id,
+    unit_id,
+    lease_id,
+    tenant_id
+  ),
+  '22023',
+  'rent_occurrence_generation_required',
+  'activated creation rejects caller-supplied Plan 09 provenance'
+)
+FROM plan05_test_state;
 
 SELECT * FROM finish();
 
