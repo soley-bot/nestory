@@ -61,6 +61,16 @@ const paymentInitialState: RentIncomeActionState = {};
 const reversalInitialState: RentIncomeActionState = {};
 const voidInitialState: RentIncomeActionState = {};
 
+function getRemainingReceiptAmountInput(
+  amountDue: number,
+  amountReceived: number,
+) {
+  const dueMinorUnits = Math.round(amountDue * 100);
+  const receivedMinorUnits = Math.round(amountReceived * 100);
+
+  return String(Math.max(dueMinorUnits - receivedMinorUnits, 0) / 100);
+}
+
 type DrawerState =
   | { mode: "create" }
   | { item: RentIncomeItem; mode: "payment" }
@@ -648,6 +658,11 @@ function RentIncomeInspector({
   const hasCanonicalSettlementHistory = item.receipts.some(
     (receipt) => receipt.settlementBasis !== "legacy_unclassified",
   );
+  const hasOnlyCanonicalSettlementHistory =
+    item.receipts.length > 0 &&
+    item.receipts.every(
+      (receipt) => receipt.settlementBasis !== "legacy_unclassified",
+    );
   const canVoid =
     !isReadOnly &&
     !hasCanonicalSettlementHistory &&
@@ -658,6 +673,14 @@ function RentIncomeInspector({
     propertyId: item.propertyId,
     report: "owner-statement",
   });
+  const ownerStatementMessage =
+    workflow.ownerStatementState === "no_cash"
+      ? "Cash-basis Owner Statement: this charge is context only until a receipt is recorded."
+      : workflow.ownerStatementState === "partial_cash"
+        ? "Cash-basis Owner Statement includes only the receipt recorded so far."
+        : hasOnlyCanonicalSettlementHistory
+          ? "Cash-basis Owner Statement and allocation-level Ledger evidence now agree."
+          : "Cash-basis Owner Statement includes the recorded legacy cash; allocation-level Ledger evidence is unavailable.";
 
   return (
     <aside className="rounded-md border border-border bg-surface">
@@ -687,11 +710,7 @@ function RentIncomeInspector({
         <div className="rounded-md border border-border bg-surface-muted/35 p-3 text-sm">
           <p className="font-medium text-foreground">{workflow.stageLabel}</p>
           <p className="mt-1 text-xs leading-5 text-muted">
-            {workflow.ownerStatementState === "no_cash"
-              ? "Cash-basis Owner Statement: this charge is context only until a receipt is recorded."
-              : workflow.ownerStatementState === "partial_cash"
-                ? "Cash-basis Owner Statement includes only the receipt recorded so far."
-                : "Cash-basis Owner Statement and allocation-level Ledger evidence now agree."}
+            {ownerStatementMessage}
           </p>
           <Link
             className="mt-2 inline-flex text-xs font-semibold text-accent hover:underline"
@@ -1077,8 +1096,9 @@ function RecordPaymentPanel({
             error={state.fieldErrors?.amountReceived?.[0]}
           >
             <NumberInput
-              defaultValue={String(
-                Math.max(item.amountDue - item.amountReceived, 0),
+              defaultValue={getRemainingReceiptAmountInput(
+                item.amountDue,
+                item.amountReceived,
               )}
               name="amountReceived"
               required

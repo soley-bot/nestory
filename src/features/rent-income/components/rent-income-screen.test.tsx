@@ -422,6 +422,26 @@ describe("RentIncomeScreen", () => {
     expect(screen.getByText("Received obligations")).toBeTruthy();
   });
 
+  it("formats the default remaining receipt amount to currency precision", () => {
+    const fractionalIncome = {
+      ...partialIncome,
+      amountDue: 0.3,
+      amountDueDisplay: { primary: "USD 0.30" },
+      amountReceived: 0.1,
+      amountReceivedDisplay: { primary: "USD 0.10" },
+      balanceDisplay: { primary: "USD 0.20" },
+    } satisfies RentIncomeItem;
+    renderIncome("all", [fractionalIncome]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
+
+    expect(
+      (document.querySelector('input[name="amountReceived"]') as HTMLInputElement)
+        .value,
+    ).toBe("0.2");
+  });
+
   it("excludes archived accounts from receipt entry", () => {
     renderIncome("all", [partialIncome], {}, [
       {
@@ -473,7 +493,7 @@ describe("RentIncomeScreen", () => {
     ).toBe(true);
   });
 
-  it("shows fully received income as settled with no post-to-ledger action", () => {
+  it("does not claim allocation evidence for fully received legacy income", () => {
     renderIncome("all", [receivedIncome]);
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
@@ -481,7 +501,7 @@ describe("RentIncomeScreen", () => {
     expect(screen.getByText("Settled and projected")).toBeTruthy();
     expect(
       screen.getByText(
-        "Cash-basis Owner Statement and allocation-level Ledger evidence now agree.",
+        "Cash-basis Owner Statement includes the recorded legacy cash; allocation-level Ledger evidence is unavailable.",
       ),
     ).toBeTruthy();
   });
@@ -521,6 +541,11 @@ describe("RentIncomeScreen", () => {
     renderIncome("all", [item]);
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
+    expect(
+      screen.getByText(
+        "Cash-basis Owner Statement and allocation-level Ledger evidence now agree.",
+      ),
+    ).toBeTruthy();
     expect(screen.getByText("BANK · Operating")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Ledger evidence" })).toBeTruthy();
     expect(screen.getByText("1 balanced journal")).toBeTruthy();
