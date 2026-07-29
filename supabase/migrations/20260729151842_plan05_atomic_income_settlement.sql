@@ -507,8 +507,14 @@ BEGIN
     SELECT pg_catalog.jsonb_agg(
       pg_catalog.jsonb_build_object(
         'organization_id', p_organization_id,
-        'property_id', (v_source#>>'{allocation,property_id}')::uuid,
-        'currency', v_source#>>'{allocation,currency}',
+        'property_id', coalesce(
+          (v_source#>>'{allocation,property_id}')::uuid,
+          (v_source#>>'{receipt,property_id}')::uuid
+        ),
+        'currency', coalesce(
+          v_source#>>'{allocation,currency}',
+          v_source#>>'{receipt,currency}'
+        ),
         'period_start', scope.period_start
       )
       ORDER BY scope.period_start
@@ -517,7 +523,10 @@ BEGIN
     FROM (
       SELECT pg_catalog.date_trunc(
         'month',
-        (v_source#>>'{allocation,received_date}')::date
+        coalesce(
+          (v_source#>>'{allocation,received_date}')::date,
+          (v_source#>>'{receipt,received_date}')::date
+        )
       )::date AS period_start
       UNION
       SELECT pg_catalog.date_trunc('month', p_action_date)::date

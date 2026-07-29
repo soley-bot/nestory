@@ -106,7 +106,9 @@ These rules are grounded in the current implementation.
 - A Plan 05 owner-state preview for receipt or reversal must bind the proposed
   cash-action date and return every distinct source and destination
   property-period scope in deterministic order. Never derive a cash-action
-  lock only from the obligation due date.
+  lock only from the obligation due date. Retained legacy allocations must
+  fall back to their non-null receipt header rather than emitting null scope
+  material.
 - Reserved receipt-allocation Ledger projections are Rent & Income evidence,
   not manual rows. Keep edit/archive/restore controls off those rows, and
   compare a negative contra-income Ledger amount to positive balanced journal

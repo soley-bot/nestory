@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(62);
+SELECT plan(63);
 
 SELECT has_function(
   'public',
@@ -546,6 +546,28 @@ SELECT ok(
     ) AS adapter
   ),
   'the owner adapter withholds reversal for an unclassified legacy receipt'
+);
+
+SELECT ok(
+  (
+    SELECT owner_state->'scopes' = pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_object(
+        'organization_id', organization_id,
+        'property_id', property_id,
+        'currency', 'USD',
+        'period_start', '2026-07-01'::date
+      )
+    )
+    FROM plan05_test_state
+    CROSS JOIN LATERAL public.get_finance_income_owner_state_v1(
+      organization_id,
+      'receipt_allocation',
+      legacy_allocation_id,
+      NULL,
+      NULL
+    ) AS adapter(owner_state)
+  ),
+  'legacy allocation scope falls back to its non-null receipt header'
 );
 
 SELECT throws_ok(
@@ -1253,6 +1275,7 @@ SELECT ok(
         (plan05_test_state.second_result->'journal_entry_ids'->>0)::uuid
       AND event.reconciliation_source_id =
         plan05_test_state.reconciliation_source_id
+      AND event.reconciliation_state = 'linked_exact_identity'
       AND event.projection_status =
         'obligation_level_ledger_and_journal'
     FROM plan05_test_state

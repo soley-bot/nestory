@@ -290,7 +290,9 @@ For `record_receipt` and `reverse_receipt`, the caller supplies the proposed
 receipt or reversal date as action material. The adapter fails closed when that
 date is missing or unbound, includes it in the material hash, and returns its
 destination month together with every distinct source month in deterministic
-order.
+order. Allocation scopes prefer their immutable Plan 05 snapshot and fall back
+to the non-null receipt header for retained legacy allocations, so the adapter
+never emits a null property, currency, or period scope.
 
 The adapter and any preview that transports its result write no activity or
 idempotency state. A composed Track B/Track A execution acquires every returned

@@ -316,7 +316,9 @@ RPC write boundaries. Current table families include:
   links and transitions into or out of `posted` require the checked settlement
   context even before the first allocation. The Plan 05 owner-state adapter
   binds a proposed receipt/reversal date into its material hash and returns
-  every distinct source and destination month in deterministic lock order.
+  every distinct source and destination month in deterministic lock order,
+  using the receipt header when a retained legacy allocation lacks the newer
+  immutable scope snapshot.
   Ledger classifies receipt-allocation projections as Rent & Income evidence
   and suppresses lifecycle controls that the reserved projection guard rejects.
   Finance inventory compares negative contra-income to its positive balanced
