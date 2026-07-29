@@ -2,9 +2,13 @@
 
 **Mode:** Standard
 **Effort:** High
-**Status:** Implemented on `codex/plan-04-authoritative-lease-terms`; draft-PR review is the remaining release boundary.
+**Status:** Implemented and merged in PR #39 at
+`b592557f3d2919ab5bd7932426fc218a1bea5d4d`.
 **Baseline:** `main` at `64d72fcb545fa2feedebb05a2a261af23cc49bd6`, the merge commit for PR #37.
 **Reason:** Future rent occurrence generation cannot be deterministic while compatibility lease columns can overwrite normalized terms and unresolved IPS rent rules are silently inferred.
+**Current cross-reference:** Plan 09 still owns charge occurrences and
+obligations. Current tenant invoice and formal receipt boundaries are in
+`96-tenant-billing-reconciliation.md`, Plan 10, and Plan 11.
 
 ## Prerequisites
 
@@ -12,7 +16,9 @@
 - `97-ratified-final-sequence.md` remains the final sequence and architecture authority.
 - Plan 03 property-period locking, idempotency, reserved-projection, and privilege boundaries must remain intact.
 - PR #38 is not a dependency and must not be stacked or cherry-picked. Its rent-policy defaults are unapproved placeholders.
-- No hosted Supabase access, production migration, backfill, deployment, or merge is authorized by this plan.
+- The original implementation plan authorized no hosted Supabase access,
+  production migration, backfill, deployment, or self-merge. This file now
+  records merged Plan 04 evidence and does not authorize later work.
 
 ## Repository-verified current behavior
 
@@ -173,7 +179,8 @@ Plan 04 must not add or redesign:
 
 ## Acceptance criteria
 
-1. The Owner Close README identifies this file as the only executable Plan 04.
+1. At implementation time, the Owner Close README identified this file as the
+   only executable Plan 04; the current README now records it as merged.
 2. Legacy broad plan files point to the ratified sequence and cannot be mistaken for current prompts.
 3. One deterministic boundary resolves exactly one term or one typed blocker.
 4. Overlap and contradictory scope fail visibly, including under concurrency.
@@ -292,13 +299,13 @@ mutation, deployment, merge, charge occurrences, or settlement cutover.
 
 ### PR #38 disposition
 
-PR #38 is currently open and marked ready, but it must not be stacked or merged
-into this candidate. Its pre-Plan-03 configuration registry still hard-codes
-`daily_actual` proration and rent due day `1`; those values conflict with the
-normalized, effective-dated policy authority here. After Plan 04 lands, reduce
-or replace PR #38: rebase it on the Plan 04 head, remove every
-rent-policy/default path, and retain only independently justified non-rent
-settings work. It contributes no code or policy value to this draft.
+At the current planning baseline, PR #38 remains open, non-draft,
+catalogue-only, and changes-requested. It was not merged into Plan 04 and is not
+runtime authority. Plan 04's normalized, effective-dated policy remains the
+sole proration/due-day authority. The current disposition for PR #38 invoice,
+delivery, timezone/currency, and proration entries is in
+`96-tenant-billing-reconciliation.md`; that later record supersedes the former
+post-Plan-04 rebase wording.
 
 ## Stop conditions
 
@@ -313,3 +320,13 @@ Stop rather than guess if:
 - imports cannot share the checked boundary;
 - overlap cannot be prevented under concurrency; or
 - exact-head full verification fails.
+
+## Required Cross-Plan Amendments
+
+This merged Plan 04 record does not authorize Track B changes. Current
+amendment detail is authoritative in
+`96-tenant-billing-reconciliation.md`.
+
+| Target planning package | Target concept/file | Repository evidence | Required decision or wording | Reason | Blocks this track? | Can wait for reconciliation? |
+|---|---|---|---|---|---|---|
+| Track B — Lease and Occupancy History | Occupancy/party/term correction resolver consumed by Plan 09 | Plan 04 provides exact term/policy identity and blocks legacy generation, while Track B owns later history semantics | Return period-effective obligor/recipient and typed correction impacts; never rewrite Track A sources | Plan 09/10 require exact party and effective-date authority beyond Plan 04 | No; Plan 04 is merged. Yes for Plans 09-10 | Yes |

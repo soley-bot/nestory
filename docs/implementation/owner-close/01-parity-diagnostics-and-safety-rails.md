@@ -3,7 +3,9 @@
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** Before changing financial writes, Nestory needs a read-only, exact inventory of every current representation, bypass path, inferred historical row, and report contradiction.  
-**Authorization:** This is the first and only implementation slice authorized for prompt preparation. It does not authorize Plan 02.
+**Status:** Implemented and merged in PR #35. The original first-slice
+authorization is historical and does not authorize another plan. Use
+`README.md` and `97-ratified-final-sequence.md` for current status.
 
 ## Context and baseline
 
@@ -264,3 +266,13 @@ Stop and return findings without continuing if:
 - a run cannot detect source changes/staleness;
 - current merged `main` contains a new financial path not covered by this plan; or
 - the implementation begins changing authority rather than inventorying it.
+
+## Required Cross-Plan Amendments
+
+This merged inventory plan adds no new implementation authority. Current
+amendment detail is authoritative in
+`96-tenant-billing-reconciliation.md`.
+
+| Target planning package | Target concept/file | Repository evidence | Required decision or wording | Reason | Blocks this track? | Can wait for reconciliation? |
+|---|---|---|---|---|---|---|
+| Track B — Lease and Occupancy History | Historical lease/party source inventory | Plan 01 records ambiguity rather than inventing classification | Track B must expose period-effective identities for later exact Track A source classification | Migration and statement evidence cannot use current rows to infer past tenant scope | No; Plan 01 is merged | Yes |

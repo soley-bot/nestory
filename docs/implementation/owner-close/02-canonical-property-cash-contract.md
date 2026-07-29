@@ -3,6 +3,10 @@
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** Every later workflow needs one normalized event contract before writes can be unified or reports can be trusted.
+**Status:** Implemented and merged in PR #36. It remains the shadow cash
+contract, not invoice or formal receipt-document authority. Use `README.md`,
+`96-tenant-billing-reconciliation.md`, and
+`97-ratified-final-sequence.md` for current status and boundaries.
 
 ## Context and baseline
 
@@ -186,3 +190,13 @@ Stop if:
 - the contract requires loading unbounded rows into application memory;
 - cash and accrual effects become mixed in one ambiguous amount; or
 - a new generic event table would become another independently mutable source instead of a controlled write model.
+
+## Required Cross-Plan Amendments
+
+This merged shadow-contract plan adds no new implementation authority. Current
+amendment detail is authoritative in
+`96-tenant-billing-reconciliation.md`.
+
+| Target planning package | Target concept/file | Repository evidence | Required decision or wording | Reason | Blocks this track? | Can wait for reconciliation? |
+|---|---|---|---|---|---|---|
+| Track B — Lease and Occupancy History | Period-effective lease/party context for future canonical sources | Plan 02 normalizes exact source IDs but does not own lease history | Provide stable historical identities for Plan 09/10 sources; Track A keeps them as immutable source links | Future cash/document evidence must not resolve through today's mutable lease/party state | No; Plan 02 is merged | Yes |

@@ -3,7 +3,11 @@
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** Financial authority, corrections, locking, owner liability, reconciliation, and historical evidence must be settled before implementation changes any write path.  
-**Status:** Complete in documentation. Do not request another architecture review.
+**Status:** Complete in documentation. Do not request another architecture
+review. Current implementation status and the later tenant-billing
+reconciliation are authoritative in `README.md`,
+`96-tenant-billing-reconciliation.md`, and
+`97-ratified-final-sequence.md`.
 
 ## Context and baseline
 
@@ -235,7 +239,9 @@ Owner contributions are liability funding, not operating income. Owner distribut
 
 The final split order and business-rule stops are authoritative in `97-ratified-final-sequence.md`.
 
-Only Plan 01 is currently authorized for implementation prompt preparation. Plans 02 onward are not automatically authorized by this architecture approval.
+This sentence historically authorized Plan 01 first. Plans 01 through 04 are
+now merged. Use `README.md` and `97-ratified-final-sequence.md` for current
+status; Plan 00 alone never authorizes a later implementation slice.
 
 ## Acceptance criteria
 
@@ -254,3 +260,12 @@ Plan 00 is complete because:
 - No accounting-kernel retirement during the pilot path.
 - No corporate accounting, payroll, tax, multi-currency, generic ERP, or product-facing GL.
 - No invented IPS business policy.
+
+## Required Cross-Plan Amendments
+
+This completed plan adds no new implementation authority. Current amendment
+detail is authoritative in `96-tenant-billing-reconciliation.md`.
+
+| Target planning package | Target concept/file | Repository evidence | Required decision or wording | Reason | Blocks this track? | Can wait for reconciliation? |
+|---|---|---|---|---|---|---|
+| Track B — Lease and Occupancy History | Period-effective lease/party/occupancy authority consumed by later financial plans | Plan 00 fixes append-only source and historical-evidence rules, while Track B owns lease/party history | Preserve stable identities and emit typed financial impact; never rewrite issued/settled Track A history | Later charge, invoice, receipt, and statement sources must remain historically stable | No; Plan 00 is complete | Yes |
