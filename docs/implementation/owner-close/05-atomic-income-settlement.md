@@ -166,14 +166,19 @@ tenant-invoice coordination activation gate:
   settlement. Plan 05 persists those exact identities on the allocation and
   never resolves them later from obligation identity alone.
 
-For that post-activation path, the checked settlement command acquires the
-shared obligation/invoice/property-period locks and rechecks that the referenced
-line belongs to the current active `issued` invoice for the obligation. A
+For that post-activation path, settlement, reversal of an invoice-bound
+allocation, and invoice cancellation acquire the shared
+obligation/invoice/property-period locks in the same order and recheck the exact
+allocation/reversal set. Settlement also rechecks that the referenced line
+belongs to the current active `issued` invoice for the obligation. A
 `cancelled`, `superseded`, or `issuance_abandoned` invoice cannot receive new
-cash. Cancellation and settlement use the same lock order: settlement winning
-first makes cancellation fail under the paid/partial rule; cancellation winning
-first makes settlement fail until an approved replacement is issued. A later
-invoice lifecycle change never retargets an already committed allocation.
+cash. A committed allocation blocks cancellation only while its net unreversed
+signed effect is nonzero. Exact directly linked Plan 05 reversal retains both
+rows and can restore cancellation eligibility when every positive allocation is
+fully reversed and the net effect is zero. Cancellation cannot rely on an
+in-flight reversal; cancellation winning first makes new settlement fail until
+an approved replacement is issued. A later invoice lifecycle change never
+deletes or retargets a committed allocation or reversal.
 
 The initial Plan 05 implementation does not create invoice tables or activate
 Plan 09. It must leave an explicit source classification/guard contract so a
@@ -400,8 +405,10 @@ Ledger, and journal controls.
     pre-invoice/manual/legacy obligations from Plan 09-generated new business;
     the latter persists an exact current-active issued invoice
     header/version/line under the shared lock and cannot accept cash against a
-    cancelled, superseded, or abandoned invoice. Cancellation-versus-settlement
-    races produce one lock-ordered winner and never retarget committed cash.
+    cancelled, superseded, or abandoned invoice. Settlement, exact reversal,
+    and cancellation serialize under one lock order; cancellation requires a
+    zero net unreversed signed effect with every positive allocation exactly
+    reversed, and no outcome deletes or retargets committed history.
 12. The read-only Plan 05 owner adapter returns exact typed source
     identities/states/actions/scopes, and a composed executor holds every
     deterministic property-period lock in the same transaction before
@@ -428,7 +435,8 @@ Add and run:
   unique source identity, journal balance, atomic rollback, reversal pairing,
   duplicate reversal, bypass rejection, and legacy compatibility;
 - two-session races for receipt-versus-receipt, receipt-versus-close,
-  reversal-versus-close, and same-key retry;
+  reversal-versus-close, same-key retry, and, after invoice activation,
+  invoice-bound reversal-versus-cancellation;
 - focused Vitest for server validation, error mapping, all route revalidation,
   removed post action/copy, source evidence, and reversal flow;
 - canonical cash and journal parity against a production-shaped fixture;

@@ -311,11 +311,14 @@ claiming an issued artifact or reusing its number.
 be linked-cancelled/replaced. Paid/partial correction blocks without approved
 credit/refund policy. Issuance locks and resolves its operation/idempotency key
 before series allocation, so same-key replay returns the stored identity and a
-changed payload fails before consuming a number. Cancellation and settlement
-share the obligation/invoice/property-period locks: settlement freezes only
-the current active `issued` header/version/line; whichever commits first
-determines whether cancellation is paid/partial-blocked or settlement must wait
-for an issued replacement. A committed allocation is never retargeted.
+changed payload fails before consuming a number. Settlement, exact reversal,
+and cancellation share the obligation/invoice/property-period locks.
+Settlement freezes only the current active `issued` header/version/line.
+Cancellation requires no allocation or exact committed reversal of every
+positive allocation with a zero net unreversed signed effect; any nonzero,
+unmatched, duplicate, or in-flight effect blocks. Cancellation committing first
+blocks new settlement until an issued replacement. Original and reversing cash
+history never deletes or retargets.
 
 ### Gate L — Formal receipt publication
 
@@ -347,7 +350,9 @@ original or linked replacement satisfies the dependency, while that artifact
 and the reversal artifact remain explicit close evidence. Reversal of
 `legacy_cash_non_publishable` remains Plan 05 cash/reconciliation evidence and
 creates neither an original nor reversal formal receipt. Abandonment is never a
-cash void.
+cash void. Later invoice cancellation/replacement after complete exact reversal
+never waits for publication and never deletes, retargets, or rewrites the
+original/reversal receipt artifacts or close dependencies.
 
 ### Gate M — Routes, configuration, and migration
 

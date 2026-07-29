@@ -372,8 +372,12 @@ failure policy and the provider capability exists.
 - Drafts may be regenerated through checked history.
 - An unpaid issued invoice may be cancelled by append-only event with reason
   only after the cancellation command takes the shared
-  obligation/invoice/property-period locks and rechecks that no valid allocation
-  has committed.
+  obligation/invoice/property-period locks and proves either that no allocation
+  exists or that every committed positive allocation against the exact invoice
+  line has its exact directly linked Plan 05 reversal and the current net
+  unreversed signed effect is zero. Any nonzero, unmatched, duplicate, or
+  in-flight effect blocks cancellation. Original and reversing rows,
+  projections, activity, and invoice links remain immutable.
 - Replacement is a new approved invoice, number, version, and artifact linked
   to the cancelled original.
 - No issued invoice is edited, regenerated in place, deleted, or renumbered.
@@ -395,10 +399,13 @@ mutates cash.
 Under the same shared obligation/invoice/property-period locks, settlement
 rechecks that the referenced line belongs to the current active `issued`
 invoice for the obligation and is not `cancelled`, `superseded`, or
-`issuance_abandoned`. Cancellation and settlement use the same lock order. If
-settlement commits first, cancellation fails under the paid/partial rule; if
-cancellation commits first, settlement fails until an approved replacement is
-issued. The stored allocation identity never retargets to that replacement.
+`issuance_abandoned`. Settlement, exact reversal, and cancellation use the same
+lock order. Settlement committing first blocks cancellation while its net
+unreversed signed effect is nonzero. A fully committed exact reversal may
+restore cancellation eligibility after the locked recheck; an in-flight or
+partial reversal cannot. Cancellation committing first blocks new settlement
+until an approved replacement is issued. Stored allocation and reversal
+identities never retarget to that replacement.
 
 Outstanding and settlement display is derived from obligation plus signed
 allocations. Delivery failure, cancellation, or artifact state cannot change
@@ -500,10 +507,12 @@ do not calculate Owner Statement cash or owner liability.
    outstanding balance.
 9. Receipt reversal changes derived status without mutating invoice history.
 10. Unpaid cancellation/replacement retains both numbered documents and exact
-    links; partial/paid correction and credit cases block. A
-    cancellation-versus-settlement race produces one lock-ordered winner:
-    committed cash blocks cancellation, while committed cancellation blocks
-    settlement until a replacement is issued.
+    links; partial/paid correction and credit cases block. Settlement, exact
+    reversal, and cancellation serialize under one lock order. Nonzero
+    unreversed committed cash blocks cancellation; a complete exact reversal
+    may restore eligibility only after every positive allocation is paired and
+    net effect is zero. Committed cancellation blocks new settlement until a
+    replacement is issued.
 11. Delivery retries append attempts against the same artifact.
 12. Cross-organization, unauthorized, direct-DML, generic-RPC, stale-approval,
     duplicate-source, closed-period, and altered-idempotency attempts fail.
@@ -536,8 +545,10 @@ Required evidence includes:
   replacement;
 - two-session races for draft generation, approval-versus-source change,
   same-key issuance-versus-issuance, changed-payload key reuse,
-  issuance-versus-close, and settlement-versus-cancellation, proving both
-  lock-ordered outcomes and immutable allocation linkage;
+  issuance-versus-close, settlement-versus-cancellation, and
+  reversal-versus-cancellation, proving partial reversal blocks, complete exact
+  reversal can restore eligibility, and every outcome retains immutable
+  allocation/reversal linkage;
 - forced failures between series allocation, issued snapshot, artifact upload,
   finalization, and delivery, proving same-identity recovery;
 - Vitest for action validation/error mapping, lifecycle display, independent

@@ -336,13 +336,16 @@ block automated correction and close until IPS approves a
 credit/refund/carry-forward policy. Receipt reversal must never be used when
 cash was not actually reversed.
 
-Cancellation and settlement acquire the shared obligation, invoice, and
-property-period locks in the same deterministic order. Settlement may freeze
-only the current active `issued` header/version/line, never a
-`cancelled`, `superseded`, or `issuance_abandoned` identity. If settlement
-commits first, its exact allocation blocks cancellation as paid/partial; if
-cancellation commits first, settlement fails until a reviewed replacement is
-issued. A committed allocation is never retargeted to that replacement.
+Settlement, exact reversal, and cancellation acquire the shared obligation,
+invoice, and property-period locks in the same deterministic order. Settlement
+may freeze only the current active `issued` header/version/line, never a
+`cancelled`, `superseded`, or `issuance_abandoned` identity. Cancellation is
+eligible only when no allocation exists or every positive allocation against
+that line has an exact directly linked committed Plan 05 reversal and the net
+unreversed signed effect is zero. Any nonzero, unmatched, duplicate, or
+in-flight effect blocks. Cancellation committing first blocks new settlement
+until a reviewed replacement is issued. Original/reversing allocations,
+projections, activity, and invoice links remain immutable and never retarget.
 
 ### Payment receipt event
 
@@ -431,7 +434,9 @@ satisfies the reversal document's `blocked_dependency`; cash reversal never
 waits for publication, while close waits for the required artifact chain.
 Reversal of `legacy_cash_non_publishable` remains Plan 05
 cash/reconciliation evidence and creates neither an original nor reversal
-formal receipt.
+formal receipt. Later invoice cancellation/replacement after complete exact
+reversal neither waits for publication nor deletes, retargets, or rewrites the
+original/reversal publication chains or their close dependencies.
 
 ### Ledger and journals
 
@@ -490,7 +495,7 @@ it does not become the generic document versioning authority.
 | Advance payment | Unsupported and blocking | Explicit tenant advance liability and later application workflow required |
 | Deposits | Separate ratified Plan 10 custody source; never operating income or an ordinary rent invoice | Application/retention requires approved IPS policy |
 | Credit note | Deferred and blocking | Dedicated immutable credit-note lifecycle and owner/close effects required |
-| Invoice cancellation | Linked cancellation allowed only while unpaid | Paid/partial cases require approved credit/refund policy |
+| Invoice cancellation | Linked cancellation allowed only with no allocation or a zero net unreversed signed effect after every positive allocation is exactly reversed; all cash history remains retained | Nonzero, unmatched, duplicate, in-flight, paid, or partial cases block; credit/refund policy remains separate |
 | Replacement invoice | New number and new artifact after linked cancellation; original retained | No in-place regeneration after issue |
 | Receipt reversal | Exact linked reversing cash event plus separate reversal receipt publication | Never mutate the original |
 

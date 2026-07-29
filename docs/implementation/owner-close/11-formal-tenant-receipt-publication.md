@@ -380,6 +380,13 @@ Reversal of `legacy_cash_non_publishable` cash does not enter this section's
 publication state machine. It remains exact Plan 05 reversal and reconciliation
 evidence without either an original or reversal formal receipt.
 
+After an exact full cash reversal restores an invoice's cancellation
+eligibility, later invoice cancellation or replacement never waits for receipt
+publication and never deletes, retargets, or rewrites the original or
+reversal/void publication chains. Those artifacts remain bound to the
+allocation-frozen original invoice identity, and any missing required artifacts
+continue to block close independently.
+
 ### 9. Correct document errors append-only
 
 If the cash source is correct but an issued artifact contains a non-economic
@@ -493,7 +500,9 @@ Statement delivery remains separate.
    `blocked_dependency` until the original or its approved linked replacement
    for the same source/snapshot publishes; that artifact and the reversal
    artifact remain explicit close evidence. Reversal of
-   `legacy_cash_non_publishable` creates neither document.
+   `legacy_cash_non_publishable` creates neither document. A later invoice
+   cancellation/replacement after complete exact reversal neither waits for nor
+   alters either formal-publication chain.
 10. Non-economic document correction is append-only; economic correction must
    follow Plan 05.
 11. Every publication, delivery, and cash-reversal state transition follows
