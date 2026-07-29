@@ -8,7 +8,14 @@
 **Reason:** Future rent occurrence generation cannot be deterministic while compatibility lease columns can overwrite normalized terms and unresolved IPS rent rules are silently inferred.
 **Current cross-reference:** Plan 09 still owns charge occurrences and
 obligations. Current tenant invoice and formal receipt boundaries are in
-`96-tenant-billing-reconciliation.md`, Plan 10, and Plan 11.
+`96-tenant-billing-reconciliation.md` and the unnumbered coordination files
+`10-tenant-invoice-issuance-and-delivery.md` and
+`11-formal-tenant-receipt-publication.md`. Those filenames are not ratified
+Plan 10 or Plan 11 sequence authority.
+**Track A/Track B reconciliation baseline:** merged `origin/main` at
+`5210ae1c94fa5a854f9c484b79e9dbd214c99053`. The Plan 04 implementation
+baseline above remains historical evidence; this later baseline records how
+Plan 09 consumes the merged Lease and Occupancy History planning contract.
 
 ## Prerequisites
 
@@ -30,6 +37,12 @@ obligations. Current tenant invoice and formal receipt boundaries are in
 - Lease imports eventually call the compatibility `create_lease` RPC, so they inherit the same inferred due-day and monthly-frequency behavior.
 - `generate_monthly_rent_income_items` reads compatibility `leases`, uses the first of the month as the due date, and charges the full monthly amount for overlapping active or notice leases.
 - Existing normalized term rows and generated obligations may be compatibility-derived historical evidence. They cannot be relabeled as confirmed policy without an explicit operator decision.
+- The implemented `resolve_lease_rent_readiness(...)` is a current
+  term/policy-readiness boundary. It evaluates current Lease state and
+  active/upcoming authoritative terms; it is not a historical
+  as-of-service-date occurrence resolver and cannot by itself authorize
+  catch-up generation for an ended, cancelled, terminated, archived, replaced,
+  or transferred Lease.
 
 ## Objective
 
@@ -150,6 +163,37 @@ Compatibility rent amount alone never makes a lease ready. The application recei
 - No historical obligation, allocation, Ledger row, journal, deposit, or cash event is rewritten.
 
 ## Plan 09 boundary
+
+### Historical as-of-service-date resolver
+
+Before Plan 09 generates or corrects an occurrence, Track A must add a checked
+historical resolver that:
+
+- receives the organization, exact Lease, requested service date/range, and
+  the versioned Track B relationship-evidence envelope;
+- resolves the applicable authoritative `lease_term_id` and approved
+  rent-policy version for that service date without treating today's Lease
+  status as historical authority;
+- treats Track B actual, scheduled, notice, party, occupancy, participant,
+  boundary, confidence, resolution, reason, and material-hash output only as
+  evidence candidates;
+- applies the Track A-owned term/policy precedence, selected obligor/recipient
+  rules, calculation start/end, due date, proration/notice treatment, blockers,
+  and calculation reason codes;
+- returns and later stores one Track A-approved calculation snapshot/hash that
+  names every selected or ignored Track B source/version and why; and
+- fails closed when the evidence or owner adapter is missing/conflicting,
+  including when a `billing_contact` is present without independent debtor
+  authority.
+
+Track B does not select the applicable term, decide legal debt, apply a rent
+policy, or calculate a financial date. Plan 04's checked term lifecycle remains
+the only term-mutation authority. Any term supersession that can affect an
+occurrence asks the merged Track A owner adapter for typed affected
+occurrence/draft identities, owner-classified states/actions, and every
+property/currency/period scope. A composed executor acquires those scopes in
+the owner's deterministic order inside the same transaction before either
+track writes.
 
 Plan 04 must not add or redesign:
 
@@ -329,4 +373,5 @@ amendment detail is authoritative in
 
 | Target planning package | Target concept/file | Repository evidence | Required decision or wording | Reason | Blocks this track? | Can wait for reconciliation? |
 |---|---|---|---|---|---|---|
-| Track B — Lease and Occupancy History | Occupancy/party/term correction resolver consumed by Plan 09 | Plan 04 provides exact term/policy identity and blocks legacy generation, while Track B owns later history semantics | Return period-effective obligor/recipient and typed correction impacts; never rewrite Track A sources | Plan 09/10 require exact party and effective-date authority beyond Plan 04 | No; Plan 04 is merged. Yes for Plans 09-10 | Yes |
+| Track B — Lease and Occupancy History | Checked relationship/date evidence consumed by Track A's historical service-date resolver | Plan 04 provides exact term/policy identity and blocks legacy generation, while the implemented readiness RPC is current-state oriented and Track B owns accepted relationship/date versions | Return exact accepted party/Person/occupancy/participant/notice candidates, boundary/confidence/resolution/reasons, source versions, and material hash. Do not select the term, obligor/recipient, calculation dates, due date, proration, blockers, or calculation snapshot | Plan 09 needs reproducible historical evidence without transferring term/policy or financial-calculation authority | No; Plan 04 is merged. Yes before Plan 09 generation | No once Plan 09 is enabled |
+| Track A Plan 09 and financial owners | Historical calculation snapshot, owner adapters, and same-transaction locks | A term/party/occupancy supersession can affect occurrences and downstream drafts | Track A selects the authoritative term/policy and evidence, stores calculation dates/reasons/hash, returns typed owner states/actions/scopes through its adapter, and acquires all deterministic property-period locks before mutation | Prevents current Lease state or Track B code from becoming financial authority | No for merged Plan 04; yes for Plan 09 and affected transitions | No for the enabled path |

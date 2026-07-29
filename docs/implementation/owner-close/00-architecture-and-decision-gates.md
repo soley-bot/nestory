@@ -13,6 +13,28 @@ reconciliation are authoritative in `README.md`,
 
 Planning and Ultra-review baseline is merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`.
 
+The later Track A/Track B reconciliation baseline is merged `origin/main` at
+`5210ae1c94fa5a854f9c484b79e9dbd214c99053`, after the Lease and Occupancy
+History planning package merged. The original audit baseline above remains
+historical evidence. At the reconciled boundary:
+
+- Track B owns accepted, versioned Lease-party, occupancy, participant, and
+  relationship-date evidence plus typed affected source identities.
+- Track A owns authoritative term/policy interpretation, calculation dates,
+  due dates, proration, blockers, approved calculation snapshots, financial
+  owner states/actions, projections, close, and statement evidence.
+- A checked relationship-evidence envelope is an input to Track A, never a
+  debtor, recipient, calculation, or financial-state decision. In particular,
+  `billing_contact` is not debtor authority.
+- Each Track A owner exposes a versioned read-only adapter for exact financial
+  source identity, material state, affected property/currency/period scopes,
+  and available checked actions. Missing adapters/actions remain explicitly
+  unavailable.
+- Any composed relationship/financial execution resolves all source and
+  destination scopes, acquires every property-period lock in one documented
+  deterministic order inside the same transaction, rechecks the adapter and
+  impact material, and only then invokes an owner action.
+
 Repository-verified current behavior:
 
 - `finance_income_items` and `finance_expense_items` model obligations.
@@ -116,6 +138,10 @@ Before any settlement-write refactor, implement one shared kernel containing:
 - reserved journal source namespaces;
 - direct-DML, generic Ledger, generic journal, and compatibility-wrapper bypass guards;
 - trigger-level source/period immutability where RLS or grants alone are insufficient.
+- versioned, read-only domain-owner adapters that return exact source
+  identities, owner-classified states/actions, material hashes, and every
+  affected property/currency/period scope without granting another domain
+  mutation authority.
 
 Identical retry + identical payload returns the original result IDs. A changed payload or cross-actor key reuse fails without leaking prior result IDs.
 
@@ -159,10 +185,24 @@ Use:
 - a frozen owner roster and recipient/payment-instruction snapshot;
 - reconciliation evidence and a source manifest/hash;
 - calculation-contract version;
+- exact Lease and authoritative-term identities plus the accepted Track B
+  party, Person, occupancy, participant, notice, and relationship-evidence
+  source IDs/versions and material hash actually consumed by each Track A
+  source;
 - itemized immutable statement versions and lines;
-- immutable per-format artifacts in a dedicated private append-only boundary.
+- immutable per-format artifacts in a dedicated private append-only boundary;
+  and
+- exact generic-document version/checksum references for operational evidence
+  cited by the close.
 
 Every statement version references one exact close revision. Current contacts, archive state, ownership edits, or source edits cannot rewrite published evidence.
+
+Track A owns close manifests, Owner Statement versions/artifacts, and the
+immutable evidence snapshot used for close and publication. Generic Documents
+retains versioning, immutability, metadata correction, and supersession
+authority for signed lease amendments, inspections, and other operational
+documents. Referencing a document
+version/checksum in a close never transfers that authority to Track A.
 
 ### 9. Owner liability
 
@@ -268,4 +308,6 @@ detail is authoritative in `96-tenant-billing-reconciliation.md`.
 
 | Target planning package | Target concept/file | Repository evidence | Required decision or wording | Reason | Blocks this track? | Can wait for reconciliation? |
 |---|---|---|---|---|---|---|
-| Track B — Lease and Occupancy History | Period-effective lease/party/occupancy authority consumed by later financial plans | Plan 00 fixes append-only source and historical-evidence rules, while Track B owns lease/party history | Preserve stable identities and emit typed financial impact; never rewrite issued/settled Track A history | Later charge, invoice, receipt, and statement sources must remain historically stable | No; Plan 00 is complete | Yes |
+| Track B — Lease and Occupancy History | Checked relationship-evidence envelope consumed by later financial plans | The merged Track B package owns accepted relationship/date versions and material hashes, while Plan 00 fixes append-only financial-source and historical-evidence rules | Return exact party/Person/occupancy/participant/notice source IDs, versions, resolution states, reasons, and material hash; never select a debtor/recipient, calculate rent, classify a financial state, or rewrite Track A history | Later charge, invoice, receipt, close, and statement sources must retain the exact evidence they consumed without transferring financial authority | No; Plan 00 is complete | Yes, until the consuming Track A owner lands |
+| Track A domain owners | Owner-state adapters and composed property-period serialization | Track B can identify relationship impact but only a financial owner can classify its source state/action and period scopes | Expose versioned read-only adapters and acquire every returned source/destination property-period lock in deterministic order inside the same execution transaction before either track writes | Cross-track correction must be stale-safe and atomic without Track B mutating finance tables | No for Plan 00; yes before an affected execution is enabled | No for the enabled execution path |
+| Generic Documents and Track A close/statement owners | Operational-document versions versus close evidence snapshots | A close may cite signed operational evidence, but those bytes and versions are not Owner Statement authority | Generic Documents owns operational versioning/supersession; Track A freezes the exact document version/checksum references used by close and owns only close/Owner Statement snapshots and artifacts | Prevents close evidence from becoming a second generic document lifecycle | No for Plan 00 | Yes, until close/publication adoption |

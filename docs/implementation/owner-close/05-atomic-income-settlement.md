@@ -7,8 +7,12 @@ implementation prompt is still required.
 **Reason:** Current receipt/allocation writes and later Ledger/journal posting
 are separate, so the same cash can be complete in one authority and missing,
 collapsed, or mutable in another.
-**Planning baseline:** merged `origin/main` at
-`2dea9fb71a539e01ee81b4601f8965fb62a681d5`.
+**Planning/reconciliation baseline:** merged `origin/main` at
+`5210ae1c94fa5a854f9c484b79e9dbd214c99053`, containing the merged Track B
+planning package.
+**Original repository audit baseline:**
+`2dea9fb71a539e01ee81b4601f8965fb62a681d5`; retain it as the evidence point
+for the current settlement defect described below.
 
 ## Context and baseline
 
@@ -22,9 +26,17 @@ source `03-income-settlement-and-reversal.md`. The legacy filename is not
 current Plan 03 and does not authorize implementation.
 
 Plan 05 operates on obligation identity. It does not require Plan 09 charge
-occurrences, Plan 10 tenant invoices, or Plan 11 formal receipt documents.
-Those later sources must consume the settlement identities created here rather
-than replacing them.
+occurrences, the unnumbered tenant-invoice coordination slice, or the
+unnumbered formal-receipt coordination slice. Those later sources must consume
+the settlement identities created here rather than replacing them. Ratified
+Plan 10 remains security-deposit custody; ratified Plans 11-12 remain
+management-fee authority.
+
+Plan 05 also does not depend on TB-01 or implement any Track B slice. Plan 05
+remains the next Track A implementation-ready slice from the shared merged
+planning baseline; TB-01 is the independent next Track B slice. Either branch
+must remain isolated, and neither may copy unmerged implementation from the
+other.
 
 ## Objective
 
@@ -141,19 +153,40 @@ not invent unapplied cash. Overpayment, advance payment, or cash without a
 valid obligation is rejected from this workflow and remains an explicit
 reconciliation/close blocker until a dedicated liability workflow exists.
 
-Plan 05 also defines a checked eligibility hook for the Plan 09/10 activation
-gate:
+Plan 05 also defines a checked eligibility hook for the joint Plan 09 and
+tenant-invoice coordination activation gate:
 
 - classified pre-invoice/manual/legacy obligations may settle by obligation
   identity;
 - Plan 09-generated new-business obligations remain non-collectable while
   Plan 09 is shadow/readiness-only; and
-- after the joint Plan 09/10 cutover, a Plan 09-generated obligation requires
-  one exact issued Plan 10 invoice line before settlement.
+- after the joint Plan 09/tenant-invoice cutover, a Plan 09-generated
+  obligation requires one exact issued tenant-invoice line before settlement.
 
 The initial Plan 05 implementation does not create invoice tables or activate
 Plan 09. It must leave an explicit source classification/guard contract so a
 later cutover cannot accidentally accept normally uninvoiceable cash.
+
+### 2A. Expose a read-only financial owner adapter
+
+Plan 05 owns a versioned, read-only adapter for its obligations, receipt
+headers, allocations, reversals, and downstream draft/source identities. For
+an exact typed source it returns:
+
+- canonical source ID and version/material hash;
+- owner-classified state and only the checked actions Plan 05 currently
+  supports;
+- organization, property, currency, and period scope, including every source
+  and destination scope affected by a reversal or composed correction; and
+- an explicit unavailable reason when a requested action is not merged.
+
+The adapter and any preview that transports its result write no activity or
+idempotency state. A composed Track B/Track A execution acquires every returned
+property-period lock in the documented deterministic order inside the same
+transaction, rechecks the adapter/material while locks are held, and only then
+invokes the selected Plan 05 command. Track B may transport the opaque result;
+it cannot update an obligation, receipt, allocation, Ledger/journal
+projection, close source, or statement.
 
 ### 3. Freeze settlement materiality
 
@@ -172,6 +205,25 @@ snapshot. The source must retain:
   immediately after this allocation;
 - actor and committed timestamp; and
 - any Plan 03 canonical source discriminator.
+
+When the obligation comes from Plan 09, the immutable scope also retains:
+
+- exact charge-occurrence and authoritative `lease_term_id`/version;
+- the exact Track A-approved calculation snapshot/hash, including service
+  dates, due date, proration/notice basis, blockers resolved, policy version,
+  and calculation reason codes;
+- the selected debtor and recipient party/Person identities;
+- every accepted Track B party/Person/occupancy/participant/notice source ID
+  and version consumed by that selection, plus the relationship-evidence
+  material hash; and
+- the issued invoice-line identity once the joint Plan 09/tenant-invoice
+  activation gate is enabled.
+
+A `billing_contact` may be part of recipient/contact evidence but never becomes
+the debtor automatically. Classified pre-invoice/manual/legacy obligations
+that lack these historical identities retain their explicit legacy class and
+`NULL`/unresolved evidence fields; Plan 05 must not fabricate them from
+today's primary Person, Lease header, term dates, or display labels.
 
 Later obligation edits cannot reclassify already received cash. A correction
 uses an exact reversal and a new source event.
@@ -283,6 +335,9 @@ Ledger, and journal controls.
 - Deposit custody and owner contributions do not become operating income.
 - No invoice, formal receipt artifact, close, or Owner Statement publication is
   created by this slice.
+- Settlement never re-resolves debtor, Lease/Unit, or occupancy context from
+  current compatibility headers. Future Plan 09 scope is frozen from the Track
+  A-approved decision and exact consumed relationship evidence.
 
 ## Acceptance criteria
 
@@ -306,8 +361,12 @@ Ledger, and journal controls.
 10. Existing legacy records remain readable and explicitly classified.
 11. The settlement eligibility contract distinguishes classified
     pre-invoice/manual/legacy obligations from Plan 09-generated new business;
-    the latter cannot accept cash after activation without an issued Plan 10
-    invoice line.
+    the latter cannot accept cash after activation without an issued
+    tenant-invoice coordination line.
+12. The read-only Plan 05 owner adapter returns exact typed source
+    identities/states/actions/scopes, and a composed executor holds every
+    deterministic property-period lock in the same transaction before
+    settlement or reversal mutation.
 
 ## Verification
 
@@ -394,7 +453,7 @@ Stop if:
 
 | Target planning package | Target concept/file | Repository evidence | Required decision or wording | Reason | Blocks this track? | Can wait for reconciliation? |
 |---|---|---|---|---|---|---|
-| Track B — Lease and Occupancy History | Stable lease/party identities on future obligations | Current manually created obligations may link `lease_id`, while Plan 09 will consume Track B/Plan 04 authority | Require future generated obligations to retain exact period-effective lease and obligor identities; Plan 05 treats them as immutable scope inputs | Settlement must not infer today's tenant or rewrite historical payer scope | No for current Plan 05; yes before Plan 09-generated obligations settle | Yes |
-| Track B — Lease and Occupancy History | Typed impact from term/party/occupancy corrections | Plan 04 blocks unsafe generation but Track B owns later history/corrections | Emit impact identities; never directly rewrite settled obligations, receipts, or projections | Settled cash must remain append-only when lease truth changes | No for current Plan 05 | Yes |
-| Track A — Tenant invoice Plan 10 | Obligation and allocation source contract | `finance_income_items` and receipt allocations currently have no invoice-line identity | Consume Plan 05 obligation/allocation identities; invoice status is derived from valid allocations and never drives cash | Prevent invoice workflow from becoming a second settlement authority | No for Plan 05; yes for Plan 10 | No, contract is fixed here |
-| Track A — Formal receipt Plan 11 | Receipt publication source contract | Current database receipts have no formal artifact identity | Publish only from a committed Plan 05 receipt/allocation result; rendering/delivery failure cannot roll back cash | Preserve source transaction atomicity while allowing safe publication retry | No for Plan 05; yes for Plan 11 | No, contract is fixed here |
+| Track B — Lease and Occupancy History | Versioned relationship-evidence envelope for future generated obligations | Current manual obligations may link a Lease but do not prove historical party/occupancy identity; TB-05 will expose accepted candidates, versions, reasons, and a material hash | Plan 09 selects debtor and recipient identity plus the calculation from that envelope and Plan 04 policy; Plan 05 freezes the resulting occurrence/term/calculation/party/occupancy scope. `billing_contact` is never automatic debtor authority | Settlement must not infer today's tenant or rewrite historical payer scope | No for current Plan 05; yes before Plan 09-generated obligations settle | Yes, until Plan 09/TB-05 integration |
+| Track A Plan 05 | Owner-state adapter and composed property-period locks | Track B supersession can identify affected sources but cannot classify or mutate settlement state | Return exact obligation/receipt/allocation identities, owner states/actions, material hash, and all source/destination scopes; acquire every scope in deterministic order inside the same execution transaction before invoking Plan 05 | Settled cash remains append-only and corrections are stale-safe without authority transfer | No for isolated Plan 05; yes before an affected cross-track execution | No for the enabled path |
+| Track A — unnumbered tenant-invoice coordination slice | Obligation and allocation source contract | `finance_income_items` and receipt allocations currently have no invoice-line identity | Consume Plan 05 obligation/allocation identities; invoice status is derived from valid allocations and never drives cash | Prevent invoice workflow from becoming a second settlement authority | No for Plan 05; yes for invoice adoption | No, contract is fixed here |
+| Track A — unnumbered formal-receipt coordination slice | Receipt publication source contract | Current database receipts have no formal artifact identity | Publish only from a committed Plan 05 receipt/allocation result; rendering/delivery failure cannot roll back cash | Preserve source transaction atomicity while allowing safe publication retry | No for Plan 05; yes for receipt-publication adoption | No, contract is fixed here |

@@ -1,14 +1,23 @@
-# Plan 10 — Tenant Invoice Issuance and Delivery
+# Tenant Invoice Issuance and Delivery — Unnumbered Coordination Slice
 
-**Status:** Planned current-sequence slice. Implementation begins only after
-the prerequisites and named IPS/Track B gates below are resolved.
+> **Coordination status:** The filename is retained for stable links, but this
+> is not ratified Owner Close Plan 10. Ratified Plan 10 remains
+> security-deposit custody. This is a prominent unnumbered Track A coordination
+> slice whose implementation still requires a separate approved prompt.
+
+**Status:** Planned unnumbered coordination slice. Implementation begins only
+after the prerequisites and named IPS/Track B gates below are resolved.
 **Mode:** Standard
 **Effort:** High
 **Reason:** A tenant-facing demand needs immutable source lines, recipient and
 policy snapshots, capability-based approval, a unique number, retained bytes,
 and delivery evidence without becoming obligation or cash authority.
-**Planning baseline:** merged `origin/main` at
-`2dea9fb71a539e01ee81b4601f8965fb62a681d5`.
+**Planning/reconciliation baseline:** merged `origin/main` at
+`5210ae1c94fa5a854f9c484b79e9dbd214c99053`, containing the merged Track B
+planning package.
+**Original repository audit baseline:**
+`2dea9fb71a539e01ee81b4601f8965fb62a681d5`; retain it for the verified
+no-invoice runtime evidence below.
 
 ## Context and baseline
 
@@ -22,9 +31,15 @@ number, approval/issuance lifecycle, retained artifact, or delivery history.
 outgoing vendor Bills & Expenses. PR #38 is catalogue-only and does not
 activate invoice approval or delivery.
 
-This plan owns tenant invoice authority only. It does not create charge
+This coordination slice owns tenant invoice authority only. It does not create charge
 occurrences, obligations, cash, formal receipt documents, Ledger/journal
 projections, or Owner Statements.
+
+The merged Track B package owns accepted relationship/date evidence, not the
+invoice debtor, recipient, or calculation decision. This coordination slice consumes the
+Track A-approved Plan 09 occurrence snapshot that names the exact Track B
+evidence used. It never asks Track B to select a debtor or silently treats a
+`billing_contact` as one.
 
 ## Objective
 
@@ -89,12 +104,17 @@ Implementation requires:
 1. merged Plan 05 settlement source identities and projection guards;
 2. merged Plan 09 occurrence and obligation generation with exact Plan 04
    term/policy/calculation snapshots;
-3. Track B's period-effective obligor and billing-recipient resolver;
-4. approved invoice-series format and reset policy;
-5. approved capability for review/approval/issuance;
-6. accepted October rule of manual review and approval;
-7. accepted manual retained delivery for the pilot; and
-8. confirmation that this is an operational invoice, with no invented
+3. merged TB-05 period-effective relationship-evidence envelope, including
+   exact accepted source IDs/versions, resolution states, reasons, and
+   material hash;
+4. merged Plan 09 Track A selection/calculation that chooses the debtor and
+   recipient, applies Plan 04 policy, stores the approved calculation snapshot,
+   and exposes a versioned owner-state adapter;
+5. approved invoice-series format and reset policy;
+6. approved capability for review/approval/issuance;
+7. accepted October rule of manual review and approval;
+8. accepted manual retained delivery for the pilot; and
+9. confirmation that this is an operational invoice, with no invented
    tax-invoice claim.
 
 If IPS requires tax/VAT or statutory invoice content, stop and create a
@@ -122,7 +142,7 @@ retains the exact income-obligation ID and uses exactly one reviewed source
 variant:
 
 - normal new business: exact Plan 09 charge-occurrence ID; or
-- later Plan 22 migration: exact migration-manifest item ID plus typed
+- later ratified Plan 20 migration: exact migration-manifest item ID plus typed
   `occurrence_not_historically_created`, never a fabricated occurrence.
 
 Each line also retains:
@@ -132,10 +152,28 @@ Each line also retains:
 - quantity/rate/proration calculation snapshot where applicable;
 - exact line amount and currency; and
 - for normal new business, exact source term and rent-policy version identities;
-  or, for the Plan 22 migration variant only, the exact manifest item and typed
+  or, for the Plan 20 migration variant only, the exact manifest item and typed
   historical-authority absence for any occurrence, term, or policy identity
   that was never created or cannot be proven. Migration must never fabricate
   those identities.
+
+For normal new business, each line additionally freezes:
+
+- the Plan 09-selected debtor and recipient party/Person identities, plus this
+  slice's approved issue-time contact/address/delivery snapshot for that
+  already-selected recipient;
+- the exact accepted Track B party/Person/occupancy/participant/notice source
+  IDs and versions consumed by Plan 09, their resolution/reason codes, resolver
+  version, and material relationship-evidence hash; and
+- the Plan 09-approved calculation snapshot/hash: service/calculation dates,
+  due date, proration/notice basis, policy version, blockers resolved, selected
+  versus ignored evidence, and calculation reason codes.
+
+Track B evidence may supply a `billing_contact` candidate, but that role never
+establishes contractual debt. Plan 09 owns both debtor and recipient identity
+selection. This coordination slice only approves and freezes issue-time
+contact/address/delivery evidence for the already-selected recipient and blocks
+when it is missing, conflicting, or points to a different recipient identity.
 
 The safe MVP has exactly one line bound to one obligation. A partial uniqueness
 rule permits at most one active/current invoice for that obligation while
@@ -147,13 +185,14 @@ replacements.
 A payload-idempotent checked command generates one draft from one eligible
 occurrence/obligation. It rejects:
 
-- manual/legacy obligations on the normal Plan 10 path;
+- manual/legacy obligations on the normal tenant-invoice path;
 - missing or blocked occurrence outcomes;
 - source scope/currency mismatch;
 - an existing active invoice;
 - void/archived obligations;
 - any valid receipt already allocated under the normal new-business path; and
-- an unresolved Track B obligor/recipient.
+- unresolved Track B relationship evidence or an unresolved Track A
+  debtor/recipient decision.
 
 `generated` is the append-only event that creates the initial `draft`; it is
 not a second persisted lifecycle state. Draft generation snapshots source
@@ -162,7 +201,7 @@ public invoice number, create cash, post Ledger/journals, or send anything.
 Draft regeneration is a checked append-only event. It may replace the current
 draft candidate before approval while retaining earlier hashes and actors.
 
-Plan 22 may later call a separate checked migration-invoice entry point for an
+Ratified Plan 20 may later call a separate checked migration-invoice entry point for an
 open legacy obligation named by the reviewed manifest. That path uses the real
 current issue date, migration disclosure, exact obligation/manifest links, and
 the typed occurrence absence above.
@@ -195,12 +234,12 @@ invoice.
 approval/issuance state.
 
 Review and approval are separate auditable events. They may use the same actor
-only if an approved capability policy permits it; this plan does not invent
+only if an approved capability policy permits it; this coordination slice does not invent
 separation-of-duties.
 
 `credited` is not a safe-MVP lifecycle state. A later implementation may show
 partially or fully credited only as a derivation from an approved immutable
-credit-note source; this plan does not invent that source.
+credit-note source; this coordination slice does not invent that source.
 
 ### 4. Use capability-based manual approval for the pilot
 
@@ -222,6 +261,20 @@ actions cannot bypass:
 
 Approval is invalidated by any material draft/source/recipient change and must
 be repeated.
+
+This coordination slice exposes a versioned read-only owner adapter for exact invoice/version/
+line identities, material lifecycle state, property/currency/period scopes,
+and only owner-declared checked actions. A relationship-impact preview may
+transport this opaque result but never infer it from invoice columns. An
+`approved_not_issued` invoice permits only the merged tenant-invoice owner
+`reset_approval` or `reopen` action followed by owner-controlled
+regeneration/review; if that action is absent, the known state is preserved and
+the action is unavailable.
+
+Any composed correction resolves all affected source and destination scopes,
+acquires every Plan 03 property-period lock in the owner-defined deterministic
+order inside the same transaction, rechecks the adapter and impact material
+while locks are held, and only then invokes the selected invoice action.
 
 ### 5. Allocate a unique invoice number at issuance
 
@@ -252,8 +305,12 @@ The issued version includes:
 - issue date, due date, service/billing period, and organization timezone;
 - exact currency and line/total amounts;
 - the obligation identity plus either the normal occurrence, term, and
-  rent-policy identities/versions or the Plan 22 manifest item and typed
+  rent-policy identities/versions or the Plan 20 manifest item and typed
   historical-authority absences; billing-policy and series identities/versions;
+- for normal new business, the Track A-approved calculation snapshot/hash and
+  selected debtor/recipient identities plus the exact accepted Track B
+  relationship/date source IDs, versions, resolver version, resolution/reason
+  codes, and material evidence hash consumed by that decision;
 - review, approval, and issue actors/timestamps;
 - immutable artifact ID, object path, byte length, MIME type, SHA-256 checksum,
   and render version; and
@@ -271,6 +328,12 @@ authorization.
 The generic document replace/archive/delete flow must not be able to alter or
 remove an official invoice artifact. Print and download always use the retained
 checksum-verified bytes, not a fresh live query.
+
+The tenant-invoice domain owns invoice snapshot/version/number/artifact
+immutability and replacement. Generic Documents continues to own versioning
+and supersession for signed lease amendments, inspections, and other
+operational documents. It may cite the exact invoice artifact through a
+checked link, but neither domain becomes the other's versioning authority.
 
 If rendering/finalization fails, the invoice remains in an actionable
 `issuing` recovery state. Delivery and close readiness fail closed until the
@@ -305,7 +368,7 @@ failure policy and the provider capability exists.
 - No issued invoice is edited, regenerated in place, deleted, or renumbered.
 - Credit notes are not part of the safe MVP.
 - A partially or fully paid invoice cannot be economically cancelled,
-  replaced, or corrected in this plan. It enters a blocking exception until
+  replaced, or corrected in this coordination slice. It enters a blocking exception until
   IPS approves credit/refund/carry-forward treatment.
 - Do not reverse a receipt unless cash itself was erroneous, returned, or
   otherwise validly reversed.
@@ -320,13 +383,14 @@ Outstanding and settlement display is derived from obligation plus signed
 allocations. Delivery failure, cancellation, or artifact state cannot change
 the cash calculation.
 
-Plan 09 and Plan 10 share one new-business activation gate. Plan 09 may land in
-shadow/readiness mode, but a generated obligation is not exposed as
-collectable until Plan 10 can issue its required invoice. After cutover, Plan
-05 rejects settlement of a Plan 09-generated obligation without one exact
-issued invoice line. Classified pre-invoice/manual/legacy obligations retain
-the explicit obligation-only settlement path. This gate prevents the
-Plan 09-to-10 deployment interval from creating normally uninvoiceable cash.
+Plan 09 and this tenant-invoice coordination slice share one new-business
+activation gate. Plan 09 may land in shadow/readiness mode, but a generated
+obligation is not exposed as collectable until the invoice slice can issue its
+required invoice. After cutover, Plan 05 rejects settlement of a
+Plan 09-generated obligation without one exact issued invoice line. Classified
+pre-invoice/manual/legacy obligations retain the explicit obligation-only
+settlement path. This gate prevents the Plan 09-to-invoice deployment interval
+from creating normally uninvoiceable cash.
 
 ### 11. Introduce routes without changing bookmark meaning
 
@@ -339,7 +403,7 @@ meaning and links to both destinations. Preserve relevant vendor query
 context. Do not silently redirect an old `/invoices` bookmark to tenant
 invoices.
 
-This plan defines the migration but does not implement routes or navigation
+This coordination slice defines the migration but does not implement routes or navigation
 until the invoice authority and protected reads exist.
 
 ### 12. Feed later close and Owner Statement evidence
@@ -352,14 +416,15 @@ Expose checked read models for:
 - cancellation/replacement chain; and
 - artifact availability/checksum.
 
-Plans 17-18 use missing required invoice artifacts as readiness evidence.
-Plans 19-21 may link the artifact as supporting evidence, but invoice records
+Ratified Plans 15-16 use missing required invoice artifacts as readiness and
+close evidence. Ratified Plans 17-19 may link the artifact as supporting evidence, but invoice records
 do not calculate Owner Statement cash or owner liability.
 
 ## Invariants
 
-- One occurrence creates at most one obligation; safe normal Plan 10 creates
-  one active invoice with one line for that obligation. A Plan 22 migration
+- One occurrence creates at most one obligation; the safe normal
+  tenant-invoice path creates one active invoice with one line for that
+  obligation. A Plan 20 migration
   line uses exact manifest identity and typed historical occurrence absence.
 - Invoice authority is separate from obligation, receipt, Ledger, journal,
   close, and Owner Statement authority.
@@ -373,6 +438,10 @@ do not calculate Owner Statement cash or owner liability.
 - Organization/property/unit/lease/party scope is checked at the database.
 - Series allocation and material commands are payload-idempotent.
 - Generic documents and generic Ledger actions cannot alter invoice truth.
+- Track B relationship evidence is immutable input to the Track A-approved
+  debtor/recipient/calculation snapshot; Track B never owns those decisions.
+- Owner-adapter actions and every affected source/destination property-period
+  lock are rechecked in the same execution transaction.
 - Receipt allocations determine outstanding/settlement presentation.
 - Unsupported combined invoices, credit notes, and paid corrections fail
   closed.
@@ -382,7 +451,7 @@ do not calculate Owner Statement cash or owner liability.
 ## Acceptance criteria
 
 1. A normal draft is generated from exactly one Plan 09
-   occurrence/obligation. A later Plan 22 migration draft instead carries one
+   occurrence/obligation. A later Plan 20 migration draft instead carries one
    exact obligation, manifest item, and
    `occurrence_not_historically_created`; neither path fabricates identity.
 2. No draft can be approved or issued with unresolved recipient, source,
@@ -412,6 +481,12 @@ do not calculate Owner Statement cash or owner liability.
 15. Later close/statement reads use the canonical `artifact_available`,
     `artifact_not_historically_created`, `artifact_required_missing`, and
     `artifact_publication_failed` evidence vocabulary.
+16. The issued version preserves the exact consumed Track B evidence and
+    Track A-approved calculation/debtor/recipient snapshot; a current
+    Lease/Person/contact edit cannot re-resolve it.
+17. Relationship-driven draft/reset/replacement action is exposed only by the
+    tenant-invoice owner adapter and executes under the complete deterministic
+    property-period lock set.
 
 ## Verification
 
@@ -439,7 +514,7 @@ Required evidence includes:
   harnesses, and `git diff --check`.
 
 No external delivery provider, hosted mutation, deployment, or merge is
-authorized by this plan.
+authorized by this coordination slice.
 
 ## Scope exclusions
 
@@ -475,7 +550,7 @@ authorized by this plan.
 Stop if:
 
 - normal new-business issuance cannot obtain exact Plan 09 occurrence, term,
-  rent-policy, obligor, and recipient identities, or a Plan 22 migration line
+  rent-policy, obligor, and recipient identities, or a Plan 20 migration line
   lacks its exact obligation, reviewed manifest item, typed historical-authority
   absences, and current recipient snapshot;
 - invoice creation generates a second obligation;
@@ -495,9 +570,9 @@ Stop if:
 
 | Target planning package | Target concept/file | Repository evidence | Required decision or wording | Reason | Blocks this track? | Can wait for reconciliation? |
 |---|---|---|---|---|---|---|
-| Track B — Lease and Occupancy History | Period-effective charge obligor and billing recipient | `lease_parties` distinguishes roles such as tenant/billing contact but current billing has no liability/recipient resolver | Define a checked resolver and snapshot contract; billing contact is not automatically the debtor | Plan 10 cannot guess who owes or receives the invoice | Yes | Yes, until joint reconciliation; no before implementation |
-| Track B — Lease and Occupancy History | Occupancy/notice/proration precedence | Current occupancy dates and Plan 04 term dates can differ | Return approved effective calculation dates/reason codes to Plan 09; Track A consumes the result | Invoice lines must not independently recalculate lease history | Yes through Plan 09 | Yes |
-| Track B — Lease and Occupancy History | Correction/renewal impact payload | A later term/party change can affect an existing occurrence or draft | Return typed affected occurrence/draft identities; never rewrite an issued invoice | Track A must know whether to regenerate a draft or block/cancel/reissue | Yes | Yes |
-| Track A — Plan 09 | Occurrence/obligation output contract | The legacy generator is blocked and current obligations lack term/policy identity | Produce one occurrence and obligation with exact calculation/source snapshots and immutable IDs | These are mandatory normal new-business invoice-line sources; Plan 22 alone owns the reviewed legacy-migration exception | Yes | No |
+| Track B — Lease and Occupancy History | Period-effective relationship/date evidence envelope | `lease_parties` distinguishes tenant and billing-contact roles, while accepted party/occupancy/participant/notice evidence and boundary confidence remain Track B-owned | TB-05 returns exact candidates, source IDs/versions, resolution/reason codes, resolver version, and material hash. It does not choose the debtor, recipient, calculation dates, due date, proration, blockers, or snapshot; `billing_contact` is never automatic debtor authority | The unnumbered invoice slice needs reproducible evidence without transferring invoice/calculation authority to Track B | Yes | No before implementation |
+| Track A — Plan 09 and unnumbered tenant-invoice coordination slice | Financial selection/snapshot and invoice owner adapter | Plan 09 owns term/policy calculation plus debtor/recipient identity selection; the invoice slice owns lifecycle, issue-time contact approval, and issued evidence | Plan 09 stores the approved calculation/evidence and debtor/recipient identity snapshot. The invoice slice freezes it, approves contact/address/delivery evidence for that recipient, returns exact invoice states/actions/scopes through its adapter, and acquires every deterministic property-period lock before a relationship-driven action | Draft regeneration/reset/replacement must be stale-safe while issued evidence remains immutable | Yes | No |
+| Generic Documents / unnumbered tenant-invoice coordination slice | Operational-document versioning versus invoice artifact authority | Generic documents are mutable operational records and cannot own an official invoice artifact | The invoice slice owns invoice versions/artifacts/replacements; Generic Documents owns operational document versions and may only cite exact invoice artifacts through checked links | Prevents either document family from silently replacing the other's evidence | Yes before artifact adoption | No |
+| Track A — Plan 09 | Occurrence/obligation output contract | The legacy generator is blocked and current obligations lack term/policy identity | Produce one occurrence and obligation with exact calculation/source snapshots and immutable IDs | These are mandatory normal new-business invoice-line sources; Plan 20 alone owns the reviewed legacy-migration exception | Yes | No |
 | Track A — Plan 05 | Settlement-to-invoice link | Current allocations target obligations only | Preserve exact obligation/allocation identities and add checked invoice-line linkage for new invoice-era receipts without making invoice the cash source | Derived settlement status and receipt evidence need exact links | Yes for payment display; issuance can land first if receipt entry remains gated | No |
 | Configuration registry / PR #38 | Approval and delivery catalogue entries | Registry is open, catalogue-only, and has proposed defaults/roles without runtime authority | Do not activate; future catalogue text must point to versioned billing policy, actual capability, invoice series, and delivery configuration | Prevent a UI catalogue from bypassing financial policy | Yes before configuration-driven behavior | Yes |

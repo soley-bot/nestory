@@ -6,10 +6,19 @@
 **Reason:** Tenant charge occurrences, obligations, invoices, cash receipts,
 formal receipt documents, financial projections, close evidence, and Owner
 Statements need one explicit authority chain and one implementation order.
-**Repository baseline:** merged `origin/main` at
-`2dea9fb71a539e01ee81b4601f8965fb62a681d5`.
-**Track boundary:** This record owns Track A financial concepts. Lease, party,
-occupancy, renewal, and term-history semantics remain owned by Track B.
+**Repository reconciliation baseline:** merged `origin/main` at
+`5210ae1c94fa5a854f9c484b79e9dbd214c99053`, containing the accepted
+[Lease and Occupancy History](../lease-occupancy-history/README.md) planning
+package.
+**Original runtime-evidence baseline:**
+`2dea9fb71a539e01ee81b4601f8965fb62a681d5`; retain it for the repository
+behavior audited by the original Track A package.
+**Track boundary:** This record owns Track A term/policy interpretation,
+calculation, charge, obligation, invoice, cash, receipt publication,
+projection, close, and Owner Statement concepts. Track B owns accepted Lease
+identity, party, occupancy, participant, relationship-date, transition, and
+historical-read evidence. Track A consumes that evidence and never mutates or
+redefines it.
 
 ## Context and authority
 
@@ -33,6 +42,11 @@ Use the current planning set in this order:
 
 Files 98 and 99 remain unchanged historical evidence. Neither is represented
 as having reviewed this reconciliation.
+
+The complete source cross-track requirements are in
+`../lease-occupancy-history/92-required-cross-plan-amendments.md`. This record
+adopts all fourteen at the ownership boundary below without renumbering the
+ratified Owner Close sequence.
 
 ## Objective
 
@@ -65,10 +79,57 @@ actual money ---> receipt event and allocation
 ```
 
 The runtime chronology and implementation order are deliberately different:
-Plan 05 first makes settlement safe for current obligations, Plan 09 later
-creates authoritative rent occurrences and obligations, Plan 10 adds invoice
-authority, and Plan 11 adds formal receipt publication. An invoice is not a
-prerequisite for accurately recording cash against an existing obligation.
+Plan 05 first makes settlement safe for current obligations, and Plan 09 later
+creates authoritative rent occurrences and obligations. The unnumbered
+tenant-invoice coordination slice adds invoice authority, and the unnumbered
+formal-receipt coordination slice adds receipt publication. Those stable
+filenames are not ratified Plan 10/11 numbers: ratified Plan 10 remains
+security-deposit custody, while ratified Plans 11-12 remain management-fee
+authority. An invoice is not a prerequisite for accurately recording cash
+against an existing obligation.
+
+## Checked Track B evidence and Track A decision contract
+
+Track B's checked relationship-evidence envelope contains only evidence:
+
+- organization, property, Unit, Lease, and the authoritative term identity
+  supplied or bound by the Track A caller;
+- caller-supplied requested evidence/service period;
+- exact accepted party, Person, occupancy, participant, notice, and
+  recipient-contact candidate IDs and versions;
+- typed boundary kind, confidence, overlap/resolution state, provenance,
+  stable reason/repair codes, resolver version, and material evidence hash;
+- explicit missing, conflicting, scheduled, actual, and legacy-unconfirmed
+  states; and
+- typed affected Track B source identities after a proposed relationship
+  transition.
+
+Track B never chooses a legal debtor or invoice recipient, treats
+`billing_contact` as debtor authority, selects the applicable term/policy,
+calculates a service window/due date/proration/notice result, resolves financial
+blockers, approves a calculation snapshot, classifies a financial owner state,
+or edits Track A history.
+
+Track A combines the envelope with Plan 04 term/policy authority and owns:
+
+- selected debtor and recipient;
+- calculation start/end, due date, proration/notice basis, policy/version,
+  blockers, selected/ignored evidence reasons, and calculation hash;
+- the approved calculation snapshot persisted on the Plan 09 occurrence and
+  inherited immutably by its obligation and invoice;
+- invoice, receipt, projection, close, and statement owner states/actions; and
+- the financial consequence of any later relationship correction.
+
+Every affected Track A domain exposes a versioned read-only owner adapter that
+returns exact typed source IDs, owner-classified material state, available
+checked actions, source hash, and all affected organization/property/currency/
+period scopes. Missing adapters/actions remain explicitly
+unresolved/unavailable. A composed executor resolves all source and destination
+scopes, acquires every Plan 03 property-period lock in one owner-defined
+deterministic order inside the same transaction, rechecks the adapter and
+impact material while locks are held, and only then calls the selected owner
+action. Preview/adapter reads write no activity or idempotency state. Track B
+may transport this opaque result but never writes Track A tables.
 
 ## Repository-verified audit
 
@@ -84,12 +145,12 @@ prerequisite for accurately recording cash against an existing obligation.
 | `04-expense-settlement-and-reversal.md` | Legacy broad source | Maps to current Plan 06 |
 | `05-maintenance-and-petty-cash-handoffs.md` | Legacy broad source | Maps to current Plans 07 and 08 |
 | `06-rent-schedules-and-charge-completeness.md` | Legacy broad source | Maps to current Plans 04 and 09; it does not create an issued invoice |
-| `07-security-deposit-custody.md` | Legacy broad source | Maps to current Plan 12 |
-| `08-management-fee-agreements-and-assessments.md` | Legacy broad source | Maps to current Plans 13 and 14 |
-| `09-owner-balances-and-distributions.md` | Legacy broad source | Maps to current Plans 15 and 16 |
-| `10-property-period-close-and-readiness.md` | Legacy broad source | Maps to current Plans 17 and 18 |
-| `11-immutable-owner-statement-publication.md` | Legacy broad source | Maps to current Plans 19 through 21; it consumes, but does not create, tenant documents |
-| `12-backfill-pilot-and-production-cutover.md` | Legacy broad source | Maps to current Plans 22 through 25 |
+| `07-security-deposit-custody.md` | Legacy broad source | Maps to current Plan 10 |
+| `08-management-fee-agreements-and-assessments.md` | Legacy broad source | Maps to current Plans 11 and 12 |
+| `09-owner-balances-and-distributions.md` | Legacy broad source | Maps to current Plans 13 and 14 |
+| `10-property-period-close-and-readiness.md` | Legacy broad source | Maps to current Plans 15 and 16 |
+| `11-immutable-owner-statement-publication.md` | Legacy broad source | Maps to current Plans 17 through 19; it consumes, but does not create, tenant documents |
+| `12-backfill-pilot-and-production-cutover.md` | Legacy broad source | Maps to current Plans 20 through 23 |
 | `97-ratified-final-sequence.md` | Current sequence authority | Revised by this reconciliation |
 | `98-ultra-review-response.md` | Historical external review evidence | Preserved unchanged |
 | `99-ultra-review-request.md` | Historical review request | Preserved unchanged; do not rerun |
@@ -140,8 +201,12 @@ prerequisite for accurately recording cash against an existing obligation.
   `2dea9fb71a539e01ee81b4601f8965fb62a681d5`. It changed deterministic demo
   seed, current-state/verification prose, and test tooling. It added no tenant
   invoice, formal receipt, Owner Close plan, lease-authority, or finance
-  settlement implementation. This branch starts after that merge and does not
-  modify or reproduce its changes.
+  settlement implementation. It remains the original runtime-audit baseline.
+- PR #42 later merged the documentation-only Lease and Occupancy History
+  package at reconciliation baseline
+  `5210ae1c94fa5a854f9c484b79e9dbd214c99053`. This branch is rebased on that
+  merge, adopts its cross-plan requirements, and does not treat the planning
+  package as runtime implementation.
 
 ### Missing business logic
 
@@ -164,16 +229,17 @@ The merged product has no first-class:
 
 | Concept | Sole authority | What it proves | What it does not prove |
 |---|---|---|---|
-| Authoritative lease/rent terms | Plan 04 normalized term plus effective rent-policy version | Which term and policy apply | That a charge was generated, billed, or paid |
-| Charge occurrence | Plan 09 occurrence record | A specific term/policy expected a charge for a period and the generation outcome | Tenant-facing issuance or payment |
+| Accepted relationship/date evidence | Track B checked relationship-evidence resolver | Exact accepted party/Person/occupancy/participant/notice candidates, versions, boundary/confidence/resolution states, reasons, and material hash | Debtor/recipient selection, term/policy interpretation, financial dates/calculation, owner state/action, or mutation |
+| Authoritative lease/rent terms | Plan 04 normalized term plus effective rent-policy version | Which term and policy Track A applies | Accepted relationship history, that a charge was generated, billed, or paid |
+| Charge occurrence and approved calculation snapshot | Plan 09 occurrence record and Track A calculation owner | A specific term/policy and exact consumed Track B evidence produced one approved service window, due/proration result, debtor/recipient decision, amount, and generation outcome | Tenant-facing issuance or payment |
 | Income obligation | Domain obligation, currently `finance_income_items` | Amount owed and current balance from valid allocations/reversals | Invoice publication, cash, or Ledger posting |
-| Tenant invoice | Plan 10 invoice header, lines, snapshots, lifecycle events, and issued artifact identity | What Nestory approved and issued to a tenant | That it was delivered or paid |
+| Tenant invoice | Unnumbered tenant-invoice coordination slice: header, lines, snapshots, lifecycle events, and issued artifact identity | What Nestory approved and issued to the Plan 09-selected debtor/recipient from the frozen occurrence/evidence snapshot | That it was delivered or paid |
 | Receipt event | Plan 05 `finance_receipts` header plus allocation identities | Money actually received and how it was allocated | That a formal receipt document was published |
-| Formal receipt document | Plan 11 receipt publication, immutable artifact, and delivery records | What receipt evidence was published to the tenant | New cash or a change to settlement truth |
+| Formal receipt document | Unnumbered formal-receipt coordination slice: publication, immutable artifact, and delivery records | What receipt evidence was published to the tenant | New cash or a change to settlement truth |
 | Ledger projection | Source-linked deterministic `ledger_entries` row | Operational cash projection/control | Invoice, receipt-document, or journal authority |
 | Journal projection | Source-linked balanced journal entry and lines | Accounting control projection | Product-facing billing authority |
 | Property close | Append-only close revision | The approved property-period evidence set | A tenant or owner document by itself |
-| Owner Statement | Plan 19 version plus Plans 20-21 artifact and delivery records | Owner-facing closed-period publication | Tenant billing or tenant delivery authority |
+| Owner Statement | Plan 17 version plus Plans 18-19 artifact and delivery records | Owner-facing closed-period publication | Tenant billing or tenant delivery authority |
 
 ### Charge occurrence
 
@@ -182,8 +248,15 @@ rent-policy version expected one charge for one period. It carries:
 
 - organization, property, unit, lease, authoritative term, and policy-version
   identities;
+- exact accepted Track B party/Person/occupancy/participant/notice source IDs
+  and versions, resolver version, resolution/reason codes, requested evidence
+  period, and material relationship-evidence hash consumed by Track A;
 - charge type, service period, due date, exact amount, and currency;
-- proration inputs, method, and calculation snapshot;
+- Track A-selected debtor and recipient, with `billing_contact` retained only
+  as recipient/contact evidence unless independent debtor rules select that
+  party;
+- proration/notice inputs, selected versus ignored evidence reasons, blockers,
+  method, and approved calculation snapshot/hash;
 - idempotency/source key; and
 - an append-only outcome: `generated`, `waived`, `cancelled`, or `blocked`,
   with the exact linked obligation when generated.
@@ -213,7 +286,7 @@ The safe invoice model has three independent axes:
 
 | Axis | States | Authority |
 |---|---|---|
-| Economic lifecycle | `draft` -> `pending_review` -> `reviewed` -> `approved` -> `issuing` -> `issued`; technical terminal `issuance_abandoned`; issued terminal linked outcomes `cancelled` or `superseded` | Checked Plan 10 commands and append-only events |
+| Economic lifecycle | `draft` -> `pending_review` -> `reviewed` -> `approved` -> `issuing` -> `issued`; technical terminal `issuance_abandoned`; issued terminal linked outcomes `cancelled` or `superseded` | Checked tenant-invoice owner commands and append-only events |
 | Delivery | `not_requested`, `pending`, `sent`, `delivered`, `failed` | Delivery attempts/outcomes referencing one issued artifact |
 | Settlement | `unpaid`, `partially_paid`, `paid` | Derived only from valid receipt allocations/reversals |
 
@@ -235,12 +308,20 @@ human-readable number only when checked issuance starts. Issuance:
   issue/due/service dates, currency, line economics, source identities, and
   policy/configuration snapshots;
 - binds each normal new-business line to its exact charge occurrence and
-  obligation; the Plan 22 migration exception instead binds the exact legacy
+  obligation; the Plan 20 migration exception instead binds the exact legacy
   obligation and reviewed manifest item and records typed absence for historical
   occurrence, term, or policy authority that cannot be proven;
 - creates or reserves the retained artifact identity;
 - is payload-idempotent; and
 - cannot be bypassed by direct Data API or generic document mutation.
+
+The unnumbered tenant-invoice slice consumes the occurrence's Plan 09-approved
+debtor/recipient identities, calculation, and relationship-evidence snapshot.
+It may refresh current contact evidence while a draft remains regenerable, but
+only to approve and freeze issue-time contact/address/delivery evidence for the
+same Plan 09-selected recipient. It cannot change recipient identity, never
+asks Track B to choose one, and never treats a `billing_contact` role alone as
+debtor authority.
 
 Drafts may be regenerated through a checked command while retaining audit
 history. Issued economics and recipient snapshots are immutable.
@@ -274,9 +355,19 @@ reversing receipt/allocation and the corresponding reversing projections in
 the same transaction. Operators never separately post or edit a source-linked
 projection.
 
+The receipt/allocation freezes the exact obligation/occurrence/term,
+Track A-approved calculation, selected debtor/recipient identities, accepted
+relationship-evidence scope, and invoice-line identity available at
+settlement. A formal receipt copies the tenant-invoice issued and Plan 05
+settlement snapshots. Neither settlement
+nor publication re-resolves a tenant, recipient, Unit, or occupancy from
+current Lease/Person/party/contact rows. Legacy rows without event-time identity
+remain typed `NULL`/unresolved rather than adopting today's primary Person.
+
 ### Formal receipt document
 
-Formal receipt publication is Plan 11, separate from Plan 05 settlement:
+Formal receipt publication is an unnumbered coordination slice, separate from
+Plan 05 settlement:
 
 - cash commits even if rendering or delivery is unavailable;
 - a failed publication cannot roll back or duplicate cash;
@@ -288,7 +379,7 @@ Publication, delivery, and cash-reversal state are independent:
 
 | Axis | States | Authority |
 |---|---|---|
-| Publication lifecycle | `pending_publication` or reversal-only `blocked_dependency` -> `publishing` -> `published`; recoverable `failed`; terminal `publication_abandoned`; linked `superseded` only for a non-economic reissue | Checked Plan 11 commands/events |
+| Publication lifecycle | `pending_publication` or reversal-only `blocked_dependency` -> `publishing` -> `published`; recoverable `failed`; terminal `publication_abandoned`; linked `superseded` only for a non-economic reissue | Checked formal-receipt owner commands/events |
 | Delivery | `not_requested`, `pending`, `sent`, `delivered`, `failed` | Append-only delivery attempts/outcomes |
 | Cash reversal | `active` or `reversed` | Derived only from exact Plan 05 reversing receipt/allocation identity |
 
@@ -313,10 +404,17 @@ truth. Generic Ledger or journal actions must reject mutation, archiving,
 re-dating, posting, or reversal of source-linked receipt projections and direct
 the operator to the source workflow.
 
+Track A exposes allowlisted exact canonical source -> Ledger projection ->
+accounting journal/line identities and the permission-checked reverse route.
+A non-unique source index is never treated as one-to-one. Track B history may
+render only those exact links; it cannot attribute a financial row from
+property, Unit, date, amount, display name, or current tenant, and projections
+never become relationship authority.
+
 ### Owner Statement
 
 The Owner Statement remains an owner-facing artifact for one exact close
-revision. Plans 19 through 21 may consume tenant invoice and receipt artifact
+revision. Plans 17 through 19 may consume tenant invoice and receipt artifact
 links as supporting evidence, but they do not create or deliver tenant
 documents.
 
@@ -330,6 +428,14 @@ Owner Statement data records whether each source document is:
 
 Tenant invoice delivery, tenant receipt delivery, and Owner Statement delivery
 use separate policy/configuration snapshots and separate delivery histories.
+
+Generic Documents retains versioning, immutability, metadata correction, and
+supersession authority for signed lease amendments, inspections, and other
+operational documents. Track A owns tenant
+invoice artifacts, formal tenant receipt artifacts, close manifests, Owner
+Statement versions/artifacts, and their immutable snapshots. A close/statement
+freezes the exact generic-document version/checksum references actually used;
+it does not become the generic document versioning authority.
 
 ## Safe MVP cardinality and deferred extensions
 
@@ -345,7 +451,7 @@ use separate policy/configuration snapshots and separate delivery histories.
 | Unapplied cash | Not admitted to the pilot settlement flow; retain bank/reconciliation evidence without fabricated allocation and block close | Explicit unapplied-cash liability and allocation workflow required |
 | Overpayment | Rejected by settlement; unresolved bank cash blocks close | Refund/advance-liability workflow required |
 | Advance payment | Unsupported and blocking | Explicit tenant advance liability and later application workflow required |
-| Deposits | Separate Plan 12 custody source; never operating income or an ordinary rent invoice | Application/retention requires approved IPS policy |
+| Deposits | Separate ratified Plan 10 custody source; never operating income or an ordinary rent invoice | Application/retention requires approved IPS policy |
 | Credit note | Deferred and blocking | Dedicated immutable credit-note lifecycle and owner/close effects required |
 | Invoice cancellation | Linked cancellation allowed only while unpaid | Paid/partial cases require approved credit/refund policy |
 | Replacement invoice | New number and new artifact after linked cancellation; original retained | No in-place regeneration after issue |
@@ -375,35 +481,43 @@ same key and different payload fails closed.
 
 The smallest coherent order is:
 
+Track A Plan 05 and Track B TB-01 are independent next slices from the shared
+merged planning baseline. Plan 05 remains Track A's next implementation-ready
+slice; TB-01 remains Track B's next slice. They use separate branches/PRs and
+must not be combined. Track A Plan 09 must wait for merged TB-05
+relationship-evidence resolution before it generates relationship-aware
+occurrences; no earlier Track B slice is copied into Plan 09.
+
 1. Plan 05 first fixes current receipt/allocation authority and projections
    using obligation identity. It does not wait for invoices.
 2. Plan 09 creates authoritative rent occurrences and obligations from Plan 04
    term/policy identities.
-3. Plan 10 creates, reviews, approves, issues, retains, and delivers the tenant
-   invoice. It follows Plan 09 because normal new-business invoice lines require
-   exact occurrence and obligation links; only a Plan 22-reviewed migration
-   line may use an exact legacy obligation/manifest item plus typed historical
-   authority absences.
-4. Plan 11 publishes the formal receipt after Plan 05 cash authority and Plan
-   10 invoice identity exist. Legacy obligation-only references remain
-   explicitly classified.
-5. Renumbered Plans 19 through 21 consume, but never create, tenant billing
+3. The unnumbered tenant-invoice coordination slice creates, reviews,
+   approves, issues, retains, and delivers the tenant invoice. It follows
+   Plan 09 because normal new-business invoice lines require exact occurrence
+   and obligation links; only a Plan 20-reviewed migration line may use an
+   exact legacy obligation/manifest item plus typed historical authority
+   absences.
+4. The unnumbered formal-receipt coordination slice publishes after Plan 05
+   cash authority and issued tenant-invoice identity exist. Legacy
+   obligation-only references remain explicitly classified.
+5. Ratified Plans 17 through 19 consume, but never create, tenant billing
    evidence.
-6. Renumbered Plans 22 through 25 classify historical availability, backfill
-   only canonical identities/evidence, run the pilot, and retire compatibility.
+6. Ratified Plans 20 through 23 classify historical availability, backfill only
+   canonical identities/evidence, run the pilot, and retire compatibility.
 
-Plan 09 and Plan 10 share one new-business cutover gate. Plan 09 may merge and
-run in shadow/readiness mode first, but its generated obligations do not become
-collectable through Plan 05 until Plan 10 can create and issue the required
-invoice. At cutover:
+Plan 09 and the unnumbered tenant-invoice slice share one new-business cutover
+gate. Plan 09 may merge and run in shadow/readiness mode first, but its
+generated obligations do not become collectable through Plan 05 until the
+invoice slice can create and issue the required invoice. At cutover:
 
 - classified pre-invoice/manual/legacy obligations may continue to settle by
   obligation identity under Plan 05;
-- newly activated Plan 09 obligations require one issued Plan 10 invoice line
+- newly activated Plan 09 obligations require one issued tenant-invoice line
   before Plan 05 accepts cash; and
-- Plan 11 normal publication requires that same invoice line.
+- normal formal-receipt publication requires that same invoice line.
 
-This prevents cash received in the Plan 09-to-10 implementation gap from
+This prevents cash received in the Plan 09-to-invoice implementation gap from
 becoming neither normally invoiceable nor normally receipt-publishable.
 
 Partial receipt and reversal update invoice settlement status by derivation.
@@ -480,7 +594,7 @@ statuses.
 - A selected open legacy obligation may receive a newly reviewed migration
   invoice only with the real current issue date, original service/due context,
   a migration disclosure, exact obligation link, and a new number. It is never
-  backdated. Its line uses the exact Plan 22 manifest item and typed
+  backdated. Its line uses the exact Plan 20 manifest item and typed
   `occurrence_not_historically_created`,
   `term_authority_not_historically_available`, or
   `rent_policy_not_historically_available` classifications as applicable
@@ -492,9 +606,9 @@ statuses.
 - The pilot excludes unapplied cash, overpayments, advance payments, combined
   invoices, multi-allocation receipts, credit notes, and unresolved
   recipient/lease identity.
-- The Plan 09/10 cutover is atomic at the feature-policy level: no new-business
-  generated obligation is exposed for settlement until invoice issuance is
-  available and required.
+- The Plan 09/tenant-invoice cutover is atomic at the feature-policy level: no
+  new-business generated obligation is exposed for settlement until invoice
+  issuance is available and required.
 - Missing required artifacts, unsupported cash, ambiguous legacy identity, or
   a configuration/policy version without evidence blocks close/cutover.
 
@@ -528,6 +642,12 @@ narrower rule. This record does not claim tax-invoice compliance.
 - Payload-bound idempotency and source-transaction atomicity.
 - Balanced journals and deterministic Ledger projections.
 - No generic mutation of source-linked projections.
+- Track B evidence stays accepted/versioned relationship input; Track A owns
+  debtor/recipient selection, term/policy calculation, owner states/actions,
+  and immutable financial snapshots.
+- Every composed financial consequence uses owner adapters and the complete
+  deterministic source/destination property-period lock set in the same
+  transaction.
 - Property-period locking and reconciliation-source identity.
 - Cash-basis property reporting.
 - Deposits outside operating income until approved disposition.
@@ -539,26 +659,33 @@ narrower rule. This record does not claim tax-invoice compliance.
 
 This decision record is complete when:
 
-1. all ten authority concepts in the source matrix remain distinct;
+1. all authority concepts in the source matrix remain distinct;
 2. the safe cardinality is explicit and unsupported cases fail closed;
 3. approval, issuance, delivery, settlement, and receipt publication are
    separate;
 4. the implementation sequence gives invoice and receipt artifacts named
    owners;
 5. Plan 05 can proceed safely without invoice identity;
-6. Plans 10-11 consume exact Plan 09/05 sources;
+6. the two unnumbered tenant-document coordination slices consume exact
+   Plan 09/05 sources;
 7. Owner Statement plans only consume earlier tenant-document evidence;
 8. route migration cannot silently change old bookmark meaning;
 9. PR #38 remains non-authoritative and PR #40 remains outside the change;
 10. migration never fabricates historical documents; and
-11. Track B dependencies are explicit rather than copied into Track A.
+11. Track B dependencies are explicit rather than copied into Track A;
+12. Plan 09 owns term/policy interpretation, calculation dates, due/proration,
+    blockers, debtor/recipient selection, and the approved snapshot while
+    consuming exact Track B evidence; and
+13. every affected financial action comes from the owning Track A adapter and
+    executes only after all deterministic property-period locks are held.
 
 ## Verification
 
 For this documentation-only reconciliation:
 
 - search the repository for invoice, receipt, charge, obligation, rent
-  occurrence, Plan 05, Plan 09, and every renumbered sequence reference;
+  occurrence, Plan 05, Plan 09, every ratified sequence reference, and both
+  unnumbered coordination aliases;
 - verify every Markdown link and referenced repository path;
 - verify files 98 and 99 are byte-unchanged;
 - verify only authorized Track A documentation files changed;
@@ -580,7 +707,8 @@ authorized here.
 
 - this domain and cardinality decision record;
 - the revised sequence and legacy mapping;
-- narrow current Plans 05, 10, and 11;
+- narrow current Plan 05 plus the two unnumbered tenant-document coordination
+  slices;
 - updated current entry-point/status references; and
 - a clean documentation-only draft PR.
 
@@ -592,7 +720,7 @@ authorized here.
 **Reason:** Current receipts can exist before the operator separately posts
 Ledger activity. Plan 05 removes that split first, preserves accurate
 obligation-based cash capture, and gives later invoice and receipt publication
-one atomic settlement source without waiting for Plan 09 or Plan 10.
+one atomic settlement source without waiting for Plan 09 or tenant invoicing.
 
 This recommendation does not implement, merge, deploy, or authorize hosted
 execution.
@@ -608,16 +736,37 @@ Stop implementation planning or execution if any proposal:
 - silently repurposes tenant/vendor routes;
 - invents IPS tax, credit, delivery, recipient, or payment-method policy;
 - fabricates historical artifacts;
-- leaves renumbered references ambiguous; or
+- confuses either unnumbered tenant-document alias with ratified Plan 10 or
+  Plan 11; or
 - requires Track A to edit Track B files.
 
-## Required Cross-Plan Amendments
+## Reconciled Track B amendment dispositions
 
-| Target planning package | Target concept/file | Repository evidence | Required decision or wording | Reason | Blocks this track? | Can wait for reconciliation? |
-|---|---|---|---|---|---|---|
-| Track B — Lease and Occupancy History | Stable tenant-party and occupancy identity for invoice recipient selection | Current leases link people through compatibility fields and Plan 04 owns terms, while no issued tenant snapshot exists | Define the authoritative tenant/occupant role at service and issue dates and expose stable party/contact identities that Plan 10 can snapshot | Invoice issuance cannot guess who the legal/operational recipient is | Yes, for Plan 10 implementation; no, for Plan 05 | Yes, until the joint Track A/Track B reconciliation |
-| Track B — Lease and Occupancy History | Lease/term correction impact contract | Plan 04 prevents unsafe generation but later renewal/correction history is Track B-owned | State that lease/party/term corrections emit exact impact identities, never rewrite issued invoices or receipts, and identify which draft charges/invoices require regeneration | Financial history must remain append-only while current lease truth evolves | Yes, for Plan 09/10 implementation | Yes |
-| Track B — Lease and Occupancy History | Renewal, transfer, and historical read model | Owner Statement and migration require period-correct lease/tenant context | Provide period-effective lease/occupancy/party resolution and preserve predecessor/successor identities | Statements and migration cannot use today's tenant to rewrite historical evidence | Yes, for Plans 19 and 22; no, for Plan 05 | Yes |
-| Track A — Owner Close | `03-income-settlement-and-reversal.md` | The legacy file is broad and predates the merged Plan 03 kernel | Keep it labeled legacy and use `05-atomic-income-settlement.md` as the current implementation-ready source | Prevent filename Plan 03 from being mistaken for sequence Plan 03 | No, resolved in this package | No |
-| Track A — Owner Close | `06-rent-schedules-and-charge-completeness.md` and `11-immutable-owner-statement-publication.md` | Both assume downstream evidence without owning tenant billing publication | Keep both as legacy source; current Plans 09-11 create billing evidence and Plans 19-21 consume it | Prevent occurrence, invoice, receipt, and Owner Statement authority from collapsing | No, resolved by current mapping and sequence | No |
-| Configuration registry / PR #38 | Invoice approval, delivery, timezone/currency, and proration catalogue entries | PR #38 explicitly has no persistence or runtime activation | Preserve catalogue-only status and point each rule to the owning policy/series/delivery/organization authority in this record | A label/default cannot be treated as effective-dated financial authority | Yes, before configuration can drive Plan 10/11 | Yes |
+These dispositions adopt every requirement in Track B file 92 without copying
+Track B semantics into Track A or authorizing implementation. “Pending” means
+the named future slice must implement and verify the contract after its merged
+prerequisites exist.
+
+| # | Track B amendment | Track A adoption and owner | Implementation gate | Disposition |
+|---:|---|---|---|---|
+| 1 | Historical term/readiness resolution | Plan 04 remains term/policy authority. Plan 09 adds the checked historical as-of-service-date resolver and consumes TB-05 evidence without using today's Lease status. | TB-05 plus merged Plan 09 resolver before historical generation/correction. | Adopted; pending Plan 09. |
+| 2 | Charge occurrence identity | Plan 09 freezes organization/property/Unit/Lease, exact term/policy, service interval, selected debtor/recipient, consumed Track B source IDs/versions/hash, and the Track A-approved calculation snapshot. | TB-05 and Plan 09 before occurrence generation. | Adopted; pending Plan 09. |
+| 3 | Obligation, invoice, and receipt scope/snapshots | Plan 05 freezes settlement scope; the unnumbered tenant-invoice slice freezes occurrence/obligation/calculation/debtor/recipient and issued artifact; the unnumbered formal-receipt slice copies exact invoice/settlement scope and never re-resolves current rows. | Plan 05, Plan 09, and both unnumbered tenant-document slices in authority order. | Adopted across named owners. |
+| 4 | `property_cash_events_v1` tenant attribution | Track A treats today's-primary-Person joins as a defect. New/replaced sources use source-stored/event-time identities; legacy ambiguity returns `NULL`/unresolved. | Exact source scope plus a future Track A view migration before authoritative historical cash display. | Adopted; pending source/view owner. |
+| 5 | Deposit agreement and event-time relationship identity | Ratified Plan 10 owns deposit-parent freeze, custody events, depositor/liable-party snapshots, and checked successor actions. Track B never transfers custody. | Plan 10 action must be merged before any relationship transition requiring deposit mutation. | Adopted; pending Plan 10. |
+| 6 | Dependency-state adapter and property-period action | Every Track A domain owner exposes a versioned read-only adapter and checked action. Composed execution acquires all source/destination scopes in deterministic order inside the same transaction. | Required adapter/action and Plan 03 lock primitive must be merged for each enabled cross-domain execution. | Adopted as mandatory shared contract. |
+| 7 | Close/statement evidence versus generic Documents | Generic Documents owns operational-document versions/supersession. Track A owns tenant invoice/formal receipt/close/Owner Statement artifacts and freezes exact generic-document version/checksum references used by close. | Merged Documents contract plus Plans 16-18 before official evidence publication. | Adopted with explicit ownership split. |
+| 8 | Maintenance/inspection financial handoff | Plan 07 preserves optional exact Lease/occupancy/party/Person context and hands finance to the owning Track A charge/bill source; general property/Unit work stays valid. | Track B TB-07 context and Plan 07 financial action before tenant-specific charging. | Adopted; pending Plan 07/TB-07 integration. |
+| 9 | Compatibility retirement order | Plan 23 adds Track B normalized-history parity and Track A event-time attribution to its observation/retirement gate. | TB-05/TB-07 reads plus all exact Track A consumers and observation evidence. | Adopted; deferred to Plan 23. |
+| 10 | Period-effective party and recipient-preference evidence | TB-05 returns separate responsibility and recipient candidates. Plan 09 selects debtor and recipient identity. The unnumbered tenant-invoice slice only approves/freezes issue-time contact evidence for that selected recipient. `billing_contact` never automatically becomes debtor. | TB-05 plus Plan 09 and the tenant-invoice slice before invoice generation/issue. | Adopted; pending consumers. |
+| 11 | Date evidence and Track A calculation precedence | Track B labels actual/scheduled/notice/missing/conflicting facts. Plan 09 alone applies Plan 04 precedence, service bounds, due date, proration/notice rules, and blockers. | TB-05 and approved Gate F policy before Plan 09 generation. | Adopted; pending Plan 09. |
+| 12 | Relationship evidence input and approved calculation snapshot | Track B owns the versioned evidence envelope/hash. Plan 09 owns and stores the selected calculation/debtor/recipient snapshot/hash; the unnumbered tenant-invoice slice consumes it without recomputation. | TB-05 plus Plan 09 snapshot contract. | Adopted; pending Plan 09/TB-05. |
+| 13 | Typed affected occurrence identities on supersession | The merged Track A owner adapter returns occurrence/draft identities, material states, scopes, hashes, and actions. Track B transports opaque results and never rewrites financial history. | Adapter, selected owner action, and deterministic locks before TB-03/TB-06 execution with dependencies. | Adopted as mandatory adapter boundary. |
+| 14 | Exact Ledger/journal navigation without authority transfer | Track A owns allowlisted canonical source -> Ledger -> journal/line identities and reverse routes. Track B may display exact permission-gated links only; legacy ambiguity remains unresolved. | Merged Track A projection registry before finance-linked Track B navigation. | Adopted; pending projection registry/adoption. |
+
+The retained Track A internal decisions remain unchanged: use
+`05-atomic-income-settlement.md` rather than the legacy Plan 03 filename;
+Plan 09 and the two unnumbered tenant-document slices create tenant billing
+evidence while ratified Plans 17-19 only consume it; and PR #38 remains
+catalogue-only until every rule points to its owning
+persisted/versioned authority.
