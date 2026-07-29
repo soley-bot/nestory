@@ -213,6 +213,8 @@ SELECT set_config(
   true
 );
 
+SELECT app_private.set_finance_settlement_context(true);
+
 INSERT INTO public.finance_income_items (
   id, organization_id, property_id, income_type, payer_label, due_date,
   received_date, amount_due, amount_received, currency, status, created_by, updated_by
@@ -225,6 +227,8 @@ INSERT INTO public.finance_income_items (
   '00000000-0000-0000-0000-000000000101',
   '00000000-0000-0000-0000-000000000101'
 );
+
+SELECT app_private.set_finance_settlement_context(false);
 
 INSERT INTO public.finance_expense_items (
   id, organization_id, property_id, expense_type, vendor_label, invoice_date,
@@ -363,8 +367,8 @@ SELECT throws_ok(
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   )$$,
-  '55000',
-  'Income settlement fields are event-derived',
+  '22023',
+  'income_obligation_must_start_unsettled',
   'direct settled income inserts are rejected'
 );
 

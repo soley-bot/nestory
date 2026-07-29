@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(48);
+SELECT plan(49);
 
 SELECT has_function(
   'public',
@@ -279,6 +279,55 @@ SELECT ok(
   ),
   'pre-activation inserts receive canonical provenance instead of caller authority'
 );
+
+SELECT throws_ok(
+  pg_catalog.format(
+    $statement$
+      SET LOCAL ROLE authenticated;
+      INSERT INTO public.finance_income_items(
+        id,
+        organization_id,
+        property_id,
+        unit_id,
+        lease_id,
+        payer_person_id,
+        income_type,
+        payer_label,
+        due_date,
+        received_date,
+        amount_due,
+        amount_received,
+        currency,
+        status
+      )
+      VALUES (
+        gen_random_uuid(),
+        %L::uuid,
+        %L::uuid,
+        %L::uuid,
+        %L::uuid,
+        %L::uuid,
+        'rent',
+        'Direct cash bypass',
+        '2026-11-01'::date,
+        '2026-11-01'::date,
+        300,
+        300,
+        'USD'::public.currency_code,
+        'received'
+      )
+    $statement$,
+    organization_id,
+    property_id,
+    unit_id,
+    lease_id,
+    tenant_id
+  ),
+  '22023',
+  'income_obligation_must_start_unsettled',
+  'direct obligation inserts cannot pre-populate unprojected cash'
+)
+FROM plan05_test_state;
 
 UPDATE plan05_test_state
 SET reconciliation_source_id =

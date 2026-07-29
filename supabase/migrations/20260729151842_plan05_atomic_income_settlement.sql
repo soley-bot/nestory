@@ -2171,6 +2171,18 @@ BEGIN
   WHERE policy.organization_id = NEW.organization_id
   FOR SHARE;
 
+  IF NOT app_private.has_finance_settlement_context()
+    AND (
+      coalesce(NEW.amount_received, 0) <> 0
+      OR NEW.received_date IS NOT NULL
+      OR NEW.ledger_entry_id IS NOT NULL
+      OR NEW.status IS DISTINCT FROM 'open'
+      OR NEW.archived_at IS NOT NULL
+    ) THEN
+    RAISE EXCEPTION 'income_obligation_must_start_unsettled'
+      USING ERRCODE = '22023';
+  END IF;
+
   -- Plan 05 cannot authenticate future Plan 09 evidence. Until the joint
   -- activation migration replaces this trigger with an evidence-verifying
   -- creator, every post-activation rent insert fails closed. A caller-supplied
@@ -2233,7 +2245,7 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER guard_finance_income_creation_contract
+CREATE TRIGGER block_finance_income_creation_bypass
 BEFORE INSERT ON public.finance_income_items
 FOR EACH ROW
 EXECUTE FUNCTION app_private.guard_finance_income_creation_contract();

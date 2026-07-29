@@ -19,6 +19,8 @@ WHERE id IN (
   '10000000-0000-0000-0000-000000000005'
 );
 
+SELECT app_private.set_finance_settlement_context(true);
+
 INSERT INTO public.finance_income_items (
   id,
   organization_id,
@@ -128,6 +130,8 @@ VALUES
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   );
+
+SELECT app_private.set_finance_settlement_context(false);
 
 INSERT INTO public.finance_expense_items (
   id,
