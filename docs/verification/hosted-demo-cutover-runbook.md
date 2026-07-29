@@ -5,6 +5,9 @@ tool validates a separately collected, read-only inventory and emits a
 planning-only manifest. It has no database client, no hosted credentials, and
 no execution mode.
 
+On 2026-07-29, a separate approved hosted cutover completed. This checked-in
+tool remains planning-only and does not execute hosted changes.
+
 ## Required observed identity
 
 - Project ref: `pfvmztxktkwyewvxfgot`

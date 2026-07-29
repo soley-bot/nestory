@@ -1,6 +1,6 @@
 # Fresh Demo Data Rebuild Implementation Plan
 
-**Status:** Implementation and local verification complete; draft PR #40 open
+**Status:** Implementation and local verification complete; PR #40 merged
 **Branch:** `codex/rebuild-fresh-demo-data`  
 **Merged baseline:** `b592557f3d2919ab5bd7932426fc218a1bea5d4d`  
 **Scope:** Deterministic local demo data plus fail-closed hosted cutover preparation. No hosted mutation, hosted migration apply, production deployment, or PR merge.
