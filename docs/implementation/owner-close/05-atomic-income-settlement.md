@@ -25,11 +25,13 @@ This plan is the narrow current-sequence replacement for the legacy broad
 source `03-income-settlement-and-reversal.md`. The legacy filename is not
 current Plan 03 and does not authorize implementation.
 
-Plan 05 operates on obligation identity. It does not require Plan 09 charge
-occurrences, the unnumbered tenant-invoice coordination slice, or the
-unnumbered formal-receipt coordination slice. Those later sources must consume
-the settlement identities created here rather than replacing them. Ratified
-Plan 10 remains security-deposit custody; ratified Plans 11-12 remain
+The initial pre-activation Plan 05 slice operates on existing obligation
+identity. It does not require Plan 09 charge occurrences, the unnumbered
+tenant-invoice coordination slice, or the unnumbered formal-receipt
+coordination slice. At the later named activation, new-business settlement
+requires the issued invoice identity defined below. Those later sources must
+consume the settlement identities created here rather than replacing them.
+Ratified Plan 10 remains security-deposit custody; ratified Plans 11-12 remain
 management-fee authority.
 
 Plan 05 also does not depend on TB-01 or implement any Track B slice. Plan 05
@@ -166,8 +168,9 @@ tenant-invoice coordination activation gate:
 - after that cutover, obligation-only settlement is limited to exact obligation
   IDs proven by immutable creation provenance and the reviewed Plan 20 manifest
   frozen into the named Plan 22 cutover to predate activation and retain the
-  `legacy_obligation_only` disposition. Plan 20 assigns every candidate exactly
-  one immutable disposition: `legacy_obligation_only` or
+  `legacy_obligation_only` remaining-balance disposition. Plan 20 assigns every
+  candidate obligation exactly one immutable remaining-balance disposition:
+  `legacy_obligation_only` or
   `migration_invoice_required`. The latter never falls back to obligation-only
   settlement and returns `migration_invoice_issuance_required` until its
   migration invoice is issued. `manual`, an income-type/description label, a
@@ -195,14 +198,52 @@ hook without implementing Plan 09 or invoice authority.
 
 Plan 22 may activate only while holding the same creation/cutover policy lock
 used by the guarded obligation path. It locks and compares the complete current
-grandfather candidate-set identities, version, and material hash with the
-reviewed Plan 20 manifest frozen into the proposed activation. Any drift fails
-with `legacy_manifest_refresh_required`; Plan 20 must refresh and re-review the
-manifest before another activation attempt. If a manual creation commits first,
-it changes that candidate set and invalidates readiness. If cutover commits
-first, the guarded creation fails with
+grandfather candidate set with the reviewed Plan 20 manifest frozen into the
+proposed activation. That set includes exact obligation IDs/dispositions and
+every existing receipt/allocation/reversal identity, version, material hash,
+and allocation publication class. Any drift fails with
+`legacy_manifest_refresh_required`; Plan 20 must refresh and re-review the
+manifest before another activation attempt. If manual creation or pre-cutover
+settlement/reversal commits first, it changes that candidate set and invalidates
+readiness. If cutover commits first, guarded creation fails with
 `rent_occurrence_generation_required`. No row is adopted merely because its
 creation transaction started before activation.
+
+The obligation's remaining-balance disposition controls only future settlement
+eligibility. It never classifies cash that already committed. Every rent
+allocation in the activation cohort has an independent immutable
+settlement/publication snapshot:
+
+- `settlement_basis = pre_cutover_uninvoiced` with
+  `publication_source_class = legacy_cash_non_publishable` requires exact
+  Plan 20 receipt/allocation-manifest membership frozen and hash-checked by
+  Plan 22;
+- `settlement_basis = grandfathered_obligation_only` with the same
+  non-publishable class requires the exact `legacy_obligation_only` obligation
+  manifest item and Plan 22 activation version frozen when the later allocation
+  commits; or
+- `settlement_basis = invoice_bound` with
+  `publication_source_class = eligible_invoice_linked` requires the exact
+  normal or migration invoice header/version/line frozen when the allocation
+  commits.
+
+An explicitly owner-policy-approved non-invoiceable economic class retains its
+own typed settlement basis outside this tenant-rent publication taxonomy; it is
+not mislabeled as legacy cash.
+
+For pre-cutover cash, Plan 20 appends allocation-level evidence keyed by the exact
+receipt, allocation, and obligation IDs, signed amount/currency,
+received/committed dates, original/reversal identity, Plan 20 manifest
+item/version/hash, and Plan 22 activation version. It retains `NULL` invoice
+identities plus `invoice_identity_not_historically_available` and
+`artifact_not_historically_created`. Manifest membership and locked commit
+identity, not received/created/business dates, prove the class. A later
+obligation disposition or invoice issuance cannot mutate or recompute that
+allocation class. A partially paid
+obligation may therefore retain a pre-cutover
+`legacy_cash_non_publishable` allocation while
+`migration_invoice_required` governs only its remaining balance; a later
+post-issuance allocation is independently `eligible_invoice_linked`.
 
 For that post-activation path, settlement, reversal of an invoice-bound
 allocation, and invoice cancellation acquire the shared
@@ -210,17 +251,25 @@ obligation/invoice/property-period locks in the same order and recheck the exact
 allocation/reversal set. Settlement also rechecks that the referenced line
 belongs to the current active `issued` invoice for the obligation. A
 `cancelled`, `superseded`, or `issuance_abandoned` invoice cannot receive new
-cash. A committed allocation blocks cancellation only while its net unreversed
-signed effect is nonzero. Exact directly linked Plan 05 reversal retains both
-rows and can restore cancellation eligibility when every positive allocation is
-fully reversed and the net effect is zero. Cancellation cannot rely on an
-in-flight reversal; cancellation winning first makes new settlement fail until
-an approved replacement is issued. A later invoice lifecycle change never
-deletes or retargets a committed allocation or reversal.
+cash. Only an `invoice_bound` allocation freezing that exact
+header/version/line blocks its cancellation while the allocation's net
+unreversed signed effect is nonzero. Exact directly linked Plan 05 reversal
+retains both rows and can restore cancellation eligibility when every positive
+allocation against that exact line is fully reversed and the invoice-linked net
+effect is zero. Earlier `legacy_cash_non_publishable` obligation cash neither
+settles nor blocks cancellation of a later migration invoice. Its later exact
+reversal still changes obligation outstanding; when issuance already froze the
+old net balance, the invoice owner returns
+`migration_invoice_replacement_required` and close blocks on that stale-invoice
+condition until checked cancellation/replacement. Cancellation cannot rely on
+an in-flight reversal; cancellation winning first makes new settlement fail
+until an approved replacement is issued. A later invoice lifecycle change
+never deletes or retargets a committed allocation or reversal.
 
 The initial Plan 05 implementation does not create invoice tables or activate
 Plan 09. It must leave an explicit source classification/guard contract so a
-later cutover cannot accidentally accept normally uninvoiceable cash.
+later cutover cannot accidentally accept invoice-required rent cash without
+exact invoice authority.
 
 ### 2A. Expose a read-only financial owner adapter
 
@@ -245,9 +294,10 @@ projection, close source, or statement.
 
 ### 3. Freeze settlement materiality
 
-At first settlement, either freeze the obligation fields on which cash
-classification/scope depends or persist an immutable allocation classification
-snapshot. The source must retain:
+At first settlement, persist an immutable allocation-level
+classification/scope snapshot. Relevant obligation fields may additionally
+freeze, but obligation state never substitutes for the allocation's own
+evidence or class. The source must retain:
 
 - organization, property, optional unit/lease, and obligation identity;
 - economic class and obligation type;
@@ -259,7 +309,12 @@ snapshot. The source must retain:
 - deterministic settlement sequence and the exact outstanding balance
   immediately after this allocation;
 - actor and committed timestamp; and
-- any Plan 03 canonical source discriminator.
+- any Plan 03 canonical source discriminator;
+- its immutable allocation-level `settlement_basis` and
+  `publication_source_class`; and
+- exact classification evidence/version/hash. For pre-existing allocations this
+  is the append-only Plan 20 evidence record rather than a rewrite of the
+  original cash row.
 
 When the obligation comes from Plan 09, the immutable scope also retains:
 
@@ -283,6 +338,16 @@ primary Person, Lease header, term dates, or display labels.
 
 Later obligation edits cannot reclassify already received cash. A correction
 uses an exact reversal and a new source event.
+
+Every reversal retains a direct link to the original allocation and inherits
+its immutable settlement/publication class. Reversal of
+`legacy_cash_non_publishable` remains Plan 05/reconciliation evidence and
+creates neither an original nor reversal formal receipt, regardless of the
+current remaining-balance disposition. An allocation lacking both an exact
+invoice-bound snapshot and exact Plan 20 historical-cash evidence returns
+`allocation_publication_classification_required`; it is genuinely unclassified
+and cannot be repaired from labels, dates, current relationships, or the
+obligation disposition.
 
 ### 4. Use allocation identity for every cash projection
 
@@ -430,9 +495,12 @@ Ledger, and journal controls.
   current compatibility headers. Future Plan 09 scope is frozen from the Track
   A-approved decision and exact consumed relationship evidence.
 - Post-activation new-business allocations retain immutable invoice
-  header/version/line identities; only exact manifest-backed obligations proven
-  to predate cutover remain obligation-only, and their cash is not a
-  formal-receipt source.
+  header/version/line identities. Publication eligibility is immutable per
+  allocation, not inferred from the obligation's current remaining-balance
+  disposition: exact pre-cutover `legacy_cash_non_publishable` cash remains
+  non-publishable even if the remaining obligation later receives a migration
+  invoice, while only a later allocation that freezes that issued invoice is
+  `eligible_invoice_linked`.
 
 ## Acceptance criteria
 
@@ -469,10 +537,21 @@ Ledger, and journal controls.
     lock and cannot accept cash against a cancelled, superseded, or abandoned
     invoice. `migration_invoice_issuance_required` and
     `current_issued_invoice_required` remain distinct settlement blockers.
+    Every allocation retains an independent immutable publication-source class;
+    a partially paid obligation assigned immutable
+    `migration_invoice_required` can retain prior
+    `legacy_cash_non_publishable` cash, and a later invoice-linked allocation
+    on the same obligation can be eligible without making earlier cash
+    publishable. An attempted remaining-balance-disposition mutation is
+    rejected and cannot relabel prior cash. A reversal inherits the original
+    allocation class; truly unclassified cash returns
+    `allocation_publication_classification_required`.
     Settlement, exact reversal, and cancellation serialize under one lock
-    order; cancellation requires a zero net unreversed signed effect with every
-    positive allocation exactly reversed, and no outcome deletes or retargets
-    committed history.
+    order; cancellation requires a zero invoice-linked net unreversed signed
+    effect with every positive `invoice_bound` allocation against that exact
+    header/version/line exactly reversed. Historical
+    `legacy_cash_non_publishable` cash is outside invoice cancellation
+    eligibility, and no outcome deletes or retargets committed history.
 12. The read-only Plan 05 owner adapter returns exact typed source
     identities/states/actions/scopes, and a composed executor holds every
     deterministic property-period lock in the same transaction before
@@ -502,25 +581,38 @@ Add and run:
   duplicate reversal, bypass rejection, immutable pre-cutover provenance,
   spoofed legacy/manual labels and dates, action/RPC/wrapper/direct-DML rent
   creation guards, cross-organization and role denial, and legacy
-  compatibility;
+  compatibility, including a partially paid legacy obligation whose prior
+  allocation stays `legacy_cash_non_publishable` when Plan 20 assigns its
+  remaining balance immutable `migration_invoice_required`, then whose
+  post-issuance allocation is independently `eligible_invoice_linked`, plus a
+  post-cutover `legacy_obligation_only` settlement that freezes
+  `settlement_basis = grandfathered_obligation_only` and
+  `publication_source_class = legacy_cash_non_publishable`; direct DML, current
+  joins, attempted obligation-disposition mutation, and later issuance cannot
+  mutate or forge either allocation class;
 - two-session races for receipt-versus-receipt, receipt-versus-close,
   reversal-versus-close, same-key retry, and, after invoice activation,
   invoice-bound reversal-versus-cancellation, cutover-versus-manual-rent
-  creation, and generator-versus-manual-rent creation. At the versioned
+  creation, cutover-versus-legacy-settlement/reversal, and
+  generator-versus-manual-rent creation. At the versioned
   activation boundary, using its separately approved effective-time semantics,
-  manual creation winning first must change the locked candidate-set hash and
-  force `legacy_manifest_refresh_required`; cutover winning first must make
-  creation fail with `rent_occurrence_generation_required`. Neither ordering
-  may create an ambiguous/adopted row;
+  manual creation or settlement/reversal winning first must change the locked
+  obligation/allocation/reversal candidate-set hash and force
+  `legacy_manifest_refresh_required`. Cutover winning first must make creation
+  fail with `rent_occurrence_generation_required` and make settlement recheck
+  the exact `legacy_obligation_only` or `migration_invoice_required`
+  disposition. Neither ordering may create an ambiguous/adopted row;
 - same-key reversal-versus-composed-correction in both start orders, plus
   reversal against organization-Ledger/accounting-book transitions and
   different original/reversal periods, proving Plan 03 locks precede the
   operation key, no `40P01` occurs, and completed replay survives later period
-  closure;
+  closure, plus legacy-allocation reversal before and after migration-invoice
+  issuance proving the reversal inherits the original non-publishable class;
 - focused Vitest for server validation, error mapping, all route revalidation,
   removed post action/copy, source evidence, reversal flow, and the later
   post-cutover Rent & Income/deep-link guard with actionable
-  generate/catch-up/repair copy;
+  generate/catch-up/repair copy, plus stable mixed historical/invoice-linked
+  allocation presentation on one obligation;
 - canonical cash and journal parity against a production-shaped fixture;
 - `npm run test:all`;
 - `npm run lint`;

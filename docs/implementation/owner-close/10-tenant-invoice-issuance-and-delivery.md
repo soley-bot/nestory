@@ -205,9 +205,24 @@ Ratified Plan 20 may later call a separate checked migration-invoice entry point
 open legacy obligation named by the reviewed manifest. That path uses the real
 current issue date, migration disclosure, exact obligation/manifest links, and
 the typed occurrence absence above. It never attaches a new invoice to already
-settled legacy cash. It can support a later Plan 05 payment only after the
-migration invoice is issued and that allocation stores its exact invoice
-header/version/line.
+settled legacy cash. Under the shared obligation/property-period lock it reads
+the exact signed allocation/reversal set and freezes the then-current net open
+balance as the migration-invoice line amount. Prior allocations remain
+obligation cash and `legacy_cash_non_publishable`; they count once toward the
+obligation balance but never become settlement against the migration invoice.
+It can support a later Plan 05 payment only after the migration invoice is
+issued and that new allocation stores its exact invoice
+header/version/line with `eligible_invoice_linked`.
+
+Migration-invoice issuance and reversal of any historical allocation used in
+its open-balance calculation share the same obligation/invoice/property-period
+locks. Reversal committing first changes the signed source set and the draft or
+issuance command must use the new net balance. Issuance committing first keeps
+its economics immutable; a later exact historical-cash reversal remains
+`legacy_cash_non_publishable` and makes the invoice owner return
+`migration_invoice_replacement_required` until a checked cancellation/
+replacement can use the changed balance. It never rewrites the invoice or
+blocks the cash authority from retaining the exact reversal.
 
 ### 3. Separate lifecycle, delivery, and settlement axes
 
@@ -229,9 +244,10 @@ Delivery states are `not_requested`, `pending`, `sent`, `delivered`, and
 `failed`, based only on attempts/outcomes.
 
 Settlement states are `unpaid`, `partially_paid`, and `paid`, derived only from
-valid Plan 05 allocations/reversals against the bound obligation. Reversal may
-move a display from paid to partially paid or unpaid without altering the
-invoice.
+valid Plan 05 `invoice_bound` allocations/reversals that freeze this exact
+invoice header/version/line. Reversal of such an allocation may move a display
+from paid to partially paid or unpaid without altering the invoice. Other valid
+obligation cash changes obligation outstanding but never this invoice status.
 
 `sent`, `delivered`, `partially_paid`, and `paid` never substitute for
 approval/issuance state.
@@ -410,6 +426,22 @@ Later obligation-only resolution is forbidden because cancellation/replacement
 can leave multiple historical invoice lines. The invoice never creates or
 mutates cash.
 
+Allocation publication identity is independent from the obligation's
+remaining-balance disposition. One partially paid legacy obligation may contain
+both:
+
+- exact pre-cutover allocations classified
+  `legacy_cash_non_publishable`, which never attach to the later migration
+  invoice or formal-receipt lifecycle; and
+- later allocations committed after migration-invoice issuance and classified
+  `eligible_invoice_linked`, which alone derive that invoice's settlement state
+  and may publish formal receipts.
+
+The obligation's open balance continues to derive from every valid signed
+allocation. The migration invoice's settlement state derives only from
+allocations frozen to its exact line, preventing prior cash from being counted
+twice or retroactively relabelled.
+
 Under the same shared obligation/invoice/property-period locks, settlement
 rechecks that the referenced line belongs to the current active `issued`
 invoice for the obligation and is not `cancelled`, `superseded`, or
@@ -421,9 +453,11 @@ partial reversal cannot. Cancellation committing first blocks new settlement
 until an approved replacement is issued. Stored allocation and reversal
 identities never retarget to that replacement.
 
-Outstanding and settlement display is derived from obligation plus signed
-allocations. Delivery failure, cancellation, or artifact state cannot change
-the cash calculation.
+Obligation outstanding is derived from the obligation plus every valid signed
+allocation/reversal. Invoice settlement display is derived only from
+`invoice_bound` effects freezing that exact header/version/line. Delivery
+failure, cancellation, or artifact state cannot change either cash
+calculation.
 
 Plan 09 and this tenant-invoice coordination slice share one new-business
 activation gate. Plan 09 may land in shadow/readiness mode, but a generated
@@ -432,15 +466,15 @@ required invoice. After cutover, Plan 05 rejects settlement of a
 Plan 09-generated obligation without the exact current-active issued invoice
 header/version/line. The obligation-only exception is limited to exact IDs
 whose immutable creation provenance and reviewed Plan 20 manifest, frozen into
-the named Plan 22 cutover, prove that they predate activation and retain the
-`legacy_obligation_only` disposition; that cash is not eligible for
-formal-receipt publication. A `manual` label, caller flag, backdated date, or
-current Lease/Person join cannot create that status. An open obligation with a
-Plan 20 `migration_invoice_required` disposition must have that migration
-invoice issued before later settlement and returns
-`migration_invoice_issuance_required` until then. A normal Plan 09 obligation
-without its current active issued invoice returns
-`current_issued_invoice_required`.
+the named Plan 22 cutover, prove that they predate activation with
+`legacy_obligation_only` remaining-balance disposition. A `manual` label,
+caller flag, backdated date, or current Lease/Person join cannot create that
+status. An open obligation with a Plan 20 `migration_invoice_required`
+remaining-balance disposition must have that migration invoice issued before
+later settlement and returns `migration_invoice_issuance_required` until then.
+A normal Plan 09 obligation without its current active issued invoice returns
+`current_issued_invoice_required`. Neither remaining-balance disposition
+changes the immutable publication class of cash already committed.
 
 The same atomic activation makes Plan 09 the sole normal creator of rent
 obligations. `createRentIncomeItemAction`, `create_finance_income_item`, legacy
@@ -450,18 +484,21 @@ link such as `?action=create&incomeType=rent` route the operator to the Plan 09
 generate/catch-up/repair flow instead of silently creating an obligation or
 initial cash.
 Database enforcement is mandatory even when the UI hides the option. Only an
-economic class explicitly designated non-invoiceable/manual by its ratified
-owner and policy may keep a manual path. This gate prevents either the
+economic class explicitly designated non-invoiceable by its ratified owner and
+policy may keep a manual path. This gate prevents either the
 Plan 09-to-invoice deployment interval or a post-cutover compatibility action
-from creating normally uninvoiceable cash.
+from creating invoice-required rent cash without exact invoice authority.
 
 Activation holds the shared creation/cutover policy lock and compares the
-complete locked candidate-set identities, version, and material hash with the
-reviewed Plan 20 manifest. Drift returns
+complete locked obligation-disposition set plus every existing
+receipt/allocation/reversal identity, version, material hash, and allocation
+publication class with the reviewed Plan 20 manifest. Drift returns
 `legacy_manifest_refresh_required` and blocks activation pending Plan 20
-refresh/re-review. A manual create that commits before activation changes the
-candidate set and invalidates readiness; activation committing first makes the
-same create fail with `rent_occurrence_generation_required`.
+refresh/re-review. A manual create, settlement, or reversal that commits before
+activation changes the candidate set and invalidates readiness; activation
+committing first makes creation fail with
+`rent_occurrence_generation_required` and makes settlement recheck the frozen
+remaining-balance disposition.
 
 ### 11. Introduce routes without changing bookmark meaning
 
@@ -516,7 +553,10 @@ do not calculate Owner Statement cash or owner liability.
   debtor/recipient/calculation snapshot; Track B never owns those decisions.
 - Owner-adapter actions and every affected source/destination property-period
   lock are rechecked in the same execution transaction.
-- Receipt allocations determine outstanding/settlement presentation.
+- All valid signed receipt allocations/reversals determine obligation
+  outstanding. Only `invoice_bound` allocations/reversals freezing the exact
+  invoice header/version/line determine that invoice's settlement presentation
+  and cancellation eligibility.
 - Post-activation settlement stores immutable invoice header/version/line
   identities and accepts new cash only against the current active issued
   invoice under the shared lock; obligation-only retargeting is forbidden.
@@ -547,16 +587,23 @@ do not calculate Owner Statement cash or owner liability.
 7. An unrecoverable `issuing` record can transition only to
    `issuance_abandoned`, retaining its reserved number/snapshot/reason and
    making no issued-artifact claim.
-8. Multiple partial Plan 05 receipts change only derived settlement status and
-   outstanding balance.
-9. Receipt reversal changes derived status without mutating invoice history.
+8. Multiple partial Plan 05 receipts change obligation outstanding; only
+   `invoice_bound` receipts freezing the exact header/version/line change that
+   invoice's derived settlement status.
+9. Receipt reversal changes obligation outstanding without mutating invoice
+   history. Only reversal of an allocation bound to that exact invoice changes
+   its derived status; reversal of historical non-publishable cash preserves
+   that class and, after migration issuance, returns
+   `migration_invoice_replacement_required`.
 10. Unpaid cancellation/replacement retains both numbered documents and exact
     links; partial/paid correction and credit cases block. Settlement, exact
-    reversal, and cancellation serialize under one lock order. Nonzero
-    unreversed committed cash blocks cancellation; a complete exact reversal
-    may restore eligibility only after every positive allocation is paired and
-    net effect is zero. Committed cancellation blocks new settlement until a
-    replacement is issued.
+    reversal, and cancellation serialize under one lock order. Only nonzero
+    unreversed `invoice_bound` cash against that exact line blocks cancellation;
+    a complete exact reversal may restore eligibility only after every positive
+    allocation against that line is paired and its net effect is zero.
+    Historical `legacy_cash_non_publishable` obligation cash neither settles
+    nor blocks cancellation of the later migration invoice. Committed
+    cancellation blocks new settlement until a replacement is issued.
 11. Delivery retries append attempts against the same artifact.
 12. Cross-organization, unauthorized, direct-DML, generic-RPC, stale-approval,
     duplicate-source, closed-period, and altered-idempotency attempts fail.
@@ -572,7 +619,11 @@ do not calculate Owner Statement cash or owner liability.
     `rent_occurrence_generation_required`,
     `current_issued_invoice_required`,
     `migration_invoice_issuance_required`, and
-    `legacy_manifest_refresh_required` outcomes remain distinct.
+    `legacy_manifest_refresh_required` outcomes remain distinct. On a partially
+    paid legacy obligation, prior cash remains independently
+    `legacy_cash_non_publishable`; a migration invoice freezes the locked net
+    remaining balance, and only later allocations frozen to its exact line are
+    `eligible_invoice_linked`.
 14. `/invoices` is not silently repurposed and vendor bills remain distinct.
 15. Later close/statement reads use the canonical `artifact_available`,
     `artifact_not_historically_created`, `artifact_required_missing`, and
@@ -600,7 +651,12 @@ Required evidence includes:
   cross-organization and role denial, and preservation of exact
   manifest-backed obligations, including the mutually exclusive Plan 20
   dispositions and distinct normal-invoice, migration-invoice, and manifest
-  refresh reason codes;
+  refresh reason codes. The fixture includes a 1,000 obligation with a 400
+  pre-cutover allocation, a locked 600 migration-invoice line, and later
+  invoice-linked partial/final allocations without reclassifying or
+  double-counting the 400, plus a post-cutover `legacy_obligation_only`
+  settlement freezing `settlement_basis = grandfathered_obligation_only` and
+  `publication_source_class = legacy_cash_non_publishable`;
 - two-session races for draft generation, approval-versus-source change,
   same-key issuance-versus-issuance, changed-payload key reuse,
   issuance-versus-close/composed-correction in both start orders,
@@ -609,9 +665,17 @@ Required evidence includes:
   reversal can restore eligibility, no path holds the issuance key while
   waiting on an earlier Plan 03 lock, and every outcome retains immutable
   allocation/reversal linkage, plus cutover-versus-manual-rent creation and
-  generator-versus-manual-rent creation in both start orders. Manual creation
-  winning first must invalidate the candidate-set hash and activation; cutover
-  winning first must reject creation;
+  generator-versus-manual-rent creation, activation-versus-legacy-settlement,
+  migration-issuance-versus-legacy-reversal, and
+  migration-issuance-versus-new-payment in both start orders. Mutation winning
+  before activation must invalidate the full obligation/allocation/reversal
+  candidate-set hash; activation first must recheck the frozen disposition.
+  Reversal before issuance changes the locked line amount; issuance before
+  reversal preserves the invoice and returns
+  `migration_invoice_replacement_required`. Payment winning before migration
+  issuance fails `migration_invoice_issuance_required` without creating an
+  allocation; issuance winning first permits exactly one `invoice_bound`
+  allocation against its exact header/version/line;
 - forced failures between series allocation, issued snapshot, artifact upload,
   finalization, and delivery, proving same-identity recovery;
 - Vitest for action validation/error mapping, lifecycle display, independent
