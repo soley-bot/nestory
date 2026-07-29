@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(39);
+SELECT plan(43);
 
 SELECT has_function(
   'public',
@@ -75,6 +75,24 @@ SELECT ok(
     'EXECUTE'
   ),
   'the legacy non-idempotent receipt wrapper is no longer an operator authority'
+);
+
+SELECT ok(
+  NOT has_function_privilege(
+    'authenticated',
+    'app_private.record_finance_receipt(uuid,uuid,numeric,date,text)',
+    'EXECUTE'
+  ),
+  'the private legacy receipt command is not an authenticated authority'
+);
+
+SELECT ok(
+  NOT has_function_privilege(
+    'authenticated',
+    'app_private.reverse_finance_receipt(uuid,uuid,date,text)',
+    'EXECUTE'
+  ),
+  'the private legacy reversal command is not an authenticated authority'
 );
 
 CREATE TEMP TABLE plan05_test_state (
@@ -255,6 +273,35 @@ SET reconciliation_source_id =
     property_id,
     '****0505'
   );
+
+SELECT lives_ok(
+  $$
+    SET LOCAL ROLE authenticated;
+    UPDATE public.finance_income_items
+    SET payer_label = 'Plan 05 tenant corrected'
+    WHERE id = (SELECT income_id FROM plan05_test_state);
+    RESET ROLE;
+  $$,
+  'an unsettled obligation remains correctable before its first source snapshot'
+);
+
+SELECT ok(
+  (
+    SELECT owner_state->'actions' = '[]'::jsonb
+      AND owner_state->>'unavailable_reason' =
+        'income_settlement_class_not_supported'
+    FROM (
+      SELECT public.get_finance_income_owner_state_v1(
+        organization_id,
+        'finance_income_item',
+        unsupported_income_id,
+        'record_receipt'
+      ) AS owner_state
+      FROM plan05_test_state
+    ) AS adapter
+  ),
+  'the owner adapter does not advertise settlement for unsupported classes'
+);
 
 SELECT lives_ok(
   $$

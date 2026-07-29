@@ -316,6 +316,7 @@ function toRentIncomeItem({
   const workflow = getRentIncomeWorkflow({
     amountDue: row.amount_due,
     amountReceived: row.amount_received,
+    incomeType: row.income_type as RentIncomeItem["incomeType"],
     ledgerEntryId: row.ledger_entry_id,
     status: row.status as RentIncomeStatus,
   });

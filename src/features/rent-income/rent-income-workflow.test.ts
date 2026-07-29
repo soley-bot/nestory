@@ -7,6 +7,7 @@ describe("getRentIncomeWorkflow", () => {
       getRentIncomeWorkflow({
         amountDue: 1000,
         amountReceived: 0,
+        incomeType: "rent",
         ledgerEntryId: null,
         status: "open",
       }),
@@ -23,6 +24,7 @@ describe("getRentIncomeWorkflow", () => {
       getRentIncomeWorkflow({
         amountDue: 1000,
         amountReceived: 400,
+        incomeType: "rent",
         ledgerEntryId: null,
         status: "partially_received",
       }),
@@ -39,6 +41,7 @@ describe("getRentIncomeWorkflow", () => {
       getRentIncomeWorkflow({
         amountDue: 1000,
         amountReceived: 1000,
+        incomeType: "rent",
         ledgerEntryId: null,
         status: "received",
       }),
@@ -56,6 +59,7 @@ describe("getRentIncomeWorkflow", () => {
       getRentIncomeWorkflow({
         amountDue: 1000,
         amountReceived: 1000,
+        incomeType: "rent",
         ledgerEntryId: "ledger-1",
         status: "posted",
       }),
@@ -63,6 +67,23 @@ describe("getRentIncomeWorkflow", () => {
       canRecordReceipt: false,
       nextAction: "Legacy posted",
       stageLabel: "Legacy posted",
+    });
+  });
+
+  it("routes unsupported classes to their dedicated workflow", () => {
+    expect(
+      getRentIncomeWorkflow({
+        amountDue: 1000,
+        amountReceived: 0,
+        incomeType: "security_deposit",
+        ledgerEntryId: null,
+        status: "open",
+      }),
+    ).toMatchObject({
+      canRecordReceipt: false,
+      nextAction: "Use dedicated workflow",
+      ownerStatementState: "no_cash",
+      remainingAmount: 1000,
     });
   });
 });

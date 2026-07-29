@@ -310,7 +310,15 @@ BEGIN
       ELSE 'open'
     END;
 
-    IF v_state IN ('open', 'partial') THEN
+    IF v_state IN ('open', 'partial')
+      AND v_source->>'income_type' NOT IN (
+        'security_deposit',
+        'owner_contribution',
+        'management_fee',
+        'leasing_commission',
+        'service_fee',
+        'maintenance_markup'
+      ) THEN
       v_actions := '["record_receipt"]'::jsonb;
     END IF;
 
@@ -452,6 +460,17 @@ BEGIN
   IF v_requested_action IS NOT NULL
     AND NOT v_actions ? v_requested_action THEN
     v_unavailable_reason := CASE
+      WHEN v_requested_action = 'record_receipt'
+        AND v_source_type = 'finance_income_item'
+        AND v_source->>'income_type' IN (
+          'security_deposit',
+          'owner_contribution',
+          'management_fee',
+          'leasing_commission',
+          'service_fee',
+          'maintenance_markup'
+        )
+        THEN 'income_settlement_class_not_supported'
       WHEN v_requested_action IN ('record_receipt', 'reverse_receipt')
         THEN 'action_not_available_for_current_state'
       ELSE 'action_not_merged'
@@ -530,6 +549,21 @@ REVOKE EXECUTE ON FUNCTION public.record_finance_income_payment(
 FROM authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.post_finance_income_item(uuid, uuid)
 FROM authenticated, service_role;
+REVOKE ALL ON FUNCTION app_private.record_finance_receipt(
+  uuid,
+  uuid,
+  numeric,
+  date,
+  text
+)
+FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION app_private.reverse_finance_receipt(
+  uuid,
+  uuid,
+  date,
+  text
+)
+FROM PUBLIC, anon, authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION app_private.enforce_canonical_income_settlement()
 RETURNS trigger
