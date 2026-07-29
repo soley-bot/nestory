@@ -11,7 +11,7 @@ For authenticated UI flow work, also apply
 ```bash
 npm run lint
 npx tsc --noEmit
-npm run test
+npm run test:all
 npm run build
 npm run test:ui-coverage
 npm run test:ui-copy

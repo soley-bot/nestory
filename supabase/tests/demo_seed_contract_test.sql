@@ -4,6 +4,11 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
 SELECT plan(39);
 
+CREATE TEMP VIEW demo_seed_context AS
+SELECT lease_start_date + 300 AS reference_date
+FROM public.leases
+WHERE id = '30000000-0000-0000-0000-000000000001';
+
 SELECT is(
   (SELECT count(*) FROM public.organizations),
   2::bigint,
@@ -331,7 +336,9 @@ SELECT ok(
     FROM public.tasks
     WHERE organization_id = '00000000-0000-0000-0000-000000000001'
       AND archived_at IS NULL
-      AND due_date BETWEEN current_date - 30 AND current_date + 30
+      AND due_date BETWEEN
+        (SELECT reference_date FROM demo_seed_context) - 30
+        AND (SELECT reference_date FROM demo_seed_context) + 30
   ),
   'maintenance due dates stay useful around the reset date'
 );
