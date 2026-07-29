@@ -52,6 +52,15 @@ export function buildSeedInput(seedSql, referenceDate) {
   ].join("\n");
 }
 
+export function buildResetArgs(referenceDate) {
+  return [
+    "supabase",
+    "db",
+    "reset",
+    ...(referenceDate ? ["--no-seed"] : []),
+  ];
+}
+
 function runChecked(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd,
@@ -119,14 +128,15 @@ export async function main(args = process.argv.slice(2)) {
 
   const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
   const cwd = path.resolve(scriptDirectory, "..");
+  const resetArgs = buildResetArgs(options.referenceDate);
   if (process.platform === "win32") {
     runChecked(
       process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe",
-      ["/d", "/s", "/c", "npx.cmd supabase db reset"],
+      ["/d", "/s", "/c", `npx.cmd ${resetArgs.join(" ")}`],
       { cwd },
     );
   } else {
-    runChecked("npx", ["supabase", "db", "reset"], { cwd });
+    runChecked("npx", resetArgs, { cwd });
   }
 
   if (!options.referenceDate) {

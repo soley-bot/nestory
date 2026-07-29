@@ -548,8 +548,8 @@ INSERT INTO public.people (
 VALUES
 ('80000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Dara Sok', 'Dara Sok', 'individual', 'dara.sok@example.com', '+855 12 482 119', 'Primary tenant for Central Residence 09A.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('80000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Srey Mom Chan', 'Srey Mom Chan', 'individual', 'sreymom.chan@example.com', '+855 15 730 224', 'Pays by bank transfer; prefers Telegram for reminders.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'James Wilson', 'James Matthew Wilson', 'individual', 'james.wilson@example.com', '+855 89 246 810', 'Expat tenant; lease renewal review due in October.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Malis Seng', 'Malis Seng', 'individual', 'malis.seng@example.com', '+855 10 554 312', 'Notice given; move-out inspection planned for July.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+('80000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'James Wilson', 'James Matthew Wilson', 'individual', 'james.wilson@example.com', '+855 89 246 810', 'Expat tenant; renewal review tracked before lease end.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+('80000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Malis Seng', 'Malis Seng', 'individual', 'malis.seng@example.com', '+855 10 554 312', 'Notice given; move-out inspection planned near lease end.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('80000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', 'Nary Ouk', 'Nary Ouk', 'individual', 'nary.ouk@example.com', '+855 92 681 503', 'Tenant at Northline 02A.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('80000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', 'Kosal Vann', 'Kosal Vann', 'individual', 'kosal.vann@example.com', '+855 70 219 884', 'Keeps one parking space in the rear lot.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('80000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', 'Sokha Trading Co.', 'Sokha Trading Company Ltd.', 'company', 'admin@sokhatrading.example.com', '+855 23 901 118', 'Company lease for Northline 03A staff housing.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
@@ -969,7 +969,7 @@ INSERT INTO public.timeline_events (
 VALUES
 ('50000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', NULL, '2025-08-01', 'Lease Started', 'Dara Sok lease started', 'Security deposit received and handover checklist completed for unit 09A.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('50000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', '30000000-0000-0000-0000-000000000009', NULL, '2025-04-01', 'Tenant Move In', 'Mekong Design Studio took over R01', 'Retail handover with meter readings and shopfront key set logged.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('50000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000017', '30000000-0000-0000-0000-000000000013', NULL, '2026-06-15', 'General Note', 'Move-out notice received', 'Bopha Lim gave notice and requested final inspection during the week of July 15.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+('50000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000017', '30000000-0000-0000-0000-000000000013', NULL, '2026-06-15', 'General Note', 'Move-out notice received', 'Bopha Lim gave notice and requested a final inspection during the final lease week.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('50000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000101', '2026-06-24', 'Repair', 'Kitchen sink leak follow-up', 'Plumber confirmed replacement trap and silicone reseal are required.', 185, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('50000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', '30000000-0000-0000-0000-000000000009', '40000000-0000-0000-0000-000000000102', '2026-06-27', 'Maintenance', 'Elevator door fault logged', 'SecureLift requested owner approval before replacing the door operator board.', 1180, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('50000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', '30000000-0000-0000-0000-000000000015', '40000000-0000-0000-0000-000000000103', '2026-06-20', 'Maintenance', 'Quarterly AC cleaning completed', 'Filter wash, drain flush, and temperature check completed.', 95, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
@@ -1078,8 +1078,8 @@ INSERT INTO public.ledger_period_locks (
   reason
 )
 VALUES
-('60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '2026-04-01', '2026-05-06 09:00:00+07', '00000000-0000-0000-0000-000000000101', 'April owner statements reviewed and locked.'),
-('60000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '2026-05-01', '2026-06-05 09:30:00+07', '00000000-0000-0000-0000-000000000101', 'May rent, maintenance, and service invoices reconciled.');
+('60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '2026-04-01', '2026-05-06 09:00:00+07', '00000000-0000-0000-0000-000000000101', 'Earlier owner statements reviewed and locked.'),
+('60000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '2026-05-01', '2026-06-05 09:30:00+07', '00000000-0000-0000-0000-000000000101', 'Previous rent, maintenance, and service invoices reconciled.');
 
 -- Normalize the visible sample book around a controlled reference date.
 -- Properties 4-6 and their dependent rows remain archived compatibility
@@ -1506,17 +1506,30 @@ SET
     ELSE unit_id
   END,
   description = CASE id
+    WHEN '40000000-0000-0000-0000-000000000001'
+      THEN 'Rent received for Central Residence 09A.'
+    WHEN '40000000-0000-0000-0000-000000000002'
+      THEN 'Rent received for Central Residence 09B.'
+    WHEN '40000000-0000-0000-0000-000000000003'
+      THEN 'Commercial rent received for Northline R01.'
+    WHEN '40000000-0000-0000-0000-000000000004'
+      THEN 'Rent received for Northline unit 02B.'
     WHEN '40000000-0000-0000-0000-000000000005'
-      THEN 'July rent received for Street 178 Residence 02-01.'
+      THEN 'Rent received for Street 178 Residence 02-01.'
     WHEN '40000000-0000-0000-0000-000000000006'
-      THEN 'July rent received for Central Residence 10A.'
+      THEN 'Rent received for Central Residence 10A.'
     WHEN '40000000-0000-0000-0000-000000000103'
       THEN 'Quarterly AC cleaning completed for Northline 02B.'
     WHEN '40000000-0000-0000-0000-000000000104'
       THEN 'Replaced common-area corridor lights at Central Residence.'
     WHEN '40000000-0000-0000-0000-000000000106'
-      THEN 'June security contract for Street 178 Residence.'
+      THEN 'Security contract for Street 178 Residence.'
     ELSE description
+  END,
+  amount = CASE id
+    WHEN '40000000-0000-0000-0000-000000000005' THEN 720
+    WHEN '40000000-0000-0000-0000-000000000006' THEN 900
+    ELSE amount
   END,
   transaction_date = coalesce(
     nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
@@ -1567,11 +1580,37 @@ SET
   END,
   updated_by = '00000000-0000-0000-0000-000000000101';
 
-UPDATE public.activity_logs
-SET created_at = coalesce(
-  nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-  current_date
-)::timestamptz - interval '4 days';
+UPDATE public.activity_logs AS activity
+SET
+  created_at = context.reference_date::timestamptz - interval '4 days',
+  new_values = CASE activity.id
+    WHEN '92000000-0000-0000-0000-000000000003'
+      THEN jsonb_set(
+        activity.new_values,
+        '{due_date}',
+        to_jsonb((context.reference_date + 1)::text)
+      )
+    WHEN '92000000-0000-0000-0000-000000000004'
+      THEN activity.new_values || jsonb_build_object(
+        'notice_date',
+        (context.reference_date - 20)::text,
+        'scheduled_move_out_date',
+        (
+          SELECT occupancies.scheduled_move_out_date::text
+          FROM public.lease_occupancies AS occupancies
+          WHERE occupancies.organization_id = activity.organization_id
+            AND occupancies.lease_id = activity.entity_id
+            AND occupancies.archived_at IS NULL
+        )
+      )
+    ELSE activity.new_values
+  END
+FROM LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context;
 
 UPDATE public.ledger_period_locks
 SET

@@ -92,13 +92,18 @@ Completed:
   `20260728120841_authoritative_lease_terms_and_rent_policy`.
 - Hosted cutover committed with 3 visible properties, 18 visible units,
   13 visible leases, 12 maintenance tasks, 8 income items, 6 expense items,
-  12 ledger entries, and 12 balanced accounting journals.
+  and 12 ledger entries.
+- Two remapped rent rows were aligned to their authoritative active leases
+  through audited journal reversals and corrected reposts. The hosted book now
+  contains 16 journal entries and 32 journal lines (2 reversed originals,
+  2 reversal entries, and 2 corrected entries in addition to the unaffected
+  source journals); every journal remains balanced.
 - The existing admin and manager memberships remain attached. The two
   non-target organizations retained identical per-table inventories and
   digests across all 92 organization-scoped comparisons.
 - Hosted foreign-key/orphan checks and unbalanced-journal checks returned zero.
-  The July 2026 income-expense report rendered 12 traced rows with USD 6,570
-  income, USD 2,594 expenses, and USD 3,976 NOI.
+  The corrected July 2026 income-expense source has 12 traced rows with
+  USD 6,090 income, USD 2,594 expenses, and USD 3,496 NOI.
 - A browser coherence pass found and corrected seven stale visible text labels.
   The final hosted scan reports zero visible operational rows containing an
   archived property name or unit label.

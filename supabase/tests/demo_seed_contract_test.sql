@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(39);
+SELECT plan(43);
 
 CREATE TEMP VIEW demo_seed_context AS
 SELECT lease_start_date + 300 AS reference_date
@@ -524,6 +524,71 @@ SELECT ok(
       '00000000-0000-0000-0000-000000000001'
   ),
   'visible operational rows never retain archived unit labels'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.ledger_entries AS ledger
+    JOIN public.lease_occupancies AS occupancies
+      ON occupancies.organization_id = ledger.organization_id
+     AND occupancies.unit_id = ledger.unit_id
+     AND occupancies.archived_at IS NULL
+    JOIN public.lease_terms AS terms
+      ON terms.organization_id = occupancies.organization_id
+     AND terms.lease_id = occupancies.lease_id
+     AND terms.authority_kind = 'authoritative'
+     AND terms.archived_at IS NULL
+    WHERE ledger.organization_id =
+      '00000000-0000-0000-0000-000000000001'
+      AND ledger.archived_at IS NULL
+      AND ledger.direction = 'income'
+      AND ledger.category IN ('Rent', 'Commercial rent')
+      AND ledger.amount IS DISTINCT FROM terms.rent_amount
+  ),
+  'current rent ledger rows match their authoritative lease rent'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.ledger_entries
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND archived_at IS NULL
+      AND description ~* '\m(January|February|March|April|May|June|July|August|September|October|November|December)\M'
+  ),
+  'reference-dated ledger descriptions remain month-neutral'
+);
+
+SELECT is(
+  (
+    SELECT new_values ->> 'due_date'
+    FROM public.activity_logs
+    WHERE id = '92000000-0000-0000-0000-000000000003'
+  ),
+  (
+    SELECT due_date::text
+    FROM public.tasks
+    WHERE id = '91000000-0000-0000-0000-000000000003'
+  ),
+  'task activity snapshots retain the normalized due date'
+);
+
+SELECT ok(
+  (
+    SELECT
+      activity.new_values ->> 'notice_date' =
+        occupancies.notice_date::text
+      AND activity.new_values ->> 'scheduled_move_out_date' =
+        occupancies.scheduled_move_out_date::text
+    FROM public.activity_logs AS activity
+    JOIN public.lease_occupancies AS occupancies
+      ON occupancies.organization_id = activity.organization_id
+     AND occupancies.lease_id = activity.entity_id
+     AND occupancies.archived_at IS NULL
+    WHERE activity.id = '92000000-0000-0000-0000-000000000004'
+  ),
+  'lease activity snapshots retain normalized notice and move-out dates'
 );
 
 SELECT * FROM finish();

@@ -18,9 +18,12 @@ function validInventory() {
         id: CUTOVER_EXPECTATIONS.targetOrganizationId,
         name: "Nestory",
         slug: "nestory-demo",
-        tableCounts: Object.fromEntries(
-          REQUIRED_TARGET_COUNTS.map((table) => [table, 0]),
-        ),
+        tableCounts: {
+          ...Object.fromEntries(
+            REQUIRED_TARGET_COUNTS.map((table) => [table, 0]),
+          ),
+          organizationInvitations: 1,
+        },
         invitationsByStatus: { pending: 0, accepted: 1, revoked: 0 },
         adminUserIds: ["00000000-0000-0000-0000-000000000101"],
       },
@@ -83,6 +86,28 @@ test("incomplete snapshots are rejected", () => {
   const missingAdmins = validInventory();
   missingAdmins.organizations[0].adminUserIds = [];
   assert.throws(() => validateInventory(missingAdmins), /adminUserId/);
+
+  const missingInvitationStatuses = validInventory();
+  missingInvitationStatuses.organizations[0].invitationsByStatus = {};
+  assert.throws(
+    () => validateInventory(missingInvitationStatuses),
+    /invitationsByStatus\.pending/,
+  );
+
+  const mismatchedInvitationTotal = validInventory();
+  mismatchedInvitationTotal.organizations[0].tableCounts.organizationInvitations =
+    2;
+  assert.throws(
+    () => validateInventory(mismatchedInvitationTotal),
+    /invitation status total/,
+  );
+
+  const unknownInvitationStatus = validInventory();
+  unknownInvitationStatus.organizations[0].invitationsByStatus.expired = 0;
+  assert.throws(
+    () => validateInventory(unknownInvitationStatus),
+    /unsupported invitation status/,
+  );
 });
 
 test("impossible reference dates are rejected", () => {

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   assertReferenceDate,
+  buildResetArgs,
   buildSeedInput,
   parseArgs,
 } from "./reset-demo-data.mjs";
@@ -30,4 +31,14 @@ test("seed replay sets the date before any seed statement", () => {
     input,
     /^SET app\.demo_seed_reference_date = '2030-01-15';\nSELECT current_date;/,
   );
+});
+
+test("dated resets skip automatic seeding before the controlled replay", () => {
+  assert.deepEqual(buildResetArgs(null), ["supabase", "db", "reset"]);
+  assert.deepEqual(buildResetArgs("2030-01-15"), [
+    "supabase",
+    "db",
+    "reset",
+    "--no-seed",
+  ]);
 });

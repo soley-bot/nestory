@@ -23,6 +23,12 @@ export const REQUIRED_TARGET_COUNTS = Object.freeze([
   "organizationInvitations",
 ]);
 
+const REQUIRED_INVITATION_STATUSES = Object.freeze([
+  "pending",
+  "accepted",
+  "revoked",
+]);
+
 function fail(message) {
   throw new Error(`Cutover inventory rejected: ${message}`);
 }
@@ -112,11 +118,29 @@ export function validateInventory(inventory) {
   ) {
     fail("the target organization requires invitationsByStatus");
   }
+  for (const status of REQUIRED_INVITATION_STATUSES) {
+    if (!(status in target.invitationsByStatus)) {
+      fail(`invitationsByStatus.${status} is required`);
+    }
+    assertNonNegativeInteger(
+      target.invitationsByStatus[status],
+      `invitationsByStatus.${status}`,
+    );
+  }
   for (const [status, count] of Object.entries(target.invitationsByStatus)) {
-    if (!status.trim()) {
-      fail("invitation status keys cannot be blank");
+    if (!REQUIRED_INVITATION_STATUSES.includes(status)) {
+      fail(`unsupported invitation status ${status}`);
     }
     assertNonNegativeInteger(count, `invitationsByStatus.${status}`);
+  }
+  const invitationStatusTotal = REQUIRED_INVITATION_STATUSES.reduce(
+    (total, status) => total + target.invitationsByStatus[status],
+    0,
+  );
+  if (
+    invitationStatusTotal !== target.tableCounts.organizationInvitations
+  ) {
+    fail("invitation status total must equal tableCounts.organizationInvitations");
   }
 
   if (
