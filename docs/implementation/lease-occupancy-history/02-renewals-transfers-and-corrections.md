@@ -76,10 +76,14 @@ remains visible history but does not block a later checked successor plan.
 
 TB-06 owns a checked `cancel_successor_plan` operation. Before the successor is
 effective, it rechecks dependencies and atomically moves the planned link,
-successor reservation, planned parties/participants, and occupancy to their
-cancelled-before-effective lifecycles. It creates no actual/effective fact,
-deletes nothing, is payload-idempotent under cancel-versus-activate races, and
-releases accepted-link cardinality for one later checked plan.
+successor Lease, successor reservation, planned parties/participants, and
+occupancy to their cancelled-before-effective lifecycles. In the same
+dependency-checked transaction it invokes the merged Plan 04 checked action
+that cancels the successor's authoritative planned term without rewriting term
+history. If that Plan 04 action is unavailable, the successor plan cannot be
+cancelled. The operation creates no actual/effective fact, deletes nothing, is
+payload-idempotent under cancel-versus-activate races, and releases
+accepted-link cardinality for one later checked plan.
 
 The continuity effective date must align with the accepted predecessor and
 successor party/occupancy boundary kinds. An unknown boundary remains a

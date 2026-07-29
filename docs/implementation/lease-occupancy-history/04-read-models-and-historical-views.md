@@ -145,8 +145,11 @@ The gap is derived, not persisted. A Unit before its first known occupancy can
 be confirmed vacant only from the bounded query start through the day before a
 confirmed first actual move-in. A Unit after its last occupancy can be
 confirmed vacant only from the day after a confirmed actual move-out through
-the bounded query end. An `open_current` or `unknown` actual boundary blocks
-the corresponding edge gap.
+the earlier of the bounded query end and the required `as_of_date`. A query
+range after `as_of_date` is returned only through the separate scheduled
+forecast contract; future days are never counted as confirmed historical
+vacancy. An `open_current` or `unknown` actual boundary blocks the corresponding
+edge gap.
 
 ### Scheduled vacancy
 
