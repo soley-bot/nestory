@@ -1706,7 +1706,7 @@ FROM (
       -2,
       780::numeric,
       780::numeric,
-      'received',
+      'posted',
       'Monthly rent for Central Residence 09A.',
       'DEMO-RENT-09A'
     ),
@@ -1844,6 +1844,15 @@ CROSS JOIN LATERAL (
     current_date
   ) AS reference_date
 ) AS context;
+
+UPDATE public.ledger_entries AS ledger
+SET
+  transaction_date = income.received_date,
+  updated_by = '00000000-0000-0000-0000-000000000101'
+FROM public.finance_income_items AS income
+WHERE income.organization_id = ledger.organization_id
+  AND income.ledger_entry_id = ledger.id
+  AND income.received_date IS NOT NULL;
 
 INSERT INTO public.finance_receipts (
   id,

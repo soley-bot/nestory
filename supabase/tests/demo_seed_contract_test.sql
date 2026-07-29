@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(43);
+SELECT plan(45);
 
 CREATE TEMP VIEW demo_seed_context AS
 SELECT lease_start_date + 300 AS reference_date
@@ -206,10 +206,10 @@ SELECT is(
     FROM public.finance_income_items
     WHERE organization_id = '00000000-0000-0000-0000-000000000001'
       AND archived_at IS NULL
-      AND status IN ('open', 'partially_received', 'received', 'posted')
+      AND status IN ('open', 'partially_received', 'posted')
   ),
-  4::bigint,
-  'income fixtures cover open, partial, received, and posted states'
+  3::bigint,
+  'income fixtures cover open, partial, and posted states'
 );
 
 SELECT is(
@@ -465,6 +465,34 @@ SELECT ok(
       )
   ),
   'linked income and ledger rows agree on scope, amount, currency, and direction'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.finance_income_items
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND archived_at IS NULL
+      AND ledger_entry_id IS NOT NULL
+      AND status <> 'posted'
+  ),
+  'ledger-linked income is always marked posted'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.finance_income_items AS income
+    JOIN public.ledger_entries AS ledger
+      ON ledger.organization_id = income.organization_id
+     AND ledger.id = income.ledger_entry_id
+    WHERE income.organization_id =
+      '00000000-0000-0000-0000-000000000001'
+      AND income.archived_at IS NULL
+      AND income.received_date IS NOT NULL
+      AND ledger.transaction_date IS DISTINCT FROM income.received_date
+  ),
+  'linked income ledger dates preserve the receipt date'
 );
 
 SELECT ok(

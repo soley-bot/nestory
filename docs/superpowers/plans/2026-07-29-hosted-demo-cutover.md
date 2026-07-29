@@ -93,10 +93,11 @@ Completed:
 - Hosted cutover committed with 3 visible properties, 18 visible units,
   13 visible leases, 12 maintenance tasks, 8 income items, 6 expense items,
   and 12 ledger entries.
-- Two remapped rent rows were aligned to their authoritative active leases
+- Two remapped rent rows were aligned to their authoritative active leases,
+  and one linked commercial-rent ledger date was aligned to its receipt date,
   through audited journal reversals and corrected reposts. The hosted book now
-  contains 16 journal entries and 32 journal lines (2 reversed originals,
-  2 reversal entries, and 2 corrected entries in addition to the unaffected
+  contains 18 journal entries and 36 journal lines (3 reversed originals,
+  3 reversal entries, and 3 corrected entries in addition to the unaffected
   source journals); every journal remains balanced.
 - The existing admin and manager memberships remain attached. The two
   non-target organizations retained identical per-table inventories and
