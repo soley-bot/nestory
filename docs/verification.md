@@ -11,7 +11,7 @@ For authenticated UI flow work, also apply
 ```bash
 npm run lint
 npx tsc --noEmit
-npm run test
+npm run test:all
 npm run build
 npm run test:ui-coverage
 npm run test:ui-copy
@@ -37,6 +37,20 @@ npm run supabase:stop
 
 Use Supabase checks when migrations, generated database types, RLS, RPCs,
 storage, seed data, or local database behavior changed.
+
+For the deterministic demo fixture:
+
+```powershell
+npm run db:reset:demo
+npm run db:reset:demo -- --reference-date 2030-01-15
+npm run demo:seed:manifest
+npm run test:demo-tools
+```
+
+The seed refuses databases that do not expose the standard local Supabase JWT
+secret. The explicit-date wrapper discovers only a running local Supabase
+database container. Hosted refresh preparation is planning-only; see
+`docs/verification/hosted-demo-cutover-runbook.md`.
 
 ## Invitation Credential Verification
 

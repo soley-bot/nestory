@@ -8,6 +8,17 @@
 -- - member@nestory.com / 123456789 -> Central Operations field technician
 -- - demo@nestory.com / 123456789 -> empty demo workspace
 
+DO $$
+BEGIN
+  IF current_setting('app.settings.jwt_secret', true)
+    IS DISTINCT FROM
+      'super-secret-jwt-token-with-at-least-32-characters-long' THEN
+    RAISE EXCEPTION
+      'supabase/seed.sql is local-only and refused this database';
+  END IF;
+END;
+$$;
+
 SELECT set_config('app.people_leases_skip_sync', 'on', false);
 
 INSERT INTO auth.users (
@@ -537,8 +548,8 @@ INSERT INTO public.people (
 VALUES
 ('80000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Dara Sok', 'Dara Sok', 'individual', 'dara.sok@example.com', '+855 12 482 119', 'Primary tenant for Central Residence 09A.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('80000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Srey Mom Chan', 'Srey Mom Chan', 'individual', 'sreymom.chan@example.com', '+855 15 730 224', 'Pays by bank transfer; prefers Telegram for reminders.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'James Wilson', 'James Matthew Wilson', 'individual', 'james.wilson@example.com', '+855 89 246 810', 'Expat tenant; lease renewal review due in October.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Malis Seng', 'Malis Seng', 'individual', 'malis.seng@example.com', '+855 10 554 312', 'Notice given; move-out inspection planned for July.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+('80000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'James Wilson', 'James Matthew Wilson', 'individual', 'james.wilson@example.com', '+855 89 246 810', 'Expat tenant; renewal review tracked before lease end.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+('80000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Malis Seng', 'Malis Seng', 'individual', 'malis.seng@example.com', '+855 10 554 312', 'Notice given; move-out inspection planned near lease end.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('80000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', 'Nary Ouk', 'Nary Ouk', 'individual', 'nary.ouk@example.com', '+855 92 681 503', 'Tenant at Northline 02A.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('80000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', 'Kosal Vann', 'Kosal Vann', 'individual', 'kosal.vann@example.com', '+855 70 219 884', 'Keeps one parking space in the rear lot.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('80000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', 'Sokha Trading Co.', 'Sokha Trading Company Ltd.', 'company', 'admin@sokhatrading.example.com', '+855 23 901 118', 'Company lease for Northline 03A staff housing.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
@@ -958,7 +969,7 @@ INSERT INTO public.timeline_events (
 VALUES
 ('50000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', NULL, '2025-08-01', 'Lease Started', 'Dara Sok lease started', 'Security deposit received and handover checklist completed for unit 09A.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('50000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', '30000000-0000-0000-0000-000000000009', NULL, '2025-04-01', 'Tenant Move In', 'Mekong Design Studio took over R01', 'Retail handover with meter readings and shopfront key set logged.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('50000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000017', '30000000-0000-0000-0000-000000000013', NULL, '2026-06-15', 'General Note', 'Move-out notice received', 'Bopha Lim gave notice and requested final inspection during the week of July 15.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+('50000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000017', '30000000-0000-0000-0000-000000000013', NULL, '2026-06-15', 'General Note', 'Move-out notice received', 'Bopha Lim gave notice and requested a final inspection during the final lease week.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('50000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000101', '2026-06-24', 'Repair', 'Kitchen sink leak follow-up', 'Plumber confirmed replacement trap and silicone reseal are required.', 185, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('50000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', '30000000-0000-0000-0000-000000000009', '40000000-0000-0000-0000-000000000102', '2026-06-27', 'Maintenance', 'Elevator door fault logged', 'SecureLift requested owner approval before replacing the door operator board.', 1180, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('50000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', '30000000-0000-0000-0000-000000000015', '40000000-0000-0000-0000-000000000103', '2026-06-20', 'Maintenance', 'Quarterly AC cleaning completed', 'Filter wash, drain flush, and temperature check completed.', 95, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
@@ -1067,8 +1078,1425 @@ INSERT INTO public.ledger_period_locks (
   reason
 )
 VALUES
-('60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '2026-04-01', '2026-05-06 09:00:00+07', '00000000-0000-0000-0000-000000000101', 'April owner statements reviewed and locked.'),
-('60000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '2026-05-01', '2026-06-05 09:30:00+07', '00000000-0000-0000-0000-000000000101', 'May rent, maintenance, and service invoices reconciled.');
+('60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '2026-04-01', '2026-05-06 09:00:00+07', '00000000-0000-0000-0000-000000000101', 'Earlier owner statements reviewed and locked.'),
+('60000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '2026-05-01', '2026-06-05 09:30:00+07', '00000000-0000-0000-0000-000000000101', 'Previous rent, maintenance, and service invoices reconciled.');
+
+-- Normalize the visible sample book around a controlled reference date.
+-- Properties 4-6 and their dependent rows remain archived compatibility
+-- anchors for database tests that exercise cross-property accounting.
+UPDATE public.properties
+SET
+  archived_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  archived_by = '00000000-0000-0000-0000-000000000101'
+WHERE id IN (
+  '10000000-0000-0000-0000-000000000004',
+  '10000000-0000-0000-0000-000000000005',
+  '10000000-0000-0000-0000-000000000006'
+);
+
+UPDATE public.units
+SET
+  archived_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  archived_by = '00000000-0000-0000-0000-000000000101'
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND id >= '20000000-0000-0000-0000-000000000019'::uuid;
+
+UPDATE public.units
+SET status = CASE id
+  WHEN '20000000-0000-0000-0000-000000000001' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000002' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000003' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000004' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000005' THEN 'vacant'
+  WHEN '20000000-0000-0000-0000-000000000006' THEN 'vacant'
+  WHEN '20000000-0000-0000-0000-000000000007' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000008' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000009' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000010' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000011' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000012' THEN 'maintenance'
+  WHEN '20000000-0000-0000-0000-000000000013' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000014' THEN 'vacant'
+  WHEN '20000000-0000-0000-0000-000000000015' THEN 'occupied'
+  WHEN '20000000-0000-0000-0000-000000000016' THEN 'reserved'
+  WHEN '20000000-0000-0000-0000-000000000017' THEN 'vacant'
+  WHEN '20000000-0000-0000-0000-000000000018' THEN 'vacant'
+  ELSE status
+END
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND archived_at IS NULL;
+
+UPDATE public.property_owners
+SET
+  person_id = '80100000-0000-0000-0000-000000000002',
+  ownership_label = 'Mekong Family Office',
+  updated_by = '00000000-0000-0000-0000-000000000101'
+WHERE property_id = '10000000-0000-0000-0000-000000000003';
+
+UPDATE public.properties
+SET
+  owner = 'Mekong Family Office',
+  updated_by = '00000000-0000-0000-0000-000000000101'
+WHERE id = '10000000-0000-0000-0000-000000000003';
+
+UPDATE public.property_owners
+SET
+  archived_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  archived_by = '00000000-0000-0000-0000-000000000101',
+  ended_on = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )
+WHERE property_id IN (
+  '10000000-0000-0000-0000-000000000004',
+  '10000000-0000-0000-0000-000000000005',
+  '10000000-0000-0000-0000-000000000006'
+);
+
+UPDATE public.person_roles
+SET
+  archived_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  archived_by = '00000000-0000-0000-0000-000000000101'
+WHERE person_id IN (
+  '80100000-0000-0000-0000-000000000003',
+  '80100000-0000-0000-0000-000000000004',
+  '80100000-0000-0000-0000-000000000005',
+  '80100000-0000-0000-0000-000000000006',
+  '80000000-0000-0000-0000-000000000013',
+  '80000000-0000-0000-0000-000000000014',
+  '80000000-0000-0000-0000-000000000015',
+  '80000000-0000-0000-0000-000000000016',
+  '80000000-0000-0000-0000-000000000017',
+  '80000000-0000-0000-0000-000000000019',
+  '80000000-0000-0000-0000-000000000020',
+  '80000000-0000-0000-0000-000000000021',
+  '80000000-0000-0000-0000-000000000022',
+  '80000000-0000-0000-0000-000000000023',
+  '80000000-0000-0000-0000-000000000024'
+);
+
+UPDATE public.people
+SET
+  archived_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  archived_by = '00000000-0000-0000-0000-000000000101'
+WHERE id IN (
+  '80100000-0000-0000-0000-000000000003',
+  '80100000-0000-0000-0000-000000000004',
+  '80100000-0000-0000-0000-000000000005',
+  '80100000-0000-0000-0000-000000000006',
+  '80000000-0000-0000-0000-000000000013',
+  '80000000-0000-0000-0000-000000000014',
+  '80000000-0000-0000-0000-000000000015',
+  '80000000-0000-0000-0000-000000000016',
+  '80000000-0000-0000-0000-000000000017',
+  '80000000-0000-0000-0000-000000000019',
+  '80000000-0000-0000-0000-000000000020',
+  '80000000-0000-0000-0000-000000000021',
+  '80000000-0000-0000-0000-000000000022',
+  '80000000-0000-0000-0000-000000000023',
+  '80000000-0000-0000-0000-000000000024'
+);
+
+SELECT set_config(
+  'app.lease_term_projection_context',
+  'checked-v1',
+  false
+);
+
+WITH desired_leases (
+  id,
+  lease_status,
+  start_offset,
+  end_offset
+) AS (
+  VALUES
+    ('30000000-0000-0000-0000-000000000001'::uuid, 'active', -300, 65),
+    ('30000000-0000-0000-0000-000000000002'::uuid, 'active', -120, 245),
+    ('30000000-0000-0000-0000-000000000003'::uuid, 'active', -60, 305),
+    ('30000000-0000-0000-0000-000000000004'::uuid, 'notice_given', -330, 14),
+    ('30000000-0000-0000-0000-000000000005'::uuid, 'active', -200, 165),
+    ('30000000-0000-0000-0000-000000000006'::uuid, 'active', -30, 335),
+    ('30000000-0000-0000-0000-000000000007'::uuid, 'active', -250, 115),
+    ('30000000-0000-0000-0000-000000000008'::uuid, 'active', -180, 185),
+    ('30000000-0000-0000-0000-000000000009'::uuid, 'active', -400, 330),
+    ('30000000-0000-0000-0000-000000000010'::uuid, 'active', -90, 275),
+    ('30000000-0000-0000-0000-000000000011'::uuid, 'active', -210, 155),
+    ('30000000-0000-0000-0000-000000000012'::uuid, 'draft', 14, 379),
+    ('30000000-0000-0000-0000-000000000013'::uuid, 'ended', -380, -10)
+)
+UPDATE public.leases AS leases
+SET
+  lease_start_date = context.reference_date + desired.start_offset,
+  lease_end_date = context.reference_date + desired.end_offset,
+  status = desired.lease_status,
+  updated_by = '00000000-0000-0000-0000-000000000101'
+FROM desired_leases AS desired
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context
+WHERE leases.id = desired.id;
+
+SELECT set_config(
+  'app.lease_term_projection_context',
+  'off',
+  false
+);
+
+UPDATE public.leases
+SET
+  archived_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  archived_by = '00000000-0000-0000-0000-000000000101'
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND id >= '30000000-0000-0000-0000-000000000014'::uuid;
+
+UPDATE public.lease_terms AS terms
+SET
+  start_date = leases.lease_start_date,
+  end_date = leases.lease_end_date,
+  rent_amount = leases.monthly_rent_amount,
+  rent_currency = leases.monthly_rent_currency,
+  status = CASE leases.status
+    WHEN 'draft' THEN 'upcoming'
+    WHEN 'ended' THEN 'expired'
+    ELSE 'active'
+  END,
+  notice_date = CASE
+    WHEN leases.status = 'notice_given' THEN context.reference_date - 20
+    ELSE NULL
+  END,
+  authority_kind = 'authoritative',
+  confirmed_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  confirmed_by = '00000000-0000-0000-0000-000000000101',
+  updated_by = '00000000-0000-0000-0000-000000000101'
+FROM public.leases AS leases
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context
+WHERE terms.lease_id = leases.id
+  AND leases.archived_at IS NULL;
+
+UPDATE public.lease_terms
+SET
+  archived_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  archived_by = '00000000-0000-0000-0000-000000000101'
+WHERE lease_id >= '30000000-0000-0000-0000-000000000014'::uuid;
+
+UPDATE public.lease_parties
+SET
+  archived_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  archived_by = '00000000-0000-0000-0000-000000000101'
+WHERE lease_id >= '30000000-0000-0000-0000-000000000014'::uuid;
+
+UPDATE public.lease_occupancies AS occupancies
+SET
+  status = CASE leases.status
+    WHEN 'notice_given' THEN 'notice_given'
+    WHEN 'draft' THEN 'reserved'
+    WHEN 'ended' THEN 'vacated'
+    ELSE 'occupied'
+  END,
+  scheduled_move_in_date = leases.lease_start_date,
+  actual_move_in_date = CASE
+    WHEN leases.status = 'draft' THEN NULL
+    ELSE leases.lease_start_date
+  END,
+  notice_date = CASE
+    WHEN leases.status = 'notice_given' THEN context.reference_date - 20
+    ELSE NULL
+  END,
+  scheduled_move_out_date = leases.lease_end_date,
+  actual_move_out_date = CASE
+    WHEN leases.status = 'ended' THEN leases.lease_end_date
+    ELSE NULL
+  END,
+  updated_by = '00000000-0000-0000-0000-000000000101'
+FROM public.leases AS leases
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context
+WHERE occupancies.lease_id = leases.id
+  AND leases.archived_at IS NULL;
+
+UPDATE public.lease_occupancies
+SET
+  archived_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  archived_by = '00000000-0000-0000-0000-000000000101'
+WHERE lease_id >= '30000000-0000-0000-0000-000000000014'::uuid;
+
+UPDATE public.lease_deposits AS deposits
+SET
+  status = CASE leases.status
+    WHEN 'ended' THEN 'returned'
+    WHEN 'draft' THEN 'pending'
+    ELSE 'held'
+  END,
+  received_on = CASE
+    WHEN leases.status = 'draft' THEN NULL
+    ELSE leases.lease_start_date
+  END,
+  returned_on = CASE
+    WHEN leases.status = 'ended' THEN leases.lease_end_date + 5
+    ELSE NULL
+  END,
+  updated_by = '00000000-0000-0000-0000-000000000101'
+FROM public.leases AS leases
+WHERE deposits.lease_id = leases.id
+  AND leases.archived_at IS NULL;
+
+UPDATE public.lease_deposits
+SET
+  archived_at = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  )::timestamptz,
+  archived_by = '00000000-0000-0000-0000-000000000101'
+WHERE lease_id >= '30000000-0000-0000-0000-000000000014'::uuid;
+
+WITH desired_requests (id, age_offset) AS (
+  VALUES
+    ('90000000-0000-0000-0000-000000000001'::uuid, 0),
+    ('90000000-0000-0000-0000-000000000002'::uuid, 1),
+    ('90000000-0000-0000-0000-000000000003'::uuid, 2),
+    ('90000000-0000-0000-0000-000000000004'::uuid, 3),
+    ('90000000-0000-0000-0000-000000000005'::uuid, 4),
+    ('90000000-0000-0000-0000-000000000006'::uuid, 5),
+    ('90000000-0000-0000-0000-000000000007'::uuid, 6),
+    ('90000000-0000-0000-0000-000000000008'::uuid, 7),
+    ('90000000-0000-0000-0000-000000000009'::uuid, 8),
+    ('90000000-0000-0000-0000-000000000010'::uuid, 9),
+    ('90000000-0000-0000-0000-000000000011'::uuid, 10),
+    ('90000000-0000-0000-0000-000000000012'::uuid, 11)
+)
+UPDATE public.tenant_requests AS requests
+SET
+  property_id = CASE requests.property_id
+    WHEN '10000000-0000-0000-0000-000000000004' THEN '10000000-0000-0000-0000-000000000002'::uuid
+    WHEN '10000000-0000-0000-0000-000000000005' THEN '10000000-0000-0000-0000-000000000003'::uuid
+    WHEN '10000000-0000-0000-0000-000000000006' THEN '10000000-0000-0000-0000-000000000001'::uuid
+    ELSE requests.property_id
+  END,
+  unit_id = CASE requests.unit_id
+    WHEN '20000000-0000-0000-0000-000000000020' THEN '20000000-0000-0000-0000-000000000008'::uuid
+    ELSE requests.unit_id
+  END,
+  requested_by_person_id = CASE requests.requested_by_person_id
+    WHEN '80000000-0000-0000-0000-000000000014' THEN '80000000-0000-0000-0000-000000000006'::uuid
+    ELSE requests.requested_by_person_id
+  END,
+  title = CASE requests.id
+    WHEN '90000000-0000-0000-0000-000000000011'
+      THEN 'Quarterly AC cleaning for Northline 02B'
+    ELSE requests.title
+  END,
+  requested_at = context.reference_date::timestamptz
+    - interval '7 days'
+    - desired.age_offset * interval '1 day',
+  updated_by = '00000000-0000-0000-0000-000000000101'
+FROM desired_requests AS desired
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context
+WHERE requests.id = desired.id;
+
+WITH desired_tasks (id, due_offset, reminder_offset) AS (
+  VALUES
+    ('91000000-0000-0000-0000-000000000001'::uuid, -3, -4),
+    ('91000000-0000-0000-0000-000000000002'::uuid, -1, -2),
+    ('91000000-0000-0000-0000-000000000003'::uuid, 1, 0),
+    ('91000000-0000-0000-0000-000000000004'::uuid, 3, 2),
+    ('91000000-0000-0000-0000-000000000005'::uuid, 5, 4),
+    ('91000000-0000-0000-0000-000000000006'::uuid, 7, 6),
+    ('91000000-0000-0000-0000-000000000007'::uuid, 9, 8),
+    ('91000000-0000-0000-0000-000000000008'::uuid, 2, 1),
+    ('91000000-0000-0000-0000-000000000009'::uuid, 12, 11),
+    ('91000000-0000-0000-0000-000000000010'::uuid, -10, -11),
+    ('91000000-0000-0000-0000-000000000011'::uuid, -8, -9),
+    ('91000000-0000-0000-0000-000000000012'::uuid, 4, 3)
+)
+UPDATE public.tasks AS tasks
+SET
+  property_id = CASE tasks.property_id
+    WHEN '10000000-0000-0000-0000-000000000004' THEN '10000000-0000-0000-0000-000000000002'::uuid
+    WHEN '10000000-0000-0000-0000-000000000005' THEN '10000000-0000-0000-0000-000000000003'::uuid
+    WHEN '10000000-0000-0000-0000-000000000006' THEN '10000000-0000-0000-0000-000000000001'::uuid
+    ELSE tasks.property_id
+  END,
+  unit_id = CASE tasks.unit_id
+    WHEN '20000000-0000-0000-0000-000000000020' THEN '20000000-0000-0000-0000-000000000008'::uuid
+    ELSE tasks.unit_id
+  END,
+  title = CASE tasks.id
+    WHEN '91000000-0000-0000-0000-000000000011'
+      THEN 'Quarterly AC cleaning for Northline 02B'
+    ELSE tasks.title
+  END,
+  due_date = context.reference_date + desired.due_offset,
+  reminder_date = context.reference_date + desired.reminder_offset,
+  completed_at = CASE
+    WHEN tasks.status = 'completed'
+      THEN (context.reference_date + desired.due_offset)::timestamptz
+        + interval '5 hours'
+    ELSE NULL
+  END,
+  updated_by = '00000000-0000-0000-0000-000000000101'
+FROM desired_tasks AS desired
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context
+WHERE tasks.id = desired.id;
+
+UPDATE public.ledger_entries
+SET
+  property_id = CASE property_id
+    WHEN '10000000-0000-0000-0000-000000000004' THEN '10000000-0000-0000-0000-000000000002'::uuid
+    WHEN '10000000-0000-0000-0000-000000000005' THEN '10000000-0000-0000-0000-000000000003'::uuid
+    WHEN '10000000-0000-0000-0000-000000000006' THEN '10000000-0000-0000-0000-000000000001'::uuid
+    ELSE property_id
+  END,
+  unit_id = CASE unit_id
+    WHEN '20000000-0000-0000-0000-000000000020' THEN '20000000-0000-0000-0000-000000000008'::uuid
+    WHEN '20000000-0000-0000-0000-000000000021' THEN '20000000-0000-0000-0000-000000000009'::uuid
+    WHEN '20000000-0000-0000-0000-000000000030' THEN '20000000-0000-0000-0000-000000000015'::uuid
+    WHEN '20000000-0000-0000-0000-000000000031' THEN '20000000-0000-0000-0000-000000000003'::uuid
+    ELSE unit_id
+  END,
+  description = CASE id
+    WHEN '40000000-0000-0000-0000-000000000001'
+      THEN 'Rent received for Central Residence 09A.'
+    WHEN '40000000-0000-0000-0000-000000000002'
+      THEN 'Rent received for Central Residence 09B.'
+    WHEN '40000000-0000-0000-0000-000000000003'
+      THEN 'Commercial rent received for Northline R01.'
+    WHEN '40000000-0000-0000-0000-000000000004'
+      THEN 'Rent received for Northline unit 02B.'
+    WHEN '40000000-0000-0000-0000-000000000005'
+      THEN 'Rent received for Street 178 Residence 02-01.'
+    WHEN '40000000-0000-0000-0000-000000000006'
+      THEN 'Rent received for Central Residence 10A.'
+    WHEN '40000000-0000-0000-0000-000000000103'
+      THEN 'Quarterly AC cleaning completed for Northline 02B.'
+    WHEN '40000000-0000-0000-0000-000000000104'
+      THEN 'Replaced common-area corridor lights at Central Residence.'
+    WHEN '40000000-0000-0000-0000-000000000106'
+      THEN 'Security contract for Street 178 Residence.'
+    ELSE description
+  END,
+  amount = CASE id
+    WHEN '40000000-0000-0000-0000-000000000005' THEN 720
+    WHEN '40000000-0000-0000-0000-000000000006' THEN 900
+    ELSE amount
+  END,
+  transaction_date = coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) - CASE
+    WHEN direction = 'income' THEN 2
+    ELSE 6
+  END,
+  updated_by = '00000000-0000-0000-0000-000000000101';
+
+UPDATE public.ledger_entries
+SET
+  property_id = '10000000-0000-0000-0000-000000000002',
+  unit_id = '20000000-0000-0000-0000-000000000008',
+  amount = 650,
+  description = 'Monthly rent received for Northline unit 02B.',
+  updated_by = '00000000-0000-0000-0000-000000000101'
+WHERE id = '40000000-0000-0000-0000-000000000004';
+
+UPDATE public.timeline_events
+SET
+  property_id = CASE property_id
+    WHEN '10000000-0000-0000-0000-000000000004' THEN '10000000-0000-0000-0000-000000000002'::uuid
+    WHEN '10000000-0000-0000-0000-000000000005' THEN '10000000-0000-0000-0000-000000000003'::uuid
+    WHEN '10000000-0000-0000-0000-000000000006' THEN '10000000-0000-0000-0000-000000000001'::uuid
+    ELSE property_id
+  END,
+  unit_id = CASE unit_id
+    WHEN '20000000-0000-0000-0000-000000000020' THEN '20000000-0000-0000-0000-000000000008'::uuid
+    ELSE unit_id
+  END,
+  lease_id = CASE lease_id
+    WHEN '30000000-0000-0000-0000-000000000015' THEN '30000000-0000-0000-0000-000000000006'::uuid
+    ELSE lease_id
+  END,
+  event_date = CASE
+    WHEN timeline_events.lease_id IS NOT NULL
+      AND timeline_events.event_type IN ('Lease Started', 'Tenant Move In')
+      THEN (
+        SELECT leases.lease_start_date
+        FROM public.leases AS leases
+        WHERE leases.id = timeline_events.lease_id
+      )
+    ELSE coalesce(
+      nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+      current_date
+    ) - 5
+  END,
+  updated_by = '00000000-0000-0000-0000-000000000101';
+
+UPDATE public.activity_logs AS activity
+SET
+  created_at = context.reference_date::timestamptz - interval '4 days',
+  new_values = CASE activity.id
+    WHEN '92000000-0000-0000-0000-000000000003'
+      THEN jsonb_set(
+        activity.new_values,
+        '{due_date}',
+        to_jsonb((context.reference_date + 1)::text)
+      )
+    WHEN '92000000-0000-0000-0000-000000000004'
+      THEN activity.new_values || jsonb_build_object(
+        'notice_date',
+        (context.reference_date - 20)::text,
+        'scheduled_move_out_date',
+        (
+          SELECT occupancies.scheduled_move_out_date::text
+          FROM public.lease_occupancies AS occupancies
+          WHERE occupancies.organization_id = activity.organization_id
+            AND occupancies.lease_id = activity.entity_id
+            AND occupancies.archived_at IS NULL
+        )
+      )
+    ELSE activity.new_values
+  END
+FROM LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context;
+
+UPDATE public.ledger_period_locks
+SET
+  period_start = date_trunc(
+    'month',
+    context.reference_date - interval '2 months'
+  )::date,
+  locked_at = date_trunc(
+    'month',
+    context.reference_date - interval '1 month'
+  ) + interval '5 days 9 hours'
+FROM LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context
+WHERE ledger_period_locks.id =
+  '60000000-0000-0000-0000-000000000002';
+
+UPDATE public.ledger_period_locks
+SET
+  period_start = date_trunc(
+    'month',
+    context.reference_date - interval '3 months'
+  )::date,
+  locked_at = date_trunc(
+    'month',
+    context.reference_date - interval '2 months'
+  ) + interval '5 days 9 hours'
+FROM LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context
+WHERE ledger_period_locks.id =
+  '60000000-0000-0000-0000-000000000001';
+
+INSERT INTO public.finance_income_items (
+  id,
+  organization_id,
+  property_id,
+  unit_id,
+  lease_id,
+  ledger_entry_id,
+  income_type,
+  payer_label,
+  due_date,
+  received_date,
+  amount_due,
+  amount_received,
+  currency,
+  status,
+  description,
+  reference,
+  created_by,
+  updated_by
+)
+SELECT
+  seeded.id,
+  '00000000-0000-0000-0000-000000000001',
+  seeded.property_id,
+  seeded.unit_id,
+  seeded.lease_id,
+  seeded.ledger_entry_id,
+  seeded.income_type,
+  seeded.payer_label,
+  date_trunc('month', context.reference_date)::date + seeded.due_offset,
+  CASE
+    WHEN seeded.received_offset IS NULL THEN NULL
+    ELSE context.reference_date + seeded.received_offset
+  END,
+  seeded.amount_due,
+  seeded.amount_received,
+  'USD',
+  seeded.status,
+  seeded.description,
+  seeded.reference,
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+FROM (
+  VALUES
+    (
+      'b7000000-0000-0000-0000-000000000001'::uuid,
+      '10000000-0000-0000-0000-000000000001'::uuid,
+      '20000000-0000-0000-0000-000000000001'::uuid,
+      '30000000-0000-0000-0000-000000000001'::uuid,
+      '40000000-0000-0000-0000-000000000001'::uuid,
+      'rent',
+      'Dara Sok',
+      0,
+      -2,
+      780::numeric,
+      780::numeric,
+      'posted',
+      'Monthly rent for Central Residence 09A.',
+      'DEMO-RENT-09A'
+    ),
+    (
+      'b7000000-0000-0000-0000-000000000002'::uuid,
+      '10000000-0000-0000-0000-000000000001'::uuid,
+      '20000000-0000-0000-0000-000000000002'::uuid,
+      '30000000-0000-0000-0000-000000000002'::uuid,
+      NULL::uuid,
+      'rent',
+      'Srey Mom Chan',
+      0,
+      -1,
+      640::numeric,
+      320::numeric,
+      'partially_received',
+      'Partial monthly rent awaiting the second transfer.',
+      'DEMO-RENT-09B'
+    ),
+    (
+      'b7000000-0000-0000-0000-000000000003'::uuid,
+      '10000000-0000-0000-0000-000000000002'::uuid,
+      '20000000-0000-0000-0000-000000000011'::uuid,
+      '30000000-0000-0000-0000-000000000009'::uuid,
+      '40000000-0000-0000-0000-000000000003'::uuid,
+      'rent',
+      'Mekong Design Studio',
+      4,
+      -3,
+      2400::numeric,
+      2400::numeric,
+      'posted',
+      'Commercial rent for Northline R01.',
+      'DEMO-RENT-R01'
+    ),
+    (
+      'b7000000-0000-0000-0000-000000000004'::uuid,
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      '20000000-0000-0000-0000-000000000013'::uuid,
+      '30000000-0000-0000-0000-000000000010'::uuid,
+      NULL::uuid,
+      'rent',
+      'Heng Pich',
+      0,
+      NULL::integer,
+      560::numeric,
+      0::numeric,
+      'open',
+      'Current monthly rent for Street 178 unit 01-01.',
+      'DEMO-RENT-0101'
+    ),
+    (
+      'b7000000-0000-0000-0000-000000000005'::uuid,
+      '10000000-0000-0000-0000-000000000001'::uuid,
+      '20000000-0000-0000-0000-000000000003'::uuid,
+      '30000000-0000-0000-0000-000000000003'::uuid,
+      NULL::uuid,
+      'utility_reimbursement',
+      'James Wilson',
+      8,
+      NULL::integer,
+      42::numeric,
+      0::numeric,
+      'open',
+      'Electricity reimbursement based on the latest meter reading.',
+      'DEMO-UTILITY-10A'
+    ),
+    (
+      'b7000000-0000-0000-0000-000000000006'::uuid,
+      '10000000-0000-0000-0000-000000000002'::uuid,
+      '20000000-0000-0000-0000-000000000009'::uuid,
+      '30000000-0000-0000-0000-000000000007'::uuid,
+      NULL::uuid,
+      'parking',
+      'Sokha Trading Co.',
+      10,
+      NULL::integer,
+      75::numeric,
+      0::numeric,
+      'open',
+      'Monthly parking add-on for the company lease.',
+      'DEMO-PARKING-03A'
+    ),
+    (
+      'b7000000-0000-0000-0000-000000000007'::uuid,
+      '10000000-0000-0000-0000-000000000002'::uuid,
+      '20000000-0000-0000-0000-000000000008'::uuid,
+      '30000000-0000-0000-0000-000000000006'::uuid,
+      '40000000-0000-0000-0000-000000000004'::uuid,
+      'rent',
+      'Kosal Vann',
+      0,
+      -2,
+      650::numeric,
+      650::numeric,
+      'posted',
+      'Monthly rent for Northline unit 02B.',
+      'DEMO-RENT-02B'
+    ),
+    (
+      'b7000000-0000-0000-0000-000000000008'::uuid,
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      '20000000-0000-0000-0000-000000000015'::uuid,
+      '30000000-0000-0000-0000-000000000011'::uuid,
+      NULL::uuid,
+      'late_fee',
+      'Lina Mao',
+      12,
+      NULL::integer,
+      25::numeric,
+      0::numeric,
+      'open',
+      'Documented late fee awaiting payment.',
+      'DEMO-LATE-0201'
+    )
+) AS seeded (
+  id,
+  property_id,
+  unit_id,
+  lease_id,
+  ledger_entry_id,
+  income_type,
+  payer_label,
+  due_offset,
+  received_offset,
+  amount_due,
+  amount_received,
+  status,
+  description,
+  reference
+)
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context;
+
+UPDATE public.ledger_entries AS ledger
+SET
+  transaction_date = income.received_date,
+  updated_by = '00000000-0000-0000-0000-000000000101'
+FROM public.finance_income_items AS income
+WHERE income.organization_id = ledger.organization_id
+  AND income.ledger_entry_id = ledger.id
+  AND income.received_date IS NOT NULL;
+
+INSERT INTO public.finance_receipts (
+  id,
+  organization_id,
+  property_id,
+  received_date,
+  amount,
+  currency,
+  payer_label,
+  reference,
+  created_by
+)
+SELECT
+  seeded.id,
+  '00000000-0000-0000-0000-000000000001',
+  seeded.property_id,
+  context.reference_date + seeded.received_offset,
+  seeded.amount,
+  'USD',
+  seeded.payer_label,
+  seeded.reference,
+  '00000000-0000-0000-0000-000000000101'
+FROM (
+  VALUES
+    (
+      'b8000000-0000-0000-0000-000000000001'::uuid,
+      '10000000-0000-0000-0000-000000000001'::uuid,
+      -2,
+      780::numeric,
+      'Dara Sok',
+      'DEMO-RCPT-09A'
+    ),
+    (
+      'b8000000-0000-0000-0000-000000000002'::uuid,
+      '10000000-0000-0000-0000-000000000001'::uuid,
+      -1,
+      320::numeric,
+      'Srey Mom Chan',
+      'DEMO-RCPT-09B-PART'
+    ),
+    (
+      'b8000000-0000-0000-0000-000000000003'::uuid,
+      '10000000-0000-0000-0000-000000000002'::uuid,
+      -3,
+      2400::numeric,
+      'Mekong Design Studio',
+      'DEMO-RCPT-R01'
+    ),
+    (
+      'b8000000-0000-0000-0000-000000000004'::uuid,
+      '10000000-0000-0000-0000-000000000002'::uuid,
+      -2,
+      650::numeric,
+      'Kosal Vann',
+      'DEMO-RCPT-02B'
+    )
+) AS seeded (
+  id,
+  property_id,
+  received_offset,
+  amount,
+  payer_label,
+  reference
+)
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context;
+
+INSERT INTO public.finance_receipt_allocations (
+  id,
+  organization_id,
+  receipt_id,
+  income_item_id,
+  amount,
+  created_by
+)
+VALUES
+(
+  'b8100000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  'b8000000-0000-0000-0000-000000000001',
+  'b7000000-0000-0000-0000-000000000001',
+  780,
+  '00000000-0000-0000-0000-000000000101'
+),
+(
+  'b8100000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-000000000001',
+  'b8000000-0000-0000-0000-000000000002',
+  'b7000000-0000-0000-0000-000000000002',
+  320,
+  '00000000-0000-0000-0000-000000000101'
+),
+(
+  'b8100000-0000-0000-0000-000000000003',
+  '00000000-0000-0000-0000-000000000001',
+  'b8000000-0000-0000-0000-000000000003',
+  'b7000000-0000-0000-0000-000000000003',
+  2400,
+  '00000000-0000-0000-0000-000000000101'
+),
+(
+  'b8100000-0000-0000-0000-000000000004',
+  '00000000-0000-0000-0000-000000000001',
+  'b8000000-0000-0000-0000-000000000004',
+  'b7000000-0000-0000-0000-000000000007',
+  650,
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.finance_expense_items (
+  id,
+  organization_id,
+  property_id,
+  unit_id,
+  task_id,
+  vendor_person_id,
+  ledger_entry_id,
+  expense_type,
+  vendor_label,
+  invoice_date,
+  due_date,
+  paid_date,
+  amount,
+  currency,
+  category,
+  status,
+  description,
+  reference,
+  created_by,
+  updated_by
+)
+SELECT
+  seeded.id,
+  '00000000-0000-0000-0000-000000000001',
+  seeded.property_id,
+  seeded.unit_id,
+  seeded.task_id,
+  seeded.vendor_person_id,
+  seeded.ledger_entry_id,
+  seeded.expense_type,
+  seeded.vendor_label,
+  context.reference_date + seeded.invoice_offset,
+  context.reference_date + seeded.due_offset,
+  CASE
+    WHEN seeded.paid_offset IS NULL THEN NULL
+    ELSE context.reference_date + seeded.paid_offset
+  END,
+  seeded.amount,
+  'USD',
+  seeded.category,
+  seeded.status,
+  seeded.description,
+  seeded.reference,
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+FROM (
+  VALUES
+    (
+      'b9000000-0000-0000-0000-000000000001'::uuid,
+      '10000000-0000-0000-0000-000000000001'::uuid,
+      '20000000-0000-0000-0000-000000000001'::uuid,
+      '91000000-0000-0000-0000-000000000001'::uuid,
+      '80200000-0000-0000-0000-000000000001'::uuid,
+      '40000000-0000-0000-0000-000000000101'::uuid,
+      'vendor_bill',
+      'Phnom Penh Plumbing Co.',
+      -8,
+      -1,
+      -6,
+      185::numeric,
+      'Plumbing repair',
+      'paid',
+      'Replacement trap and labor for the kitchen sink repair.',
+      'DEMO-BILL-PLUMBING'
+    ),
+    (
+      'b9000000-0000-0000-0000-000000000002'::uuid,
+      '10000000-0000-0000-0000-000000000002'::uuid,
+      '20000000-0000-0000-0000-000000000011'::uuid,
+      '91000000-0000-0000-0000-000000000002'::uuid,
+      '80200000-0000-0000-0000-000000000003'::uuid,
+      NULL::uuid,
+      'vendor_bill',
+      'SecureLift Cambodia',
+      -2,
+      10,
+      NULL::integer,
+      1250::numeric,
+      'Elevator repair',
+      'approved',
+      'Approved quote awaiting the scheduled repair window.',
+      'DEMO-BILL-ELEVATOR'
+    ),
+    (
+      'b9000000-0000-0000-0000-000000000003'::uuid,
+      '10000000-0000-0000-0000-000000000002'::uuid,
+      '20000000-0000-0000-0000-000000000008'::uuid,
+      '91000000-0000-0000-0000-000000000011'::uuid,
+      '80200000-0000-0000-0000-000000000002'::uuid,
+      '40000000-0000-0000-0000-000000000103'::uuid,
+      'maintenance',
+      'CoolAir Service Cambodia',
+      -12,
+      -5,
+      NULL::integer,
+      95::numeric,
+      'AC service',
+      'posted',
+      'Quarterly AC cleaning completed and posted.',
+      'DEMO-BILL-AC'
+    ),
+    (
+      'b9000000-0000-0000-0000-000000000004'::uuid,
+      '10000000-0000-0000-0000-000000000001'::uuid,
+      NULL::uuid,
+      '91000000-0000-0000-0000-000000000010'::uuid,
+      '80200000-0000-0000-0000-000000000004'::uuid,
+      '40000000-0000-0000-0000-000000000104'::uuid,
+      'vendor_bill',
+      'BrightLine Electrical',
+      -11,
+      -4,
+      -6,
+      64::numeric,
+      'Electrical repair',
+      'paid',
+      'Replacement LED drivers for common corridors.',
+      'DEMO-BILL-LIGHTS'
+    ),
+    (
+      'b9000000-0000-0000-0000-000000000005'::uuid,
+      '10000000-0000-0000-0000-000000000002'::uuid,
+      NULL::uuid,
+      '91000000-0000-0000-0000-000000000006'::uuid,
+      '80200000-0000-0000-0000-000000000006'::uuid,
+      NULL::uuid,
+      'supplies',
+      'Green Pest Control',
+      0,
+      14,
+      NULL::integer,
+      140::numeric,
+      'Pest control',
+      'draft',
+      'Draft recurring service bill pending route completion.',
+      'DEMO-BILL-PEST'
+    ),
+    (
+      'b9000000-0000-0000-0000-000000000006'::uuid,
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      NULL::uuid,
+      '91000000-0000-0000-0000-000000000009'::uuid,
+      '80200000-0000-0000-0000-000000000007'::uuid,
+      NULL::uuid,
+      'maintenance',
+      'Mekong Cleaning Services',
+      1,
+      16,
+      NULL::integer,
+      160::numeric,
+      'Move-out',
+      'approved',
+      'Approved allowance for move-out cleaning and touch-up.',
+      'DEMO-BILL-MOVEOUT'
+    )
+) AS seeded (
+  id,
+  property_id,
+  unit_id,
+  task_id,
+  vendor_person_id,
+  ledger_entry_id,
+  expense_type,
+  vendor_label,
+  invoice_offset,
+  due_offset,
+  paid_offset,
+  amount,
+  category,
+  status,
+  description,
+  reference
+)
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context;
+
+INSERT INTO public.finance_payments (
+  id,
+  organization_id,
+  property_id,
+  paid_date,
+  amount,
+  currency,
+  payee_label,
+  reference,
+  created_by
+)
+SELECT
+  seeded.id,
+  '00000000-0000-0000-0000-000000000001',
+  seeded.property_id,
+  context.reference_date - 6,
+  seeded.amount,
+  'USD',
+  seeded.payee_label,
+  seeded.reference,
+  '00000000-0000-0000-0000-000000000101'
+FROM (
+  VALUES
+    (
+      'c7000000-0000-0000-0000-000000000001'::uuid,
+      '10000000-0000-0000-0000-000000000001'::uuid,
+      185::numeric,
+      'Phnom Penh Plumbing Co.',
+      'DEMO-PMT-PLUMBING'
+    ),
+    (
+      'c7000000-0000-0000-0000-000000000002'::uuid,
+      '10000000-0000-0000-0000-000000000001'::uuid,
+      64::numeric,
+      'BrightLine Electrical',
+      'DEMO-PMT-LIGHTS'
+    )
+) AS seeded (
+  id,
+  property_id,
+  amount,
+  payee_label,
+  reference
+)
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context;
+
+INSERT INTO public.finance_payment_allocations (
+  id,
+  organization_id,
+  payment_id,
+  expense_item_id,
+  amount,
+  created_by
+)
+VALUES
+(
+  'c7100000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  'c7000000-0000-0000-0000-000000000001',
+  'b9000000-0000-0000-0000-000000000001',
+  185,
+  '00000000-0000-0000-0000-000000000101'
+),
+(
+  'c7100000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-000000000001',
+  'c7000000-0000-0000-0000-000000000002',
+  'b9000000-0000-0000-0000-000000000004',
+  64,
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.lease_deposit_events (
+  id,
+  organization_id,
+  property_id,
+  lease_deposit_id,
+  event_type,
+  event_date,
+  amount,
+  currency,
+  reference,
+  created_by
+)
+SELECT
+  seeded.id,
+  deposits.organization_id,
+  leases.property_id,
+  deposits.id,
+  seeded.event_type,
+  CASE seeded.event_type
+    WHEN 'received' THEN coalesce(deposits.received_on, leases.lease_start_date)
+    ELSE coalesce(deposits.returned_on, context.reference_date - 5)
+  END,
+  CASE
+    WHEN seeded.amount_override IS NULL THEN deposits.amount
+    ELSE seeded.amount_override
+  END,
+  deposits.currency,
+  seeded.reference,
+  '00000000-0000-0000-0000-000000000101'
+FROM (
+  VALUES
+    (
+      'c8000000-0000-0000-0000-000000000001'::uuid,
+      '88000000-0000-0000-0000-000000000002'::uuid,
+      'received',
+      NULL::numeric,
+      'DEMO-DEPOSIT-09B'
+    ),
+    (
+      'c8000000-0000-0000-0000-000000000002'::uuid,
+      '88000000-0000-0000-0000-000000000004'::uuid,
+      'received',
+      NULL::numeric,
+      'DEMO-DEPOSIT-11B'
+    ),
+    (
+      'c8000000-0000-0000-0000-000000000003'::uuid,
+      '88000000-0000-0000-0000-000000000004'::uuid,
+      'applied',
+      120::numeric,
+      'DEMO-DEPOSIT-11B-APPLIED'
+    ),
+    (
+      'c8000000-0000-0000-0000-000000000004'::uuid,
+      '88000000-0000-0000-0000-000000000013'::uuid,
+      'refunded',
+      NULL::numeric,
+      'DEMO-DEPOSIT-0301-REFUND'
+    )
+) AS seeded (
+  id,
+  deposit_id,
+  event_type,
+  amount_override,
+  reference
+)
+JOIN public.lease_deposits AS deposits
+  ON deposits.id = seeded.deposit_id
+JOIN public.leases AS leases
+  ON leases.id = deposits.lease_id
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context;
+
+UPDATE public.lease_deposits
+SET status = 'partially_returned'
+WHERE id = '88000000-0000-0000-0000-000000000004';
+
+INSERT INTO public.petty_cash_accounts (
+  id,
+  organization_id,
+  account_number,
+  name,
+  custodian_person_id,
+  currency,
+  float_amount,
+  status,
+  created_by,
+  updated_by
+)
+VALUES (
+  'c9000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  'PC-CENTRAL-01',
+  'Central Operations Petty Cash',
+  '80300000-0000-0000-0000-000000000001',
+  'USD',
+  300,
+  'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.petty_cash_periods (
+  id,
+  organization_id,
+  account_id,
+  period_start,
+  opening_balance_amount,
+  advance_amount,
+  status,
+  notes,
+  created_by,
+  updated_by
+)
+SELECT
+  'c9100000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  'c9000000-0000-0000-0000-000000000001',
+  date_trunc('month', reference_date)::date,
+  120,
+  180,
+  'open',
+  'Current operating period with a representative cash float.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+FROM LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context;
+
+INSERT INTO public.petty_cash_entries (
+  id,
+  organization_id,
+  account_id,
+  period_id,
+  property_id,
+  unit_id,
+  ledger_entry_id,
+  invoice_date,
+  clear_date,
+  entry_kind,
+  status,
+  category,
+  supplier,
+  description,
+  receipt_reference,
+  out_amount,
+  in_amount,
+  currency,
+  remark,
+  created_by,
+  updated_by
+)
+SELECT
+  seeded.id,
+  '00000000-0000-0000-0000-000000000001',
+  'c9000000-0000-0000-0000-000000000001',
+  'c9100000-0000-0000-0000-000000000001',
+  seeded.property_id,
+  seeded.unit_id,
+  seeded.ledger_entry_id,
+  context.reference_date + seeded.invoice_offset,
+  CASE
+    WHEN seeded.status IN ('cleared', 'posted')
+      THEN context.reference_date + seeded.invoice_offset
+    ELSE NULL
+  END,
+  seeded.entry_kind,
+  seeded.status,
+  seeded.category,
+  seeded.supplier,
+  seeded.description,
+  seeded.receipt_reference,
+  seeded.out_amount,
+  seeded.in_amount,
+  'USD',
+  seeded.remark,
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+FROM (
+  VALUES
+    (
+      'c9200000-0000-0000-0000-000000000001'::uuid,
+      NULL::uuid,
+      NULL::uuid,
+      NULL::uuid,
+      -15,
+      'advance',
+      'cleared',
+      'Float',
+      'Central Operations',
+      'Monthly cash-float top-up.',
+      'PC-ADVANCE',
+      0::numeric,
+      180::numeric,
+      'Opening advance for the current period.'
+    ),
+    (
+      'c9200000-0000-0000-0000-000000000002'::uuid,
+      '10000000-0000-0000-0000-000000000001'::uuid,
+      '20000000-0000-0000-0000-000000000001'::uuid,
+      NULL::uuid,
+      -7,
+      'expense',
+      'cleared',
+      'Repair supplies',
+      'HomeFix BKK',
+      'Plumber tape, sealant, and cabinet drying cloths.',
+      'PC-2401',
+      18.50::numeric,
+      0::numeric,
+      'Receipt verified by the custodian.'
+    ),
+    (
+      'c9200000-0000-0000-0000-000000000003'::uuid,
+      '10000000-0000-0000-0000-000000000002'::uuid,
+      NULL::uuid,
+      NULL::uuid,
+      -4,
+      'expense',
+      'posted',
+      'Transport',
+      'PassApp',
+      'Technician transport for the elevator inspection.',
+      'PC-2402',
+      12::numeric,
+      0::numeric,
+      'Posted after manager review.'
+    ),
+    (
+      'c9200000-0000-0000-0000-000000000004'::uuid,
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      NULL::uuid,
+      NULL::uuid,
+      0,
+      'expense',
+      'draft',
+      'Cleaning supplies',
+      'Lucky Supermarket',
+      'Move-out inspection cleaning supplies.',
+      'PC-2403',
+      26.75::numeric,
+      0::numeric,
+      'Draft entry awaiting receipt review.'
+    )
+) AS seeded (
+  id,
+  property_id,
+  unit_id,
+  ledger_entry_id,
+  invoice_offset,
+  entry_kind,
+  status,
+  category,
+  supplier,
+  description,
+  receipt_reference,
+  out_amount,
+  in_amount,
+  remark
+)
+CROSS JOIN LATERAL (
+  SELECT coalesce(
+    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
+    current_date
+  ) AS reference_date
+) AS context;
 
 SELECT set_config('app.people_leases_skip_sync', 'off', false);
 SELECT app_private.backfill_accounting_journals();
