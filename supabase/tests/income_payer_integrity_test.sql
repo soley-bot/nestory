@@ -184,9 +184,13 @@ SELECT throws_ok(
 
 RESET ROLE;
 
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
+
 UPDATE public.people
 SET archived_at = now()
-WHERE id = '80000000-0000-0000-0000-000000000002';
+WHERE id = '8e000000-0000-0000-0000-000000000001';
+
+SELECT set_config('app.people_leases_skip_sync', 'off', true);
 
 SET LOCAL ROLE authenticated;
 
@@ -204,7 +208,7 @@ SELECT throws_ok(
     p_received_date => NULL,
     p_description => NULL,
     p_reference => NULL,
-    p_payer_person_id => '80000000-0000-0000-0000-000000000002'
+    p_payer_person_id => '8e000000-0000-0000-0000-000000000001'
   )$$,
   '23503',
   'Payer person not found',

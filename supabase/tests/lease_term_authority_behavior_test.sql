@@ -425,14 +425,20 @@ SELECT throws_ok(
     'ended',
     'lease-invalid-inactive-update-0001'
   ),
-  '23514',
-  'An inactive lease cannot retain an active or upcoming authoritative term',
-  'lease lifecycle cannot become inactive while its authority remains active'
+  '55000',
+  'Changing Lease lifecycle status requires a checked occupancy transition',
+  'lease lifecycle change requires a checked occupancy transition'
 );
+
+RESET ROLE;
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
 
 UPDATE public.leases
 SET status = 'ended'
 WHERE id = (SELECT created_lease_id FROM lease_authority_state);
+
+SELECT set_config('app.people_leases_skip_sync', 'off', true);
+SET LOCAL ROLE authenticated;
 
 SELECT results_eq(
   format(
@@ -444,9 +450,15 @@ SELECT results_eq(
   'pre-existing inactive leases fail closed even if an active term remains'
 );
 
+RESET ROLE;
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
+
 UPDATE public.leases
 SET status = 'active'
 WHERE id = (SELECT created_lease_id FROM lease_authority_state);
+
+SELECT set_config('app.people_leases_skip_sync', 'off', true);
+SET LOCAL ROLE authenticated;
 
 SELECT is(
   public.create_lease_with_authoritative_term(

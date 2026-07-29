@@ -61,6 +61,53 @@ export function parseIdempotencyKey(value: string) {
   return { data: candidate, success: true as const };
 }
 
+type LeaseMutationOperation = "archive" | "restore" | "update";
+
+export function getLeaseMutationErrorMessage(
+  error: {
+    details?: string | null;
+    message?: string;
+  },
+  operation: LeaseMutationOperation,
+) {
+  if (
+    operation === "update" &&
+    error.details === "relationship_transition_required"
+  ) {
+    return "Keep the current tenant in this edit. Changing Lease parties requires a checked relationship transition.";
+  }
+
+  if (
+    operation === "update" &&
+    error.details === "occupancy_transition_required"
+  ) {
+    return "Keep the current unit and status in this edit. Changing property or occupancy requires a checked occupancy transition.";
+  }
+
+  if (
+    operation === "archive" &&
+    error.details === "occupancy_transition_required"
+  ) {
+    return "End or cancel the open occupancy through a checked transition before archiving this Lease.";
+  }
+
+  if (
+    operation === "archive" &&
+    error.details === "relationship_transition_required"
+  ) {
+    return "End or cancel the open Lease role through a checked relationship transition before archiving this Lease.";
+  }
+
+  if (
+    operation === "restore" &&
+    error.details === "lease_restore_transition_required"
+  ) {
+    return "Restore is unavailable until relationship, occupancy, and dependency review is implemented.";
+  }
+
+  return null;
+}
+
 export function getMonthlyRentGenerationErrorMessage(error: {
   details?: string | null;
   message?: string;

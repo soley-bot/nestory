@@ -342,14 +342,14 @@ export function LeaseInspector({
           )}
           {lease.isArchived ? (
             <button
-              aria-label={`Restore lease for ${lease.tenantName}`}
+              aria-label={`Review restore requirements for ${lease.tenantName}`}
               className={primaryIconButtonClassName}
               onClick={() => onRestoreLease(lease)}
-              title="Restore lease"
+              title="Review restore requirements"
               type="button"
             >
               <RotateCcw size={15} />
-              <span className="truncate">Restore</span>
+              <span className="truncate">Restore review</span>
             </button>
           ) : (
             <button

@@ -67,6 +67,19 @@ describe("PersonDetailScreen", () => {
     ).toBe("unchecked");
   });
 
+  it("warns that open Lease roles must be resolved before archive", () => {
+    render(<PersonDetailScreen person={person} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Archive person" });
+    expect(
+      within(drawer).getByText(
+        /open Lease roles must be ended or cancelled through a checked relationship transition first/i,
+      ),
+    ).toBeTruthy();
+  });
+
   it.each([
     [
       { primaryAction: "grant_access", state: "no_access" },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getLeaseMutationErrorMessage,
   getMonthlyRentGenerationErrorMessage,
   parseFutureRentTermInput,
   parseIdempotencyKey,
@@ -65,4 +66,45 @@ describe("lease action input", () => {
       }),
     ).not.toContain("Plan 09");
   });
+
+  it.each([
+    [
+      "update",
+      "relationship_transition_required",
+      "Keep the current tenant",
+    ],
+    [
+      "update",
+      "occupancy_transition_required",
+      "Keep the current unit and status",
+    ],
+    [
+      "archive",
+      "occupancy_transition_required",
+      "End or cancel the open occupancy",
+    ],
+    [
+      "archive",
+      "relationship_transition_required",
+      "End or cancel the open Lease role",
+    ],
+    [
+      "restore",
+      "lease_restore_transition_required",
+      "Restore is unavailable",
+    ],
+  ] as const)(
+    "maps %s failures by the stable %s detail",
+    (operation, details, expectedCopy) => {
+      expect(
+        getLeaseMutationErrorMessage(
+          {
+            details,
+            message: "localized or revised database message",
+          },
+          operation,
+        ),
+      ).toContain(expectedCopy);
+    },
+  );
 });
