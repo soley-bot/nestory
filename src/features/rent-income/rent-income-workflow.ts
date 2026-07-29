@@ -1,7 +1,18 @@
-import type { RentIncomeStatus } from "@/features/rent-income/rent-income.types";
+import type {
+  RentIncomeStatus,
+  RentIncomeType,
+} from "@/features/rent-income/rent-income.types";
+
+const unsupportedAtomicSettlementTypes = new Set<RentIncomeType>([
+  "security_deposit",
+  "owner_contribution",
+  "management_fee",
+  "leasing_commission",
+  "service_fee",
+  "maintenance_markup",
+]);
 
 export type RentIncomeWorkflow = {
-  canPost: boolean;
   canRecordReceipt: boolean;
   nextAction: string;
   ownerStatementState: "full_cash" | "no_cash" | "partial_cash";
@@ -12,11 +23,13 @@ export type RentIncomeWorkflow = {
 export function getRentIncomeWorkflow({
   amountDue,
   amountReceived,
+  incomeType,
   ledgerEntryId,
   status,
 }: {
   amountDue: number;
   amountReceived: number;
+  incomeType: RentIncomeType;
   ledgerEntryId: string | null;
   status: RentIncomeStatus;
 }): RentIncomeWorkflow {
@@ -24,8 +37,10 @@ export function getRentIncomeWorkflow({
   const posted = status === "posted" || Boolean(ledgerEntryId);
   const voided = status === "void";
   const fullyReceived = amountReceived >= amountDue && amountDue > 0;
-  const canRecordReceipt = !posted && !voided && remainingAmount > 0;
-  const canPost = !posted && !voided && fullyReceived;
+  const settlementSupported =
+    !unsupportedAtomicSettlementTypes.has(incomeType);
+  const canRecordReceipt =
+    settlementSupported && !posted && !voided && remainingAmount > 0;
   const ownerStatementState =
     amountReceived <= 0
       ? "no_cash"
@@ -35,18 +50,16 @@ export function getRentIncomeWorkflow({
 
   if (posted) {
     return {
-      canPost: false,
       canRecordReceipt: false,
-      nextAction: "Posted to ledger",
+      nextAction: "Legacy posted",
       ownerStatementState,
       remainingAmount,
-      stageLabel: "Posted",
+      stageLabel: "Legacy posted",
     };
   }
 
   if (voided) {
     return {
-      canPost: false,
       canRecordReceipt: false,
       nextAction: "No further action",
       ownerStatementState,
@@ -55,20 +68,28 @@ export function getRentIncomeWorkflow({
     };
   }
 
-  if (fullyReceived) {
+  if (!settlementSupported) {
     return {
-      canPost,
-      canRecordReceipt,
-      nextAction: "Post to ledger",
+      canRecordReceipt: false,
+      nextAction: "Use dedicated workflow",
       ownerStatementState,
       remainingAmount,
-      stageLabel: "Receipt complete",
+      stageLabel: amountReceived > 0 ? "Legacy receipt" : "Charge created",
+    };
+  }
+
+  if (fullyReceived) {
+    return {
+      canRecordReceipt,
+      nextAction: "Settled",
+      ownerStatementState,
+      remainingAmount,
+      stageLabel: "Settled and projected",
     };
   }
 
   if (amountReceived > 0) {
     return {
-      canPost,
       canRecordReceipt,
       nextAction: "Record remaining receipt",
       ownerStatementState,
@@ -78,7 +99,6 @@ export function getRentIncomeWorkflow({
   }
 
   return {
-    canPost,
     canRecordReceipt,
     nextAction: "Record receipt",
     ownerStatementState,

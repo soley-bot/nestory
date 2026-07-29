@@ -132,13 +132,13 @@ SELECT lives_ok(
       p_payer_label => 'Ignored caller label',
       p_due_date => '2026-08-01',
       p_amount_due => 100,
-      p_amount_received => 40,
-      p_received_date => '2026-08-01',
+      p_amount_received => 0,
+      p_received_date => NULL,
       p_description => 'Payer integrity test',
       p_reference => 'PAYER-INTEGRITY',
       p_payer_person_id => '80000000-0000-0000-0000-000000000001'
     )$$,
-  'linked active payer is accepted by the income RPC'
+  'linked active payer is accepted for a zero-cash obligation'
 );
 
 SELECT is(
@@ -172,14 +172,13 @@ SELECT throws_ok(
   'income RPC rejects a payer from another organization'
 );
 
-SELECT throws_ok(
-  $$SELECT public.post_finance_income_item(
-    (SELECT linked_income_id FROM income_payer_test_state),
-    '00000000-0000-0000-0000-000000000001'
-  )$$,
-  '22023',
-  'Record the remaining receipt before posting to the ledger',
-  'partially received income cannot post before it is fully received'
+SELECT ok(
+  NOT has_function_privilege(
+    'authenticated',
+    'public.post_finance_income_item(uuid,uuid)',
+    'EXECUTE'
+  ),
+  'operators cannot separately post an income obligation'
 );
 
 RESET ROLE;

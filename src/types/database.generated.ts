@@ -817,6 +817,12 @@ export type Database = {
           property_id: string
           received_date: string | null
           reference: string | null
+          remaining_balance_disposition: string | null
+          remaining_balance_disposition_hash: string | null
+          remaining_balance_disposition_version: number | null
+          settlement_creation_hash: string | null
+          settlement_creation_provenance: string | null
+          settlement_creation_version: number | null
           status: string
           unit_id: string | null
           updated_at: string
@@ -842,6 +848,12 @@ export type Database = {
           property_id: string
           received_date?: string | null
           reference?: string | null
+          remaining_balance_disposition?: string | null
+          remaining_balance_disposition_hash?: string | null
+          remaining_balance_disposition_version?: number | null
+          settlement_creation_hash?: string | null
+          settlement_creation_provenance?: string | null
+          settlement_creation_version?: number | null
           status?: string
           unit_id?: string | null
           updated_at?: string
@@ -867,6 +879,12 @@ export type Database = {
           property_id?: string
           received_date?: string | null
           reference?: string | null
+          remaining_balance_disposition?: string | null
+          remaining_balance_disposition_hash?: string | null
+          remaining_balance_disposition_version?: number | null
+          settlement_creation_hash?: string | null
+          settlement_creation_provenance?: string | null
+          settlement_creation_version?: number | null
           status?: string
           unit_id?: string | null
           updated_at?: string
@@ -1081,33 +1099,194 @@ export type Database = {
           },
         ]
       }
-      finance_receipt_allocations: {
+      finance_receipt_allocation_journals: {
         Row: {
-          amount: number
+          allocation_id: string
+          book_id: string
           created_at: string
           created_by: string | null
           id: string
-          income_item_id: string
+          journal_entry_id: string
           organization_id: string
+        }
+        Insert: {
+          allocation_id: string
+          book_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          journal_entry_id: string
+          organization_id: string
+        }
+        Update: {
+          allocation_id?: string
+          book_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          journal_entry_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_receipt_allocation_journals_allocation_fkey"
+            columns: ["organization_id", "allocation_id"]
+            isOneToOne: false
+            referencedRelation: "finance_receipt_allocations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_receipt_allocation_journals_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_receipt_allocation_journals_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: true
+            referencedRelation: "accounting_journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_receipt_allocation_journals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      finance_receipt_allocations: {
+        Row: {
+          amount: number
+          calculation_material_hash: string | null
+          charge_occurrence_id: string | null
+          classification_evidence_hash: string | null
+          classification_evidence_kind: string | null
+          classification_evidence_version: number | null
+          committed_at: string | null
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"] | null
+          economic_class: string | null
+          external_reference: string | null
+          id: string
+          income_item_id: string
+          income_type_snapshot: string | null
+          invoice_header_id: string | null
+          invoice_line_id: string | null
+          invoice_version_id: string | null
+          lease_id: string | null
+          lease_term_id_snapshot: string | null
+          lease_term_version_snapshot: number | null
+          ledger_entry_id: string | null
+          obligation_type: string | null
+          organization_id: string
+          outstanding_balance_after: number | null
+          payer_label_snapshot: string | null
+          payer_person_id_snapshot: string | null
+          property_id: string | null
+          publication_source_class: string | null
           receipt_id: string
+          received_date: string | null
+          reconciliation_source_id: string | null
+          relationship_evidence_hash: string | null
+          reversal_of_allocation_id: string | null
+          settlement_activation_version: number | null
+          settlement_basis: string | null
+          settlement_contract_version: string | null
+          settlement_sequence: number | null
+          signed_amount: number | null
+          source_discriminator: string | null
+          unit_id: string | null
         }
         Insert: {
           amount: number
+          calculation_material_hash?: string | null
+          charge_occurrence_id?: string | null
+          classification_evidence_hash?: string | null
+          classification_evidence_kind?: string | null
+          classification_evidence_version?: number | null
+          committed_at?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"] | null
+          economic_class?: string | null
+          external_reference?: string | null
           id?: string
           income_item_id: string
+          income_type_snapshot?: string | null
+          invoice_header_id?: string | null
+          invoice_line_id?: string | null
+          invoice_version_id?: string | null
+          lease_id?: string | null
+          lease_term_id_snapshot?: string | null
+          lease_term_version_snapshot?: number | null
+          ledger_entry_id?: string | null
+          obligation_type?: string | null
           organization_id: string
+          outstanding_balance_after?: number | null
+          payer_label_snapshot?: string | null
+          payer_person_id_snapshot?: string | null
+          property_id?: string | null
+          publication_source_class?: string | null
           receipt_id: string
+          received_date?: string | null
+          reconciliation_source_id?: string | null
+          relationship_evidence_hash?: string | null
+          reversal_of_allocation_id?: string | null
+          settlement_activation_version?: number | null
+          settlement_basis?: string | null
+          settlement_contract_version?: string | null
+          settlement_sequence?: number | null
+          signed_amount?: number | null
+          source_discriminator?: string | null
+          unit_id?: string | null
         }
         Update: {
           amount?: number
+          calculation_material_hash?: string | null
+          charge_occurrence_id?: string | null
+          classification_evidence_hash?: string | null
+          classification_evidence_kind?: string | null
+          classification_evidence_version?: number | null
+          committed_at?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"] | null
+          economic_class?: string | null
+          external_reference?: string | null
           id?: string
           income_item_id?: string
+          income_type_snapshot?: string | null
+          invoice_header_id?: string | null
+          invoice_line_id?: string | null
+          invoice_version_id?: string | null
+          lease_id?: string | null
+          lease_term_id_snapshot?: string | null
+          lease_term_version_snapshot?: number | null
+          ledger_entry_id?: string | null
+          obligation_type?: string | null
           organization_id?: string
+          outstanding_balance_after?: number | null
+          payer_label_snapshot?: string | null
+          payer_person_id_snapshot?: string | null
+          property_id?: string | null
+          publication_source_class?: string | null
           receipt_id?: string
+          received_date?: string | null
+          reconciliation_source_id?: string | null
+          relationship_evidence_hash?: string | null
+          reversal_of_allocation_id?: string | null
+          settlement_activation_version?: number | null
+          settlement_basis?: string | null
+          settlement_contract_version?: string | null
+          settlement_sequence?: number | null
+          signed_amount?: number | null
+          source_discriminator?: string | null
+          unit_id?: string | null
         }
         Relationships: [
           {
@@ -1118,6 +1297,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "finance_receipt_allocations_ledger_entry_fkey"
+            columns: ["ledger_entry_id"]
+            isOneToOne: true
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "finance_receipt_allocations_org_income_item_fkey"
             columns: ["organization_id", "income_item_id"]
             isOneToOne: false
@@ -1125,10 +1311,24 @@ export type Database = {
             referencedColumns: ["organization_id", "id"]
           },
           {
+            foreignKeyName: "finance_receipt_allocations_org_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "finance_receipt_allocations_org_receipt_fkey"
             columns: ["organization_id", "receipt_id"]
             isOneToOne: false
             referencedRelation: "finance_receipts"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_receipt_allocations_org_reconciliation_source_fkey"
+            columns: ["organization_id", "reconciliation_source_id"]
+            isOneToOne: false
+            referencedRelation: "financial_reconciliation_sources"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -1144,6 +1344,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "finance_receipts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_receipt_allocations_reversal_scope_fkey"
+            columns: ["organization_id", "reversal_of_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "finance_receipt_allocations"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -1161,6 +1368,7 @@ export type Database = {
           reconciliation_source_id: string | null
           reference: string | null
           reversal_of_id: string | null
+          settlement_contract_version: string | null
         }
         Insert: {
           amount: number
@@ -1175,6 +1383,7 @@ export type Database = {
           reconciliation_source_id?: string | null
           reference?: string | null
           reversal_of_id?: string | null
+          settlement_contract_version?: string | null
         }
         Update: {
           amount?: number
@@ -1189,6 +1398,7 @@ export type Database = {
           reconciliation_source_id?: string | null
           reference?: string | null
           reversal_of_id?: string | null
+          settlement_contract_version?: string | null
         }
         Relationships: [
           {
@@ -4406,6 +4616,16 @@ export type Database = {
           unposted_total: number
         }[]
       }
+      get_finance_income_owner_state_v1: {
+        Args: {
+          p_action_date?: string
+          p_organization_id: string
+          p_requested_action?: string
+          p_source_id: string
+          p_source_type: string
+        }
+        Returns: Json
+      }
       get_finance_income_workflow_summary: {
         Args: {
           p_due_before: string
@@ -4667,6 +4887,18 @@ export type Database = {
         }
         Returns: string
       }
+      record_finance_receipt_v2: {
+        Args: {
+          p_amount: number
+          p_idempotency_key: string
+          p_income_item_id: string
+          p_organization_id: string
+          p_received_date: string
+          p_reconciliation_source_id: string
+          p_reference: string
+        }
+        Returns: Json
+      }
       record_lease_deposit_event: {
         Args: {
           p_amount: number
@@ -4795,6 +5027,17 @@ export type Database = {
           p_reversal_date: string
         }
         Returns: string
+      }
+      reverse_finance_receipt_v2: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_receipt_id: string
+          p_reconciliation_source_id: string
+          p_reversal_date: string
+        }
+        Returns: Json
       }
       reverse_lease_deposit_event: {
         Args: {

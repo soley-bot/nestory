@@ -94,6 +94,9 @@ jobs:
       - name: Test accounting authority concurrency
         run: npm run finance:test-accounting-authority
 
+      - name: Test income-settlement concurrency
+        run: npm run finance:test-income-settlement
+
       - name: Test lease-term authority concurrency
         run: npm run leases:test-term-authority
 

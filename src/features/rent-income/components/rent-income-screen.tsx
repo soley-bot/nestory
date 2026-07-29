@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { FormEvent, ReactNode } from "react";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Coins, Eye, Plus, RotateCcw, Send, XCircle } from "lucide-react";
+import { Coins, Eye, Plus, RotateCcw, XCircle } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -32,8 +32,8 @@ import {
 import type { PersonSelectOption } from "@/features/people/person-select";
 import {
   createRentIncomeItemAction,
-  postRentIncomeItemAction,
   recordRentIncomePaymentAction,
+  reverseRentIncomeReceiptAction,
   type RentIncomeActionState,
   voidRentIncomeItemAction,
 } from "@/features/rent-income/actions";
@@ -45,6 +45,8 @@ import {
   type RentIncomeLeaseOption,
   type RentIncomeOption,
   type RentIncomePagination,
+  type RentIncomeReceipt,
+  type RentIncomeReconciliationSource,
   type RentIncomeSummary,
   type RentIncomeUnitOption,
   type RentIncomeViewQuery,
@@ -56,13 +58,23 @@ import { cn } from "@/lib/utils";
 
 const createInitialState: RentIncomeActionState = {};
 const paymentInitialState: RentIncomeActionState = {};
-const postInitialState: RentIncomeActionState = {};
+const reversalInitialState: RentIncomeActionState = {};
 const voidInitialState: RentIncomeActionState = {};
+
+function getRemainingReceiptAmountInput(
+  amountDue: number,
+  amountReceived: number,
+) {
+  const dueMinorUnits = Math.round(amountDue * 100);
+  const receivedMinorUnits = Math.round(amountReceived * 100);
+
+  return String(Math.max(dueMinorUnits - receivedMinorUnits, 0) / 100);
+}
 
 type DrawerState =
   | { mode: "create" }
   | { item: RentIncomeItem; mode: "payment" }
-  | { item: RentIncomeItem; mode: "post" }
+  | { item: RentIncomeItem; mode: "reverse"; receipt: RentIncomeReceipt }
   | { item: RentIncomeItem; mode: "void" };
 
 type RentIncomeScreenProps = {
@@ -72,6 +84,7 @@ type RentIncomeScreenProps = {
   pagination: RentIncomePagination;
   payerOptions: PersonSelectOption[];
   propertyOptions: RentIncomeOption[];
+  reconciliationSources: RentIncomeReconciliationSource[];
   summary: RentIncomeSummary;
   unitOptions: RentIncomeUnitOption[];
   viewQuery: RentIncomeViewQuery;
@@ -84,6 +97,7 @@ export function RentIncomeScreen({
   pagination,
   payerOptions,
   propertyOptions,
+  reconciliationSources,
   summary,
   unitOptions,
   viewQuery,
@@ -176,8 +190,10 @@ export function RentIncomeScreen({
   const incomeInspector = selectedItem ? (
     <RentIncomeInspector
       item={selectedItem}
-      onPost={(item) => openDrawer({ item, mode: "post" })}
       onRecordPayment={(item) => openDrawer({ item, mode: "payment" })}
+      onReverseReceipt={(item, receipt) =>
+        openDrawer({ item, mode: "reverse", receipt })
+      }
       onVoid={(item) => openDrawer({ item, mode: "void" })}
     />
   ) : null;
@@ -271,12 +287,15 @@ export function RentIncomeScreen({
               item={drawerState.item}
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
+              reconciliationSources={reconciliationSources}
             />
-          ) : drawerState.mode === "post" ? (
-            <PostIncomePanel
+          ) : drawerState.mode === "reverse" ? (
+            <ReverseReceiptPanel
               item={drawerState.item}
               onClose={() => setDrawerState(null)}
               onSuccess={setStatusMessage}
+              receipt={drawerState.receipt}
+              reconciliationSources={reconciliationSources}
             />
           ) : (
             <VoidIncomePanel
@@ -491,7 +510,10 @@ function RentIncomeSummaryStrip({ summary }: { summary: RentIncomeSummary }) {
       <SummaryCard label="Received" value={<MoneyDisplay value={summary.receivedTotal} />} />
       <SummaryCard label="Open rows" value={summary.openCount} />
       <SummaryCard label="Overdue" value={summary.overdueCount} />
-      <SummaryCard label="Ready to post" value={summary.unpostedCount} />
+      <SummaryCard
+        label="Received obligations"
+        value={summary.receivedObligationCount}
+      />
     </section>
   );
 }
@@ -610,13 +632,16 @@ function RentIncomeTable({
 
 function RentIncomeInspector({
   item,
-  onPost,
   onRecordPayment,
+  onReverseReceipt,
   onVoid,
 }: {
   item: RentIncomeItem | null;
-  onPost: (item: RentIncomeItem) => void;
   onRecordPayment: (item: RentIncomeItem) => void;
+  onReverseReceipt: (
+    item: RentIncomeItem,
+    receipt: RentIncomeReceipt,
+  ) => void;
   onVoid: (item: RentIncomeItem) => void;
 }) {
   if (!item) {
@@ -630,13 +655,32 @@ function RentIncomeInspector({
   const workflow = getRentIncomeWorkflow(item);
   const isReadOnly = Boolean(item.archivedAt);
   const canRecordPayment = !isReadOnly && workflow.canRecordReceipt;
-  const canPost = !isReadOnly && workflow.canPost;
-  const canVoid = !isReadOnly && item.status !== "posted";
+  const hasCanonicalSettlementHistory = item.receipts.some(
+    (receipt) => receipt.settlementBasis !== "legacy_unclassified",
+  );
+  const hasOnlyCanonicalSettlementHistory =
+    item.receipts.length > 0 &&
+    item.receipts.every(
+      (receipt) => receipt.settlementBasis !== "legacy_unclassified",
+    );
+  const canVoid =
+    !isReadOnly &&
+    !hasCanonicalSettlementHistory &&
+    item.status !== "posted" &&
+    item.amountReceived <= 0;
   const statementParams = new URLSearchParams({
     month: (item.receivedDate ?? item.dueDate).slice(0, 7),
     propertyId: item.propertyId,
     report: "owner-statement",
   });
+  const ownerStatementMessage =
+    workflow.ownerStatementState === "no_cash"
+      ? "Cash-basis Owner Statement: this charge is context only until a receipt is recorded."
+      : workflow.ownerStatementState === "partial_cash"
+        ? "Cash-basis Owner Statement includes only the receipt recorded so far."
+        : hasOnlyCanonicalSettlementHistory
+          ? "Cash-basis Owner Statement and allocation-level Ledger evidence now agree."
+          : "Cash-basis Owner Statement includes the recorded legacy cash; allocation-level Ledger evidence is unavailable.";
 
   return (
     <aside className="rounded-md border border-border bg-surface">
@@ -666,11 +710,7 @@ function RentIncomeInspector({
         <div className="rounded-md border border-border bg-surface-muted/35 p-3 text-sm">
           <p className="font-medium text-foreground">{workflow.stageLabel}</p>
           <p className="mt-1 text-xs leading-5 text-muted">
-            {workflow.ownerStatementState === "no_cash"
-              ? "Cash-basis Owner Statement: this charge is context only until a receipt is recorded."
-              : workflow.ownerStatementState === "partial_cash"
-                ? "Cash-basis Owner Statement includes only the receipt recorded so far."
-                : "Cash-basis Owner Statement includes the received cash; ledger posting is a separate bookkeeping step."}
+            {ownerStatementMessage}
           </p>
           <Link
             className="mt-2 inline-flex text-xs font-semibold text-accent hover:underline"
@@ -720,18 +760,48 @@ function RentIncomeInspector({
             </h3>
             {item.receipts.map((receipt) => (
               <div
-                className="flex items-start justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
-                key={receipt.id}
+                className="space-y-2 rounded-md border border-border px-3 py-2 text-sm"
+                key={receipt.allocationId}
               >
-                <div className="min-w-0">
-                  <p className="font-medium">
-                    {receipt.reversed ? "Reversal" : "Receipt"} · {formatDate(receipt.receivedDate)}
-                  </p>
-                  {receipt.reference ? (
-                    <p className="mt-0.5 truncate text-xs text-muted">{receipt.reference}</p>
-                  ) : null}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {receipt.reversed ? "Reversal" : "Receipt"} · {formatDate(receipt.receivedDate)}
+                    </p>
+                    {receipt.reference ? (
+                      <p className="mt-0.5 truncate text-xs text-muted">{receipt.reference}</p>
+                    ) : null}
+                  </div>
+                  <MoneyDisplay align="right" value={receipt.amountDisplay} />
                 </div>
-                <MoneyDisplay align="right" value={receipt.amountDisplay} />
+                <div className="grid gap-1 text-xs text-muted">
+                  <p>{receipt.reconciliationSourceLabel}</p>
+                  {receipt.ledgerEntryId ? (
+                    <Link
+                      className="font-semibold text-accent hover:underline"
+                      href={`/ledger?entryId=${receipt.ledgerEntryId}`}
+                    >
+                      Ledger evidence
+                    </Link>
+                  ) : (
+                    <p className="text-danger">Ledger evidence unavailable</p>
+                  )}
+                  <p>
+                    {receipt.journalEntryIds.length} balanced{" "}
+                    {receipt.journalEntryIds.length === 1
+                      ? "journal"
+                      : "journals"}
+                  </p>
+                </div>
+                {!isReadOnly && receipt.canReverse ? (
+                  <Button
+                    onClick={() => onReverseReceipt(item, receipt)}
+                    variant="ghost"
+                  >
+                    <RotateCcw size={14} />
+                    Reverse receipt
+                  </Button>
+                ) : null}
               </div>
             ))}
           </section>
@@ -742,12 +812,6 @@ function RentIncomeInspector({
             <Button onClick={() => onRecordPayment(item)}>
               <Coins size={15} />
               Record receipt
-            </Button>
-          ) : null}
-          {canPost ? (
-            <Button onClick={() => onPost(item)} variant="primary">
-              <Send size={15} />
-              Post to ledger
             </Button>
           ) : null}
           {canVoid ? (
@@ -924,35 +988,28 @@ function RentIncomeForm({
         </FormSection>
 
         <FormSection title="Dates and amount">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Due date" error={state.fieldErrors?.dueDate?.[0]}>
-              <DatePickerField
-                defaultValue={getBusinessDateValue()}
-                name="dueDate"
-                required
-              />
-            </Field>
-            <Field
-              label="Received date"
-              error={state.fieldErrors?.receivedDate?.[0]}
-            >
-              <DatePickerField name="receivedDate" />
-            </Field>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Expected" error={state.fieldErrors?.amountDue?.[0]}>
-              <NumberInput
-                name="amountDue"
-                onChange={(event) => setAmountDue(event.currentTarget.value)}
-                placeholder="0.00"
-                required
-                value={amountDue}
-              />
-            </Field>
-            <Field label="Received" error={state.fieldErrors?.amountReceived?.[0]}>
-              <NumberInput name="amountReceived" placeholder="0.00" />
-            </Field>
-          </div>
+          <input name="amountReceived" type="hidden" value="0" />
+          <input name="receivedDate" type="hidden" value="" />
+          <Field label="Due date" error={state.fieldErrors?.dueDate?.[0]}>
+            <DatePickerField
+              defaultValue={getBusinessDateValue()}
+              name="dueDate"
+              required
+            />
+          </Field>
+          <Field label="Expected" error={state.fieldErrors?.amountDue?.[0]}>
+            <NumberInput
+              name="amountDue"
+              onChange={(event) => setAmountDue(event.currentTarget.value)}
+              placeholder="0.00"
+              required
+              value={amountDue}
+            />
+          </Field>
+          <p className="text-xs leading-5 text-muted">
+            Save the obligation first. Actual cash is recorded from the checked
+            receipt action with its account, Ledger, and journal evidence.
+          </p>
         </FormSection>
 
         <FormSection title="Reference">
@@ -979,14 +1036,23 @@ function RecordPaymentPanel({
   item,
   onClose,
   onSuccess,
+  reconciliationSources,
 }: {
   item: RentIncomeItem;
   onClose: () => void;
   onSuccess: (message: string) => void;
+  reconciliationSources: RentIncomeReconciliationSource[];
 }) {
   const [state, action, pending] = useActionState(
     recordRentIncomePaymentAction,
     paymentInitialState,
+  );
+  const [idempotencyKey] = useState(createSettlementIdempotencyKey);
+  const availableSources = reconciliationSources.filter(
+    (source) =>
+      !source.archivedAt &&
+      source.currency === item.currency &&
+      (source.propertyId === null || source.propertyId === item.propertyId),
   );
 
   useCloseOnSuccess(state, onClose, onSuccess);
@@ -995,22 +1061,44 @@ function RecordPaymentPanel({
     <form action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
         <input name="incomeItemId" type="hidden" value={item.id} />
+        <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
         <ConsequencePanel
           rows={[
             { label: "Receipt", value: item.payerLabel },
             { label: "Current balance", value: item.balanceDisplay.primary },
           ]}
-          summary="Records dated cash received against this income item. Posting remains a separate action."
+          summary="Commits the receipt, exact allocation, compatibility balance, Ledger, and balanced journal together."
           title="Receipt consequence"
         />
         <FormSection title="Received money">
+          <Field
+            label="Cash account"
+            error={state.fieldErrors?.reconciliationSourceId?.[0]}
+          >
+            <SelectControl
+              defaultValue={availableSources[0]?.id ?? ""}
+              name="reconciliationSourceId"
+              options={availableSources.map((source) => ({
+                label: source.label,
+                value: source.id,
+              }))}
+              placeholder="Choose receiving account"
+              required
+            />
+            {availableSources.length === 0 ? (
+              <span className="block text-xs leading-5 text-danger">
+                No active cash account is available for this property and currency.
+              </span>
+            ) : null}
+          </Field>
           <Field
             label="Received amount"
             error={state.fieldErrors?.amountReceived?.[0]}
           >
             <NumberInput
-              defaultValue={String(
-                Math.max(item.amountDue - item.amountReceived, 0),
+              defaultValue={getRemainingReceiptAmountInput(
+                item.amountDue,
+                item.amountReceived,
               )}
               name="amountReceived"
               required
@@ -1035,47 +1123,107 @@ function RecordPaymentPanel({
       <DrawerActions
         onCancel={onClose}
         pending={pending}
+        submitDisabled={availableSources.length === 0}
         submitLabel="Record receipt"
       />
     </form>
   );
 }
 
-function PostIncomePanel({
+function ReverseReceiptPanel({
   item,
   onClose,
   onSuccess,
+  receipt,
+  reconciliationSources,
 }: {
   item: RentIncomeItem;
   onClose: () => void;
   onSuccess: (message: string) => void;
+  receipt: RentIncomeReceipt;
+  reconciliationSources: RentIncomeReconciliationSource[];
 }) {
   const [state, action, pending] = useActionState(
-    postRentIncomeItemAction,
-    postInitialState,
+    reverseRentIncomeReceiptAction,
+    reversalInitialState,
   );
+  const [idempotencyKey] = useState(createSettlementIdempotencyKey);
+  const availableSources = reconciliationSources.filter(
+    (source) =>
+      !source.archivedAt &&
+      source.currency === item.currency &&
+      (source.propertyId === null || source.propertyId === item.propertyId),
+  );
+  const businessDate = getBusinessDateValue();
+  const defaultReversalDate =
+    receipt.receivedDate > businessDate ? receipt.receivedDate : businessDate;
 
   useCloseOnSuccess(state, onClose, onSuccess);
 
   return (
     <form action={action} className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
-        <input name="incomeItemId" type="hidden" value={item.id} />
+      <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+        <input name="receiptId" type="hidden" value={receipt.id} />
+        <input name="propertyId" type="hidden" value={item.propertyId} />
+        <input name="unitId" type="hidden" value={item.unitId ?? ""} />
+        <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
         <ConsequencePanel
           rows={[
             { label: "Payer", value: item.payerLabel },
-            { label: "Ledger amount", value: item.amountReceivedDisplay.primary },
-            { label: "Result", value: "Official income ledger entry" },
+            { label: "Original receipt", value: receipt.amountDisplay.primary },
+            { label: "Original date", value: formatDate(receipt.receivedDate) },
           ]}
-          summary="Creates the official income ledger entry for this received amount."
-          title="Posting consequence"
+          summary="Appends a directly linked reversing receipt, allocation, Ledger entry, and balanced journal. The original remains immutable."
+          title="Reversal consequence"
         />
+        <FormSection title="Reversal evidence">
+          <Field
+            label="Cash account"
+            error={state.fieldErrors?.reconciliationSourceId?.[0]}
+          >
+            <SelectControl
+              defaultValue={
+                availableSources.some(
+                  (source) => source.id === receipt.reconciliationSourceId,
+                )
+                  ? (receipt.reconciliationSourceId ?? "")
+                  : (availableSources[0]?.id ?? "")
+              }
+              name="reconciliationSourceId"
+              options={availableSources.map((source) => ({
+                label: source.label,
+                value: source.id,
+              }))}
+              placeholder="Choose reversing account"
+              required
+            />
+            {availableSources.length === 0 ? (
+              <span className="block text-xs leading-5 text-danger">
+                No active cash account is available for this property and currency.
+              </span>
+            ) : null}
+          </Field>
+          <Field
+            label="Reversal date"
+            error={state.fieldErrors?.reversalDate?.[0]}
+          >
+            <DatePickerField
+              defaultValue={defaultReversalDate}
+              name="reversalDate"
+              required
+            />
+          </Field>
+          <Field label="Reason" error={state.fieldErrors?.reason?.[0]}>
+            <Textarea name="reason" required rows={4} />
+          </Field>
+        </FormSection>
         {state.message ? <FormMessage state={state} /> : null}
       </div>
       <DrawerActions
         onCancel={onClose}
         pending={pending}
-        submitLabel="Post to ledger"
+        submitDisabled={availableSources.length === 0}
+        submitLabel="Reverse receipt"
       />
     </form>
   );
@@ -1152,10 +1300,12 @@ function Field({
 function DrawerActions({
   onCancel,
   pending,
+  submitDisabled = false,
   submitLabel,
 }: {
   onCancel: () => void;
   pending: boolean;
+  submitDisabled?: boolean;
   submitLabel: string;
 }) {
   return (
@@ -1166,7 +1316,7 @@ function DrawerActions({
         </Button>
         <Button
           className="w-full sm:w-auto"
-          disabled={pending}
+          disabled={pending || submitDisabled}
           type="submit"
           variant="primary"
         >
@@ -1251,8 +1401,8 @@ function getDrawerTitle(drawer: DrawerState) {
     return "Record receipt";
   }
 
-  if (drawer.mode === "post") {
-    return "Post income";
+  if (drawer.mode === "reverse") {
+    return "Reverse receipt";
   }
 
   return "Void income";
@@ -1267,9 +1417,17 @@ function getDrawerDescription(drawer: DrawerState) {
     return "Record dated cash against the remaining balance. Partial receipts stay open for more cash."
   }
 
-  if (drawer.mode === "post") {
-    return "Posting creates the official income ledger entry.";
+  if (drawer.mode === "reverse") {
+    return "Append a checked reversing cash event without changing the original.";
   }
 
   return "Voiding removes this row from the active income workflow.";
+}
+
+function createSettlementIdempotencyKey() {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `settlement-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }

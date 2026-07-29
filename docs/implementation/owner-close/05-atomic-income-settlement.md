@@ -1,7 +1,9 @@
 # Plan 05 — Atomic Income Settlement, Projection, and Reversal
 
-**Status:** Recommended next implementation-ready slice. A separate approved
-implementation prompt is still required.
+**Status:** Implemented by
+`20260729151842_plan05_atomic_income_settlement.sql`; hosted database
+application and production deployment remain separately authorized release
+activities.
 **Mode:** Standard
 **Effort:** High
 **Reason:** Current receipt/allocation writes and later Ledger/journal posting
@@ -284,6 +286,14 @@ an exact typed source it returns:
   and destination scope affected by a reversal or composed correction; and
 - an explicit unavailable reason when a requested action is not merged.
 
+For `record_receipt` and `reverse_receipt`, the caller supplies the proposed
+receipt or reversal date as action material. The adapter fails closed when that
+date is missing or unbound, includes it in the material hash, and returns its
+destination month together with every distinct source month in deterministic
+order. Allocation scopes prefer their immutable Plan 05 snapshot and fall back
+to the non-null receipt header for retained legacy allocations, so the adapter
+never emits a null property, currency, or period scope.
+
 The adapter and any preview that transports its result write no activity or
 idempotency state. A composed Track B/Track A execution acquires every returned
 property-period lock in the documented deterministic order inside the same
@@ -373,6 +383,11 @@ transaction and leaves no receipt/allocation source.
 
 Cash date is the receipt's `received_date`. Projection date, amount, currency,
 property, unit, and class must match the source snapshot exactly.
+The original Ledger projection is positive income. Its exact reversal is
+negative contra-income with the same reserved allocation source identity; it
+must reduce generic income totals to zero without appearing in expense totals.
+The accounting journal still uses positive debit/credit line amounts in the
+exact reversed orientation.
 
 ### 5. Make retries payload-bound
 
@@ -426,7 +441,8 @@ the Plan 00 reopen/reclose sequence and never rewrites a published statement.
 After compatible call sites are cut over:
 
 - revoke or guard direct authenticated mutation of material obligation
-  classification, amount, currency, scope, and settlement compatibility fields;
+  classification, amount, currency, scope, settlement compatibility fields,
+  obligation-level Ledger links, and transitions into or out of `posted`;
 - preserve the current manual creation flow before activation, but make the
   named cutover and immutable grandfather manifest part of the checked
   creation/settlement boundary so no post-cutover manual rent action, RPC,
@@ -552,16 +568,18 @@ Ledger, and journal controls.
     header/version/line exactly reversed. Historical
     `legacy_cash_non_publishable` cash is outside invoice cancellation
     eligibility, and no outcome deletes or retargets committed history.
-12. The read-only Plan 05 owner adapter returns exact typed source
-    identities/states/actions/scopes, and a composed executor holds every
-    deterministic property-period lock in the same transaction before
-    settlement or reversal mutation.
+12. The read-only Plan 05 owner adapter binds the proposed receipt/reversal
+    date into its material hash, returns exact typed source
+    identities/states/actions and every distinct source/destination period
+    scope in deterministic order, and a composed executor holds every returned
+    property-period lock in the same transaction before settlement or reversal
+    mutation.
 
 ## Verification
 
 ### RED evidence
 
-Before implementation, retain focused proof that:
+The pre-implementation baseline recorded focused proof that:
 
 - recording a receipt does not create Ledger/journal projections;
 - two partial receipts collapse into one obligation-level Ledger row;
@@ -573,61 +591,43 @@ Before implementation, retain focused proof that:
 
 ### GREEN evidence
 
-Add and run:
+The implemented repository slice passes:
 
-- pgTAP for organization/role/RLS/grants, exact scope/currency/source
-  validation, locks, header/allocation balance, partial receipts, retry hash,
-  unique source identity, journal balance, atomic rollback, reversal pairing,
-  duplicate reversal, bypass rejection, immutable pre-cutover provenance,
-  spoofed legacy/manual labels and dates, action/RPC/wrapper/direct-DML rent
-  creation guards, cross-organization and role denial, and legacy
-  compatibility, including a partially paid legacy obligation whose prior
-  allocation stays `legacy_cash_non_publishable` when Plan 20 assigns its
-  remaining balance immutable `migration_invoice_required`, then whose
-  post-issuance allocation is independently `eligible_invoice_linked`, plus a
-  post-cutover `legacy_obligation_only` settlement that freezes
-  `settlement_basis = grandfathered_obligation_only` and
-  `publication_source_class = legacy_cash_non_publishable`; direct DML, current
-  joins, attempted obligation-disposition mutation, and later issuance cannot
-  mutate or forge either allocation class;
-- two-session races for receipt-versus-receipt, receipt-versus-close,
-  reversal-versus-close, same-key retry, and, after invoice activation,
-  invoice-bound reversal-versus-cancellation, cutover-versus-manual-rent
-  creation, cutover-versus-legacy-settlement/reversal, and
-  generator-versus-manual-rent creation. At the versioned
-  activation boundary, using its separately approved effective-time semantics,
-  manual creation or settlement/reversal winning first must change the locked
-  obligation/allocation/reversal candidate-set hash and force
-  `legacy_manifest_refresh_required`. Cutover winning first must make creation
-  fail with `rent_occurrence_generation_required` and make settlement recheck
-  the exact `legacy_obligation_only` or `migration_invoice_required`
-  disposition. Neither ordering may create an ambiguous/adopted row;
-- same-key reversal-versus-composed-correction in both start orders, plus
-  reversal against organization-Ledger/accounting-book transitions and
-  different original/reversal periods, proving Plan 03 locks precede the
-  operation key, no `40P01` occurs, and completed replay survives later period
-  closure, plus legacy-allocation reversal before and after migration-invoice
-  issuance proving the reversal inherits the original non-publishable class;
-- focused Vitest for server validation, error mapping, all route revalidation,
-  removed post action/copy, source evidence, reversal flow, and the later
-  post-cutover Rent & Income/deep-link guard with actionable
-  generate/catch-up/repair copy, plus stable mixed historical/invoice-linked
-  allocation presentation on one obligation;
-- canonical cash and journal parity against a production-shaped fixture;
-- `npm run test:all`;
-- `npm run lint`;
-- `npx tsc --noEmit`;
-- `npm run build`;
-- `npm run db:reset`;
-- `npm run db:lint`;
-- generated-type drift comparison;
-- full pgTAP and Plan 03 Ledger/accounting concurrency harnesses;
-- authenticated browser flow for partial receipt, second receipt, reversal,
-  read-only source evidence, and all blocker states; and
+- a clean migration rebuild and local seed replay;
+- schema lint and all 29 pgTAP files, including organization/role/RLS/grants,
+  scope/currency/source validation, header/allocation balance, partial
+  receipts, payload-bound retry, journal balance, atomic rollback, reversal
+  pairing, contra-income Ledger totals, pre-allocation posting-bypass rejection,
+  inventory parity for balanced contra-income projections, immutable
+  provenance, direct-DML creation guards, cross-organization denial, and
+  legacy compatibility;
+- the current seven-scenario two-session income harness for
+  receipt-versus-receipt, receipt/reversal idempotent retry, and both
+  receipt/reversal-versus-close start orders;
+- the Plan 03 Ledger and accounting transition concurrency harnesses;
+- focused and full Vitest, demo-tool tests, ESLint, TypeScript, generated-type
+  drift comparison, managed receipt-projection Ledger controls, and the
+  production build;
+- authenticated browser proof for partial receipt, second receipt, reversal,
+  and read-only source evidence; and
 - `git diff --check`.
 
-Hosted Supabase mutation, production backfill, Vercel deployment, and merge
-require separate explicit authorization.
+The later Plan 09/invoice activation gate must additionally prove
+invoice-bound reversal-versus-cancellation, same-key
+reversal-versus-composed-correction, cutover-versus-manual-rent creation,
+cutover-versus-legacy-settlement/reversal, and generator-versus-manual-rent
+creation. At the versioned
+activation boundary, using its separately approved effective-time semantics,
+manual creation or settlement/reversal winning first must change the locked
+obligation/allocation/reversal candidate-set hash and force
+`legacy_manifest_refresh_required`. Cutover winning first must make creation
+fail with `rent_occurrence_generation_required` and make settlement recheck
+the exact `legacy_obligation_only` or `migration_invoice_required`
+disposition. Neither ordering may create an ambiguous/adopted row.
+
+Hosted Supabase mutation, production backfill, and Vercel deployment require
+separate explicit authorization. Repository merge was explicitly authorized
+for this implementation.
 
 ## Scope exclusions
 
@@ -652,7 +652,7 @@ require separate explicit authorization.
 - Closed direct/generic bypasses with compatible legacy handling.
 - Updated Rent & Income action/read workflow with no separate posting.
 - Generated types, focused/full tests, parity evidence, and operator notes.
-- Draft PR; no merge, hosted mutation, or deployment.
+- Operator notes and a merge-ready PR; no hosted mutation or deployment.
 
 ## Stop conditions
 

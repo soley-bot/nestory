@@ -7,9 +7,8 @@ tenant-billing reconciliation.
 planning package.
 **Original Track A runtime-evidence baseline:**
 `2dea9fb71a539e01ee81b4601f8965fb62a681d5`.
-**Implementation status:** Plans 00 through 04 are merged. Plan 05 is the
-recommended next implementation-ready slice but requires a separate approved
-prompt. Plans 06 onward remain unauthorized.
+**Implementation status:** Plans 00 through 05 are implemented. Plan 06 onward
+remains unauthorized and requires a separate approved prompt.
 **Historical external review:** `98-ultra-review-response.md` returned
 `APPROVE WITH CHANGES` against an older plan set. It remains historical and did
 not review tenant invoice or formal receipt plans.
@@ -434,7 +433,7 @@ prerequisites.
 | 02 | Shadow `property_cash_events_v1` contract and parity manifest | Merged (PR #36) | 01 | Read-only typed canonical cash-event contract; future event-time relationship scope and exact source -> Ledger -> journal navigation remain owner extensions | 03, 05-16, migration | No report/write cutover; current-primary-Person attribution remains a named defect |
 | 03 | Shared financial-authority kernel | Merged (PR #37) | 02 | Locks, reconciliation sources, idempotency, reserved projections, bypass guards, close skeleton | All later source writes/close | Reconciliation topology matters when adopted |
 | 04 | Authoritative lease terms and effective rent-policy contract | Merged (PR #39) | 03 | Normalized terms, approved policy versions, deterministic current readiness; historical service-date resolver remains Plan 09-owned | 09 and Track B evidence integration | IPS monthly/due-day/proration examples for generation |
-| 05 | Atomic income settlement, allocation, projection, and reversal | Recommended next; separate prompt required | 02-03; active reconciliation source | Receipt/allocation cash authority with atomic Ledger/journal projections, exact reversal, immutable source scope, and read-only owner adapter | 09, unnumbered tenant-document slices, fees, reconciliation, close, statement; Track B impact transport only | Unapplied/advance/overpayment excluded; reversal/restatement rule accepted |
+| 05 | Atomic income settlement, allocation, projection, and reversal | Implemented | 02-03; active reconciliation source | Receipt/allocation cash authority with atomic Ledger/journal projections, exact reversal, immutable source scope, and read-only owner adapter | 09, unnumbered tenant-document slices, fees, reconciliation, close, statement; Track B impact transport only | Unapplied/advance/overpayment excluded; reversal/restatement rule accepted |
 | 06 | Atomic expense settlement, allocation, projection, and reversal | Planned; unauthorized | 02-03 | Vendor payment/allocation cash authority and projections | 07, 11-16, statement | Owner payout excluded; unpaid-bill treatment later |
 | 07 | Maintenance task-to-bill handoff | Planned; unauthorized | 06; optional TB-07 exact tenancy context when tenant-specific | Exact task/bill/actual-cost handoff and duplicate/void controls; finance owner retains charge/bill authority | 15-19 | Task-to-bill cardinality and variance |
 | 08 | Petty-cash posting, reversal, and register reconciliation | Planned; unauthorized | 03 | Canonical petty-cash event/register authority | 15-19 | Cash date, economic scope, physical-count variance |

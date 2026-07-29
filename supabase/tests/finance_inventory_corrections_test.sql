@@ -80,6 +80,8 @@ INSERT INTO public.property_owners (
 SELECT organization_id, property_id, owner_id, 100, true, '2026-07-20'
 FROM finance_inventory_correction_state;
 
+SELECT app_private.set_finance_settlement_context(true);
+
 INSERT INTO public.finance_income_items (
   id, organization_id, property_id, unit_id, lease_id, income_type,
   payer_label, due_date, received_date, amount_due, amount_received,
@@ -95,6 +97,8 @@ SELECT owner_income_id, organization_id, property_id, NULL, NULL,
   'owner_contribution', 'Correction owner', '2026-07-02'::date, '2026-07-02'::date,
   50, 0, 'USD'::public.currency_code, 'open', 'CORRECTION-OWNER-CONTRIBUTION'
 FROM finance_inventory_correction_state;
+
+SELECT app_private.set_finance_settlement_context(false);
 
 INSERT INTO public.finance_receipts (
   id, organization_id, property_id, received_date, amount, currency,

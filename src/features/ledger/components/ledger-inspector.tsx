@@ -38,6 +38,7 @@ export function LedgerInspector({
   }
 
   const isArchived = Boolean(entry.archivedAt);
+  const canManageLifecycle = entry.sourceType !== "receipt_allocation";
 
   return (
     <aside className="bg-surface">
@@ -109,63 +110,77 @@ export function LedgerInspector({
           label={entry.nextAction.label}
         />
 
-        <div className="grid gap-2 sm:grid-cols-3">
-          {isArchived ? (
-            <Button
-              className="sm:col-span-3"
-              disabled={entry.isLocked}
-              onClick={() => onRestoreEntry(entry)}
-              title={
-                entry.isLocked ? "This accounting period is locked." : undefined
-              }
-              variant="primary"
-            >
-              <RotateCcw size={15} />
-              Restore
-            </Button>
-          ) : (
-            <>
+        {!isArchived || canManageLifecycle ? (
+          <div className="grid gap-2 sm:grid-cols-3">
+            {isArchived ? (
               <Button
-                aria-label="Attach receipt"
-                className="px-2"
+                className="sm:col-span-3"
                 disabled={entry.isLocked}
-                onClick={() => onAttachReceipt(entry)}
+                onClick={() => onRestoreEntry(entry)}
                 title={
                   entry.isLocked
                     ? "This accounting period is locked."
-                    : "Attach receipt"
+                    : undefined
                 }
+                variant="primary"
               >
-                <Upload size={15} />
-                Attach
+                <RotateCcw size={15} />
+                Restore
               </Button>
-              <Button
-                aria-label="Edit ledger entry"
-                className="px-2"
-                disabled={entry.isLocked}
-                onClick={() => onEditEntry(entry)}
-                title={
-                  entry.isLocked ? "This accounting period is locked." : "Edit"
-                }
-              >
-                <Pencil size={15} />
-                Edit
-              </Button>
-              <Button
-                aria-label="Archive ledger entry"
-                className="px-2"
-                disabled={entry.isLocked}
-                onClick={() => onArchiveEntry(entry)}
-                title={
-                  entry.isLocked ? "This accounting period is locked." : "Archive"
-                }
-              >
-                <Archive size={15} />
-                Archive
-              </Button>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <Button
+                  aria-label="Attach receipt"
+                  className={
+                    canManageLifecycle ? "px-2" : "px-2 sm:col-span-3"
+                  }
+                  disabled={entry.isLocked}
+                  onClick={() => onAttachReceipt(entry)}
+                  title={
+                    entry.isLocked
+                      ? "This accounting period is locked."
+                      : "Attach receipt"
+                  }
+                >
+                  <Upload size={15} />
+                  Attach
+                </Button>
+                {canManageLifecycle ? (
+                  <>
+                    <Button
+                      aria-label="Edit ledger entry"
+                      className="px-2"
+                      disabled={entry.isLocked}
+                      onClick={() => onEditEntry(entry)}
+                      title={
+                        entry.isLocked
+                          ? "This accounting period is locked."
+                          : "Edit"
+                      }
+                    >
+                      <Pencil size={15} />
+                      Edit
+                    </Button>
+                    <Button
+                      aria-label="Archive ledger entry"
+                      className="px-2"
+                      disabled={entry.isLocked}
+                      onClick={() => onArchiveEntry(entry)}
+                      title={
+                        entry.isLocked
+                          ? "This accounting period is locked."
+                          : "Archive"
+                      }
+                    >
+                      <Archive size={15} />
+                      Archive
+                    </Button>
+                  </>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
     </aside>
   );

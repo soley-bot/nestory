@@ -1650,6 +1650,10 @@ FROM LATERAL (
 WHERE ledger_period_locks.id =
   '60000000-0000-0000-0000-000000000001';
 
+DO $seed_finance_income$
+BEGIN
+  PERFORM app_private.set_finance_settlement_context(true);
+
 INSERT INTO public.finance_income_items (
   id,
   organization_id,
@@ -1844,6 +1848,10 @@ CROSS JOIN LATERAL (
     current_date
   ) AS reference_date
 ) AS context;
+
+  PERFORM app_private.set_finance_settlement_context(false);
+END;
+$seed_finance_income$;
 
 UPDATE public.ledger_entries AS ledger
 SET

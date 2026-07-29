@@ -1,6 +1,6 @@
 # Current State
 
-Last rebuilt from code inventory on 2026-07-28. This file describes what is
+Last rebuilt from code inventory on 2026-07-29. This file describes what is
 implemented now. It is not a roadmap or early-stage plan.
 
 ## Product Baseline
@@ -16,8 +16,9 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - People directory split into tenants, owners, vendors, and staff.
 - Lease operations with normalized tenant/person and lease backbone records.
 - Ledger operations, timeline history, period locks, and document attachment.
-- Rent & Income operations for expected and received incoming money before
-  confirmed rows post into the ledger.
+- Rent & Income operations for expected and received incoming money. Each
+  checked receipt or reversal atomically creates its allocation-based Ledger
+  and balanced journal evidence; there is no separate operator posting step.
 - Bills & Expenses operations for outgoing bills and expense approvals before
   approved rows post into the ledger.
 - A compatibility accounting kernel retained behind existing operational
@@ -151,11 +152,15 @@ Finance and history:
 
 - `/rent-income` supports expected and received incoming money across rent,
   deposits, reimbursements, parking, late fees, owner contributions, company
-  revenue compatibility categories, and other income. Confirmed receipts post
-  into the official ledger; property reporting excludes deposits and owner
-  contributions from operating income. The legacy monthly lease generator is
-  blocked: Plan 09 must consume exact authoritative term and approved-policy
-  identities before automated rent obligations resume.
+  revenue compatibility categories, and other income. Supported receipts
+  require an active reconciliation source and commit the receipt, exact
+  allocation, compatibility balance, allocation-linked Ledger row, balanced
+  journal, activity, and idempotency result in one transaction. Operators can
+  inspect source evidence and append an exact dated reversal; they cannot
+  separately post or mutate derived projections. Property reporting excludes
+  deposits and owner contributions from operating income. The legacy monthly
+  lease generator is blocked: Plan 09 must consume exact authoritative term
+  and approved-policy identities before automated rent obligations resume.
 - `/bills-expenses` supports outgoing vendor bills, maintenance, utilities,
   supplies, owner payouts, refunds, and other property expenses. Approved
   obligations can be settled through dated payments and allocations.
@@ -296,11 +301,28 @@ RPC write boundaries. Current table families include:
   `lease_terms`, `lease_occupancies`, `lease_deposits`.
 - Finance and history: `finance_income_items`, `finance_expense_items`,
   `finance_receipts`, `finance_receipt_allocations`, `finance_payments`,
-  `finance_payment_allocations`, `lease_deposit_events`, `ledger_entries`,
-  `ledger_period_locks`, `petty_cash_accounts`, `petty_cash_periods`,
-  `petty_cash_entries`, `timeline_events`, `activity_logs`. Income and expense
-  items represent obligations; receipt, payment, allocation, and deposit-event
-  rows represent dated settlement activity used by cash reporting.
+  `finance_receipt_allocation_journals`, `finance_payment_allocations`,
+  `financial_reconciliation_sources`, `lease_deposit_events`,
+  `ledger_entries`, `ledger_period_locks`, `property_reporting_periods`,
+  `petty_cash_accounts`, `petty_cash_periods`, `petty_cash_entries`,
+  `timeline_events`, `activity_logs`. Income and expense items represent
+  obligations; receipt, payment, allocation, and deposit-event rows represent
+  dated settlement activity used by cash reporting. Canonical income
+  allocations freeze source, scope, economic class, signed amount,
+  balance-after, publication class, direct reversal identity, and exact
+  Ledger/journal links. Reversing receipt Ledger rows remain income with a
+  negative amount, so generic Ledger consumers net the receipt without
+  misclassifying returned rent as an expense. Direct obligation-level Ledger
+  links and transitions into or out of `posted` require the checked settlement
+  context even before the first allocation. The Plan 05 owner-state adapter
+  binds a proposed receipt/reversal date into its material hash and returns
+  every distinct source and destination month in deterministic lock order,
+  using the receipt header when a retained legacy allocation lacks the newer
+  immutable scope snapshot.
+  Ledger classifies receipt-allocation projections as Rent & Income evidence
+  and suppresses lifecycle controls that the reserved projection guard rejects.
+  Finance inventory compares negative contra-income to its positive balanced
+  journal controls by magnitude without weakening other parity checks.
   Checked public RPCs record and reverse deposit events while private
   implementations and direct event-table writes remain unavailable to API
   callers. The lease quick view shows held balance and immutable event history.
@@ -329,8 +351,11 @@ Implemented RPC families include:
   durable proof or differs from the matching private provider challenge.
 - Property, unit, person, lease, document, ledger, timeline, and maintenance
   create/update/archive/restore.
-- Finance income and expense workflow creation, status changes, dated receipt
-  and payment settlement, allocation, reversal, and deposit events.
+- Finance income and expense workflow creation and status changes. Versioned
+  Plan 05 income RPCs provide payload-idempotent, property-period-safe receipt
+  and exact reversal transactions with an admin-only, read-only owner-state
+  adapter; dated expense payment and deposit-event workflows retain their
+  existing boundaries.
 - Compatibility journal posting, accounting period locking, reversals, and
   historical ledger backfill retained behind existing workflows.
 - Ledger period locking.
@@ -395,7 +420,10 @@ lease summaries, ledger summaries/filters, timeline filters, maintenance
 filters/checklists/summary/notifications, imports, reports/export, auth tenant
 host parsing, and schema-error helpers. Database tests additionally cover the
 settlement-event allocation, reversal, RLS, backfill, pagination behavior, and
-the maintenance manager/member/reviewer workflow boundary.
+the maintenance manager/member/reviewer workflow boundary. Plan 05 also has
+focused pgTAP and a two-session concurrency harness for competing receipts,
+same-key receipt/reversal replay, and receipt/reversal races with property
+period close.
 Compatibility database tests still cover the accounting schema and security
 boundary, balanced/idempotent posting, period locks and reversals, historical
 backfill, transaction rollback, and seeded ledger-to-journal parity.

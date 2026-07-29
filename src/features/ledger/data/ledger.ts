@@ -414,12 +414,13 @@ function indexById<T extends { id: string }>(rows: T[]) {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
-function normalizeLedgerSource(value: string) {
+export function normalizeLedgerSource(value: string) {
   if (
     value === "finance_income" ||
     value === "finance_expense" ||
     value === "petty_cash" ||
-    value === "maintenance_task"
+    value === "maintenance_task" ||
+    value === "receipt_allocation"
   ) {
     return value;
   }
@@ -427,8 +428,8 @@ function normalizeLedgerSource(value: string) {
   return "manual";
 }
 
-function formatLedgerSource(value: string) {
-  if (value === "finance_income") {
+export function formatLedgerSource(value: string) {
+  if (value === "finance_income" || value === "receipt_allocation") {
     return "Rent & Income";
   }
 

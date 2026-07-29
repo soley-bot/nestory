@@ -218,6 +218,8 @@ SELECT manual_ledger_id, organization_id, property_id, unit_id,
   'Unmatched legacy Ledger evidence', 'manual', NULL
 FROM property_cash_events_test_state;
 
+SELECT app_private.set_finance_settlement_context(true);
+
 INSERT INTO public.finance_income_items (
   id, organization_id, property_id, unit_id, lease_id, ledger_entry_id,
   income_type, payer_label, payer_person_id, due_date, amount_due, currency,
@@ -244,6 +246,8 @@ SELECT income_fee_id, organization_id, property_id, NULL, NULL, NULL,
   'management_fee', 'Management company', NULL, '2026-07-05', 25, 'USD', 'open',
   'CASH-FEE', NULL
 FROM property_cash_events_test_state;
+
+SELECT app_private.set_finance_settlement_context(false);
 
 INSERT INTO public.finance_receipts (
   id, organization_id, property_id, received_date, amount, currency,

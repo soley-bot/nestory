@@ -1,8 +1,7 @@
 # Owner Close and Tenant Billing
 
-**Status:** Plans 00 through 04 are merged. Plan 05 is the recommended next
-implementation-ready slice; it still requires a separate approved
-implementation prompt. Plans 06 onward remain unauthorized.
+**Status:** Plans 00 through 05 are implemented. Plan 06 onward remains
+unauthorized and requires a separate approved implementation prompt.
 **Current reconciliation baseline:**
 `5210ae1c94fa5a854f9c484b79e9dbd214c99053` after the documentation-only
 Track B PR #42 merge.
@@ -213,7 +212,8 @@ The full consistency matrix is in
 
 1. Plans 00-04 — architecture, inventory, shadow cash contract, authority
    kernel, and lease/rent policy: complete and merged.
-2. Plan 05 — atomic income settlement: recommended next implementation slice.
+2. Plan 05 — atomic income settlement: implemented; hosted release remains
+   separately authorized.
 3. Plans 06-09 — expense, maintenance, petty cash, and rent occurrence
    authority.
 4. Plan 10 — security-deposit custody and limited disposition.
@@ -228,10 +228,8 @@ Two planned tenant-document coordination slices remain outside the numeric
 sequence: tenant invoice follows Plan 09, and formal receipt consumes Plan 05
 cash plus issued tenant-invoice identity.
 
-Plan 05 remains the next Track A implementation-ready slice. TB-01 is the
-independent next Track B slice from the same merged planning baseline. They
-must use separate branches/PRs and must not be combined. Plan 09 later waits
-for merged TB-05 relationship evidence; Plan 05 does not.
+Plan 05 is implemented independently from Track B. Plan 09 later waits for
+merged TB-05 relationship evidence; Plan 05 does not.
 
 Implementation order is not event chronology. Plan 05 can make current
 obligation settlement safe before Plan 09 or tenant invoicing exists. The
@@ -360,21 +358,10 @@ into a supported model.
 
 ## Current next step
 
-Prepare a separately approved implementation prompt from
-[05-atomic-income-settlement.md](05-atomic-income-settlement.md).
-
-**Mode:** Standard
-**Effort:** High
-**Reason:** It removes the current split between receipt/allocation truth and
-separate mutable obligation-level Ledger/journal posting, while remaining safe
-on obligation identity before rent occurrences and invoices are implemented.
-
-This documentation branch does not implement Plan 05 and authorizes no hosted
-mutation, deployment, merge, or work from another unmerged branch.
-
-TB-01 may proceed independently in its own Track B branch after the shared
-planning baseline is merged. It is not part of Plan 05 and this package grants
-no authority to combine them.
+No later Track A implementation slice is authorized by this package. Plan 06
+remains planned and requires its own approved implementation prompt. Hosted
+Plan 05 migration, backfill, deployment, and release verification also remain
+separate activities.
 
 ## Required Cross-Plan Amendments
 
