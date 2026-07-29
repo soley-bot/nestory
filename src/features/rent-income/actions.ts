@@ -150,6 +150,15 @@ const recordPaymentSchema = z
         message: "Enter an amount greater than zero.",
         path: ["amountReceived"],
       });
+      return;
+    }
+
+    if (!/^(?:\d+|\d*\.\d{1,2})$/.test(data.amountReceived)) {
+      context.addIssue({
+        code: "custom",
+        message: "Use at most two decimal places.",
+        path: ["amountReceived"],
+      });
     }
   });
 

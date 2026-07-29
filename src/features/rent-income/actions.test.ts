@@ -122,6 +122,29 @@ describe("recordRentIncomePaymentAction", () => {
     });
   });
 
+  it("rejects sub-cent receipt amounts before calling the settlement RPC", async () => {
+    const formData = new FormData();
+    formData.set("incomeItemId", "11111111-1111-4111-8111-111111111111");
+    formData.set("amountReceived", "1.005");
+    formData.set("receivedDate", "2026-07-10");
+    formData.set("reference", "RENT-SUBCENT");
+    formData.set(
+      "reconciliationSourceId",
+      "22222222-2222-4222-8222-222222222222",
+    );
+    formData.set("idempotencyKey", "receipt-subcent-attempt");
+
+    const result = await recordRentIncomePaymentAction({}, formData);
+
+    expect(result).toMatchObject({
+      fieldErrors: {
+        amountReceived: ["Use at most two decimal places."],
+      },
+      status: "error",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("reverses one exact receipt with a required reason and idempotency key", async () => {
     const formData = new FormData();
     formData.set("receiptId", "33333333-3333-4333-8333-333333333333");

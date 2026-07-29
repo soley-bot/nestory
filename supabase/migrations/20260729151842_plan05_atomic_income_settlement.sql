@@ -367,7 +367,17 @@ BEGIN
       v_state := 'reversed';
     ELSE
       v_state := 'received';
-      v_actions := '["reverse_receipt"]'::jsonb;
+      IF pg_catalog.jsonb_array_length(v_source->'allocations') = 1
+        AND v_source#>>'{allocations,0,settlement_contract_version}' =
+          'plan05.v1'
+        AND coalesce(
+          v_source#>>'{allocations,0,publication_source_class}',
+          'unclassified'
+        ) <> 'unclassified'
+        AND v_source#>>'{allocations,0,reversal_of_allocation_id}' IS NULL
+      THEN
+        v_actions := '["reverse_receipt"]'::jsonb;
+      END IF;
     END IF;
 
     SELECT coalesce(
@@ -961,6 +971,11 @@ BEGIN
     OR length(pg_catalog.btrim(p_idempotency_key)) < 8
     OR coalesce(p_amount, 0) <= 0 THEN
     RAISE EXCEPTION 'Complete receipt settlement details are required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_amount IS DISTINCT FROM pg_catalog.round(p_amount, 2) THEN
+    RAISE EXCEPTION 'Receipt amount must use currency precision'
       USING ERRCODE = '22023';
   END IF;
 
@@ -2367,6 +2382,116 @@ BEGIN
   EXECUTE v_patched;
 END;
 $migration$;
+
+CREATE OR REPLACE FUNCTION public.get_finance_income_workflow_summary(
+  p_organization_id uuid,
+  p_due_from date,
+  p_due_before date,
+  p_status text,
+  p_property_id uuid,
+  p_unit_id uuid,
+  p_query text,
+  p_today date
+)
+RETURNS TABLE (
+  receivable_total numeric,
+  received_total numeric,
+  open_count bigint,
+  overdue_count bigint,
+  unposted_count bigint
+)
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, app_private
+AS $$
+DECLARE
+  normalized_status text := NULLIF(lower(trim(coalesce(p_status, ''))), '');
+  normalized_tokens text[] := ARRAY[]::text[];
+BEGIN
+  IF (SELECT auth.uid()) IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
+  END IF;
+
+  IF NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT coalesce(array_agg(token ORDER BY ordinal), ARRAY[]::text[])
+  INTO normalized_tokens
+  FROM (
+    SELECT token, ordinal
+    FROM unnest(
+      regexp_split_to_array(
+        lower(regexp_replace(coalesce(p_query, ''), '[,%()*]', ' ', 'g')),
+        '[[:space:]]+'
+      )
+    ) WITH ORDINALITY AS raw_tokens(token, ordinal)
+    WHERE token <> ''
+    ORDER BY ordinal
+    LIMIT 6
+  ) tokens;
+
+  RETURN QUERY
+  WITH scoped AS (
+    SELECT item.*
+    FROM public.finance_income_items item
+    WHERE item.organization_id = p_organization_id
+      AND item.archived_at IS NULL
+      AND item.due_date >= p_due_from
+      AND item.due_date < p_due_before
+      AND (normalized_status IS NULL OR item.status = normalized_status)
+      AND (p_property_id IS NULL OR item.property_id = p_property_id)
+      AND (p_unit_id IS NULL OR item.unit_id = p_unit_id)
+      AND (
+        cardinality(normalized_tokens) = 0
+        OR NOT EXISTS (
+          SELECT 1
+          FROM unnest(normalized_tokens) AS token(value)
+          WHERE NOT (
+            lower(item.payer_label) LIKE
+              '%' ||
+              replace(
+                replace(replace(token.value, E'\\', E'\\\\'), '%', E'\\%'),
+                '_',
+                E'\\_'
+              ) ||
+              '%' ESCAPE E'\\'
+            OR lower(coalesce(item.description, '')) LIKE
+              '%' ||
+              replace(
+                replace(replace(token.value, E'\\', E'\\\\'), '%', E'\\%'),
+                '_',
+                E'\\_'
+              ) ||
+              '%' ESCAPE E'\\'
+            OR lower(coalesce(item.reference, '')) LIKE
+              '%' ||
+              replace(
+                replace(replace(token.value, E'\\', E'\\\\'), '%', E'\\%'),
+                '_',
+                E'\\_'
+              ) ||
+              '%' ESCAPE E'\\'
+          )
+        )
+      )
+  )
+  SELECT
+    coalesce(sum(scoped.amount_due), 0)::numeric AS receivable_total,
+    coalesce(sum(scoped.amount_received), 0)::numeric AS received_total,
+    count(*) FILTER (
+      WHERE scoped.status IN ('open', 'partially_received')
+    )::bigint AS open_count,
+    count(*) FILTER (
+      WHERE scoped.due_date < p_today
+        AND scoped.status IN ('open', 'partially_received')
+    )::bigint AS overdue_count,
+    count(*) FILTER (
+      WHERE scoped.status IN ('partially_received', 'received')
+    )::bigint AS unposted_count
+  FROM scoped;
+END;
+$$;
 
 COMMENT ON FUNCTION public.record_finance_receipt_v2(
   uuid,

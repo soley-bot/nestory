@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(49);
+SELECT plan(52);
 
 SELECT has_function(
   'public',
@@ -104,6 +104,10 @@ CREATE TEMP TABLE plan05_test_state (
   tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   lease_id uuid NOT NULL DEFAULT gen_random_uuid(),
   income_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  legacy_income_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  legacy_receipt_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  legacy_allocation_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  precision_income_id uuid NOT NULL DEFAULT gen_random_uuid(),
   unsupported_income_id uuid NOT NULL DEFAULT gen_random_uuid(),
   reconciliation_source_id uuid,
   first_result jsonb,
@@ -247,6 +251,36 @@ SELECT
   100,
   'USD'::public.currency_code,
   'open'
+FROM plan05_test_state
+UNION ALL
+SELECT
+  legacy_income_id,
+  organization_id,
+  property_id,
+  unit_id,
+  lease_id,
+  tenant_id,
+  'rent',
+  'Legacy receipt tenant',
+  '2026-07-02'::date,
+  10,
+  'USD'::public.currency_code,
+  'open'
+FROM plan05_test_state
+UNION ALL
+SELECT
+  precision_income_id,
+  organization_id,
+  property_id,
+  unit_id,
+  lease_id,
+  tenant_id,
+  'rent',
+  'Precision tenant',
+  '2026-07-03'::date,
+  10,
+  'USD'::public.currency_code,
+  'open'
 FROM plan05_test_state;
 
 SELECT app_private.ensure_accounting_books_and_accounts(
@@ -369,6 +403,82 @@ SELECT ok(
     ) AS adapter
   ),
   'the owner adapter does not advertise settlement for unsupported classes'
+);
+
+INSERT INTO public.finance_receipts(
+  id,
+  organization_id,
+  property_id,
+  received_date,
+  amount,
+  currency,
+  payer_label,
+  reference,
+  created_by
+)
+SELECT
+  legacy_receipt_id,
+  organization_id,
+  property_id,
+  '2026-07-04',
+  10,
+  'USD',
+  'Legacy receipt tenant',
+  'P05-LEGACY',
+  admin_id
+FROM plan05_test_state;
+
+INSERT INTO public.finance_receipt_allocations(
+  id,
+  organization_id,
+  receipt_id,
+  income_item_id,
+  amount,
+  created_by
+)
+SELECT
+  legacy_allocation_id,
+  organization_id,
+  legacy_receipt_id,
+  legacy_income_id,
+  10,
+  admin_id
+FROM plan05_test_state;
+
+SELECT ok(
+  (
+    SELECT owner_state->'actions' = '[]'::jsonb
+      AND owner_state->>'unavailable_reason' =
+        'action_not_available_for_current_state'
+    FROM (
+      SELECT public.get_finance_income_owner_state_v1(
+        organization_id,
+        'finance_receipt',
+        legacy_receipt_id,
+        'reverse_receipt'
+      ) AS owner_state
+      FROM plan05_test_state
+    ) AS adapter
+  ),
+  'the owner adapter withholds reversal for an unclassified legacy receipt'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.record_finance_receipt_v2(
+      organization_id,
+      precision_income_id,
+      1.005,
+      '2026-07-05',
+      reconciliation_source_id,
+      'P05-SUBCENT',
+      'plan05-subcent-receipt'
+    )
+    FROM plan05_test_state
+  $$,
+  '22023',
+  'Receipt amount must use currency precision',
+  'receipt settlement rejects amounts that cannot be stored exactly'
 );
 
 SELECT lives_ok(
@@ -518,6 +628,24 @@ SELECT ok(
   'partial receipts retain separate Ledger identities and historical balances'
 );
 
+SELECT is(
+  (
+    SELECT summary.open_count
+    FROM public.get_finance_income_workflow_summary(
+      (SELECT organization_id FROM plan05_test_state),
+      '2026-07-01',
+      '2026-08-01',
+      'received',
+      NULL,
+      NULL,
+      '',
+      '2026-07-31'
+    ) AS summary
+  ),
+  0::bigint,
+  'fully settled obligations are excluded from the open-row count'
+);
+
 SELECT throws_ok(
   $$
     SELECT public.record_finance_receipt_v2(
@@ -543,7 +671,7 @@ SELECT is(
     WHERE organization_id =
       (SELECT organization_id FROM plan05_test_state)
   ),
-  2::bigint,
+  3::bigint,
   'failed over-allocation leaves no receipt header'
 );
 
@@ -890,7 +1018,7 @@ SELECT is(
       AND allocation.settlement_contract_version = 'plan05.v1'
   ),
   3::bigint,
-  'only two receipts and their one exact reversal committed'
+  'only two canonical receipts and their one exact reversal committed'
 );
 
 INSERT INTO app_private.finance_income_settlement_policies(
