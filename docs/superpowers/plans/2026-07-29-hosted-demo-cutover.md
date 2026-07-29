@@ -1,6 +1,6 @@
 # Hosted Demo Data Cutover Plan
 
-**Status:** Cutover complete; merge and production parity verification pending
+**Status:** Complete
 **Branch:** `codex/rebuild-fresh-demo-data`
 **Target project:** `pfvmztxktkwyewvxfgot` (`nestory`)
 **Target organization:** `1221152a-3a7d-48f6-a109-45f2b2173813`
@@ -109,7 +109,29 @@ Completed:
   The final hosted scan reports zero visible operational rows containing an
   archived property name or unit label.
 
-Pending:
+Production closeout, verified 2026-07-29:
 
-- Merge PR 40 after all required checks finish, then prove that the production
-  Vercel deployment and public/protected route smokes serve the merged SHA.
+- PR #40 is merged. Its head
+  `ca9199ddfdb725b2276e0b1565a42542cada845d` and merge commit
+  `2dea9fb71a539e01ee81b4601f8965fb62a681d5` are ancestors of current
+  `origin/main` at `b6b277f2b456ff65acad3ca286bac3043929f8cb`.
+- Vercel resolving the canonical production alias
+  `https://nestory-bay.vercel.app` returned deployment
+  `dpl_AKuJvxKF72MghLvm7Y4AYTzr9vdp` as `Ready`, deployed at
+  `https://nestory-4rz07qsm3-soley-bots-projects.vercel.app`. Its build log
+  records `main` at `b6b277f`, corresponding to
+  `b6b277f2b456ff65acad3ca286bac3043929f8cb`, which contains the PR #40
+  commits.
+- Unauthenticated production smokes returned `200` for `/`, `/request`, and
+  `/login`. `/overview?lens=records` and
+  `/reports?report=property-performance` returned `307` with `Location:
+  /login`, matching the current proxy contract: a direct redirect to `/login`
+  that intentionally discards the original protected path and query rather
+  than preserving a return destination.
+- At 2026-07-29 14:05 UTC, the Vercel error-log query
+  `vercel logs dpl_AKuJvxKF72MghLvm7Y4AYTzr9vdp --level error --since 1h
+  --no-follow` returned no entries for the preceding hour. No hosted data was
+  mutated during this closeout check.
+- No authenticated production session was used. This verifies deployment and
+  unauthenticated route behavior only; it does not certify authenticated
+  role, data, mutation, or report behavior.

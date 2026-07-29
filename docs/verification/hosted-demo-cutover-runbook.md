@@ -5,6 +5,9 @@ tool validates a separately collected, read-only inventory and emits a
 planning-only manifest. It has no database client, no hosted credentials, and
 no execution mode.
 
+On 2026-07-29, a separate approved hosted cutover completed. This checked-in
+tool remains planning-only and does not execute hosted changes.
+
 ## Required observed identity
 
 - Project ref: `pfvmztxktkwyewvxfgot`
@@ -72,9 +75,10 @@ npm run demo:cutover:plan -- `
 
 The output path must not already exist. `--execute` is explicitly rejected.
 
-## Separate approval gate
+## Historical approval gate
 
-A later hosted cutover needs a new explicit approval after:
+The implementation branch stopped before hosted execution. The separately
+approved 2026-07-29 cutover proceeded only after:
 
 1. a restorable target-scoped snapshot exists and restoration was rehearsed;
 2. a second operator verifies the inventory fingerprint and manifest;
@@ -82,4 +86,6 @@ A later hosted cutover needs a new explicit approval after:
 4. target admin and invitation handling is approved status by status;
 5. rollback criteria and the maintenance window are written down.
 
-This branch intentionally stops before that gate.
+Any future hosted cutover must repeat this approval with a current snapshot,
+inventory fingerprint, rollback criteria, and maintenance window. The
+checked-in tool remains planning-only.
