@@ -424,7 +424,6 @@ BEGIN
       AND parties.archived_at IS NULL
       AND parties.ended_on IS NULL
       AND leases.archived_at IS NULL
-      AND leases.status IN ('active', 'draft', 'notice_given')
   ) THEN
     RAISE EXCEPTION
       'End or cancel the open Lease role through a checked relationship transition before archiving this Person'
@@ -1046,7 +1045,6 @@ BEGIN
       AND parties.archived_at IS NULL
       AND parties.ended_on IS NULL
       AND leases.archived_at IS NULL
-      AND leases.status IN ('active', 'draft', 'notice_given')
   ) THEN
     RAISE EXCEPTION
       'End or cancel the open Lease role through a checked relationship transition before archiving this Person'

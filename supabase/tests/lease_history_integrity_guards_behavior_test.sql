@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(75);
+SELECT plan(77);
 
 CREATE OR REPLACE FUNCTION pg_temp.capture_error(p_sql text)
 RETURNS jsonb
@@ -1281,6 +1281,62 @@ SELECT is(
   ),
   'occupancy_transition_required',
   'service-role Lease DML cannot bypass the active occupancy guard'
+);
+
+RESET ROLE;
+
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
+
+UPDATE public.leases
+SET status = 'ended'
+WHERE id = (SELECT person_archive_lease_id FROM lease_history_guard_state);
+
+SELECT set_config('app.people_leases_skip_sync', 'off', true);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM lease_history_guard_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT is(
+  (
+    SELECT pg_temp.capture_error(
+      format(
+        'SELECT public.archive_person(%L,%L)',
+        organization_id,
+        archive_person_id
+      )
+    ) ->> 'detail'
+    FROM lease_history_guard_state
+  ),
+  'relationship_transition_required',
+  'checked Person archive blocks an open Lease role on an ended Lease header'
+);
+
+RESET ROLE;
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
+
+UPDATE public.leases
+SET status = 'terminated'
+WHERE id = (SELECT person_archive_lease_id FROM lease_history_guard_state);
+
+SELECT set_config('app.people_leases_skip_sync', 'off', true);
+SET LOCAL ROLE service_role;
+
+SELECT is(
+  (
+    SELECT pg_temp.capture_error(
+      format(
+        'UPDATE public.people SET archived_at = now() WHERE organization_id = %L AND id = %L',
+        organization_id,
+        archive_person_id
+      )
+    ) ->> 'detail'
+    FROM lease_history_guard_state
+  ),
+  'relationship_transition_required',
+  'service-role Person DML blocks an open Lease role on a terminated Lease header'
 );
 
 RESET ROLE;
