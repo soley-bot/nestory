@@ -7,6 +7,8 @@ const SOURCE_ORG = "00000000-0000-0000-0000-000000000001";
 const TARGET_ORG = "1221152a-3a7d-48f6-a109-45f2b2173813";
 const SOURCE_ADMIN = "00000000-0000-0000-0000-000000000101";
 const TARGET_ADMIN = "f61bdcfe-dbdf-40c6-8e47-58b1d01859b2";
+const LOCAL_AUTH_IDENTITIES =
+  /00000000-0000-0000-0000-000000000(?:101|501|601)/;
 
 test("filters a pg_dump to one organization and remaps exact identities", () => {
   const source = [
@@ -28,6 +30,7 @@ test("filters a pg_dump to one organization and remaps exact identities", () => 
     sourceOrganizationId: SOURCE_ORG,
     targetOrganizationId: TARGET_ORG,
     identityMap: new Map([[SOURCE_ADMIN, TARGET_ADMIN]]),
+    forbiddenIdentityPattern: LOCAL_AUTH_IDENTITIES,
   });
 
   assert.match(result.sql, new RegExp(TARGET_ORG, "g"));
@@ -54,6 +57,7 @@ test("can omit preserved hosted tables from a fresh insertion payload", () => {
     sourceOrganizationId: SOURCE_ORG,
     targetOrganizationId: TARGET_ORG,
     excludedTables: new Set(["organization_members"]),
+    forbiddenIdentityPattern: LOCAL_AUTH_IDENTITIES,
   });
 
   assert.doesNotMatch(result.sql, /organization_members/);
@@ -74,8 +78,20 @@ test("fails closed when a populated public table has no organization boundary", 
       transformTargetOrgDump(source, {
         sourceOrganizationId: SOURCE_ORG,
         targetOrganizationId: TARGET_ORG,
+        forbiddenIdentityPattern: LOCAL_AUTH_IDENTITIES,
       }),
     /does not expose an organization_id column/,
+  );
+});
+
+test("requires an explicit forbidden local-identity pattern", () => {
+  assert.throws(
+    () =>
+      transformTargetOrgDump("", {
+        sourceOrganizationId: SOURCE_ORG,
+        targetOrganizationId: TARGET_ORG,
+      }),
+    /forbiddenIdentityPattern is required/,
   );
 });
 
@@ -92,8 +108,7 @@ test("rejects output that still contains an unmapped local auth identity", () =>
       transformTargetOrgDump(source, {
         sourceOrganizationId: SOURCE_ORG,
         targetOrganizationId: TARGET_ORG,
-        forbiddenIdentityPattern:
-          /00000000-0000-0000-0000-000000000(?:101|501|601)/,
+        forbiddenIdentityPattern: LOCAL_AUTH_IDENTITIES,
       }),
     /unmapped local auth identity/,
   );

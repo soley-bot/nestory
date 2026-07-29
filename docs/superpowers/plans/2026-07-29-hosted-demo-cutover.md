@@ -80,8 +80,8 @@ coherent current data.
 
 Completed:
 
-- Backups live outside Git at
-  `C:\Users\USer\AppData\Local\Temp\nestory-hosted-cutover-20260729-081458`.
+- Backups live outside Git in the operating-system temporary directory under
+  the sanitized artifact label `nestory-hosted-cutover-20260729-081458`.
   The full data dump SHA-256 is
   `D7634E13189065E29E58CB92635AB6803F304C7843A959CAF6EF4AB8D3B64D09`;
   the schema dump SHA-256 is

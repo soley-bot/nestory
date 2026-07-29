@@ -16,6 +16,9 @@ export function transformTargetOrgDump(
 ) {
   requireUuid(sourceOrganizationId, "sourceOrganizationId");
   requireUuid(targetOrganizationId, "targetOrganizationId");
+  if (!(forbiddenIdentityPattern instanceof RegExp)) {
+    throw new Error("forbiddenIdentityPattern is required.");
+  }
 
   const normalized = source.replaceAll("\r\n", "\n");
   const lines = normalized.split("\n");
@@ -78,7 +81,7 @@ export function transformTargetOrgDump(
   }
 
   const sql = output.join("\n");
-  if (forbiddenIdentityPattern?.test(sql)) {
+  if (forbiddenIdentityPattern.test(sql)) {
     throw new Error("Target dump contains an unmapped local auth identity.");
   }
 

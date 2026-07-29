@@ -399,6 +399,7 @@ SELECT ok(
       ON terms.organization_id = leases.organization_id
      AND terms.lease_id = leases.id
      AND terms.archived_at IS NULL
+     AND terms.authority_kind = 'authoritative'
     JOIN public.lease_occupancies AS occupancies
       ON occupancies.organization_id = leases.organization_id
      AND occupancies.lease_id = leases.id
@@ -473,26 +474,27 @@ SELECT ok(
   'task-linked expenses remain scoped to the task property'
 );
 
+CREATE TEMP VIEW visible_operational_records AS
+SELECT organization_id, description AS body
+FROM public.ledger_entries
+WHERE archived_at IS NULL
+UNION ALL
+SELECT organization_id, concat_ws(' ', title, description)
+FROM public.tasks
+WHERE archived_at IS NULL
+UNION ALL
+SELECT organization_id, concat_ws(' ', title, description)
+FROM public.tenant_requests
+WHERE archived_at IS NULL
+UNION ALL
+SELECT organization_id, concat_ws(' ', title, description)
+FROM public.timeline_events
+WHERE archived_at IS NULL;
+
 SELECT ok(
   NOT EXISTS (
     SELECT 1
-    FROM (
-      SELECT organization_id, description AS body
-      FROM public.ledger_entries
-      WHERE archived_at IS NULL
-      UNION ALL
-      SELECT organization_id, concat_ws(' ', title, description)
-      FROM public.tasks
-      WHERE archived_at IS NULL
-      UNION ALL
-      SELECT organization_id, concat_ws(' ', title, description)
-      FROM public.tenant_requests
-      WHERE archived_at IS NULL
-      UNION ALL
-      SELECT organization_id, concat_ws(' ', title, description)
-      FROM public.timeline_events
-      WHERE archived_at IS NULL
-    ) AS visible_records
+    FROM visible_operational_records AS visible_records
     JOIN public.properties AS archived_properties
       ON archived_properties.organization_id = visible_records.organization_id
      AND archived_properties.archived_at IS NOT NULL
@@ -506,23 +508,7 @@ SELECT ok(
 SELECT ok(
   NOT EXISTS (
     SELECT 1
-    FROM (
-      SELECT organization_id, description AS body
-      FROM public.ledger_entries
-      WHERE archived_at IS NULL
-      UNION ALL
-      SELECT organization_id, concat_ws(' ', title, description)
-      FROM public.tasks
-      WHERE archived_at IS NULL
-      UNION ALL
-      SELECT organization_id, concat_ws(' ', title, description)
-      FROM public.tenant_requests
-      WHERE archived_at IS NULL
-      UNION ALL
-      SELECT organization_id, concat_ws(' ', title, description)
-      FROM public.timeline_events
-      WHERE archived_at IS NULL
-    ) AS visible_records
+    FROM visible_operational_records AS visible_records
     JOIN public.units AS archived_units
       ON archived_units.organization_id = visible_records.organization_id
      AND archived_units.archived_at IS NOT NULL
