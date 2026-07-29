@@ -3,7 +3,10 @@
 **Status:** Implementation and local verification complete; PR #40 merged
 **Branch:** `codex/rebuild-fresh-demo-data`  
 **Merged baseline:** `b592557f3d2919ab5bd7932426fc218a1bea5d4d`  
-**Scope:** Deterministic local demo data plus fail-closed hosted cutover preparation. No hosted mutation, hosted migration apply, production deployment, or PR merge.
+**Scope:** Historical implementation/PR scope: deterministic local demo data
+plus fail-closed hosted cutover preparation. This implementation slice did not
+execute a hosted mutation, hosted migration apply, production deployment, or
+PR merge; PR #40 later merged in a separate approved cutover.
 
 ## Outcome
 
