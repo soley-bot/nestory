@@ -742,7 +742,7 @@ function RentIncomeInspector({
             {item.receipts.map((receipt) => (
               <div
                 className="space-y-2 rounded-md border border-border px-3 py-2 text-sm"
-                key={receipt.id}
+                key={receipt.allocationId}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -1031,6 +1031,7 @@ function RecordPaymentPanel({
   const [idempotencyKey] = useState(createSettlementIdempotencyKey);
   const availableSources = reconciliationSources.filter(
     (source) =>
+      !source.archivedAt &&
       source.currency === item.currency &&
       (source.propertyId === null || source.propertyId === item.propertyId),
   );
@@ -1065,6 +1066,11 @@ function RecordPaymentPanel({
               placeholder="Choose receiving account"
               required
             />
+            {availableSources.length === 0 ? (
+              <span className="block text-xs leading-5 text-danger">
+                No active cash account is available for this property and currency.
+              </span>
+            ) : null}
           </Field>
           <Field
             label="Received amount"
@@ -1097,6 +1103,7 @@ function RecordPaymentPanel({
       <DrawerActions
         onCancel={onClose}
         pending={pending}
+        submitDisabled={availableSources.length === 0}
         submitLabel="Record receipt"
       />
     </form>
@@ -1123,9 +1130,13 @@ function ReverseReceiptPanel({
   const [idempotencyKey] = useState(createSettlementIdempotencyKey);
   const availableSources = reconciliationSources.filter(
     (source) =>
+      !source.archivedAt &&
       source.currency === item.currency &&
       (source.propertyId === null || source.propertyId === item.propertyId),
   );
+  const businessDate = getBusinessDateValue();
+  const defaultReversalDate =
+    receipt.receivedDate > businessDate ? receipt.receivedDate : businessDate;
 
   useCloseOnSuccess(state, onClose, onSuccess);
 
@@ -1166,13 +1177,18 @@ function ReverseReceiptPanel({
               placeholder="Choose reversing account"
               required
             />
+            {availableSources.length === 0 ? (
+              <span className="block text-xs leading-5 text-danger">
+                No active cash account is available for this property and currency.
+              </span>
+            ) : null}
           </Field>
           <Field
             label="Reversal date"
             error={state.fieldErrors?.reversalDate?.[0]}
           >
             <DatePickerField
-              defaultValue={getBusinessDateValue()}
+              defaultValue={defaultReversalDate}
               name="reversalDate"
               required
             />
@@ -1186,6 +1202,7 @@ function ReverseReceiptPanel({
       <DrawerActions
         onCancel={onClose}
         pending={pending}
+        submitDisabled={availableSources.length === 0}
         submitLabel="Reverse receipt"
       />
     </form>
@@ -1263,10 +1280,12 @@ function Field({
 function DrawerActions({
   onCancel,
   pending,
+  submitDisabled = false,
   submitLabel,
 }: {
   onCancel: () => void;
   pending: boolean;
+  submitDisabled?: boolean;
   submitLabel: string;
 }) {
   return (
@@ -1277,7 +1296,7 @@ function DrawerActions({
         </Button>
         <Button
           className="w-full sm:w-auto"
-          disabled={pending}
+          disabled={pending || submitDisabled}
           type="submit"
           variant="primary"
         >

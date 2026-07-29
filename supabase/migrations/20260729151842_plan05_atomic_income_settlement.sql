@@ -2311,6 +2311,7 @@ DO $migration$
 DECLARE
   v_definition text;
   v_patched text;
+  v_previous text;
 BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'public.get_property_cash_events_v1_page(uuid,uuid,public.currency_code,date,date,date,text,uuid,integer)'::regprocedure
@@ -2319,33 +2320,48 @@ BEGIN
 
   v_patched := v_definition;
 
+  v_previous := v_patched;
   v_patched := replace(
     v_patched,
     E'      receipt.reversal_of_id,\n      original_allocation.id AS original_allocation_id,',
     E'      receipt.reversal_of_id,\n      receipt.reconciliation_source_id,\n      allocation.settlement_contract_version,\n      allocation.publication_source_class,\n      coalesce(allocation.reversal_of_allocation_id, original_allocation.id) AS original_allocation_id,'
   );
+  IF v_patched = v_previous THEN
+    RAISE EXCEPTION
+      'Plan 05 could not patch the cash-event source projection list';
+  END IF;
 
+  v_previous := v_patched;
   v_patched := replace(
     v_patched,
     E'      income.ledger_entry_id,\n      ledger.accounting_journal_entry_id,',
     E'      coalesce(allocation.ledger_entry_id, income.ledger_entry_id) AS ledger_entry_id,\n      ledger.accounting_journal_entry_id,'
   );
+  IF v_patched = v_previous THEN
+    RAISE EXCEPTION
+      'Plan 05 could not patch the cash-event Ledger projection';
+  END IF;
 
+  v_previous := v_patched;
   v_patched := replace(
     v_patched,
     E'    LEFT JOIN public.ledger_entries AS ledger\n      ON ledger.id = income.ledger_entry_id\n     AND ledger.organization_id = income.organization_id',
     E'    LEFT JOIN public.ledger_entries AS ledger\n      ON ledger.id = coalesce(allocation.ledger_entry_id, income.ledger_entry_id)\n     AND ledger.organization_id = income.organization_id'
   );
+  IF v_patched = v_previous THEN
+    RAISE EXCEPTION
+      'Plan 05 could not patch the cash-event Ledger join';
+  END IF;
 
+  v_previous := v_patched;
   v_patched := replace(
     v_patched,
     E'      true AS requires_resolution,\n      pg_catalog.array_remove(\n        ARRAY[\n          CASE WHEN fact.income_type = ''security_deposit''\n            THEN ''deposit_cash_identity_missing'' END,\n          CASE WHEN fact.income_type IN (\n            ''management_fee'', ''leasing_commission'', ''service_fee'',\n            ''maintenance_markup''\n          ) THEN ''management_fee_owner_recognition_unresolved'' END,\n          ''missing_reconciliation_source'',\n          ''mutable_obligation_classification'',\n          CASE WHEN NOT fact.reversal_header_is_exact\n            THEN ''reversal_header_not_exact'' END,\n          CASE WHEN NOT fact.scope_is_exact\n            THEN ''source_scope_invalid'' END\n        ]::text[],\n        NULL::text\n      ) AS resolution_codes,\n      NULL::uuid AS reconciliation_source_id,\n      ''missing_stable_identity''::text AS reconciliation_state,',
     E'      (\n        fact.settlement_contract_version IS NULL\n        OR fact.reconciliation_source_id IS NULL\n        OR fact.ledger_entry_id IS NULL\n        OR fact.accounting_journal_entry_id IS NULL\n        OR NOT fact.scope_is_exact\n        OR NOT fact.reversal_header_is_exact\n      ) AS requires_resolution,\n      pg_catalog.array_remove(\n        ARRAY[\n          CASE WHEN fact.income_type = ''security_deposit''\n            THEN ''deposit_cash_identity_missing'' END,\n          CASE WHEN fact.income_type IN (\n            ''management_fee'', ''leasing_commission'', ''service_fee'',\n            ''maintenance_markup''\n          ) THEN ''management_fee_owner_recognition_unresolved'' END,\n          CASE WHEN fact.reconciliation_source_id IS NULL\n            THEN ''missing_reconciliation_source'' END,\n          CASE WHEN fact.settlement_contract_version IS NULL\n            THEN ''mutable_obligation_classification'' END,\n          CASE WHEN NOT fact.reversal_header_is_exact\n            THEN ''reversal_header_not_exact'' END,\n          CASE WHEN NOT fact.scope_is_exact\n            THEN ''source_scope_invalid'' END\n        ]::text[],\n        NULL::text\n      ) AS resolution_codes,\n      fact.reconciliation_source_id,\n      CASE WHEN fact.reconciliation_source_id IS NULL\n        THEN ''missing_stable_identity''\n        ELSE ''matched''\n      END::text AS reconciliation_state,'
   );
-
-  IF v_patched = v_definition THEN
+  IF v_patched = v_previous THEN
     RAISE EXCEPTION
-      'Plan 05 could not patch get_property_cash_events_v1_page';
+      'Plan 05 could not patch the cash-event resolution projection';
   END IF;
 
   EXECUTE v_patched;

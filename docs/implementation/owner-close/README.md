@@ -212,7 +212,8 @@ The full consistency matrix is in
 
 1. Plans 00-04 — architecture, inventory, shadow cash contract, authority
    kernel, and lease/rent policy: complete and merged.
-2. Plan 05 — atomic income settlement: recommended next implementation slice.
+2. Plan 05 — atomic income settlement: implemented; hosted release remains
+   separately authorized.
 3. Plans 06-09 — expense, maintenance, petty cash, and rent occurrence
    authority.
 4. Plan 10 — security-deposit custody and limited disposition.

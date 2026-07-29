@@ -74,7 +74,7 @@ type ReceiptJournalRow = Pick<
 >;
 type ReconciliationSourceRow = Pick<
   Database["public"]["Tables"]["financial_reconciliation_sources"]["Row"],
-  "code" | "currency" | "display_name" | "id" | "property_id"
+  "archived_at" | "code" | "currency" | "display_name" | "id" | "property_id"
 >;
 
 export async function getRentIncomeScreenData(
@@ -114,9 +114,8 @@ export async function getRentIncomeScreenData(
       .order("tenant_name", { ascending: true }),
     supabase
       .from("financial_reconciliation_sources")
-      .select("id, property_id, currency, display_name, code")
+      .select("id, property_id, currency, display_name, code, archived_at")
       .eq("organization_id", organizationId)
-      .is("archived_at", null)
       .order("code", { ascending: true }),
     getPersonSelectOptions({
       organizationId,
@@ -556,6 +555,7 @@ function toReconciliationSource(
   row: ReconciliationSourceRow,
 ): RentIncomeReconciliationSource {
   return {
+    archivedAt: row.archived_at,
     currency: row.currency,
     id: row.id,
     label: `${row.code} · ${row.display_name}`,

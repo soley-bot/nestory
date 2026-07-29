@@ -98,6 +98,7 @@ export type RentIncomeReceipt = {
 };
 
 export type RentIncomeReconciliationSource = {
+  archivedAt?: string | null;
   currency: CurrencyCode;
   id: string;
   label: string;
