@@ -12,6 +12,9 @@ merged.
 **Reason:** This slice must close several database write bypasses and preserve
 Plan 04 compatibility without expanding into new lifecycle or historical UI.
 
+Implement TB-01 only. Do not combine this prompt with another Track B slice or
+with any Track A implementation.
+
 ### Context and exact merged-main prerequisite
 
 Repository: `soley-bot/nestory`.
@@ -245,6 +248,9 @@ required message.
 lifecycle, person-level residence evidence, a safe legacy bootstrap, and one
 non-duplicating new-Lease composition before existing history can change.
 
+Implement TB-02 only. Do not combine this prompt with another Track B slice or
+with any Track A implementation.
+
 ### Context and exact merged-main prerequisite
 
 Repository: `soley-bot/nestory`.
@@ -477,6 +483,9 @@ Stop if:
 paginated, stale-safe impact preview, owner-state adapters, and composable
 financial-period locks prove the selected action is available.
 
+Implement TB-03 only. Do not combine this prompt with another Track B slice or
+with any Track A implementation.
+
 ### Context and exact merged-main prerequisite
 
 Repository: `soley-bot/nestory`.
@@ -703,6 +712,9 @@ Stop if:
 deterministic manifests, explicit uncertainty, idempotent repair, and rollback
 evidence.
 
+Implement TB-04 only. Do not combine this prompt with another Track B slice or
+with any Track A implementation.
+
 ### Context and exact merged-main prerequisite
 
 Repository: `soley-bot/nestory`.
@@ -901,6 +913,9 @@ the required outcome.
 **Reason:** Trustworthy history and Track A consumption need the same
 accepted-version, evidence-aware, exact-ID, authorized, scalable relationship
 projection without moving rent calculation into Track B.
+
+Implement TB-05 only. Do not combine this prompt with another Track B slice or
+with any Track A implementation.
 
 ### Context and exact merged-main prerequisite
 
@@ -1120,6 +1135,9 @@ Stop if:
 **Reason:** Extension, replacement, and transfer require atomic continuity,
 interval locks, term authority, and explicit downstream-action stops.
 
+Implement TB-06 only. Do not combine this prompt with another Track B slice or
+with any Track A implementation.
+
 ### Context and exact merged-main prerequisite
 
 Repository: `soley-bot/nestory`.
@@ -1326,6 +1344,9 @@ only the coherent supported set and report it.
 **Reason:** Final Track B adoption must add exact optional tenancy context
 without forcing every operational record onto a Lease or taking over finance
 and publication authority.
+
+Implement TB-07 only. Do not combine this prompt with another Track B slice or
+with any Track A implementation.
 
 ### Context and exact merged-main prerequisite
 
