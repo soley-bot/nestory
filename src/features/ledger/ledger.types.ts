@@ -10,7 +10,8 @@ export type LedgerSourceType =
   | "finance_income"
   | "maintenance_task"
   | "manual"
-  | "petty_cash";
+  | "petty_cash"
+  | "receipt_allocation";
 
 export type LedgerRecordCounts = {
   activity: number;

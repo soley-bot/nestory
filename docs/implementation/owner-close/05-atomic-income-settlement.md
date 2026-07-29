@@ -596,14 +596,16 @@ The implemented repository slice passes:
   scope/currency/source validation, header/allocation balance, partial
   receipts, payload-bound retry, journal balance, atomic rollback, reversal
   pairing, contra-income Ledger totals, pre-allocation posting-bypass rejection,
-  immutable provenance, direct-DML creation guards, cross-organization denial,
-  and legacy compatibility;
+  inventory parity for balanced contra-income projections, immutable
+  provenance, direct-DML creation guards, cross-organization denial, and
+  legacy compatibility;
 - the current seven-scenario two-session income harness for
   receipt-versus-receipt, receipt/reversal idempotent retry, and both
   receipt/reversal-versus-close start orders;
 - the Plan 03 Ledger and accounting transition concurrency harnesses;
 - focused and full Vitest, demo-tool tests, ESLint, TypeScript, generated-type
-  drift comparison, and the production build;
+  drift comparison, managed receipt-projection Ledger controls, and the
+  production build;
 - authenticated browser proof for partial receipt, second receipt, reversal,
   and read-only source evidence; and
 - `git diff --check`.

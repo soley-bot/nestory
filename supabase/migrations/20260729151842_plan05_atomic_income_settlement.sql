@@ -2463,6 +2463,35 @@ BEGIN
 END;
 $migration$;
 
+-- The inventory journal control stores positive debit/credit totals. A Plan 05
+-- receipt reversal is the only valid negative Ledger projection, so compare
+-- that reserved contra-income amount by magnitude without weakening other
+-- Ledger/journal parity checks.
+DO $migration$
+DECLARE
+  v_definition text;
+  v_patched text;
+BEGIN
+  SELECT pg_catalog.pg_get_functiondef(
+    'app_private.get_finance_inventory_page(uuid,uuid,public.currency_code,date,date,text,text,integer,text[],text[])'::regprocedure
+  )
+  INTO STRICT v_definition;
+
+  v_patched := replace(
+    v_definition,
+    E'            control.debit_amount <> ledger.amount\n            OR control.credit_amount <> ledger.amount',
+    E'            control.debit_amount <> CASE\n              WHEN ledger.source_type = ''receipt_allocation''\n                AND ledger.direction = ''income''\n                THEN pg_catalog.abs(ledger.amount)\n              ELSE ledger.amount\n            END\n            OR control.credit_amount <> CASE\n              WHEN ledger.source_type = ''receipt_allocation''\n                AND ledger.direction = ''income''\n                THEN pg_catalog.abs(ledger.amount)\n              ELSE ledger.amount\n            END'
+  );
+
+  IF v_patched = v_definition THEN
+    RAISE EXCEPTION
+      'Plan 05 could not patch the inventory Ledger/journal amount control';
+  END IF;
+
+  EXECUTE v_patched;
+END;
+$migration$;
+
 CREATE OR REPLACE FUNCTION public.get_finance_income_workflow_summary(
   p_organization_id uuid,
   p_due_from date,

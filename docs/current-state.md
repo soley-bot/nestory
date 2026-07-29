@@ -317,6 +317,10 @@ RPC write boundaries. Current table families include:
   context even before the first allocation. The Plan 05 owner-state adapter
   binds a proposed receipt/reversal date into its material hash and returns
   every distinct source and destination month in deterministic lock order.
+  Ledger classifies receipt-allocation projections as Rent & Income evidence
+  and suppresses lifecycle controls that the reserved projection guard rejects.
+  Finance inventory compares negative contra-income to its positive balanced
+  journal controls by magnitude without weakening other parity checks.
   Checked public RPCs record and reverse deposit events while private
   implementations and direct event-table writes remain unavailable to API
   callers. The lease quick view shows held balance and immutable event history.

@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(61);
+SELECT plan(62);
 
 SELECT has_function(
   'public',
@@ -1026,6 +1026,29 @@ SELECT ok(
     )
   ),
   'generic Ledger totals net reversals inside income without creating expense'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM plan05_test_state
+    CROSS JOIN LATERAL public.get_finance_inventory_page(
+      plan05_test_state.organization_id,
+      plan05_test_state.property_id,
+      'USD',
+      '2026-09-01',
+      '2026-09-30',
+      'diagnostics',
+      NULL,
+      100,
+      ARRAY['LEDGER_JOURNAL_AMOUNT_MISMATCH'],
+      NULL
+    ) AS diagnostic
+    WHERE diagnostic.payload->>'ledgerEntryId' =
+      plan05_test_state.reversal_result->>'ledger_entry_id'
+  ),
+  0::bigint,
+  'finance inventory accepts balanced contra-income reversal projections'
 );
 
 SELECT is(

@@ -30,7 +30,9 @@ original evidence.
    reconciliation source and reversal date, and enter a reason.
 
 There is no separate Post to Ledger action. Operators must not edit or archive
-the derived Ledger or journal rows.
+the derived Ledger or journal rows. Receipt-allocation projections appear as
+Rent & Income evidence in Ledger and expose no edit, archive, or restore
+controls; supporting documents may still be attached.
 
 The read-only owner-state preview requires the proposed receipt or reversal
 date. Its lock scope includes both the obligation or original-cash month and

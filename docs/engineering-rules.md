@@ -107,6 +107,10 @@ These rules are grounded in the current implementation.
   cash-action date and return every distinct source and destination
   property-period scope in deterministic order. Never derive a cash-action
   lock only from the obligation due date.
+- Reserved receipt-allocation Ledger projections are Rent & Income evidence,
+  not manual rows. Keep edit/archive/restore controls off those rows, and
+  compare a negative contra-income Ledger amount to positive balanced journal
+  controls by magnitude in finance diagnostics.
 - Security deposits and owner contributions do not count as property operating
   income.
 - Do not add management-company payroll, overhead, P&L, general-ledger, tax, or
