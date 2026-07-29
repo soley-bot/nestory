@@ -66,8 +66,12 @@ The initial implementation therefore adds an organization-scoped
 
 A tenant who also lives in the Unit has both a responsibility role and an
 occupancy-participant fact. An authorized-occupant role proves authorization;
-it becomes physical-history evidence only when an accepted participant row
-links it to the occupancy. Company parties cannot be occupancy participants.
+it becomes physical-history evidence only when an accepted participant in
+`present` or `ended` lifecycle links it to accepted actual occupancy, the
+actual occupancy contains the participant interval, and every query-material
+participant and occupancy boundary is `known` or an end is resolved
+`open_current` through `as_of_date`. Company parties cannot be occupancy
+participants.
 
 Do not infer participant rows from the primary tenant, all active Lease
 parties, matching dates, a Unit status, or the existence of an occupied Lease.
@@ -394,14 +398,17 @@ Do not update a completed actual date directly through the Data API.
 
 - Every participant is an individual linked through an exact Lease party and
   exact occupancy.
-- Confirmed participant dates must fall within known confirmed actual
-  occupancy boundaries where those boundaries exist.
+- Confirmed residence requires an `accepted` participant in `present` or
+  `ended` lifecycle and an `accepted` actual occupancy. Every participant and
+  occupancy boundary material to the claim must be `known`, or an end may be
+  `open_current` only when resolved through `as_of_date`. The participant
+  interval must be contained within the accepted actual-occupancy interval.
 - The same Person cannot have overlapping accepted participant intervals for
   contradictory Units.
 - A tenant or authorized-occupant role does not create a participant interval
   by implication.
-- Unknown participant boundaries remain unknown and are excluded from claims
-  about who physically occupied the Unit.
+- If any query-material participant or occupancy boundary is `unknown`,
+  physical presence is `possible_overlap`/unresolved, never confirmed.
 
 Database exclusions should use generated effective ranges and organization/unit
 scope where possible. Checked RPCs must also return business-readable errors
@@ -495,7 +502,10 @@ The model is ready for read adoption only when:
 7. active lease/person archive paths cannot leave invisible open history;
 8. overlap rules hold under concurrent writes;
 9. exact IDs and correction lineage are auditable; and
-10. person-level physical occupancy is returned only from accepted participant
-    evidence, never inferred from tenant responsibility; and
+10. person-level physical occupancy is returned only from an accepted
+    `present`/`ended` participant contained by accepted actual occupancy, with
+    every query-material participant and occupancy boundary `known` or an end
+    resolved `open_current` through `as_of_date`; it is never inferred from
+    tenant responsibility; and
 11. no issued, settled, closed, or published dependency is changed by a
     relationship transition.

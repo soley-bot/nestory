@@ -136,11 +136,13 @@ truth.
 - **Tenant responsibility** comes from effective-dated
   `primary_tenant` and `co_tenant` lease-party rows.
 - **Physical occupancy of a named Person** comes only from the accepted,
-  dated person-to-occupancy participation version whose lifecycle and
-  confirmed boundaries establish presence inside accepted actual lease-level
-  occupancy. Planned, cancelled, or unknown-boundary participation is not
-  confirmed residence. A tenant or `authorized_occupant` role alone proves
-  contractual responsibility or authorization, not observed residence.
+  dated person-to-occupancy participation version in `present` or `ended`
+  lifecycle whose interval is contained by accepted actual lease-level
+  occupancy. Every query-material participant and occupancy boundary must be
+  `known`, or an end may be `open_current` only through `as_of_date`. Planned,
+  cancelled, or unknown-boundary participation is not confirmed residence. A
+  tenant or `authorized_occupant` role alone proves contractual responsibility
+  or authorization, not observed residence.
 - **Billing contact** comes from an effective-dated `billing_contact` row and
   does not imply responsibility or occupancy.
 - **Current master data** comes from `people`; it can refresh directories and

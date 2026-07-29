@@ -153,7 +153,8 @@ The implementation needs a bounded, resumable migration/review contract,
 provisionally:
 
 - migration run header with baseline schema/version, organization, filter,
-  status, actor, timestamps, counts, and source/material hashes;
+  status, actor, timestamps, counts, source-snapshot identity/isolation, and
+  source/material hashes;
 - one item per atomic asserted fact or issue, with stable identity derived from
   source table/row, fact kind, and source material;
 - typed issue and proposed resolution;
@@ -164,6 +165,17 @@ provisionally:
 - operator resolution, reason, actor, and time;
 - applied idempotency identity and result IDs; and
 - retry/failure evidence.
+
+Each run is sealed from one database state. In one repeatable-read transaction,
+or one equivalent immutable export, enumerate the complete bounded source set,
+compute its counts and page-independent material hash, and materialize the run
+header and every atomic fact/issue item. Record the immutable snapshot identity,
+isolation strategy, filter, ordering contract, sealed time, and full-set hash.
+
+Every keyset page reads only that sealed manifest and binds its cursor to the
+run ID, snapshot identity/hash, filter, ordering, and position. No page rescans
+mutable source rows or combines runs. This is Track B migration evidence, not
+Track A's approved calculation snapshot.
 
 The final table/RPC names are selected in TB-04. The semantics above are
 required. A generic free-text review queue is not enough.
@@ -201,6 +213,9 @@ does not receive one blanket classification.
 
 TB-04 first runs without applying:
 
+- materializes one immutable source snapshot under repeatable-read isolation
+  at run start, records its identity and material hash, and binds every keyset
+  page and later apply operation to that snapshot;
 - counts leases, parties, occupancies, mismatches, conflicts, unitless rows,
   archive conflicts, person conflicts, inferred dates, and dependencies;
 - classifies and emits every atomic fact/issue with deterministic item ID and
@@ -211,6 +226,14 @@ TB-04 first runs without applying:
 - separates auto-classifiable from operator-review/unresolved facts.
 
 No dry run may claim that an inferred actual date is confirmed.
+Dry-run inventory mutates no business or historical source rows. Its only
+allowed writes are append-only run/snapshot/manifest records needed to seal and
+page the inventory.
+
+Inside one serializable or equivalently locked apply transaction, reload and
+hash the referenced source material and full-set membership before any write.
+If it differs from the sealed snapshot, reject the run without writing business
+history, projections, activity, or idempotency results.
 
 ### Phase 3 — Fact classification and constrained promotion
 
@@ -231,7 +254,8 @@ Apply fact-level results without conflating confidence and acceptance:
 - preserve exact Plan 04 term links; and
 - record per-item idempotent results.
 
-The apply operation rechecks the source hash and refuses stale data.
+The apply operation performs that exact same-transaction source-set and
+full-membership recheck before any mutation.
 
 ### Phase 4 — Operator resolution
 
@@ -281,9 +305,11 @@ Select:
 - one named property with a small, reviewed lease set;
 - leases covering active, ended, cancelled-before-move-in, and at least one
   former-party case;
-- one accepted explicit occupancy-participant case whose lifecycle/boundaries
-  prove presence, one accepted planned/unknown-boundary negative case, and one
-  party/occupancy association with no participant evidence;
+- one accepted explicit `present`/`ended` occupancy-participant case contained
+  by accepted actual occupancy with all query-material boundaries `known` or an
+  end resolved `open_current` through `as_of_date`; one planned or
+  participant/occupancy-unknown-boundary negative case; and one party/occupancy
+  association with no participant evidence;
 - one inferred actual-date case;
 - one ambiguity left unresolved; and
 - no same-day turnover, multi-unit lease, holdover, or month-to-month case.

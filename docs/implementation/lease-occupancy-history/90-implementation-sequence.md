@@ -78,9 +78,11 @@ authority intact.
 - Revoke or safely wrap legacy `restore_lease(...)`; restore fails closed until
   TB-03 can recheck conflicts, dependencies, and stale impact inside one
   transaction.
-- Remove authenticated/service-role direct mutation capability for party and
-  occupancy/participant history, with checked internal context for approved
-  workflows.
+- Remove authenticated/service-role direct mutation capability for the
+  existing party and occupancy history surfaces, with checked internal context
+  for approved workflows. TB-02 owns grants/RLS for the participant table/API
+  that it introduces; no participant mutation surface exists at the TB-01
+  baseline.
 - Change compatibility synchronization so an existing history row is never
   selected and repurposed for a different person, unit, or completed fact.
 - Stop creation/import synchronization from copying Lease term dates into
@@ -143,8 +145,11 @@ relationships.
 - Add correction/supersession lineage.
 - Add dated `lease_occupancy_participants` evidence so a named Person is
   reported as physically resident only from an accepted participant version
-  whose lifecycle and confirmed boundaries prove presence during accepted
-  actual occupancy.
+  in `present` or `ended` lifecycle whose interval is contained by accepted
+  actual occupancy, with every query-material participant and occupancy
+  boundary `known` or an end resolved `open_current` through `as_of_date`.
+- Define the new participant surface's least-privilege grants, RLS, checked
+  mutation context, and direct authenticated/service-role DML denial in TB-02.
 - Mechanically mark every pre-TB-02 party/occupancy row
   `legacy_unresolved`; preserve deterministic identity separately from
   inferred/unknown boundaries. Do not derive a participant from overlapping
@@ -248,6 +253,10 @@ invoice/receipt implementation, and no broad Unit Timeline.
   draft-only corrections succeed only through explicit available actions;
 - issued/settled/closed/published cases preserve originals and return exact
   prerequisites; and
+- an `approved_not_issued` owner state uses only the merged owner-declared
+  checked `reset_approval` or `reopen` action followed by apply/regenerate
+  through that owner; without it, the known state is preserved and the action
+  is unavailable; and
 - pagination covers the full material set without client-trusted counts.
 
 ## TB-04 — Legacy classification, repair manifest, and bounded pilot
@@ -259,7 +268,11 @@ resumable local pilot before any broad historical read claims.
 
 ### Required scope
 
-- Dry-run manifest and deterministic hashes.
+- Dry-run manifest and deterministic hashes bound to one immutable source
+  snapshot captured under repeatable-read isolation; every page and apply
+  reuses that snapshot identity. Apply locks/reloads the exact source set and
+  re-hashes it inside the same transaction before mutation, rejecting changed
+  source material.
 - Typed review issues and resolutions.
 - Deterministic/inferred/review/unresolved classification for each asserted
   identity, boundary, and participation fact; a row-level rollup is
@@ -293,6 +306,9 @@ financial reattribution, or automatic approval of inferred actual dates.
 - safe-inferred facts remain durably labelled/provisional and excluded from
   confirmed history;
 - reruns create no duplicates;
+- every page and apply remains bound to the one run snapshot, and apply's
+  same-transaction source lock/re-hash rejects stale or concurrently changed
+  material before normalized mutation;
 - no historical row is deleted/overwritten;
 - pilot and rollback evidence are reviewed; and
 - the read contract can distinguish confirmed/inferred/unknown.
@@ -312,20 +328,35 @@ combine with its authoritative term/policy calculation.
 - Person lease-role history page.
 - Lease history detail contract.
 - Person-level confirmed physical-residence results only from the accepted
-  participant version whose lifecycle/boundaries establish `present` or `ended`
-  presence during accepted actual occupancy; planned, cancelled, or
-  unknown-boundary evidence remains scheduled/unknown. Otherwise report
-  contractual/authorized association or unknown residence.
+  participant version in `present` or `ended` lifecycle and accepted actual
+  occupancy. Every query-material participant and occupancy boundary must be
+  `known`, or an end may be `open_current` only when resolved through
+  `as_of_date`; the participant interval must be contained within the accepted
+  actual-occupancy interval. Planned, cancelled, or unknown-boundary
+  participant or occupancy evidence remains scheduled/unknown. Otherwise
+  report contractual/authorized association or unknown residence.
 - Accepted-version/correction resolution.
 - Explicit `known`, `open_current`, and `unknown` boundary resolution with
   definite overlap, possible overlap, and non-overlap results.
 - Confirmed/scheduled/unknown vacancy.
+- Every confirmed leading/internal/trailing vacancy interval is clipped to the
+  historical window `[from_date, min(to_date, as_of_date)]`; later dates are
+  forecast only.
 - Current profile versus owner-provided artifact-snapshot references.
 - Exact ID links originating in focused TB-05 Unit/Person/Lease history
   surfaces; explicit `as_of_date`; stable per-collection keyset cursors, max
   page sizes, filter/query hash, and material token. Timeline, Documents,
   import, Reports/search, and Ledger source adoption remains with TB-07 or the
   named owner.
+- Every first or continuation page reauthorizes current membership, property
+  visibility, and financial permission. Cursor/filter authorization material
+  binds caller identity, issued-at, expiry, and authorization revision;
+  authorization context is server-derived, and cross-user replay or
+  expired/revoked authorization or tokens fail closed.
+- Tenant responsibility is classified against the requested period without
+  requiring occupancy overlap, including responsibility before move-in, after
+  move-out, or while occupancy is unresolved, after exact accepted
+  Lease/Unit association is established.
 - Checked period-effective relationship evidence separating charge obligor
   candidates from billing recipient candidates. `billing_contact` is never
   automatically the debtor.
@@ -348,9 +379,12 @@ affected links, finance-report change, or compatibility removal.
 - known Unit query returns the expected former renters by date;
 - evidenced physical occupants, authorized/associated people, and responsible
   tenants are separate;
+- responsibility before move-in, after move-out, and during unresolved
+  occupancy remains visible without becoming physical-residence evidence;
 - former parties appear;
 - vacancy confidence is correct;
-- pages remain stable above current application page sizes;
+- pages remain stable above current application page sizes, reject cross-user
+  cursor replay, and fail when authorization is revoked between pages;
 - exact links replace fuzzy navigation in TB-05's focused history surfaces,
   while the owner/surface handoff remains explicit; and
 - Track A can consume a stable relationship-evidence envelope without Track B
@@ -380,9 +414,13 @@ Implement explicit continuity choices without moving predecessor dependencies.
   fabricating actual source move-out. Actual destination move-in requires an
   explicit actual source move-out.
 - Atomic, append-preserving `cancel_successor_plan` for a not-yet-effective
-  successor: cancel the continuity link, successor reservation, planned
-  parties/participants, and occupancy together after impact recheck; release
-  accepted-link cardinality without deleting evidence.
+  successor. After dependency recheck, one transaction moves the planned
+  continuity link, successor Lease, reservation, planned parties/participants,
+  and occupancy to their `cancelled_before_effective` lifecycles and invokes
+  the merged checked Plan 04 action to cancel the successor's authoritative
+  planned term without rewriting term history. If that action is unavailable,
+  fail before mutation. Delete nothing, create no actual/effective fact, and
+  release accepted-link cardinality for one later checked plan.
 - Early-termination orchestration with distinct contract and occupancy dates.
 - Dependency preview/action confirmation.
 - Atomic locks across predecessor/destination Unit intervals.
@@ -391,6 +429,12 @@ Implement explicit continuity choices without moving predecessor dependencies.
   file 04.
 
 ### Track A prerequisites
+
+Cancelling a not-yet-effective successor requires a separately merged checked
+Plan 04 action that append-preservingly cancels the whole authoritative planned
+term. Do not reuse the current `terminate_authoritative_lease_term`, which does
+not provide that successor-term cancellation contract, and never update
+`lease_terms` directly from TB-06.
 
 The implementation must stop if it requires an unavailable financial action,
 particularly:
@@ -402,7 +446,8 @@ particularly:
 - immutable source-scope adoption.
 
 It may still implement the continuity operation when the impact contract proves
-none of those actions is needed.
+none of those actions is needed, but `cancel_successor_plan` must stop before
+mutation when the required checked Plan 04 cancellation action is unavailable.
 
 ### Exclusions
 
@@ -416,8 +461,10 @@ dependency carry.
 - concurrent branch and merge attempts leave only one accepted chain;
 - predecessor records remain attached to predecessor;
 - retries do not duplicate successor or links;
-- cancelling a planned successor is dependency-aware, idempotent, leaves no
-  actual/effective facts, and permits one later accepted successor plan;
+- cancelling a planned successor is dependency-aware, idempotent, cancels the
+  successor Lease and authoritative planned term through their checked owners,
+  leaves no actual/effective facts, and permits one later accepted successor
+  plan;
 - each successor has exactly one accepted primary party and one occupancy;
 - Plan 04 scheduling/termination does not synthesize party ends or actual
   occupancy; its checked future-range adjustment remains allowed, while elapsed
@@ -477,10 +524,10 @@ tenant portal, navigation redesign, or full Unit Timeline.
 | --- | --- |
 | TB-01 | RED-first pgTAP, full relevant database reset/tests, grants/RLS/direct bypass, focused Lease Vitest, lint, typecheck, build, generated types, diff check |
 | TB-02 | All TB-01 checks plus legacy-bootstrap, exact-one creation composition, participant, boundary-kind, and two-session exclusion/idempotency tests |
-| TB-03 | All relevant checks plus existing-transition/restore, pagination/material-token, owner-adapter absence, stale-preview, deterministic property-period locks, and forced atomic-failure tests |
-| TB-04 | Dry-run/apply/retry/interruption/rollback, deterministic manifests, known-answer fixture, no hosted mutation |
-| TB-05 | Query plans, high-cardinality per-collection pagination, relationship-evidence envelope, authorization matrix, focused authenticated browser flows, exact-link tests |
-| TB-06 | Two-unit concurrency, predecessor/successor atomicity, dependency-action stops, retry evidence, authenticated workflow |
+| TB-03 | All relevant checks plus existing-transition/restore, pagination/material-token, `approved_not_issued` owner-action availability, owner-adapter absence, stale-preview, deterministic property-period locks, and forced atomic-failure tests |
+| TB-04 | Dry-run/apply/retry/interruption/rollback, one sealed source snapshot, cross-run cursor rejection, mutation-between-pages and stale-apply atomic rollback, deterministic manifests, known-answer fixture, no hosted mutation |
+| TB-05 | Query plans, high-cardinality per-collection pagination, cross-user cursor replay and between-page authorization revocation, relationship-evidence envelope, responsibility outside occupancy, vacancy bounded by `as_of_date`, authorization matrix, focused authenticated browser flows, exact-link tests |
+| TB-06 | Two-unit concurrency, predecessor/successor atomicity, forced Plan 04 cancellation failure/total rollback, dependency-action stops, retry evidence, authenticated workflow |
 | TB-07 | Cross-module exact-link/RLS tests, import provenance, focused operational browser flows, compatibility parity |
 
 Every implementation PR states exactly what ran and what did not. No slice

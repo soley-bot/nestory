@@ -318,7 +318,7 @@ raw columns.
 | --- | --- |
 | No dependent record | Apply the checked Track B edit or transition. |
 | Draft dependencies only | Apply the effective-dated change and deterministically regenerate/recalculate the named drafts through their owner. |
-| Approved, not issued | Reset approval or reopen through the owning checked workflow, then apply/regenerate. |
+| `approved_not_issued` (approved, not issued) | Reset approval or reopen through the owning checked workflow, then apply/regenerate through that owner. If the checked action is unavailable, preserve the known state and return action unavailable. |
 | Issued document | Preserve the original; cancel/credit/correct and issue a replacement where the owner permits. |
 | Settled financial event | Preserve the original; use an exact linked reversal or adjustment. |
 | Closed property period | Block direct mutation; require authorized reopen, ordered restatement where needed, reclose, and replacement publication. |

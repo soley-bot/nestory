@@ -18,14 +18,17 @@ The official question:
 is answered by:
 
 1. resolving the organization-scoped Unit ID;
-2. selecting current accepted `lease_occupancies` candidates for the unit and
+2. selecting accepted-version `lease_occupancies` candidates for the unit and
    classifying each effective interval against the query;
-3. joining their lease IDs to current accepted `lease_parties` in tenant roles
-   and independently classifying each role interval against the query and
-   occupancy interval;
+3. using the unit-scoped occupancy history to identify relevant Lease IDs,
+   then joining accepted-version `lease_parties` in tenant roles and
+   independently classifying each responsibility interval against the query
+   range alone, without requiring occupancy overlap;
 4. separately selecting accepted occupancy-participant versions, then
-   classifying physical presence only when `present`/`ended` lifecycle and
-   confirmed boundaries overlap accepted actual occupancy;
+   classifying physical presence only when `present`/`ended` lifecycle,
+   confirmed participant boundaries, and the accepted actual-occupancy
+   boundaries establish presence for the queried interval and contain the
+   participant interval;
 5. joining `people` for the current profile link/display;
 6. joining authoritative `lease_terms` whose intervals overlap the result; and
 7. returning boundary kind, overlap state, source/confidence/correction
@@ -48,8 +51,9 @@ The Unit response has at least:
 - `tenant_responsibility_periods`: primary/co-tenant role periods;
 - `lease_unit_physical_use_periods`: accepted Lease/Unit occupancy intervals;
 - `confirmed_occupancy_participants`: individuals whose accepted participant
-  version has `present`/`ended` lifecycle and confirmed boundaries proving
-  presence during accepted actual occupancy;
+  version has `present`/`ended` lifecycle and confirmed participant boundaries,
+  and whose accepted actual-occupancy boundaries prove presence for the queried
+  interval and contain the participant interval;
 - `associated_or_authorized_people`: overlapping tenant or
   authorized-occupant roles without person-level physical-presence proof;
 - `other_lease_party_periods`: guarantor and billing-contact periods;
@@ -60,11 +64,18 @@ The Unit response has at least:
 
 A person can appear in tenant responsibility without confirmed person-level
 physical occupancy. An authorized-occupant role proves authorization, not
-presence. An accepted participant that is planned, cancelled, or has an
-unknown required boundary also does not prove presence. Without an accepted
-participant version whose lifecycle and boundaries prove residence, the read
-model returns the Person as `scheduled`, `associated`, `authorized`, or
+presence. A participant that is planned, cancelled, or has an unknown required
+boundary does not prove presence; neither does an accepted actual occupancy
+with an unknown query-material boundary. Without an accepted `present`/`ended`
+participant contained by accepted actual occupancy, with every query-material
+boundary `known` or an end resolved `open_current` through `as_of_date`, the
+read model returns the Person as `scheduled`, `associated`, `authorized`, or
 `unknown`, never as a confirmed physical occupant.
+
+Tenant responsibility may begin before move-in, continue after move-out, or
+remain valid while physical occupancy is unresolved. Occupancy overlap filters
+only physical-use and participant result sets; it never suppresses an otherwise
+valid responsibility interval.
 
 ## Interval resolution
 
@@ -133,6 +144,12 @@ comparisons must not silently discard them.
 
 For one Unit:
 
+Let `historical_end = min(to_date, as_of_date)`. If `from_date` is later than
+`historical_end`, confirmed vacancy is empty. Otherwise intersect every leading,
+internal, and trailing candidate gap with `[from_date, historical_end]` and
+discard empty intersections. Dates after that window may appear only when
+independently supported by the scheduled-forecast contract.
+
 1. take accepted confirmed actual occupancy intervals with
    `definite_overlap`;
 2. sort by actual start and stable ID;
@@ -141,15 +158,13 @@ For one Unit:
    plus one day; and
 5. return the IDs of both boundary occupancies.
 
-The gap is derived, not persisted. A Unit before its first known occupancy can
-be confirmed vacant only from the bounded query start through the day before a
-confirmed first actual move-in. A Unit after its last occupancy can be
-confirmed vacant only from the day after a confirmed actual move-out through
-the earlier of the bounded query end and the required `as_of_date`. A query
-range after `as_of_date` is returned only through the separate scheduled
-forecast contract; future days are never counted as confirmed historical
-vacancy. An `open_current` or `unknown` actual boundary blocks the corresponding
-edge gap.
+The gap is derived, not persisted. A leading gap ends at
+`min(first_move_in - 1 day, historical_end)`. Every internal gap is intersected
+with `[from_date, historical_end]` identically. A trailing gap ends at
+`historical_end`. A query range after `as_of_date` is returned only through the
+separate scheduled forecast contract; future days are never counted as
+confirmed historical vacancy. An `open_current` or `unknown` actual boundary
+blocks the corresponding edge gap.
 
 ### Scheduled vacancy
 
@@ -173,22 +188,40 @@ Every history page uses keyset pagination and the same checked envelope:
 - `MAX_HISTORY_PAGE_SIZE = 100`; requests outside `1..100` are rejected;
 - the first request supplies organization, target ID, normalized filters,
   bounded date range where applicable, `as_of_date`, include-corrections flag,
-  authorization context, and page size;
+  server-derived authorization context, and page size;
 - the first response returns `filter_token`, `material_token`, rows, and an
   optional next cursor;
 - `filter_token` binds the contract version, organization, target, normalized
-  filters/date range, `as_of_date`, include-corrections flag, and effective
-  authorization scope;
+  filters/date range, `as_of_date`, include-corrections flag, current caller
+  identity, effective authorization scope/revision, issued-at time, and expiry;
 - `material_token` binds the accepted source IDs, versions, classifications,
   and correction state material to the result; and
 - every later-page cursor binds the contract version, stable final sort tuple,
-  `filter_token`, and `material_token`.
+  `filter_token`, `material_token`, current caller identity, authorization
+  revision, issued-at time, and expiry.
 
 A changed organization, target, filter, date range, `as_of_date`, correction
 mode, or authorization scope is a different first-page query. A mismatched
 filter token or stale material token is rejected explicitly; the server must
 not silently restart the scan or combine pages from different accepted
 versions.
+
+Tokens do not preserve authorization. Every page, including continuation
+pages, reauthorizes the current caller's membership, property visibility, and
+financial permissions before returning rows. Cross-user cursor replay, changed
+authorization revision, and expired or revoked authorization, filter, material,
+or cursor tokens are rejected explicitly rather than continuing or silently
+restarting the scan.
+
+Embedded authorization scope is an integrity binding, not authority. Before
+every parent, child, detail, or continuation page, the server re-resolves the
+current session, membership, property visibility, and required financial
+permission. Current scope must still authorize the token-bound scope.
+
+Every continuation artifact binds caller identity, authorization revision,
+issued time, expiry, filter/material identity, and cursor position. Expired,
+revoked, cross-caller, malformed, mismatched, or stale tokens are rejected
+before rows are returned; the server never silently restarts the scan.
 
 ### `get_unit_occupancy_history_page`
 
@@ -213,8 +246,10 @@ Returns one ordered row per accepted occupancy/lease segment with:
 - `definite_overlap`, `possible_overlap`, or `non_overlap`;
 - separately identified tenant-responsibility and Lease/Unit physical-use
   periods;
-- the exact accepted occupancy-participant version when its lifecycle and
-  confirmed boundaries prove a Person's physical presence;
+- the exact accepted occupancy-participant version only when it is in
+  `present` or `ended` lifecycle, every query-material participant and accepted
+  actual-occupancy boundary is `known` or an end is `open_current` through
+  `as_of_date`, and the actual occupancy contains the participant interval;
 - scheduled/associated/authorized/unknown people separately when participant
   evidence is absent, planned, cancelled, or has an unknown required boundary;
 - nested or separately keyed bounded party/term summaries;
@@ -257,8 +292,10 @@ Returns:
 - property/unit/occupancy context;
 - tenant responsibility separately from physical occupancy;
 - confirmed physical occupancy only when an accepted occupancy-participant
-  version's lifecycle and confirmed boundaries prove presence during accepted
-  actual occupancy;
+  version is in `present` or `ended` lifecycle, every query-material
+  participant and accepted actual-occupancy boundary is `known` or an end is
+  `open_current` through `as_of_date`, and the actual occupancy contains the
+  participant interval;
 - scheduled/associated/authorized/unknown state when the person has party or
   occupancy context but no presence-proving accepted participant version;
 - current/former/scheduled status derived as of a supplied business date;
@@ -399,7 +436,10 @@ Required behavior:
 - the shared maximum page size of 100 on every parent and child page;
 - deterministic stable ordering;
 - explicit truncation/cursors for child collections;
-- contract/filter/material-token binding on every cursor;
+- contract/filter/material-token, current caller, authorization revision,
+  issued-at, and expiry binding on every cursor;
+- server-derived reauthorization before every parent, child, detail, and
+  continuation page;
 - explicit stale-material and filter-mismatch errors rather than mixed or
   silently restarted pages; and
 - production-shaped query-plan evidence before broad rollout.
@@ -441,8 +481,10 @@ The eventual Unit history can show, chronologically:
 - lease and continuity links;
 - primary/co-tenant responsibility periods;
 - Lease/Unit physical-use periods;
-- confirmed Person-level physical occupancy only from accepted explicit
-  occupancy-participant evidence;
+- confirmed Person-level physical occupancy only from an accepted explicit
+  `present`/`ended` occupancy participant contained by accepted actual
+  occupancy, with every query-material participant and occupancy boundary
+  `known` or an end resolved `open_current` through `as_of_date`;
 - associated or authorized people separately when physical presence is not
   evidenced;
 - scheduled and actual occupancy dates;
@@ -464,8 +506,11 @@ The eventual Person history can show:
 - every accepted and, in audit mode, corrected lease-party record;
 - exact role and dates;
 - property/unit/lease and occupancy context;
-- tenant responsibility versus confirmed participant-based physical
-  occupancy, excluding planned/cancelled/unknown-boundary participants;
+- tenant responsibility versus confirmed physical occupancy from an accepted
+  `present`/`ended` participant contained by accepted actual occupancy, with
+  every query-material participant and occupancy boundary `known` or an end
+  resolved `open_current` through `as_of_date`; planned, cancelled, or
+  unknown-boundary participant/occupancy evidence is excluded;
 - associated/authorized/unknown state when a party role or Lease/Unit occupancy
   exists without explicit Person-level participant evidence;
 - current, former, scheduled, voided, or unresolved state;
@@ -517,12 +562,18 @@ query engine.
 Every read contract must:
 
 - require a current organization membership;
+- reauthorize current membership, property visibility, and financial
+  permissions on every cursor page;
+- bind cursor/filter authorization material to the current caller, issued-at,
+  expiry, and authorization revision, rejecting cross-user replay or
+  revocation between pages;
 - preserve existing workspace/property visibility rules;
 - validate every supplied ID inside the organization;
 - expose financial summaries only when the caller has permission;
 - avoid broad `SECURITY DEFINER` table access without explicit checks;
 - lock `search_path`;
 - cap pages and reject abusive ranges;
+- reject expired or revoked filter/material/cursor tokens;
 - test anonymous, member, manager, admin, and cross-organization access; and
 - retain exact authorization behavior for archived records.
 
@@ -530,14 +581,16 @@ Every read contract must:
 
 1. Unit history answers renter responsibility by date without `tenant_name`.
 2. Person-level physical occupancy is confirmed only by an accepted
-   occupancy-participant version whose lifecycle and confirmed boundaries
-   prove presence during accepted actual occupancy; planned/cancelled/
-   associated/authorized/unknown remains separate.
+   `present`/`ended` occupancy-participant version contained by accepted actual
+   occupancy, with every query-material participant and occupancy boundary
+   `known` or an end resolved `open_current` through `as_of_date`;
+   planned/cancelled/associated/authorized/unknown remains separate.
 3. Every returned boundary is `known`, `open_current`, or `unknown`, and every
    range comparison is `definite_overlap`, `possible_overlap`, or
    `non_overlap`.
 4. Former and ended parties remain visible.
-5. Vacancy is confirmed only from confirmed actual boundaries.
+5. Vacancy is confirmed only from confirmed actual boundaries; no confirmed
+   vacancy end exceeds `as_of_date`.
 6. Unknown/inferred history remains visibly uncertain.
 7. Plan 04 term versions supply economics; Track B supplies relationship/date
    evidence and does not own Track A calculation, due-date, proration, blocker,
@@ -552,3 +605,7 @@ Every read contract must:
 12. Cross-organization and unauthorized financial access are denied.
 13. Production-shaped query plans and stable pagination are evidenced.
 14. No second writable history table or fuzzy reconstruction is introduced.
+15. Tenant responsibility remains visible before move-in, after move-out, and
+    while physical occupancy is unresolved.
+16. Cross-user cursor replay and authorization revocation between pages fail
+    closed.
