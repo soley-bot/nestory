@@ -488,6 +488,7 @@ WHERE application_name = '${handle.applicationName}'
 function cleanup() {
   runSql(`\\set ON_ERROR_STOP on
 BEGIN;
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
 DELETE FROM public.activity_logs
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.ledger_period_locks

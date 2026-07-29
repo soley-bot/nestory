@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
+  getLeaseMutationErrorMessage,
   getMonthlyRentGenerationErrorMessage,
   parseFutureRentTermInput,
   parseIdempotencyKey,
@@ -283,7 +284,9 @@ export async function updateLeaseAction(
 
   if (error) {
     return {
-      message: leaseActionErrorMessage(error.message),
+      message:
+        getLeaseMutationErrorMessage(error, "update") ??
+        leaseActionErrorMessage(error.message),
       status: "error",
     };
   }
@@ -406,7 +409,9 @@ export async function archiveLeaseAction(
 
   if (error) {
     return {
-      message: leaseActionErrorMessage(error.message),
+      message:
+        getLeaseMutationErrorMessage(error, "archive") ??
+        leaseActionErrorMessage(error.message),
       status: "error",
     };
   }
@@ -450,7 +455,9 @@ export async function restoreLeaseAction(
 
   if (error) {
     return {
-      message: leaseActionErrorMessage(error.message),
+      message:
+        getLeaseMutationErrorMessage(error, "restore") ??
+        leaseActionErrorMessage(error.message),
       status: "error",
     };
   }

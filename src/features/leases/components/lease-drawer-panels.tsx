@@ -46,8 +46,9 @@ export function ArchiveLeasePanel({
         </div>
         <LeasePanelSummary lease={lease} />
         <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
-          This removes the lease from normal active views while preserving tenant,
-          unit, rent, deposit, and move history for audit.
+          End or cancel open occupancy and Lease party roles through checked
+          transitions before archiving. Existing tenant, unit, rent, deposit,
+          and move history is preserved.
         </p>
         <PanelMessage state={state} />
       </div>
@@ -89,13 +90,16 @@ export function RestoreLeasePanel({
         </div>
         <LeasePanelSummary lease={lease} />
         <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
-          Restoring makes this lease visible in normal operational views again.
+          Restore is unavailable until checked review confirms that linked
+          Lease roles, occupancy records, and dependencies can be safely
+          reactivated.
         </p>
         <PanelMessage state={state} />
       </div>
 
       <PanelFooter
-        confirmLabel={pending ? "Restoring..." : "Restore lease"}
+        confirmLabel="Restore unavailable"
+        disabled
         icon={<RotateCcw size={15} />}
         onClose={onClose}
         pending={pending}
@@ -135,11 +139,13 @@ function PanelMessage({ state }: { state: LeaseActionState }) {
 
 function PanelFooter({
   confirmLabel,
+  disabled = false,
   icon,
   onClose,
   pending,
 }: {
   confirmLabel: string;
+  disabled?: boolean;
   icon: React.ReactNode;
   onClose: () => void;
   pending: boolean;
@@ -152,7 +158,7 @@ function PanelFooter({
         </Button>
         <Button
           className="w-full sm:w-auto"
-          disabled={pending}
+          disabled={disabled || pending}
           type="submit"
           variant="primary"
         >

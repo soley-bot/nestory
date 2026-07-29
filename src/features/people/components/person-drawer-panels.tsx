@@ -46,8 +46,9 @@ export function ArchivePersonPanel({
         </div>
         <PersonPanelSummary person={person} />
         <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
-          This removes the person from normal active views while keeping linked
-          lease, ownership, vendor, document, and activity history available.
+          Open Lease roles must be ended or cancelled through a checked
+          relationship transition first. Archiving preserves linked ownership,
+          vendor, document, and activity history.
         </p>
         <PanelMessage state={state} />
       </div>

@@ -192,7 +192,9 @@ export function LeaseForm({
           },
         ]}
         summary={
-          initialValues?.unitId
+          isEditMode
+            ? "Relationship, occupancy, and Lease lifecycle changes require a checked transition. Tenant, property, unit, and Lease status stay unchanged here."
+            : initialValues?.unitId
             ? "Saving links this tenant to the selected vacancy. Open lease statuses affect unit occupancy."
             : "Saving links this tenant, property, and unit. Rent due day and frequency are recorded explicitly; no policy default is inferred."
         }
@@ -209,6 +211,7 @@ export function LeaseForm({
           >
             <PersonSelect
               context="Lease tenant"
+              disabled={isEditMode}
               name="tenantPersonId"
               onValueChange={setSelectedTenantId}
               options={tenantOptions}
@@ -235,9 +238,13 @@ export function LeaseForm({
             name="status"
             required
           >
+            {isEditMode ? (
+              <input name="status" type="hidden" value={selectedStatus} />
+            ) : null}
             <SelectControl
               ariaLabel="Status"
-              name="status"
+              disabled={isEditMode}
+              name={isEditMode ? undefined : "status"}
               onValueChange={(value) =>
                 setSelectedStatus(value as LeaseStatusValue)
               }
@@ -255,9 +262,17 @@ export function LeaseForm({
             name="propertyId"
             required
           >
+            {isEditMode ? (
+              <input
+                name="propertyId"
+                type="hidden"
+                value={selectedPropertyId}
+              />
+            ) : null}
             <SelectControl
               ariaLabel="Property"
-              name="propertyId"
+              disabled={isEditMode}
+              name={isEditMode ? undefined : "propertyId"}
               onValueChange={(value) => {
                 setSelectedPropertyId(value);
                 setSelectedUnitId("");
@@ -279,10 +294,13 @@ export function LeaseForm({
             label="Unit"
             name="unitId"
           >
+            {isEditMode ? (
+              <input name="unitId" type="hidden" value={formUnitId} />
+            ) : null}
             <SelectControl
               ariaLabel="Unit"
-              disabled={!selectedPropertyId}
-              name="unitId"
+              disabled={isEditMode || !selectedPropertyId}
+              name={isEditMode ? undefined : "unitId"}
               onValueChange={setSelectedUnitId}
               options={[
                 { label: "No unit assigned", value: "" },
