@@ -310,7 +310,11 @@ RPC write boundaries. Current table families include:
   dated settlement activity used by cash reporting. Canonical income
   allocations freeze source, scope, economic class, signed amount,
   balance-after, publication class, direct reversal identity, and exact
-  Ledger/journal links.
+  Ledger/journal links. Reversing receipt Ledger rows remain income with a
+  negative amount, so generic Ledger consumers net the receipt without
+  misclassifying returned rent as an expense. Direct obligation-level Ledger
+  links and transitions into or out of `posted` require the checked settlement
+  context even before the first allocation.
   Checked public RPCs record and reverse deposit events while private
   implementations and direct event-table writes remain unavailable to API
   callers. The lease quick view shows held balance and immutable event history.

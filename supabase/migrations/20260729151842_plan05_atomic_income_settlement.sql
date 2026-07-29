@@ -101,6 +101,18 @@ ALTER TABLE public.finance_receipt_allocations
       )
     );
 
+ALTER TABLE public.ledger_entries
+  DROP CONSTRAINT ledger_entries_amount_check,
+  ADD CONSTRAINT ledger_entries_amount_check
+    CHECK (
+      amount >= 0
+      OR (
+        source_type = 'receipt_allocation'
+        AND direction = 'income'
+        AND amount < 0
+      )
+    );
+
 CREATE INDEX finance_receipt_allocations_reconciliation_source_idx
   ON public.finance_receipt_allocations(
     organization_id,
@@ -622,6 +634,22 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
+  IF (
+    OLD.ledger_entry_id IS DISTINCT FROM NEW.ledger_entry_id
+    OR (
+      OLD.status IS DISTINCT FROM NEW.status
+      AND (
+        OLD.status = 'posted'
+        OR NEW.status = 'posted'
+      )
+    )
+  )
+    AND NOT app_private.has_finance_settlement_context() THEN
+    RAISE EXCEPTION
+      'Income obligation posting requires the checked settlement workflow'
+      USING ERRCODE = '42501';
+  END IF;
+
   IF EXISTS (
     SELECT 1
     FROM public.finance_receipt_allocations AS allocation
@@ -784,9 +812,9 @@ BEGIN
     p_property_id,
     p_unit_id,
     p_effective_date,
-    CASE WHEN p_is_reversal THEN 'expense' ELSE 'income' END,
+    'income',
     CASE WHEN p_is_reversal THEN 'Reversal - ' || v_category ELSE v_category END,
-    p_amount,
+    CASE WHEN p_is_reversal THEN -p_amount ELSE p_amount END,
     p_currency,
     p_description,
     'receipt_allocation',

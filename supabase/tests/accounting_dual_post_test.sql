@@ -250,6 +250,11 @@ VALUES
     '00000000-0000-0000-0000-000000000101'
   );
 
+-- Plan 05 revokes this legacy posting command from operator roles. These
+-- compatibility assertions run as the database owner and explicitly opt into
+-- the private settlement capability instead of reopening split authority.
+SELECT app_private.set_finance_settlement_context(true);
+
 SELECT lives_ok(
   $$SELECT public.post_finance_income_item(
     'a1000000-0000-0000-0000-000000000001',
@@ -603,6 +608,8 @@ SELECT is(
   NULL::uuid,
   'failed locked-period posting creates no legacy ledger row'
 );
+
+SELECT app_private.set_finance_settlement_context(false);
 
 SELECT * FROM finish();
 

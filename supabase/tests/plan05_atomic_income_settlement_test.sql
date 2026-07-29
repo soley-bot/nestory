@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(52);
+SELECT plan(56);
 
 SELECT has_function(
   'public',
@@ -108,6 +108,8 @@ CREATE TEMP TABLE plan05_test_state (
   legacy_receipt_id uuid NOT NULL DEFAULT gen_random_uuid(),
   legacy_allocation_id uuid NOT NULL DEFAULT gen_random_uuid(),
   precision_income_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  bypass_income_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  bypass_ledger_entry_id uuid NOT NULL DEFAULT gen_random_uuid(),
   unsupported_income_id uuid NOT NULL DEFAULT gen_random_uuid(),
   reconciliation_source_id uuid,
   first_result jsonb,
@@ -281,12 +283,56 @@ SELECT
   10,
   'USD'::public.currency_code,
   'open'
+FROM plan05_test_state
+UNION ALL
+SELECT
+  bypass_income_id,
+  organization_id,
+  property_id,
+  unit_id,
+  lease_id,
+  tenant_id,
+  'rent',
+  'Direct posting bypass tenant',
+  '2026-07-04'::date,
+  10,
+  'USD'::public.currency_code,
+  'open'
 FROM plan05_test_state;
 
 SELECT app_private.ensure_accounting_books_and_accounts(
   organization_id,
   'USD'
 )
+FROM plan05_test_state;
+
+INSERT INTO public.ledger_entries(
+  id,
+  organization_id,
+  property_id,
+  unit_id,
+  transaction_date,
+  direction,
+  category,
+  amount,
+  currency,
+  source_type,
+  created_by,
+  updated_by
+)
+SELECT
+  bypass_ledger_entry_id,
+  organization_id,
+  property_id,
+  unit_id,
+  '2026-07-01',
+  'income',
+  'Direct posting bypass fixture',
+  10,
+  'USD',
+  'manual',
+  admin_id,
+  admin_id
 FROM plan05_test_state;
 
 SELECT set_config(
@@ -385,6 +431,43 @@ SELECT lives_ok(
     RESET ROLE;
   $$,
   'an unsettled obligation remains correctable before its first source snapshot'
+);
+
+SELECT throws_ok(
+  $$
+    SET LOCAL ROLE authenticated;
+    UPDATE public.finance_income_items
+    SET ledger_entry_id = (
+      SELECT bypass_ledger_entry_id
+      FROM plan05_test_state
+    )
+    WHERE id = (SELECT bypass_income_id FROM plan05_test_state);
+    RESET ROLE;
+  $$,
+  '42501',
+  'Income obligation posting requires the checked settlement workflow',
+  'direct posting cannot attach Ledger authority before the first allocation'
+);
+
+SELECT app_private.set_finance_settlement_context(true);
+UPDATE public.finance_income_items
+SET amount_received = amount_due,
+    received_date = due_date,
+    status = 'received'
+WHERE id = (SELECT bypass_income_id FROM plan05_test_state);
+SELECT app_private.set_finance_settlement_context(false);
+
+SELECT throws_ok(
+  $$
+    SET LOCAL ROLE authenticated;
+    UPDATE public.finance_income_items
+    SET status = 'posted'
+    WHERE id = (SELECT bypass_income_id FROM plan05_test_state);
+    RESET ROLE;
+  $$,
+  '42501',
+  'Income obligation posting requires the checked settlement workflow',
+  'direct posting cannot mark a legacy received obligation as posted'
 );
 
 SELECT ok(
@@ -785,6 +868,43 @@ SELECT ok(
         (plan05_test_state.reversal_result->>'allocation_id')::uuid
   ),
   'reversing allocation is directly linked and inherits immutable class'
+);
+
+SELECT ok(
+  (
+    SELECT ledger.direction = 'income'
+      AND ledger.amount = -100
+    FROM public.ledger_entries AS ledger
+    WHERE ledger.id = (
+      SELECT (reversal_result->>'ledger_entry_id')::uuid
+      FROM plan05_test_state
+    )
+  ),
+  'a receipt reversal is represented as negative contra-income'
+);
+
+SELECT ok(
+  (
+    SELECT coalesce(
+      pg_catalog.sum(ledger.amount)
+        FILTER (WHERE ledger.direction = 'income'),
+      0
+    ) = 0
+      AND coalesce(
+        pg_catalog.sum(ledger.amount)
+          FILTER (WHERE ledger.direction = 'expense'),
+        0
+      ) = 0
+    FROM public.ledger_entries AS ledger
+    WHERE ledger.id IN (
+      SELECT (first_result->>'ledger_entry_id')::uuid
+      FROM plan05_test_state
+      UNION ALL
+      SELECT (reversal_result->>'ledger_entry_id')::uuid
+      FROM plan05_test_state
+    )
+  ),
+  'generic Ledger totals net reversals inside income without creating expense'
 );
 
 SELECT is(

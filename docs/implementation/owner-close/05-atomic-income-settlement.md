@@ -375,6 +375,11 @@ transaction and leaves no receipt/allocation source.
 
 Cash date is the receipt's `received_date`. Projection date, amount, currency,
 property, unit, and class must match the source snapshot exactly.
+The original Ledger projection is positive income. Its exact reversal is
+negative contra-income with the same reserved allocation source identity; it
+must reduce generic income totals to zero without appearing in expense totals.
+The accounting journal still uses positive debit/credit line amounts in the
+exact reversed orientation.
 
 ### 5. Make retries payload-bound
 
@@ -428,7 +433,8 @@ the Plan 00 reopen/reclose sequence and never rewrites a published statement.
 After compatible call sites are cut over:
 
 - revoke or guard direct authenticated mutation of material obligation
-  classification, amount, currency, scope, and settlement compatibility fields;
+  classification, amount, currency, scope, settlement compatibility fields,
+  obligation-level Ledger links, and transitions into or out of `posted`;
 - preserve the current manual creation flow before activation, but make the
   named cutover and immutable grandfather manifest part of the checked
   creation/settlement boundary so no post-cutover manual rent action, RPC,
@@ -581,8 +587,9 @@ The implemented repository slice passes:
 - schema lint and all 29 pgTAP files, including organization/role/RLS/grants,
   scope/currency/source validation, header/allocation balance, partial
   receipts, payload-bound retry, journal balance, atomic rollback, reversal
-  pairing, bypass rejection, immutable provenance, direct-DML creation guards,
-  cross-organization denial, and legacy compatibility;
+  pairing, contra-income Ledger totals, pre-allocation posting-bypass rejection,
+  immutable provenance, direct-DML creation guards, cross-organization denial,
+  and legacy compatibility;
 - the current seven-scenario two-session income harness for
   receipt-versus-receipt, receipt/reversal idempotent retry, and both
   receipt/reversal-versus-close start orders;
