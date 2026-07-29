@@ -84,9 +84,16 @@ debtor authority.
 - The unnumbered tenant-invoice coordination slice presents exactly one
   safe-MVP obligation as one reviewed and issued tenant invoice line. It does
   not create another receivable.
-- Plan 05 receipt/allocation is actual cash and can operate before invoice
-  identity for classified pre-invoice/manual/legacy obligations, but that cash
-  is not formal-receipt eligible.
+- Before activation, Plan 05 receipt/allocation is actual cash and can operate
+  on current manual obligations without a future Plan 20 manifest. After
+  activation, it can operate before invoice identity only for exact obligations
+  whose immutable provenance and reviewed Plan 20 manifest, frozen into the
+  named Plan 22 cutover, prove they predate activation with
+  `legacy_obligation_only`; that cash is not formal-receipt eligible. Plan 20
+  assigns every candidate exactly one immutable disposition.
+  `migration_invoice_required` never falls back to obligation-only settlement
+  and returns `migration_invoice_issuance_required` until issuance. A manual
+  label or caller-selected class cannot establish grandfathering.
 - The unnumbered formal-receipt coordination slice publishes only from the
   exact Plan 05 source and issued tenant-invoice header/version/line frozen on
   its allocation.
@@ -297,8 +304,8 @@ The October safe model is:
   line, while cancelled/superseded replacements remain retained;
 - one receipt -> one allocation to one obligation; activated Plan 09 cash also
   freezes exactly one current active issued invoice header/version/line, while
-  classified pre-invoice/manual/legacy obligation-only cash remains
-  non-publishable; and
+  exact manifest-backed obligations proven to predate cutover may remain
+  obligation-only and non-publishable; and
 - multiple sequential partial receipts -> separate receipt events and, when
   formal-receipt eligible, separate documents.
 
@@ -332,8 +339,8 @@ history never deletes or retargets.
 ### Gate L — Formal receipt publication
 
 A formal receipt can only publish from committed Plan 05 cash with the exact
-issued tenant-invoice header/version/line frozen on its allocation. Classified
-pre-invoice/manual/legacy cash remains typed
+issued tenant-invoice header/version/line frozen on its allocation. Exact
+manifest-backed cash proven to predate cutover remains typed
 `legacy_cash_non_publishable` with
 `invoice_identity_not_historically_available` and
 `artifact_not_historically_created`; any future contemporary acknowledgment is
@@ -400,7 +407,7 @@ prerequisites.
 | 06 | Atomic expense settlement, allocation, projection, and reversal | Planned; unauthorized | 02-03 | Vendor payment/allocation cash authority and projections | 07, 11-16, statement | Owner payout excluded; unpaid-bill treatment later |
 | 07 | Maintenance task-to-bill handoff | Planned; unauthorized | 06; optional TB-07 exact tenancy context when tenant-specific | Exact task/bill/actual-cost handoff and duplicate/void controls; finance owner retains charge/bill authority | 15-19 | Task-to-bill cardinality and variance |
 | 08 | Petty-cash posting, reversal, and register reconciliation | Planned; unauthorized | 03 | Canonical petty-cash event/register authority | 15-19 | Cash date, economic scope, physical-count variance |
-| 09 | Idempotent rent charge occurrences and obligation generation | Planned; unauthorized | 04-05; merged TB-05 evidence envelope; Gate F; joint Plan 09/tenant-invoice activation gate | Occurrence outcome plus one obligation, selected debtor/recipient, exact term/policy and consumed relationship sources/versions/hash, and Track A-approved calculation snapshot; shadow until invoice-ready cutover | 05, unnumbered tenant-document slices, 11-19 | Due day, proration, frequency, concession, and Track A obligor/recipient policy |
+| 09 | Idempotent rent charge occurrences and obligation generation | Planned; unauthorized | 04-05; merged TB-05 evidence envelope; Gate F; joint Plan 09/tenant-invoice activation gate | Occurrence outcome plus one obligation, selected debtor/recipient, exact term/policy and consumed relationship sources/versions/hash, and Track A-approved calculation snapshot; shadow until invoice-ready cutover, then sole normal rent-obligation creator | 05, unnumbered tenant-document slices, 11-19 | Due day, proration, frequency, concession, Track A obligor/recipient policy, and typed conflicts for post-cutover manual rent attempts |
 | 10 | Security-deposit custody and limited disposition | Planned; unauthorized | 03; event-time Lease/Unit/party scope and checked owner actions | Deposit custody event/liability authority; no Track B reassignment or implicit successor transfer | 15-19 | Application, retention, refund, and successor custody rules |
 | 11 | Management-fee agreements and deterministic calculation | Planned; unauthorized | Stable 05/09/10 source classes as enabled | Effective fee agreement/calculation authority | 12 | Complete Gate E policy and examples |
 | 12 | Management-fee assessment, approval, waiver, reversal, and projection | Planned; unauthorized | 11 | Assessed fee liability/effects | 13-19 | Recognition, approval, waiver, reversal |
@@ -411,9 +418,9 @@ prerequisites.
 | 17 | Owner Statement schema, itemized lines, snapshots, and approval | Planned; unauthorized | 16; exact tenant-invoice/formal-receipt evidence availability | Statement version for one close revision with exact relationship/source/document evidence snapshots | 18-19, 22 | Disclosure, recipient, approval |
 | 18 | Immutable official PDF/CSV artifacts, append-only Storage, checked download, and recovery | Planned; unauthorized | 17 | Official Owner Statement artifact/checksum owned by Track A, separate from Generic Documents | 19, 22 | Format, retention, failure recovery |
 | 19 | Statement history, cancel/reissue, and owner delivery | Deferred beyond manual retained pilot unless required | 18 | Separate owner delivery/history authority preserving prior close/evidence versions | 22-23 | Channel, cancellation/reissue, retention |
-| 20 | Migration-run schema, exact resolution workflow, and dry-run manifest | Planned; unauthorized | Complete source/document taxonomy through 19 | Exact legacy classification and artifact-availability manifest | 21-22 | No fuzzy evidence; open legacy invoice selection |
+| 20 | Migration-run schema, exact resolution workflow, and dry-run manifest | Planned; unauthorized | Complete source/document taxonomy through 19 | Exact legacy classification, immutable pre-cutover obligation identities/provenance, one `legacy_obligation_only` or `migration_invoice_required` disposition per candidate, and artifact-availability manifest with version/material hash | 21-22 | No fuzzy evidence; open legacy invoice selection |
 | 21 | Resumable backfill, interruption recovery, and backup/restore rehearsal | Planned; unauthorized | Reviewed 20 manifest | Canonical identity/evidence backfill with recovery proof | 22 | Reviewed exceptions and rollback |
-| 22 | Named IPS pilot and explicit report/write/document cutover | Planned; unauthorized | 21 plus complete bounded cycle | Evidence-backed go/no-go and named cutover | 23 | Named scope, operators, reviewers, policy approvals |
+| 22 | Named IPS pilot and explicit report/write/document cutover | Planned; unauthorized | 21 plus complete bounded cycle | Evidence-backed go/no-go plus named/versioned creation, collection, report, and document cutover that atomically compares the locked current grandfather candidate set/version/hash with Plan 20 | 23 | Named scope, operators, reviewers, policy approvals |
 | 23 | Compatibility retirement | Deferred | 22 observation window, merged Track B normalized-history/read parity, exact Track A event-time consumers, and explicit acceptance | Removal of proven-obsolete compatibility writes/fallbacks only after cross-track parity | Final operating model | Acceptance and rollback window |
 
 The tenant-invoice and formal-receipt documents are tracked outside the
@@ -452,18 +459,30 @@ historical occurrence, term, or policy authority that cannot be proven.
 
 Plan 09 may merge first only in shadow/readiness mode. It and the unnumbered
 tenant-invoice slice activate new-business generation/collection together:
-classified legacy/manual obligations retain Plan 05's obligation-only path,
-while a Plan 09-generated obligation cannot accept cash until its exact issued
-tenant-invoice line exists.
+Plan 09 becomes the sole normal creator of rent obligations, and a generated
+obligation cannot accept cash until its exact issued tenant-invoice line
+exists. Only exact IDs whose immutable creation provenance and reviewed
+Plan 20 manifest, frozen into the named Plan 22 cutover, prove they predate
+activation with `legacy_obligation_only` disposition retain Plan 05's
+obligation-only path. A `migration_invoice_required` obligation needs issuance
+before later payment and returns `migration_invoice_issuance_required` until
+then. A normal generated obligation without its current issued invoice returns
+`current_issued_invoice_required`. `manual`, `other`, caller flags, backdated
+business dates, or present-day joins cannot confer either status. The action,
+checked creation RPC, legacy wrappers, direct authenticated DML, and Rent &
+Income deep links must reject post-cutover manual rent with
+`rent_occurrence_generation_required` and point to Plan 09
+generate/catch-up/repair. Only an economic class explicitly marked
+non-invoiceable/manual by its ratified owner/policy may keep a manual path.
 
 ### Why the formal-receipt coordination slice follows tenant invoicing
 
 The unnumbered formal-receipt slice publishes separately from cash so
 artifact/delivery failure cannot affect settlement. Every formal receipt needs
 the exact issued tenant-invoice header/version/line frozen on its Plan 05
-allocation. Classified legacy obligation-only cash remains typed, readable
-cash evidence but cannot enter formal-receipt publication and is never
-fabricated into a historical receipt document.
+allocation. Exact manifest-backed pre-cutover obligation-only cash remains
+typed, readable cash evidence but cannot enter formal-receipt publication and
+is never fabricated into a historical receipt document.
 
 ### Which later slices consume document identity
 
@@ -509,6 +528,16 @@ contribution/distribution, carried owner balance, close, and Owner Statement.
 - Never synthesize historical issued invoice/receipt numbers, versions,
   artifacts, or delivery attempts.
 - Classify legacy artifact availability from exact evidence.
+- Plan 20 owns the exact immutable pre-cutover obligation manifest and Plan 22
+  owns the named/versioned activation boundary. Caller labels, mutable business
+  dates, or current relationship joins never prove grandfather status.
+- Plan 22 locks the current candidate-set identities, version, and material hash
+  under the shared creation/cutover policy lock and compares them with the
+  reviewed Plan 20 manifest. Drift returns
+  `legacy_manifest_refresh_required`; a manual create winning before activation
+  invalidates readiness and requires Plan 20 refresh/re-review, while
+  activation winning first makes creation fail with
+  `rent_occurrence_generation_required`.
 - A deliberately selected open legacy obligation may receive a newly issued
   migration invoice only with its real issue date, original service/due
   context, migration disclosure, exact obligation and Plan 20 manifest item,
@@ -561,5 +590,5 @@ contribution/distribution, carried owner balance, close, and Owner Statement.
 | Track A Plan 09 | Term/policy calculation and approved snapshot | Plan 04 term authority and Track B occupancy/notice facts can differ | Track A applies precedence, selects service/due/proration/notice outcomes and blockers, records selected/ignored evidence reasons, and stores the approved calculation snapshot/hash | Occurrence/invoice calculation must have one financial owner | Yes for Plan 09 | No |
 | Track A domain owners | Typed impact adapter/actions and deterministic locks | Later term/party/occupancy changes can affect occurrences and downstream drafts | Each owner returns exact identities/states/actions/scopes/hash; execution acquires every source/destination property-period lock in deterministic order before owner action. Track B only transports the result | Track A owns append-only financial consequences without Track B table mutation | Yes before each affected TB-03/TB-06 execution | No for enabled paths |
 | Generic Documents and Track A document owners | Operational versions versus billing/close/statement evidence | A signed operational document may support a close but is not a tenant invoice, formal receipt, or Owner Statement artifact | Generic Documents owns operational versioning; Track A owns its document families and freezes exact generic-document version/checksum references in close evidence | Avoids a second or ambiguous publication authority | Yes before official evidence adoption | No |
-| Track A — Plan 05 plus the two unnumbered tenant-document slices | Settlement and document identity contract | Current obligations/receipts have no invoice/formal-document identity | Plan 05 creates exact cash source; the tenant-invoice slice binds a normal line to one occurrence/obligation or a Plan 20 migration line to one exact legacy obligation/manifest item with typed authority absences; the formal-receipt slice publishes only from committed cash and the exact issued tenant-invoice header/version/line frozen on its allocation, while legacy obligation-only cash remains non-publishable | Prevent circular or competing authority | No, fixed by this authority chain | No |
+| Track A — Plan 05 plus the two unnumbered tenant-document slices | Settlement and document identity contract | Current obligations/receipts have no invoice/formal-document identity, and the current manual rent action can create a fresh obligation without occurrence/invoice authority | Plan 05 creates exact cash source; after the named Plan 22 cutover Plan 09 alone normally creates rent obligations and the action/RPC/DML boundaries reject manual rent; the tenant-invoice slice binds a normal line to one occurrence/obligation or a Plan 20 migration line to one exact legacy obligation/manifest item with typed authority absences; only exact manifest-backed pre-cutover cash remains obligation-only/non-publishable; the formal-receipt slice publishes only from committed cash and the exact issued tenant-invoice header/version/line frozen on its allocation | Prevent circular or competing authority and a post-cutover manual-rent escape hatch | No, fixed by this authority chain | No |
 | Configuration registry / PR #38 | Billing rules and roles | PR #38 is catalogue-only and proposes non-runtime defaults/role labels | Future catalogue maps to versioned billing policy, actual capability, separate document series, delivery config, org settings, and Plan 04 policy | Generic configuration cannot replace effective financial authority | Yes before the unnumbered tenant-document slices use it | Yes |

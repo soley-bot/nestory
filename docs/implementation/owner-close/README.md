@@ -242,10 +242,18 @@ formal-receipt slice is separate because rendering/delivery failure must not
 roll back cash.
 
 Plan 09 may merge first only in shadow/readiness mode. Plan 09 and the
-tenant-invoice coordination slice share one activation gate: classified
-pre-invoice/manual/legacy obligations may continue to settle by obligation
-identity, but a newly generated Plan 09 obligation is not collectable through
-Plan 05 until its exact issued tenant-invoice line exists.
+tenant-invoice coordination slice share one versioned activation gate. Before
+that gate, current manual obligations retain Plan 05's existing path without a
+future Plan 20 manifest. After the gate, Plan 09 is the sole normal creator of
+rent obligations and a new obligation is not collectable through Plan 05 until
+its exact issued tenant-invoice line exists. The obligation-only exception is
+limited to exact IDs whose immutable provenance and reviewed Plan 20 manifest,
+frozen into the named Plan 22 cutover, prove they predate activation with
+`legacy_obligation_only` disposition. Manual labels, caller flags, backdated
+dates, and current relationship joins cannot create that status; the action,
+checked/legacy RPCs, and direct DML reject post-cutover manual rent. Plan 22
+fails closed if the locked candidate-set identities/version/hash drift from the
+reviewed Plan 20 manifest.
 
 ## Route and terminology boundary
 

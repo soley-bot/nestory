@@ -161,15 +161,48 @@ reconciliation/close blocker until a dedicated liability workflow exists.
 Plan 05 also defines a checked eligibility hook for the joint Plan 09 and
 tenant-invoice coordination activation gate:
 
-- classified pre-invoice/manual/legacy obligations may settle by obligation
-  identity, remain explicitly classified, and never become formal-receipt
-  publication sources merely because cash exists;
+- before the named Plan 22 cutover, current manual obligations may continue
+  through Plan 05 while the later activation hook remains disabled;
+- after that cutover, obligation-only settlement is limited to exact obligation
+  IDs proven by immutable creation provenance and the reviewed Plan 20 manifest
+  frozen into the named Plan 22 cutover to predate activation and retain the
+  `legacy_obligation_only` disposition. Plan 20 assigns every candidate exactly
+  one immutable disposition: `legacy_obligation_only` or
+  `migration_invoice_required`. The latter never falls back to obligation-only
+  settlement and returns `migration_invoice_issuance_required` until its
+  migration invoice is issued. `manual`, an income-type/description label, a
+  caller flag, a backdated due/service date, or a present-day Lease/Person join
+  cannot establish grandfathering;
 - Plan 09-generated new-business obligations remain non-collectable while
   Plan 09 is shadow/readiness-only; and
-- after the joint Plan 09/tenant-invoice cutover, a Plan 09-generated
-  obligation requires one exact tenant-invoice header/version/line before
-  settlement. Plan 05 persists those exact identities on the allocation and
-  never resolves them later from obligation identity alone.
+- after the joint Plan 09/tenant-invoice cutover, Plan 09 is the sole normal
+  creator of rent obligations and every new rent obligation requires one exact
+  tenant-invoice header/version/line before settlement. Plan 05 persists those
+  exact identities on the allocation, returns
+  `current_issued_invoice_required` while they are absent, and never resolves
+  them later from obligation identity alone.
+
+The joint cutover is atomic for creation and collection. Its checked
+application and database boundary rejects new manual `rent` obligations through
+`createRentIncomeItemAction`, `create_finance_income_item`, every legacy
+wrapper, and direct authenticated DML with a typed
+`rent_occurrence_generation_required` result that points to Plan 09
+generate/catch-up/repair. The UI is not the guard. Only a manual economic class
+that its ratified owner/policy explicitly marks non-invoiceable may retain a
+manual creation path; generic `manual`, `other`, or legacy labels are not an
+escape hatch. Plan 05 installs the source-classification and future activation
+hook without implementing Plan 09 or invoice authority.
+
+Plan 22 may activate only while holding the same creation/cutover policy lock
+used by the guarded obligation path. It locks and compares the complete current
+grandfather candidate-set identities, version, and material hash with the
+reviewed Plan 20 manifest frozen into the proposed activation. Any drift fails
+with `legacy_manifest_refresh_required`; Plan 20 must refresh and re-review the
+manifest before another activation attempt. If a manual creation commits first,
+it changes that candidate set and invalidates readiness. If cutover commits
+first, the guarded creation fails with
+`rent_occurrence_generation_required`. No row is adopted merely because its
+creation transaction started before activation.
 
 For that post-activation path, settlement, reversal of an invoice-bound
 allocation, and invoice cancellation acquire the shared
@@ -242,10 +275,11 @@ When the obligation comes from Plan 09, the immutable scope also retains:
   Plan 09/tenant-invoice activation gate is enabled.
 
 A `billing_contact` may be part of recipient/contact evidence but never becomes
-the debtor automatically. Classified pre-invoice/manual/legacy obligations
-that lack these historical identities retain their explicit legacy class and
-`NULL`/unresolved evidence fields; Plan 05 must not fabricate them from
-today's primary Person, Lease header, term dates, or display labels.
+the debtor automatically. Exact obligations proven to predate the named
+cutover and lacking these historical identities retain their immutable
+grandfather classification and `NULL`/unresolved evidence fields; Plan 05 must
+not fabricate them from caller labels, backdated business dates, today's
+primary Person, Lease header, term dates, or display labels.
 
 Later obligation edits cannot reclassify already received cash. A correction
 uses an exact reversal and a new source event.
@@ -328,6 +362,10 @@ After compatible call sites are cut over:
 
 - revoke or guard direct authenticated mutation of material obligation
   classification, amount, currency, scope, and settlement compatibility fields;
+- preserve the current manual creation flow before activation, but make the
+  named cutover and immutable grandfather manifest part of the checked
+  creation/settlement boundary so no post-cutover manual rent action, RPC,
+  wrapper, or direct DML can self-classify as legacy;
 - reserve the receipt-allocation projection namespaces;
 - reject generic Ledger/journal create, update, archive, restore, re-date,
   reclassify, post, and reverse operations for source-linked receipt
@@ -392,8 +430,9 @@ Ledger, and journal controls.
   current compatibility headers. Future Plan 09 scope is frozen from the Track
   A-approved decision and exact consumed relationship evidence.
 - Post-activation new-business allocations retain immutable invoice
-  header/version/line identities; classified pre-invoice/manual/legacy cash
-  remains obligation-only and is not a formal-receipt source.
+  header/version/line identities; only exact manifest-backed obligations proven
+  to predate cutover remain obligation-only, and their cash is not a
+  formal-receipt source.
 
 ## Acceptance criteria
 
@@ -419,14 +458,21 @@ Ledger, and journal controls.
 9. New canonical cash agrees across allocations, `property_cash_events_v1`,
    Ledger, journals, and Owner Statement input.
 10. Existing legacy records remain readable and explicitly classified.
-11. The settlement eligibility contract distinguishes classified
-    pre-invoice/manual/legacy obligations from Plan 09-generated new business;
-    the latter persists an exact current-active issued invoice
-    header/version/line under the shared lock and cannot accept cash against a
-    cancelled, superseded, or abandoned invoice. Settlement, exact reversal,
-    and cancellation serialize under one lock order; cancellation requires a
-    zero net unreversed signed effect with every positive allocation exactly
-    reversed, and no outcome deletes or retargets committed history.
+11. Before activation, current manual obligations retain the existing Plan 05
+    path. After activation, the settlement eligibility contract distinguishes
+    exact manifest-backed `legacy_obligation_only` obligations from Plan
+    09-generated new business; labels, caller flags, backdated business dates,
+    or current joins cannot confer grandfather status. New rent creation through
+    the action, checked/legacy RPCs, or direct DML fails with
+    `rent_occurrence_generation_required`, while the Plan 09 path persists an
+    exact current-active issued invoice header/version/line under the shared
+    lock and cannot accept cash against a cancelled, superseded, or abandoned
+    invoice. `migration_invoice_issuance_required` and
+    `current_issued_invoice_required` remain distinct settlement blockers.
+    Settlement, exact reversal, and cancellation serialize under one lock
+    order; cancellation requires a zero net unreversed signed effect with every
+    positive allocation exactly reversed, and no outcome deletes or retargets
+    committed history.
 12. The read-only Plan 05 owner adapter returns exact typed source
     identities/states/actions/scopes, and a composed executor holds every
     deterministic property-period lock in the same transaction before
@@ -442,7 +488,9 @@ Before implementation, retain focused proof that:
 - two partial receipts collapse into one obligation-level Ledger row;
 - current reversal blocks on posted income and exposes derived posting order;
 - generic Ledger mutation can change a linked compatibility row; and
-- direct material obligation mutation bypasses the checked receipt path.
+- direct material obligation mutation bypasses the checked receipt path; and
+- the current action and RPC can create and settle a fresh manual `rent`
+  obligation without a Plan 09 occurrence or issued invoice.
 
 ### GREEN evidence
 
@@ -451,17 +499,28 @@ Add and run:
 - pgTAP for organization/role/RLS/grants, exact scope/currency/source
   validation, locks, header/allocation balance, partial receipts, retry hash,
   unique source identity, journal balance, atomic rollback, reversal pairing,
-  duplicate reversal, bypass rejection, and legacy compatibility;
+  duplicate reversal, bypass rejection, immutable pre-cutover provenance,
+  spoofed legacy/manual labels and dates, action/RPC/wrapper/direct-DML rent
+  creation guards, cross-organization and role denial, and legacy
+  compatibility;
 - two-session races for receipt-versus-receipt, receipt-versus-close,
   reversal-versus-close, same-key retry, and, after invoice activation,
-  invoice-bound reversal-versus-cancellation;
+  invoice-bound reversal-versus-cancellation, cutover-versus-manual-rent
+  creation, and generator-versus-manual-rent creation. At the versioned
+  activation boundary, using its separately approved effective-time semantics,
+  manual creation winning first must change the locked candidate-set hash and
+  force `legacy_manifest_refresh_required`; cutover winning first must make
+  creation fail with `rent_occurrence_generation_required`. Neither ordering
+  may create an ambiguous/adopted row;
 - same-key reversal-versus-composed-correction in both start orders, plus
   reversal against organization-Ledger/accounting-book transitions and
   different original/reversal periods, proving Plan 03 locks precede the
   operation key, no `40P01` occurs, and completed replay survives later period
   closure;
 - focused Vitest for server validation, error mapping, all route revalidation,
-  removed post action/copy, source evidence, and reversal flow;
+  removed post action/copy, source evidence, reversal flow, and the later
+  post-cutover Rent & Income/deep-link guard with actionable
+  generate/catch-up/repair copy;
 - canonical cash and journal parity against a production-shaped fixture;
 - `npm run test:all`;
 - `npm run lint`;

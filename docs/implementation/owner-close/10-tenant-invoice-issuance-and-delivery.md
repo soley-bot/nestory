@@ -430,10 +430,38 @@ activation gate. Plan 09 may land in shadow/readiness mode, but a generated
 obligation is not exposed as collectable until the invoice slice can issue its
 required invoice. After cutover, Plan 05 rejects settlement of a
 Plan 09-generated obligation without the exact current-active issued invoice
-header/version/line. Classified pre-invoice/manual/legacy obligations retain
-the explicit obligation-only settlement path, but that cash is not eligible for
-formal-receipt publication. This gate prevents the Plan 09-to-invoice
-deployment interval from creating normally uninvoiceable cash.
+header/version/line. The obligation-only exception is limited to exact IDs
+whose immutable creation provenance and reviewed Plan 20 manifest, frozen into
+the named Plan 22 cutover, prove that they predate activation and retain the
+`legacy_obligation_only` disposition; that cash is not eligible for
+formal-receipt publication. A `manual` label, caller flag, backdated date, or
+current Lease/Person join cannot create that status. An open obligation with a
+Plan 20 `migration_invoice_required` disposition must have that migration
+invoice issued before later settlement and returns
+`migration_invoice_issuance_required` until then. A normal Plan 09 obligation
+without its current active issued invoice returns
+`current_issued_invoice_required`.
+
+The same atomic activation makes Plan 09 the sole normal creator of rent
+obligations. `createRentIncomeItemAction`, `create_finance_income_item`, legacy
+wrappers, and direct authenticated DML reject new manual `rent` creation with
+`rent_occurrence_generation_required`; the Rent & Income control and a deep
+link such as `?action=create&incomeType=rent` route the operator to the Plan 09
+generate/catch-up/repair flow instead of silently creating an obligation or
+initial cash.
+Database enforcement is mandatory even when the UI hides the option. Only an
+economic class explicitly designated non-invoiceable/manual by its ratified
+owner and policy may keep a manual path. This gate prevents either the
+Plan 09-to-invoice deployment interval or a post-cutover compatibility action
+from creating normally uninvoiceable cash.
+
+Activation holds the shared creation/cutover policy lock and compares the
+complete locked candidate-set identities, version, and material hash with the
+reviewed Plan 20 manifest. Drift returns
+`legacy_manifest_refresh_required` and blocks activation pending Plan 20
+refresh/re-review. A manual create that commits before activation changes the
+candidate set and invalidates readiness; activation committing first makes the
+same create fail with `rent_occurrence_generation_required`.
 
 ### 11. Introduce routes without changing bookmark meaning
 
@@ -535,8 +563,16 @@ do not calculate Owner Statement cash or owner liability.
 13. A Plan 09-generated obligation cannot accept new-business settlement before
     its exact current-active issued invoice header/version/line exists and is
     frozen on the allocation; cancelled, superseded, abandoned, or
-    obligation-only resolution fails. Classified legacy obligations remain
-    explicit and outside formal-receipt publication.
+    obligation-only resolution fails. Only exact manifest-backed obligations
+    proven to predate cutover retain the obligation-only path and remain
+    outside formal-receipt publication. Post-cutover manual rent creation fails
+    at the action, checked/legacy RPC, and direct-DML boundaries; labels,
+    caller flags, backdated dates, and present-day joins cannot spoof
+    grandfather status. The mutually exclusive Plan 20 dispositions and
+    `rent_occurrence_generation_required`,
+    `current_issued_invoice_required`,
+    `migration_invoice_issuance_required`, and
+    `legacy_manifest_refresh_required` outcomes remain distinct.
 14. `/invoices` is not silently repurposed and vendor bills remain distinct.
 15. Later close/statement reads use the canonical `artifact_available`,
     `artifact_not_historically_created`, `artifact_required_missing`, and
@@ -554,11 +590,17 @@ Required evidence includes:
 
 - RED tests for no current invoice entities, `/invoices` vendor redirect,
   generic document replacement, stale-source approval, and missing artifact
-  protection;
+  protection, plus proof that the current action/RPC can create and settle
+  manual rent without occurrence/invoice identity;
 - pgTAP for schema constraints, one-active-invoice-per-obligation, lifecycle
   transitions, capability/RLS/grants/bypass, source/recipient scope, series
   concurrency, number non-reuse, idempotency, immutability, cancellation and
-  replacement;
+  replacement, immutable pre-cutover provenance, spoofed legacy/manual
+  classification, post-cutover action/RPC/wrapper/direct-DML rent rejection,
+  cross-organization and role denial, and preservation of exact
+  manifest-backed obligations, including the mutually exclusive Plan 20
+  dispositions and distinct normal-invoice, migration-invoice, and manifest
+  refresh reason codes;
 - two-session races for draft generation, approval-versus-source change,
   same-key issuance-versus-issuance, changed-payload key reuse,
   issuance-versus-close/composed-correction in both start orders,
@@ -566,12 +608,17 @@ Required evidence includes:
   reversal-versus-cancellation, proving partial reversal blocks, complete exact
   reversal can restore eligibility, no path holds the issuance key while
   waiting on an earlier Plan 03 lock, and every outcome retains immutable
-  allocation/reversal linkage;
+  allocation/reversal linkage, plus cutover-versus-manual-rent creation and
+  generator-versus-manual-rent creation in both start orders. Manual creation
+  winning first must invalidate the candidate-set hash and activation; cutover
+  winning first must reject creation;
 - forced failures between series allocation, issued snapshot, artifact upload,
   finalization, and delivery, proving same-identity recovery;
 - Vitest for action validation/error mapping, lifecycle display, independent
   axes, artifact/download authorization, delivery history, query-preserving
-  compatibility, and route coverage;
+  compatibility, route coverage, and post-cutover Rent & Income/deep-link
+  denial with actionable generate/catch-up/repair copy while an explicitly
+  allowlisted non-invoiceable class remains unaffected;
 - authenticated browser verification for generate, review, approve, issue,
   download/print, record manual delivery, partial payment display, cancellation,
   replacement, and every blocker;
@@ -639,6 +686,6 @@ Stop if:
 | Track B — Lease and Occupancy History | Period-effective relationship/date evidence envelope | `lease_parties` distinguishes tenant and billing-contact roles, while accepted party/occupancy/participant/notice evidence and boundary confidence remain Track B-owned | TB-05 returns exact candidates, source IDs/versions, resolution/reason codes, resolver version, and material hash. It does not choose the debtor, recipient, calculation dates, due date, proration, blockers, or snapshot; `billing_contact` is never automatic debtor authority | The unnumbered invoice slice needs reproducible evidence without transferring invoice/calculation authority to Track B | Yes | No before implementation |
 | Track A — Plan 09 and unnumbered tenant-invoice coordination slice | Financial selection/snapshot and invoice owner adapter | Plan 09 owns term/policy calculation plus debtor/recipient identity selection; the invoice slice owns lifecycle, issue-time contact approval, and issued evidence | Plan 09 stores the approved calculation/evidence and debtor/recipient identity snapshot. The invoice slice freezes it, approves contact/address/delivery evidence for that recipient, returns exact invoice states/actions/scopes through its adapter, and acquires every deterministic property-period lock before a relationship-driven action | Draft regeneration/reset/replacement must be stale-safe while issued evidence remains immutable | Yes | No |
 | Generic Documents / unnumbered tenant-invoice coordination slice | Operational-document versioning versus invoice artifact authority | Generic documents are mutable operational records and cannot own an official invoice artifact | The invoice slice owns invoice versions/artifacts/replacements; Generic Documents owns operational document versions and may only cite exact invoice artifacts through checked links | Prevents either document family from silently replacing the other's evidence | Yes before artifact adoption | No |
-| Track A — Plan 09 | Occurrence/obligation output contract | The legacy generator is blocked and current obligations lack term/policy identity | Produce one occurrence and obligation with exact calculation/source snapshots and immutable IDs | These are mandatory normal new-business invoice-line sources; Plan 20 alone owns the reviewed legacy-migration exception | Yes | No |
+| Track A — Plan 09 | Occurrence/obligation output contract | The legacy generator is blocked, current obligations lack term/policy identity, and the generic action/RPC can still create manual rent | Produce one occurrence and obligation with exact calculation/source snapshots and immutable IDs; at the named activation Plan 09 becomes the sole normal rent-obligation creator and the action/RPC/DML boundaries reject manual rent | These are mandatory normal new-business invoice-line sources; Plan 20 alone owns the reviewed legacy-migration exception | Yes | No |
 | Track A — Plan 05 | Settlement-to-invoice link | Current allocations target obligations only | Persist exact invoice header/version/line identity for new invoice-era allocations, recheck current-active issued state under shared locks, and forbid later obligation-only resolution without making invoice the cash source | Derived settlement status and receipt evidence need immutable links across cancellation/replacement | Yes for payment display; issuance can land first if receipt entry remains gated | No |
 | Configuration registry / PR #38 | Approval and delivery catalogue entries | Registry is open, catalogue-only, and has proposed defaults/roles without runtime authority | Do not activate; future catalogue text must point to versioned billing policy, actual capability, invoice series, and delivery configuration | Prevent a UI catalogue from bypassing financial policy | Yes before configuration-driven behavior | Yes |

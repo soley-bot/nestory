@@ -384,9 +384,10 @@ obligation/occurrence/term, Track A-approved calculation, selected
 debtor/recipient identities, accepted relationship-evidence scope, and current
 active issued tenant-invoice header/version/line under the shared
 obligation/invoice/property-period locks. It never later resolves an
-obligation-only allocation to an invoice line. Classified pre-invoice, manual,
-or legacy cash may retain only its exact obligation identity, but is never
-formal-receipt eligible. A formal receipt copies the allocation-frozen
+obligation-only allocation to an invoice line. Exact cash whose obligation is
+manifest-backed as pre-cutover with `legacy_obligation_only` disposition may
+retain only its exact obligation identity, but is never formal-receipt
+eligible. A formal receipt copies the allocation-frozen
 tenant-invoice and Plan 05 settlement snapshots. Neither settlement nor
 publication re-resolves a tenant, recipient, Unit, or occupancy from current
 Lease/Person/party/contact rows. Legacy rows without event-time identity remain
@@ -413,8 +414,9 @@ Publication, delivery, and cash-reversal state are independent:
 | Cash reversal | `active` or `reversed` | Derived only from exact Plan 05 reversing receipt/allocation identity |
 
 Formal publication requires the exact issued tenant-invoice
-header/version/line frozen on the committed Plan 05 allocation. Classified
-pre-invoice, manual, or legacy cash is typed
+header/version/line frozen on the committed Plan 05 allocation. Exact
+manifest-backed pre-cutover cash with `legacy_obligation_only` disposition is
+typed
 `legacy_cash_non_publishable` with
 `invoice_identity_not_historically_available` and
 `artifact_not_historically_created`; it cannot enter this lifecycle. A future
@@ -496,7 +498,7 @@ it does not become the generic document versioning authority.
 | Obligation to invoice | At most one active/current invoice at a time for one obligation, with one source-bound line; cancelled/superseded replacements remain as a linked historical chain | Multi-obligation invoices deferred |
 | Rent plus parking/utilities/fees | Separate typed occurrences, obligations, and invoices | Combined invoice requires multi-line/multi-obligation design |
 | Receipt to obligation | Exactly one allocation to one obligation | Multi-allocation receipt deferred |
-| Receipt to invoice | Activated Plan 09 cash freezes exactly one current active issued invoice header/version/line; classified pre-invoice/manual/legacy obligation-only cash remains allowed solely as non-publishable cash evidence | Cross-invoice allocation and retroactive invoice resolution deferred |
+| Receipt to invoice | Activated Plan 09 cash freezes exactly one current active issued invoice header/version/line; obligation-only cash is limited to exact IDs whose immutable provenance and reviewed Plan 20 manifest, frozen into the Plan 22 cutover, prove they predate activation and retain `legacy_obligation_only`, and remains non-publishable | Cross-invoice allocation and retroactive invoice resolution deferred; a `migration_invoice_required` obligation needs issuance before later payment, and labels, caller flags, backdated dates, or current joins cannot establish grandfathering |
 | Partial payment | Supported | None |
 | Multiple receipts against one invoice | Supported sequentially | None |
 | Unapplied cash | Not admitted to the pilot settlement flow; retain bank/reconciliation evidence without fabricated allocation and block close | Explicit unapplied-cash liability and allocation workflow required |
@@ -572,17 +574,42 @@ occurrences; no earlier Track B slice is copied into Plan 09.
 Plan 09 and the unnumbered tenant-invoice slice share one new-business cutover
 gate. Plan 09 may merge and run in shadow/readiness mode first, but its
 generated obligations do not become collectable through Plan 05 until the
-invoice slice can create and issue the required invoice. At cutover:
+invoice slice can create and issue the required invoice. Before activation,
+current manual obligations retain the existing Plan 05 path without requiring a
+future Plan 20 manifest. At cutover:
 
-- classified pre-invoice/manual/legacy obligations may continue to settle by
-  obligation identity under Plan 05 but is not formal-receipt eligible;
+- Plan 20 owns exact legacy classification/manifest evidence and Plan 22 owns
+  the named cutover/version. Only exact obligation IDs whose immutable creation
+  provenance and reviewed manifest prove they predate activation may continue
+  to settle by obligation identity under Plan 05, and that cash is not
+  formal-receipt eligible. Plan 20 assigns every candidate exactly one
+  immutable disposition, `legacy_obligation_only` or
+  `migration_invoice_required`; the latter returns
+  `migration_invoice_issuance_required` until its invoice is issued and never
+  falls back to obligation-only settlement;
+- Plan 09 becomes the sole normal creator of rent obligations. The existing
+  action, checked creation RPC, legacy wrappers, authenticated direct DML, and
+  Rent & Income deep links must reject post-cutover manual rent with
+  `rent_occurrence_generation_required` and point to generate/catch-up/repair;
 - newly activated Plan 09 obligations require one current active issued
-  tenant-invoice header/version/line before Plan 05 accepts cash; and
+  tenant-invoice header/version/line before Plan 05 accepts cash, returning
+  `current_issued_invoice_required` while it is absent; and
 - every formal-receipt publication requires that exact allocation-frozen
   invoice identity.
 
-This prevents cash received in the Plan 09-to-invoice implementation gap from
-becoming neither normally invoiceable nor normally receipt-publishable.
+`manual`, `other`, income-type/description labels, caller flags, backdated
+business dates, or present-day Lease/Person joins cannot establish grandfather
+status. A manual path remains only for an economic class that its ratified
+owner/policy explicitly marks non-invoiceable. The creation and settlement
+guards share the same cutover/policy lock so a cutover-versus-manual-create race
+cannot silently widen the grandfather cohort. Plan 22 compares the complete
+locked candidate-set identities, version, and material hash with the reviewed
+Plan 20 manifest. A manual create winning first changes the set and forces
+`legacy_manifest_refresh_required` plus Plan 20 refresh/re-review; cutover
+winning first makes creation fail with
+`rent_occurrence_generation_required`. This prevents cash received in either
+the Plan 09-to-invoice implementation gap or a post-cutover compatibility path
+from becoming neither normally invoiceable nor normally receipt-publishable.
 
 Partial receipt and reversal update invoice settlement status by derivation.
 They never mutate issued invoice economics. Formal receipt publication does not
@@ -675,9 +702,11 @@ statuses.
 - The pilot excludes unapplied cash, overpayments, advance payments, combined
   invoices, multi-allocation receipts, credit notes, and unresolved
   recipient/lease identity.
-- The Plan 09/tenant-invoice cutover is atomic at the feature-policy level: no
-  new-business generated obligation is exposed for settlement until invoice
-  issuance is available and required.
+- The Plan 09/tenant-invoice cutover is atomic at the feature-policy level for
+  creation and collection: Plan 09 is the sole normal post-cutover rent
+  obligation source, no new-business obligation is exposed for settlement until
+  invoice issuance is available and required, and no compatibility/manual path
+  can self-classify a new row as legacy.
 - Missing required artifacts, unsupported cash, ambiguous legacy identity, or
   a configuration/policy version without evidence blocks close/cutover.
 
@@ -714,8 +743,8 @@ narrower rule. This record does not claim tax-invoice compliance.
   each of at least one applicable accounting book; zero, missing, duplicate,
   unsupported, or unmapped book mappings fail before source mutation.
 - Every formal receipt consumes the exact issued invoice header/version/line
-  frozen on its Plan 05 allocation; legacy obligation-only cash is
-  non-publishable.
+  frozen on its Plan 05 allocation; exact manifest-backed pre-cutover
+  obligation-only cash is non-publishable.
 - Invoice and formal-receipt commands acquire Plan 03 locks before
   operation-key replay, which resolves before domain-source/series locks;
   abandoned formal-receipt recovery retains the original row/number while
@@ -744,9 +773,15 @@ This decision record is complete when:
    separate;
 4. the implementation sequence gives invoice and receipt artifacts named
    owners;
-5. Plan 05 can proceed for classified pre-invoice/manual/legacy cash without
-   invoice identity, while activated Plan 09 cash requires the current issued
-   identity and legacy cash cannot publish a formal receipt;
+5. Before activation, current manual obligations retain Plan 05's existing
+   path. After activation, Plan 05 can proceed without invoice identity only
+   for exact obligations proven by immutable creation provenance and the
+   reviewed Plan 20 manifest frozen into the Plan 22 cutover to predate
+   activation with `legacy_obligation_only`; `migration_invoice_required`
+   obligations need issuance before later payment. Activated Plan 09 cash
+   requires the current issued identity, post-cutover manual rent creation
+   fails through every action/RPC/DML path, and grandfathered cash cannot
+   publish a formal receipt;
 6. the two unnumbered tenant-document coordination slices consume exact
    Plan 09/05 sources, including the allocation-frozen invoice
    header/version/line;
