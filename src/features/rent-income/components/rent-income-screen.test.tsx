@@ -309,7 +309,7 @@ describe("RentIncomeScreen", () => {
 
   it.each([
     ["partially received", partialIncome, "Record receipt"],
-    ["fully received", receivedIncome, "Post to ledger"],
+    ["fully received", receivedIncome, "Record receipt"],
   ])(
     "keeps archived focused %s income history read-only",
     (_label, item, expectedMutation) => {
@@ -381,12 +381,20 @@ describe("RentIncomeScreen", () => {
         pagination={{ from: 1, page: 1, pageSize: 25, to: 1, totalCount: 1, totalPages: 1 }}
         propertyOptions={[{ id: "property-1", label: "HOME / Home" }]}
         payerOptions={[]}
+        reconciliationSources={[
+          {
+            currency: "USD",
+            id: "source-1",
+            label: "BANK · Operating",
+            propertyId: "property-1",
+          },
+        ]}
         summary={{
           openCount: "1",
           overdueCount: "0",
           receivableTotal: { primary: "USD 400.00" },
           receivedTotal: { primary: "USD 100.00" },
-          unpostedCount: "1",
+          receiptRowCount: "1",
         }}
         unitOptions={[]}
         viewQuery={{
@@ -413,18 +421,17 @@ describe("RentIncomeScreen", () => {
     ).toBe("400");
   });
 
-  it("states the official ledger effect before posting received income", () => {
+  it("shows fully received income as settled with no post-to-ledger action", () => {
     renderIncome("all", [receivedIncome]);
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
-    fireEvent.click(screen.getByRole("button", { name: "Post to ledger" }));
-
-    const consequence = screen.getByRole("region", {
-      name: "Posting consequence",
-    });
-    expect(consequence.textContent).toContain(
-      "ResultOfficial income ledger entry",
-    );
+    expect(screen.queryByRole("button", { name: "Post to ledger" })).toBeNull();
+    expect(screen.getByText("Settled and projected")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Cash-basis Owner Statement and allocation-level Ledger evidence now agree.",
+      ),
+    ).toBeTruthy();
   });
 
   it("keeps partially received income open for another receipt and hides posting", () => {
@@ -435,6 +442,49 @@ describe("RentIncomeScreen", () => {
     expect(screen.queryByRole("button", { name: "Post to ledger" })).toBeNull();
     expect(screen.getByText("Record remaining receipt")).toBeTruthy();
   });
+
+  it("shows source evidence and opens checked reversal for a canonical receipt", () => {
+    const item = {
+      ...receivedIncome,
+      receipts: [
+        {
+          allocationId: "allocation-1",
+          amount: 500,
+          amountDisplay: { primary: "USD 500.00" },
+          canReverse: true,
+          id: "receipt-1",
+          journalEntryIds: ["journal-1"],
+          ledgerEntryId: "ledger-1",
+          publicationSourceClass: "legacy_cash_non_publishable",
+          receivedDate: "2026-07-05",
+          reconciliationSourceId: "source-1",
+          reconciliationSourceLabel: "BANK · Operating",
+          reference: "BANK-500",
+          reversalOfAllocationId: null,
+          reversed: false,
+          settlementBasis: "pre_cutover_uninvoiced",
+        },
+      ],
+    } satisfies RentIncomeItem;
+    renderIncome("all", [item]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
+    expect(screen.getByText("BANK · Operating")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Ledger evidence" })).toBeTruthy();
+    expect(screen.getByText("1 balanced journal")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reverse receipt" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Reverse receipt" }),
+    ).toBeTruthy();
+    expect(
+      document.querySelector('textarea[name="reason"]'),
+    ).not.toBeNull();
+    expect(
+      document.querySelector('input[name="idempotencyKey"]'),
+    ).not.toBeNull();
+  });
 });
 
 function renderIncome(
@@ -442,7 +492,7 @@ function renderIncome(
   incomeItems: RentIncomeItem[] = [partialIncome],
   viewQuery: Partial<ComponentProps<typeof RentIncomeScreen>["viewQuery"]> = {},
 ) {
-  return render(<RentIncomeScreen incomeItems={incomeItems} leaseOptions={[]} pagination={{ from: incomeItems.length ? 1 : 0, page: 1, pageSize: 25, to: incomeItems.length, totalCount: incomeItems.length, totalPages: incomeItems.length ? 1 : 0 }} payerOptions={[]} propertyOptions={[{ id: "property-1", label: "HOME / Home" }]} summary={{ openCount: "1", overdueCount: "0", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" }, unpostedCount: "1" }} unitOptions={[]} viewQuery={{ archiveState: "active", incomeGroup, incomeType: "all", month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all", ...viewQuery }} />);
+  return render(<RentIncomeScreen incomeItems={incomeItems} leaseOptions={[]} pagination={{ from: incomeItems.length ? 1 : 0, page: 1, pageSize: 25, to: incomeItems.length, totalCount: incomeItems.length, totalPages: incomeItems.length ? 1 : 0 }} payerOptions={[]} propertyOptions={[{ id: "property-1", label: "HOME / Home" }]} reconciliationSources={[{ currency: "USD", id: "source-1", label: "BANK · Operating", propertyId: "property-1" }]} summary={{ openCount: "1", overdueCount: "0", receiptRowCount: "1", receivableTotal: { primary: "USD 400.00" }, receivedTotal: { primary: "USD 100.00" } }} unitOptions={[]} viewQuery={{ archiveState: "active", incomeGroup, incomeType: "all", month: "2026-07", page: 1, pageSize: 25, propertyId: "all", query: "", status: "all", unitId: "all", ...viewQuery }} />);
 }
 
 const partialIncome: RentIncomeItem = {
@@ -481,7 +531,7 @@ const receivedIncome: RentIncomeItem = {
   amountReceived: 500,
   amountReceivedDisplay: { primary: "USD 500.00" },
   balanceDisplay: { primary: "USD 0.00" },
-  nextAction: "Post to ledger",
+  nextAction: "Settled",
   status: "received",
   statusLabel: "Received",
 };

@@ -17,8 +17,12 @@ type RentIncomeFieldErrors = {
   payerMode?: string[];
   payerPersonId?: string[];
   propertyId?: string[];
+  reason?: string[];
+  receiptId?: string[];
   receivedDate?: string[];
+  reconciliationSourceId?: string[];
   reference?: string[];
+  reversalDate?: string[];
   unitId?: string[];
 };
 
@@ -88,10 +92,11 @@ const createIncomeSchema = z
       });
     }
 
-    if (amountReceived > amountDue) {
+    if (amountReceived > 0) {
       context.addIssue({
         code: "custom",
-        message: "Received amount cannot exceed the expected amount.",
+        message:
+          "Create the obligation first, then record cash with the checked receipt action.",
         path: ["amountReceived"],
       });
     }
@@ -112,14 +117,6 @@ const createIncomeSchema = z
       });
     }
 
-    if (amountReceived > 0 && !data.receivedDate) {
-      context.addIssue({
-        code: "custom",
-        message: "Choose a received date for the initial receipt.",
-        path: ["receivedDate"],
-      });
-    }
-
     if (
       data.receivedDate &&
       !/^\d{4}-\d{2}-\d{2}$/.test(data.receivedDate)
@@ -135,11 +132,13 @@ const createIncomeSchema = z
 const recordPaymentSchema = z
   .object({
     amountReceived: z.string().trim(),
+    idempotencyKey: z.string().trim().min(8),
     incomeItemId: incomeItemIdSchema,
     receivedDate: z
       .string()
       .trim()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a received date."),
+    reconciliationSourceId: z.uuid("Choose the account that received the cash."),
     reference: z.string().trim().max(120, "Keep the reference under 120 characters."),
   })
   .superRefine((data, context) => {
@@ -153,6 +152,25 @@ const recordPaymentSchema = z
       });
     }
   });
+
+const reverseReceiptSchema = z.object({
+  idempotencyKey: z.string().trim().min(8),
+  propertyId: optionalUuidSchema,
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Explain why this receipt is being reversed.")
+    .max(400, "Keep the reason under 400 characters."),
+  receiptId: z.uuid("Choose a receipt."),
+  reconciliationSourceId: z.uuid(
+    "Choose the account for the reversing cash event.",
+  ),
+  reversalDate: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a reversal date."),
+  unitId: optionalUuidSchema,
+});
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -222,11 +240,7 @@ export async function createRentIncomeItemAction(
   return {
     incomeItemId: incomeItemId ?? undefined,
     message:
-      Number(parsed.data.amountReceived || "0") <= 0
-        ? "Income charge created. No cash was recorded; the cash-basis Owner Statement stays unchanged until a receipt is recorded."
-        : Number(parsed.data.amountReceived) < Number(parsed.data.amountDue)
-          ? "Income charge and partial receipt recorded. Record the remaining receipt before posting to the ledger."
-          : "Income charge and full receipt recorded. It is ready to post to the ledger.",
+      "Income charge created. Record actual cash from the receipt action so the allocation, Ledger, and journal commit together.",
     status: "success",
   };
 }
@@ -238,8 +252,13 @@ export async function recordRentIncomePaymentAction(
   const context = await requireAdminContext();
   const parsed = recordPaymentSchema.safeParse({
     amountReceived: readString(formData, "amountReceived"),
+    idempotencyKey: readString(formData, "idempotencyKey"),
     incomeItemId: readString(formData, "incomeItemId"),
     receivedDate: readString(formData, "receivedDate"),
+    reconciliationSourceId: readString(
+      formData,
+      "reconciliationSourceId",
+    ),
     reference: readString(formData, "reference"),
   });
 
@@ -250,7 +269,7 @@ export async function recordRentIncomePaymentAction(
   const supabase = await createSupabaseServerClient();
   const { data: incomeItem, error: incomeItemError } = await supabase
     .from("finance_income_items")
-    .select("amount_due, amount_received")
+    .select("amount_due, amount_received, property_id, unit_id")
     .eq("organization_id", context.organizationId)
     .eq("id", parsed.data.incomeItemId)
     .is("archived_at", null)
@@ -277,12 +296,14 @@ export async function recordRentIncomePaymentAction(
     };
   }
 
-  const { error } = await supabase.rpc("record_finance_receipt", {
+  const { error } = await supabase.rpc("record_finance_receipt_v2", {
     p_amount: receiptAmount,
+    p_idempotency_key: parsed.data.idempotencyKey,
     p_income_item_id: parsed.data.incomeItemId,
     p_organization_id: context.organizationId,
+    p_reconciliation_source_id: parsed.data.reconciliationSourceId,
     p_received_date: parsed.data.receivedDate,
-    p_reference: parsed.data.reference || null,
+    p_reference: parsed.data.reference || "",
   });
 
   if (error) {
@@ -292,37 +313,47 @@ export async function recordRentIncomePaymentAction(
     };
   }
 
-  revalidateFinanceIncomePaths();
+  revalidateFinanceIncomePaths(incomeItem.property_id, incomeItem.unit_id);
 
   return {
     message:
       receiptAmount >= remainingBefore
-        ? "Receipt recorded in full. This income is ready to post to the ledger."
-        : "Partial receipt recorded. The remaining balance can still accept another receipt before posting.",
+        ? "Receipt recorded and projected. The income balance is fully settled."
+        : "Receipt recorded and projected. The remaining balance can still accept another receipt.",
     status: "success",
   };
 }
 
-export async function postRentIncomeItemAction(
+export async function reverseRentIncomeReceiptAction(
   _state: RentIncomeActionState,
   formData: FormData,
 ): Promise<RentIncomeActionState> {
   const context = await requireAdminContext();
-  const parsedIncomeItemId = incomeItemIdSchema.safeParse(
-    readString(formData, "incomeItemId"),
-  );
+  const parsed = reverseReceiptSchema.safeParse({
+    idempotencyKey: readString(formData, "idempotencyKey"),
+    propertyId: readString(formData, "propertyId"),
+    reason: readString(formData, "reason"),
+    receiptId: readString(formData, "receiptId"),
+    reconciliationSourceId: readString(
+      formData,
+      "reconciliationSourceId",
+    ),
+    reversalDate: readString(formData, "reversalDate"),
+    unitId: readString(formData, "unitId"),
+  });
 
-  if (!parsedIncomeItemId.success) {
-    return {
-      fieldErrors: { incomeItemId: ["Choose an income row."] },
-      status: "error",
-    };
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("post_finance_income_item", {
-    p_income_item_id: parsedIncomeItemId.data,
+  const { error } = await supabase.rpc("reverse_finance_receipt_v2", {
+    p_idempotency_key: parsed.data.idempotencyKey,
     p_organization_id: context.organizationId,
+    p_reason: parsed.data.reason,
+    p_receipt_id: parsed.data.receiptId,
+    p_reconciliation_source_id: parsed.data.reconciliationSourceId,
+    p_reversal_date: parsed.data.reversalDate,
   });
 
   if (error) {
@@ -332,10 +363,13 @@ export async function postRentIncomeItemAction(
     };
   }
 
-  revalidateFinanceIncomePaths();
+  revalidateFinanceIncomePaths(
+    parsed.data.propertyId || null,
+    parsed.data.unitId || null,
+  );
 
   return {
-    message: "Income posted to ledger.",
+    message: "Receipt reversed with linked Ledger and journal evidence.",
     status: "success",
   };
 }
@@ -378,16 +412,31 @@ export async function voidRentIncomeItemAction(
 }
 
 function financeIncomeErrorMessage(message: string) {
-  if (message.includes("Accounting period is locked")) {
-    return "This accounting period is locked. Unlock it before posting to ledger.";
+  if (
+    message.includes("Accounting period is locked") ||
+    message.includes("Income settlement period is not open")
+  ) {
+    return "This financial period is closed. Reopen it through the controlled close workflow before recording cash.";
   }
 
-  if (message.includes("Record received money before posting")) {
-    return "Record received money before posting this row to ledger.";
+  if (message.includes("Reconciliation source is not active")) {
+    return "Choose an active cash account for this property and currency.";
   }
 
-  if (message.includes("remaining receipt before posting")) {
-    return "Record the remaining receipt before posting this income to the ledger.";
+  if (message.includes("Conflicting financial idempotency request")) {
+    return "This submission key was already used with different receipt details. Refresh and try again.";
+  }
+
+  if (message.includes("Finance receipt is already reversed")) {
+    return "This receipt has already been reversed.";
+  }
+
+  if (message.includes("allocation_publication_classification_required")) {
+    return "This historical receipt needs classification evidence before it can be reversed.";
+  }
+
+  if (message.includes("income_settlement_class_not_supported")) {
+    return "Use the dedicated custody or owner-funding workflow for this income class.";
   }
 
   if (message.includes("Payer person not found")) {
@@ -417,6 +466,9 @@ function revalidateFinanceIncomePaths(
   revalidatePath("/ledger");
   revalidatePath("/rent-income");
   revalidatePath("/reports");
+  revalidatePath("/timeline");
+  revalidatePath("/property-timeline");
+  revalidatePath("/financial-timeline");
 
   if (propertyId) {
     revalidatePath(`/properties/${propertyId}`);

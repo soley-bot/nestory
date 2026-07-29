@@ -105,23 +105,40 @@ VALUES (
 );
 
 CREATE TEMP TABLE finance_settlement_activity_state (
-  receipt_id uuid,
+  receipt_result jsonb,
+  reversal_result jsonb,
+  reconciliation_source_id uuid,
   payment_id uuid
 ) ON COMMIT DROP;
 
 INSERT INTO finance_settlement_activity_state DEFAULT VALUES;
 GRANT SELECT, UPDATE ON finance_settlement_activity_state TO authenticated;
 
+UPDATE finance_settlement_activity_state
+SET reconciliation_source_id =
+  public.create_financial_reconciliation_source(
+    '00000000-0000-0000-0000-000000000001',
+    'SETTLEMENTAUDIT',
+    'Settlement audit bank',
+    'bank',
+    'property_dedicated',
+    'USD',
+    '10000000-0000-0000-0000-000000000001',
+    '****2309'
+  );
+
 SET LOCAL ROLE authenticated;
 
 SELECT lives_ok(
   $$UPDATE finance_settlement_activity_state
-    SET receipt_id = public.record_finance_receipt(
+    SET receipt_result = public.record_finance_receipt_v2(
       '00000000-0000-0000-0000-000000000001',
       'f1000000-0000-0000-0000-000000000001',
       250,
       '2026-07-23',
-      'SETTLEMENT-AUDIT-RECEIPT'
+      reconciliation_source_id,
+      'SETTLEMENT-AUDIT-RECEIPT',
+      'settlement-audit-receipt-v2'
     )$$,
   'recording a receipt succeeds'
 );
@@ -130,9 +147,12 @@ SELECT is(
   (
     SELECT count(*)
     FROM public.activity_logs
-    WHERE entity_type = 'finance_income_item'
-      AND entity_id = 'f1000000-0000-0000-0000-000000000001'
-      AND action = 'receipt_recorded'
+    WHERE entity_type = 'finance_receipt_allocation'
+      AND entity_id = (
+        SELECT (receipt_result->>'allocation_id')::uuid
+        FROM finance_settlement_activity_state
+      )
+      AND action = 'income_settlement_recorded'
   ),
   1::bigint,
   'receipt recording creates exactly one activity entry'
@@ -149,9 +169,12 @@ SELECT ok(
         'actor_id', 'organization_id', 'reference', 'created_by', 'updated_by'
       ])
     FROM public.activity_logs
-    WHERE entity_type = 'finance_income_item'
-      AND entity_id = 'f1000000-0000-0000-0000-000000000001'
-      AND action = 'receipt_recorded'
+    WHERE entity_type = 'finance_receipt_allocation'
+      AND entity_id = (
+        SELECT (receipt_result->>'allocation_id')::uuid
+        FROM finance_settlement_activity_state
+      )
+      AND action = 'income_settlement_recorded'
   ),
   'receipt activity is scoped to the operational item and excludes sensitive audit fields'
 );
@@ -160,13 +183,15 @@ SELECT is(
   (
     SELECT previous_values
     FROM public.activity_logs
-    WHERE entity_type = 'finance_income_item'
-      AND entity_id = 'f1000000-0000-0000-0000-000000000001'
-      AND action = 'receipt_recorded'
+    WHERE entity_type = 'finance_receipt_allocation'
+      AND entity_id = (
+        SELECT (receipt_result->>'allocation_id')::uuid
+        FROM finance_settlement_activity_state
+      )
+      AND action = 'income_settlement_recorded'
   ),
   jsonb_build_object(
-    'income_type', 'rent',
-    'payer_label', 'Settlement audit tenant',
+    'income_item_id', 'f1000000-0000-0000-0000-000000000001',
     'amount_received', 0,
     'received_date', NULL,
     'status', 'open'
@@ -174,23 +199,32 @@ SELECT is(
   'receipt activity preserves the previous compatibility state'
 );
 
-SELECT is(
-  (
-    SELECT new_values
+SELECT ok(
+  coalesce((
+    SELECT new_values @> jsonb_build_object(
+        'receipt_id',
+          (SELECT receipt_result->>'receipt_id'
+           FROM finance_settlement_activity_state),
+        'allocation_id',
+          (SELECT receipt_result->>'allocation_id'
+           FROM finance_settlement_activity_state),
+        'income_item_id', 'f1000000-0000-0000-0000-000000000001',
+        'amount', 250,
+        'received_date', '2026-07-23'::date,
+        'outstanding_balance_after', 750,
+        'status', 'partially_received'
+      )
+      AND new_values ? 'ledger_entry_id'
+      AND new_values ? 'journal_entry_ids'
+      AND new_values ? 'classification_evidence_hash'
     FROM public.activity_logs
-    WHERE entity_type = 'finance_income_item'
-      AND entity_id = 'f1000000-0000-0000-0000-000000000001'
-      AND action = 'receipt_recorded'
-  ),
-  jsonb_build_object(
-    'income_type', 'rent',
-    'payer_label', 'Settlement audit tenant',
-    'amount_received', 250,
-    'received_date', '2026-07-23'::date,
-    'status', 'partially_received',
-    'receipt_amount', 250,
-    'receipt_date', '2026-07-23'::date
-  ),
+    WHERE entity_type = 'finance_receipt_allocation'
+      AND entity_id = (
+        SELECT (receipt_result->>'allocation_id')::uuid
+        FROM finance_settlement_activity_state
+      )
+      AND action = 'income_settlement_recorded'
+  ), false),
   'receipt activity preserves the new compatibility state and settlement amount'
 );
 
@@ -275,12 +309,15 @@ SELECT is(
 );
 
 SELECT lives_ok(
-  $$SELECT public.reverse_finance_receipt(
-    '00000000-0000-0000-0000-000000000001',
-    (SELECT receipt_id FROM finance_settlement_activity_state),
-    '2026-07-24',
-    'SETTLEMENT-AUDIT-RECEIPT-REVERSAL'
-  )$$,
+  $$UPDATE finance_settlement_activity_state
+    SET reversal_result = public.reverse_finance_receipt_v2(
+      '00000000-0000-0000-0000-000000000001',
+      (receipt_result->>'receipt_id')::uuid,
+      '2026-07-24',
+      reconciliation_source_id,
+      'SETTLEMENT-AUDIT-RECEIPT-REVERSAL',
+      'settlement-audit-reversal-v2'
+    )$$,
   'reversing the receipt succeeds'
 );
 
@@ -288,46 +325,68 @@ SELECT is(
   (
     SELECT count(*)
     FROM public.activity_logs
-    WHERE entity_type = 'finance_income_item'
-      AND entity_id = 'f1000000-0000-0000-0000-000000000001'
-      AND action = 'receipt_reversed'
+    WHERE entity_type = 'finance_receipt_allocation'
+      AND entity_id = (
+        SELECT (reversal_result->>'allocation_id')::uuid
+        FROM finance_settlement_activity_state
+      )
+      AND action = 'income_settlement_reversed'
   ),
   1::bigint,
   'receipt reversal creates exactly one activity entry'
 );
 
 SELECT ok(
-  (
+  coalesce((
     SELECT previous_values = jsonb_build_object(
-        'income_type', 'rent',
-        'payer_label', 'Settlement audit tenant',
+        'receipt_id',
+          (SELECT receipt_result->>'receipt_id'
+           FROM finance_settlement_activity_state),
+        'allocation_id',
+          (SELECT receipt_result->>'allocation_id'
+           FROM finance_settlement_activity_state),
         'amount_received', 250,
-        'received_date', '2026-07-23'::date,
         'status', 'partially_received'
       )
-      AND new_values = jsonb_build_object(
-        'income_type', 'rent',
-        'payer_label', 'Settlement audit tenant',
-        'amount_received', 0,
-        'received_date', NULL,
+      AND new_values @> jsonb_build_object(
+        'receipt_id',
+          (SELECT reversal_result->>'receipt_id'
+           FROM finance_settlement_activity_state),
+        'allocation_id',
+          (SELECT reversal_result->>'allocation_id'
+           FROM finance_settlement_activity_state),
+        'reversal_of_allocation_id',
+          (SELECT receipt_result->>'allocation_id'
+           FROM finance_settlement_activity_state),
+        'reason', 'SETTLEMENT-AUDIT-RECEIPT-REVERSAL',
+        'reversal_date', '2026-07-24'::date,
+        'outstanding_balance_after', 1000,
         'status', 'open',
-        'reversal_amount', 250,
-        'reversal_date', '2026-07-24'::date
+        'publication_source_class', 'legacy_cash_non_publishable'
       )
+      AND new_values ? 'ledger_entry_id'
+      AND new_values ? 'journal_entry_ids'
     FROM public.activity_logs
-    WHERE entity_type = 'finance_income_item'
-      AND entity_id = 'f1000000-0000-0000-0000-000000000001'
-      AND action = 'receipt_reversed'
-  ),
+    WHERE entity_type = 'finance_receipt_allocation'
+      AND entity_id = (
+        SELECT (reversal_result->>'allocation_id')::uuid
+        FROM finance_settlement_activity_state
+      )
+      AND action = 'income_settlement_reversed'
+  ), false),
   'receipt reversal records exact safe before and new values'
 );
 
 SELECT throws_ok(
-  $$SELECT public.reverse_finance_receipt(
+  $$SELECT public.reverse_finance_receipt_v2(
     '00000000-0000-0000-0000-000000000001',
-    (SELECT receipt_id FROM finance_settlement_activity_state),
+    (SELECT (receipt_result->>'receipt_id')::uuid
+     FROM finance_settlement_activity_state),
     '2026-07-25',
-    'SETTLEMENT-AUDIT-RECEIPT-RETRY'
+    (SELECT reconciliation_source_id
+     FROM finance_settlement_activity_state),
+    'SETTLEMENT-AUDIT-RECEIPT-RETRY',
+    'settlement-audit-reversal-retry-v2'
   )$$,
   '22023',
   'Finance receipt is already reversed',
@@ -338,9 +397,22 @@ SELECT is(
   (
     SELECT count(*)
     FROM public.activity_logs
-    WHERE entity_type = 'finance_income_item'
-      AND entity_id = 'f1000000-0000-0000-0000-000000000001'
-      AND action IN ('receipt_recorded', 'receipt_reversed')
+    WHERE entity_type = 'finance_receipt_allocation'
+      AND action IN (
+        'income_settlement_recorded',
+        'income_settlement_reversed'
+      )
+      AND (
+        new_values->>'income_item_id' =
+          'f1000000-0000-0000-0000-000000000001'
+        OR (
+          action = 'income_settlement_reversed'
+          AND previous_values->>'allocation_id' = (
+            SELECT receipt_result->>'allocation_id'
+            FROM finance_settlement_activity_state
+          )
+        )
+      )
   ),
   2::bigint,
   'a rejected receipt reversal retry does not duplicate activity'
@@ -425,12 +497,15 @@ SELECT set_config(
 );
 
 SELECT throws_ok(
-  $$SELECT public.record_finance_receipt(
+  $$SELECT public.record_finance_receipt_v2(
     '00000000-0000-0000-0000-000000000001',
     'f1000000-0000-0000-0000-000000000001',
     25,
     '2026-07-25',
-    'UNAUTHORIZED-RECEIPT'
+    (SELECT reconciliation_source_id
+     FROM finance_settlement_activity_state),
+    'UNAUTHORIZED-RECEIPT',
+    'unauthorized-receipt-v2'
   )$$,
   '42501',
   'Not authorized',
@@ -457,8 +532,15 @@ SELECT is(
     SELECT count(*)
     FROM public.activity_logs
     WHERE (
-      entity_type = 'finance_income_item'
-      AND entity_id = 'f1000000-0000-0000-0000-000000000001'
+      entity_type = 'finance_receipt_allocation'
+      AND (
+        new_values->>'income_item_id' =
+          'f1000000-0000-0000-0000-000000000001'
+        OR previous_values->>'allocation_id' = (
+          SELECT receipt_result->>'allocation_id'
+          FROM finance_settlement_activity_state
+        )
+      )
     ) OR (
       entity_type = 'finance_expense_item'
       AND entity_id = 'f2000000-0000-0000-0000-000000000001'

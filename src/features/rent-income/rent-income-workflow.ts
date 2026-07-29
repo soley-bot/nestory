@@ -1,7 +1,6 @@
 import type { RentIncomeStatus } from "@/features/rent-income/rent-income.types";
 
 export type RentIncomeWorkflow = {
-  canPost: boolean;
   canRecordReceipt: boolean;
   nextAction: string;
   ownerStatementState: "full_cash" | "no_cash" | "partial_cash";
@@ -25,7 +24,6 @@ export function getRentIncomeWorkflow({
   const voided = status === "void";
   const fullyReceived = amountReceived >= amountDue && amountDue > 0;
   const canRecordReceipt = !posted && !voided && remainingAmount > 0;
-  const canPost = !posted && !voided && fullyReceived;
   const ownerStatementState =
     amountReceived <= 0
       ? "no_cash"
@@ -35,18 +33,16 @@ export function getRentIncomeWorkflow({
 
   if (posted) {
     return {
-      canPost: false,
       canRecordReceipt: false,
-      nextAction: "Posted to ledger",
+      nextAction: "Legacy posted",
       ownerStatementState,
       remainingAmount,
-      stageLabel: "Posted",
+      stageLabel: "Legacy posted",
     };
   }
 
   if (voided) {
     return {
-      canPost: false,
       canRecordReceipt: false,
       nextAction: "No further action",
       ownerStatementState,
@@ -57,18 +53,16 @@ export function getRentIncomeWorkflow({
 
   if (fullyReceived) {
     return {
-      canPost,
       canRecordReceipt,
-      nextAction: "Post to ledger",
+      nextAction: "Settled",
       ownerStatementState,
       remainingAmount,
-      stageLabel: "Receipt complete",
+      stageLabel: "Settled and projected",
     };
   }
 
   if (amountReceived > 0) {
     return {
-      canPost,
       canRecordReceipt,
       nextAction: "Record remaining receipt",
       ownerStatementState,
@@ -78,7 +72,6 @@ export function getRentIncomeWorkflow({
   }
 
   return {
-    canPost,
     canRecordReceipt,
     nextAction: "Record receipt",
     ownerStatementState,

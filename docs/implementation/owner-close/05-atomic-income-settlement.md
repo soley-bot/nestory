@@ -1,7 +1,9 @@
 # Plan 05 — Atomic Income Settlement, Projection, and Reversal
 
-**Status:** Recommended next implementation-ready slice. A separate approved
-implementation prompt is still required.
+**Status:** Implemented by
+`20260729151842_plan05_atomic_income_settlement.sql`; hosted database
+application and production deployment remain separately authorized release
+activities.
 **Mode:** Standard
 **Effort:** High
 **Reason:** Current receipt/allocation writes and later Ledger/journal posting
@@ -626,8 +628,9 @@ Add and run:
   read-only source evidence, and all blocker states; and
 - `git diff --check`.
 
-Hosted Supabase mutation, production backfill, Vercel deployment, and merge
-require separate explicit authorization.
+Hosted Supabase mutation, production backfill, and Vercel deployment require
+separate explicit authorization. Repository merge was explicitly authorized
+for this implementation.
 
 ## Scope exclusions
 
@@ -652,7 +655,7 @@ require separate explicit authorization.
 - Closed direct/generic bypasses with compatible legacy handling.
 - Updated Rent & Income action/read workflow with no separate posting.
 - Generated types, focused/full tests, parity evidence, and operator notes.
-- Draft PR; no merge, hosted mutation, or deployment.
+- Operator notes and a merge-ready PR; no hosted mutation or deployment.
 
 ## Stop conditions
 
