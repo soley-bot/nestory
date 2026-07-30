@@ -20,6 +20,14 @@ identity, party, occupancy, participant, relationship-date, transition, and
 historical-read evidence. Track A consumes that evidence and never mutates or
 redefines it.
 
+**Current Finance UI boundary (2026-07-30):**
+[IPS Finance Workflow Simplification](../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md)
+owns the current operator labels, route meanings, table columns, and
+modal/page interaction model. This record continues to own future formal
+tenant-invoice and receipt-publication authority. It must not be read as a
+requirement to expose those deferred artifacts, side inspectors, or a larger
+accounting workspace in the current Finance UI.
+
 ## Context and authority
 
 This record is the later reconciliation required because the historical review
@@ -33,11 +41,13 @@ Use the current planning set in this order:
    prerequisites;
 2. this record for the tenant-billing domain, cardinality, route,
    configuration, migration, and cross-track decisions;
-3. the narrow current-sequence implementation plan for the slice being
+3. the current Finance UI boundary in
+   `../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`;
+4. the narrow current-sequence implementation plan for the slice being
    prepared;
-4. accepted Plans 00 through 04 for completed architecture and implementation
+5. accepted Plans 00 through 05 for completed architecture and implementation
    evidence; and
-5. legacy broad Plans 03 through 12 only as source material under the current
+6. legacy broad Plans 03 through 12 only as source material under the current
    mapping.
 
 Files 98 and 99 remain unchanged historical evidence. Neither is represented
@@ -79,7 +89,7 @@ actual money ---> receipt event and allocation
 ```
 
 The runtime chronology and implementation order are deliberately different:
-Plan 05 first makes settlement safe for current obligations, and Plan 09 later
+merged Plan 05 made settlement safe for current obligations, and Plan 09 later
 creates authoritative rent occurrences and obligations. The unnumbered
 tenant-invoice coordination slice adds invoice authority, and the unnumbered
 formal-receipt coordination slice adds receipt publication. Those stable
@@ -87,6 +97,12 @@ filenames are not ratified Plan 10/11 numbers: ratified Plan 10 remains
 security-deposit custody, while ratified Plans 11-12 remain management-fee
 authority. An invoice is not a prerequisite for accurately recording cash
 against an existing obligation.
+
+The current `/rent-income` route is therefore a **Tenant Income** workspace,
+not a claim that Nestory already has formal tenant-invoice authority.
+Deposits stay with Leases, owner funding and distributions stay outside tenant
+income, and IPS fees are not tenant receipts. A future `/tenant-invoices`
+cutover remains gated by this record and does not expand the current UI.
 
 ## Checked Track B evidence and Track A decision contract
 
@@ -180,8 +196,8 @@ may transport this opaque result but never writes Track A tables.
 |---|---|---|
 | `supabase/migrations/20260706113000_finance_income_expense_workflows.sql` | `finance_income_items` stores due and received compatibility totals and statuses for incoming-money obligations | It is an obligation/receivable source, not an invoice |
 | `supabase/migrations/20260710065423_overview_property_cash_events.sql` | `finance_receipts` headers and `finance_receipt_allocations` represent actual incoming cash and its allocation | A database receipt is a cash event, not a formal receipt artifact |
-| `supabase/migrations/20260723093124_finance_settlement_activity_logging.sql` | Current checked receipt and reversal RPCs preserve originals and enforce balance rules, but required Ledger and journal projections are not created atomically with settlement | Plan 05 remains the next safe implementation slice |
-| `src/features/rent-income/actions.ts` and `src/features/rent-income/rent-income-workflow.ts` | Operators record partial or final receipts and can separately post to Ledger | Separate operator posting must disappear after Plan 05 |
+| `supabase/migrations/20260723093124_finance_settlement_activity_logging.sql` | At this record's original baseline, checked receipt and reversal RPCs preserved originals and enforced balance rules, but required Ledger and journal projections were not atomic | Historical evidence that led to Plan 05; Plan 05 is now merged in PR #46 |
+| `src/features/rent-income/actions.ts` and `src/features/rent-income/rent-income-workflow.ts` | At the original baseline, operators could record a receipt and separately post it to Ledger | Historical split closed by merged Plan 05; current implementation remains the verification source |
 | `src/features/rent-income/rent-income.types.ts` and the Rent & Income loaders | Current read models expose obligations, receipt history, and reversals, with no tenant invoice or formal receipt identity | Do not relabel current rows as invoices or formal receipts |
 | `supabase/migrations/20260728120841_authoritative_lease_terms_and_rent_policy.sql` | The legacy monthly generator fails closed until Plan 09 consumes exact term and policy identities | Plan 09 owns charge occurrences and obligation generation |
 | `src/features/reports/data/owner-statement-input.ts`, `src/features/reports/data/owner-statement.ts`, and `src/features/reports/data/owner-statement-report.ts` | The live Owner Statement reads current obligations and cash allocations | It is not a closed immutable statement version |
@@ -549,15 +565,15 @@ same key and different payload fails closed.
 
 The smallest coherent order is:
 
-Track A Plan 05 and Track B TB-01 are independent next slices from the shared
-merged planning baseline. Plan 05 remains Track A's next implementation-ready
-slice; TB-01 remains Track B's next slice. They use separate branches/PRs and
-must not be combined. Track A Plan 09 must wait for merged TB-05
+At the original planning baseline, Track A Plan 05 and Track B TB-01 were
+independent next slices. Plan 05 is now merged in PR #46 and remains a
+prerequisite rather than an open slice. Track B work retains its separate
+branch/PR boundary. Track A Plan 09 must wait for merged TB-05
 relationship-evidence resolution before it generates relationship-aware
 occurrences; no earlier Track B slice is copied into Plan 09.
 
-1. Plan 05 first fixes current receipt/allocation authority and projections
-   using obligation identity. It does not wait for invoices.
+1. Merged Plan 05 fixes current receipt/allocation authority and projections
+   using obligation identity. It did not wait for invoices.
 2. Plan 09 creates authoritative rent occurrences and obligations from Plan 04
    term/policy identities.
 3. The unnumbered tenant-invoice coordination slice creates, reviews,
@@ -642,6 +658,11 @@ Use these product meanings:
 
 The future canonical tenant route is `/tenant-invoices`. Vendor records remain
 at `/bills-expenses`.
+
+Until that future cutover is explicitly authorized, current product labels
+remain `/rent-income` = **Tenant Income** and `/bills-expenses` =
+**Property Expenses** under the IPS Finance simplification spec. The future
+route is a domain reservation, not permission to add an invoice module now.
 
 At tenant-invoice cutover, `/invoices` must stop redirecting directly to
 vendor Bills & Expenses, but it must not silently change meaning. Replace it
@@ -860,22 +881,20 @@ authorized here.
 
 - this domain and cardinality decision record;
 - the revised sequence and legacy mapping;
-- narrow current Plan 05 plus the two unnumbered tenant-document coordination
-  slices;
+- the now-merged narrow Plan 05 boundary plus the two still-deferred
+  unnumbered tenant-document coordination slices;
 - updated current entry-point/status references; and
-- a clean documentation-only draft PR.
+- documentation-only reconciliation evidence and later authority amendments.
 
-## Recommended next implementation slice
+## Current implementation handoff
 
-**Plan:** 05 — Atomic income settlement, allocation, projection, and reversal
-**Mode:** Standard
-**Effort:** High
-**Reason:** Current receipts can exist before the operator separately posts
-Ledger activity. Plan 05 removes that split first, preserves accurate
-obligation-based cash capture, and gives later invoice and receipt publication
-one atomic settlement source without waiting for Plan 09 or tenant invoicing.
+Plan 05 — atomic income settlement, allocation, projection, and reversal — is
+merged in PR #46. The next Finance UI work may simplify the current compatible
+workflows under the IPS Finance simplification spec, but it must consume Plan
+05 settlement authority and must not recreate separate posting, duplicate
+cash, or pre-implement Plan 09 or either tenant-document coordination slice.
 
-This recommendation does not implement, merge, deploy, or authorize hosted
+This record does not itself implement, merge, deploy, or authorize hosted
 execution.
 
 ## Stop conditions

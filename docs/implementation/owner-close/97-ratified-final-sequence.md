@@ -13,6 +13,8 @@ remains unauthorized and requires a separate approved prompt.
 `APPROVE WITH CHANGES` against an older plan set. It remains historical and did
 not review tenant invoice or formal receipt plans.
 **Tenant-billing decisions:** `96-tenant-billing-reconciliation.md`.
+**Current Finance product/UI decisions:**
+[IPS Finance Workflow Simplification](../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md).
 **Track B amendment source:**
 `../lease-occupancy-history/92-required-cross-plan-amendments.md`.
 **Further architecture-review loop:** No. This document records Nestory's
@@ -23,6 +25,40 @@ current synthesis; files 98 and 99 remain unchanged historical evidence.
 Nestory remains an operational property-management and property-accounting
 product. It does not become the management company's corporate accounting,
 payroll, tax, or general ERP system.
+
+For the current IPS release, that boundary means Tenant Income, Property
+Expenses, Leases & Deposits, read-only existing Owner Contribution/Payment
+evidence, and owner/property cash history.
+The Finance UI uses compact operational tables and focused centered
+modal/page flows. It does not expose side inspectors, card-heavy dashboards,
+general-ledger language, or controls for later plan authority.
+
+The current product model records a management fee once: the owner sees it as
+a property deduction and IPS sees the same event in an internal fee report.
+Deposits remain custody tracking outside operating income and expenses. Owner
+payments reduce funds held for the owner and are not property expenses, but
+new distribution writes remain Plan 14 work. Owner contributions increase
+funds held but new contribution writes remain Plan 13 work. The target owner
+balance presentation is:
+
+```text
+Opening owner balance
++ tenant income
+- property expenses, including management fees
++ owner contributions
+- owner payments
+= closing owner balance / balance carried forward
+```
+
+This product boundary does not bypass the gates below. Until Plans 13-19 are
+implemented, the running Owner Balance and immutable close-backed Owner
+Statement remain targets rather than completed authority. The current report
+preview retains allocated income received and allocated non-fee property
+expenses paid, adds one manually confirmed management-fee deduction on its Fee
+date, and keeps expected/unpaid non-fee rows as disclosure. Only qualified,
+reversal-aware canonical owner-funding/payment allocations with exact
+event-time owner attribution enter once; obligation-only or ambiguous rows
+remain disclosure and raise blockers.
 
 The current authority graph is:
 
@@ -257,10 +293,22 @@ controls. Competing writes and close acquire the same documented lock order.
 
 ### Gate E — Management fees
 
-No fee implementation starts until IPS confirms agreement grain, basis,
-included/excluded categories, assessment versus settlement recognition,
-rounding, tax, minimum/maximum, waiver, reversal, and worked examples. Do not
-double-allocate an owner-specific agreement through ownership percentages.
+A manual compatibility fee may be entered once and presented as both an owner
+property deduction and the matching internal IPS fee-income view. That narrow
+adapter must not calculate a percentage, create a second economic event, or
+claim automated agreement/assessment authority. Its selected Fee date is the
+existing source due date and is the recognition date for the one owner
+deduction and recorded IPS fee view; it is not proof of cash collection.
+After the detailed design and its TDD implementation plan are approved, this
+is the only permitted compatibility calculation change: replace the current
+received-fee deduction with the one source-identified Fee-date recognition,
+and prove that later fee settlement cannot deduct the same fee again.
+
+No automatic fee agreement, calculation, or assessment implementation starts
+until IPS confirms agreement grain, basis, included/excluded categories,
+assessment versus settlement recognition, rounding, tax, minimum/maximum,
+waiver, reversal, and worked examples. Do not double-allocate an
+owner-specific agreement through ownership percentages.
 
 ### Gate F — Rent policy
 
@@ -281,6 +329,12 @@ Pilot default is owner-property-USD, one clean 100% owner per effective period,
 evidenced opening balance, no reserve writes, no ownership transfer, and no
 distribution that makes available balance negative. No override exists until
 IPS approves policy.
+
+IPS has confirmed two operating arrangements: funds may remain held by IPS
+until the owner requests payment, or IPS may settle monthly. Both use the same
+opening-income-expense-owner-payment-closing balance model. This confirms the
+product language only; Plan 14 still owns authoritative availability,
+approval, reserve, and distribution enforcement.
 
 ### Gate H — Reconciliation
 
@@ -399,6 +453,9 @@ original/reversal receipt artifacts or close dependencies.
 
 - `/tenant-invoices` is canonical tenant billing; `/bills-expenses` remains
   vendor bills.
+- Before tenant-invoice cutover, `/rent-income` is labeled **Tenant Income**
+  and `/bills-expenses` is labeled **Property Expenses**. This stable current
+  UI does not claim that formal invoice authority exists.
 - `/invoices` and `/payments` require explicit compatibility/disambiguation
   before any semantic change.
 - Plan 09 and the unnumbered tenant-invoice coordination slice share one
@@ -463,20 +520,19 @@ numbered matrix:
 
 ## Sequence decisions
 
-### Track A Plan 05 and Track B TB-01 stay independent
+### Track A Plan 05 and Track B work remain independent
 
-Plan 05 remains Track A's next implementation-ready slice. TB-01 is Track B's
-independent next slice from the same merged planning baseline. They use
-separate branches and PRs; neither is a prerequisite for the other and they
-must not be combined. Plan 09, unlike Plan 05, waits for merged TB-05
-relationship evidence before relationship-aware occurrence generation.
+Plan 05 is merged in PR #46. Track B retains its independent branch and PR
+boundary; completed Plan 05 must not be copied into or reopened by that work.
+Plan 09 waits for merged TB-05 relationship evidence before
+relationship-aware occurrence generation.
 
-### Why Plan 05 remains before Plan 09
+### Why Plan 05 precedes Plan 09
 
-Current obligations and cash already exist. Plan 05 can make their settlement
-atomic using obligation identity, eliminating immediate projection drift
-without waiting for charge generation or invoices. Plan 09-generated
-obligations later enter the same checked settlement boundary.
+Current obligations and cash already existed, so Plan 05 made their settlement
+atomic using obligation identity without waiting for charge generation or
+invoices. Plan 09-generated obligations later enter that same checked
+settlement boundary.
 
 ### Why the tenant-invoice coordination slice follows Plan 09
 
@@ -529,6 +585,10 @@ documents.
 
 ## Controlled October pilot boundary
 
+The current Finance UI simplification is not this pilot and does not authorize
+close, publication, automated fee assessment, or owner-balance writes. It
+prepares operators to classify the compatible source records correctly.
+
 A pilot remains feasible only as a narrow complete cycle:
 
 - one or two named USD properties;
@@ -553,8 +613,14 @@ A pilot remains feasible only as a narrow complete cycle:
 The pilot still exercises partial receipt/payment, arrears, invoice delivery,
 formal partial/final receipts, one open-period receipt reversal and reversal
 document, maintenance bill, petty-cash property expense, deposit
-receipt/refund, one IPS-confirmed fee assessment, owner
+receipt/refund, one IPS-confirmed manually recorded fee event, owner
 contribution/distribution, carried owner balance, close, and Owner Statement.
+
+The owner-facing pilot statement groups activity by Unit and then consolidates
+it into one owner balance using opening balance plus tenant income minus
+property expenses (including management fees) plus owner contributions minus
+owner payments. Deposit custody is disclosed separately and excluded from
+operating totals.
 
 ## Migration and evidence boundary
 
@@ -615,10 +681,21 @@ contribution/distribution, carried owner balance, close, and Owner Statement.
 
 ## Plan authorization
 
-- Plans 00 through 04 are complete/merged.
-- Plan 05 is the exact recommended next implementation-ready slice. This
-  planning PR does not itself authorize implementation, hosted execution,
-  deployment, or merge.
+- Plans 00 through 05 are complete/merged.
+- The user-approved IPS Finance direction permits the detailed design to be
+  reviewed. A compatibility-preserving UI implementation plan may be prepared
+  only after that review. Neither step authorizes Plan 06 onward,
+  tenant-invoice publication, Owner Close, hosted execution, deployment,
+  backfill, or merge.
+- After design approval, that UI plan may propose only the six additive tenant
+  charge values named by IPS (`cleaning`, `general_maintenance`,
+  `general_repairs`, `laundry_service`, `access_card_fee`, and `pet_fee`) plus
+  matching constraint/action/type changes. It may not use that exception for a
+  generic schema expansion, owner-contribution write, or owner-payment write.
+- After design approval, that plan may also propose Gate E's single-source
+  Fee-date Owner Statement deduction. It must keep other income/expense lines
+  allocation-based, prove exact-once behavior through later fee settlement,
+  and add no automatic fee calculation or collection-state authority.
 - Every implementation prompt starts from latest merged `main`, confirms the
   corresponding row and prerequisites, and stops on material drift.
 - Legacy broad files do not authorize implementation by filename.
@@ -644,4 +721,5 @@ contribution/distribution, carried owner balance, close, and Owner Statement.
 | Track A domain owners | Typed impact adapter/actions and deterministic locks | Later term/party/occupancy changes can affect occurrences and downstream drafts | Each owner returns exact identities/states/actions/scopes/hash; execution acquires every source/destination property-period lock in deterministic order before owner action. Track B only transports the result | Track A owns append-only financial consequences without Track B table mutation | Yes before each affected TB-03/TB-06 execution | No for enabled paths |
 | Generic Documents and Track A document owners | Operational versions versus billing/close/statement evidence | A signed operational document may support a close but is not a tenant invoice, formal receipt, or Owner Statement artifact | Generic Documents owns operational versioning; Track A owns its document families and freezes exact generic-document version/checksum references in close evidence | Avoids a second or ambiguous publication authority | Yes before official evidence adoption | No |
 | Track A — Plan 05 plus the two unnumbered tenant-document slices | Settlement and document identity contract | Current obligations/receipts have no invoice/formal-document identity, and the current manual rent action can create a fresh obligation without occurrence/invoice authority | Plan 05 creates exact cash source; after the named Plan 22 cutover Plan 09 alone normally creates rent obligations and the action/RPC/DML boundaries reject manual rent. Plan 20 independently freezes each obligation's future remaining-balance disposition and each historical allocation's settlement/publication class. The tenant-invoice slice binds a normal line to one occurrence/obligation or freezes a Plan 20 migration line to one exact legacy obligation's locked net open balance; prior cash is never retargeted, while later invoice-bound cash is eligible. The formal-receipt slice publishes only from committed cash and the exact issued tenant-invoice header/version/line frozen on its allocation | Prevent circular or competing authority, loss of mixed historical cash evidence, and a post-cutover manual-rent escape hatch | No, fixed by this authority chain | No |
+| Current Finance product/UI | Operator scope and interaction model | IPS needs accurate owner reporting from current compatible sources without exposing unfinished accounting authority | Use Tenant Income, Property Expenses, Leases & Deposits, qualified read-only Owner Contribution/Payment cash evidence, and Financial History; record a management fee once; keep deposits outside operating totals; preserve owner/property/month scope; use compact tables and focused centered modal/page flows under the 2026-07-30 IPS Finance simplification design | Prevents legacy workspace, inspector, and broad accounting plans from re-expanding the first release or duplicating money | No for presentation planning; detailed design and TDD plan approval before Gate E's narrow Fee-date effect | Reconcile before current Finance implementation |
 | Configuration registry / PR #38 | Billing rules and roles | PR #38 is catalogue-only and proposes non-runtime defaults/role labels | Future catalogue maps to versioned billing policy, actual capability, separate document series, delivery config, org settings, and Plan 04 policy | Generic configuration cannot replace effective financial authority | Yes before the unnumbered tenant-document slices use it | Yes |

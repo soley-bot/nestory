@@ -102,7 +102,9 @@ These rules are grounded in the current implementation.
   is never sufficient.
 - Keep property obligations separate from settlement events. Cash reporting
   uses receipt and payment dates; future accrual reporting uses charge and
-  invoice dates.
+  invoice dates. The narrow IPS compatibility exception is a manually
+  confirmed management fee recognized once on its Fee date as an owner
+  deduction and recorded IPS fee; later settlement must not deduct it again.
 - A Plan 05 owner-state preview for receipt or reversal must bind the proposed
   cash-action date and return every distinct source and destination
   property-period scope in deterministic order. Never derive a cash-action
@@ -113,8 +115,24 @@ These rules are grounded in the current implementation.
   not manual rows. Keep edit/archive/restore controls off those rows, and
   compare a negative contra-income Ledger amount to positive balanced journal
   controls by magnitude in finance diagnostics.
+- Journal-linked manual Ledger rows are append-only after creation. The
+  current Ledger edit/archive paths do not atomically correct their accounting
+  journals, so keep edit/archive/restore controls off every such row until a
+  checked reversal-and-replacement authority exists.
 - Security deposits and owner contributions do not count as property operating
   income.
+- Existing owner contributions remain read-only Owner funding outside Tenant
+  Income until a checked contribution authority exists. Only qualified,
+  reversal-aware canonical allocation events may enter an Owner Preview;
+  unallocated or ambiguously attributed rows are disclosure-only blockers.
+- Finance operator language defaults to the owner/property perspective.
+  Management fee is shown once as an owner/property deduction and may feed a
+  separate internal IPS fee report; never require duplicate operator entry or
+  a generic perspective selector.
+- Owner payments never use the generic property-expense form or totals.
+  Preserve existing rows as read-only evidence until a checked
+  owner-distribution authority exists, and apply the same qualified canonical
+  allocation rule before any row enters an Owner Preview.
 - Do not add management-company payroll, overhead, P&L, general-ledger, tax, or
   ERP UI.
 
@@ -131,6 +149,10 @@ These rules are grounded in the current implementation.
   and the close control dismiss it and return focus to the opener. Where a true
   detail route exists, retain an explicit record link and allow double-click as
   a pointer shortcut; do not invent detail routes for modules that lack one.
+- Finance routes go further: use centered modals or an existing dedicated
+  detail page for create, detail, and lifecycle work; do not use `SideDrawer`
+  or inspector terminology. Replace multi-card metric grids with one compact
+  totals line above the operational table.
 - Keep one global `Search or jump` command surface. Navigation actions may be
   client-known; entity results must remain organization/role scoped through the
   server search boundary. Do not expose raw UUIDs in results or URLs shown as

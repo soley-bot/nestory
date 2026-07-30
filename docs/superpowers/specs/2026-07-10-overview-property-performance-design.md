@@ -2,6 +2,13 @@
 
 Date: 2026-07-10
 
+> **Finance presentation amendment (2026-07-30):** This remains the Overview
+> design record. For Finance event classification, management-fee entry,
+> Owner Statement language, and Finance table/modal interaction, use
+> `2026-07-30-ips-finance-workflow-simplification-design.md`. Preserve the
+> existing dual-effect fee projection as compatibility infrastructure; do not
+> turn Overview into a second Finance-entry surface.
+
 ## Decision Summary
 
 Nestory's Overview will become a property-performance workspace for property managers. It will answer how each managed property is operating, what cash it produced for its owner, and which operational issues explain weak performance.

@@ -2,6 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Historical plan — do not execute.** Its implemented RPC/RLS/audit behavior
+> remains compatibility evidence. Its Finance navigation, mixed incoming-money
+> model, generic posting flow, inspector/drawer assumptions, and operator copy
+> are superseded by
+> `docs/superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`
+> and the current Owner Close package.
+
 **Goal:** Replace shallow Finance destinations with real money-in, money-out, and ledger-control workflows.
 
 **Architecture:** Finance uses workflow records for expected incoming and outgoing money, then posts confirmed rows into the existing ledger. Ledger remains the official financial history; Rent & Income and Bills & Expenses are operating queues.

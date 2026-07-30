@@ -1,7 +1,15 @@
 # Trustworthy Owner Statement Calculation Design
 
 **Date:** 2026-07-14
-**Status:** Approved for implementation
+**Status:** Historical design; live compatibility calculation is implemented
+
+> **Authority amendment (2026-07-30):** This is the historical design for the
+> current live compatibility calculation and evidence preview. It is not
+> immutable close-backed Owner Statement authority. The future owner-facing
+> grouping, balance formula, deposit exclusion, management-fee language, and
+> distinction from the internal IPS fee report are governed by
+> `2026-07-30-ips-finance-workflow-simplification-design.md` plus Owner Close
+> Plans 17-19.
 
 ## Purpose
 
