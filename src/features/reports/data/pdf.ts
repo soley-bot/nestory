@@ -89,6 +89,12 @@ type OwnerStatementMoneyMetric = {
 
 type UnitStatementFlowRow =
   | { height: number; kind: "section"; label: "EXPENSES" | "INCOME" }
+  | {
+      continued?: boolean;
+      height: number;
+      kind: "category";
+      label: string;
+    }
   | { height: number; kind: "entry"; line: UnitProfitLossLine }
   | { height: number; kind: "empty"; label: string }
   | {
@@ -137,6 +143,8 @@ const unitStatementFirstContentTop = 620;
 const unitStatementContinuationContentTop = 704;
 const unitStatementContentBottom = 58;
 const unitStatementSectionHeight = 26;
+const unitStatementCategoryMinHeight = 20;
+const unitStatementCategoryTextWidth = 310;
 const unitStatementEmptyHeight = 30;
 const unitStatementSubtotalHeight = 28;
 const unitStatementTotalsHeight = 82;
@@ -163,9 +171,8 @@ const statementColumns: PdfColumn[] = [
 ];
 
 const unitStatementColumns: PdfColumn[] = [
-  { label: "Date", maxLines: 1, width: 76 },
-  { label: "Description", maxLines: 2, width: 259 },
-  { label: "Category", maxLines: 1, width: 105 },
+  { label: "Date", maxLines: 1, width: 82 },
+  { label: "Category / Description", maxLines: 2, width: 358 },
   { align: "right", label: "Amount", maxLines: 1, width: 83 },
 ];
 
@@ -569,12 +576,33 @@ function buildUnitStatementFlowRows({
   const buildEntries = (lines: UnitProfitLossLine[]) =>
     lines.map(
       (line): UnitStatementFlowRow => {
-        const descriptionLines = wrapText(line.description, 249, 8.6, 2);
-        const height = Math.max(28, descriptionLines.length * 11 + 12);
+        const descriptionLines = wrapText(line.description, 332, 8.6, 2);
+        const height = Math.max(26, descriptionLines.length * 10.5 + 10);
 
         return { height, kind: "entry", line };
       },
     );
+  const buildCategoryRows = (lines: UnitProfitLossLine[]) =>
+    groupUnitStatementLines(lines).flatMap(([category, categoryLines]) => {
+      const categoryTextLines = wrapText(
+        category,
+        unitStatementCategoryTextWidth,
+        8.4,
+        1,
+      );
+
+      return [
+        {
+          height: Math.max(
+            unitStatementCategoryMinHeight,
+            categoryTextLines.length * 10 + 10,
+          ),
+          kind: "category" as const,
+          label: category,
+        },
+        ...buildEntries(categoryLines),
+      ];
+    });
 
   return [
     {
@@ -583,7 +611,7 @@ function buildUnitStatementFlowRows({
       label: "INCOME",
     },
     ...(incomeLines.length > 0
-      ? buildEntries(incomeLines)
+      ? buildCategoryRows(incomeLines)
       : [
           {
             height: unitStatementEmptyHeight,
@@ -603,7 +631,7 @@ function buildUnitStatementFlowRows({
       label: "EXPENSES",
     },
     ...(expenseLines.length > 0
-      ? buildEntries(expenseLines)
+      ? buildCategoryRows(expenseLines)
       : [
           {
             height: unitStatementEmptyHeight,
@@ -627,6 +655,19 @@ function buildUnitStatementFlowRows({
   ];
 }
 
+function groupUnitStatementLines(lines: UnitProfitLossLine[]) {
+  const groups = new Map<string, UnitProfitLossLine[]>();
+
+  for (const line of lines) {
+    const category = line.category.trim() || "Uncategorized";
+    const categoryLines = groups.get(category) ?? [];
+    categoryLines.push(line);
+    groups.set(category, categoryLines);
+  }
+
+  return [...groups.entries()];
+}
+
 function paginateUnitStatementRows(
   rows: UnitStatementFlowRow[],
 ): UnitStatementPage[] {
@@ -635,8 +676,14 @@ function paginateUnitStatementRows(
   let remainingHeight =
     unitStatementFirstContentTop - unitStatementContentBottom;
   let activeSection: "EXPENSES" | "INCOME" | undefined;
+  let activeCategory:
+    | Extract<UnitStatementFlowRow, { kind: "category" }>
+    | undefined;
 
-  const startPage = (continuedSection?: "EXPENSES" | "INCOME") => {
+  const startPage = (
+    continuedSection?: "EXPENSES" | "INCOME",
+    continuedCategory?: Extract<UnitStatementFlowRow, { kind: "category" }>,
+  ) => {
     page = { firstPage: false, rows: [] };
     pages.push(page);
     remainingHeight =
@@ -650,15 +697,27 @@ function paginateUnitStatementRows(
       });
       remainingHeight -= unitStatementSectionHeight;
     }
+
+    if (continuedCategory) {
+      page.rows.push({ ...continuedCategory, continued: true });
+      remainingHeight -= continuedCategory.height;
+    }
   };
 
   for (const [index, row] of rows.entries()) {
     if (row.kind === "section") {
       const firstSectionRow = rows[index + 1];
+      const firstCategoryEntry = rows[index + 2];
       const firstSectionRowHeight =
-        firstSectionRow?.kind === "entry" || firstSectionRow?.kind === "empty"
-          ? firstSectionRow.height
-          : 0;
+        firstSectionRow?.kind === "category"
+          ? firstSectionRow.height +
+            (firstCategoryEntry?.kind === "entry"
+              ? firstCategoryEntry.height
+              : 0)
+          : firstSectionRow?.kind === "entry" ||
+              firstSectionRow?.kind === "empty"
+            ? firstSectionRow.height
+            : 0;
 
       if (
         remainingHeight < row.height + firstSectionRowHeight &&
@@ -670,11 +729,30 @@ function paginateUnitStatementRows(
       page.rows.push(row);
       remainingHeight -= row.height;
       activeSection = row.label;
+      activeCategory = undefined;
+      continue;
+    }
+
+    if (row.kind === "category") {
+      const firstCategoryRow = rows[index + 1];
+      const firstCategoryRowHeight =
+        firstCategoryRow?.kind === "entry" ? firstCategoryRow.height : 0;
+
+      if (
+        remainingHeight < row.height + firstCategoryRowHeight &&
+        page.rows.length > 0
+      ) {
+        startPage(activeSection);
+      }
+
+      page.rows.push(row);
+      remainingHeight -= row.height;
+      activeCategory = row;
       continue;
     }
 
     if (row.height > remainingHeight) {
-      startPage(activeSection);
+      startPage(activeSection, row.kind === "entry" ? activeCategory : undefined);
     }
 
     page.rows.push(row);
@@ -682,6 +760,7 @@ function paginateUnitStatementRows(
 
     if (row.kind === "subtotal") {
       activeSection = undefined;
+      activeCategory = undefined;
     }
   }
 
@@ -726,6 +805,8 @@ function renderUnitProfitLossPage({
       const continued = renderedSections.has(row.label);
       drawUnitProfitLossSectionRow(commands, row, y, continued);
       renderedSections.add(row.label);
+    } else if (row.kind === "category") {
+      drawUnitProfitLossCategoryRow(commands, row, y);
     } else if (row.kind === "entry") {
       drawUnitProfitLossEntryRow(commands, row, y, entryIndex);
       entryIndex += 1;
@@ -850,34 +931,116 @@ function drawUnitProfitLossEntryRow(
   y: number,
   index: number,
 ) {
-  const cells = [
-    formatDate(row.line.date),
+  const [dateColumn, detailColumn, amountColumn] = unitStatementColumns;
+  const detailX = marginX + dateColumn.width;
+  const amountX = detailX + detailColumn.width;
+  const textY = y + row.height - 5 - 8.6;
+  const descriptionLines = wrapText(
     row.line.description,
-    row.line.category,
-    formatMoney(
-      row.line.direction === "expense"
-        ? Math.abs(row.line.amount)
-        : row.line.amount,
-      row.line.currency,
-    ),
-  ];
-  const pdfRow: PdfTableRow = {
-    cells,
-    fontSize: 8.6,
-    height: row.height,
-    index,
-    lineHeight: 11,
-    lines: unitStatementColumns.map((column, cellIndex) =>
-      wrapText(
-        cells[cellIndex] ?? "",
-        column.width - cellPaddingX * 2,
-        8.6,
-        column.maxLines ?? 1,
-      ),
-    ),
-  };
+    detailColumn.width - cellPaddingX * 2 - 14,
+    8.6,
+    detailColumn.maxLines ?? 2,
+  );
+  const amount = formatMoney(
+    row.line.direction === "expense"
+      ? Math.abs(row.line.amount)
+      : row.line.amount,
+    row.line.currency,
+  );
 
-  drawUnitProfitLossTableRow(commands, pdfRow, y);
+  drawRect(commands, marginX, y, unitStatementContentWidth, row.height, {
+    fill: index % 2 === 0 ? colors.rowFill : colors.rowAlt,
+  });
+  drawLine(
+    commands,
+    marginX,
+    y,
+    marginX + unitStatementContentWidth,
+    y,
+    colors.border,
+    0.35,
+  );
+  drawText(commands, formatDate(row.line.date), marginX + cellPaddingX, textY, {
+    color: colors.ink,
+    fontSize: 8.6,
+    width: dateColumn.width - cellPaddingX * 2,
+  });
+  drawText(commands, "-", detailX + cellPaddingX + 2, textY, {
+    color: colors.muted,
+    fontSize: 8.6,
+    width: 8,
+  });
+
+  for (const [lineIndex, line] of descriptionLines.entries()) {
+    drawText(
+      commands,
+      line,
+      detailX + cellPaddingX + 14,
+      textY - lineIndex * 11,
+      {
+        color: colors.ink,
+        fontSize: 8.6,
+        width: detailColumn.width - cellPaddingX * 2 - 14,
+      },
+    );
+  }
+
+  drawText(
+    commands,
+    wrapText(
+      amount,
+      amountColumn.width - cellPaddingX * 2,
+      8.6,
+      amountColumn.maxLines ?? 1,
+    )[0] ?? "",
+    amountX + cellPaddingX,
+    textY,
+    {
+      align: "right",
+      color: colors.ink,
+      fontSize: 8.6,
+      width: amountColumn.width - cellPaddingX * 2,
+    },
+  );
+}
+
+function drawUnitProfitLossCategoryRow(
+  commands: string[],
+  row: Extract<UnitStatementFlowRow, { kind: "category" }>,
+  y: number,
+) {
+  const [dateColumn, detailColumn] = unitStatementColumns;
+  const detailX = marginX + dateColumn.width;
+  const lines = wrapText(
+    row.continued ? `${row.label} (continued)` : row.label,
+    unitStatementCategoryTextWidth,
+    8.4,
+    1,
+  );
+  let textY = y + row.height - 5 - 8.4;
+
+  drawRect(commands, marginX, y, unitStatementContentWidth, row.height, {
+    fill: colors.soft,
+  });
+  drawLine(
+    commands,
+    marginX,
+    y,
+    marginX + unitStatementContentWidth,
+    y,
+    colors.border,
+    0.35,
+  );
+
+  for (const line of lines) {
+    drawText(commands, line, detailX + cellPaddingX, textY, {
+      bold: true,
+      color: colors.accent,
+      fontSize: 8.4,
+      width: detailColumn.width - cellPaddingX * 2,
+    });
+    textY -= 10;
+  }
 }
 
 function drawUnitProfitLossEmptyRow(
@@ -956,31 +1119,6 @@ function drawUnitProfitLossTableHeader(commands: string[], yTop: number) {
       fontSize: 7.6,
       width: column.width - cellPaddingX * 2,
     });
-    x += column.width;
-  }
-}
-
-function drawUnitProfitLossTableRow(
-  commands: string[],
-  row: PdfTableRow,
-  y: number,
-) {
-  drawRect(commands, marginX, y, unitStatementContentWidth, row.height, {
-    fill: row.index % 2 === 0 ? colors.rowFill : colors.rowAlt,
-  });
-  drawLine(
-    commands,
-    marginX,
-    y,
-    marginX + unitStatementContentWidth,
-    y,
-    colors.border,
-    0.35,
-  );
-
-  let x = marginX;
-  for (const [cellIndex, column] of unitStatementColumns.entries()) {
-    drawCellText(commands, row.lines[cellIndex], x, y, column, row);
     x += column.width;
   }
 }

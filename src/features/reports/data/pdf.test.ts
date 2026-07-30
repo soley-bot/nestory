@@ -187,6 +187,34 @@ describe("trusted report PDF export", () => {
     expect(renderedText.split("Net income").length - 1).toBe(1);
   });
 
+  it("groups repeated categories once above indented transaction details", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines?.push({
+      amount: 75,
+      category: "Rent",
+      currency: "USD",
+      date: "2026-07-08",
+      description: "Parking space rent",
+      direction: "income",
+      id: "ledger-income-parking",
+      property: "P1 - Property One",
+      unit: "Unit A1",
+    });
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    const renderedText = extractPdfCommandText(pdf);
+    const categoryPosition = extractPdfTextPosition(pdf, "Rent");
+    const detailPosition = extractPdfTextPosition(pdf, "July rent");
+
+    expect(renderedText.split("Rent").length - 1).toBe(1);
+    expect(renderedText).toMatch(
+      /INCOME.*Rent.*05 Jul 2026.*July rent.*08 Jul 2026.*Parking space rent/,
+    );
+    expect(detailPosition.x - categoryPosition.x).toBeGreaterThanOrEqual(10);
+  });
+
   it("renders income reversals with their sign and authoritative totals", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines?.push({
@@ -314,6 +342,31 @@ describe("trusted report PDF export", () => {
     expect(renderedText).toContain("Page 2 of");
   });
 
+  it("keeps a twenty-row categorized statement and its totals within two pages", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines = Array.from({ length: 20 }, (_, index) => ({
+      amount: index + 1,
+      category: `Category ${String(index + 1).padStart(2, "0")}`,
+      currency: "USD" as const,
+      date: `2026-07-${String(index + 1).padStart(2, "0")}`,
+      description: `Ledger detail ${index + 1}`,
+      direction: index < 8 ? ("income" as const) : ("expense" as const),
+      id: `ledger-category-${String(index + 1).padStart(2, "0")}`,
+      property: "P1 - Property One",
+      unit: "Unit A1",
+    }));
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    const pages = extractPdfPageCommandText(pdf);
+
+    expect(pdf).toContain("/Count 2");
+    expect(pages).toHaveLength(2);
+    expect(pages[1]).toContain("Expenses subtotal");
+    expect(pages[1]).toContain("Net income");
+  });
+
   it("keeps a section heading with its first row at a page boundary", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines = [
@@ -382,7 +435,7 @@ describe("trusted report PDF export", () => {
     expect(extractPdfCommandText(pdf)).toContain("...");
   });
 
-  it("bounds long category and amount cells to one line", () => {
+  it("keeps the grouped category readable while bounding a long amount", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines![0].category =
       "Emergency plumbing restoration and replacement";
@@ -393,14 +446,14 @@ describe("trusted report PDF export", () => {
     ).toString("latin1");
     const renderedText = extractPdfCommandText(pdf);
 
-    expect(renderedText).not.toContain(
+    expect(renderedText).toContain(
       "Emergency plumbing restoration and replacement",
     );
     expect(renderedText).not.toContain("USD 123,456,789,012,345.00");
-    expect(renderedText.match(/\.\.\./g)).toHaveLength(2);
+    expect(renderedText.match(/\.\.\./g)).toHaveLength(1);
   });
 
-  it("width-bounds an unbroken wide-glyph category before the amount column", () => {
+  it("width-bounds an unbroken wide-glyph grouped category", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines![0].category = "W".repeat(60);
 
@@ -409,7 +462,7 @@ describe("trusted report PDF export", () => {
     ).toString("latin1");
     const renderedText = extractPdfCommandText(pdf);
 
-    expect(renderedText.match(/W+\.\.\./)?.[0]).toBe(`${"W".repeat(12)}...`);
+    expect(renderedText.match(/W+\.\.\./)?.[0]).toBe(`${"W".repeat(43)}...`);
   });
 
   it("keeps all nine owner-facing amounts readable without internal readiness detail", () => {
@@ -711,6 +764,24 @@ function extractPdfPageCommandText(pdf: string) {
   return [...pdf.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)].map(
     (match) => extractPdfCommandText(match[1]),
   );
+}
+
+function extractPdfTextPosition(pdf: string, value: string) {
+  const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = pdf.match(
+    new RegExp(
+      `1 0 0 1 (-?[\\d.]+) (-?[\\d.]+) Tm \\(${escapedValue}\\) Tj ET`,
+    ),
+  );
+
+  if (!match) {
+    throw new Error(`PDF text position not found for "${value}"`);
+  }
+
+  return {
+    x: Number(match[1]),
+    y: Number(match[2]),
+  };
 }
 
 function unitProfitLossLine(

@@ -4,8 +4,9 @@
 
 Redesign the Monthly Unit Profit & Loss PDF as a clean portrait financial
 statement. The document should borrow the hierarchy and restraint of the OpenAI
-invoice reference in Google Drive while remaining a Nestory report with
-Nestory data, language, and identity.
+invoice reference in Google Drive, plus the indented category hierarchy of the
+IPS Meeting Summary reference, while remaining a Nestory report with Nestory
+data, language, and identity.
 
 The PDF must make the selected unit's financial activity understandable
 without requiring the reader to follow source counts or interpret an aggregate
@@ -22,6 +23,8 @@ Adapt these structural qualities:
 - sparse organization and document title header
 - clearly separated identity and date metadata
 - line items with the applicable date beside each description
+- spreadsheet-style category labels with their transaction details indented
+  beneath them
 - restrained rules and neutral typography instead of metric cards
 - compact, right-aligned subtotals and final total
 
@@ -79,11 +82,13 @@ card.
 Show an `Income` section with columns:
 
 - Date
-- Description
-- Category
+- Category / Description
 - Amount
 
-Sort lines by transaction date, then category, then stable source identity.
+Show each normalized category once as a compact group label. Place its dated
+transaction descriptions beneath it with a visible indent. Preserve the
+existing deterministic line order within each category and order category
+groups by their first transaction in the report data.
 End the section with `Income subtotal`.
 
 ### Expenses
