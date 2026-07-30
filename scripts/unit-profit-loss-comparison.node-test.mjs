@@ -9,6 +9,10 @@ import {
   buildComparisonHtml,
   validateComparisonFixture,
 } from "./unit-profit-loss-comparison-core.mjs";
+import {
+  OUTPUT_FILENAMES,
+  parseComparisonArgs,
+} from "./generate-unit-profit-loss-comparison.mjs";
 
 const scriptsDirectory = path.dirname(fileURLToPath(import.meta.url));
 const fixturePath = path.join(
@@ -130,4 +134,20 @@ test("renders the approved compact statement contract in both orientations", asy
   }
 
   assert.equal(visibleText(portrait), visibleText(landscape));
+});
+
+test("uses stable comparison filenames and an explicit output override", () => {
+  assert.deepEqual(OUTPUT_FILENAMES, {
+    landscape: "IPS-Unit-09A-Profit-Loss-July-2026-Landscape.pdf",
+    portrait: "IPS-Unit-09A-Profit-Loss-July-2026-Portrait.pdf",
+  });
+  assert.deepEqual(parseComparisonArgs([]), { outputDir: "output/pdf" });
+  assert.deepEqual(
+    parseComparisonArgs(["--output-dir", "tmp/comparison-output"]),
+    { outputDir: "tmp/comparison-output" },
+  );
+  assert.throws(
+    () => parseComparisonArgs(["--portrait-only"]),
+    /Usage: npm run report:unit-profit-loss:compare/,
+  );
 });
