@@ -60,6 +60,42 @@ describe("Monthly Unit Profit & Loss", () => {
       ["Net income", "USD 380.00"],
       ["Units", "1"],
     ]);
+    expect(report.unitProfitLossLines).toEqual([
+      {
+        amount: 500,
+        category: "Rent",
+        currency: "USD",
+        date: "2026-07-05",
+        description: "July rent",
+        direction: "income",
+        id: "ledger-income",
+        property: "P1 - Property One",
+        unit: "Unit A1",
+      },
+      {
+        amount: 120,
+        category: "Repair",
+        currency: "USD",
+        date: "2026-07-10",
+        description: "Repair",
+        direction: "expense",
+        id: "ledger-expense",
+        property: "P1 - Property One",
+        unit: "Unit A1",
+      },
+    ]);
+
+    const lines = report.unitProfitLossLines ?? [];
+    expect(
+      lines
+        .filter(({ direction }) => direction === "income")
+        .reduce((total, line) => total + line.amount, 0),
+    ).toBe(500);
+    expect(
+      lines
+        .filter(({ direction }) => direction === "expense")
+        .reduce((total, line) => total + line.amount, 0),
+    ).toBe(120);
   });
 
   it("does not silently assign property-level ledger rows to a unit", () => {
@@ -82,6 +118,9 @@ describe("Monthly Unit Profit & Loss", () => {
       "USD 500.00",
     );
     expect(report.totalsTraceLabel).toContain("2 unit-linked ledger rows");
+    expect(report.unitProfitLossLines?.map(({ id }) => id)).not.toContain(
+      "ledger-unassigned",
+    );
   });
 });
 

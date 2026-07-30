@@ -27,6 +27,7 @@ import type {
   TrustedReport,
   TrustedReportColumn,
   TrustedReportRow,
+  UnitProfitLossLine,
 } from "@/features/reports/reports.types";
 
 export const REPORT_OPTIONS: Array<{ label: string; value: ReportKind }> = [
@@ -624,6 +625,31 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
   const unitLinkedLedger = context.ledgerEntries.filter(
     (entry) => entry.unit_id && context.unitsById.has(entry.unit_id),
   );
+  const unitProfitLossLines = unitLinkedLedger
+    .map<UnitProfitLossLine>((entry) => {
+      const unit = entry.unit_id
+        ? context.unitsById.get(entry.unit_id)
+        : undefined;
+      const category = normalizeCategory(entry.category);
+
+      return {
+        amount: Math.abs(entry.amount),
+        category,
+        currency: entry.currency,
+        date: entry.transaction_date,
+        description: entry.description?.trim() || category,
+        direction: isExpense(entry) ? "expense" : "income",
+        id: entry.id,
+        property: propertyLabel(context.propertiesById.get(entry.property_id)),
+        unit: unit ? `Unit ${unit.unit_number}` : "Unknown unit",
+      };
+    })
+    .toSorted(
+      (first, second) =>
+        compareStrings(first.date, second.date) ||
+        compareStrings(first.category, second.category) ||
+        compareStrings(first.id, second.id),
+    );
   const incomeUsd = sumLedgerUsd(
     unitLinkedLedger.filter(isIncome),
     context,
@@ -675,6 +701,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
     ],
     title: "Monthly Unit Profit & Loss",
     totalsTraceLabel: `Totals trace to ${unitLinkedLedger.length} unit-linked ledger row${unitLinkedLedger.length === 1 ? "" : "s"} in ${context.periodLabel}.`,
+    unitProfitLossLines,
   });
 }
 
