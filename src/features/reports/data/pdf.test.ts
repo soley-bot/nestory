@@ -175,6 +175,18 @@ describe("trusted report PDF export", () => {
     expect(renderedText).not.toContain("TRACEABLE OPERATING REPORT");
   });
 
+  it("shows net income only in the final totals block", () => {
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({
+        organizationName: "Demo Org",
+        report: unitProfitLossReport(),
+      }),
+    ).toString("latin1");
+    const renderedText = extractPdfCommandText(pdf);
+
+    expect(renderedText.split("Net income").length - 1).toBe(1);
+  });
+
   it("renders income reversals with their sign and authoritative totals", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines?.push({
@@ -305,10 +317,10 @@ describe("trusted report PDF export", () => {
   it("keeps a section heading with its first row at a page boundary", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines = [
-      ...Array.from({ length: 14 }, (_, index) =>
+      ...Array.from({ length: 17 }, (_, index) =>
         unitProfitLossLine(index + 1, "income", `Income boundary row ${index + 1}`),
       ),
-      unitProfitLossLine(15, "expense", "First expense boundary row"),
+      unitProfitLossLine(18, "expense", "First expense boundary row"),
     ];
 
     const pdf = Buffer.from(
@@ -324,7 +336,7 @@ describe("trusted report PDF export", () => {
 
   it("moves a section subtotal intact when the preceding page is full", () => {
     const report = unitProfitLossReport();
-    report.unitProfitLossLines = Array.from({ length: 16 }, (_, index) =>
+    report.unitProfitLossLines = Array.from({ length: 19 }, (_, index) =>
       unitProfitLossLine(index + 1, "income", `Income boundary row ${index + 1}`),
     );
 
@@ -333,7 +345,7 @@ describe("trusted report PDF export", () => {
     ).toString("latin1");
     const pages = extractPdfPageCommandText(pdf);
 
-    expect(pages[0]).toContain("Income boundary row 16");
+    expect(pages[0]).toContain("Income boundary row 19");
     expect(pages[0]).not.toContain("Income subtotal");
     expect(pages[1]).toContain("Income (continued)");
     expect(pages[1]).toContain("Income subtotal");
@@ -341,7 +353,7 @@ describe("trusted report PDF export", () => {
 
   it("keeps all three final totals together when they cross a page boundary", () => {
     const report = unitProfitLossReport();
-    report.unitProfitLossLines = Array.from({ length: 10 }, (_, index) =>
+    report.unitProfitLossLines = Array.from({ length: 13 }, (_, index) =>
       unitProfitLossLine(index + 1, "expense", `Expense totals row ${index + 1}`),
     );
 

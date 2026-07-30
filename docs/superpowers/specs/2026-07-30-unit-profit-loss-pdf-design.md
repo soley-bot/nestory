@@ -68,10 +68,11 @@ The first page contains:
 4. statement period
 5. generated date
 6. `Cash basis` accounting label
-7. one prominent net-income statement for the selected period
 
 Do not show report-purpose copy, source-count cards, trace labels, technical
 readiness language, invoice numbers, due dates, or payment actions.
+Net income appears once in the final totals stack, not in a separate header
+card.
 
 ### Income
 

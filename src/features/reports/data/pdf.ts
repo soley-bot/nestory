@@ -133,7 +133,7 @@ const headerRowHeight = 24;
 const ownerStatementIdentityHeight = 56;
 const ownerStatementMoneyRowHeight = 54;
 const ownerStatementSectionHeaderHeight = 18;
-const unitStatementFirstContentTop = 552;
+const unitStatementFirstContentTop = 620;
 const unitStatementContinuationContentTop = 704;
 const unitStatementContentBottom = 58;
 const unitStatementSectionHeight = 26;
@@ -541,7 +541,6 @@ function buildUnitProfitLossStatementPdf({
   const renderedSections = new Set<"EXPENSES" | "INCOME">();
   const pageCommands = pages.map((page, pageIndex) =>
     renderUnitProfitLossPage({
-      netIncome,
       organizationName,
       page,
       pageIndex,
@@ -690,7 +689,6 @@ function paginateUnitStatementRows(
 }
 
 function renderUnitProfitLossPage({
-  netIncome,
   organizationName,
   page,
   pageIndex,
@@ -698,7 +696,6 @@ function renderUnitProfitLossPage({
   report,
   totalPages,
 }: {
-  netIncome: string;
   organizationName: string;
   page: UnitStatementPage;
   pageIndex: number;
@@ -715,7 +712,6 @@ function renderUnitProfitLossPage({
     commands,
     organizationName,
     report,
-    netIncome,
     page.firstPage,
   );
   drawUnitProfitLossTableHeader(commands, contentTop + headerRowHeight);
@@ -756,7 +752,6 @@ function drawUnitProfitLossHeader(
   commands: string[],
   organizationName: string,
   report: TrustedReport,
-  netIncome: string,
   firstPage: boolean,
 ) {
   if (!firstPage) {
@@ -828,23 +823,6 @@ function drawUnitProfitLossHeader(
     color: colors.muted,
     fontSize: 8,
     width: 250,
-  });
-  drawRect(commands, marginX, 622, unitStatementContentWidth, 38, {
-    fill: colors.soft,
-    stroke: colors.border,
-  });
-  drawText(commands, "Net income", marginX + 12, 641, {
-    bold: true,
-    color: colors.muted,
-    fontSize: 8,
-    width: 180,
-  });
-  drawText(commands, netIncome, marginX + 260, 637, {
-    align: "right",
-    bold: true,
-    color: colors.ink,
-    fontSize: 15,
-    width: unitStatementContentWidth - 272,
   });
 }
 
