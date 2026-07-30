@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(52);
+SELECT plan(53);
 
 CREATE TEMP TABLE lease_authority_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -707,6 +707,18 @@ SELECT is(
   ),
   2::bigint,
   'metadata update does not duplicate active or scheduled term authority'
+);
+
+SELECT results_eq(
+  format(
+    'SELECT monthly_rent_amount, monthly_rent_currency FROM public.get_leases_with_effective_rent(%L,current_date + 31) WHERE id = %L AND monthly_rent_amount = 1250 ORDER BY monthly_rent_amount DESC',
+    (SELECT organization_id FROM lease_authority_state),
+    (SELECT lease_id FROM lease_authority_state)
+  ),
+  $$
+    SELECT 1250.00::numeric, 'USD'::public.currency_code
+  $$,
+  'lease query authority exposes the effective scheduled rent before sorting or search'
 );
 
 SELECT throws_ok(

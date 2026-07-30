@@ -32,8 +32,6 @@ import {
 } from "@/lib/entity-option-labels";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
 
-const leaseSelect =
-  "id, property_id, unit_id, tenant_name, primary_tenant_person_id, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, deposit_amount, deposit_currency, status, archived_at";
 const propertySelect = "id, code, name, archived_at";
 const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
 type SupabaseServerClient = Awaited<
@@ -55,19 +53,21 @@ export async function getLeasesScreenData(
   viewQuery: LeaseViewQuery = parseLeaseSearchParams({}),
 ) {
   const supabase = await createSupabaseServerClient();
-  const [propertiesResult, unitsResult, tenantOptions] = await Promise.all([
-    supabase
-      .from("properties")
-      .select(propertySelect)
-      .eq("organization_id", organizationId)
-      .order("code", { ascending: true }),
-    supabase
-      .from("units")
-      .select(unitSelect)
-      .eq("organization_id", organizationId)
-      .order("unit_number", { ascending: true }),
-    getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
-  ]);
+  const [propertiesResult, unitsResult, tenantOptions, readinessDate] =
+    await Promise.all([
+      supabase
+        .from("properties")
+        .select(propertySelect)
+        .eq("organization_id", organizationId)
+        .order("code", { ascending: true }),
+      supabase
+        .from("units")
+        .select(unitSelect)
+        .eq("organization_id", organizationId)
+        .order("unit_number", { ascending: true }),
+      getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
+      loadEffectiveRentPolicyCalendarDate(supabase, organizationId),
+    ]);
 
   if (propertiesResult.error) {
     throw new Error(
@@ -108,10 +108,14 @@ export async function getLeasesScreenData(
       selectOptions.head = true;
     }
 
-    let leasesQuery = supabase
-      .from("leases")
-      .select(leaseSelect, selectOptions)
-      .eq("organization_id", organizationId);
+    let leasesQuery = supabase.rpc(
+      "get_leases_with_effective_rent",
+      {
+        p_effective_date: readinessDate,
+        p_organization_id: organizationId,
+      },
+      selectOptions,
+    );
 
     if (viewQuery.archiveState === "active") {
       leasesQuery = leasesQuery.is("archived_at", null);
@@ -264,6 +268,7 @@ export async function getLeasesScreenData(
         leases: visibleLeases,
         organizationId,
         propertiesById,
+        readinessDate,
         supabase,
         unitsById,
       }),
@@ -315,6 +320,7 @@ export async function getLeasesScreenData(
       leases,
       organizationId,
       propertiesById,
+      readinessDate,
       supabase,
       unitsById,
     }),
@@ -329,12 +335,14 @@ async function enrichLeaseSummaries({
   leases,
   organizationId,
   propertiesById,
+  readinessDate,
   supabase,
   unitsById,
 }: {
   leases: LeaseSummary[];
   organizationId: string;
   propertiesById: Map<string, LeasePropertyRow>;
+  readinessDate: string;
   supabase: SupabaseServerClient;
   unitsById: Map<string, LeaseUnitRow>;
 }) {
@@ -349,10 +357,6 @@ async function enrichLeaseSummaries({
       .filter((unitId): unitId is string => Boolean(unitId)),
   );
   const propertyIds = new Set(leases.map((lease) => lease.propertyId));
-  const readinessDate = await loadEffectiveRentPolicyCalendarDate(
-    supabase,
-    organizationId,
-  );
   const [
     partiesResult,
     termsResult,

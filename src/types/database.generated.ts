@@ -4689,6 +4689,24 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_leases_with_effective_rent: {
+        Args: { p_effective_date: string; p_organization_id: string }
+        Returns: {
+          archived_at: string
+          deposit_amount: number
+          deposit_currency: Database["public"]["Enums"]["currency_code"]
+          id: string
+          lease_end_date: string
+          lease_start_date: string
+          monthly_rent_amount: number
+          monthly_rent_currency: Database["public"]["Enums"]["currency_code"]
+          primary_tenant_person_id: string
+          property_id: string
+          status: string
+          tenant_name: string
+          unit_id: string
+        }[]
+      }
       get_maintenance_execution_members: {
         Args: { p_organization_id: string }
         Returns: {

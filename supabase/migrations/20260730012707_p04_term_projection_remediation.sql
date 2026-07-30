@@ -256,3 +256,73 @@ REVOKE ALL ON FUNCTION
     text
   )
 FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.get_leases_with_effective_rent(
+  p_organization_id uuid,
+  p_effective_date date
+)
+RETURNS TABLE (
+  id uuid,
+  property_id uuid,
+  unit_id uuid,
+  tenant_name text,
+  primary_tenant_person_id uuid,
+  lease_start_date date,
+  lease_end_date date,
+  monthly_rent_amount numeric,
+  monthly_rent_currency public.currency_code,
+  deposit_amount numeric,
+  deposit_currency public.currency_code,
+  status text,
+  archived_at timestamptz
+)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+AS $$
+  SELECT
+    leases.id,
+    leases.property_id,
+    leases.unit_id,
+    leases.tenant_name,
+    leases.primary_tenant_person_id,
+    leases.lease_start_date,
+    leases.lease_end_date,
+    coalesce(
+      effective_term.rent_amount,
+      leases.monthly_rent_amount
+    ) AS monthly_rent_amount,
+    coalesce(
+      effective_term.rent_currency,
+      leases.monthly_rent_currency
+    ) AS monthly_rent_currency,
+    leases.deposit_amount,
+    leases.deposit_currency,
+    leases.status,
+    leases.archived_at
+  FROM public.leases AS leases
+  LEFT JOIN LATERAL (
+    SELECT
+      terms.rent_amount,
+      terms.rent_currency
+    FROM public.lease_terms AS terms
+    WHERE terms.organization_id = leases.organization_id
+      AND terms.lease_id = leases.id
+      AND terms.authority_kind = 'authoritative'
+      AND terms.status IN ('active', 'upcoming')
+      AND terms.archived_at IS NULL
+      AND terms.start_date <= p_effective_date
+      AND terms.end_date >= p_effective_date
+    ORDER BY terms.term_sequence DESC
+    LIMIT 1
+  ) AS effective_term ON true
+  WHERE leases.organization_id = p_organization_id;
+$$;
+
+REVOKE ALL ON FUNCTION
+  public.get_leases_with_effective_rent(uuid, date)
+FROM PUBLIC, anon, service_role;
+
+GRANT EXECUTE ON FUNCTION
+  public.get_leases_with_effective_rent(uuid, date)
+TO authenticated;
