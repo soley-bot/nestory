@@ -154,24 +154,29 @@ These rules are grounded in the current implementation.
 
 ## Reports And Exports
 
-- Reports are traceable: rows carry source links, source counts, metrics, and
-  scoped period/property context.
-- Supported report kinds are rent roll, unit performance, property performance,
-  owner statement, income/expense, lease expiry, vacancy/risk, maintenance
-  cost, missing data, and People readiness.
-- People readiness remains a separate trusted-report row schema under
-  `/reports/people-readiness`; do not mix Person rows into property/unit Record
-  Readiness. Normalize its bounded `peopleView` and `archiveState` filters,
-  page through the authoritative People loader, and keep Staff access state at
-  the organization-scoped Workspace Access boundary.
-- CSV export must remain formula-safe.
-- PDF/export endpoints must stay auth-gated.
+- The public report surface is limited to Monthly Unit Profit & Loss, Owner
+  Statement, and Management Fee Statement.
+- Reports remain traceable: rows carry source links and scoped period/property
+  context. Do not add library cards, report packets, source-count decoration, or
+  new report kinds without an approved reporting requirement.
+- Unit Profit & Loss uses unit-linked operating income and expense. Management
+  Fee Statement uses collected fee receipt allocations and preserves reversal
+  signs. Do not substitute earned or outstanding fee estimates.
+- Do not export Owner Statement until opening and closing owner balances are
+  authoritative. Never infer those balances from an incomplete source model.
+- PDF and Excel are the public export choices and must remain auth-gated. The
+  CSV compatibility endpoint must remain formula-safe.
 
 ## Imports
 
 - CSV import supports properties, unit/rent-roll data, people, and leases.
-- Keep template download, header mapping, staged import runs, validation
-  preview, cleanup queue, recent run history, and safe commit behavior.
+- Keep template download, automatic/saved header mapping, staged import runs,
+  row validation, and safe commit behavior.
+- The main UI uses one ready-row import action. That action must stage all rows
+  first, commit only rows accepted by the existing RPC boundary, and retain
+  blocked rows for correction.
+- Keep mapping diagnostics, fix downloads, and past runs secondary to the main
+  flow rather than restoring separate setup, preview-save, and commit steps.
 - Commits should stay RPC-backed and preserve activity logs.
 - Do not silently import invalid or ambiguous property, unit, people, or lease
   rows.
