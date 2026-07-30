@@ -6,6 +6,10 @@ import {
   buildGenericImportPreviewRows,
   getGenericImportStats,
 } from "@/features/imports/import-config";
+import {
+  runImportReadyRowsFlow,
+  type ImportReadyRowsState,
+} from "@/features/imports/import-ready-rows";
 import { getImportReferenceData } from "@/features/imports/data/imports";
 import type {
   GenericImportPreviewRow,
@@ -41,6 +45,8 @@ export type CommitImportRunState = {
   };
 };
 
+export type { ImportReadyRowsState };
+
 const maxImportRows = 500;
 const importTypeSchema = z.enum(["properties", "units", "people", "leases"]);
 const importMappingSchema = z.record(
@@ -70,6 +76,17 @@ const commitResultSchema = z.object({
   skipped: z.number().int().nonnegative(),
   updated: z.number().int().nonnegative(),
 });
+
+export async function importReadyRowsAction(
+  _state: ImportReadyRowsState,
+  formData: FormData,
+): Promise<ImportReadyRowsState> {
+  return runImportReadyRowsFlow({
+    commit: commitStagedImportRunAction,
+    formData,
+    stage: stageImportRunAction,
+  });
+}
 
 export async function stageImportRunAction(
   _state: StageImportRunState,
