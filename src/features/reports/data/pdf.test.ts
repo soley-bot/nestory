@@ -141,6 +141,39 @@ describe("trusted report PDF export", () => {
     expect(pdf).toContain("USD 1,365.00");
   });
 
+  it("renders unit profit and loss as a portrait dated financial statement", () => {
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({
+        organizationName: "Demo Org",
+        report: unitProfitLossReport(),
+      }),
+    ).toString("latin1");
+    const renderedText = extractPdfCommandText(pdf);
+
+    expect(pdf.startsWith("%PDF-1.4")).toBe(true);
+    expect(pdf).toContain("/MediaBox [0 0 595 842]");
+    for (const label of [
+      "Monthly Unit Profit & Loss",
+      "P1 - Property One / Unit A1",
+      "Cash basis",
+      "INCOME",
+      "05 Jul 2026",
+      "Income subtotal",
+      "EXPENSES",
+      "10 Jul 2026",
+      "Expenses subtotal",
+      "Total income",
+      "Total expenses",
+      "Net income",
+      "USD 380.00",
+    ]) {
+      expect(renderedText).toContain(label);
+    }
+    expect(renderedText).not.toContain("REPORT PURPOSE");
+    expect(renderedText).not.toContain("Source rows");
+    expect(renderedText).not.toContain("TRACEABLE OPERATING REPORT");
+  });
+
   it("keeps all nine owner-facing amounts readable without internal readiness detail", () => {
     const amounts = [
       "USD 100.00",
@@ -257,6 +290,73 @@ describe("Owner Statement PDF selection", () => {
     });
   });
 });
+
+function unitProfitLossReport(): TrustedReport {
+  return {
+    columns: [
+      { key: "property", label: "Property" },
+      { key: "unit", label: "Unit" },
+      { align: "right", key: "income", label: "Income" },
+      { align: "right", key: "expenses", label: "Expenses" },
+      { align: "right", key: "netIncome", label: "Net income" },
+    ],
+    description: "Income, expenses, and net income by unit.",
+    emptyDescription: "No rows.",
+    emptyTitle: "No unit rows",
+    exportFilenameBase: "unit-profit-loss",
+    generatedAt: "2026-08-01T00:00:00.000Z",
+    kind: "unit-profit-loss",
+    periodLabel: "01 Jul 2026 - 31 Jul 2026",
+    rows: [],
+    scopeLabel: "P1 - Property One / Unit A1",
+    summary: [
+      {
+        detail: "Income from unit-linked ledger rows",
+        label: "Income",
+        sourceCount: 1,
+        value: "USD 500.00",
+      },
+      {
+        detail: "Expenses from unit-linked ledger rows",
+        label: "Expenses",
+        sourceCount: 1,
+        value: "USD 120.00",
+      },
+      {
+        detail: "Income less expenses",
+        label: "Net income",
+        sourceCount: 2,
+        value: "USD 380.00",
+      },
+    ],
+    title: "Monthly Unit Profit & Loss",
+    totalsTraceLabel: "Totals trace to 2 unit-linked ledger rows.",
+    unitProfitLossLines: [
+      {
+        amount: 500,
+        category: "Rent",
+        currency: "USD",
+        date: "2026-07-05",
+        description: "July rent",
+        direction: "income",
+        id: "ledger-income",
+        property: "P1 - Property One",
+        unit: "Unit A1",
+      },
+      {
+        amount: 120,
+        category: "Repair",
+        currency: "USD",
+        date: "2026-07-10",
+        description: "Kitchen sink repair",
+        direction: "expense",
+        id: "ledger-expense",
+        property: "P1 - Property One",
+        unit: "Unit A1",
+      },
+    ],
+  };
+}
 
 function ownerStatementReport(
   rows: TrustedReport["rows"],

@@ -4,12 +4,15 @@ import {
   formatLongReportDate,
   getReportExportFilename,
 } from "@/features/reports/data/report-format";
+import { formatDate } from "@/lib/dates/format";
+import { formatMoney } from "@/lib/money/format";
 import type {
   OccupancyReport,
   OccupancyReportRow,
   ReportsViewQuery,
   TrustedReport,
   TrustedReportRow,
+  UnitProfitLossLine,
 } from "@/features/reports/reports.types";
 
 type PdfExport = {
@@ -47,6 +50,11 @@ type PdfColumn = {
   width: number;
 };
 
+type PdfPageSize = {
+  height: number;
+  width: number;
+};
+
 type DrawTextOptions = {
   align?: "center" | "left" | "right";
   bold?: boolean;
@@ -81,8 +89,17 @@ type OwnerStatementMoneyMetric = {
 
 const pageWidth = 842;
 const pageHeight = 595;
+const landscapePageSize: PdfPageSize = {
+  height: pageHeight,
+  width: pageWidth,
+};
+const portraitA4PageSize: PdfPageSize = {
+  height: 842,
+  width: 595,
+};
 const marginX = 36;
 const tableWidth = 770;
+const unitStatementContentWidth = 523;
 const rowFontSize = 8.2;
 const rowLineHeight = 10.4;
 const cellPaddingX = 5;
@@ -113,6 +130,13 @@ const statementColumns: PdfColumn[] = [
   { label: "Property", maxLines: 2, width: 160 },
   { align: "right", label: "Amount", maxLines: 1, width: 96 },
   { label: "Description", maxLines: 2, width: 210 },
+];
+
+const unitStatementColumns: PdfColumn[] = [
+  { label: "Date", maxLines: 1, width: 76 },
+  { label: "Description", maxLines: 2, width: 259 },
+  { label: "Category", maxLines: 1, width: 105 },
+  { align: "right", label: "Amount", maxLines: 1, width: 83 },
 ];
 
 const ownerStatementCashRows: OwnerStatementMoneyMetric[][] = [
@@ -195,6 +219,9 @@ export function buildTrustedReportPdf({
   organizationName: string;
   report: TrustedReport;
 }) {
+  if (report.kind === "unit-profit-loss") {
+    return buildUnitProfitLossStatementPdf({ organizationName, report });
+  }
   if (report.kind === "income-expense") {
     return buildIncomeExpenseStatementPdf({ organizationName, report });
   }
@@ -453,6 +480,311 @@ function renderTrustedReportPage({
   drawFooter(commands, pageNumber, totalPages);
 
   return commands.join("\n");
+}
+
+function buildUnitProfitLossStatementPdf({
+  organizationName,
+  report,
+}: {
+  organizationName: string;
+  report: TrustedReport;
+}) {
+  const lines = report.unitProfitLossLines ?? [];
+  const incomeLines = lines.filter(({ direction }) => direction === "income");
+  const expenseLines = lines.filter(({ direction }) => direction === "expense");
+  const incomeTotal =
+    report.summary.find(({ label }) => label === "Income")?.value ?? "USD 0.00";
+  const expenseTotal =
+    report.summary.find(({ label }) => label === "Expenses")?.value ??
+    "USD 0.00";
+  const netIncome =
+    report.summary.find(({ label }) => label === "Net income")?.value ??
+    "USD 0.00";
+  const commands: string[] = [];
+
+  drawUnitProfitLossHeader(commands, organizationName, report, netIncome);
+  let y = drawUnitProfitLossSection(commands, {
+    lines: incomeLines,
+    sectionLabel: "INCOME",
+    subtotalLabel: "Income subtotal",
+    subtotalValue: incomeTotal,
+    yTop: 600,
+  });
+  y = drawUnitProfitLossSection(commands, {
+    lines: expenseLines,
+    sectionLabel: "EXPENSES",
+    subtotalLabel: "Expenses subtotal",
+    subtotalValue: expenseTotal,
+    yTop: y - 24,
+  });
+  drawUnitProfitLossTotals(
+    commands,
+    incomeTotal,
+    expenseTotal,
+    netIncome,
+    y - 28,
+  );
+  drawUnitProfitLossFooter(commands, 1, 1);
+
+  const pageCommands = [commands.join("\n")];
+  return createPdfDocument(pageCommands, portraitA4PageSize);
+}
+
+function drawUnitProfitLossHeader(
+  commands: string[],
+  organizationName: string,
+  report: TrustedReport,
+  netIncome: string,
+) {
+  drawText(commands, "Nestory", marginX, 806, {
+    bold: true,
+    color: colors.ink,
+    fontSize: 11,
+    width: 220,
+  });
+  drawText(commands, organizationName, marginX, 790, {
+    color: colors.muted,
+    fontSize: 8.5,
+    width: 260,
+  });
+  drawText(commands, report.title, marginX, 752, {
+    bold: true,
+    color: colors.ink,
+    fontSize: 22,
+    width: unitStatementContentWidth,
+  });
+  drawText(commands, report.scopeLabel, marginX, 727, {
+    bold: true,
+    color: colors.ink,
+    fontSize: 10,
+    width: unitStatementContentWidth,
+  });
+  drawText(commands, report.periodLabel, marginX, 709, {
+    color: colors.muted,
+    fontSize: 9,
+    width: 250,
+  });
+  drawText(
+    commands,
+    `Generated ${formatDate(report.generatedAt)}`,
+    marginX,
+    692,
+    {
+      color: colors.muted,
+      fontSize: 8,
+      width: 250,
+    },
+  );
+  drawText(commands, "Cash basis", marginX, 675, {
+    color: colors.muted,
+    fontSize: 8,
+    width: 250,
+  });
+  drawRect(commands, marginX, 622, unitStatementContentWidth, 38, {
+    fill: colors.soft,
+    stroke: colors.border,
+  });
+  drawText(commands, "Net income", marginX + 12, 641, {
+    bold: true,
+    color: colors.muted,
+    fontSize: 8,
+    width: 180,
+  });
+  drawText(commands, netIncome, marginX + 260, 637, {
+    align: "right",
+    bold: true,
+    color: colors.ink,
+    fontSize: 15,
+    width: unitStatementContentWidth - 272,
+  });
+}
+
+function drawUnitProfitLossSection(
+  commands: string[],
+  {
+    lines,
+    sectionLabel,
+    subtotalLabel,
+    subtotalValue,
+    yTop,
+  }: {
+    lines: UnitProfitLossLine[];
+    sectionLabel: string;
+    subtotalLabel: string;
+    subtotalValue: string;
+    yTop: number;
+  },
+) {
+  drawText(commands, sectionLabel, marginX, yTop, {
+    bold: true,
+    color: colors.ink,
+    fontSize: 9,
+    width: unitStatementContentWidth,
+  });
+
+  const tableTop = yTop - 12;
+  drawUnitProfitLossTableHeader(commands, tableTop);
+  let y = tableTop - headerRowHeight;
+
+  for (const [index, line] of lines.entries()) {
+    const row = buildPdfRow(
+      [
+        formatDate(line.date),
+        line.description,
+        line.category,
+        formatMoney(Math.abs(line.amount), line.currency),
+      ],
+      index,
+      unitStatementColumns,
+      {
+        fontSize: 8,
+        lineHeight: 9.5,
+        minHeight: 24,
+        verticalPadding: 8,
+      },
+    );
+    y -= row.height;
+    drawUnitProfitLossTableRow(commands, row, y);
+  }
+
+  y -= 24;
+  drawLine(
+    commands,
+    marginX,
+    y + 24,
+    marginX + unitStatementContentWidth,
+    y + 24,
+    colors.border,
+    0.7,
+  );
+  drawText(commands, subtotalLabel, marginX + 250, y + 8, {
+    align: "right",
+    bold: true,
+    color: colors.ink,
+    fontSize: 8.5,
+    width: 178,
+  });
+  drawText(commands, subtotalValue, marginX + 440, y + 8, {
+    align: "right",
+    bold: true,
+    color: colors.ink,
+    fontSize: 8.5,
+    width: 83,
+  });
+
+  return y;
+}
+
+function drawUnitProfitLossTableHeader(commands: string[], yTop: number) {
+  drawRect(
+    commands,
+    marginX,
+    yTop - headerRowHeight,
+    unitStatementContentWidth,
+    headerRowHeight,
+    {
+      fill: colors.headerFill,
+      stroke: colors.border,
+    },
+  );
+
+  let x = marginX;
+  for (const column of unitStatementColumns) {
+    drawText(commands, column.label, x + cellPaddingX, yTop - 15, {
+      align: column.align,
+      bold: true,
+      color: colors.ink,
+      fontSize: 7.6,
+      width: column.width - cellPaddingX * 2,
+    });
+    x += column.width;
+  }
+}
+
+function drawUnitProfitLossTableRow(
+  commands: string[],
+  row: PdfTableRow,
+  y: number,
+) {
+  drawRect(commands, marginX, y, unitStatementContentWidth, row.height, {
+    fill: row.index % 2 === 0 ? colors.rowFill : colors.rowAlt,
+  });
+  drawLine(
+    commands,
+    marginX,
+    y,
+    marginX + unitStatementContentWidth,
+    y,
+    colors.border,
+    0.35,
+  );
+
+  let x = marginX;
+  for (const [cellIndex, column] of unitStatementColumns.entries()) {
+    drawCellText(commands, row.lines[cellIndex], x, y, column, row);
+    x += column.width;
+  }
+}
+
+function drawUnitProfitLossTotals(
+  commands: string[],
+  incomeTotal: string,
+  expenseTotal: string,
+  netIncome: string,
+  yTop: number,
+) {
+  const labelX = marginX + 250;
+  const labelWidth = 178;
+  const amountX = marginX + 440;
+  const amountWidth = 83;
+
+  [
+    ["Total income", incomeTotal],
+    ["Total expenses", expenseTotal],
+    ["Net income", netIncome],
+  ].forEach(([label, value], index) => {
+    const y = yTop - index * 22;
+    drawText(commands, label, labelX, y, {
+      align: "right",
+      bold: index === 2,
+      color: colors.ink,
+      fontSize: index === 2 ? 10 : 8.5,
+      width: labelWidth,
+    });
+    drawText(commands, value, amountX, y, {
+      align: "right",
+      bold: index === 2,
+      color: colors.ink,
+      fontSize: index === 2 ? 10 : 8.5,
+      width: amountWidth,
+    });
+  });
+}
+
+function drawUnitProfitLossFooter(
+  commands: string[],
+  pageNumber: number,
+  totalPages: number,
+) {
+  drawLine(
+    commands,
+    marginX,
+    30,
+    marginX + unitStatementContentWidth,
+    30,
+    colors.border,
+    0.6,
+  );
+  drawText(commands, "Nestory unit financial statement", marginX, 18, {
+    color: colors.muted,
+    fontSize: 8,
+  });
+  drawText(commands, `Page ${pageNumber} of ${totalPages}`, marginX, 18, {
+    align: "right",
+    color: colors.muted,
+    fontSize: 8,
+    width: unitStatementContentWidth,
+  });
 }
 
 function buildOwnerStatementPdf({
@@ -1604,7 +1936,10 @@ function estimateTextWidth(value: string, fontSize: number, bold = false) {
   return units * fontSize * (bold ? 1.04 : 1);
 }
 
-function createPdfDocument(pageContents: string[]) {
+function createPdfDocument(
+  pageContents: string[],
+  pageSize: PdfPageSize = landscapePageSize,
+) {
   const maxObjectId = 4 + pageContents.length * 2;
   const objects: string[] = new Array(maxObjectId + 1);
   const pageRefs = pageContents
@@ -1622,7 +1957,7 @@ function createPdfDocument(pageContents: string[]) {
     const contentLength = Buffer.byteLength(content, "latin1");
 
     objects[pageObjectId] =
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectId} 0 R >>`;
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageSize.width} ${pageSize.height}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectId} 0 R >>`;
     objects[contentObjectId] =
       `<< /Length ${contentLength} >>\nstream\n${content}\nendstream`;
   });
