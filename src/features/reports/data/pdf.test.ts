@@ -174,6 +174,111 @@ describe("trusted report PDF export", () => {
     expect(renderedText).not.toContain("TRACEABLE OPERATING REPORT");
   });
 
+  it("renders explicit empty income and expense sections with authoritative totals", () => {
+    const noIncomeReport = unitProfitLossReport();
+    noIncomeReport.unitProfitLossLines =
+      noIncomeReport.unitProfitLossLines?.filter(
+        ({ direction }) => direction === "expense",
+      );
+    noIncomeReport.summary = noIncomeReport.summary.map((metric) => {
+      if (metric.label === "Income") {
+        return { ...metric, sourceCount: 0, value: "USD 0.00" };
+      }
+      if (metric.label === "Net income") {
+        return { ...metric, sourceCount: 1, value: "-USD 120.00" };
+      }
+      return metric;
+    });
+
+    const noExpenseReport = unitProfitLossReport();
+    noExpenseReport.unitProfitLossLines =
+      noExpenseReport.unitProfitLossLines?.filter(
+        ({ direction }) => direction === "income",
+      );
+    noExpenseReport.summary = noExpenseReport.summary.map((metric) => {
+      if (metric.label === "Expenses") {
+        return { ...metric, sourceCount: 0, value: "USD 0.00" };
+      }
+      if (metric.label === "Net income") {
+        return { ...metric, sourceCount: 1, value: "USD 500.00" };
+      }
+      return metric;
+    });
+
+    const noIncomePdf = Buffer.from(
+      buildTrustedReportPdf({
+        organizationName: "Demo Org",
+        report: noIncomeReport,
+      }),
+    ).toString("latin1");
+    const noExpensePdf = Buffer.from(
+      buildTrustedReportPdf({
+        organizationName: "Demo Org",
+        report: noExpenseReport,
+      }),
+    ).toString("latin1");
+
+    expect(extractPdfCommandText(noIncomePdf)).toContain("No income recorded");
+    expect(extractPdfCommandText(noIncomePdf)).toContain("Income subtotal");
+    expect(extractPdfCommandText(noIncomePdf)).toContain("USD 0.00");
+    expect(extractPdfCommandText(noExpensePdf)).toContain(
+      "No expenses recorded",
+    );
+    expect(extractPdfCommandText(noExpensePdf)).toContain("Expenses subtotal");
+  });
+
+  it("repeats statement context while paginating stable grouped ledger lines", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines = Array.from({ length: 48 }, (_, index) => ({
+      amount: index + 1,
+      category: index % 2 === 0 ? "Rent" : "Repair",
+      currency: "USD" as const,
+      date: `2026-07-${String((index % 28) + 1).padStart(2, "0")}`,
+      description:
+        `Ledger detail ${index + 1} ` +
+        "with enough context to wrap cleanly without overlapping the next row",
+      direction: index < 24 ? ("income" as const) : ("expense" as const),
+      id: `ledger-${String(index + 1).padStart(2, "0")}`,
+      property: "P1 - Property One",
+      unit: "Unit A1",
+    }));
+    report.summary = report.summary.map((metric) => {
+      if (metric.label === "Income") {
+        return { ...metric, sourceCount: 24, value: "USD 300.00" };
+      }
+      if (metric.label === "Expenses") {
+        return { ...metric, sourceCount: 24, value: "USD 876.00" };
+      }
+      return { ...metric, sourceCount: 48, value: "-USD 576.00" };
+    });
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    const renderedText = extractPdfCommandText(pdf);
+
+    expect(pdf).toMatch(/\/Count [2-9]/);
+    expect(renderedText.split("Monthly Unit Profit & Loss").length - 1).toBeGreaterThan(
+      1,
+    );
+    expect(renderedText.split("Description").length - 1).toBeGreaterThan(1);
+    expect(renderedText).toContain("Income (continued)");
+    expect(renderedText).toContain("Expenses subtotal");
+    expect(renderedText).toContain("Page 2 of");
+  });
+
+  it("caps an extra-long statement description at two rendered lines", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines![0].description =
+      "Exceptionally detailed ledger context ".repeat(20);
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+
+    expect(extractPdfCommandText(pdf)).toContain("...");
+  });
+
   it("keeps all nine owner-facing amounts readable without internal readiness detail", () => {
     const amounts = [
       "USD 100.00",
