@@ -120,7 +120,9 @@ export function buildComparisonHtml({
     <style>
       @page {
         size: A4 ${orientation};
-        margin: 24pt 28pt;
+        margin: ${
+          orientation === "portrait" ? "24pt 28pt" : "18pt 24pt"
+        };
       }
 
       :root {
@@ -162,11 +164,13 @@ export function buildComparisonHtml({
       }
 
       body[data-orientation="landscape"] {
-        --logo-height: 44pt;
-        --logo-width: 105pt;
-        --logo-source-left: -70pt;
-        --logo-source-top: -63pt;
-        --logo-source-width: 240pt;
+        --logo-height: 38pt;
+        --logo-width: 96pt;
+        --logo-source-left: -63pt;
+        --logo-source-top: -57pt;
+        --logo-source-width: 216pt;
+        font-size: 7.6pt;
+        line-height: 8.8pt;
       }
 
       .report {
@@ -343,6 +347,50 @@ export function buildComparisonHtml({
         padding-top: 4pt;
         position: fixed;
         right: 0;
+      }
+
+      body[data-orientation="landscape"] .report {
+        padding-bottom: 12pt;
+      }
+
+      body[data-orientation="landscape"] h1 {
+        font-size: 17pt;
+        line-height: 19pt;
+      }
+
+      body[data-orientation="landscape"] .metadata {
+        margin-bottom: 4pt;
+        padding-bottom: 3pt;
+      }
+
+      body[data-orientation="landscape"] .metadata p {
+        line-height: 9pt;
+      }
+
+      body[data-orientation="landscape"] th,
+      body[data-orientation="landscape"] td {
+        padding-bottom: 2.5pt;
+        padding-top: 2.5pt;
+      }
+
+      body[data-orientation="landscape"] .section-row th {
+        padding-bottom: 2.5pt;
+        padding-top: 2.5pt;
+      }
+
+      body[data-orientation="landscape"] .totals {
+        margin-top: 3pt;
+      }
+
+      body[data-orientation="landscape"] .totals-row {
+        line-height: 9pt;
+        min-height: 14pt;
+        padding-bottom: 2.5pt;
+        padding-top: 2.5pt;
+      }
+
+      body[data-orientation="landscape"] .totals-row.net {
+        line-height: 10pt;
       }
     </style>
   </head>

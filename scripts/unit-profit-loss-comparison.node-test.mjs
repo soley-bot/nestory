@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -11,6 +12,7 @@ import {
 } from "./unit-profit-loss-comparison-core.mjs";
 import {
   OUTPUT_FILENAMES,
+  main,
   parseComparisonArgs,
 } from "./generate-unit-profit-loss-comparison.mjs";
 
@@ -150,4 +152,30 @@ test("uses stable comparison filenames and an explicit output override", () => {
     () => parseComparisonArgs(["--portrait-only"]),
     /Usage: npm run report:unit-profit-loss:compare/,
   );
+});
+
+test("keeps both A4 comparison PDFs to one page", async () => {
+  const outputDirectory = await mkdtemp(
+    path.join(os.tmpdir(), "nestory-unit-statement-"),
+  );
+
+  try {
+    await main(["--output-dir", outputDirectory]);
+
+    for (const orientation of ["portrait", "landscape"]) {
+      const pdf = await readFile(
+        path.join(outputDirectory, OUTPUT_FILENAMES[orientation]),
+      );
+      const pageObjects =
+        pdf.toString("latin1").match(/\/Type\s*\/Page(?!s)\b/g) ?? [];
+
+      assert.equal(
+        pageObjects.length,
+        1,
+        `${orientation} comparison must fit on one A4 page`,
+      );
+    }
+  } finally {
+    await rm(outputDirectory, { force: true, recursive: true });
+  }
 });
