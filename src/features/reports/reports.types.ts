@@ -7,8 +7,10 @@ import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 export type ReportKind =
   | "rent-roll"
   | "unit-performance"
+  | "unit-profit-loss"
   | "property-performance"
   | "owner-statement"
+  | "management-fees"
   | "income-expense"
   | "lease-expiry"
   | "vacancy-risk"

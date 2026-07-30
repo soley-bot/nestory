@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
-import { ReportsLibraryScreen } from "@/features/reports/components/reports-screen";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
-import { buildReportBuilderHref } from "@/features/reports/report-catalog";
+import {
+  buildReportBuilderHref,
+  isReportKind,
+} from "@/features/reports/report-catalog";
+import { getLegacyReportDestination } from "@/features/reports/legacy-report-destinations";
 import { requireAdminContext } from "@/lib/auth/context";
 
 type ReportsPageProps = {
@@ -11,34 +14,30 @@ type ReportsPageProps = {
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   await requireAdminContext();
   const rawSearchParams = await searchParams;
-  const viewQuery = parseReportSearchParams(rawSearchParams);
+  const rawReport = Array.isArray(rawSearchParams.report)
+    ? rawSearchParams.report[0]
+    : rawSearchParams.report;
+  const legacyDestination = rawReport
+    ? getLegacyReportDestination(rawReport)
+    : null;
 
-  if (rawSearchParams.report !== undefined) {
-    const query =
-      viewQuery.report === "people-readiness"
-        ? new URLSearchParams({
-            archiveState: viewQuery.peopleArchiveState,
-            peopleView: viewQuery.peopleView,
-          })
-        : new URLSearchParams({ month: viewQuery.month });
-
-    if (
-      viewQuery.report !== "people-readiness" &&
-      viewQuery.propertyId !== "all"
-    ) {
-      query.set("propertyId", viewQuery.propertyId);
-    }
-
-    if (viewQuery.report !== "people-readiness" && viewQuery.unitId !== "all") {
-      query.set("unitId", viewQuery.unitId);
-    }
-
-    if (viewQuery.report !== "people-readiness" && viewQuery.status !== "all") {
-      query.set("status", viewQuery.status);
-    }
-
-    redirect(buildReportBuilderHref(viewQuery.report, query));
+  if (legacyDestination) {
+    redirect(legacyDestination);
   }
 
-  return <ReportsLibraryScreen viewQuery={viewQuery} />;
+  const viewQuery = parseReportSearchParams(rawSearchParams);
+  const query = new URLSearchParams({ month: viewQuery.month });
+
+  if (viewQuery.propertyId !== "all") {
+    query.set("propertyId", viewQuery.propertyId);
+  }
+
+  if (viewQuery.report === "unit-profit-loss" && viewQuery.unitId !== "all") {
+    query.set("unitId", viewQuery.unitId);
+  }
+
+  const report = isReportKind(viewQuery.report)
+    ? viewQuery.report
+    : "unit-profit-loss";
+  redirect(buildReportBuilderHref(report, query));
 }
