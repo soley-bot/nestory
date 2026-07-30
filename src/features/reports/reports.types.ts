@@ -124,6 +124,11 @@ export type TrustedReport = {
   description: string;
   emptyDescription: string;
   emptyTitle: string;
+  exportValidation?: {
+    code: string;
+    message: string;
+    status: 400 | 409;
+  };
   exportFilenameBase: string;
   generatedAt: string;
   kind: ReportKind;

@@ -21,6 +21,41 @@ vi.mock("@/lib/db/server", () => ({
 const propertyId = "property-1";
 
 describe("Owner Statement trusted report adapter", () => {
+  it("keeps publication blocked until opening and closing balances are authoritative", () => {
+    const report = buildOwnerStatementTrustedReport({
+      generatedAt: "2026-08-01T00:00:00.000Z",
+      people: [],
+      properties: [],
+      result: buildOwnerStatement({
+        cashInput: {
+          depositEvents: [],
+          expenseItems: [],
+          incomeItems: [],
+          monthScope: { before: "2026-08-01", from: "2026-07-01" },
+          paymentAllocations: [],
+          propertyIds: [],
+          receiptAllocations: [],
+        },
+        ownerLinks: [],
+        people: [],
+      }),
+      viewQuery: ownerStatementQuery(),
+    });
+
+    expect(report.exportValidation).toEqual({
+      code: "owner_statement_balances_unavailable",
+      message:
+        "Owner Statement export is unavailable until opening and closing owner balances are authoritative.",
+      status: 409,
+    });
+    expect(report.columns.map(({ label }) => label)).toEqual([
+      "Status",
+      "Owner",
+      "Property",
+      "Reason",
+    ]);
+  });
+
   it("returns actionable validation without loading data for unit scope", async () => {
     const from = vi.fn();
     vi.mocked(createSupabaseServerClient).mockResolvedValue({
@@ -83,9 +118,12 @@ describe("Owner Statement trusted report adapter", () => {
       viewQuery: ownerStatementQuery(),
     });
 
-    expect(report.columns.map((column) => column.label)).toContain(
-      "Management fees outstanding from this period",
-    );
+    expect(report.columns.map((column) => column.label)).toEqual([
+      "Status",
+      "Owner",
+      "Property",
+      "Reason",
+    ]);
     expect(report.title).toBe("Owner Statement readiness");
     expect(report.description).toBe(
       "Review which property and owner statements are ready before generating owner-facing documents.",

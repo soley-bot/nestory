@@ -7,6 +7,7 @@ import {
 } from "@/lib/money/format";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
 import { getOwnerStatementReport } from "@/features/reports/data/owner-statement-report";
+import { getManagementFeeReport } from "@/features/reports/data/management-fee-report";
 import { getPeopleReadinessReport } from "@/features/people/data/people-readiness";
 import {
   assertCompleteReportSource,
@@ -29,16 +30,9 @@ import type {
 } from "@/features/reports/reports.types";
 
 export const REPORT_OPTIONS: Array<{ label: string; value: ReportKind }> = [
-  { label: "Rent Roll", value: "rent-roll" },
-  { label: "Unit Performance", value: "unit-performance" },
-  { label: "Property Performance", value: "property-performance" },
+  { label: "Monthly Unit Profit & Loss", value: "unit-profit-loss" },
   { label: "Owner Statement", value: "owner-statement" },
-  { label: "Income & Expense", value: "income-expense" },
-  { label: "Lease Expiry", value: "lease-expiry" },
-  { label: "Vacancy & Lease Risk", value: "vacancy-risk" },
-  { label: "Maintenance Cost", value: "maintenance-cost" },
-  { label: "Record Readiness", value: "missing-data" },
-  { label: "People Readiness", value: "people-readiness" },
+  { label: "Management Fee Statement", value: "management-fees" },
 ];
 
 const reportLeaseSelect =
@@ -215,6 +209,7 @@ type ReportContext = TrustedReportInput & {
 const activeLeaseStatuses = new Set(["active", "notice_given"]);
 const repairEventTypes = new Set(["Maintenance", "Repair", "Renovation"]);
 const trustedReportSourceRequirements = {
+  "management-fees": requiresReportSources(),
   "income-expense": requiresReportSources("ledgerEntries", "units"),
   "lease-expiry": requiresReportSources("leases", "units"),
   "maintenance-cost": requiresReportSources(
@@ -239,6 +234,7 @@ const trustedReportSourceRequirements = {
     "timelineEvents",
     "units",
   ),
+  "unit-profit-loss": requiresReportSources("ledgerEntries", "units"),
   "vacancy-risk": requiresReportSources("documents", "leases", "units"),
 } satisfies Record<ReportKind, TrustedReportSourceRequirements>;
 
@@ -251,6 +247,10 @@ export async function getTrustedReport({
 }): Promise<TrustedReport> {
   if (viewQuery.report === "owner-statement") {
     return getOwnerStatementReport({ organizationId, viewQuery });
+  }
+
+  if (viewQuery.report === "management-fees") {
+    return getManagementFeeReport({ organizationId, viewQuery });
   }
 
   if (viewQuery.report === "people-readiness") {
@@ -365,6 +365,10 @@ export function getTrustedReportSourceRequirements(
 
 export function buildTrustedReport(input: TrustedReportInput): TrustedReport {
   const context = buildReportContext(input);
+
+  if (context.viewQuery.report === "unit-profit-loss") {
+    return buildUnitProfitLossReport(context);
+  }
 
   if (context.viewQuery.report === "unit-performance") {
     return buildUnitPerformanceReport(context);
@@ -562,6 +566,115 @@ function buildUnitPerformanceReport(context: ReportContext): TrustedReport {
     summary: financialSummary(context, incomeUsd, expenseUsd, rows.length),
     title: "Unit Performance",
     totalsTraceLabel: `Financial totals trace to ${context.ledgerEntries.length} ledger rows in ${context.periodLabel}.`,
+  });
+}
+
+function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
+  const rows = context.units
+    .toSorted((first, second) => {
+      const firstProperty = context.propertiesById.get(first.property_id);
+      const secondProperty = context.propertiesById.get(second.property_id);
+      return (
+        propertyLabel(firstProperty).localeCompare(
+          propertyLabel(secondProperty),
+          undefined,
+          { numeric: true, sensitivity: "base" },
+        ) ||
+        first.unit_number.localeCompare(second.unit_number, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        })
+      );
+    })
+    .map((unit) => {
+      const property = context.propertiesById.get(unit.property_id);
+      const ledger = context.ledgerByUnitId.get(unit.id) ?? [];
+      const incomeUsd = sumLedgerUsd(ledger.filter(isIncome), context);
+      const expenseUsd = sumLedgerUsd(
+        ledger.filter(isExpense),
+        context,
+        true,
+      );
+      const netIncomeUsd = incomeUsd - expenseUsd;
+
+      return reportRow({
+        cells: {
+          expenses: moneyFromUsd(expenseUsd, context),
+          income: moneyFromUsd(incomeUsd, context),
+          netIncome: moneyFromUsd(netIncomeUsd, context),
+          property: propertyLabel(property),
+          unit: `Unit ${unit.unit_number}`,
+        },
+        href: `/units/${unit.id}`,
+        id: unit.id,
+        sources: compactSources([
+          property && propertySource(property),
+          unitSource(unit),
+          ...ledger.map(ledgerSource),
+        ]),
+        title: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+        tone:
+          netIncomeUsd < 0
+            ? "danger"
+            : incomeUsd > 0
+              ? "success"
+              : "neutral",
+      });
+    });
+  const unitLinkedLedger = context.ledgerEntries.filter(
+    (entry) => entry.unit_id && context.unitsById.has(entry.unit_id),
+  );
+  const incomeUsd = sumLedgerUsd(
+    unitLinkedLedger.filter(isIncome),
+    context,
+  );
+  const expenseUsd = sumLedgerUsd(
+    unitLinkedLedger.filter(isExpense),
+    context,
+    true,
+  );
+  const incomeSourceCount = unitLinkedLedger.filter(isIncome).length;
+  const expenseSourceCount = unitLinkedLedger.filter(isExpense).length;
+
+  return baseReport(context, {
+    columns: [
+      { key: "property", label: "Property" },
+      { key: "unit", label: "Unit" },
+      { align: "right", key: "income", label: "Income" },
+      { align: "right", key: "expenses", label: "Expenses" },
+      { align: "right", key: "netIncome", label: "Net income" },
+    ],
+    description:
+      "Income, expenses, and net income by unit for the selected month.",
+    emptyDescription:
+      "Add units or unit-linked ledger entries for the selected scope.",
+    emptyTitle: "No unit profit and loss rows",
+    exportFilenameBase: "unit-profit-loss",
+    kind: "unit-profit-loss",
+    rows,
+    summary: [
+      metric(
+        "Income",
+        moneyFromUsd(incomeUsd, context),
+        "Income from unit-linked ledger rows",
+        incomeSourceCount,
+      ),
+      metric(
+        "Expenses",
+        moneyFromUsd(expenseUsd, context),
+        "Expenses from unit-linked ledger rows",
+        expenseSourceCount,
+      ),
+      metric(
+        "Net income",
+        moneyFromUsd(incomeUsd - expenseUsd, context),
+        "Income less expenses",
+        incomeSourceCount + expenseSourceCount,
+      ),
+      metric("Units", String(rows.length), "Units in this scope", rows.length),
+    ],
+    title: "Monthly Unit Profit & Loss",
+    totalsTraceLabel: `Totals trace to ${unitLinkedLedger.length} unit-linked ledger row${unitLinkedLedger.length === 1 ? "" : "s"} in ${context.periodLabel}.`,
   });
 }
 
