@@ -16,6 +16,7 @@ import {
   loadReportDocuments,
   type ReportDocumentClient,
 } from "@/features/reports/data/report-documents";
+import { loadEffectiveRentPolicyCalendarDate } from "@/features/leases/data/leases";
 import type {
   ReportKind,
   ReportSourceLink,
@@ -75,6 +76,19 @@ type LeaseRow = {
   status: string;
   tenant_name: string;
   unit_id: string | null;
+};
+
+type ReportLeaseTermRow = {
+  archived_at: string | null;
+  authority_kind: string;
+  end_date: string;
+  id: string;
+  lease_id: string;
+  rent_amount: number;
+  rent_currency: CurrencyCode;
+  start_date: string;
+  status: string;
+  term_sequence: number;
 };
 
 type LedgerRow = {
@@ -148,9 +162,11 @@ type PersonRow = {
 
 type TrustedReportInput = {
   documents: DocumentRow[];
+  effectiveLeaseDate?: string;
   generatedAt?: string;
   ledgerEntries: LedgerRow[];
   leases: LeaseRow[];
+  leaseTerms?: ReportLeaseTermRow[];
   maintenanceTasks: MaintenanceTaskRow[];
   owners: OwnerRow[];
   people: PersonRow[];
@@ -310,11 +326,25 @@ export async function getTrustedReport({
         new Set(owners.map((owner) => owner.person_id)),
       )
     : [];
+  const effectiveLeaseDate = sources.leases
+    ? await loadEffectiveRentPolicyCalendarDate(supabase, organizationId)
+    : undefined;
+  const leaseTerms =
+    effectiveLeaseDate && leases.length > 0
+      ? await loadReportLeaseTerms(
+          supabase,
+          organizationId,
+          leases.map((lease) => lease.id),
+          effectiveLeaseDate,
+        )
+      : [];
 
   return buildTrustedReport({
     documents,
+    effectiveLeaseDate,
     ledgerEntries,
     leases,
+    leaseTerms,
     maintenanceTasks,
     owners,
     people,
@@ -1105,7 +1135,14 @@ function missingDataRow({
 }
 
 function buildReportContext(input: TrustedReportInput): ReportContext {
-  const scopedInput = filterReportInputByUnit(input);
+  const scopedInput = filterReportInputByUnit({
+    ...input,
+    leases: projectEffectiveLeaseRent(
+      input.leases,
+      input.leaseTerms ?? [],
+      input.effectiveLeaseDate,
+    ),
+  });
   const propertiesById = indexById(scopedInput.properties);
   const unitsById = indexById(scopedInput.units);
   const activeLeaseByUnitId = new Map<string, LeaseRow>();
@@ -1796,6 +1833,82 @@ async function loadReportLeases(
   assertCompleteReportSource("report leases", result);
 
   return result.data ?? [];
+}
+
+async function loadReportLeaseTerms(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  leaseIds: string[],
+  effectiveDate: string,
+) {
+  const result = await supabase
+    .from("lease_terms")
+    .select(
+      "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, status, authority_kind, archived_at",
+      { count: "exact" },
+    )
+    .eq("organization_id", organizationId)
+    .in("lease_id", leaseIds)
+    .eq("authority_kind", "authoritative")
+    .in("status", ["active", "upcoming"])
+    .is("archived_at", null)
+    .lte("start_date", effectiveDate)
+    .gte("end_date", effectiveDate)
+    .range(0, reportSourceRangeEnd);
+
+  if (result.error) {
+    throw new Error(
+      `Could not load authoritative report lease terms: ${result.error.message}`,
+    );
+  }
+
+  assertCompleteReportSource("report authoritative lease terms", result);
+
+  return result.data ?? [];
+}
+
+function projectEffectiveLeaseRent(
+  leases: LeaseRow[],
+  terms: ReportLeaseTermRow[],
+  effectiveDate?: string,
+) {
+  if (!effectiveDate || terms.length === 0) {
+    return leases;
+  }
+
+  const termsByLeaseId = new Map<string, ReportLeaseTermRow[]>();
+
+  for (const term of terms) {
+    if (
+      term.archived_at ||
+      term.authority_kind !== "authoritative" ||
+      !["active", "upcoming"].includes(term.status) ||
+      term.start_date > effectiveDate ||
+      term.end_date < effectiveDate
+    ) {
+      continue;
+    }
+
+    const leaseTerms = termsByLeaseId.get(term.lease_id) ?? [];
+    leaseTerms.push(term);
+    termsByLeaseId.set(term.lease_id, leaseTerms);
+  }
+
+  return leases.map((lease) => {
+    const applicableTerms = termsByLeaseId.get(lease.id) ?? [];
+
+    if (applicableTerms.length !== 1) {
+      return lease;
+    }
+
+    const term = applicableTerms[0];
+
+    return {
+      ...lease,
+      monthly_rent_amount: Number(term.rent_amount),
+      monthly_rent_currency: term.rent_currency,
+    };
+  });
 }
 
 async function loadReportLedger(

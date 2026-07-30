@@ -118,7 +118,7 @@ describe("buildLeaseSummary", () => {
     });
   });
 
-  it("keeps every editable economic field on the selected upcoming term", () => {
+  it("keeps metadata edits bound to the active term before a future term starts", () => {
     const summary = buildLeaseSummary({
       lease,
       property,
@@ -156,8 +156,75 @@ describe("buildLeaseSummary", () => {
     });
 
     expect(summary.formValues).toMatchObject({
+      leaseEndDate: "2027-01-31",
+      leaseStartDate: "2026-02-01",
+      monthlyRentAmount: 850,
+      paymentFrequency: "monthly",
+      rentDueDay: 10,
+      termStatus: "active",
+    });
+  });
+
+  it("uses the resolver-selected term when compatibility economics are stale", () => {
+    const summary = buildLeaseSummary({
+      lease: {
+        ...lease,
+        lease_end_date: "2028-01-31",
+      },
+      property,
+      readiness: {
+        policy_id: "policy-2",
+        reason_code: "ready",
+        readiness_status: "ready",
+        repair_context: {
+          policyId: "policy-2",
+          termId: "term-upcoming",
+        },
+        term_id: "term-upcoming",
+      },
+      terms: [
+        {
+          archived_at: null,
+          authority_kind: "authoritative",
+          end_date: "2026-07-31",
+          id: "term-active",
+          lease_id: "lease-1",
+          payment_frequency: "monthly",
+          rent_amount: 850,
+          rent_currency: "USD",
+          rent_due_day: 10,
+          start_date: "2026-02-01",
+          status: "active",
+          term_sequence: 1,
+        },
+        {
+          archived_at: null,
+          authority_kind: "authoritative",
+          end_date: "2028-01-31",
+          id: "term-upcoming",
+          lease_id: "lease-1",
+          payment_frequency: "quarterly",
+          rent_amount: 925,
+          rent_currency: "USD",
+          rent_due_day: 15,
+          start_date: "2026-08-01",
+          status: "upcoming",
+          term_sequence: 2,
+        },
+      ],
+      unit,
+    });
+
+    expect(summary).toMatchObject({
+      endDateLabel: "31 Jan 2028",
+      rentLabel: "USD 925.00",
+      rentUsd: 925,
+      startDateLabel: "01 Feb 2026",
+      termLabel: "01 Feb 2026 - 31 Jan 2028",
+    });
+    expect(summary.formValues).toMatchObject({
       leaseEndDate: "2028-01-31",
-      leaseStartDate: "2027-02-01",
+      leaseStartDate: "2026-08-01",
       monthlyRentAmount: 925,
       paymentFrequency: "quarterly",
       rentDueDay: 15,

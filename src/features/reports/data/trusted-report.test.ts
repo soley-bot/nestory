@@ -271,6 +271,44 @@ describe("trusted reports", () => {
     });
   });
 
+  it("uses the effective authoritative term instead of stale lease compatibility rent", () => {
+    const input = makeReportInput({
+      effectiveLeaseDate: "2026-06-15",
+      leaseTerms: [
+        {
+          archived_at: null,
+          authority_kind: "authoritative",
+          end_date: "2026-05-31",
+          id: "term-old",
+          lease_id: "lease-1",
+          rent_amount: 500,
+          rent_currency: "USD",
+          start_date: "2026-01-01",
+          status: "active",
+          term_sequence: 1,
+        },
+        {
+          archived_at: null,
+          authority_kind: "authoritative",
+          end_date: "2026-12-31",
+          id: "term-current",
+          lease_id: "lease-1",
+          rent_amount: 650,
+          rent_currency: "USD",
+          start_date: "2026-06-01",
+          status: "upcoming",
+          term_sequence: 2,
+        },
+      ],
+      viewQuery: { report: "rent-roll" },
+    });
+
+    const report = buildTrustedReport(input);
+    const unitRow = report.rows.find((row) => row.id === "unit-1");
+
+    expect(unitRow?.cells.rent).toBe("USD 650.00");
+  });
+
   it("filters rent roll rows by unit status", () => {
     const report = buildTrustedReport(
       makeReportInput({

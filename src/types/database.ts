@@ -7,6 +7,22 @@ type PublicSchemaGenerated = DatabaseGenerated["public"];
 type GeneratedFunctions = PublicSchemaGenerated["Functions"];
 type CurrencyCode = PublicSchemaGenerated["Enums"]["currency_code"];
 type TimelineEventType = PublicSchemaGenerated["Enums"]["timeline_event_type"];
+type LeaseEffectiveRentRow = Pick<
+  PublicSchemaGenerated["Tables"]["leases"]["Row"],
+  | "archived_at"
+  | "deposit_amount"
+  | "deposit_currency"
+  | "id"
+  | "lease_end_date"
+  | "lease_start_date"
+  | "monthly_rent_amount"
+  | "monthly_rent_currency"
+  | "primary_tenant_person_id"
+  | "property_id"
+  | "status"
+  | "tenant_name"
+  | "unit_id"
+>;
 
 type WithArgs<Name extends keyof GeneratedFunctions, Args> = Omit<
   GeneratedFunctions[Name],
@@ -51,6 +67,13 @@ type RpcFunctionOverrides = {
       branch_id: string | null;
       person_id: string;
     }[];
+  };
+  get_leases_with_effective_rent: {
+    Args: {
+      p_effective_date: string;
+      p_organization_id: string;
+    };
+    Returns: LeaseEffectiveRentRow[];
   };
   assign_maintenance_task: WithArgs<
     "assign_maintenance_task",

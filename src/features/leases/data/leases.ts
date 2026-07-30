@@ -32,8 +32,6 @@ import {
 } from "@/lib/entity-option-labels";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
 
-const leaseSelect =
-  "id, property_id, unit_id, tenant_name, primary_tenant_person_id, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, deposit_amount, deposit_currency, status, archived_at";
 const propertySelect = "id, code, name, archived_at";
 const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
 type SupabaseServerClient = Awaited<
@@ -43,6 +41,11 @@ type OptionalLeaseBackboneResult<T> = {
   data: T[] | null;
   error: { message: string } | null;
 };
+type RentPolicyCalendarDateRow = {
+  effective_from: string;
+  rent_calculation_timezone: string | null;
+  version_number: number;
+};
 const RENT_SORT_CURRENCIES: CurrencyCode[] = ["USD"];
 
 export async function getLeasesScreenData(
@@ -50,19 +53,21 @@ export async function getLeasesScreenData(
   viewQuery: LeaseViewQuery = parseLeaseSearchParams({}),
 ) {
   const supabase = await createSupabaseServerClient();
-  const [propertiesResult, unitsResult, tenantOptions] = await Promise.all([
-    supabase
-      .from("properties")
-      .select(propertySelect)
-      .eq("organization_id", organizationId)
-      .order("code", { ascending: true }),
-    supabase
-      .from("units")
-      .select(unitSelect)
-      .eq("organization_id", organizationId)
-      .order("unit_number", { ascending: true }),
-    getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
-  ]);
+  const [propertiesResult, unitsResult, tenantOptions, readinessDate] =
+    await Promise.all([
+      supabase
+        .from("properties")
+        .select(propertySelect)
+        .eq("organization_id", organizationId)
+        .order("code", { ascending: true }),
+      supabase
+        .from("units")
+        .select(unitSelect)
+        .eq("organization_id", organizationId)
+        .order("unit_number", { ascending: true }),
+      getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
+      loadEffectiveRentPolicyCalendarDate(supabase, organizationId),
+    ]);
 
   if (propertiesResult.error) {
     throw new Error(
@@ -103,10 +108,14 @@ export async function getLeasesScreenData(
       selectOptions.head = true;
     }
 
-    let leasesQuery = supabase
-      .from("leases")
-      .select(leaseSelect, selectOptions)
-      .eq("organization_id", organizationId);
+    let leasesQuery = supabase.rpc(
+      "get_leases_with_effective_rent",
+      {
+        p_effective_date: readinessDate,
+        p_organization_id: organizationId,
+      },
+      selectOptions,
+    );
 
     if (viewQuery.archiveState === "active") {
       leasesQuery = leasesQuery.is("archived_at", null);
@@ -259,6 +268,7 @@ export async function getLeasesScreenData(
         leases: visibleLeases,
         organizationId,
         propertiesById,
+        readinessDate,
         supabase,
         unitsById,
       }),
@@ -310,6 +320,7 @@ export async function getLeasesScreenData(
       leases,
       organizationId,
       propertiesById,
+      readinessDate,
       supabase,
       unitsById,
     }),
@@ -324,12 +335,14 @@ async function enrichLeaseSummaries({
   leases,
   organizationId,
   propertiesById,
+  readinessDate,
   supabase,
   unitsById,
 }: {
   leases: LeaseSummary[];
   organizationId: string;
   propertiesById: Map<string, LeasePropertyRow>;
+  readinessDate: string;
   supabase: SupabaseServerClient;
   unitsById: Map<string, LeaseUnitRow>;
 }) {
@@ -344,30 +357,6 @@ async function enrichLeaseSummaries({
       .filter((unitId): unitId is string => Boolean(unitId)),
   );
   const propertyIds = new Set(leases.map((lease) => lease.propertyId));
-  const rentPolicyResult = await supabase
-    .from("rent_policy_versions")
-    .select("rent_calculation_timezone")
-    .eq("organization_id", organizationId)
-    .eq("lifecycle", "approved")
-    .order("version_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (
-    rentPolicyResult.error &&
-    !isMissingSchemaObjectMessage(rentPolicyResult.error.message, [
-      "rent_policy_versions",
-    ])
-  ) {
-    throw new Error(
-      `Could not load rent policy timezone: ${rentPolicyResult.error.message}`,
-    );
-  }
-
-  const readinessDate = getCalendarDateInTimeZone(
-    new Date(),
-    rentPolicyResult.data?.rent_calculation_timezone ?? "UTC",
-  );
   const [
     partiesResult,
     termsResult,
@@ -577,6 +566,74 @@ export function getCalendarDateInTimeZone(date: Date, timeZone: string) {
     timeZone,
     year: "numeric",
   }).format(date);
+}
+
+export function getEffectiveRentPolicyCalendarDate(
+  policies: readonly RentPolicyCalendarDateRow[],
+  date: Date,
+) {
+  const sortedPolicies = [...policies].sort(
+    (left, right) =>
+      left.effective_from.localeCompare(right.effective_from) ||
+      left.version_number - right.version_number,
+  );
+  let effectivePolicy: RentPolicyCalendarDateRow | undefined;
+
+  for (const policy of sortedPolicies) {
+    // The current policy owns the next effective-date boundary. A future
+    // policy cannot bootstrap itself early by using its own timezone.
+    const boundaryTimeZone =
+      effectivePolicy?.rent_calculation_timezone ?? "UTC";
+    const boundaryDate = getCalendarDateInTimeZone(date, boundaryTimeZone);
+
+    if (policy.effective_from > boundaryDate) {
+      break;
+    }
+
+    effectivePolicy = policy;
+  }
+
+  if (!effectivePolicy) {
+    return getCalendarDateInTimeZone(date, "UTC");
+  }
+
+  const calendarDate = getCalendarDateInTimeZone(
+    date,
+    effectivePolicy.rent_calculation_timezone ?? "UTC",
+  );
+
+  return calendarDate < effectivePolicy.effective_from
+    ? effectivePolicy.effective_from
+    : calendarDate;
+}
+
+export async function loadEffectiveRentPolicyCalendarDate(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  date = new Date(),
+) {
+  const result = await supabase
+    .from("rent_policy_versions")
+    .select(
+      "effective_from, rent_calculation_timezone, version_number",
+    )
+    .eq("organization_id", organizationId)
+    .eq("lifecycle", "approved")
+    .order("effective_from", { ascending: true })
+    .order("version_number", { ascending: true });
+
+  if (
+    result.error &&
+    !isMissingSchemaObjectMessage(result.error.message, [
+      "rent_policy_versions",
+    ])
+  ) {
+    throw new Error(
+      `Could not load effective rent policy timezone: ${result.error.message}`,
+    );
+  }
+
+  return getEffectiveRentPolicyCalendarDate(result.data ?? [], date);
 }
 
 export function getOptionalLeaseBackboneRows<T>(
