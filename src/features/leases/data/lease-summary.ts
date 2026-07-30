@@ -166,19 +166,37 @@ export function buildLeaseSummary({
   const unitLabel = unit
     ? `Unit ${unit.unit_number}${unit.floor ? ` / Floor ${unit.floor}` : ""}`
     : "No unit assigned";
-  const rentAmount = Number(lease.monthly_rent_amount);
-  const rentCurrency = lease.monthly_rent_currency;
+  const resolvedTerm = readiness?.term_id
+    ? (terms.find(
+        (term) =>
+          term.id === readiness.term_id &&
+          !term.archived_at &&
+          term.authority_kind === "authoritative",
+      ) ?? null)
+    : null;
+  const rentAmount = Number(
+    resolvedTerm?.rent_amount ?? lease.monthly_rent_amount,
+  );
+  const rentCurrency =
+    resolvedTerm?.rent_currency ?? lease.monthly_rent_currency;
   const rentUsd = rentAmount;
   const depositAmount =
     lease.deposit_amount === null ? null : Number(lease.deposit_amount);
   const depositCurrency = lease.deposit_currency ?? rentCurrency;
   const hasDeposit = depositAmount !== null;
   const formTerm =
+    resolvedTerm ??
     terms.find(
       (term) =>
         !term.archived_at &&
         term.authority_kind === "authoritative" &&
-        (term.status === "active" || term.status === "upcoming"),
+        term.status === "active",
+    ) ??
+    terms.find(
+      (term) =>
+        !term.archived_at &&
+        term.authority_kind === "authoritative" &&
+        term.status === "upcoming",
     ) ??
     terms.find((term) => !term.archived_at && term.status !== "superseded") ??
     null;

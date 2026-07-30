@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(49);
+SELECT plan(52);
 
 CREATE TEMP TABLE lease_authority_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -658,6 +658,55 @@ SELECT results_eq(
       (SELECT term_id FROM lease_authority_state)
   $$,
   'future rent change creates a linked upcoming authority without deleting history'
+);
+
+SELECT lives_ok(
+  format(
+    'SELECT public.update_lease_with_authoritative_term(%L,%L,%L,%L,%L,current_date + 31,current_date + 690,1250,%L,10,%L,%L,1300,%L,%L,%L)',
+    (SELECT lease_id FROM lease_authority_state),
+    (SELECT organization_id FROM lease_authority_state),
+    (SELECT property_id FROM lease_authority_state),
+    (SELECT unit_id FROM lease_authority_state),
+    (SELECT tenant_id FROM lease_authority_state),
+    'USD',
+    'monthly',
+    'upcoming',
+    'USD',
+    'active',
+    'lease-metadata-with-scheduled-term-0001'
+  ),
+  'metadata can be updated while a future authoritative term is scheduled'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      lease_start_date,
+      lease_end_date,
+      monthly_rent_amount,
+      deposit_amount
+    FROM public.leases
+    WHERE id = (SELECT lease_id FROM lease_authority_state)
+  $$,
+  $$
+    SELECT
+      current_date - 30,
+      current_date + 690,
+      1200.00::numeric,
+      1300.00::numeric
+  $$,
+  'metadata update preserves the current compatibility economics before the scheduled term starts'
+);
+
+SELECT is(
+  (
+    SELECT count(*)
+    FROM public.lease_terms
+    WHERE lease_id = (SELECT lease_id FROM lease_authority_state)
+      AND authority_kind = 'authoritative'
+  ),
+  2::bigint,
+  'metadata update does not duplicate active or scheduled term authority'
 );
 
 SELECT throws_ok(
