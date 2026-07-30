@@ -58,6 +58,7 @@ describe("trusted report PDF export", () => {
     ).toString("latin1");
 
     expect(pdf.startsWith("%PDF-1.4")).toBe(true);
+    expect(pdf).toContain("/MediaBox [0 0 842 595]");
     expect(pdf).toContain("Unit Performance - Demo Org");
     expect(pdf).toContain("P1 / Unit A1");
     expect(pdf).toContain("USD 500.00");
@@ -174,6 +175,40 @@ describe("trusted report PDF export", () => {
     expect(renderedText).not.toContain("TRACEABLE OPERATING REPORT");
   });
 
+  it("renders income reversals with their sign and authoritative totals", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines?.push({
+      amount: -500,
+      category: "Rent",
+      currency: "USD",
+      date: "2026-07-20",
+      description: "Receipt allocation reversal",
+      direction: "income",
+      id: "receipt-allocation-reversal",
+      property: "P1 - Property One",
+      unit: "Unit A1",
+    });
+    report.summary = report.summary.map((metric) => {
+      if (metric.label === "Income") {
+        return { ...metric, sourceCount: 2, value: "USD 0.00" };
+      }
+      if (metric.label === "Net income") {
+        return { ...metric, sourceCount: 3, value: "-USD 120.00" };
+      }
+      return metric;
+    });
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    const renderedText = extractPdfCommandText(pdf);
+
+    expect(renderedText).toContain("-USD 500.00");
+    expect(renderedText).toMatch(
+      /Receipt allocation reversal.*-USD 500\.00.*Income subtotal.*USD 0\.00.*Total income.*USD 0\.00.*Total expenses.*USD 120\.00.*Net income.*-USD 120\.00/,
+    );
+  });
+
   it("renders explicit empty income and expense sections with authoritative totals", () => {
     const noIncomeReport = unitProfitLossReport();
     noIncomeReport.unitProfitLossLines =
@@ -267,6 +302,62 @@ describe("trusted report PDF export", () => {
     expect(renderedText).toContain("Page 2 of");
   });
 
+  it("keeps a section heading with its first row at a page boundary", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines = [
+      ...Array.from({ length: 14 }, (_, index) =>
+        unitProfitLossLine(index + 1, "income", `Income boundary row ${index + 1}`),
+      ),
+      unitProfitLossLine(15, "expense", "First expense boundary row"),
+    ];
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    const pages = extractPdfPageCommandText(pdf);
+    const expensePageIndex = pages.findIndex((page) => page.includes("EXPENSES"));
+
+    expect(expensePageIndex).toBe(1);
+    expect(pages[0]).not.toContain("EXPENSES");
+    expect(pages[expensePageIndex]).toContain("First expense boundary row");
+  });
+
+  it("moves a section subtotal intact when the preceding page is full", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines = Array.from({ length: 16 }, (_, index) =>
+      unitProfitLossLine(index + 1, "income", `Income boundary row ${index + 1}`),
+    );
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    const pages = extractPdfPageCommandText(pdf);
+
+    expect(pages[0]).toContain("Income boundary row 16");
+    expect(pages[0]).not.toContain("Income subtotal");
+    expect(pages[1]).toContain("Income (continued)");
+    expect(pages[1]).toContain("Income subtotal");
+  });
+
+  it("keeps all three final totals together when they cross a page boundary", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines = Array.from({ length: 10 }, (_, index) =>
+      unitProfitLossLine(index + 1, "expense", `Expense totals row ${index + 1}`),
+    );
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    const pages = extractPdfPageCommandText(pdf);
+    const totalsPages = pages.filter((page) => page.includes("Total income"));
+
+    expect(pages[0]).toContain("Expenses subtotal");
+    expect(pages[0]).not.toContain("Total income");
+    expect(totalsPages).toHaveLength(1);
+    expect(totalsPages[0]).toContain("Total expenses");
+    expect(totalsPages[0]).toContain("Net income");
+  });
+
   it("caps an extra-long statement description at two rendered lines", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines![0].description =
@@ -295,6 +386,18 @@ describe("trusted report PDF export", () => {
     );
     expect(renderedText).not.toContain("USD 123,456,789,012,345.00");
     expect(renderedText.match(/\.\.\./g)).toHaveLength(2);
+  });
+
+  it("width-bounds an unbroken wide-glyph category before the amount column", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines![0].category = "W".repeat(60);
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    const renderedText = extractPdfCommandText(pdf);
+
+    expect(renderedText.match(/W+\.\.\./)?.[0]).toBe(`${"W".repeat(12)}...`);
   });
 
   it("keeps all nine owner-facing amounts readable without internal readiness detail", () => {
@@ -590,4 +693,28 @@ function extractPdfCommandText(pdf: string) {
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function extractPdfPageCommandText(pdf: string) {
+  return [...pdf.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)].map(
+    (match) => extractPdfCommandText(match[1]),
+  );
+}
+
+function unitProfitLossLine(
+  index: number,
+  direction: "expense" | "income",
+  description: string,
+): NonNullable<TrustedReport["unitProfitLossLines"]>[number] {
+  return {
+    amount: index,
+    category: direction === "income" ? "Rent" : "Repair",
+    currency: "USD",
+    date: `2026-07-${String(index).padStart(2, "0")}`,
+    description,
+    direction,
+    id: `ledger-boundary-${String(index).padStart(2, "0")}`,
+    property: "P1 - Property One",
+    unit: "Unit A1",
+  };
 }

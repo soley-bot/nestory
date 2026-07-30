@@ -122,6 +122,46 @@ describe("Monthly Unit Profit & Loss", () => {
       "ledger-unassigned",
     );
   });
+
+  it("preserves signed receipt-allocation reversals in detail and authoritative totals", () => {
+    const input = reportInput();
+    input.ledgerEntries.push({
+      amount: -500,
+      category: "rent",
+      currency: "USD",
+      description: "Receipt allocation reversal",
+      direction: "income",
+      id: "receipt-allocation-reversal",
+      property_id: "property-1",
+      transaction_date: "2026-07-20",
+      unit_id: "unit-1",
+    });
+
+    const report = buildTrustedReport(input);
+    const lines = report.unitProfitLossLines ?? [];
+    const incomeDetailTotal = lines
+      .filter(({ direction }) => direction === "income")
+      .reduce((total, line) => total + line.amount, 0);
+
+    expect(lines).toContainEqual({
+      amount: -500,
+      category: "Rent",
+      currency: "USD",
+      date: "2026-07-20",
+      description: "Receipt allocation reversal",
+      direction: "income",
+      id: "receipt-allocation-reversal",
+      property: "P1 - Property One",
+      unit: "Unit A1",
+    });
+    expect(incomeDetailTotal).toBe(0);
+    expect(report.summary.map(({ label, value }) => [label, value])).toEqual([
+      ["Income", "USD 0.00"],
+      ["Expenses", "USD 120.00"],
+      ["Net income", "-USD 120.00"],
+      ["Units", "1"],
+    ]);
+  });
 });
 
 function reportInput(): TrustedReportInput {

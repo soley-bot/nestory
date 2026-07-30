@@ -633,7 +633,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
       const category = normalizeCategory(entry.category);
 
       return {
-        amount: Math.abs(entry.amount),
+        amount: entry.amount,
         category,
         currency: entry.currency,
         date: entry.transaction_date,

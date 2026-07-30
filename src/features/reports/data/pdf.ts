@@ -876,7 +876,12 @@ function drawUnitProfitLossEntryRow(
     formatDate(row.line.date),
     row.line.description,
     row.line.category,
-    formatMoney(Math.abs(row.line.amount), row.line.currency),
+    formatMoney(
+      row.line.direction === "expense"
+        ? Math.abs(row.line.amount)
+        : row.line.amount,
+      row.line.currency,
+    ),
   ];
   const pdfRow: PdfTableRow = {
     cells,
@@ -2150,7 +2155,13 @@ function wrapText(
     return [""];
   }
 
-  const words = sanitizeText(value).split(/\s+/).filter(Boolean);
+  const text = sanitizeText(value);
+
+  if (maxLines <= 1) {
+    return [truncateSingleLineToWidth(text, maxWidth, fontSize)];
+  }
+
+  const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
 
@@ -2187,9 +2198,49 @@ function wrapText(
   }
 
   const trimmed = lines.slice(0, maxLines);
-  trimmed[trimmed.length - 1] = `${trimmed[trimmed.length - 1].replace(/\.*$/, "")}...`;
+  trimmed[trimmed.length - 1] =
+    `${trimmed[trimmed.length - 1].replace(/\.*$/, "")}...`;
 
   return trimmed;
+}
+
+function truncateSingleLineToWidth(
+  value: string,
+  maxWidth: number,
+  fontSize: number,
+) {
+  if (estimateTextWidth(value, fontSize) <= maxWidth) {
+    return value;
+  }
+
+  return ellipsizeTextToWidth(value, maxWidth, fontSize);
+}
+
+function ellipsizeTextToWidth(
+  value: string,
+  maxWidth: number,
+  fontSize: number,
+) {
+  const ellipsis = "...";
+  const text = value.replace(/\.*$/, "");
+
+  if (estimateTextWidth(ellipsis, fontSize) > maxWidth) {
+    return "";
+  }
+
+  let truncated = "";
+
+  for (const char of text) {
+    const candidate = `${truncated}${char}`;
+
+    if (estimateTextWidth(`${candidate}${ellipsis}`, fontSize) > maxWidth) {
+      break;
+    }
+
+    truncated = candidate;
+  }
+
+  return `${truncated}${ellipsis}`;
 }
 
 function estimateTextWidth(value: string, fontSize: number, bold = false) {
