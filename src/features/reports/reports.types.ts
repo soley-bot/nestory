@@ -32,6 +32,12 @@ export type ReportPropertyOption = {
   label: string;
 };
 
+export type ReportUnitOption = {
+  id: string;
+  label: string;
+  propertyId: string;
+};
+
 export type ReportsViewQuery = {
   month: string;
   ownerPersonId: string;
@@ -185,5 +191,6 @@ export type ReportsScreenData = {
   occupancyReport?: OccupancyReport;
   propertyOptions: ReportPropertyOption[];
   trustedReport: TrustedReport;
+  unitOptions: ReportUnitOption[];
   viewQuery: ReportsViewQuery;
 };
