@@ -31,6 +31,12 @@ export async function GET(request: Request) {
     });
   }
   const csv = await getReportCsv(membership.organizationId, viewQuery);
+  if (csv.validation) {
+    return new Response(csv.validation.message, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      status: csv.validation.status,
+    });
+  }
 
   return new Response(csv.body, {
     headers: {

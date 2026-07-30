@@ -226,10 +226,16 @@ describe("trusted report PDF export", () => {
 });
 
 describe("Owner Statement PDF selection", () => {
-  const selectedPropertyId = "52b1ed33-0ac8-4c3d-9d9d-631e9f557014";
-  const selectedOwnerId = "c304facd-1caa-4f98-9d43-cf44f65ac32f";
+  it("returns the authoritative-balance publication block", async () => {
+    const report = ownerStatementReport([ownerStatementReadyRow(1)]);
+    report.exportValidation = {
+      code: "owner_statement_balances_unavailable",
+      message:
+        "Owner Statement export is unavailable until opening and closing owner balances are authoritative.",
+      status: 409,
+    };
+    vi.mocked(getTrustedReport).mockResolvedValue(report);
 
-  it("rejects portfolio PDF before loading the readiness report", async () => {
     const result = await getReportPdf("organization-1", "Demo Org", {
       month: "2026-07",
       ownerPersonId: "all",
@@ -243,81 +249,9 @@ describe("Owner Statement PDF selection", () => {
 
     expect(result).toEqual({
       validation: {
-        message: "Select one property before generating an Owner Statement PDF.",
-        status: 400,
-      },
-    });
-    expect(getTrustedReport).not.toHaveBeenCalled();
-  });
-
-  it("infers one ready recipient and emits only that owner document", async () => {
-    const report = ownerStatementReport([
-      {
-        ...ownerStatementReadyRow(1),
-        ownerPersonId: selectedOwnerId,
-        propertyId: selectedPropertyId,
-      },
-    ]);
-    report.title = "Owner Statement readiness";
-    vi.mocked(getTrustedReport).mockResolvedValue(report);
-
-    const result = await getReportPdf("organization-1", "Demo Org", {
-      month: "2026-07",
-      ownerPersonId: "all",
-      peopleArchiveState: "active",
-      peopleView: "relationship",
-      propertyId: selectedPropertyId,
-      report: "owner-statement",
-      status: "all",
-      unitId: "all",
-    });
-
-    expect("validation" in result).toBe(false);
-    if ("validation" in result) return;
-    const pdf = Buffer.from(result.body).toString("latin1");
-    expect(pdf).toContain("Owner 1");
-    expect(pdf).toContain("USD 600.00");
-    expect(pdf).not.toContain("Ready with warning");
-    expect(pdf).not.toContain("9 evidence lines");
-    expect(result.filename).toContain("owner-statement-2026-07");
-  });
-
-  it("returns 409 without rendering money for a blocked property", async () => {
-    vi.mocked(getTrustedReport).mockResolvedValue(
-      ownerStatementReport([
-        {
-          cells: {
-            notes: "No effective owner on 1 Jul 2026",
-            owner: "Blocked",
-            property: "P1 - Property 1",
-            readiness: "Blocked",
-          },
-          id: "blocked-property",
-          propertyId: selectedPropertyId,
-          sourceCount: 1,
-          sourceLinks: [],
-          sourceSummary: "1 evidence line",
-          title: "Blocked property",
-          tone: "danger",
-        },
-      ]),
-    );
-
-    const result = await getReportPdf("organization-1", "Demo Org", {
-      month: "2026-07",
-      ownerPersonId: "all",
-      peopleArchiveState: "active",
-      peopleView: "relationship",
-      propertyId: selectedPropertyId,
-      report: "owner-statement",
-      status: "all",
-      unitId: "all",
-    });
-
-    expect(result).toEqual({
-      validation: {
+        code: "owner_statement_balances_unavailable",
         message:
-          "This Owner Statement is not ready. Resolve the property blockers before generating it.",
+          "Owner Statement export is unavailable until opening and closing owner balances are authoritative.",
         status: 409,
       },
     });

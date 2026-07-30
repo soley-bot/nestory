@@ -6,7 +6,7 @@
 
 **Architecture:** Keep the existing `TrustedReport` data boundary and import staging/RPC boundary. Narrow report routing and presentation at the type/catalog layer, add a focused management-fee loader over authoritative receipt allocations, add a real XLSX exporter, and expose one compact report workspace. Keep import mapping, validation, staging, partial success, cleanup facts, and history, but progressively disclose them behind one primary import action.
 
-**Tech Stack:** Next.js 16.2.9 App Router, React 19, TypeScript, Supabase, Vitest/Testing Library, ExcelJS 4.4, Playwright.
+**Tech Stack:** Next.js 16.2.9 App Router, React 19, TypeScript, Supabase, Vitest/Testing Library, standards-based OOXML packaged with fflate 0.8, Playwright.
 
 ---
 
@@ -158,15 +158,15 @@ git commit -m "feat: add trusted management fee statement"
 - Modify: `src/features/reports/data/report-format.ts`
 - Modify: `src/features/reports/data/report-format.test.ts`
 
-**Step 1: Install and lock ExcelJS**
+**Step 1: Install and lock the minimal ZIP dependency**
 
 Run:
 
 ```powershell
-npm install exceljs@4.4.0
+npm install fflate@0.8.2
 ```
 
-Expected: `exceljs` is added to dependencies and the lockfile is updated.
+Expected: `fflate` is added to dependencies and the lockfile is updated without increasing the inherited audit count. ExcelJS was evaluated and rejected because its production dependency chain added high-severity audit findings.
 
 **Step 2: Write failing exporter and route tests**
 

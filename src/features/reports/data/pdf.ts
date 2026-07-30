@@ -1,8 +1,5 @@
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
-import {
-  OWNER_STATEMENT_PROPERTY_REQUIRED_MESSAGE,
-  selectOwnerStatementRecipient,
-} from "@/features/reports/data/owner-statement-report";
+import { selectOwnerStatementRecipient } from "@/features/reports/data/owner-statement-report";
 import {
   formatLongReportDate,
   getReportExportFilename,
@@ -163,22 +160,13 @@ export async function getReportPdf(
   organizationName: string,
   viewQuery: ReportsViewQuery,
 ): Promise<PdfExport | PdfExportValidation> {
-  if (
-    viewQuery.report === "owner-statement" &&
-    viewQuery.propertyId === "all"
-  ) {
-    return {
-      validation: {
-        message: OWNER_STATEMENT_PROPERTY_REQUIRED_MESSAGE,
-        status: 400,
-      },
-    };
-  }
-
   const readinessReport = await getTrustedReport({
     organizationId,
     viewQuery,
   });
+  if (readinessReport.exportValidation) {
+    return { validation: readinessReport.exportValidation };
+  }
   let report = readinessReport;
 
   if (readinessReport.kind === "owner-statement") {

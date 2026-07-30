@@ -1,5 +1,6 @@
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
 import type {
+  ReportExportValidation,
   ReportsViewQuery,
   TrustedReport,
   TrustedReportRow,
@@ -9,11 +10,18 @@ import { getReportExportFilename } from "@/features/reports/data/report-format";
 export async function getReportCsv(
   organizationId: string,
   viewQuery: ReportsViewQuery,
-) {
+): Promise<
+  | { body: string; filename: string; validation?: never }
+  | { body?: never; filename?: never; validation: ReportExportValidation }
+> {
   const report = await getTrustedReport({
     organizationId,
     viewQuery,
   });
+
+  if (report.exportValidation) {
+    return { validation: report.exportValidation };
+  }
 
   return {
     body: buildTrustedReportCsv(report),

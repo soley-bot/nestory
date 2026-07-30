@@ -145,6 +145,10 @@ export type TrustedReport = {
   totalRowCount?: number;
 };
 
+export type ReportExportValidation = NonNullable<
+  TrustedReport["exportValidation"]
+>;
+
 export type OccupancyReportRow = {
   floorLabel: string;
   id: string;
