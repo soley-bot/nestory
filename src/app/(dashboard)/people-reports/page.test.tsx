@@ -11,13 +11,13 @@ vi.mock("next/navigation", () => ({ redirect }));
 import PeopleReportsPage from "@/app/(dashboard)/people-reports/page";
 
 describe("PeopleReportsPage compatibility redirect", () => {
-  it("redirects old bookmarks to central People Readiness", async () => {
+  it("redirects old bookmarks to the People workspace", async () => {
     await expect(
       PeopleReportsPage({ searchParams: Promise.resolve({}) }),
-    ).rejects.toThrow("REDIRECT:/reports/people-readiness");
+    ).rejects.toThrow("REDIRECT:/people");
   });
 
-  it("maps the old report variant and archive intent to bounded central filters", async () => {
+  it("discards retired report filters instead of exposing the old report surface", async () => {
     await expect(
       PeopleReportsPage({
         searchParams: Promise.resolve({
@@ -25,8 +25,6 @@ describe("PeopleReportsPage compatibility redirect", () => {
           report: "staff-access",
         }),
       }),
-    ).rejects.toThrow(
-      "REDIRECT:/reports/people-readiness?peopleView=staff&archiveState=archived",
-    );
+    ).rejects.toThrow("REDIRECT:/people");
   });
 });

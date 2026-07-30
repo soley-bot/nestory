@@ -7,11 +7,8 @@ import {
   Archive,
   ArrowRight,
   CalendarDays,
-  Download,
-  ExternalLink,
   FileText,
   Image as ImageIcon,
-  Landmark,
   Pencil,
   RotateCcw,
   ScrollText,
@@ -31,11 +28,6 @@ import {
 import { PersonForm } from "@/features/people/components/person-form";
 import { WorkspaceAccessStatus } from "@/features/people/components/workspace-access-status";
 import { formatRole } from "@/features/people/people.labels";
-import {
-  getPeopleReadinessExportHref,
-  peopleReportOptions,
-  type PeopleReportKind,
-} from "@/features/people/people.insights";
 import type {
   PeopleBadgeTone,
   PeopleLeaseLink,
@@ -55,7 +47,6 @@ type PersonRecordSection =
   | "links"
   | "photos"
   | "documents"
-  | "reports"
   | "timeline";
 
 const personRecordSections: Array<{
@@ -66,16 +57,7 @@ const personRecordSections: Array<{
   { id: "links", label: "Links" },
   { id: "photos", label: "Photos" },
   { id: "documents", label: "Documents" },
-  { id: "reports", label: "Reports" },
   { id: "timeline", label: "Timeline" },
-];
-
-const personReportKinds: PeopleReportKind[] = [
-  "relationship-readiness",
-  "tenant-readiness",
-  "owner-readiness",
-  "vendor-activity",
-  "staff-access",
 ];
 
 export function PersonDetailScreen({
@@ -400,54 +382,6 @@ export function PersonDetailScreen({
                   ))}
                 </div>
               )}
-            </section>
-
-            <section
-              aria-labelledby="person-tab-reports"
-              className={cn(
-                "rounded-md border border-border bg-surface",
-                activeSection !== "reports" && "hidden",
-              )}
-              id="person-reports"
-              role="tabpanel"
-            >
-              <SectionTitle
-                description="People-domain report packets"
-                icon={<Landmark size={16} />}
-                title="Reports"
-              />
-              <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-                {peopleReportOptions
-                  .filter((report) => personReportKinds.includes(report.kind))
-                  .map((report) => (
-                    <article
-                      className="flex min-h-[160px] flex-col rounded-md border border-border bg-surface-muted/40 p-3"
-                      key={report.kind}
-                    >
-                      <h3 className="text-sm font-semibold">{report.title}</h3>
-                      <p className="mt-1 line-clamp-3 text-[13px] leading-5 text-muted">
-                        {report.description}
-                      </p>
-                      <div className="mt-auto grid grid-cols-3 gap-2 pt-4">
-                        <ReportLink href={report.href} label="Preview">
-                          <ExternalLink size={14} />
-                        </ReportLink>
-                        <ReportLink
-                          href={getPeopleReadinessExportHref(report.kind, "csv")}
-                          label="CSV"
-                        >
-                          <Download size={14} />
-                        </ReportLink>
-                        <ReportLink
-                          href={getPeopleReadinessExportHref(report.kind, "pdf")}
-                          label="PDF"
-                        >
-                          <Download size={14} />
-                        </ReportLink>
-                      </div>
-                    </article>
-                  ))}
-              </div>
             </section>
 
             <section
@@ -816,27 +750,6 @@ function ActionLink({
     >
       {icon}
       <span className="truncate">{children}</span>
-    </Link>
-  );
-}
-
-function ReportLink({
-  children,
-  href,
-  label,
-}: {
-  children: ReactNode;
-  href: string;
-  label: string;
-}) {
-  return (
-    <Link
-      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-[13px] font-medium transition-colors hover:bg-surface-muted"
-      href={href}
-      prefetch={false}
-    >
-      {children}
-      <span className="truncate">{label}</span>
     </Link>
   );
 }

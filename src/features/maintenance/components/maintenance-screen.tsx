@@ -86,7 +86,6 @@ import {
   buildMaintenanceCasesViewHref,
   buildMaintenanceSavedViewHref,
   buildMaintenanceTabHref,
-  getMaintenanceReportHref,
 } from "@/features/maintenance/maintenance.hrefs";
 import type {
   MaintenanceBadgeTone,
@@ -188,7 +187,6 @@ type MaintenanceScreenProps = {
   propertyOptions: MaintenancePropertyOption[];
   recordLabel?: string;
   reminders?: MaintenanceReminderNotification[];
-  showReportAction?: boolean;
   showFilters?: boolean;
   showCaseViewTabs?: boolean;
   showReviewTabs?: boolean;
@@ -217,7 +215,6 @@ export function MaintenanceScreen({
   propertyOptions,
   recordLabel = "maintenance case",
   reminders = [],
-  showReportAction = true,
   showFilters = true,
   showCaseViewTabs = false,
   showReviewTabs = true,
@@ -522,12 +519,6 @@ export function MaintenanceScreen({
     <WorkspacePage
       actions={
         <>
-              {showReportAction ? (
-                <LinkButton href={getMaintenanceReportHref(viewQuery)}>
-                  <FileText size={15} />
-                  Make report
-                </LinkButton>
-              ) : null}
               {capabilities.canCreateCase ? (
                 <Button onClick={openCreateCase} variant="primary">
                   <Plus size={15} />

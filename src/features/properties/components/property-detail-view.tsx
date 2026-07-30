@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import {
   Building2,
   CalendarDays,
-  Download,
   ExternalLink,
   FileText,
   Landmark,
@@ -29,7 +28,11 @@ import type {
   PropertyTimelineContext,
 } from "@/features/properties/data/property-detail";
 import type { RecentChange } from "@/features/activity/activity.types";
-import type { ReportKind } from "@/features/reports/reports.types";
+import {
+  buildReportBuilderHref,
+  reportCatalog,
+  type CurrentReportKind,
+} from "@/features/reports/report-catalog";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
@@ -57,62 +60,6 @@ const propertyRecordSections: Array<{
   { id: "documents", label: "Documents" },
   { id: "reports", label: "Reports" },
   { id: "timeline", label: "Timeline" },
-];
-
-const propertyReportTemplates: Array<{
-  description: string;
-  kind: ReportKind;
-  sources: string;
-  title: string;
-}> = [
-  {
-    description: "Unit status, tenants, lease dates, current rent, and evidence count.",
-    kind: "rent-roll",
-    sources: "Units / leases / documents",
-    title: "Rent roll",
-  },
-  {
-    description: "Income, expenses, NOI, maintenance spend, and missing-record risks.",
-    kind: "property-performance",
-    sources: "Ledger / units / timeline",
-    title: "Property performance",
-  },
-  {
-    description: "Owner-ready income, expense, and net position for the selected period.",
-    kind: "owner-statement",
-    sources: "Ledger / owners",
-    title: "Owner statement",
-  },
-  {
-    description: "Category-level income and expense rows for finance review.",
-    kind: "income-expense",
-    sources: "Ledger / units",
-    title: "Income and expense",
-  },
-  {
-    description: "Repair cost, estimates, completion state, priority, and source records.",
-    kind: "maintenance-cost",
-    sources: "Maintenance / ledger / timeline",
-    title: "Maintenance cost",
-  },
-  {
-    description: "Vacancy, missing lease/rent evidence, and leasing follow-up risk.",
-    kind: "vacancy-risk",
-    sources: "Units / leases / documents",
-    title: "Vacancy and risk",
-  },
-  {
-    description: "Lease expirations by unit so renewal work does not surprise the team.",
-    kind: "lease-expiry",
-    sources: "Leases / units",
-    title: "Lease expiry",
-  },
-  {
-    description: "Missing owners, leases, rent, and document evidence to clean up.",
-    kind: "missing-data",
-    sources: "Property record quality",
-    title: "Missing data",
-  },
 ];
 
 export function PropertyDetailView({ property }: { property: PropertyDetail }) {
@@ -509,147 +456,48 @@ function PropertyReportsPanel({
   return (
     <>
       <SectionTitle
-        description="Property-scoped CSV and PDF exports"
+        description="The three monthly statements required by the Nestory reporting brief"
         icon={<FileText size={16} />}
         title="Reports"
       />
-      <div className="space-y-4 p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-          <div className="min-w-0">
-            <h3 className="text-base font-semibold">Report workspace</h3>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
-              Build owner packets, finance reviews, leasing checks, maintenance
-              summaries, and cleanup queues from the same traceable records used
-              across this property.
-            </p>
-            <div className="mt-3 grid gap-2 text-[12px] text-muted sm:grid-cols-3">
-              <ReportMetaPill label="Scope" value={property.code} />
-              <ReportMetaPill label="Period" value={reportMonth} />
-              <ReportMetaPill
-                label="Sources"
-                value={`${property.totalUnitCount} units / ${property.counts.ledgerEntries} ledger`}
-              />
-            </div>
-          </div>
-          <ActionLink
-            href={buildPropertyReportHref(property.id, "rent-roll", reportMonth)}
-            icon={<ExternalLink size={14} />}
-            strong
+      <div className="grid gap-2 p-4 md:grid-cols-3">
+        {reportCatalog.map((statement) => (
+          <Link
+            className="group flex min-h-32 flex-col rounded-md border border-border bg-surface p-3 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+            href={buildPropertyStatementHref(
+              property.id,
+              statement.kind,
+              reportMonth,
+            )}
+            key={statement.kind}
+            prefetch={false}
           >
-            Open builder
-          </ActionLink>
-        </div>
-
-        <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-          {propertyReportTemplates.map((template) => (
-            <ReportTemplateCard
-              key={template.kind}
-              propertyId={property.id}
-              reportMonth={reportMonth}
-              template={template}
-            />
-          ))}
-        </div>
+            <h3 className="text-sm font-semibold">{statement.title}</h3>
+            <p className="mt-1 text-[13px] leading-5 text-muted">
+              {statement.description}
+            </p>
+            <span className="mt-auto inline-flex items-center gap-1.5 pt-3 text-xs font-medium text-foreground">
+              Open statement
+              <ExternalLink aria-hidden="true" size={13} />
+            </span>
+          </Link>
+        ))}
       </div>
     </>
   );
 }
 
-function ReportTemplateCard({
-  propertyId,
-  reportMonth,
-  template,
-}: {
-  propertyId: string;
-  reportMonth: string;
-  template: (typeof propertyReportTemplates)[number];
-}) {
-  return (
-    <div className="flex min-h-[176px] flex-col justify-between rounded-md border border-border bg-surface-muted/60 p-3">
-      <div className="min-w-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="break-words text-sm font-semibold">{template.title}</h3>
-            <p className="mt-1 text-xs font-medium uppercase tracking-[0.06em] text-muted">
-              {template.sources}
-            </p>
-          </div>
-          <FileText className="shrink-0 text-muted" size={15} />
-        </div>
-        <p className="mt-3 text-sm leading-5 text-muted">{template.description}</p>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <ActionLink
-          href={buildPropertyReportHref(propertyId, template.kind, reportMonth)}
-          icon={<ExternalLink size={14} />}
-        >
-          Preview
-        </ActionLink>
-        <ActionLink
-          href={buildPropertyReportExportHref(propertyId, template.kind, reportMonth)}
-          icon={<Download size={14} />}
-        >
-          CSV
-        </ActionLink>
-        <ActionLink
-          href={buildPropertyReportPdfHref(propertyId, template.kind, reportMonth)}
-          icon={<Download size={14} />}
-        >
-          PDF
-        </ActionLink>
-      </div>
-    </div>
-  );
-}
-
-function ReportMetaPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-md border border-border bg-surface px-2.5 py-2">
-      <p className="font-medium uppercase tracking-[0.06em]">{label}</p>
-      <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function buildPropertyReportHref(
+export function buildPropertyStatementHref(
   propertyId: string,
-  report: ReportKind,
-  month: string,
-) {
-  return buildPropertyReportUrl("/reports", propertyId, report, month);
-}
-
-function buildPropertyReportExportHref(
-  propertyId: string,
-  report: ReportKind,
-  month: string,
-) {
-  return buildPropertyReportUrl("/api/reports/export", propertyId, report, month);
-}
-
-function buildPropertyReportPdfHref(
-  propertyId: string,
-  report: ReportKind,
-  month: string,
-) {
-  return buildPropertyReportUrl("/api/reports/pdf", propertyId, report, month);
-}
-
-function buildPropertyReportUrl(
-  pathname: string,
-  propertyId: string,
-  report: ReportKind,
-  month: string,
+  report: CurrentReportKind,
+  reportMonth: string,
 ) {
   const params = new URLSearchParams({
-    month,
+    month: reportMonth,
     propertyId,
-    report,
   });
 
-  return `${pathname}?${params.toString()}`;
+  return buildReportBuilderHref(report, params);
 }
 
 function ActionLink({

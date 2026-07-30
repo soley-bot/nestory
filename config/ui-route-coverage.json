@@ -1885,7 +1885,7 @@
       ]
     },
     "smoke": {
-      "path": "/reports/rent-roll?month=2026-07",
+      "path": "/reports/unit-profit-loss?month=2026-07",
       "expectedAccess": {
         "admin": "accessible",
         "manager": "permission-blocked",
@@ -1921,12 +1921,12 @@
         "member": "permission-blocked",
         "anonymous": "login-required"
       },
-      "queryContract": "redirect-preserved",
+      "queryContract": "redirect-normalized",
       "workflowEvidence": [
         "src/app/(dashboard)/people-reports/page.test.tsx"
       ],
       "limitations": [],
-      "expectedFinalPath": "/reports/people-readiness?peopleView=staff&archiveState=archived"
+      "expectedFinalPath": "/people"
     }
   },
   {

@@ -78,35 +78,35 @@ export const peopleReportOptions: Array<{
   {
     description:
       "Directory quality, role assignment, contact readiness, evidence, and next actions.",
-    href: "/reports/people-readiness",
+    href: "/people",
     kind: "relationship-readiness",
     title: "Relationship Readiness",
   },
   {
     description:
       "Tenants with contact, active lease links, evidence, and renewal follow-up context.",
-    href: "/reports/people-readiness?peopleView=tenant",
+    href: "/tenants",
     kind: "tenant-readiness",
     title: "Tenant Readiness",
   },
   {
     description:
       "Owners with property links, communication readiness, evidence, and report preparation cues.",
-    href: "/reports/people-readiness?peopleView=owner",
+    href: "/owners",
     kind: "owner-readiness",
     title: "Owner Readiness",
   },
   {
     description:
       "Vendor profiles, preferred status, service coverage, evidence, and maintenance linkage cues.",
-    href: "/reports/people-readiness?peopleView=vendor",
+    href: "/vendors",
     kind: "vendor-activity",
     title: "Vendor Activity",
   },
   {
     description:
       "Staff directory readiness and access-management follow-up for operating teams.",
-    href: "/reports/people-readiness?peopleView=staff",
+    href: "/staff",
     kind: "staff-access",
     title: "Staff Access",
   },
@@ -171,7 +171,7 @@ export function buildPeopleInsightsFromCounts({
       {
         count: missingContactCount,
         description: "People records without a usable email or phone.",
-        href: "/reports/people-readiness?peopleView=relationship",
+        href: "/people",
         id: "missing-contact",
         label: "Missing contact",
         tone: missingContactCount > 0 ? "warning" : "success",
@@ -179,7 +179,7 @@ export function buildPeopleInsightsFromCounts({
       {
         count: missingRoleCount,
         description: "Records that cannot drive workflows until a role is set.",
-        href: "/reports/people-readiness?peopleView=relationship",
+        href: "/people",
         id: "missing-role",
         label: "No role",
         tone: missingRoleCount > 0 ? "warning" : "success",
@@ -187,7 +187,7 @@ export function buildPeopleInsightsFromCounts({
       {
         count: missingEvidenceCount,
         description: "Records without linked documents or evidence.",
-        href: "/reports/people-readiness?peopleView=relationship",
+        href: "/people",
         id: "missing-evidence",
         label: "Evidence gaps",
         tone: missingEvidenceCount > 0 ? "warning" : "success",
@@ -387,21 +387,6 @@ export function parsePeopleReportKind(value: string | null): PeopleReportKind {
     : "relationship-readiness";
 }
 
-export function getPeopleReadinessExportHref(
-  kind: PeopleReportKind,
-  format: "csv" | "pdf",
-  archiveState: "active" | "archived" | "all" = "active",
-) {
-  const endpoint = format === "csv" ? "/api/reports/export" : "/api/reports/pdf";
-  const params = new URLSearchParams({
-    archiveState,
-    peopleView: getPeopleView(kind),
-    report: "people-readiness",
-  });
-
-  return `${endpoint}?${params.toString()}`;
-}
-
 function getPeopleForReport(people: PeopleSummary[], kind: PeopleReportKind) {
   if (kind === "tenant-readiness") {
     return people.filter((person) => hasActiveRole(person, "tenant"));
@@ -502,14 +487,6 @@ function getReportRowTone(
 
 function getPrimaryPersonHref(person: PeopleSummary) {
   return person.hrefs.people;
-}
-
-function getPeopleView(kind: PeopleReportKind) {
-  if (kind === "tenant-readiness") return "tenant";
-  if (kind === "owner-readiness") return "owner";
-  if (kind === "vendor-activity") return "vendor";
-  if (kind === "staff-access") return "staff";
-  return "relationship";
 }
 
 function getReadinessLabel(

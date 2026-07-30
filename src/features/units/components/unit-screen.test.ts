@@ -69,14 +69,14 @@ afterEach(() => {
 });
 
 describe("unit screen report links", () => {
-  it("opens vacancy review units in the vacancy/risk report", () => {
+  it("opens vacancy review in the filtered Units workspace", () => {
     expect(getVacantUnitsReportHref("all")).toBe(
-      "/reports/vacancy-risk?status=vacant",
+      "/units?occupancy=unoccupied",
     );
     expect(
       getVacantUnitsReportHref("8b3a08d2-0898-4de3-9495-994eaf7a08dc"),
     ).toBe(
-      "/reports/vacancy-risk?status=vacant&propertyId=8b3a08d2-0898-4de3-9495-994eaf7a08dc",
+      "/units?occupancy=unoccupied&propertyId=8b3a08d2-0898-4de3-9495-994eaf7a08dc",
     );
   });
 });

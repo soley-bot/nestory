@@ -53,7 +53,6 @@ export default async function MaintenancePage({
       recordLabel="case"
       staffOptions={data.staffOptions}
       showCaseViewTabs
-      showReportAction={context.role === "admin"}
       showReviewTabs={routeConfig.showReviewTabs}
       showScopeSummary={routeConfig.showScopeSummary}
       summary={data.summary}

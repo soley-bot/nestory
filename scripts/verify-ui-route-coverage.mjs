@@ -75,6 +75,7 @@ const manifestIssues = manifest.flatMap((entry) => {
   const allowedQueryContracts = new Set([
     "not-applicable",
     "preserved",
+    "redirect-normalized",
     "redirect-preserved",
   ]);
   const expectedRoles = ["admin", "anonymous", "manager", "member"];
