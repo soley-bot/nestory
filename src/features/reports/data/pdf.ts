@@ -884,12 +884,14 @@ function drawUnitProfitLossEntryRow(
     height: row.height,
     index,
     lineHeight: 11,
-    lines: [
-      [cells[0]],
-      wrapText(row.line.description, 249, 8.6, 2),
-      [cells[2]],
-      [cells[3]],
-    ],
+    lines: unitStatementColumns.map((column, cellIndex) =>
+      wrapText(
+        cells[cellIndex] ?? "",
+        column.width - cellPaddingX * 2,
+        8.6,
+        column.maxLines ?? 1,
+      ),
+    ),
   };
 
   drawUnitProfitLossTableRow(commands, pdfRow, y);

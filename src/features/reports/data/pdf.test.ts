@@ -279,6 +279,24 @@ describe("trusted report PDF export", () => {
     expect(extractPdfCommandText(pdf)).toContain("...");
   });
 
+  it("bounds long category and amount cells to one line", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines![0].category =
+      "Emergency plumbing restoration and replacement";
+    report.unitProfitLossLines![0].amount = 123_456_789_012_345;
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    const renderedText = extractPdfCommandText(pdf);
+
+    expect(renderedText).not.toContain(
+      "Emergency plumbing restoration and replacement",
+    );
+    expect(renderedText).not.toContain("USD 123,456,789,012,345.00");
+    expect(renderedText.match(/\.\.\./g)).toHaveLength(2);
+  });
+
   it("keeps all nine owner-facing amounts readable without internal readiness detail", () => {
     const amounts = [
       "USD 100.00",
