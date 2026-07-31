@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(32);
+SELECT plan(33);
 
 CREATE OR REPLACE FUNCTION pg_temp.capture_error(p_sql text)
 RETURNS jsonb
@@ -518,6 +518,30 @@ UPDATE public.import_runs
 SET status = 'committing'
 WHERE id = 'f7100000-0000-4000-8000-000000000020';
 ALTER TABLE public.import_runs ENABLE TRIGGER USER;
+
+SELECT is(
+  jsonb_build_object(
+    'sqlstate', probe.error ->> 'sqlstate',
+    'message', probe.error ->> 'message'
+  ),
+  jsonb_build_object(
+    'sqlstate', '23514',
+    'message', 'Checked Lease import run summary is incomplete'
+  ),
+  'checked run finish rejects a missing summary status as incomplete'
+)
+FROM (
+  SELECT pg_temp.capture_error(
+      $sql$
+        SELECT app_private.apply_checked_lease_import_run_transition(
+          'f7100000-0000-4000-8000-000000000020',
+          'f7100000-0000-4000-8000-000000000001',
+          'finish',
+          '{"created":0,"failed":0,"skipped":1}'::jsonb
+        )
+      $sql$
+    ) AS error
+) AS probe;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config(

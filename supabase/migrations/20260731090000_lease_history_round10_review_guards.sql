@@ -1540,6 +1540,7 @@ BEGIN
     IF v_created IS NULL
       OR v_failed IS NULL
       OR v_skipped IS NULL
+      OR v_status IS NULL
       OR v_status NOT IN (
         'committed',
         'committed_with_errors',
