@@ -1027,27 +1027,31 @@ SELECT set_config(
 );
 SET LOCAL ROLE authenticated;
 
-SELECT lives_ok(
-  format(
-    'SELECT public.terminate_authoritative_lease_term(%L,%L,%L,current_date,%L)',
-    (SELECT organization_id FROM lease_history_guard_state),
-    (SELECT checked_lease_id FROM lease_history_guard_state),
-    (
-      SELECT terms.id
-      FROM public.lease_terms AS terms
-      WHERE terms.organization_id =
-        (SELECT organization_id FROM lease_history_guard_state)
-        AND terms.lease_id =
-          (SELECT checked_lease_id FROM lease_history_guard_state)
-        AND terms.authority_kind = 'authoritative'
-        AND terms.archived_at IS NULL
-        AND terms.status = 'active'
-      ORDER BY terms.term_sequence DESC
-      LIMIT 1
-    ),
-    'tb01-checked-termination'
+SELECT is(
+  (
+    SELECT pg_temp.capture_error(
+      format(
+        'SELECT public.terminate_authoritative_lease_term(%L,%L,%L,current_date,%L)',
+        organization_id,
+        checked_lease_id,
+        (
+          SELECT terms.id
+          FROM public.lease_terms AS terms
+          WHERE terms.organization_id = state.organization_id
+            AND terms.lease_id = state.checked_lease_id
+            AND terms.authority_kind = 'authoritative'
+            AND terms.archived_at IS NULL
+            AND terms.status = 'active'
+          ORDER BY terms.term_sequence DESC
+          LIMIT 1
+        ),
+        'tb01-checked-termination'
+      )
+    ) ->> 'detail'
+    FROM lease_history_guard_state AS state
   ),
-  'checked Plan 04 term termination remains available'
+  'relationship_transition_required',
+  'Plan 04 termination stays fail-closed until TB-03 owns the transition'
 );
 
 SELECT is(
@@ -1057,8 +1061,8 @@ SELECT is(
     WHERE leases.id =
       (SELECT checked_lease_id FROM lease_history_guard_state)
   ),
-  'terminated',
-  'checked Plan 04 termination projects the Lease header status'
+  'active',
+  'rejected Plan 04 termination preserves the Lease header status'
 );
 
 SELECT is(
@@ -1079,7 +1083,7 @@ SELECT is(
     'started_on', NULL,
     'ended_on', NULL
   ),
-  'checked Plan 04 termination preserves exact unknown party history'
+  'rejected Plan 04 termination preserves exact unknown party history'
 );
 
 SELECT is(
@@ -1106,7 +1110,7 @@ SELECT is(
     'scheduled_move_out_date', NULL,
     'actual_move_out_date', NULL
   ),
-  'checked Plan 04 termination does not rewrite occupancy history'
+  'rejected Plan 04 termination does not rewrite occupancy history'
 );
 
 SELECT is(

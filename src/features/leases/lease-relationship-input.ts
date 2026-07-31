@@ -42,7 +42,11 @@ type NewLeaseRelationshipPayload = {
   };
   participants: Array<{
     endedOn: BoundaryEvidence;
-    lifecycle: "cancelled_before_effective" | "planned";
+    lifecycle:
+      | "cancelled_before_effective"
+      | "ended"
+      | "planned"
+      | "present";
     personId: string;
     reason: "new_lease_relationship_composition";
     recordSource: NewLeaseRelationshipInput["recordSource"];
@@ -76,10 +80,7 @@ export function buildPlannedLeaseRelationshipPayload(
       ? [
           {
             endedOn: boundary(input.participantEndDate),
-            lifecycle:
-              input.leaseStatus === "cancelled"
-                ? ("cancelled_before_effective" as const)
-                : ("planned" as const),
+            lifecycle: participantLifecycle(input.leaseStatus),
             personId: input.tenantPersonId,
             reason: "new_lease_relationship_composition" as const,
             recordSource: input.recordSource,
@@ -135,6 +136,23 @@ function partyLifecycle(
     case "active":
     case "notice_given":
       return "effective";
+    case "cancelled":
+      return "cancelled_before_effective";
+    case "ended":
+    case "terminated":
+      return "ended";
+    default:
+      return "planned";
+  }
+}
+
+function participantLifecycle(
+  status: NewLeaseRelationshipInput["leaseStatus"],
+): NewLeaseRelationshipPayload["participants"][number]["lifecycle"] {
+  switch (status) {
+    case "active":
+    case "notice_given":
+      return "present";
     case "cancelled":
       return "cancelled_before_effective";
     case "ended":

@@ -155,4 +155,42 @@ describe("new Lease relationship payload", () => {
       },
     });
   });
+
+  it.each([
+    ["draft", "planned"],
+    ["active", "present"],
+    ["notice_given", "present"],
+    ["ended", "ended"],
+    ["terminated", "ended"],
+    ["cancelled", "cancelled_before_effective"],
+  ] as const)(
+    "maps explicit %s participant evidence to %s",
+    (leaseStatus, participantLifecycle) => {
+      expect(
+        buildPlannedLeaseRelationshipPayload({
+          leaseStatus,
+          participantEndDate: "2027-05-31",
+          participantStartDate: "2027-05-02",
+          recordSource: "operator_confirmed",
+          tenantPersonId,
+        }),
+      ).toMatchObject({
+        participants: [
+          {
+            endedOn: {
+              confidence: "confirmed",
+              date: "2027-05-31",
+              kind: "known",
+            },
+            lifecycle: participantLifecycle,
+            startedOn: {
+              confidence: "confirmed",
+              date: "2027-05-02",
+              kind: "known",
+            },
+          },
+        ],
+      });
+    },
+  );
 });
