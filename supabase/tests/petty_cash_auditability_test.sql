@@ -348,9 +348,14 @@ SELECT throws_ok(
   'archived counterparty is rejected'
 );
 
-UPDATE public.people
-SET archived_at = NULL
-WHERE id = '80200000-0000-0000-0000-000000000008';
+DO $$
+BEGIN
+  PERFORM public.restore_person(
+    '00000000-0000-0000-0000-000000000001',
+    '80200000-0000-0000-0000-000000000008'
+  );
+END;
+$$;
 
 SELECT lives_ok(
   $$SELECT public.create_petty_cash_entry(

@@ -74,6 +74,24 @@ export function evaluateCreateAgainstArchivedPerson(result) {
   };
 }
 
+export function assertActiveTenantRoleFixture({
+  archived,
+  role,
+  status,
+}) {
+  if (
+    role !== "tenant" ||
+    status !== "active" ||
+    archived !== false
+  ) {
+    throw new Error(
+      "The mutation-race fixture must start with an active, unarchived Tenant role.",
+    );
+  }
+
+  return { outcome: "eligible" };
+}
+
 async function main() {
   const container =
     readOption("--container") ??
@@ -94,10 +112,24 @@ async function main() {
 
     cleanup(container);
     fixture(container);
+    await proveTenantRoleMutationVsCreate(container, {
+      archiveRole: false,
+      marker: "TENANT_ROLE_DEACTIVATED_UNCOMMITTED",
+    });
+
+    cleanup(container);
+    fixture(container);
+    await proveTenantRoleMutationVsCreate(container, {
+      archiveRole: true,
+      marker: "TENANT_ROLE_ARCHIVED_UNCOMMITTED",
+    });
+
+    cleanup(container);
+    fixture(container);
     await proveUnrelatedPersonIsNotGloballyBlocked(container);
 
     process.stdout.write(
-      "PASS lease-history integrity: checked creation serialized active-Person archive, returned relationship_transition_required, waited behind a held Person archive before rejecting the archived Person, and did not globally block an unrelated Person archive.\n",
+      "PASS lease-history integrity: checked creation serialized active-Person archive, returned relationship_transition_required, waited behind held Person and Tenant-role mutations before rejecting ineligible tenants without auto-promotion, preserved the direct role-update workflow, and did not globally block an unrelated Person archive.\n",
     );
   } catch (error) {
     proofError = error;
@@ -300,6 +332,101 @@ WHERE people.id = '${ids.tenant}'::uuid
   }
 }
 
+async function proveTenantRoleMutationVsCreate(
+  container,
+  { archiveRole, marker },
+) {
+  const roleFixtureState = queryScalar(
+    container,
+    `SELECT jsonb_build_object(
+  'archived', roles.archived_at IS NOT NULL,
+  'role', roles.role,
+  'status', roles.status
+)::text
+FROM public.person_roles AS roles
+WHERE roles.organization_id = '${ids.organization}'::uuid
+  AND roles.person_id = '${ids.tenant}'::uuid
+  AND roles.role = 'tenant';`,
+  );
+  assertActiveTenantRoleFixture(JSON.parse(roleFixtureState));
+
+  const roleMutation = startPsql(
+    container,
+    mutateTenantRoleBeforeCommitSql({ archiveRole, marker }),
+    { holdOpen: true },
+  );
+  await roleMutation.waitFor(marker);
+
+  const creation = startPsql(
+    container,
+    checkedLeaseCreationSql("INELIGIBLE_ROLE_LEASE_CREATED", {
+      commit: true,
+    }),
+  );
+
+  try {
+    await waitForDatabaseLock(container, creation, roleMutation);
+  } catch (error) {
+    roleMutation.release();
+    await Promise.allSettled([roleMutation.result, creation.result]);
+    throw error;
+  }
+
+  if (creation.completed) {
+    roleMutation.release();
+    await Promise.allSettled([roleMutation.result, creation.result]);
+    throw new Error(
+      `Checked Lease creation exited before the Tenant-role mutation committed.\n${creation.output}`,
+    );
+  }
+
+  roleMutation.release();
+  const [mutationResult, creationResult] = await Promise.all([
+    roleMutation.result,
+    creation.result,
+  ]);
+
+  assertSucceeded("held Tenant-role mutation", mutationResult);
+  evaluateCreateAgainstArchivedPerson(creationResult);
+
+  const persistedState = queryScalar(
+    container,
+    `SELECT
+  roles.status::text
+  || ':'
+  || (roles.archived_at IS NOT NULL)::text
+  || ':'
+  || (SELECT count(*)
+      FROM public.person_roles AS active_roles
+      WHERE active_roles.organization_id = roles.organization_id
+        AND active_roles.person_id = roles.person_id
+        AND active_roles.role = 'tenant'
+        AND active_roles.status = 'active'
+        AND active_roles.archived_at IS NULL)::text
+  || ':'
+  || (SELECT count(*)
+      FROM public.person_roles AS tenant_roles
+      WHERE tenant_roles.organization_id = roles.organization_id
+        AND tenant_roles.person_id = roles.person_id
+        AND tenant_roles.role = 'tenant')::text
+  || ':'
+  || (SELECT count(*)
+      FROM public.leases AS leases
+      WHERE leases.organization_id = roles.organization_id
+        AND leases.primary_tenant_person_id = roles.person_id)::text
+FROM public.person_roles AS roles
+WHERE roles.organization_id = '${ids.organization}'::uuid
+  AND roles.person_id = '${ids.tenant}'::uuid
+  AND roles.role = 'tenant';`,
+  );
+  const expectedState = `inactive:${archiveRole ? "true" : "false"}:0:1:0`;
+  if (persistedState !== expectedState) {
+    throw new Error(
+      `Expected a preserved inactive Tenant role and no Lease auto-promotion, found ${persistedState}.`,
+    );
+  }
+}
+
 async function proveUnrelatedPersonIsNotGloballyBlocked(container) {
   const creation = startPsql(
     container,
@@ -489,6 +616,22 @@ SELECT public.archive_person(
   '${personId}'::uuid
 );
 COMMIT;
+\\echo ${marker}
+`;
+}
+
+function mutateTenantRoleBeforeCommitSql({ archiveRole, marker }) {
+  return `\\set ON_ERROR_STOP on
+BEGIN;
+SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
+SET LOCAL ROLE authenticated;
+UPDATE public.person_roles
+SET
+  status = 'inactive',
+  archived_at = ${archiveRole ? "now()" : "NULL"}
+WHERE organization_id = '${ids.organization}'::uuid
+  AND person_id = '${ids.tenant}'::uuid
+  AND role = 'tenant';
 \\echo ${marker}
 `;
 }

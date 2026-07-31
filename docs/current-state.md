@@ -141,6 +141,17 @@ People and leases:
   then write an authoritative normalized term atomically. Existing inferred
   term rows remain labeled `legacy_inferred`; compatibility rent/date columns
   on `leases` are display projections and cannot rewrite term authority.
+- New checked Lease creation and Lease import also create or adopt exactly one
+  primary party and one occupancy in the same transaction. Relationship rows
+  carry independent evidence state, business lifecycle, source, boundary
+  kind/confidence, correction lineage, actor/time/reason evidence, and guarded
+  accepted ranges. Pre-existing party and occupancy rows remain
+  `legacy_unresolved`; they are not promoted or rewritten. Exact individual
+  residence evidence lives in `lease_occupancy_participants` and is separate
+  from a Lease party role or Lease-level occupancy. Existing-Lease
+  relationship transitions remain fail-closed pending the checked impact
+  contract; current list/detail loaders still use the established
+  compatibility read model.
 - The lease inspector shows exact term authority, due day, frequency,
   lifecycle, rent-readiness evidence, and preserved term history. Admins may
   schedule a non-overlapping future term without changing the active term's
@@ -298,7 +309,8 @@ RPC write boundaries. Current table families include:
 - Property core: `properties`, `units`.
 - People and lease backbone: `people`, `person_roles`, `person_contacts`,
   `property_owners`, `vendor_profiles`, `leases`, `lease_parties`,
-  `lease_terms`, `lease_occupancies`, `lease_deposits`.
+  `lease_terms`, `lease_occupancies`, `lease_occupancy_participants`,
+  `lease_deposits`.
 - Finance and history: `finance_income_items`, `finance_expense_items`,
   `finance_receipts`, `finance_receipt_allocations`, `finance_payments`,
   `finance_receipt_allocation_journals`, `finance_payment_allocations`,

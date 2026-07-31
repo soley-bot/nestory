@@ -729,9 +729,9 @@ SELECT throws_ok(
     (SELECT term_id FROM lease_authority_state),
     'lease-term-terminate-start-0001'
   ),
-  '22023',
-  'Termination date must be after the lease start date',
-  'termination cannot collapse the compatibility lease to a zero-day range'
+  '55000',
+  'Lease termination requires the TB-03 checked impact and transition workflow',
+  'termination stays fail-closed until the checked relationship transition exists'
 );
 
 SELECT throws_ok(
