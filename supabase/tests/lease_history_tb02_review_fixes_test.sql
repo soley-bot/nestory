@@ -404,16 +404,26 @@ SELECT is(
   'a pre-TB-02 successful create retry adopts the original Lease'
 );
 SELECT is(
-  (SELECT (relationship_result ->> 'partyId')::uuid
-   FROM lease_history_tb02_review_state),
-  (SELECT legacy_party_id FROM lease_history_tb02_review_state),
-  'a cross-version retry normalizes the exact original primary party'
+  (
+    SELECT evidence_state
+    FROM public.lease_parties
+    WHERE id = (
+      SELECT legacy_party_id FROM lease_history_tb02_review_state
+    )
+  ),
+  'legacy_unresolved',
+  'a cross-version retry leaves the original primary party untouched'
 );
 SELECT is(
-  (SELECT (relationship_result ->> 'occupancyId')::uuid
-   FROM lease_history_tb02_review_state),
-  (SELECT legacy_occupancy_id FROM lease_history_tb02_review_state),
-  'a cross-version retry normalizes the exact original occupancy'
+  (
+    SELECT evidence_state
+    FROM public.lease_occupancies
+    WHERE id = (
+      SELECT legacy_occupancy_id FROM lease_history_tb02_review_state
+    )
+  ),
+  'legacy_unresolved',
+  'a cross-version retry leaves the original occupancy untouched'
 );
 SELECT is(
   (
@@ -437,21 +447,20 @@ SELECT is(
   0,
   'TB-02 creation does not forget legacy claims in a second namespace'
 );
-SELECT ok(
+SELECT is(
   (
-    SELECT
-      result_ids ? 'leaseId'
-      AND result_ids ? 'partyId'
-      AND result_ids ? 'occupancyId'
-      AND result_ids ? 'participantIds'
-      AND result_ids ? 'relationshipPayloadHash'
+    SELECT result_ids
     FROM app_private.financial_idempotency_requests
     WHERE organization_id =
       'f4930000-0000-4000-8000-000000000002'
       AND operation = 'create_lease_with_authoritative_term'
       AND idempotency_key = 'tb02-cross-version-retry'
   ),
-  'the original idempotency claim binds the expanded relationship result'
+  jsonb_build_object(
+    'leaseId',
+    (SELECT legacy_lease_id FROM lease_history_tb02_review_state)
+  ),
+  'the original idempotency claim remains Lease-ID-only'
 );
 SELECT is(
   pg_temp.capture_error(
@@ -463,7 +472,7 @@ SELECT is(
         'f4930000-0000-4000-8000-000000000012',
         DATE '2029-01-01',
         DATE '2029-12-31',
-        1000,
+        1001,
         'USD',
         5,
         'monthly',
@@ -520,7 +529,7 @@ SELECT is(
     $sql$
   ),
   '22023:lease_relationship_idempotency_conflict',
-  'the original claim rejects a different expanded relationship payload'
+  'the original claim rejects a changed scalar payload'
 );
 SELECT lives_ok(
   $sql$

@@ -2236,6 +2236,28 @@ BEGIN
 
       RETURN v_completed_request.result_ids
         - 'relationshipPayloadHash';
+    ELSE
+      IF jsonb_typeof(v_completed_request.result_ids)
+          IS DISTINCT FROM 'object'
+        OR v_completed_request.result_ids IS DISTINCT FROM
+          jsonb_build_object(
+            'leaseId',
+            v_completed_request.result_ids ->> 'leaseId'
+          )
+        OR coalesce(
+          v_completed_request.result_ids ->> 'leaseId',
+          ''
+        ) !~ (
+          '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-'
+          || '[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        ) THEN
+        RAISE EXCEPTION 'Conflicting Lease relationship idempotency request'
+          USING
+            ERRCODE = '22023',
+            DETAIL = 'lease_relationship_idempotency_conflict';
+      END IF;
+
+      RETURN v_completed_request.result_ids;
     END IF;
   END IF;
 
