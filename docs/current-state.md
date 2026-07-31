@@ -241,18 +241,29 @@ Documents, imports, and reports:
 - `/import` handles CSV imports for properties, units/rent roll, people, and
   leases in one vertical flow. It keeps type-specific templates, automatic and
   saved header mapping, row validation, staged import runs, and RPC-backed
-  commits. The single action stages every row, commits only ready rows, and
-  retains blocked rows for correction. Mapping, fix downloads, and past runs
-  remain available behind disclosures.
+  commits. `stage_import_run_v1` computes a deterministic raw claim and exact
+  semantic snapshot in PostgreSQL, then atomically inserts the server-generated
+  run and every staged row with SQL-derived counts. An unchanged staged snapshot
+  is reused. If reference matching changes while the run is still clean and
+  staged, the RPC atomically replaces it with a new run/snapshot so corrected
+  files can become ready. Committing and terminal runs remain immutable and are
+  recovered by raw claim. Past imports can reconcile an in-flight commit;
+  legacy non-atomic staged runs must be re-uploaded before commit.
+  Mapping and fix downloads remain available behind disclosures.
 - `/reports` resolves to `/reports/unit-profit-loss`. The only public report
   kinds are Monthly Unit Profit & Loss, Owner Statement, and Management Fee
   Statement. Each selected report has one filter row, compact totals, one
   traceable table, and PDF/Excel export.
 - Retired report URLs redirect to the operational workspace that owns the work,
   such as Units, Overview, Ledger, Leases, Maintenance, or People.
-- Monthly Unit Profit & Loss uses unit-linked operating income and expense.
-  Management Fee Statement uses collected fee receipt allocations, including
-  reversal signs. Owner Statement export remains blocked until authoritative
+- Monthly Unit Profit & Loss uses resolved unit-linked operating income and
+  expense effects from the canonical property-cash event contract, preserves
+  reversal signs, and explicitly excludes property-level, deposit,
+  owner-funding, company-fee, and unresolved events. Management Fee
+  Statement remains a defined report family but is unavailable and cannot
+  export until management-fee owner-recognition authority is resolved; legacy
+  receipt allocations are not publishable evidence. Owner Statement export
+  remains blocked until authoritative
   opening and closing owner balances exist; the UI names that limitation rather
   than inventing balances.
 - `/api/reports/pdf` and `/api/reports/excel` are the public export endpoints.

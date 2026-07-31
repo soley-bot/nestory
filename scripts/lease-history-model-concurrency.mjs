@@ -23,16 +23,8 @@ const ids = {
   participantLeaseB: "f4920000-0000-4000-8000-000000000018",
   participantPartyB: "f4920000-0000-4000-8000-000000000019",
   participantOccupancyB: "f4920000-0000-4000-8000-000000000020",
-  importInsertRun: "f4920000-0000-4000-8000-000000000021",
-  importInsertRow: "f4920000-0000-4000-8000-000000000022",
-  importUpdateRun: "f4920000-0000-4000-8000-000000000023",
-  importUpdateRow: "f4920000-0000-4000-8000-000000000024",
   importDoubleRun: "f4920000-0000-4000-8000-000000000025",
   importDoubleRow: "f4920000-0000-4000-8000-000000000026",
-  importReverseInsertRun: "f4920000-0000-4000-8000-000000000027",
-  importReverseInsertRow: "f4920000-0000-4000-8000-000000000028",
-  importReverseUpdateRun: "f4920000-0000-4000-8000-000000000029",
-  importReverseUpdateRow: "f4920000-0000-4000-8000-000000000030",
 };
 
 const markerTimeoutMs = 10_000;
@@ -80,12 +72,12 @@ async function main() {
     await provePartyRace(container);
     await proveParticipantRace(container);
     await proveOccupancyRace(container);
-    await proveLeaseImportStagingRaces(container);
-    await proveLeaseImportReverseLockOrder(container);
+    await proveAtomicCommitFirstRestageRace(container);
+    await proveAtomicStageFirstCommitRace(container);
     await proveLeaseImportDoubleCommit(container);
 
     process.stdout.write(
-      "PASS TB-02 relationship and Lease-import concurrency: accepted relationship ranges, staging-first and commit-first parent-lock order, direct row rejection without deadlock, and duplicate commit replay serialized across two sessions.\n",
+      "PASS TB-02 relationship and Lease-import concurrency: accepted relationship ranges, atomic restage-versus-commit claim locking, and duplicate commit replay serialized across two sessions.\n",
     );
   } catch (error) {
     proofError = error;
@@ -287,270 +279,6 @@ WHERE organization_id = '${ids.organization}'::uuid
   );
 }
 
-async function proveLeaseImportStagingRaces(container) {
-  const heldInsert = startPsql(
-    container,
-    `\\set ON_ERROR_STOP on
-\\set VERBOSITY verbose
-BEGIN;
-SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
-SET LOCAL ROLE authenticated;
-INSERT INTO public.import_rows(
-  id,
-  import_run_id,
-  organization_id,
-  source_row_number,
-  row_status,
-  action_label,
-  raw_data,
-  normalized_data,
-  issues,
-  error_message
-)
-VALUES (
-  '${ids.importInsertRow}'::uuid,
-  '${ids.importInsertRun}'::uuid,
-  '${ids.organization}'::uuid,
-  1,
-  'error',
-  'Needs review',
-  '{"unit":"missing"}',
-  '{}',
-  '[{"level":"error","message":"Unit is required"}]',
-  'Unit is required'
-);
-\\echo IMPORT_STAGING_INSERT_HELD
-`,
-    { holdOpen: true },
-  );
-  await heldInsert.waitFor("IMPORT_STAGING_INSERT_HELD");
-
-  const insertCommit = startPsql(
-    container,
-    leaseImportCommitSql(
-      ids.importInsertRun,
-      "IMPORT_INSERT_COMMIT_FINISHED",
-    ),
-  );
-  await assertWaitsBehind(
-    container,
-    insertCommit,
-    heldInsert,
-    "Lease import staging insert",
-  );
-  heldInsert.release();
-  assertBothSucceeded(
-    await Promise.all([heldInsert.result, insertCommit.result]),
-    "Lease import staging insert",
-  );
-
-  assertScalar(
-    container,
-    `SELECT status || ':' || skipped_count::text || ':' || (
-  SELECT count(*)::text
-  FROM public.import_rows
-  WHERE import_run_id = '${ids.importInsertRun}'::uuid
-)
-FROM public.import_runs
-WHERE id = '${ids.importInsertRun}'::uuid;`,
-    "committed:1:1",
-    "staging insert included by serialized commit",
-  );
-
-}
-
-async function proveLeaseImportReverseLockOrder(container) {
-  const heldInsertCommit = startPsql(
-    container,
-    `\\set ON_ERROR_STOP on
-\\set VERBOSITY verbose
-BEGIN;
-SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
-SET LOCAL ROLE authenticated;
-SELECT id
-FROM public.import_runs
-WHERE id = '${ids.importReverseInsertRun}'::uuid
-FOR UPDATE;
-\\echo IMPORT_REVERSE_INSERT_RUN_HELD
-`,
-    { holdOpen: true },
-  );
-  await heldInsertCommit.waitFor("IMPORT_REVERSE_INSERT_RUN_HELD");
-
-  const blockedInsert = startPsql(
-    container,
-    `\\set ON_ERROR_STOP on
-\\set VERBOSITY verbose
-BEGIN;
-SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
-SET LOCAL ROLE authenticated;
-INSERT INTO public.import_rows(
-  id,
-  import_run_id,
-  organization_id,
-  source_row_number,
-  row_status,
-  action_label,
-  raw_data,
-  normalized_data,
-  issues,
-  error_message
-)
-VALUES (
-  '${ids.importReverseInsertRow}'::uuid,
-  '${ids.importReverseInsertRun}'::uuid,
-  '${ids.organization}'::uuid,
-  1,
-  'error',
-  'Needs review',
-  '{"unit":"late"}',
-  '{}',
-  '[{"level":"error","message":"Unit is required"}]',
-  'Unit is required'
-);
-COMMIT;
-`,
-  );
-  await assertWaitsBehind(
-    container,
-    blockedInsert,
-    heldInsertCommit,
-    "commit-first Lease import insert",
-  );
-
-  heldInsertCommit.finish(
-    `SELECT public.commit_generic_import_run(
-  '${ids.importReverseInsertRun}'::uuid,
-  '${ids.organization}'::uuid
-);
-COMMIT;
-\\echo IMPORT_REVERSE_INSERT_COMMITTED
-`,
-  );
-  const [heldInsertResult, blockedInsertResult] = await Promise.all([
-    heldInsertCommit.result,
-    blockedInsert.result,
-  ]);
-
-  if (heldInsertResult.code !== 0) {
-    throw new Error(
-      `Commit-first Lease import insert commit failed.\n${heldInsertResult.output}`,
-    );
-  }
-  if (
-    blockedInsertResult.code === 0
-    || !blockedInsertResult.output.includes(
-      "lease_import_staging_required",
-    )
-  ) {
-    throw new Error(
-      `Late Lease import insert should fail after the parent commits.\n${blockedInsertResult.output}`,
-    );
-  }
-  assertScalar(
-    container,
-    `SELECT runs.status || ':' || count(rows.id)::text || ':' || count(logs.id)::text
-FROM public.import_runs AS runs
-LEFT JOIN public.import_rows AS rows
-  ON rows.import_run_id = runs.id
-LEFT JOIN public.activity_logs AS logs
-  ON logs.organization_id = runs.organization_id
-  AND logs.entity_type = 'import'
-  AND logs.entity_id = runs.id
-  AND logs.action = 'generic_import_committed'
-WHERE runs.id = '${ids.importReverseInsertRun}'::uuid
-GROUP BY runs.status;`,
-    "committed:0:1",
-    "commit-first insert serializes to one commit and no late row",
-  );
-
-  const heldUpdateCommit = startPsql(
-    container,
-    `\\set ON_ERROR_STOP on
-\\set VERBOSITY verbose
-BEGIN;
-SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
-SET LOCAL ROLE authenticated;
-SELECT id
-FROM public.import_runs
-WHERE id = '${ids.importReverseUpdateRun}'::uuid
-FOR UPDATE;
-\\echo IMPORT_REVERSE_UPDATE_RUN_HELD
-`,
-    { holdOpen: true },
-  );
-  await heldUpdateCommit.waitFor("IMPORT_REVERSE_UPDATE_RUN_HELD");
-
-  const rejectedUpdate = startPsql(
-    container,
-    `\\set ON_ERROR_STOP on
-\\set VERBOSITY verbose
-BEGIN;
-SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
-SET LOCAL ROLE authenticated;
-UPDATE public.import_rows
-SET raw_data = '{"unit":"direct-during-commit"}'
-WHERE id = '${ids.importReverseUpdateRow}'::uuid;
-COMMIT;
-`,
-  );
-
-  let rejectedUpdateTimer;
-  const rejectedUpdateResult = await Promise.race([
-    rejectedUpdate.result,
-    new Promise((_, reject) => {
-      rejectedUpdateTimer = setTimeout(
-        () => reject(
-          new Error(
-            "Direct Lease import row update blocked behind its parent lock.",
-          ),
-        ),
-        markerTimeoutMs,
-      );
-    }),
-  ]);
-  clearTimeout(rejectedUpdateTimer);
-
-  if (
-    rejectedUpdateResult.code === 0
-    || !rejectedUpdateResult.output.includes(
-      "lease_import_row_checked_operation_required",
-    )
-  ) {
-    throw new Error(
-      `Direct Lease import update should reject without waiting for its parent.\n${rejectedUpdateResult.output}`,
-    );
-  }
-
-  heldUpdateCommit.finish(
-    `SELECT public.commit_generic_import_run(
-  '${ids.importReverseUpdateRun}'::uuid,
-  '${ids.organization}'::uuid
-);
-COMMIT;
-\\echo IMPORT_REVERSE_UPDATE_COMMITTED
-`,
-  );
-  const heldUpdateResult = await heldUpdateCommit.result;
-  if (heldUpdateResult.code !== 0) {
-    throw new Error(
-      `Commit-first Lease import update commit failed.\n${heldUpdateResult.output}`,
-    );
-  }
-
-  assertScalar(
-    container,
-    `SELECT runs.status || ':' || (rows.raw_data ->> 'unit')
-FROM public.import_runs AS runs
-JOIN public.import_rows AS rows
-  ON rows.import_run_id = runs.id
-WHERE runs.id = '${ids.importReverseUpdateRun}'::uuid
-  AND rows.id = '${ids.importReverseUpdateRow}'::uuid;`,
-    "committed:before-direct-update",
-    "commit-first direct update rejects without changing staged evidence",
-  );
-}
-
 async function proveLeaseImportDoubleCommit(container) {
   const firstCommit = startPsql(
     container,
@@ -608,9 +336,193 @@ LEFT JOIN public.activity_logs AS logs
   AND logs.action = 'generic_import_committed'
 WHERE runs.id = '${ids.importDoubleRun}'::uuid
 GROUP BY runs.status;`,
-    "committed:1",
+    "failed:1",
     "single terminal Lease import activity after duplicate commit",
   );
+}
+
+async function proveAtomicCommitFirstRestageRace(container) {
+  const originalRunId = queryScalar(
+    container,
+    "SELECT id::text "
+      + "FROM public.import_runs "
+      + "WHERE organization_id = '" + ids.organization + "'::uuid "
+      + "AND source_file_name = 'tb02-atomic-claim-race.csv';",
+  );
+
+  const commit = startPsql(
+    container,
+    leaseImportCommitSql(
+      originalRunId,
+      "ATOMIC_CLAIM_COMMIT_HELD",
+      { holdTransaction: true },
+    ),
+    { holdOpen: true },
+  );
+  await commit.waitFor("ATOMIC_CLAIM_COMMIT_HELD");
+
+  const restage = startPsql(
+    container,
+    atomicClaimRestageSql("ATOMIC_CLAIM_RESTAGE_FINISHED"),
+  );
+  await assertWaitsBehind(
+    container,
+    restage,
+    commit,
+    "atomic import claim restage behind commit",
+  );
+
+  commit.release();
+  assertBothSucceeded(
+    await Promise.all([commit.result, restage.result]),
+    "atomic import claim restage versus commit",
+  );
+
+  assertScalar(
+    container,
+    "SELECT count(*)::text || ':' "
+      + "|| bool_and(runs.id = '" + originalRunId + "'::uuid)::text || ':' "
+      + "|| min(runs.status) || ':' "
+      + "|| min(rows.row_status) || ':' "
+      + "|| min(rows.normalized_data::text) "
+      + "FROM public.import_runs AS runs "
+      + "JOIN public.import_rows AS rows "
+      + "ON rows.organization_id = runs.organization_id "
+      + "AND rows.import_run_id = runs.id "
+      + "WHERE runs.organization_id = '" + ids.organization + "'::uuid "
+      + "AND runs.source_file_name = 'tb02-atomic-claim-race.csv';",
+    "1:true:failed:failed:{}",
+    "commit-first atomic claim keeps one immutable terminal snapshot",
+  );
+}
+
+function atomicClaimRestageSql(marker) {
+  return [
+    "\\set ON_ERROR_STOP on",
+    "\\set VERBOSITY verbose",
+    "BEGIN;",
+    "SELECT set_config('request.jwt.claim.sub', '" + ids.admin + "', true);",
+    "SET LOCAL ROLE authenticated;",
+    "SELECT public.stage_import_run_v1(",
+    "  '" + ids.organization + "'::uuid,",
+    "  'leases',",
+    "  'tb02-atomic-claim-race.csv',",
+    "  99::bigint,",
+    "  'text/csv',",
+    "  '[\"unit\"]'::jsonb,",
+    "  '{\"unitId\":\"unit\"}'::jsonb,",
+    "  '[{",
+    "    \"source_row_number\": 2,",
+    "    \"row_status\": \"warning\",",
+    "    \"action_label\": \"Create changed snapshot\",",
+    "    \"raw_data\": {\"unit\":\"atomic-race\"},",
+    "    \"normalized_data\": {\"propertyId\":\"changed-reference\"},",
+    "    \"issues\": [{\"level\":\"warning\",\"message\":\"changed snapshot\"}]",
+    "  }]'::jsonb",
+    ");",
+    "\\echo " + marker,
+    "COMMIT;",
+    "",
+  ].join("\n");
+}
+
+async function proveAtomicStageFirstCommitRace(container) {
+  const originalRunId = queryScalar(
+    container,
+    "SELECT id::text "
+      + "FROM public.import_runs "
+      + "WHERE organization_id = '" + ids.organization + "'::uuid "
+      + "AND source_file_name = 'tb02-atomic-stage-first.csv';",
+  );
+
+  const restage = startPsql(
+    container,
+    atomicStageFirstRestageSql("ATOMIC_STAGE_FIRST_HELD"),
+    { holdOpen: true },
+  );
+  await restage.waitFor("ATOMIC_STAGE_FIRST_HELD");
+
+  const commit = startPsql(
+    container,
+    leaseImportCommitSql(
+      originalRunId,
+      "ATOMIC_STAGE_FIRST_COMMIT_FINISHED",
+    ),
+  );
+  await assertWaitsBehind(
+    container,
+    commit,
+    restage,
+    "atomic import old-run commit behind staged replacement",
+  );
+
+  restage.release();
+  const [restageResult, commitResult] = await Promise.all([
+    restage.result,
+    commit.result,
+  ]);
+  if (restageResult.code !== 0) {
+    throw new Error(
+      "Expected atomic staged replacement to commit.\n" + restageResult.output,
+    );
+  }
+  if (
+    commitResult.code === 0
+    || !commitResult.output.match(/ERROR:\s+23503:/)
+  ) {
+    throw new Error(
+      "Expected old-run commit to fail safely after replacement.\n"
+        + commitResult.output,
+    );
+  }
+
+  assertScalar(
+    container,
+    "SELECT count(*)::text || ':' "
+      + "|| bool_and(runs.id <> '" + originalRunId + "'::uuid)::text || ':' "
+      + "|| min(runs.status) || ':' "
+      + "|| min(runs.total_rows)::text || ':' "
+      + "|| min(runs.ready_rows)::text || ':' "
+      + "|| min(rows.row_status) || ':' "
+      + "|| min(rows.normalized_data ->> 'propertyId') "
+      + "FROM public.import_runs AS runs "
+      + "JOIN public.import_rows AS rows "
+      + "ON rows.organization_id = runs.organization_id "
+      + "AND rows.import_run_id = runs.id "
+      + "WHERE runs.organization_id = '" + ids.organization + "'::uuid "
+      + "AND runs.source_file_name = 'tb02-atomic-stage-first.csv';",
+    "1:true:staged:1:1:warning:stage-first-new",
+    "stage-first claim keeps one complete replacement snapshot",
+  );
+}
+
+function atomicStageFirstRestageSql(marker) {
+  return [
+    "\\set ON_ERROR_STOP on",
+    "\\set VERBOSITY verbose",
+    "BEGIN;",
+    "SELECT set_config('request.jwt.claim.sub', '" + ids.admin + "', true);",
+    "SET LOCAL ROLE authenticated;",
+    "SELECT public.stage_import_run_v1(",
+    "  '" + ids.organization + "'::uuid,",
+    "  'leases',",
+    "  'tb02-atomic-stage-first.csv',",
+    "  77::bigint,",
+    "  'text/csv',",
+    "  '[\"unit\"]'::jsonb,",
+    "  '{\"unitId\":\"unit\"}'::jsonb,",
+    "  '[{",
+    "    \"source_row_number\": 2,",
+    "    \"row_status\": \"warning\",",
+    "    \"action_label\": \"Create changed snapshot\",",
+    "    \"raw_data\": {\"unit\":\"stage-first\"},",
+    "    \"normalized_data\": {\"propertyId\":\"stage-first-new\"},",
+    "    \"issues\": [{\"level\":\"warning\",\"message\":\"changed snapshot\"}]",
+    "  }]'::jsonb",
+    ");",
+    "\\echo " + marker,
+    "",
+  ].join("\n");
 }
 
 function leaseImportCommitSql(
@@ -977,123 +889,95 @@ VALUES (
   '${ids.admin}'::uuid
 );
 
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', '${ids.organization}'::uuid,
+    'sourceClaimHash',
+      encode(extensions.digest('${ids.importDoubleRun}', 'sha256'), 'hex'),
+    'runId', '${ids.importDoubleRun}'::uuid
+  )::text,
+  true
+);
+
 INSERT INTO public.import_runs(
-  id,
-  organization_id,
-  import_type,
-  status,
-  source_file_name,
-  total_rows,
-  ready_rows,
-  warning_rows,
-  error_rows
+  id, organization_id, import_type, status, source_file_name,
+  total_rows, ready_rows, warning_rows, error_rows,
+  source_claim_hash, snapshot_hash, created_by, updated_by
 )
-VALUES
-(
-  '${ids.importInsertRun}'::uuid,
-  '${ids.organization}'::uuid,
-  'leases',
-  'staged',
-  'tb02-concurrency-insert.csv',
-  1,
-  0,
-  0,
-  1
-),
-(
-  '${ids.importUpdateRun}'::uuid,
-  '${ids.organization}'::uuid,
-  'leases',
-  'staged',
-  'tb02-concurrency-update.csv',
-  1,
-  0,
-  0,
-  1
-),
-(
+VALUES (
   '${ids.importDoubleRun}'::uuid,
   '${ids.organization}'::uuid,
   'leases',
   'staged',
   'tb02-concurrency-double.csv',
   1,
-  0,
-  0,
-  1
-),
-(
-  '${ids.importReverseInsertRun}'::uuid,
-  '${ids.organization}'::uuid,
-  'leases',
-  'staged',
-  'tb02-concurrency-reverse-insert.csv',
-  0,
-  0,
-  0,
-  0
-),
-(
-  '${ids.importReverseUpdateRun}'::uuid,
-  '${ids.organization}'::uuid,
-  'leases',
-  'staged',
-  'tb02-concurrency-reverse-update.csv',
   1,
   0,
   0,
-  1
+  encode(extensions.digest('${ids.importDoubleRun}', 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:${ids.importDoubleRun}', 'sha256'), 'hex'),
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
 );
 
 INSERT INTO public.import_rows(
-  id,
-  import_run_id,
-  organization_id,
-  source_row_number,
-  row_status,
-  action_label,
-  raw_data,
-  normalized_data,
-  issues,
-  error_message
+  id, import_run_id, organization_id, source_row_number, row_status,
+  action_label, raw_data, normalized_data, issues, error_message
 )
-VALUES
-(
-  '${ids.importUpdateRow}'::uuid,
-  '${ids.importUpdateRun}'::uuid,
-  '${ids.organization}'::uuid,
-  1,
-  'error',
-  'Needs review',
-  '{"unit":"before-update"}',
-  '{}',
-  '[{"level":"error","message":"Unit is required"}]',
-  'Unit is required'
-),
-(
+VALUES (
   '${ids.importDoubleRow}'::uuid,
   '${ids.importDoubleRun}'::uuid,
   '${ids.organization}'::uuid,
   1,
-  'error',
-  'Needs review',
-  '{"unit":"missing"}',
+  'ready',
+  'Create',
+  '{"unit":"atomic-double"}',
   '{}',
-  '[{"level":"error","message":"Unit is required"}]',
-  'Unit is required'
-),
-(
-  '${ids.importReverseUpdateRow}'::uuid,
-  '${ids.importReverseUpdateRun}'::uuid,
-  '${ids.organization}'::uuid,
-  1,
-  'error',
-  'Needs review',
-  '{"unit":"before-direct-update"}',
-  '{}',
-  '[{"level":"error","message":"Unit is required"}]',
-  'Unit is required'
+  '[]',
+  NULL
 );
+
+SELECT set_config('app.atomic_import_write_context', '', true);
+
+SET LOCAL ROLE authenticated;
+SELECT public.stage_import_run_v1(
+  '${ids.organization}'::uuid,
+  'leases',
+  'tb02-atomic-claim-race.csv',
+  42::bigint,
+  'text/csv',
+  '["unit"]'::jsonb,
+  '{"unitId":"unit"}'::jsonb,
+  '[{
+    "source_row_number": 2,
+    "row_status": "ready",
+    "action_label": "Create",
+    "raw_data": {"unit":"atomic-race"},
+    "normalized_data": {},
+    "issues": []
+  }]'::jsonb
+);
+
+SELECT public.stage_import_run_v1(
+  '${ids.organization}'::uuid,
+  'leases',
+  'tb02-atomic-stage-first.csv',
+  55::bigint,
+  'text/csv',
+  '["unit"]'::jsonb,
+  '{"unitId":"unit"}'::jsonb,
+  '[{
+    "source_row_number": 2,
+    "row_status": "ready",
+    "action_label": "Create",
+    "raw_data": {"unit":"stage-first"},
+    "normalized_data": {},
+    "issues": []
+  }]'::jsonb
+);
+RESET ROLE;
 COMMIT;`,
   );
 }
@@ -1475,8 +1359,16 @@ ALTER TABLE public.property_reporting_periods
   ENABLE TRIGGER enforce_property_period_mutation_context;
 DELETE FROM public.ledger_period_locks
 WHERE organization_id = '${ids.organization}'::uuid;
+ALTER TABLE public.import_rows
+  DISABLE TRIGGER zz_guard_atomic_import_row_write;
+ALTER TABLE public.import_runs
+  DISABLE TRIGGER zz_guard_atomic_import_run_write;
 DELETE FROM public.organizations
 WHERE id = '${ids.organization}'::uuid;
+ALTER TABLE public.import_runs
+  ENABLE TRIGGER zz_guard_atomic_import_run_write;
+ALTER TABLE public.import_rows
+  ENABLE TRIGGER zz_guard_atomic_import_row_write;
 DELETE FROM auth.users
 WHERE id = '${ids.admin}'::uuid;
 COMMIT;

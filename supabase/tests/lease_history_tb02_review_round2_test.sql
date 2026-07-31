@@ -540,6 +540,17 @@ WHERE party_a.lease_id = state.lease_a_id
   AND party_a.party_role = 'primary_tenant'
   AND party_b.party_role = 'primary_tenant';
 
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', 'f4940000-0000-4000-8000-000000000001',
+    'sourceClaimHash', encode(extensions.digest('f4940000-0000-4000-8000-000000000065', 'sha256'), 'hex'),
+    'runId', 'f4940000-0000-4000-8000-000000000065'
+  )::text,
+  true
+);
+
 INSERT INTO public.import_runs(
   id,
   organization_id,
@@ -547,7 +558,11 @@ INSERT INTO public.import_runs(
   status,
   source_file_name,
   total_rows,
-  ready_rows
+  ready_rows,
+  source_claim_hash,
+  snapshot_hash,
+  created_by,
+  updated_by
 )
 VALUES
 (
@@ -557,7 +572,11 @@ VALUES
   'staged',
   'tb02-round2-forgery.csv',
   2,
-  2
+  2,
+  NULL,
+  NULL,
+  (SELECT auth.uid()),
+  (SELECT auth.uid())
 ),
 (
   'f4940000-0000-4000-8000-000000000065',
@@ -566,7 +585,11 @@ VALUES
   'staged',
   'tb02-round2-valid.csv',
   1,
-  1
+  1,
+  encode(extensions.digest('f4940000-0000-4000-8000-000000000065', 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:f4940000-0000-4000-8000-000000000065', 'sha256'), 'hex'),
+  (SELECT auth.uid()),
+  (SELECT auth.uid())
 );
 
 INSERT INTO public.import_rows(
@@ -617,6 +640,8 @@ VALUES
     'status', 'draft'
   )
 );
+
+SELECT set_config('app.atomic_import_write_context', '', true);
 
 SET LOCAL ROLE authenticated;
 

@@ -276,6 +276,17 @@ VALUES
   'active'
 );
 
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', 'f4960000-0000-4000-8000-000000000001',
+    'sourceClaimHash', encode(extensions.digest('f4960000-0000-4000-8000-000000000066', 'sha256'), 'hex'),
+    'runId', 'f4960000-0000-4000-8000-000000000066'
+  )::text,
+  true
+);
+
 INSERT INTO public.import_runs(
   id,
   organization_id,
@@ -283,7 +294,9 @@ INSERT INTO public.import_runs(
   status,
   source_file_name,
   total_rows,
-  ready_rows
+  ready_rows,
+  source_claim_hash,
+  snapshot_hash
 )
 VALUES
 (
@@ -293,7 +306,9 @@ VALUES
   'staged',
   'tb02-round4-referenced.csv',
   1,
-  1
+  1,
+  NULL,
+  NULL
 ),
 (
   'f4960000-0000-4000-8000-000000000062',
@@ -302,7 +317,9 @@ VALUES
   'staged',
   'tb02-round4-unreferenced.csv',
   1,
-  1
+  1,
+  NULL,
+  NULL
 ),
 (
   'f4960000-0000-4000-8000-000000000064',
@@ -311,7 +328,9 @@ VALUES
   'staged',
   'tb02-round4-empty.csv',
   0,
-  0
+  0,
+  NULL,
+  NULL
 ),
 (
   'f4960000-0000-4000-8000-000000000066',
@@ -320,7 +339,9 @@ VALUES
   'staged',
   'tb02-round4-valid.csv',
   1,
-  1
+  1,
+  encode(extensions.digest('f4960000-0000-4000-8000-000000000066', 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:f4960000-0000-4000-8000-000000000066', 'sha256'), 'hex')
 );
 
 INSERT INTO public.import_rows(
@@ -371,6 +392,8 @@ VALUES
     'status', 'draft'
   )
 );
+
+SELECT set_config('app.atomic_import_write_context', '', true);
 
 SELECT set_config(
   'request.jwt.claim.sub',

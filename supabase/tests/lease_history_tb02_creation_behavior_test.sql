@@ -723,6 +723,19 @@ SELECT is(
   'party role plus Lease occupancy does not prove Person residence'
 );
 
+RESET ROLE;
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', organization_id,
+    'sourceClaimHash', encode(extensions.digest(import_run_id::text, 'sha256'), 'hex'),
+    'runId', import_run_id
+  )::text,
+  true
+)
+FROM lease_history_tb02_state;
+
 INSERT INTO public.import_runs(
   id,
   organization_id,
@@ -731,6 +744,8 @@ INSERT INTO public.import_runs(
   source_file_name,
   total_rows,
   ready_rows,
+  source_claim_hash,
+  snapshot_hash,
   created_by,
   updated_by
 )
@@ -742,6 +757,8 @@ SELECT
   'tb02-explicit-lease.csv',
   1,
   1,
+  encode(extensions.digest(import_run_id::text, 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:' || import_run_id::text, 'sha256'), 'hex'),
   admin_id,
   admin_id
 FROM lease_history_tb02_state;
@@ -778,6 +795,9 @@ SELECT
     'status', 'draft'
   )
 FROM lease_history_tb02_state;
+
+SELECT set_config('app.atomic_import_write_context', '', true);
+SET LOCAL ROLE authenticated;
 
 SELECT lives_ok(
   format(

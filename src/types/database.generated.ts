@@ -1697,6 +1697,8 @@ export type Database = {
           organization_id: string
           ready_rows: number
           skipped_count: number
+          snapshot_hash: string | null
+          source_claim_hash: string | null
           source_file_name: string
           source_file_size: number
           source_mime_type: string | null
@@ -1722,6 +1724,8 @@ export type Database = {
           organization_id: string
           ready_rows?: number
           skipped_count?: number
+          snapshot_hash?: string | null
+          source_claim_hash?: string | null
           source_file_name: string
           source_file_size?: number
           source_mime_type?: string | null
@@ -1747,6 +1751,8 @@ export type Database = {
           organization_id?: string
           ready_rows?: number
           skipped_count?: number
+          snapshot_hash?: string | null
+          source_claim_hash?: string | null
           source_file_name?: string
           source_file_size?: number
           source_mime_type?: string | null
@@ -5474,6 +5480,19 @@ export type Database = {
           p_reason: string
         }
         Returns: string
+      }
+      stage_import_run_v1: {
+        Args: {
+          p_headers: Json
+          p_import_type: string
+          p_mapping: Json
+          p_organization_id: string
+          p_rows: Json
+          p_source_file_name: string
+          p_source_file_size: number
+          p_source_mime_type: string
+        }
+        Returns: Json
       }
       terminate_authoritative_lease_term: {
         Args: {

@@ -28,6 +28,9 @@ describe("trusted report Excel export", () => {
     expect(worksheet).toContain("P1 - Property One");
     expect(worksheet).toContain("USD 380.00");
     expect(worksheet).toContain("Net income");
+    expect(worksheet).toContain("ledger:Rent receipt");
+    expect(worksheet).toContain("receipt-allocation-1");
+    expect(worksheet).toContain("/rent-income?receiptId=receipt-1");
   });
 
   it("writes formula-looking values as inline text instead of formulas", () => {
@@ -75,8 +78,15 @@ function reportFixture(): TrustedReport {
         },
         id: "unit-1",
         sourceCount: 2,
-        sourceLinks: [],
-        sourceSummary: "2 source rows",
+        sourceLinks: [
+          {
+            href: "/rent-income?receiptId=receipt-1",
+            id: "receipt-allocation-1",
+            label: "Rent receipt",
+            recordType: "ledger",
+          },
+        ],
+        sourceSummary: "1 source row",
         title: "P1 / Unit A1",
       },
     ],

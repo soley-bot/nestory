@@ -61,6 +61,7 @@ export type ReportSourceRecordType =
   | "owner"
   | "payment"
   | "payment-allocation"
+  | "petty-cash-entry"
   | "person"
   | "property"
   | "receipt"

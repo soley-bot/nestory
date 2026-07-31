@@ -38,8 +38,15 @@ describe("trusted report PDF export", () => {
           href: "/units/unit-1",
           id: "unit-1",
           sourceCount: 2,
-          sourceLinks: [],
-          sourceSummary: "2 source rows",
+          sourceLinks: [
+            {
+              href: "/ledger?entryId=ledger-1",
+              id: "ledger-1",
+              label: "Rent",
+              recordType: "ledger",
+            },
+          ],
+          sourceSummary: "1 source row",
           title: "P1 / Unit A1",
           tone: "success",
         },
@@ -61,7 +68,44 @@ describe("trusted report PDF export", () => {
     expect(pdf).toContain("Unit Performance - Demo Org");
     expect(pdf).toContain("P1 / Unit A1");
     expect(pdf).toContain("USD 500.00");
+    expect(pdf).toContain("ledger:Rent");
+    expect(pdf).toContain("ledger-1");
+    expect(pdf).toContain("/ledger?entryId=ledger-1");
     expect(pdf).toContain("xref");
+  });
+
+  it("does not create a source trace page when no report row has source links", () => {
+    const report: TrustedReport = {
+      columns: [{ key: "income", label: "Income", align: "right" }],
+      description: "Unit-level report.",
+      emptyDescription: "No rows.",
+      emptyTitle: "No unit rows",
+      exportFilenameBase: "unit-profit-loss",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      kind: "unit-profit-loss",
+      periodLabel: "01 Jun 2026 - 30 Jun 2026",
+      rows: [
+        {
+          cells: { income: "USD 0.00" },
+          id: "unit-1",
+          sourceCount: 0,
+          sourceLinks: [],
+          sourceSummary: "No sources",
+          title: "P1 / Unit A1",
+        },
+      ],
+      scopeLabel: "P1 - Property One",
+      summary: [],
+      title: "Monthly Unit Profit & Loss",
+      totalsTraceLabel: "No operating events.",
+    };
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+
+    expect(pdf).toContain("/Count 1");
+    expect(pdf).not.toContain("SOURCE TRACE");
   });
 
   it("renders income and expense reports as a profit and loss statement", () => {

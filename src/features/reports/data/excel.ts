@@ -59,7 +59,15 @@ function workbookRows(report: TrustedReport): WorkbookRow[] {
     { values: ["Period", report.periodLabel] },
     { values: ["Generated", report.generatedAt] },
     { values: [] },
-    { style: 2, values: report.columns.map(({ label }) => label) },
+    {
+      style: 2,
+      values: [
+        ...report.columns.map(({ label }) => label),
+        "Source records",
+        "Source IDs",
+        "Source links",
+      ],
+    },
   ];
 
   if (report.rows.length === 0) {
@@ -69,7 +77,16 @@ function workbookRows(report: TrustedReport): WorkbookRow[] {
   } else {
     for (const row of report.rows) {
       rows.push({
-        values: report.columns.map(({ key }) => row.cells[key] ?? ""),
+        values: [
+          ...report.columns.map(({ key }) => row.cells[key] ?? ""),
+          row.sourceLinks
+            .map((source) => `${source.recordType}:${source.label}`)
+            .join(" | "),
+          row.sourceLinks.map((source) => source.id).join(" | "),
+          row.sourceLinks
+            .flatMap((source) => (source.href ? [source.href] : []))
+            .join(" | "),
+        ],
       });
     }
   }

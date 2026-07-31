@@ -115,6 +115,13 @@ const statementColumns: PdfColumn[] = [
   { label: "Description", maxLines: 2, width: 210 },
 ];
 
+const sourceTraceColumns: PdfColumn[] = [
+  { label: "Report row", maxLines: 3, width: 160 },
+  { label: "Source", maxLines: 3, width: 150 },
+  { label: "Source ID", maxLines: 4, width: 170 },
+  { label: "Source link", maxLines: 10, width: 290 },
+];
+
 const ownerStatementCashRows: OwnerStatementMoneyMetric[][] = [
   [
     { key: "operatingCash", label: "Operating cash received" },
@@ -205,6 +212,10 @@ export function buildTrustedReportPdf({
   const reportColumns = buildTrustedReportPdfColumns(report);
   const rows = buildTrustedReportPdfRows(report, reportColumns);
   const pages = paginateRows(rows);
+  const sourceTraceRows = buildTrustedReportSourceTraceRows(report);
+  const sourceTracePages =
+    sourceTraceRows.length > 0 ? paginateRows(sourceTraceRows) : [];
+  const totalPages = pages.length + sourceTracePages.length;
   const pageCommands = pages.map((page, pageIndex) =>
     renderTrustedReportPage({
       organizationName,
@@ -212,11 +223,81 @@ export function buildTrustedReportPdf({
       pageIndex,
       report,
       reportColumns,
-      totalPages: pages.length,
+      totalPages,
     }),
+  );
+  pageCommands.push(
+    ...sourceTracePages.map((page, sourcePageIndex) =>
+      renderTrustedReportSourceTracePage({
+        organizationName,
+        page,
+        pageIndex: pages.length + sourcePageIndex,
+        report,
+        totalPages,
+      }),
+    ),
   );
 
   return createPdfDocument(pageCommands);
+}
+
+function buildTrustedReportSourceTraceRows(report: TrustedReport) {
+  let sourceIndex = 0;
+
+  return report.rows.flatMap((row, rowIndex) =>
+    row.sourceLinks.map((source) =>
+      buildPdfRow(
+        [
+          `${rowIndex + 1}. ${row.title}`,
+          `${source.recordType}:${source.label}`,
+          source.id,
+          source.href ?? "No source link",
+        ],
+        sourceIndex++,
+        sourceTraceColumns,
+        {
+          fontSize: 7.2,
+          lineHeight: 8.4,
+          minHeight: 22,
+          verticalPadding: 8,
+        },
+      ),
+    ),
+  );
+}
+
+function renderTrustedReportSourceTracePage({
+  organizationName,
+  page,
+  pageIndex,
+  report,
+  totalPages,
+}: {
+  organizationName: string;
+  page: PdfPage;
+  pageIndex: number;
+  report: TrustedReport;
+  totalPages: number;
+}) {
+  const commands: string[] = [];
+
+  drawTrustedReportHeader(commands, organizationName, report);
+  drawText(commands, "SOURCE TRACE", marginX, 400, {
+    bold: true,
+    color: colors.muted,
+    fontSize: 7,
+    width: tableWidth,
+  });
+  drawTableHeader(commands, tableTopY, sourceTraceColumns);
+
+  let y = tableTopY - headerRowHeight;
+  for (const row of page.rows) {
+    y -= row.height;
+    drawTableRow(commands, row, y, sourceTraceColumns);
+  }
+
+  drawFooter(commands, pageIndex + 1, totalPages);
+  return commands.join("\n");
 }
 
 export function buildOccupancyReportPdf({

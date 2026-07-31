@@ -108,7 +108,9 @@ export function prepareTrustedReportForScreen(
     (viewQuery.ownerPersonId !== "all" || viewQuery.ownerPersonIdInvalid)
   ) {
     const selection = selectOwnerStatementRecipient(report, viewQuery);
-    return "report" in selection ? selection.report : report;
+    return trimTrustedReportForScreen(
+      "report" in selection ? selection.report : report,
+    );
   }
 
   return trimTrustedReportForScreen(report);

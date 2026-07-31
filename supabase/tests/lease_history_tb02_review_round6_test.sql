@@ -276,6 +276,17 @@ SELECT
 FROM public.people
 WHERE organization_id = 'f4980000-0000-4000-8000-000000000001';
 
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', 'f4980000-0000-4000-8000-000000000001',
+    'sourceClaimHash', encode(extensions.digest('f4980000-0000-4000-8000-000000000030', 'sha256'), 'hex'),
+    'runId', 'f4980000-0000-4000-8000-000000000030'
+  )::text,
+  true
+);
+
 INSERT INTO public.import_runs(
   id,
   organization_id,
@@ -283,7 +294,9 @@ INSERT INTO public.import_runs(
   status,
   source_file_name,
   total_rows,
-  ready_rows
+  ready_rows,
+  source_claim_hash,
+  snapshot_hash
 )
 VALUES (
   'f4980000-0000-4000-8000-000000000030',
@@ -292,7 +305,9 @@ VALUES (
   'staged',
   'tb02-round6-ended.csv',
   1,
-  1
+  1,
+  encode(extensions.digest('f4980000-0000-4000-8000-000000000030', 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:f4980000-0000-4000-8000-000000000030', 'sha256'), 'hex')
 );
 
 INSERT INTO public.import_rows(
@@ -324,6 +339,8 @@ VALUES (
     'status', 'ended'
   )
 );
+
+SELECT set_config('app.atomic_import_write_context', '', true);
 
 SELECT set_config(
   'request.jwt.claim.sub',

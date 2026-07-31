@@ -302,114 +302,111 @@ SELECT is(
   'no imported row is outside its exact organization-scoped parent'
 );
 
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', 'f7100000-0000-4000-8000-000000000001',
+    'sourceClaimHash', encode(extensions.digest('f7100000-0000-4000-8000-000000000030', 'sha256'), 'hex'),
+    'runId', 'f7100000-0000-4000-8000-000000000030'
+  )::text,
+  true
+);
+
 INSERT INTO public.import_runs(
-  id,
-  organization_id,
-  import_type,
-  status,
-  source_file_name,
-  total_rows,
-  ready_rows
+  id, organization_id, import_type, status, source_file_name,
+  total_rows, ready_rows, source_claim_hash, snapshot_hash,
+  created_by, updated_by
 )
 VALUES
 (
   'f7100000-0000-4000-8000-000000000010',
   'f7100000-0000-4000-8000-000000000001',
-  'people',
-  'staged',
-  'non-lease.csv',
-  1,
-  1
+  'people', 'staged', 'non-lease.csv', 1, 1, NULL, NULL,
+  (SELECT auth.uid()), (SELECT auth.uid())
 ),
 (
   'f7100000-0000-4000-8000-000000000020',
   'f7100000-0000-4000-8000-000000000001',
-  'leases',
-  'staged',
-  'spoof-row.csv',
-  1,
-  1
+  'leases', 'staged', 'spoof-row.csv', 1, 1, NULL, NULL,
+  (SELECT auth.uid()), (SELECT auth.uid())
 ),
 (
   'f7100000-0000-4000-8000-000000000022',
   'f7100000-0000-4000-8000-000000000001',
-  'leases',
-  'staged',
-  'spoof-run.csv',
-  0,
-  0
+  'leases', 'staged', 'spoof-run.csv', 0, 0, NULL, NULL,
+  (SELECT auth.uid()), (SELECT auth.uid())
 ),
 (
   'f7100000-0000-4000-8000-000000000030',
   'f7100000-0000-4000-8000-000000000001',
-  'leases',
-  'staged',
-  'summary-mismatch.csv',
-  2,
-  2
-),
-(
-  'f7100000-0000-4000-8000-000000000040',
-  'f7100000-0000-4000-8000-000000000001',
-  'leases',
-  'staged',
-  'all-invalid.csv',
-  1,
-  1
+  'leases', 'staged', 'summary-mismatch.csv', 2, 2,
+  encode(extensions.digest('f7100000-0000-4000-8000-000000000030', 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:f7100000-0000-4000-8000-000000000030', 'sha256'), 'hex'),
+  (SELECT auth.uid()), (SELECT auth.uid())
 );
 
 INSERT INTO public.import_rows(
-  id,
-  import_run_id,
-  organization_id,
-  source_row_number,
-  row_status,
-  action_label,
-  raw_data,
-  normalized_data,
-  issues
+  id, import_run_id, organization_id, source_row_number, row_status,
+  action_label, raw_data, normalized_data, issues
+)
+VALUES (
+  'f7100000-0000-4000-8000-000000000031',
+  'f7100000-0000-4000-8000-000000000030',
+  'f7100000-0000-4000-8000-000000000001',
+  1, 'ready', 'create', '{}', '{}', '[]'
+);
+
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', 'f7100000-0000-4000-8000-000000000001',
+    'sourceClaimHash', encode(extensions.digest('f7100000-0000-4000-8000-000000000040', 'sha256'), 'hex'),
+    'runId', 'f7100000-0000-4000-8000-000000000040'
+  )::text,
+  true
+);
+
+INSERT INTO public.import_runs(
+  id, organization_id, import_type, status, source_file_name,
+  total_rows, ready_rows, source_claim_hash, snapshot_hash,
+  created_by, updated_by
+)
+VALUES (
+  'f7100000-0000-4000-8000-000000000040',
+  'f7100000-0000-4000-8000-000000000001',
+  'leases', 'staged', 'all-invalid.csv', 1, 1,
+  encode(extensions.digest('f7100000-0000-4000-8000-000000000040', 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:f7100000-0000-4000-8000-000000000040', 'sha256'), 'hex'),
+  (SELECT auth.uid()), (SELECT auth.uid())
+);
+
+INSERT INTO public.import_rows(
+  id, import_run_id, organization_id, source_row_number, row_status,
+  action_label, raw_data, normalized_data, issues
 )
 VALUES
 (
   'f7100000-0000-4000-8000-000000000011',
   'f7100000-0000-4000-8000-000000000010',
   'f7100000-0000-4000-8000-000000000001',
-  1,
-  'ready',
-  'create',
-  '{"name":"Non-Lease row"}',
-  '{"displayName":"Non-Lease row"}',
-  '[]'
+  1, 'ready', 'create',
+  '{"name":"Non-Lease row"}', '{"displayName":"Non-Lease row"}', '[]'
 ),
 (
   'f7100000-0000-4000-8000-000000000021',
   'f7100000-0000-4000-8000-000000000020',
   'f7100000-0000-4000-8000-000000000001',
-  1,
-  'ready',
-  'create',
-  '{"unit":"TB02-R10-FINAL"}',
-  '{}',
+  1, 'ready', 'create',
+  '{"unit":"TB02-R10-FINAL"}', '{}',
   '[{"level":"warning","message":"original warning"}]'
-),
-(
-  'f7100000-0000-4000-8000-000000000031',
-  'f7100000-0000-4000-8000-000000000030',
-  'f7100000-0000-4000-8000-000000000001',
-  1,
-  'ready',
-  'create',
-  '{}',
-  '{}',
-  '[]'
 ),
 (
   'f7100000-0000-4000-8000-000000000041',
   'f7100000-0000-4000-8000-000000000040',
   'f7100000-0000-4000-8000-000000000001',
-  1,
-  'ready',
-  'create',
+  1, 'ready', 'create',
   '{"unit":"TB02-R10-FINAL","tenant":"Missing"}',
   jsonb_build_object(
     'propertyId', 'f7100000-0000-4000-8000-000000000003',
@@ -425,6 +422,8 @@ VALUES
   ),
   '[{"level":"warning","message":"original warning"}]'
 );
+
+SELECT set_config('app.atomic_import_write_context', '', true);
 
 SELECT is(
   pg_temp.capture_error(format(
@@ -691,7 +690,7 @@ SELECT is(
       )
     $sql$
   ) ->> 'detail',
-  'lease_import_staging_summary_mismatch',
+  'import_staging_summary_mismatch',
   'commit rejects partial staging whose total and ready summary is inflated'
 );
 
