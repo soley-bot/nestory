@@ -570,9 +570,11 @@ SELECT is(
   'private checked creation requires a locked committing import run'
 );
 
+ALTER TABLE public.import_runs DISABLE TRIGGER USER;
 UPDATE public.import_runs
 SET status = 'committing'
 WHERE id = 'f4970000-0000-4000-8000-000000000070';
+ALTER TABLE public.import_runs ENABLE TRIGGER USER;
 
 SELECT is(
   pg_temp.capture_error_message(
@@ -602,9 +604,11 @@ SELECT is(
   'private checked creation binds scalar inputs to normalized import data'
 );
 
+ALTER TABLE public.import_runs DISABLE TRIGGER USER;
 UPDATE public.import_runs
 SET status = 'staged'
 WHERE id = 'f4970000-0000-4000-8000-000000000070';
+ALTER TABLE public.import_runs ENABLE TRIGGER USER;
 
 SET LOCAL ROLE authenticated;
 

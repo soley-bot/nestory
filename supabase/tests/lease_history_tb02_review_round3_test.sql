@@ -480,12 +480,7 @@ SELECT set_config(
   true
 );
 
-SELECT set_config(
-  'app.lease_import_result_write_context',
-  'checked-v1',
-  true
-);
-
+ALTER TABLE public.import_rows DISABLE TRIGGER USER;
 UPDATE public.import_rows
 SET
   result_lease_id = (
@@ -498,12 +493,7 @@ SET
     SELECT imported_occupancy_id FROM lease_history_tb02_round3_state
   )
 WHERE id = 'f4950000-0000-4000-8000-000000000061';
-
-SELECT set_config(
-  'app.lease_import_result_write_context',
-  '',
-  true
-);
+ALTER TABLE public.import_rows ENABLE TRIGGER USER;
 
 SELECT is(
   pg_temp.probe_error(
@@ -539,8 +529,8 @@ SELECT is(
       WHERE id = 'f4950000-0000-4000-8000-000000000063'
     $sql$
   ),
-  'NO_ERROR',
-  'an unreferenced staged row can still move between compatible runs'
+  '55000:lease_import_provenance_immutable',
+  'an unreferenced staged Lease row keeps immutable run identity'
 );
 
 SELECT is(
@@ -551,8 +541,8 @@ SELECT is(
       WHERE id = 'f4950000-0000-4000-8000-000000000064'
     $sql$
   ),
-  'NO_ERROR',
-  'an unreferenced staged run can still be retyped'
+  '55000:lease_import_provenance_immutable',
+  'an unreferenced staged Lease run keeps immutable import type'
 );
 
 SET LOCAL ROLE authenticated;
@@ -565,8 +555,8 @@ SELECT is(
       WHERE id = 'f4950000-0000-4000-8000-000000000063'
     $sql$
   ),
-  'NO_ERROR',
-  'authenticated non-result import staging updates remain compatible'
+  '42501:lease_import_row_checked_operation_required',
+  'authenticated direct Lease-row staging updates require a checked owner operation'
 );
 
 RESET ROLE;

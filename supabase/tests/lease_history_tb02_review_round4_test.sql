@@ -439,12 +439,7 @@ SELECT set_config(
   true
 );
 
-SELECT set_config(
-  'app.lease_import_result_write_context',
-  'checked-v1',
-  true
-);
-
+ALTER TABLE public.import_rows DISABLE TRIGGER USER;
 UPDATE public.import_rows
 SET
   result_lease_id = (
@@ -457,12 +452,7 @@ SET
     SELECT imported_occupancy_id FROM lease_history_tb02_round4_state
   )
 WHERE id = 'f4960000-0000-4000-8000-000000000061';
-
-SELECT set_config(
-  'app.lease_import_result_write_context',
-  '',
-  true
-);
+ALTER TABLE public.import_rows ENABLE TRIGGER USER;
 
 SET LOCAL ROLE authenticated;
 
@@ -488,13 +478,22 @@ SELECT is(
       WHERE id = 'f4960000-0000-4000-8000-000000000064'
     $sql$
   ),
-  'NO_ERROR',
-  'an empty unreferenced import run retains its existing organization move'
+  '55000:lease_import_provenance_immutable',
+  'an empty staged Lease import run keeps immutable organization identity'
 );
 
 SELECT is(
   pg_temp.probe_error(test_case.sql),
-  '55000:lease_import_provenance_immutable',
+  CASE
+    WHEN test_case.label = 'a referenced import creation timestamp is immutable'
+      THEN '42501:permission denied for table import_rows'
+    WHEN test_case.label IN (
+      'a referenced import row ID is immutable',
+      'a referenced import row run membership is immutable',
+      'a referenced import row organization is immutable'
+    ) THEN '55000:lease_import_provenance_immutable'
+    ELSE '42501:lease_import_row_checked_operation_required'
+  END,
   test_case.label
 )
 FROM (
@@ -616,8 +615,8 @@ SELECT is(
       WHERE id = 'f4960000-0000-4000-8000-000000000061'
     $sql$
   ),
-  'NO_ERROR',
-  'a referenced row may still receive its non-material updated-at audit touch'
+  '42501:permission denied for table import_rows',
+  'authenticated callers cannot write import-row audit timestamps'
 );
 
 SELECT is(
@@ -630,12 +629,12 @@ SELECT is(
         raw_data = '{"staged":true}'::jsonb,
         normalized_data = '{"staged":true}'::jsonb,
         issues = '[{"level":"warning","message":"review"}]'::jsonb,
-        error_message = 'staging review'
+        error_message = NULL
       WHERE id = 'f4960000-0000-4000-8000-000000000063'
     $sql$
   ),
   'NO_ERROR',
-  'an unreferenced row retains material staging edits'
+  'an unreferenced row retains valid material staging edits'
 );
 
 SELECT is(

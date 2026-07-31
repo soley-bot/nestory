@@ -1645,6 +1645,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "import_rows_organization_id_import_run_id_fkey"
+            columns: ["organization_id", "import_run_id"]
+            isOneToOne: false
+            referencedRelation: "import_runs"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "import_rows_result_lease_occupancy_org_fk"
             columns: ["organization_id", "result_lease_occupancy_id"]
             isOneToOne: false

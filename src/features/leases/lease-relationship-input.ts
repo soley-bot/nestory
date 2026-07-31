@@ -10,7 +10,11 @@ type NewLeaseRelationshipInput = {
   tenantPersonId: string;
 };
 
-type PlannedLeaseRelationshipInput = NewLeaseRelationshipInput & {
+type PlannedLeaseRelationshipInput = Omit<
+  NewLeaseRelationshipInput,
+  "leaseStatus"
+> & {
+  leaseStatus: "cancelled" | "draft";
   participantEndDate?: string;
   participantStartDate?: string;
   partyEndDate?: string;
@@ -69,18 +73,46 @@ type NewLeaseRelationshipPayload = {
 export function buildNewLeaseRelationshipPayload(
   input: NewLeaseRelationshipInput,
 ): NewLeaseRelationshipPayload {
-  return buildPlannedLeaseRelationshipPayload(input);
+  return {
+    occupancy: {
+      actualMoveIn: boundary(),
+      actualMoveOut: boundary(),
+      lifecycle: occupancyLifecycle(input.leaseStatus),
+      reason: "new_lease_relationship_composition",
+      recordSource: input.recordSource,
+      scheduledMoveIn: boundary(),
+      scheduledMoveOut: boundary(),
+    },
+    participants: [],
+    primaryParty: {
+      endedOn: boundary(),
+      lifecycle: partyLifecycle(input.leaseStatus),
+      personId: input.tenantPersonId,
+      reason: "new_lease_relationship_composition",
+      recordSource: input.recordSource,
+      startedOn: boundary(),
+    },
+  };
 }
 
 export function buildPlannedLeaseRelationshipPayload(
   input: PlannedLeaseRelationshipInput,
 ): NewLeaseRelationshipPayload {
+  const leaseStatus =
+    input.leaseStatus as NewLeaseRelationshipInput["leaseStatus"];
+
+  if (leaseStatus !== "cancelled" && leaseStatus !== "draft") {
+    throw new Error(
+      "Explicit participant evidence requires coherent actual occupancy dates",
+    );
+  }
+
   const participants =
     input.participantStartDate || input.participantEndDate
       ? [
           {
             endedOn: boundary(input.participantEndDate),
-            lifecycle: participantLifecycle(input.leaseStatus),
+            lifecycle: participantLifecycle(leaseStatus),
             personId: input.tenantPersonId,
             reason: "new_lease_relationship_composition" as const,
             recordSource: input.recordSource,
@@ -147,20 +179,9 @@ function partyLifecycle(
 }
 
 function participantLifecycle(
-  status: NewLeaseRelationshipInput["leaseStatus"],
+  status: PlannedLeaseRelationshipInput["leaseStatus"],
 ): NewLeaseRelationshipPayload["participants"][number]["lifecycle"] {
-  switch (status) {
-    case "active":
-    case "notice_given":
-      return "present";
-    case "cancelled":
-      return "cancelled_before_effective";
-    case "ended":
-    case "terminated":
-      return "ended";
-    default:
-      return "planned";
-  }
+  return status === "cancelled" ? "cancelled_before_effective" : "planned";
 }
 
 function boundary(date?: string): BoundaryEvidence {

@@ -156,15 +156,25 @@ describe("new Lease relationship payload", () => {
     });
   });
 
+  it("does not let wider-object participant dates leak through the public builder", () => {
+    const widerInput = {
+      leaseStatus: "active" as const,
+      participantEndDate: "2027-05-31",
+      participantStartDate: "2027-05-02",
+      recordSource: "operator_confirmed" as const,
+      tenantPersonId,
+    };
+
+    expect(buildNewLeaseRelationshipPayload(widerInput).participants).toEqual(
+      [],
+    );
+  });
+
   it.each([
     ["draft", "planned"],
-    ["active", "present"],
-    ["notice_given", "present"],
-    ["ended", "ended"],
-    ["terminated", "ended"],
     ["cancelled", "cancelled_before_effective"],
   ] as const)(
-    "maps explicit %s participant evidence to %s",
+    "maps persistable explicit %s participant evidence to %s",
     (leaseStatus, participantLifecycle) => {
       expect(
         buildPlannedLeaseRelationshipPayload({
@@ -191,6 +201,27 @@ describe("new Lease relationship payload", () => {
           },
         ],
       });
+    },
+  );
+
+  it.each(["active", "notice_given", "ended", "terminated"] as const)(
+    "rejects explicit %s participant evidence without actual occupancy dates",
+    (leaseStatus) => {
+      const unsupportedInput = {
+        leaseStatus,
+        participantEndDate: "2027-05-31",
+        participantStartDate: "2027-05-02",
+        recordSource: "operator_confirmed",
+        tenantPersonId,
+      } as unknown as Parameters<
+        typeof buildPlannedLeaseRelationshipPayload
+      >[0];
+
+      expect(() =>
+        buildPlannedLeaseRelationshipPayload(unsupportedInput),
+      ).toThrow(
+        "Explicit participant evidence requires coherent actual occupancy dates",
+      );
     },
   );
 });

@@ -348,9 +348,13 @@ SELECT throws_ok(
   'archived counterparty is rejected'
 );
 
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
+
 UPDATE public.people
-SET archived_at = NULL
+SET archived_at = NULL, archived_by = NULL
 WHERE id = '80200000-0000-0000-0000-000000000008';
+
+SELECT set_config('app.people_leases_skip_sync', 'off', true);
 
 SELECT lives_ok(
   $$SELECT public.create_petty_cash_entry(
