@@ -1,0 +1,923 @@
+import { spawn, spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+
+const ids = {
+  admin: "f4920000-0000-4000-8000-000000000001",
+  organization: "f4920000-0000-4000-8000-000000000002",
+  property: "f4920000-0000-4000-8000-000000000003",
+  relationshipUnit: "f4920000-0000-4000-8000-000000000004",
+  occupancyRaceUnit: "f4920000-0000-4000-8000-000000000005",
+  tenantA: "f4920000-0000-4000-8000-000000000006",
+  tenantB: "f4920000-0000-4000-8000-000000000007",
+  occupant: "f4920000-0000-4000-8000-000000000008",
+  partyA: "f4920000-0000-4000-8000-000000000009",
+  partyB: "f4920000-0000-4000-8000-000000000010",
+  participantA: "f4920000-0000-4000-8000-000000000011",
+  participantB: "f4920000-0000-4000-8000-000000000012",
+  occupancyA: "f4920000-0000-4000-8000-000000000013",
+  occupancyB: "f4920000-0000-4000-8000-000000000014",
+  occupancyLeaseA: "f4920000-0000-4000-8000-000000000015",
+  occupancyLeaseB: "f4920000-0000-4000-8000-000000000016",
+};
+
+const markerTimeoutMs = 10_000;
+const startedProcesses = new Set();
+let processSequence = 0;
+
+export function evaluateAcceptedRangeRace(first, second) {
+  const results = [first, second];
+  const committed = results.filter((result) => result.code === 0);
+  const rejected = results.filter((result) => result.code !== 0);
+
+  if (committed.length !== 1 || rejected.length !== 1) {
+    throw new Error(
+      "Expected exactly one accepted relationship to commit and one contender to fail.",
+    );
+  }
+
+  if (!rejected[0].output.match(/ERROR:\s+23P01:/)) {
+    throw new Error(
+      `Expected the losing contender to return SQLSTATE 23P01.\n${rejected[0].output}`,
+    );
+  }
+
+  return {
+    committed: 1,
+    rejected: 1,
+    sqlstate: "23P01",
+  };
+}
+
+async function main() {
+  const container =
+    readOption("--container") ??
+    process.env.SUPABASE_DB_CONTAINER ??
+    "supabase_db_nestory";
+
+  assertContainer(container);
+
+  let proofError;
+  try {
+    cleanup(container);
+    fixture(container);
+
+    await provePartyRace(container);
+    await proveParticipantRace(container);
+    await proveOccupancyRace(container);
+
+    process.stdout.write(
+      "PASS TB-02 relationship concurrency: accepted party, participant, and same-Unit occupancy ranges serialized across two sessions with exactly one commit and one 23P01 exclusion rejection per race.\n",
+    );
+  } catch (error) {
+    proofError = error;
+  } finally {
+    await stopProcesses();
+    try {
+      cleanup(container);
+    } catch (cleanupError) {
+      if (proofError) {
+        proofError = new AggregateError(
+          [proofError, cleanupError],
+          "TB-02 concurrency proof and cleanup both failed.",
+        );
+      } else {
+        proofError = cleanupError;
+      }
+    }
+  }
+
+  if (proofError) {
+    throw proofError;
+  }
+}
+
+async function provePartyRace(container) {
+  const first = startPsql(
+    container,
+    insertAcceptedPartySql(ids.partyA, "PARTY_FIRST_INSERTED"),
+    { holdOpen: true },
+  );
+  await first.waitFor("PARTY_FIRST_INSERTED");
+
+  const second = startPsql(
+    container,
+    insertAcceptedPartySql(ids.partyB, "PARTY_SECOND_COMMITTED", {
+      commit: true,
+    }),
+  );
+
+  await assertWaitsBehind(container, second, first, "party exclusion");
+  first.release();
+
+  const results = await Promise.all([first.result, second.result]);
+  evaluateAcceptedRangeRace(...results);
+  assertScalar(
+    container,
+    `SELECT count(*)::text
+FROM public.lease_parties
+WHERE organization_id = '${ids.organization}'::uuid
+  AND person_id = '${ids.occupant}'::uuid
+  AND party_role = 'authorized_occupant'
+  AND evidence_state = 'accepted';`,
+    "1",
+    "accepted authorized-occupant party winner",
+  );
+}
+
+async function proveParticipantRace(container) {
+  assertScalar(
+    container,
+    `SELECT
+  evidence_state
+  || ':' || business_lifecycle
+  || ':' || coalesce(actual_effective_range::text, 'NULL')
+FROM public.lease_occupancies
+WHERE organization_id = '${ids.organization}'::uuid
+  AND unit_id = '${ids.relationshipUnit}'::uuid;`,
+    "accepted:occupied:[2027-01-01,2028-01-01)",
+    "accepted actual-occupancy containment fixture",
+  );
+
+  const first = startPsql(
+    container,
+    insertAcceptedParticipantSql(
+      ids.participantA,
+      "PARTICIPANT_FIRST_INSERTED",
+    ),
+    { holdOpen: true },
+  );
+  await first.waitFor("PARTICIPANT_FIRST_INSERTED");
+
+  const second = startPsql(
+    container,
+    insertAcceptedParticipantSql(
+      ids.participantB,
+      "PARTICIPANT_SECOND_COMMITTED",
+      { commit: true },
+    ),
+  );
+
+  await assertWaitsBehind(
+    container,
+    second,
+    first,
+    "participant advisory/exclusion",
+  );
+  first.release();
+
+  const results = await Promise.all([first.result, second.result]);
+  evaluateAcceptedRangeRace(...results);
+  assertScalar(
+    container,
+    `SELECT count(*)::text
+FROM public.lease_occupancy_participants
+WHERE organization_id = '${ids.organization}'::uuid
+  AND lease_party_id = '${ids.partyA}'::uuid
+  AND evidence_state = 'accepted';`,
+    "1",
+    "accepted participant winner",
+  );
+}
+
+async function proveOccupancyRace(container) {
+  const first = startPsql(
+    container,
+    insertAcceptedOccupancySql(
+      ids.occupancyA,
+      ids.occupancyLeaseA,
+      "OCCUPANCY_FIRST_CREATED",
+    ),
+    { holdOpen: true },
+  );
+  await first.waitFor("OCCUPANCY_FIRST_CREATED");
+
+  const second = startPsql(
+    container,
+    insertAcceptedOccupancySql(
+      ids.occupancyB,
+      ids.occupancyLeaseB,
+      "OCCUPANCY_SECOND_COMMITTED",
+      { commit: true },
+    ),
+  );
+
+  await assertWaitsBehind(container, second, first, "same-Unit occupancy");
+  first.release();
+
+  const results = await Promise.all([first.result, second.result]);
+  evaluateAcceptedRangeRace(...results);
+  assertScalar(
+    container,
+    `SELECT count(*)::text
+FROM public.lease_occupancies
+WHERE organization_id = '${ids.organization}'::uuid
+  AND unit_id = '${ids.occupancyRaceUnit}'::uuid
+  AND evidence_state = 'accepted';`,
+    "1",
+    "accepted same-Unit occupancy winner",
+  );
+}
+
+function fixture(container) {
+  runSql(
+    container,
+    `\\set ON_ERROR_STOP on
+BEGIN;
+INSERT INTO auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, raw_app_meta_data,
+  raw_user_meta_data, created_at, updated_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  '${ids.admin}'::uuid,
+  'authenticated',
+  'authenticated',
+  'tb02-concurrency@example.test',
+  extensions.crypt('tb02-concurrency', extensions.gen_salt('bf')),
+  now(),
+  '', '', '', '', '', '',
+  '{"provider":"email","providers":["email"]}',
+  '{}',
+  now(),
+  now()
+);
+
+INSERT INTO public.organizations(id, name, slug)
+VALUES (
+  '${ids.organization}'::uuid,
+  'TB-02 relationship concurrency',
+  'tb02-relationship-concurrency'
+);
+
+INSERT INTO public.organization_members(organization_id, user_id, role)
+VALUES ('${ids.organization}'::uuid, '${ids.admin}'::uuid, 'admin');
+
+INSERT INTO public.properties(
+  id, organization_id, name, code, property_type, status
+) VALUES (
+  '${ids.property}'::uuid,
+  '${ids.organization}'::uuid,
+  'TB-02 concurrency property',
+  'TB02-CONCURRENCY',
+  'apartment',
+  'active'
+);
+
+INSERT INTO public.units(
+  id, organization_id, property_id, unit_number, status,
+  current_rent_amount, current_rent_currency
+) VALUES
+(
+  '${ids.relationshipUnit}'::uuid,
+  '${ids.organization}'::uuid,
+  '${ids.property}'::uuid,
+  'TB02-RELATIONSHIP',
+  'vacant',
+  1000,
+  'USD'
+),
+(
+  '${ids.occupancyRaceUnit}'::uuid,
+  '${ids.organization}'::uuid,
+  '${ids.property}'::uuid,
+  'TB02-OCCUPANCY-RACE',
+  'vacant',
+  1000,
+  'USD'
+);
+
+INSERT INTO public.people(
+  id, organization_id, display_name, party_type
+) VALUES
+(
+  '${ids.tenantA}'::uuid,
+  '${ids.organization}'::uuid,
+  'TB-02 tenant A',
+  'individual'
+),
+(
+  '${ids.tenantB}'::uuid,
+  '${ids.organization}'::uuid,
+  'TB-02 tenant B',
+  'individual'
+),
+(
+  '${ids.occupant}'::uuid,
+  '${ids.organization}'::uuid,
+  'TB-02 authorized occupant',
+  'individual'
+);
+
+INSERT INTO public.person_roles(organization_id, person_id, role)
+VALUES
+  ('${ids.organization}'::uuid, '${ids.tenantA}'::uuid, 'tenant'),
+  ('${ids.organization}'::uuid, '${ids.tenantB}'::uuid, 'tenant');
+
+SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
+SET LOCAL ROLE authenticated;
+SELECT public.create_lease_with_relationships(
+  '${ids.organization}'::uuid,
+  '${ids.property}'::uuid,
+  '${ids.relationshipUnit}'::uuid,
+  '${ids.tenantA}'::uuid,
+  DATE '2027-01-01',
+  DATE '2027-12-31',
+  1000,
+  'USD'::public.currency_code,
+  5,
+  'monthly',
+  'upcoming',
+  NULL,
+  NULL,
+  'draft',
+  $payload$
+  {
+    "primaryParty": {
+      "personId": "${ids.tenantA}",
+      "lifecycle": "effective",
+      "recordSource": "operator_confirmed",
+      "reason": "tb02_concurrency_fixture",
+      "startedOn": {
+        "date": "2027-01-01",
+        "kind": "known",
+        "confidence": "confirmed"
+      },
+      "endedOn": {
+        "date": "2027-12-31",
+        "kind": "known",
+        "confidence": "confirmed"
+      }
+    },
+    "occupancy": {
+      "lifecycle": "occupied",
+      "recordSource": "operator_confirmed",
+      "reason": "tb02_concurrency_fixture",
+      "scheduledMoveIn": {
+        "date": "2027-01-01",
+        "kind": "known",
+        "confidence": "confirmed"
+      },
+      "scheduledMoveOut": {
+        "date": "2027-12-31",
+        "kind": "known",
+        "confidence": "confirmed"
+      },
+      "actualMoveIn": {
+        "date": "2027-01-01",
+        "kind": "known",
+        "confidence": "confirmed"
+      },
+      "actualMoveOut": {
+        "date": "2027-12-31",
+        "kind": "known",
+        "confidence": "confirmed"
+      }
+    },
+    "participants": []
+  }
+  $payload$::jsonb,
+  'tb02-concurrency-fixture'
+);
+RESET ROLE;
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
+INSERT INTO public.leases(
+  id,
+  organization_id,
+  property_id,
+  unit_id,
+  tenant_name,
+  primary_tenant_person_id,
+  lease_start_date,
+  lease_end_date,
+  monthly_rent_amount,
+  monthly_rent_currency,
+  status,
+  created_by,
+  updated_by
+)
+VALUES
+(
+  '${ids.occupancyLeaseA}'::uuid,
+  '${ids.organization}'::uuid,
+  '${ids.property}'::uuid,
+  '${ids.occupancyRaceUnit}'::uuid,
+  'TB-02 tenant A',
+  '${ids.tenantA}'::uuid,
+  DATE '2028-01-01',
+  DATE '2028-12-31',
+  1000,
+  'USD',
+  'draft',
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
+),
+(
+  '${ids.occupancyLeaseB}'::uuid,
+  '${ids.organization}'::uuid,
+  '${ids.property}'::uuid,
+  '${ids.occupancyRaceUnit}'::uuid,
+  'TB-02 tenant B',
+  '${ids.tenantB}'::uuid,
+  DATE '2028-01-01',
+  DATE '2028-12-31',
+  1000,
+  'USD',
+  'draft',
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
+);
+COMMIT;`,
+  );
+}
+
+function insertAcceptedPartySql(id, marker, { commit = false } = {}) {
+  return `\\set ON_ERROR_STOP on
+\\set VERBOSITY verbose
+BEGIN;
+SELECT set_config(
+  'app.lease_history_write_context',
+  'checked-lease-create-v2',
+  true
+);
+INSERT INTO public.lease_parties(
+  id,
+  organization_id,
+  lease_id,
+  person_id,
+  party_role,
+  is_primary,
+  started_on,
+  ended_on,
+  evidence_state,
+  business_lifecycle,
+  record_source,
+  started_on_kind,
+  started_on_confidence,
+  ended_on_kind,
+  ended_on_confidence,
+  evidence_recorded_by,
+  evidence_reason,
+  created_by,
+  updated_by
+)
+SELECT
+  '${id}'::uuid,
+  '${ids.organization}'::uuid,
+  leases.id,
+  '${ids.occupant}'::uuid,
+  'authorized_occupant',
+  false,
+  DATE '2027-02-01',
+  DATE '2027-10-31',
+  'accepted',
+  'effective',
+  'operator_confirmed',
+  'known',
+  'confirmed',
+  'known',
+  'confirmed',
+  '${ids.admin}'::uuid,
+  'tb02_party_concurrency',
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
+FROM public.leases AS leases
+WHERE leases.organization_id = '${ids.organization}'::uuid
+  AND leases.unit_id = '${ids.relationshipUnit}'::uuid;
+\\echo ${marker}
+${commit ? "COMMIT;" : ""}
+`;
+}
+
+function insertAcceptedParticipantSql(
+  id,
+  marker,
+  { commit = false } = {},
+) {
+  return `\\set ON_ERROR_STOP on
+\\set VERBOSITY verbose
+BEGIN;
+SELECT set_config(
+  'app.lease_history_write_context',
+  'checked-lease-create-v2',
+  true
+);
+INSERT INTO public.lease_occupancy_participants(
+  id,
+  organization_id,
+  lease_occupancy_id,
+  lease_party_id,
+  started_on,
+  ended_on,
+  evidence_state,
+  business_lifecycle,
+  record_source,
+  started_on_kind,
+  started_on_confidence,
+  ended_on_kind,
+  ended_on_confidence,
+  evidence_recorded_by,
+  evidence_reason,
+  created_by,
+  updated_by
+)
+SELECT
+  '${id}'::uuid,
+  '${ids.organization}'::uuid,
+  occupancies.id,
+  '${ids.partyA}'::uuid,
+  DATE '2027-03-01',
+  DATE '2027-09-30',
+  'accepted',
+  'present',
+  'operator_confirmed',
+  'known',
+  'confirmed',
+  'known',
+  'confirmed',
+  '${ids.admin}'::uuid,
+  'tb02_participant_concurrency',
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
+FROM public.lease_occupancies AS occupancies
+WHERE occupancies.organization_id = '${ids.organization}'::uuid
+  AND occupancies.unit_id = '${ids.relationshipUnit}'::uuid;
+\\echo ${marker}
+${commit ? "COMMIT;" : ""}
+`;
+}
+
+function insertAcceptedOccupancySql(
+  id,
+  leaseId,
+  marker,
+  { commit = false } = {},
+) {
+  return `\\set ON_ERROR_STOP on
+\\set VERBOSITY verbose
+BEGIN;
+SELECT set_config(
+  'app.lease_history_write_context',
+  'checked-lease-create-v2',
+  true
+);
+INSERT INTO public.lease_occupancies(
+  id,
+  organization_id,
+  lease_id,
+  property_id,
+  unit_id,
+  status,
+  scheduled_move_in_date,
+  scheduled_move_out_date,
+  evidence_state,
+  business_lifecycle,
+  record_source,
+  scheduled_move_in_kind,
+  scheduled_move_in_confidence,
+  scheduled_move_out_kind,
+  scheduled_move_out_confidence,
+  actual_move_in_kind,
+  actual_move_in_confidence,
+  actual_move_out_kind,
+  actual_move_out_confidence,
+  notice_kind,
+  notice_confidence,
+  evidence_recorded_by,
+  evidence_reason,
+  created_by,
+  updated_by
+)
+SELECT
+  '${id}'::uuid,
+  '${ids.organization}'::uuid,
+  leases.id,
+  '${ids.property}'::uuid,
+  '${ids.occupancyRaceUnit}'::uuid,
+  'reserved',
+  DATE '2028-01-01',
+  DATE '2028-12-31',
+  'accepted',
+  'reserved',
+  'operator_confirmed',
+  'known',
+  'confirmed',
+  'known',
+  'confirmed',
+  'unknown',
+  'unknown',
+  'unknown',
+  'unknown',
+  'unknown',
+  'unknown',
+  '${ids.admin}'::uuid,
+  'tb02_occupancy_concurrency',
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
+FROM public.leases AS leases
+WHERE leases.organization_id = '${ids.organization}'::uuid
+  AND leases.id = '${leaseId}'::uuid;
+\\echo ${marker}
+${commit ? "COMMIT;" : ""}
+`;
+}
+
+function startPsql(container, sql, { holdOpen = false } = {}) {
+  const applicationName =
+    `nestory-tb02-concurrency-${++processSequence}`;
+  const child = spawn(
+    "docker",
+    [
+      "exec",
+      "-e",
+      `PGAPPNAME=${applicationName}`,
+      "-i",
+      container,
+      "psql",
+      "-X",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+    ],
+    { stdio: ["pipe", "pipe", "pipe"] },
+  );
+
+  let completed = false;
+  let output = "";
+  let released = false;
+  const waiters = new Set();
+
+  const append = (chunk) => {
+    output += chunk.toString();
+    for (const waiter of waiters) {
+      if (output.includes(waiter.marker)) {
+        clearTimeout(waiter.timeout);
+        waiters.delete(waiter);
+        waiter.resolve();
+      }
+    }
+  };
+
+  child.stdout.on("data", append);
+  child.stderr.on("data", append);
+  child.stdin.on("error", (error) => {
+    append(`stdin error: ${error.message}\n`);
+  });
+
+  let processHandle;
+  const result = new Promise((resolveResult) => {
+    child.on("error", (error) => {
+      append(`spawn error: ${error.message}\n`);
+    });
+    child.on("close", (code) => {
+      completed = true;
+      startedProcesses.delete(processHandle);
+      for (const waiter of waiters) {
+        clearTimeout(waiter.timeout);
+        waiter.reject(
+          new Error(
+            `psql exited before marker ${waiter.marker}.\n${output}`,
+          ),
+        );
+      }
+      waiters.clear();
+      resolveResult({ code: code ?? 1, output });
+    });
+  });
+
+  processHandle = {
+    applicationName,
+    get completed() {
+      return completed;
+    },
+    get output() {
+      return output;
+    },
+    result,
+    kill() {
+      if (!completed) {
+        child.kill();
+      }
+    },
+    release() {
+      if (!holdOpen || released || completed) {
+        throw new Error("Held psql process cannot be released.");
+      }
+      released = true;
+      child.stdin.end("COMMIT;\n\\echo TRANSACTION_RELEASED\n");
+    },
+    waitFor(marker) {
+      if (output.includes(marker)) {
+        return Promise.resolve();
+      }
+      return new Promise((resolveWait, rejectWait) => {
+        const waiter = {
+          marker,
+          reject: rejectWait,
+          resolve: resolveWait,
+          timeout: setTimeout(() => {
+            waiters.delete(waiter);
+            rejectWait(
+              new Error(`Timed out waiting for ${marker}.\n${output}`),
+            );
+          }, markerTimeoutMs),
+        };
+        waiters.add(waiter);
+      });
+    },
+  };
+
+  startedProcesses.add(processHandle);
+  if (holdOpen) {
+    child.stdin.write(sql);
+  } else {
+    child.stdin.end(sql);
+  }
+  return processHandle;
+}
+
+async function assertWaitsBehind(
+  container,
+  contender,
+  blocker,
+  label,
+) {
+  const deadline = Date.now() + markerTimeoutMs;
+  while (Date.now() < deadline) {
+    if (contender.completed) {
+      throw new Error(
+        `${label} contender exited before reaching a lock wait.\n${contender.output}`,
+      );
+    }
+
+    const waiting = queryScalar(
+      container,
+      `SELECT count(*)
+FROM pg_catalog.pg_stat_activity AS contender
+JOIN pg_catalog.pg_stat_activity AS blocker
+  ON blocker.pid = ANY (
+    pg_catalog.pg_blocking_pids(contender.pid)
+  )
+WHERE contender.application_name = '${contender.applicationName}'
+  AND blocker.application_name = '${blocker.applicationName}'
+  AND contender.state = 'active'
+  AND contender.wait_event_type = 'Lock';`,
+    );
+
+    if (waiting === "1") {
+      return;
+    }
+
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
+  }
+
+  throw new Error(
+    `Timed out waiting for the ${label} blocker.\n${contender.output}`,
+  );
+}
+
+function cleanup(container) {
+  runSql(
+    container,
+    `\\set ON_ERROR_STOP on
+BEGIN;
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
+DELETE FROM public.activity_logs
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM app_private.financial_idempotency_requests
+WHERE organization_id = '${ids.organization}'::uuid;
+ALTER TABLE public.property_reporting_periods
+  DISABLE TRIGGER enforce_property_period_mutation_context;
+DELETE FROM public.property_reporting_periods
+WHERE organization_id = '${ids.organization}'::uuid;
+ALTER TABLE public.property_reporting_periods
+  ENABLE TRIGGER enforce_property_period_mutation_context;
+DELETE FROM public.ledger_period_locks
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.organizations
+WHERE id = '${ids.organization}'::uuid;
+DELETE FROM auth.users
+WHERE id = '${ids.admin}'::uuid;
+COMMIT;
+
+DO $cleanup$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.organizations
+    WHERE id = '${ids.organization}'::uuid
+  ) OR EXISTS (
+    SELECT 1
+    FROM auth.users
+    WHERE id = '${ids.admin}'::uuid
+  ) THEN
+    RAISE EXCEPTION 'TB-02 concurrency fixtures remain after cleanup';
+  END IF;
+END;
+$cleanup$;`,
+  );
+}
+
+function assertScalar(container, sql, expected, label) {
+  const actual = queryScalar(container, sql);
+  if (actual !== expected) {
+    throw new Error(`Expected ${label} ${expected}, found ${actual}.`);
+  }
+}
+
+function queryScalar(container, sql) {
+  const result = spawnSync(
+    "docker",
+    [
+      "exec",
+      container,
+      "psql",
+      "-X",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+      "-Atc",
+      sql,
+    ],
+    { encoding: "utf8", timeout: markerTimeoutMs },
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(`${result.stdout ?? ""}${result.stderr ?? ""}`);
+  }
+  return result.stdout.trim();
+}
+
+function runSql(container, sql) {
+  const result = spawnSync(
+    "docker",
+    [
+      "exec",
+      "-i",
+      container,
+      "psql",
+      "-X",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+    ],
+    { encoding: "utf8", input: sql, timeout: markerTimeoutMs },
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(`${result.stdout ?? ""}${result.stderr ?? ""}`);
+  }
+}
+
+function assertContainer(container) {
+  const result = spawnSync(
+    "docker",
+    ["inspect", "--format", "{{.State.Running}}", container],
+    { encoding: "utf8", timeout: markerTimeoutMs },
+  );
+  if (
+    result.error ||
+    (result.status ?? 1) !== 0 ||
+    result.stdout.trim() !== "true"
+  ) {
+    throw new Error(
+      `Local Supabase database container ${container} is not running.`,
+    );
+  }
+}
+
+async function stopProcesses() {
+  const running = [...startedProcesses];
+  for (const processHandle of running) {
+    processHandle.kill();
+  }
+  await Promise.allSettled(
+    running.map((processHandle) => processHandle.result),
+  );
+}
+
+function readOption(name) {
+  const index = process.argv.indexOf(name);
+  return index === -1 ? undefined : process.argv[index + 1];
+}
+
+const entryPath = process.argv[1] ? resolve(process.argv[1]) : "";
+if (entryPath === fileURLToPath(import.meta.url)) {
+  await main();
+}

@@ -1572,16 +1572,28 @@ SELECT set_config('app.people_leases_skip_sync', 'on', true);
 UPDATE public.lease_parties
 SET
   started_on = current_date - 365,
-  ended_on = current_date - 5
+  started_on_kind = 'known',
+  started_on_confidence = 'inferred',
+  ended_on = current_date - 5,
+  ended_on_kind = 'known',
+  ended_on_confidence = 'inferred'
 WHERE id = (SELECT completed_party_id FROM lease_history_guard_state);
 
 UPDATE public.lease_occupancies
 SET
   status = 'vacated',
   scheduled_move_in_date = current_date - 365,
+  scheduled_move_in_kind = 'known',
+  scheduled_move_in_confidence = 'inferred',
   actual_move_in_date = current_date - 360,
+  actual_move_in_kind = 'known',
+  actual_move_in_confidence = 'inferred',
   scheduled_move_out_date = current_date - 10,
-  actual_move_out_date = current_date - 5
+  scheduled_move_out_kind = 'known',
+  scheduled_move_out_confidence = 'inferred',
+  actual_move_out_date = current_date - 5,
+  actual_move_out_kind = 'known',
+  actual_move_out_confidence = 'inferred'
 WHERE id = (SELECT completed_occupancy_id FROM lease_history_guard_state);
 
 SELECT set_config('app.people_leases_skip_sync', 'off', true);
