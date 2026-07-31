@@ -74,50 +74,52 @@ RETURNS jsonb
 LANGUAGE sql
 IMMUTABLE
 AS $$
-  SELECT jsonb_build_object(
-    'sourceImportRowId', p_source_import_row_id,
-    'primaryParty', jsonb_build_object(
-      'personId', 'f4960000-0000-4000-8000-000000000020',
-      'lifecycle', 'planned',
-      'recordSource', 'operator_confirmed',
-      'reason', 'tb02_round4_date_order',
-      'startedOn', jsonb_build_object(
-        'date', NULL,
-        'kind', 'unknown',
-        'confidence', 'unknown'
+  SELECT jsonb_strip_nulls(
+    jsonb_build_object(
+      'sourceImportRowId', p_source_import_row_id,
+      'primaryParty', jsonb_build_object(
+        'personId', 'f4960000-0000-4000-8000-000000000020',
+        'lifecycle', 'planned',
+        'recordSource', 'operator_confirmed',
+        'reason', 'tb02_round4_date_order',
+        'startedOn', jsonb_build_object(
+          'date', NULL,
+          'kind', 'unknown',
+          'confidence', 'unknown'
+        ),
+        'endedOn', jsonb_build_object(
+          'date', NULL,
+          'kind', 'unknown',
+          'confidence', 'unknown'
+        )
       ),
-      'endedOn', jsonb_build_object(
-        'date', NULL,
-        'kind', 'unknown',
-        'confidence', 'unknown'
-      )
-    ),
-    'occupancy', jsonb_build_object(
-      'lifecycle', 'reserved',
-      'recordSource', 'operator_confirmed',
-      'reason', 'tb02_round4_date_order',
-      'scheduledMoveIn', jsonb_build_object(
-        'date', NULL,
-        'kind', 'unknown',
-        'confidence', 'unknown'
+      'occupancy', jsonb_build_object(
+        'lifecycle', 'reserved',
+        'recordSource', 'operator_confirmed',
+        'reason', 'tb02_round4_date_order',
+        'scheduledMoveIn', jsonb_build_object(
+          'date', NULL,
+          'kind', 'unknown',
+          'confidence', 'unknown'
+        ),
+        'scheduledMoveOut', jsonb_build_object(
+          'date', NULL,
+          'kind', 'unknown',
+          'confidence', 'unknown'
+        ),
+        'actualMoveIn', jsonb_build_object(
+          'date', NULL,
+          'kind', 'unknown',
+          'confidence', 'unknown'
+        ),
+        'actualMoveOut', jsonb_build_object(
+          'date', NULL,
+          'kind', 'unknown',
+          'confidence', 'unknown'
+        )
       ),
-      'scheduledMoveOut', jsonb_build_object(
-        'date', NULL,
-        'kind', 'unknown',
-        'confidence', 'unknown'
-      ),
-      'actualMoveIn', jsonb_build_object(
-        'date', NULL,
-        'kind', 'unknown',
-        'confidence', 'unknown'
-      ),
-      'actualMoveOut', jsonb_build_object(
-        'date', NULL,
-        'kind', 'unknown',
-        'confidence', 'unknown'
-      )
-    ),
-    'participants', '[]'::jsonb
+      'participants', '[]'::jsonb
+    )
   );
 $$;
 
@@ -395,7 +397,7 @@ WITH created AS (
     NULL,
     'draft',
     pg_temp.relationship_payload(
-      'f4960000-0000-4000-8000-000000000061'
+      NULL
     ),
     'tb02-round4-referenced'
   ) AS result
@@ -408,6 +410,34 @@ SET
 FROM created;
 
 RESET ROLE;
+
+SELECT set_config(
+  'app.lease_history_write_context',
+  'checked-lease-create-v2',
+  true
+);
+
+UPDATE public.lease_parties
+SET source_import_row_id =
+  'f4960000-0000-4000-8000-000000000061'
+WHERE id = (
+  SELECT imported_party_id
+  FROM lease_history_tb02_round4_state
+);
+
+UPDATE public.lease_occupancies
+SET source_import_row_id =
+  'f4960000-0000-4000-8000-000000000061'
+WHERE id = (
+  SELECT imported_occupancy_id
+  FROM lease_history_tb02_round4_state
+);
+
+SELECT set_config(
+  'app.lease_history_write_context',
+  'off',
+  true
+);
 
 SELECT set_config(
   'app.lease_import_result_write_context',
@@ -885,7 +915,7 @@ SELECT is(
         jsonb_set(
           jsonb_set(
             pg_temp.relationship_payload(
-              'f4960000-0000-4000-8000-000000000061'
+              NULL
             ),
             '{primaryParty,startedOn}',
             '{"date":"2046-02-01","kind":"known","confidence":"confirmed"}'
@@ -915,7 +945,7 @@ SELECT is(
         jsonb_set(
           jsonb_set(
             pg_temp.relationship_payload(
-              'f4960000-0000-4000-8000-000000000061'
+              NULL
             ),
             '{occupancy,scheduledMoveIn}',
             '{"date":"2046-02-01","kind":"known","confidence":"confirmed"}'
@@ -945,7 +975,7 @@ SELECT is(
         jsonb_set(
           jsonb_set(
             pg_temp.relationship_payload(
-              'f4960000-0000-4000-8000-000000000061'
+              NULL
             ),
             '{occupancy,actualMoveIn}',
             '{"date":"2046-02-01","kind":"known","confidence":"confirmed"}'
@@ -974,7 +1004,7 @@ SELECT is(
         'monthly', 'upcoming', NULL, NULL, 'draft',
         jsonb_set(
           pg_temp.relationship_payload(
-            'f4960000-0000-4000-8000-000000000061'
+            NULL
           ),
           '{participants}',
           '[{
@@ -1016,7 +1046,7 @@ SELECT ok(
       )
       AND error_message IS NULL
   ),
-  'source-attached rejected boundary writes leave import evidence unchanged'
+  'rejected date-boundary writes leave existing import evidence unchanged'
 );
 
 SELECT is(

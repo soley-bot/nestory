@@ -397,8 +397,6 @@ WITH created AS (
     NULL,
     'draft',
     '{
-      "sourceImportRowId":
-        "f4950000-0000-4000-8000-000000000061",
       "primaryParty": {
         "personId": "f4950000-0000-4000-8000-000000000023",
         "lifecycle": "planned",
@@ -453,6 +451,34 @@ SET
 FROM created;
 
 RESET ROLE;
+
+SELECT set_config(
+  'app.lease_history_write_context',
+  'checked-lease-create-v2',
+  true
+);
+
+UPDATE public.lease_parties
+SET source_import_row_id =
+  'f4950000-0000-4000-8000-000000000061'
+WHERE id = (
+  SELECT imported_party_id
+  FROM lease_history_tb02_round3_state
+);
+
+UPDATE public.lease_occupancies
+SET source_import_row_id =
+  'f4950000-0000-4000-8000-000000000061'
+WHERE id = (
+  SELECT imported_occupancy_id
+  FROM lease_history_tb02_round3_state
+);
+
+SELECT set_config(
+  'app.lease_history_write_context',
+  'off',
+  true
+);
 
 SELECT set_config(
   'app.lease_import_result_write_context',

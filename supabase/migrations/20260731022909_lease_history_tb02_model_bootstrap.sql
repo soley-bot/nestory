@@ -1850,7 +1850,250 @@ REVOKE ALL ON FUNCTION app_private.create_lease_with_authoritative_term_plan04(
 )
 FROM PUBLIC, anon, authenticated, service_role;
 
-CREATE OR REPLACE FUNCTION public.create_lease_with_relationships(
+ALTER FUNCTION public.create_authoritative_lease_term(
+  uuid,
+  uuid,
+  date,
+  date,
+  numeric,
+  public.currency_code,
+  integer,
+  text,
+  text,
+  uuid,
+  text
+)
+SET SCHEMA app_private;
+
+ALTER FUNCTION app_private.create_authoritative_lease_term(
+  uuid,
+  uuid,
+  date,
+  date,
+  numeric,
+  public.currency_code,
+  integer,
+  text,
+  text,
+  uuid,
+  text
+)
+RENAME TO create_authoritative_lease_term_plan04;
+
+REVOKE ALL ON FUNCTION
+  app_private.create_authoritative_lease_term_plan04(
+    uuid,
+    uuid,
+    date,
+    date,
+    numeric,
+    public.currency_code,
+    integer,
+    text,
+    text,
+    uuid,
+    text
+  )
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.create_authoritative_lease_term(
+  p_organization_id uuid,
+  p_lease_id uuid,
+  p_start_date date,
+  p_end_date date,
+  p_rent_amount numeric,
+  p_rent_currency public.currency_code,
+  p_rent_due_day integer,
+  p_payment_frequency text,
+  p_status text,
+  p_supersedes_term_id uuid,
+  p_idempotency_key text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_actor_id uuid := (SELECT auth.uid());
+BEGIN
+  IF v_actor_id IS NULL
+    OR NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  -- A newly inserted terminated Lease receives a terminated
+  -- legacy-inferred placeholder from the compatibility trigger. Allow the
+  -- authoritative terminated term to supersede only that exact placeholder.
+  IF lower(trim(p_status)) = 'terminated'
+    AND p_supersedes_term_id IS NOT NULL THEN
+    UPDATE public.lease_terms AS terms
+    SET
+      status = 'expired',
+      updated_at = now(),
+      updated_by = v_actor_id
+    FROM public.leases AS leases
+    WHERE terms.id = p_supersedes_term_id
+      AND terms.organization_id = p_organization_id
+      AND terms.lease_id = p_lease_id
+      AND terms.authority_kind = 'legacy_inferred'
+      AND terms.status = 'terminated'
+      AND terms.archived_at IS NULL
+      AND leases.id = terms.lease_id
+      AND leases.organization_id = terms.organization_id
+      AND leases.status = 'terminated'
+      AND leases.archived_at IS NULL;
+  END IF;
+
+  RETURN app_private.create_authoritative_lease_term_plan04(
+    p_organization_id,
+    p_lease_id,
+    p_start_date,
+    p_end_date,
+    p_rent_amount,
+    p_rent_currency,
+    p_rent_due_day,
+    p_payment_frequency,
+    p_status,
+    p_supersedes_term_id,
+    p_idempotency_key
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_authoritative_lease_term(
+  uuid,
+  uuid,
+  date,
+  date,
+  numeric,
+  public.currency_code,
+  integer,
+  text,
+  text,
+  uuid,
+  text
+)
+FROM PUBLIC, anon, authenticated, service_role;
+
+GRANT EXECUTE ON FUNCTION public.create_authoritative_lease_term(
+  uuid,
+  uuid,
+  date,
+  date,
+  numeric,
+  public.currency_code,
+  integer,
+  text,
+  text,
+  uuid,
+  text
+)
+TO authenticated;
+
+CREATE OR REPLACE FUNCTION
+  app_private.build_checked_lease_import_relationship_payload(
+    p_source_import_row_id uuid,
+    p_normalized_data jsonb
+  )
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+STRICT
+SET search_path = ''
+AS $$
+DECLARE
+  v_lease_status text :=
+    lower(trim(p_normalized_data ->> 'status'));
+  v_party_lifecycle text;
+  v_occupancy_lifecycle text;
+BEGIN
+  IF v_lease_status NOT IN (
+    'active',
+    'cancelled',
+    'draft',
+    'ended',
+    'notice_given',
+    'terminated'
+  ) THEN
+    RAISE EXCEPTION 'Unsupported checked Lease import status'
+      USING
+        ERRCODE = '22023',
+        DETAIL = 'lease_import_status_unsupported';
+  END IF;
+
+  v_party_lifecycle := CASE
+    WHEN v_lease_status = 'cancelled'
+      THEN 'cancelled_before_effective'
+    WHEN v_lease_status IN ('ended', 'terminated') THEN 'ended'
+    WHEN v_lease_status IN ('active', 'notice_given') THEN 'effective'
+    ELSE 'planned'
+  END;
+
+  v_occupancy_lifecycle := CASE
+    WHEN v_lease_status = 'cancelled'
+      THEN 'cancelled_before_effective'
+    WHEN v_lease_status IN ('ended', 'terminated') THEN 'vacated'
+    WHEN v_lease_status = 'notice_given' THEN 'notice_given'
+    WHEN v_lease_status = 'active' THEN 'occupied'
+    ELSE 'reserved'
+  END;
+
+  RETURN jsonb_build_object(
+    'sourceImportRowId', p_source_import_row_id,
+    'primaryParty', jsonb_build_object(
+      'personId',
+        (p_normalized_data ->> 'tenantPersonId')::uuid,
+      'lifecycle', v_party_lifecycle,
+      'recordSource', 'imported_explicit',
+      'reason', 'lease_import_explicit_identity',
+      'startedOn', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      ),
+      'endedOn', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      )
+    ),
+    'occupancy', jsonb_build_object(
+      'lifecycle', v_occupancy_lifecycle,
+      'recordSource', 'imported_explicit',
+      'reason', 'lease_import_explicit_scope',
+      'scheduledMoveIn', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      ),
+      'scheduledMoveOut', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      ),
+      'actualMoveIn', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      ),
+      'actualMoveOut', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      )
+    ),
+    'participants', '[]'::jsonb
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION
+  app_private.build_checked_lease_import_relationship_payload(uuid, jsonb)
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION
+  app_private.create_lease_with_relationships_internal(
   p_organization_id uuid,
   p_property_id uuid,
   p_unit_id uuid,
@@ -1877,8 +2120,11 @@ DECLARE
   v_actor_id uuid := (SELECT auth.uid());
   v_context text :=
     current_setting('app.lease_history_write_context', true);
+  v_completed_request
+    app_private.financial_idempotency_requests%ROWTYPE;
   v_idempotency_request
     app_private.financial_idempotency_requests%ROWTYPE;
+  v_import_run public.import_runs%ROWTYPE;
   v_lease_id uuid;
   v_occupancy_id uuid;
   v_occupancy_payload jsonb := p_relationship_payload -> 'occupancy';
@@ -1887,11 +2133,30 @@ DECLARE
   v_participant_ids jsonb := '[]'::jsonb;
   v_party_id uuid;
   v_party_payload jsonb := p_relationship_payload -> 'primaryParty';
+  v_plan04_payload_hash text :=
+    app_private.canonical_financial_payload_hash(
+      jsonb_build_object(
+        'propertyId', p_property_id,
+        'unitId', p_unit_id,
+        'tenantPersonId', p_primary_tenant_person_id,
+        'leaseStartDate', p_lease_start_date,
+        'leaseEndDate', p_lease_end_date,
+        'rentAmount', p_rent_amount,
+        'rentCurrency', p_rent_currency,
+        'rentDueDay', p_rent_due_day,
+        'paymentFrequency', p_payment_frequency,
+        'termStatus', p_term_status,
+        'depositAmount', p_deposit_amount,
+        'depositCurrency', p_deposit_currency,
+        'leaseStatus', p_lease_status
+      )
+    );
   v_relationship_payload_hash text :=
     app_private.canonical_financial_payload_hash(
       p_relationship_payload
     );
   v_result jsonb;
+  v_source_import_row public.import_rows%ROWTYPE;
   v_source_import_row_id uuid :=
     NULLIF(p_relationship_payload ->> 'sourceImportRowId', '')::uuid;
 BEGIN
@@ -1904,6 +2169,75 @@ BEGIN
     p_primary_tenant_person_id,
     p_relationship_payload
   );
+
+  SELECT requests.*
+  INTO v_completed_request
+  FROM app_private.financial_idempotency_requests AS requests
+  WHERE requests.organization_id = p_organization_id
+    AND requests.operation = 'create_lease_with_authoritative_term'
+    AND requests.idempotency_key = trim(p_idempotency_key)
+    AND requests.status = 'completed';
+
+  IF FOUND THEN
+    IF v_completed_request.actor_id IS DISTINCT FROM v_actor_id
+      OR v_completed_request.payload_hash
+        IS DISTINCT FROM v_plan04_payload_hash THEN
+      RAISE EXCEPTION 'Conflicting Lease relationship idempotency request'
+        USING
+          ERRCODE = '22023',
+          DETAIL = 'lease_relationship_idempotency_conflict';
+    END IF;
+
+    IF v_completed_request.result_ids
+      ? 'relationshipPayloadHash' THEN
+      IF v_completed_request.result_ids
+          ->> 'relationshipPayloadHash'
+          IS DISTINCT FROM v_relationship_payload_hash
+        OR jsonb_typeof(v_completed_request.result_ids) <> 'object'
+        OR jsonb_typeof(
+          v_completed_request.result_ids -> 'participantIds'
+        ) <> 'array'
+        OR NOT (
+          v_completed_request.result_ids
+          ?& ARRAY[
+            'leaseId',
+            'partyId',
+            'occupancyId',
+            'participantIds',
+            'relationshipPayloadHash'
+          ]
+        )
+        OR coalesce(
+          v_completed_request.result_ids ->> 'leaseId',
+          ''
+        ) !~ (
+          '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-'
+          || '[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        )
+        OR coalesce(
+          v_completed_request.result_ids ->> 'partyId',
+          ''
+        ) !~ (
+          '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-'
+          || '[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        )
+        OR coalesce(
+          v_completed_request.result_ids ->> 'occupancyId',
+          ''
+        ) !~ (
+          '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-'
+          || '[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        ) THEN
+        RAISE EXCEPTION 'Conflicting Lease relationship idempotency request'
+          USING
+            ERRCODE = '22023',
+            DETAIL = 'lease_relationship_idempotency_conflict';
+      END IF;
+
+      RETURN v_completed_request.result_ids
+        - 'relationshipPayloadHash';
+    END IF;
+  END IF;
 
   PERFORM 1
   FROM public.people AS people
@@ -1938,19 +2272,109 @@ BEGIN
   END IF;
 
   IF v_source_import_row_id IS NOT NULL THEN
-    PERFORM 1
-    FROM public.import_rows AS rows
-    JOIN public.import_runs AS runs
-      ON runs.organization_id = rows.organization_id
-      AND runs.id = rows.import_run_id
-    WHERE rows.organization_id = p_organization_id
-      AND rows.id = v_source_import_row_id
+    SELECT runs.*
+    INTO v_import_run
+    FROM public.import_runs AS runs
+    WHERE runs.organization_id = p_organization_id
       AND runs.import_type = 'leases'
-    FOR SHARE OF rows, runs;
+      AND runs.id = (
+        SELECT rows.import_run_id
+        FROM public.import_rows AS rows
+        WHERE rows.organization_id = p_organization_id
+          AND rows.id = v_source_import_row_id
+      )
+    FOR SHARE;
 
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Lease source import row not found'
         USING ERRCODE = '23503';
+    END IF;
+
+    SELECT rows.*
+    INTO v_source_import_row
+    FROM public.import_rows AS rows
+    WHERE rows.organization_id = p_organization_id
+      AND rows.import_run_id = v_import_run.id
+      AND rows.id = v_source_import_row_id
+    FOR SHARE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Lease source import row not found'
+        USING ERRCODE = '23503';
+    END IF;
+
+    IF v_import_run.status <> 'committing'
+      OR v_source_import_row.row_status NOT IN ('ready', 'warning')
+      OR trim(p_idempotency_key) IS DISTINCT FROM concat(
+        'import:',
+        v_import_run.id,
+        ':',
+        v_source_import_row.id
+      )
+      OR (
+        p_property_id,
+        p_unit_id,
+        p_primary_tenant_person_id,
+        p_lease_start_date,
+        p_lease_end_date,
+        p_rent_amount,
+        p_rent_currency,
+        p_rent_due_day,
+        lower(trim(p_payment_frequency)),
+        lower(trim(p_term_status)),
+        p_deposit_amount,
+        p_deposit_currency,
+        lower(trim(p_lease_status))
+      ) IS DISTINCT FROM (
+        (v_source_import_row.normalized_data ->> 'propertyId')::uuid,
+        (v_source_import_row.normalized_data ->> 'unitId')::uuid,
+        (
+          v_source_import_row.normalized_data ->> 'tenantPersonId'
+        )::uuid,
+        (
+          v_source_import_row.normalized_data ->> 'leaseStartDate'
+        )::date,
+        (
+          v_source_import_row.normalized_data ->> 'leaseEndDate'
+        )::date,
+        (
+          v_source_import_row.normalized_data ->> 'monthlyRentAmount'
+        )::numeric,
+        'USD'::public.currency_code,
+        (
+          v_source_import_row.normalized_data ->> 'rentDueDay'
+        )::integer,
+        lower(trim(
+          v_source_import_row.normalized_data ->> 'paymentFrequency'
+        )),
+        lower(trim(
+          v_source_import_row.normalized_data ->> 'termStatus'
+        )),
+        NULLIF(
+          v_source_import_row.normalized_data ->> 'depositAmount',
+          ''
+        )::numeric,
+        CASE
+          WHEN NULLIF(
+            v_source_import_row.normalized_data ->> 'depositAmount',
+            ''
+          ) IS NULL THEN NULL
+          ELSE 'USD'::public.currency_code
+        END,
+        lower(trim(
+          v_source_import_row.normalized_data ->> 'status'
+        ))
+      )
+      OR p_relationship_payload IS DISTINCT FROM
+        app_private.build_checked_lease_import_relationship_payload(
+          v_source_import_row.id,
+          v_source_import_row.normalized_data
+        ) THEN
+      RAISE EXCEPTION
+        'Lease import source does not match the checked commit payload'
+        USING
+          ERRCODE = '23514',
+          DETAIL = 'lease_import_source_payload_mismatch';
     END IF;
   END IF;
 
@@ -2272,6 +2696,86 @@ EXCEPTION WHEN TOO_MANY_ROWS THEN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION
+  app_private.create_lease_with_relationships_internal(
+  uuid,
+  uuid,
+  uuid,
+  uuid,
+  date,
+  date,
+  numeric,
+  public.currency_code,
+  integer,
+  text,
+  text,
+  numeric,
+  public.currency_code,
+  text,
+  jsonb,
+  text
+)
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.create_lease_with_relationships(
+  p_organization_id uuid,
+  p_property_id uuid,
+  p_unit_id uuid,
+  p_primary_tenant_person_id uuid,
+  p_lease_start_date date,
+  p_lease_end_date date,
+  p_rent_amount numeric,
+  p_rent_currency public.currency_code,
+  p_rent_due_day integer,
+  p_payment_frequency text,
+  p_term_status text,
+  p_deposit_amount numeric,
+  p_deposit_currency public.currency_code,
+  p_lease_status text,
+  p_relationship_payload jsonb,
+  p_idempotency_key text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF (SELECT auth.uid()) IS NULL
+    OR NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  IF NULLIF(p_relationship_payload ->> 'sourceImportRowId', '')
+    IS NOT NULL THEN
+    RAISE EXCEPTION
+      'Lease source import row is reserved for checked import commit'
+      USING
+        ERRCODE = '42501',
+        DETAIL = 'lease_import_source_context_required';
+  END IF;
+
+  RETURN app_private.create_lease_with_relationships_internal(
+    p_organization_id,
+    p_property_id,
+    p_unit_id,
+    p_primary_tenant_person_id,
+    p_lease_start_date,
+    p_lease_end_date,
+    p_rent_amount,
+    p_rent_currency,
+    p_rent_due_day,
+    p_payment_frequency,
+    p_term_status,
+    p_deposit_amount,
+    p_deposit_currency,
+    p_lease_status,
+    p_relationship_payload,
+    p_idempotency_key
+  );
+END;
+$$;
+
 REVOKE ALL ON FUNCTION public.create_lease_with_relationships(
   uuid,
   uuid,
@@ -2564,7 +3068,7 @@ BEGIN
       END IF;
 
       v_relationship_result :=
-        public.create_lease_with_relationships(
+        app_private.create_lease_with_relationships_internal(
           p_organization_id,
           (v_row.normalized_data ->> 'propertyId')::uuid,
           (v_row.normalized_data ->> 'unitId')::uuid,
@@ -2588,61 +3092,9 @@ BEGIN
             ELSE 'USD'::public.currency_code
           END,
           v_row.normalized_data ->> 'status',
-          jsonb_build_object(
-            'sourceImportRowId', v_row.id,
-            'primaryParty', jsonb_build_object(
-              'personId',
-                (v_row.normalized_data ->> 'tenantPersonId')::uuid,
-              'lifecycle',
-                CASE
-                  WHEN v_row.normalized_data ->> 'status' = 'cancelled'
-                    THEN 'cancelled_before_effective'
-                  ELSE 'planned'
-                END,
-              'recordSource', 'imported_explicit',
-              'reason', 'lease_import_explicit_identity',
-              'startedOn', jsonb_build_object(
-                'date', NULL,
-                'kind', 'unknown',
-                'confidence', 'unknown'
-              ),
-              'endedOn', jsonb_build_object(
-                'date', NULL,
-                'kind', 'unknown',
-                'confidence', 'unknown'
-              )
-            ),
-            'occupancy', jsonb_build_object(
-              'lifecycle',
-                CASE
-                  WHEN v_row.normalized_data ->> 'status' = 'cancelled'
-                    THEN 'cancelled_before_effective'
-                  ELSE 'reserved'
-                END,
-              'recordSource', 'imported_explicit',
-              'reason', 'lease_import_explicit_scope',
-              'scheduledMoveIn', jsonb_build_object(
-                'date', NULL,
-                'kind', 'unknown',
-                'confidence', 'unknown'
-              ),
-              'scheduledMoveOut', jsonb_build_object(
-                'date', NULL,
-                'kind', 'unknown',
-                'confidence', 'unknown'
-              ),
-              'actualMoveIn', jsonb_build_object(
-                'date', NULL,
-                'kind', 'unknown',
-                'confidence', 'unknown'
-              ),
-              'actualMoveOut', jsonb_build_object(
-                'date', NULL,
-                'kind', 'unknown',
-                'confidence', 'unknown'
-              )
-            ),
-            'participants', '[]'::jsonb
+          app_private.build_checked_lease_import_relationship_payload(
+            v_row.id,
+            v_row.normalized_data
           ),
           concat('import:', v_run.id, ':', v_row.id)
         );

@@ -501,8 +501,8 @@ SELECT is(
       )
     $sql$
   ),
-  '23503:Lease source import row not found',
-  'relationship provenance rejects a non-Lease import source row'
+  '42501:lease_import_source_context_required',
+  'public relationship creation rejects any caller-supplied import source row'
 );
 
 UPDATE lease_history_tb02_round2_state
