@@ -6,6 +6,8 @@
 
 **Architecture:** Keep the authenticated Nestory PDF endpoint and production report renderer unchanged during the comparison. Add a deterministic Node/Playwright comparison tool that reads one reviewed JSON fixture and one local IPS logo asset, renders the same semantic HTML in both orientations, and writes the two ignored PDF artifacts for visual selection.
 
+> **Production decision (2026-07-31):** This remains a checksum-locked visual comparison tool only. Its IPS logo, 20 sample rows, and USD 1,045 / 788 / 257 totals are not production financial authority and are never downloaded at runtime. Production selected-unit exports use portrait plus a complete portrait source appendix; all-unit exports use the traceable landscape summary. Production values come from resolved unit-linked operating `propertyCashEvents` in exact bigint cents and preserve reversal signs.
+
 **Tech Stack:** Node.js ESM, Node's built-in test runner, Playwright 1.61.1, HTML/CSS print layout, the existing npm scripts, Poppler `pdfinfo`/`pdftoppm`, and managed-runtime `pypdf`.
 
 ## Global Constraints
@@ -46,7 +48,7 @@
 
 ---
 
-### Task 1: Lock The Authoritative Unit 09A Fixture And IPS Asset
+### Task 1: Lock The Sample Unit 09A Fixture And IPS Asset
 
 **Files:**
 
@@ -1347,5 +1349,6 @@ Before declaring completion, report:
 - extracted-text equality and reconciliation results
 - the two rasterized pages visually inspected
 - clickable local paths to both final PDFs
-- that the authenticated production PDF endpoint intentionally remains
-  unchanged pending the user's orientation choice
+- that production selected-unit exports use portrait plus a complete portrait
+  source-trace appendix, while all-unit exports retain the traceable landscape
+  summary; the two generated orientations remain sample-only comparisons

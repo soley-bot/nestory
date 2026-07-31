@@ -1,10 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { buildManagementFeeReport } from "@/features/reports/data/management-fee-report";
+import {
+  buildManagementFeeReport,
+  getManagementFeeReport,
+} from "@/features/reports/data/management-fee-report";
+import { createSupabaseServerClient } from "@/lib/db/server";
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
 
+vi.mock("@/lib/db/server", () => ({
+  createSupabaseServerClient: vi.fn(),
+}));
+
 describe("Management Fee Statement", () => {
-  it("reports only collected management-company cash by property", () => {
+  it("fails closed instead of publishing legacy fee receipt allocations", () => {
     const report = buildManagementFeeReport({
       generatedAt: "2026-08-01T00:00:00.000Z",
       properties: [
@@ -41,41 +49,34 @@ describe("Management Fee Statement", () => {
 
     expect(report).toMatchObject({
       exportFilenameBase: "management-fees",
+      exportValidation: {
+        code: "management_fee_owner_recognition_unresolved",
+        status: 409,
+      },
       kind: "management-fees",
+      scopeValidation: {
+        code: "management_fee_owner_recognition_unresolved",
+      },
       title: "Management Fee Statement",
     });
-    expect(report.columns.map(({ label }) => label)).toEqual([
-      "Property",
-      "Fees collected",
-    ]);
-    expect(report.rows).toHaveLength(1);
-    expect(report.rows[0]).toMatchObject({
-      cells: {
-        collected: "USD 130.00",
-        property: "P1 - Property One",
-      },
-      href: "/rent-income?month=2026-07&propertyId=property-1&incomeScope=management-fees",
-      sourceCount: 3,
-    });
-    expect(report.summary.map(({ label, value }) => [label, value])).toEqual([
-      ["Fees collected", "USD 130.00"],
-      ["Properties", "1"],
-    ]);
+    expect(report.rows).toEqual([]);
+    expect(report.summary).toEqual([]);
+    expect(report.scopeValidation?.message).toContain(
+      "owner-recognition authority",
+    );
   });
 
-  it("returns a clear empty statement when no fee cash was collected", () => {
-    const report = buildManagementFeeReport({
-      generatedAt: "2026-08-01T00:00:00.000Z",
-      properties: [{ code: "P1", id: "property-1", name: "Property One" }],
-      receiptAllocations: [
-        receipt({ amount: 100, incomeType: "management_fee_earned" }),
-      ],
+  it("does not query legacy fee sources when the report is unavailable", async () => {
+    const report = await getManagementFeeReport({
+      organizationId: "organization-1",
       viewQuery: query(),
     });
 
     expect(report.rows).toEqual([]);
-    expect(report.emptyTitle).toBe("No management fees collected");
-    expect(report.summary[0]?.value).toBe("USD 0.00");
+    expect(report.scopeValidation?.code).toBe(
+      "management_fee_owner_recognition_unresolved",
+    );
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
   });
 });
 

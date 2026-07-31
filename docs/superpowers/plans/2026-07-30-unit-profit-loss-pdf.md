@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the generic landscape Monthly Unit Profit & Loss PDF with a clean portrait A4 statement that shows dated unit-linked income and expense lines, section subtotals, and authoritative net income.
+**Goal:** Use a clean portrait A4 statement for an explicitly selected unit, with dated canonical operating cash events, section subtotals, authoritative net income, and a complete portrait source-trace appendix. Keep `All units` on the traceable landscape summary.
 
-**Architecture:** Keep the authenticated report loader, aggregate Reports screen, endpoint, and Excel export unchanged. Add one optional structured ledger-detail field to `TrustedReport`, populate it only in the existing unit-profit-loss builder, and route only that report kind to a dedicated portrait PDF renderer. Reuse the low-level PDF drawing primitives while making the document writer accept an explicit page size so every existing export remains landscape.
+**Architecture:** Keep the authenticated report loader, aggregate Reports screen, endpoint, and Excel export unchanged. Add optional selected-unit detail derived only from resolved unit-linked operating `propertyCashEvents`, using bigint cents, and route only explicit single-unit scope to the portrait renderer. Append full uncapped source rows in portrait with global page numbering. Reuse the low-level PDF drawing primitives while every all-unit and unrelated export retains its existing landscape summary contract.
+
+> **Superseding integration note (2026-07-31):** The implementation snippets below record the original TDD path and may still mention `ledger_entries`, `number` amounts, absolute expense values, or screen-only sources. Those details are obsolete. The canonical requirements are the architecture above and `docs/superpowers/specs/2026-07-30-unit-profit-loss-pdf-design.md`: canonical resolved operating cash events, exact bigint cents, preserved reversal signs, full source appendix, selected-unit portrait, and all-unit traceable summary.
 
 **Tech Stack:** Next.js 16.2.9 App Router, TypeScript, Vitest, the existing zero-dependency PDF command writer, Playwright/browser verification, Poppler `pdfinfo` and `pdftoppm`, and `pypdf`.
 
@@ -13,7 +15,7 @@
 - Follow `PROJECT_RULES.md`, `docs/engineering-rules.md`, `docs/verification.md`, and the approved design in `docs/superpowers/specs/2026-07-30-unit-profit-loss-pdf-design.md`.
 - Work only in `D:\nestory-report-import-simplification` on `codex/report-import-simplification`.
 - Use test-driven development: write each failing assertion, run it and confirm the expected failure, then add the smallest implementation.
-- Keep `ledger_entries` as the only financial detail authority. Never infer unit ownership for property-level rows.
+- Keep resolved unit-linked operating `propertyCashEvents` as the only financial detail authority. Never infer unit ownership for property-level events.
 - Preserve the existing Reports screen, aggregate rows, endpoint authentication, Excel export, Owner Statement PDF, Management Fee Statement PDF, and generic landscape PDFs.
 - Do not copy OpenAI branding, payment language, invoice identifiers, tax language, or company details.
 - Do not push, merge, deploy, upload to Drive, or alter Supabase data in this slice.
@@ -21,7 +23,7 @@
 
 ---
 
-## Task 1: Expose Dated Unit Ledger Lines In The Report Contract
+## Task 1: Expose Dated Unit Cash-Event Lines In The Report Contract
 
 **Files:**
 
@@ -104,28 +106,34 @@ unitProfitLossLines?: UnitProfitLossLine[];
 
 The field is optional so every other report builder and test fixture remains unchanged.
 
-- [ ] **Step 4: Build the lines from the already-filtered unit ledger**
+- [ ] **Step 4: Build selected-unit lines from canonical operating cash events**
 
-Import `UnitProfitLossLine` as a type in `trusted-report.ts`. Immediately after `unitLinkedLedger`, create the detail list:
+Import `UnitProfitLossLine` as a type in `trusted-report.ts`. Filter the canonical events through the same resolved unit-linked operating predicate used by the summary, and expose detail only for explicit single-unit scope:
 
 ```ts
-const unitProfitLossLines = unitLinkedLedger
-  .map<UnitProfitLossLine>((entry) => {
-    const unit = entry.unit_id
-      ? context.unitsById.get(entry.unit_id)
+const unitProfitLossLines =
+  context.viewQuery.unitId === "all"
+    ? undefined
+    : operatingEvents.map<UnitProfitLossLine>((event) => {
+    const unit = event.unitId
+      ? context.unitsById.get(event.unitId)
       : undefined;
-    const category = normalizeCategory(entry.category);
+    const operatingCashEffectCents = event.operatingCashEffectCents ?? BigInt(0);
 
     return {
-      amount: Math.abs(entry.amount),
-      category,
-      currency: entry.currency,
-      date: entry.transaction_date,
-      description: entry.description?.trim() || category,
-      direction: isExpense(entry) ? "expense" : "income",
-      id: entry.id,
-      property: propertyLabel(context.propertiesById.get(entry.property_id)),
-      unit: unit ? unitLabel(unit) : "Unknown unit",
+      amountCents:
+        event.economicClass === "operating_expense"
+          ? -operatingCashEffectCents
+          : operatingCashEffectCents,
+      category: normalizeCategory(event.categoryCode),
+      currency: event.currency,
+      date: event.eventDate ?? context.periodStart,
+      description: normalizeCategory(event.sourceType),
+      direction:
+        event.economicClass === "operating_expense" ? "expense" : "income",
+      id: event.eventKey,
+      property: propertyLabel(context.propertiesById.get(event.propertyId)),
+      unit: unit ? `Unit ${unit.unit_number}` : "Unknown unit",
     };
   })
   .toSorted(
@@ -389,10 +397,11 @@ const netIncome =
   report.summary.find(({ label }) => label === "Net income")?.value ?? "USD 0.00";
 ```
 
-Format detail amounts as positive magnitudes:
+Format exact bigint cents directly. Do not convert through `number`, call
+`Math.abs`, or ellipsize the result; reversals retain their negative sign:
 
 ```ts
-formatMoney(Math.abs(line.amount), line.currency)
+formatExactMoneyCents(line.amountCents, line.currency)
 ```
 
 Format transaction dates with:
@@ -672,7 +681,7 @@ print(text)
 '@ | & 'C:\Users\USer\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -
 ```
 
-Also verify that the extracted July rent and repair lines show their actual ledger transaction dates. If the local dataset differs from the approved Unit 09A fixture, report the observed ledger rows rather than fabricating values.
+Also verify that the extracted July rent and repair lines show their canonical resolved cash-event dates. If the local dataset differs from the Unit 09A comparison fixture, report the observed resolved operating cash events rather than fabricating values.
 
 - [ ] **Step 7: Rasterize and inspect every page**
 

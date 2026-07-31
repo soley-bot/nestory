@@ -150,6 +150,9 @@ export function ReportBuilderScreen({
                       {column.label}
                     </th>
                   ))}
+                  <th className="border-b border-border px-3 py-2 font-semibold">
+                    Sources
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -157,7 +160,7 @@ export function ReportBuilderScreen({
                   <tr>
                     <td
                       className="px-4 py-10 text-center"
-                      colSpan={Math.max(1, trustedReport.columns.length)}
+                      colSpan={Math.max(1, trustedReport.columns.length + 1)}
                     >
                       <p className="font-medium text-foreground">
                         {trustedReport.emptyTitle}
@@ -250,6 +253,11 @@ function ReportRow({
   columns: TrustedReport["columns"];
   row: TrustedReportRow;
 }) {
+  const hiddenSourceCount = Math.max(
+    0,
+    row.sourceCount - row.sourceLinks.length,
+  );
+
   return (
     <tr className="align-top hover:bg-surface-muted/60" data-tone={row.tone}>
       {columns.map((column, index) => {
@@ -276,6 +284,40 @@ function ReportRow({
           </td>
         );
       })}
+      <td className="border-b border-border px-3 py-2.5 leading-5 text-foreground-muted last:border-b-0">
+        {row.sourceLinks.length === 0 && hiddenSourceCount === 0 ? (
+          "—"
+        ) : (
+          <div className="flex max-w-72 flex-wrap gap-x-2 gap-y-1">
+            {row.sourceLinks.map((source) =>
+              source.href ? (
+                <Link
+                  className="font-medium text-foreground underline-offset-4 hover:underline"
+                  href={source.href}
+                  key={`${source.recordType}:${source.id}`}
+                >
+                  {source.label}
+                </Link>
+              ) : (
+                <span
+                  key={`${source.recordType}:${source.id}`}
+                >
+                  {source.label}
+                </span>
+              ),
+            )}
+            {hiddenSourceCount > 0 ? (
+              <span
+                aria-label={`${row.sourceSummary}; ${hiddenSourceCount} additional source${hiddenSourceCount === 1 ? " is" : "s are"} available in PDF and Excel exports`}
+                className="font-medium text-muted"
+                title={row.sourceSummary}
+              >
+                +{hiddenSourceCount} more
+              </span>
+            ) : null}
+          </div>
+        )}
+      </td>
     </tr>
   );
 }

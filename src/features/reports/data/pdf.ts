@@ -5,7 +5,6 @@ import {
   getReportExportFilename,
 } from "@/features/reports/data/report-format";
 import { formatDate } from "@/lib/dates/format";
-import { formatMoney } from "@/lib/money/format";
 import type {
   OccupancyReport,
   OccupancyReportRow,
@@ -176,6 +175,20 @@ const unitStatementColumns: PdfColumn[] = [
   { align: "right", label: "Amount", maxLines: 1, width: 83 },
 ];
 
+const sourceTraceColumns: PdfColumn[] = [
+  { label: "Report row", maxLines: 3, width: 160 },
+  { label: "Source", maxLines: 3, width: 150 },
+  { label: "Source ID", maxLines: 4, width: 170 },
+  { label: "Source link", maxLines: 10, width: 290 },
+];
+
+const unitStatementSourceTraceColumns: PdfColumn[] = [
+  { label: "Report row", maxLines: 3, width: 108 },
+  { label: "Source", maxLines: 3, width: 103 },
+  { label: "Source ID", maxLines: 4, width: 112 },
+  { label: "Source link", maxLines: 10, width: 200 },
+];
+
 const ownerStatementCashRows: OwnerStatementMoneyMetric[][] = [
   [
     { key: "operatingCash", label: "Operating cash received" },
@@ -256,7 +269,10 @@ export function buildTrustedReportPdf({
   organizationName: string;
   report: TrustedReport;
 }) {
-  if (report.kind === "unit-profit-loss") {
+  if (
+    report.kind === "unit-profit-loss" &&
+    report.unitProfitLossDetailScope === "single-unit"
+  ) {
     return buildUnitProfitLossStatementPdf({ organizationName, report });
   }
   if (report.kind === "income-expense") {
@@ -269,6 +285,10 @@ export function buildTrustedReportPdf({
   const reportColumns = buildTrustedReportPdfColumns(report);
   const rows = buildTrustedReportPdfRows(report, reportColumns);
   const pages = paginateRows(rows);
+  const sourceTraceRows = buildTrustedReportSourceTraceRows(report);
+  const sourceTracePages =
+    sourceTraceRows.length > 0 ? paginateRows(sourceTraceRows) : [];
+  const totalPages = pages.length + sourceTracePages.length;
   const pageCommands = pages.map((page, pageIndex) =>
     renderTrustedReportPage({
       organizationName,
@@ -276,11 +296,122 @@ export function buildTrustedReportPdf({
       pageIndex,
       report,
       reportColumns,
-      totalPages: pages.length,
+      totalPages,
     }),
+  );
+  pageCommands.push(
+    ...sourceTracePages.map((page, sourcePageIndex) =>
+      renderTrustedReportSourceTracePage({
+        organizationName,
+        page,
+        pageIndex: pages.length + sourcePageIndex,
+        report,
+        totalPages,
+      }),
+    ),
   );
 
   return createPdfDocument(pageCommands);
+}
+
+function buildTrustedReportSourceTraceRows(
+  report: TrustedReport,
+  columns = sourceTraceColumns,
+) {
+  let sourceIndex = 0;
+
+  return report.rows.flatMap((row, rowIndex) =>
+    row.sourceLinks.map((source) =>
+      buildPdfRow(
+        [
+          `${rowIndex + 1}. ${row.title}`,
+          `${source.recordType}:${source.label}`,
+          source.id,
+          source.href ?? "No source link",
+        ],
+        sourceIndex++,
+        columns,
+        {
+          fontSize: 7.2,
+          lineHeight: 8.4,
+          minHeight: 22,
+          verticalPadding: 8,
+        },
+      ),
+    ),
+  );
+}
+
+function renderTrustedReportSourceTracePage({
+  organizationName,
+  page,
+  pageIndex,
+  report,
+  totalPages,
+}: {
+  organizationName: string;
+  page: PdfPage;
+  pageIndex: number;
+  report: TrustedReport;
+  totalPages: number;
+}) {
+  const commands: string[] = [];
+
+  drawTrustedReportHeader(commands, organizationName, report);
+  drawText(commands, "SOURCE TRACE", marginX, 400, {
+    bold: true,
+    color: colors.muted,
+    fontSize: 7,
+    width: tableWidth,
+  });
+  drawTableHeader(commands, tableTopY, sourceTraceColumns);
+
+  let y = tableTopY - headerRowHeight;
+  for (const row of page.rows) {
+    y -= row.height;
+    drawTableRow(commands, row, y, sourceTraceColumns);
+  }
+
+  drawFooter(commands, pageIndex + 1, totalPages);
+  return commands.join("\n");
+}
+
+function renderUnitProfitLossSourceTracePage({
+  organizationName,
+  page,
+  pageIndex,
+  report,
+  totalPages,
+}: {
+  organizationName: string;
+  page: PdfPage;
+  pageIndex: number;
+  report: TrustedReport;
+  totalPages: number;
+}) {
+  const commands: string[] = [];
+
+  drawUnitProfitLossHeader(commands, organizationName, report, false);
+  drawText(commands, "SOURCE TRACE", marginX, 720, {
+    bold: true,
+    color: colors.muted,
+    fontSize: 7,
+    width: unitStatementContentWidth,
+  });
+  drawTableHeader(
+    commands,
+    unitStatementContinuationContentTop,
+    unitStatementSourceTraceColumns,
+  );
+
+  let y = unitStatementContinuationContentTop - headerRowHeight;
+  for (const row of page.rows) {
+    y -= row.height;
+    drawTableRow(commands, row, y, unitStatementSourceTraceColumns);
+  }
+
+  drawUnitProfitLossFooter(commands, pageIndex + 1, totalPages);
+  return commands.join("\n");
 }
 
 export function buildOccupancyReportPdf({
@@ -545,6 +676,15 @@ function buildUnitProfitLossStatementPdf({
     netIncome,
   });
   const pages = paginateUnitStatementRows(rows);
+  const sourceTraceRows = buildTrustedReportSourceTraceRows(
+    report,
+    unitStatementSourceTraceColumns,
+  );
+  const sourceTracePages =
+    sourceTraceRows.length > 0
+      ? paginateRows(sourceTraceRows, unitStatementContinuationContentTop)
+      : [];
+  const totalPages = pages.length + sourceTracePages.length;
   const renderedSections = new Set<"EXPENSES" | "INCOME">();
   const pageCommands = pages.map((page, pageIndex) =>
     renderUnitProfitLossPage({
@@ -553,8 +693,19 @@ function buildUnitProfitLossStatementPdf({
       pageIndex,
       renderedSections,
       report,
-      totalPages: pages.length,
+      totalPages,
     }),
+  );
+  pageCommands.push(
+    ...sourceTracePages.map((page, sourcePageIndex) =>
+      renderUnitProfitLossSourceTracePage({
+        organizationName,
+        page,
+        pageIndex: pages.length + sourcePageIndex,
+        report,
+        totalPages,
+      }),
+    ),
   );
 
   return createPdfDocument(pageCommands, portraitA4PageSize);
@@ -941,12 +1092,12 @@ function drawUnitProfitLossEntryRow(
     8.6,
     detailColumn.maxLines ?? 2,
   );
-  const amount = formatMoney(
-    row.line.direction === "expense"
-      ? Math.abs(row.line.amount)
-      : row.line.amount,
+  const amount = formatExactMoneyCents(
+    row.line.amountCents,
     row.line.currency,
   );
+  const amountTextWidth = amountColumn.width - cellPaddingX * 2;
+  const amountFontSize = fitTextToWidth(amount, amountTextWidth, 8.6);
 
   drawRect(commands, marginX, y, unitStatementContentWidth, row.height, {
     fill: index % 2 === 0 ? colors.rowFill : colors.rowAlt,
@@ -987,21 +1138,36 @@ function drawUnitProfitLossEntryRow(
 
   drawText(
     commands,
-    wrapText(
-      amount,
-      amountColumn.width - cellPaddingX * 2,
-      8.6,
-      amountColumn.maxLines ?? 1,
-    )[0] ?? "",
+    amount,
     amountX + cellPaddingX,
     textY,
     {
       align: "right",
       color: colors.ink,
-      fontSize: 8.6,
-      width: amountColumn.width - cellPaddingX * 2,
+      fontSize: amountFontSize,
+      width: amountTextWidth,
     },
   );
+}
+
+function formatExactMoneyCents(cents: bigint, currency: string) {
+  const sign = cents < BigInt(0) ? "-" : "";
+  const magnitude = cents < BigInt(0) ? -cents : cents;
+  const dollars = magnitude / BigInt(100);
+  const fraction = (magnitude % BigInt(100)).toString().padStart(2, "0");
+  const groupedDollars = dollars
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+  return `${sign}${currency} ${groupedDollars}.${fraction}`;
+}
+
+function fitTextToWidth(value: string, maxWidth: number, preferredSize: number) {
+  const preferredWidth = estimateTextWidth(value, preferredSize);
+
+  return preferredWidth <= maxWidth
+    ? preferredSize
+    : preferredSize * (maxWidth / preferredWidth);
 }
 
 function drawUnitProfitLossCategoryRow(

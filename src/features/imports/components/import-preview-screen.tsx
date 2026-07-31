@@ -19,7 +19,9 @@ import {
 } from "@/components/ui/file-dropzone-field";
 import { SelectControl } from "@/components/ui/select-control";
 import {
+  commitStagedImportRunAction,
   importReadyRowsAction,
+  type CommitImportRunState,
   type ImportReadyRowsState,
 } from "@/features/imports/actions";
 import {
@@ -31,6 +33,7 @@ import {
   getImportTypeConfig,
   importTypeOrder,
 } from "@/features/imports/import-config";
+import { buildImportDraftKey } from "@/features/imports/import-draft-key";
 import type {
   GenericImportPreviewRow,
   ImportMapping,
@@ -52,6 +55,7 @@ type ParsedFile = {
 };
 
 const initialImportState: ImportReadyRowsState = {};
+const initialResumeState: CommitImportRunState = {};
 
 export function ImportPreviewScreen({
   recentRuns,
@@ -65,6 +69,10 @@ export function ImportPreviewScreen({
   const [importState, importAction, importing] = useActionState(
     importReadyRowsAction,
     initialImportState,
+  );
+  const [resumeState, resumeAction, resuming] = useActionState(
+    commitStagedImportRunAction,
+    initialResumeState,
   );
   const [selectedType, setSelectedType] = useState<ImportType>(
     referenceData.properties.length > 0 ? "units" : "properties",
@@ -103,12 +111,12 @@ export function ImportPreviewScreen({
   const draftKey = useMemo(
     () =>
       parsedFile
-        ? JSON.stringify({
+        ? buildImportDraftKey({
             fileName: parsedFile.fileName,
             headers: parsedFile.headers,
             importType: selectedType,
             mapping,
-            rowCount: parsedFile.records.length,
+            records: parsedFile.records,
           })
         : null,
     [mapping, parsedFile, selectedType],
@@ -159,10 +167,11 @@ export function ImportPreviewScreen({
         : "",
     [blockedRows, mapping, parsedFile, referenceData, selectedType],
   );
-  const importedCurrent =
-    importState.status === "success" &&
-    Boolean(draftKey) &&
-    importState.draftKey === draftKey;
+  const currentAction = getCurrentImportAction({
+    draftKey,
+    readyCount: stats.readyCount,
+    state: importState,
+  });
   const showCurrentActionState =
     Boolean(importState.message) &&
     (!importState.draftKey || importState.draftKey === draftKey);
@@ -426,25 +435,19 @@ export function ImportPreviewScreen({
                 <Button
                   disabled={
                     importing ||
-                    importedCurrent ||
+                    currentAction.blocksSubmission ||
                     rows.length === 0 ||
                     stats.readyCount === 0
                   }
                   type="submit"
                   variant="primary"
                 >
-                  {importedCurrent ? (
+                  {currentAction.mode === "imported" ? (
                     <CheckCircle2 aria-hidden="true" size={15} />
                   ) : (
                     <Upload aria-hidden="true" size={15} />
                   )}
-                  {importedCurrent
-                    ? "Ready rows imported"
-                    : importing
-                      ? "Importing ready rows..."
-                      : `Import ${stats.readyCount} ready ${
-                          stats.readyCount === 1 ? "row" : "rows"
-                        }`}
+                  {importing ? "Importing ready rows..." : currentAction.label}
                 </Button>
               </form>
             </div>
@@ -461,10 +464,79 @@ export function ImportPreviewScreen({
           />
         ) : null}
 
-        <PastImports runs={recentRuns} />
+        <PastImports
+          action={resumeAction}
+          pending={resuming}
+          runs={recentRuns}
+          state={resumeState}
+        />
       </main>
     </div>
   );
+}
+
+export function getCurrentImportAction({
+  draftKey,
+  readyCount,
+  state,
+}: {
+  draftKey: string | null;
+  readyCount: number;
+  state: ImportReadyRowsState;
+}) {
+  const rowLabel = `${readyCount} ready ${readyCount === 1 ? "row" : "rows"}`;
+  const isCurrentDraft = Boolean(draftKey) && state.draftKey === draftKey;
+
+  if (isCurrentDraft && state.status === "success") {
+    return {
+      blocksSubmission: true,
+      label: "Ready rows imported",
+      mode: "imported" as const,
+    };
+  }
+
+  if (
+    isCurrentDraft &&
+    state.status === "error" &&
+    state.runStatus === "failed"
+  ) {
+    return {
+      blocksSubmission: true,
+      label: "Terminal result — re-upload CSV",
+      mode: "terminal" as const,
+    };
+  }
+
+  if (
+    isCurrentDraft &&
+    state.status === "error" &&
+    state.runStatus === "committing"
+  ) {
+    return {
+      blocksSubmission: true,
+      label: "Import still committing",
+      mode: "committing" as const,
+    };
+  }
+
+  if (
+    isCurrentDraft &&
+    state.status === "error" &&
+    Boolean(state.runId) &&
+    state.runStatus === "staged"
+  ) {
+    return {
+      blocksSubmission: false,
+      label: `Retry ${rowLabel}`,
+      mode: "retry" as const,
+    };
+  }
+
+  return {
+    blocksSubmission: false,
+    label: `Import ${rowLabel}`,
+    mode: "idle" as const,
+  };
 }
 
 function PreviewRow({ row }: { row: GenericImportPreviewRow }) {
@@ -612,7 +684,17 @@ function AttentionDetails({
   );
 }
 
-function PastImports({ runs }: { runs: ImportRunSummary[] }) {
+function PastImports({
+  action,
+  pending,
+  runs,
+  state,
+}: {
+  action: (payload: FormData) => void;
+  pending: boolean;
+  runs: ImportRunSummary[];
+  state: CommitImportRunState;
+}) {
   return (
     <details className="rounded-md border border-border bg-surface">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring">
@@ -647,13 +729,47 @@ function PastImports({ runs }: { runs: ImportRunSummary[] }) {
                   {formatImportRunStatus(run.status)}
                 </Badge>
               </div>
-              <p className="mt-1 text-xs text-muted">
-                {run.createdCount + run.updatedCount} saved · {run.blockedRows}{" "}
-                blocked
-              </p>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="text-xs text-muted">
+                  {run.createdCount + run.updatedCount} saved · {run.blockedRows}{" "}
+                  blocked
+                </p>
+                {run.status === "staged" && run.readyRows === 0 ? (
+                  <span className="max-w-56 text-right text-xs text-muted">
+                    Fix references, then re-upload to create a fresh run.
+                  </span>
+                ) : run.status === "staged" || run.status === "committing" ? (
+                  <form action={action}>
+                    <input name="runId" type="hidden" value={run.id} />
+                    <Button
+                      aria-label={`${
+                        run.status === "staged" ? "Resume" : "Reconcile"
+                      } ${run.fileName}`}
+                      disabled={pending}
+                      type="submit"
+                      variant="ghost"
+                    >
+                      <RotateCcw aria-hidden="true" size={13} />
+                      {run.status === "staged" ? "Resume" : "Reconcile"}
+                    </Button>
+                  </form>
+                ) : null}
+              </div>
             </div>
           ))
         )}
+        {state.message ? (
+          <p
+            className={
+              state.status === "error"
+                ? "px-1 text-xs text-danger"
+                : "px-1 text-xs text-success"
+            }
+            role={state.status === "error" ? "alert" : "status"}
+          >
+            {state.message}
+          </p>
+        ) : null}
       </div>
     </details>
   );

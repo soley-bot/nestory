@@ -4,6 +4,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ReportBuilderScreen } from "@/features/reports/components/reports-screen";
+import { prepareTrustedReportForScreen } from "@/features/reports/data/reports";
 import type {
   ReportsScreenData,
   ReportsViewQuery,
@@ -79,12 +80,43 @@ describe("minimal Reports workspace", () => {
     });
     expect(within(table).getByText("P1 - Property One")).toBeTruthy();
     expect(within(table).getByText("Unit A1")).toBeTruthy();
+    expect(
+      within(table).getByRole("link", { name: "Rent ledger" }).getAttribute(
+        "href",
+      ),
+    ).toBe("/ledger?archiveState=all&entryId=ledger-income");
+    expect(
+      within(table).getByRole("link", { name: "Rent ledger" }).getAttribute(
+        "title",
+      ),
+    ).toBeNull();
     expect(screen.queryByText("Report library")).toBeNull();
     expect(screen.queryByText("Report families")).toBeNull();
     expect(screen.queryByText("Report packets")).toBeNull();
     expect(screen.queryByText("Preview ready")).toBeNull();
     expect(screen.queryByText("2 source rows")).toBeNull();
     expect(screen.queryByText("Generate preview")).toBeNull();
+  });
+
+  it("discloses when the bounded Sources cell omits additional source links", () => {
+    const report = unitProfitLossReport();
+    report.rows[0]!.sourceLinks = Array.from({ length: 7 }, (_, index) => ({
+      href: `/ledger?entryId=ledger-${index + 1}`,
+      id: `ledger-${index + 1}`,
+      label: `Source ${index + 1}`,
+      recordType: "ledger" as const,
+    }));
+    report.rows[0]!.sourceCount = 7;
+    report.rows[0]!.sourceSummary = "7 source records";
+
+    renderReport({ report: prepareTrustedReportForScreen(report, query()) });
+
+    expect(screen.getByText("+2 more")).toBeTruthy();
+    expect(
+      screen.getByLabelText(
+        "7 source records; 2 additional sources are available in PDF and Excel exports",
+      ),
+    ).toBeTruthy();
   });
 
   it("shows Owner Statement readiness without an export escape hatch", () => {
@@ -106,6 +138,34 @@ describe("minimal Reports workspace", () => {
     ).toBeNull();
     expect(
       screen.getByRole("columnheader", { name: "Reason" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps Management Fee Statement defined but unavailable", () => {
+    const report = unitProfitLossReport();
+    report.kind = "management-fees";
+    report.title = "Management Fee Statement";
+    report.scopeValidation = {
+      code: "management_fee_owner_recognition_unresolved",
+      message:
+        "Management Fee Statement is unavailable until management-fee owner-recognition authority is resolved.",
+    };
+    report.exportValidation = {
+      ...report.scopeValidation,
+      status: 409,
+    };
+    report.rows = [];
+
+    renderReport({
+      report,
+      viewQuery: query({ report: "management-fees" }),
+    });
+
+    expect(screen.getByText("Report unavailable")).toBeTruthy();
+    expect(screen.getAllByText(/owner-recognition authority/)).toHaveLength(2);
+    expect(screen.queryByText("Export")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Management Fee Statement" }),
     ).toBeTruthy();
   });
 });
@@ -181,8 +241,15 @@ function unitProfitLossReport(): TrustedReport {
         href: "/units/unit-1",
         id: "unit-1",
         sourceCount: 2,
-        sourceLinks: [],
-        sourceSummary: "2 source rows",
+        sourceLinks: [
+          {
+            href: "/ledger?archiveState=all&entryId=ledger-income",
+            id: "ledger-income",
+            label: "Rent ledger",
+            recordType: "ledger",
+          },
+        ],
+        sourceSummary: "1 source row",
         title: "P1 / Unit A1",
       },
     ],

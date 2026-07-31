@@ -38,8 +38,15 @@ describe("trusted report PDF export", () => {
           href: "/units/unit-1",
           id: "unit-1",
           sourceCount: 2,
-          sourceLinks: [],
-          sourceSummary: "2 source rows",
+          sourceLinks: [
+            {
+              href: "/ledger?entryId=ledger-1",
+              id: "ledger-1",
+              label: "Rent",
+              recordType: "ledger",
+            },
+          ],
+          sourceSummary: "1 source row",
           title: "P1 / Unit A1",
           tone: "success",
         },
@@ -62,7 +69,44 @@ describe("trusted report PDF export", () => {
     expect(pdf).toContain("Unit Performance - Demo Org");
     expect(pdf).toContain("P1 / Unit A1");
     expect(pdf).toContain("USD 500.00");
+    expect(pdf).toContain("ledger:Rent");
+    expect(pdf).toContain("ledger-1");
+    expect(pdf).toContain("/ledger?entryId=ledger-1");
     expect(pdf).toContain("xref");
+  });
+
+  it("does not create a source trace page when no report row has source links", () => {
+    const report: TrustedReport = {
+      columns: [{ key: "income", label: "Income", align: "right" }],
+      description: "Unit-level report.",
+      emptyDescription: "No rows.",
+      emptyTitle: "No unit rows",
+      exportFilenameBase: "unit-profit-loss",
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      kind: "unit-profit-loss",
+      periodLabel: "01 Jun 2026 - 30 Jun 2026",
+      rows: [
+        {
+          cells: { income: "USD 0.00" },
+          id: "unit-1",
+          sourceCount: 0,
+          sourceLinks: [],
+          sourceSummary: "No sources",
+          title: "P1 / Unit A1",
+        },
+      ],
+      scopeLabel: "P1 - Property One",
+      summary: [],
+      title: "Monthly Unit Profit & Loss",
+      totalsTraceLabel: "No operating events.",
+    };
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+
+    expect(pdf).toContain("/Count 1");
+    expect(pdf).not.toContain("SOURCE TRACE");
   });
 
   it("renders income and expense reports as a profit and loss statement", () => {
@@ -175,6 +219,72 @@ describe("trusted report PDF export", () => {
     expect(renderedText).not.toContain("TRACEABLE OPERATING REPORT");
   });
 
+  it("appends every selected-unit source on portrait pages with global numbering", () => {
+    const report = unitProfitLossReport();
+    report.rows = [
+      {
+        cells: {
+          expenses: "USD 120.00",
+          income: "USD 500.00",
+          netIncome: "USD 380.00",
+          property: "P1 - Property One",
+          unit: "Unit A1",
+        },
+        href: "/units/unit-1",
+        id: "unit-1",
+        sourceCount: 7,
+        sourceLinks: Array.from({ length: 7 }, (_, index) => ({
+          href: `/rent-income?sourceId=canonical-source-${index + 1}`,
+          id: `canonical-source-${index + 1}`,
+          label: `Rent receipt allocation ${index + 1}`,
+          recordType: "receipt-allocation" as const,
+        })),
+        sourceSummary: "7 source rows",
+        title: "P1 / Unit A1",
+      },
+    ];
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+    const pages = extractPdfPageCommandText(pdf);
+
+    expect(pdf).toContain("/Count 2");
+    expect(pdf.match(/\/MediaBox \[0 0 595 842\]/g)).toHaveLength(2);
+    expect(pdf).not.toContain("/MediaBox [0 0 842 595]");
+    expect(pages[0]).toContain("Page 1 of 2");
+    expect(pages[1]).toContain("SOURCE TRACE");
+    expect(pages[1]).toContain("Page 2 of 2");
+    expect(pages[1]).toContain("receipt-allocation:Rent receipt allocation 7");
+    expect(pages[1]).toContain("canonical-source-7");
+    expect(pages[1]).toContain(
+      "/rent-income?sourceId=canonical-source-7",
+    );
+  });
+
+  it("keeps all-unit exports as traceable per-unit landscape summaries", () => {
+    const report = unitProfitLossReport();
+    report.scopeLabel = "All properties / All units";
+    report.unitProfitLossDetailScope = undefined;
+    report.unitProfitLossLines = undefined;
+    report.rows = [
+      summaryUnitRow("unit-1", "P1 / Unit A1", "source-a"),
+      summaryUnitRow("unit-2", "P1 / Unit B1", "source-b"),
+    ];
+
+    const pdf = Buffer.from(
+      buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+    ).toString("latin1");
+
+    expect(pdf).toContain("/MediaBox [0 0 842 595]");
+    expect(pdf).toContain("P1 / Unit A1");
+    expect(pdf).toContain("P1 / Unit B1");
+    expect(pdf).toContain("SOURCE TRACE");
+    expect(pdf).toContain("source-a");
+    expect(pdf).toContain("source-b");
+    expect(pdf).not.toContain("Category / Description");
+  });
+
   it("shows net income only in the final totals block", () => {
     const pdf = Buffer.from(
       buildTrustedReportPdf({
@@ -190,7 +300,7 @@ describe("trusted report PDF export", () => {
   it("groups repeated categories once above indented transaction details", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines?.push({
-      amount: 75,
+      amountCents: BigInt(7_500),
       category: "Rent",
       currency: "USD",
       date: "2026-07-08",
@@ -218,7 +328,7 @@ describe("trusted report PDF export", () => {
   it("renders income reversals with their sign and authoritative totals", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines?.push({
-      amount: -500,
+      amountCents: BigInt(-50_000),
       category: "Rent",
       currency: "USD",
       date: "2026-07-20",
@@ -246,6 +356,42 @@ describe("trusted report PDF export", () => {
     expect(renderedText).toContain("-USD 500.00");
     expect(renderedText).toMatch(
       /Receipt allocation reversal.*-USD 500\.00.*Income subtotal.*USD 0\.00.*Total income.*USD 0\.00.*Total expenses.*USD 120\.00.*Net income.*-USD 120\.00/,
+    );
+  });
+
+  it("renders expense reversals as negative expense detail without changing totals", () => {
+    const report = unitProfitLossReport();
+    report.unitProfitLossLines?.push({
+      amountCents: BigInt(-2_000),
+      category: "Repair",
+      currency: "USD",
+      date: "2026-07-20",
+      description: "Payment allocation reversal",
+      direction: "expense",
+      id: "payment_allocation:expense-reversal",
+      property: "P1 - Property One",
+      unit: "Unit A1",
+    });
+    report.summary = report.summary.map((metric) => {
+      if (metric.label === "Expenses") {
+        return { ...metric, sourceCount: 2, value: "USD 100.00" };
+      }
+      if (metric.label === "Net income") {
+        return { ...metric, sourceCount: 3, value: "USD 400.00" };
+      }
+      return metric;
+    });
+
+    const renderedText = extractPdfCommandText(
+      Buffer.from(
+        buildTrustedReportPdf({ organizationName: "Demo Org", report }),
+      ).toString("latin1"),
+    );
+
+    expect(renderedText).toContain("Payment allocation reversal");
+    expect(renderedText).toContain("-USD 20.00");
+    expect(renderedText).toMatch(
+      /Payment allocation reversal.*-USD 20\.00.*Expenses subtotal.*USD 100\.00.*Net income.*USD 400\.00/,
     );
   });
 
@@ -302,18 +448,18 @@ describe("trusted report PDF export", () => {
     expect(extractPdfCommandText(noExpensePdf)).toContain("Expenses subtotal");
   });
 
-  it("repeats statement context while paginating stable grouped ledger lines", () => {
+  it("repeats statement context while paginating stable grouped canonical events", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines = Array.from({ length: 48 }, (_, index) => ({
-      amount: index + 1,
+      amountCents: BigInt((index + 1) * 100),
       category: index % 2 === 0 ? "Rent" : "Repair",
       currency: "USD" as const,
       date: `2026-07-${String((index % 28) + 1).padStart(2, "0")}`,
       description:
-        `Ledger detail ${index + 1} ` +
+        `Canonical event detail ${index + 1} ` +
         "with enough context to wrap cleanly without overlapping the next row",
       direction: index < 24 ? ("income" as const) : ("expense" as const),
-      id: `ledger-${String(index + 1).padStart(2, "0")}`,
+      id: `cash-event-${String(index + 1).padStart(2, "0")}`,
       property: "P1 - Property One",
       unit: "Unit A1",
     }));
@@ -345,13 +491,13 @@ describe("trusted report PDF export", () => {
   it("keeps a twenty-row categorized statement and its totals within two pages", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines = Array.from({ length: 20 }, (_, index) => ({
-      amount: index + 1,
+      amountCents: BigInt((index + 1) * 100),
       category: `Category ${String(index + 1).padStart(2, "0")}`,
       currency: "USD" as const,
       date: `2026-07-${String(index + 1).padStart(2, "0")}`,
-      description: `Ledger detail ${index + 1}`,
+      description: `Canonical event detail ${index + 1}`,
       direction: index < 8 ? ("income" as const) : ("expense" as const),
-      id: `ledger-category-${String(index + 1).padStart(2, "0")}`,
+      id: `cash-event-category-${String(index + 1).padStart(2, "0")}`,
       property: "P1 - Property One",
       unit: "Unit A1",
     }));
@@ -439,7 +585,9 @@ describe("trusted report PDF export", () => {
     const report = unitProfitLossReport();
     report.unitProfitLossLines![0].category =
       "Emergency plumbing restoration and replacement";
-    report.unitProfitLossLines![0].amount = 123_456_789_012_345;
+    report.unitProfitLossLines![0].amountCents = BigInt(
+      "12345678901234500",
+    );
 
     const pdf = Buffer.from(
       buildTrustedReportPdf({ organizationName: "Demo Org", report }),
@@ -449,8 +597,7 @@ describe("trusted report PDF export", () => {
     expect(renderedText).toContain(
       "Emergency plumbing restoration and replacement",
     );
-    expect(renderedText).not.toContain("USD 123,456,789,012,345.00");
-    expect(renderedText.match(/\.\.\./g)).toHaveLength(1);
+    expect(renderedText).toContain("USD 123,456,789,012,345.00");
   });
 
   it("width-bounds an unbroken wide-glyph grouped category", () => {
@@ -621,31 +768,62 @@ function unitProfitLossReport(): TrustedReport {
       },
     ],
     title: "Monthly Unit Profit & Loss",
-    totalsTraceLabel: "Totals trace to 2 unit-linked ledger rows.",
+    totalsTraceLabel:
+      "Totals trace to 2 canonical unit-linked operating cash events.",
+    unitProfitLossDetailScope: "single-unit",
     unitProfitLossLines: [
       {
-        amount: 500,
+        amountCents: BigInt(50_000),
         category: "Rent",
         currency: "USD",
         date: "2026-07-05",
         description: "July rent",
         direction: "income",
-        id: "ledger-income",
+        id: "receipt_allocation:income-source",
         property: "P1 - Property One",
         unit: "Unit A1",
       },
       {
-        amount: 120,
+        amountCents: BigInt(12_000),
         category: "Repair",
         currency: "USD",
         date: "2026-07-10",
         description: "Kitchen sink repair",
         direction: "expense",
-        id: "ledger-expense",
+        id: "payment_allocation:expense-source",
         property: "P1 - Property One",
         unit: "Unit A1",
       },
     ],
+  };
+}
+
+function summaryUnitRow(
+  id: string,
+  title: string,
+  sourceId: string,
+): TrustedReport["rows"][number] {
+  return {
+    cells: {
+      expenses: "USD 120.00",
+      income: "USD 500.00",
+      netIncome: "USD 380.00",
+      property: "P1 - Property One",
+      unit: title.split(" / ")[1] ?? title,
+    },
+    href: `/units/${id}`,
+    id,
+    sourceCount: 1,
+    sourceLinks: [
+      {
+        href: `/rent-income?sourceId=${sourceId}`,
+        id: sourceId,
+        label: "Rent receipt allocation",
+        recordType: "receipt-allocation",
+      },
+    ],
+    sourceSummary: "1 source row",
+    title,
   };
 }
 
@@ -790,13 +968,13 @@ function unitProfitLossLine(
   description: string,
 ): NonNullable<TrustedReport["unitProfitLossLines"]>[number] {
   return {
-    amount: index,
+    amountCents: BigInt(index * 100),
     category: direction === "income" ? "Rent" : "Repair",
     currency: "USD",
     date: `2026-07-${String(index).padStart(2, "0")}`,
     description,
     direction,
-    id: `ledger-boundary-${String(index).padStart(2, "0")}`,
+    id: `cash-event-boundary-${String(index).padStart(2, "0")}`,
     property: "P1 - Property One",
     unit: "Unit A1",
   };

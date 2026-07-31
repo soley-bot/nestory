@@ -61,6 +61,7 @@ export type ReportSourceRecordType =
   | "owner"
   | "payment"
   | "payment-allocation"
+  | "petty-cash-entry"
   | "person"
   | "property"
   | "receipt"
@@ -126,7 +127,7 @@ export type TrustedReportRow = {
 };
 
 export type UnitProfitLossLine = {
-  amount: number;
+  amountCents: bigint;
   category: string;
   currency: CurrencyCode;
   date: string;
@@ -161,6 +162,7 @@ export type TrustedReport = {
   title: string;
   totalsTraceLabel: string;
   totalRowCount?: number;
+  unitProfitLossDetailScope?: "single-unit";
   unitProfitLossLines?: UnitProfitLossLine[];
 };
 

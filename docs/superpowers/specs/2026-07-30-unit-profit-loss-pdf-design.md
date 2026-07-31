@@ -34,28 +34,32 @@ Monthly Unit Profit & Loss statement, not an invoice.
 
 ## Data Authority
 
-The detail lines come only from unit-linked `ledger_entries` already loaded by
-the Monthly Unit Profit & Loss report for the selected organization, scope, and
-month.
+The detail lines come only from resolved, unit-linked operating events in the
+canonical `propertyCashEvents` contract for the selected organization, scope,
+and month. `ledger_entries` can remain linked evidence, but it is not the
+financial authority for this statement.
 
 Each PDF line contains:
 
-- transaction date from `ledger_entries.transaction_date`
+- canonical cash-event date
 - income or expense direction
 - normalized category
-- ledger description, with the category used only when the description is
-  empty
+- canonical source type as the compact description
 - property label
 - unit label
-- exact stored amount and currency
-- ledger source identity retained in the report data
+- exact signed bigint cents and currency, without a JavaScript `number`
+  conversion
+- canonical event and source identity retained in the report data
 
-Property-level ledger rows are not assigned to a unit. The PDF must not combine
-ledger rows with receipt, payment, obligation, or Owner Statement sources.
+Property-level, owner-funding, deposit, company-fee, non-operating, and
+unresolved events are not assigned to a unit statement. Receipt and payment
+allocations are valid statement sources when the canonical cash-event contract
+classifies them as resolved unit-linked operating activity.
 
-The existing summary calculation remains authoritative for total income,
-expenses, and net income. Detail-line subtotals must agree with those summary
-values for the same scope.
+The canonical event calculation remains authoritative for total income,
+expense magnitude, and net income. Detail-line subtotals must agree exactly
+with those summary values for the same scope. Income and expense reversals
+retain their negative signs in their respective sections.
 
 ## Document Structure
 
@@ -72,8 +76,8 @@ The first page contains:
 5. generated date
 6. `Cash basis` accounting label
 
-Do not show report-purpose copy, source-count cards, trace labels, technical
-readiness language, invoice numbers, due dates, or payment actions.
+Do not show report-purpose copy, source-count cards, technical readiness
+language, invoice numbers, due dates, or payment actions in the statement body.
 Net income appears once in the final totals stack, not in a separate header
 card.
 
@@ -93,9 +97,9 @@ End the section with `Income subtotal`.
 
 ### Expenses
 
-Show an `Expenses` section using the same columns and sort order. Display
-expense amounts as positive magnitudes inside the expense section. End the
-section with `Expenses subtotal`.
+Show an `Expenses` section using the same columns and sort order. Normal
+expenses display as positive magnitudes; expense reversals display as negative
+amounts. End the section with `Expenses subtotal`.
 
 ### Totals
 
@@ -115,8 +119,10 @@ The footer contains:
 - `Nestory unit financial statement`
 - page number
 
-Source links and record counts remain available in the authenticated Nestory
-screen rather than being printed as PDF decoration.
+After the statement body, append a portrait `Source trace` section containing
+the report row, source label and record type, exact source ID, and operator
+link for every source. The appendix uses the full uncapped export data and
+continues the document's global `Page X of Y` numbering.
 
 ## Pagination
 
@@ -129,15 +135,19 @@ screen rather than being printed as PDF decoration.
 - Long descriptions may wrap to two lines and must not overlap the next row.
 - Empty Income or Expenses sections still appear with `No income recorded` or
   `No expenses recorded` and a zero subtotal.
+- Financial values must render in full and must never be ellipsized.
 
 ## Product And Code Boundaries
 
+- A selected unit uses the production portrait statement and portrait source
+  appendix. `All units` keeps the existing traceable landscape summary so each
+  report row retains its unit identity and full sources.
 - The authenticated Reports screen and its aggregate unit table do not change.
 - Excel export does not change in this slice.
 - Owner Statement and Management Fee Statement PDF layouts do not change.
 - The PDF endpoint and authentication boundary do not change.
-- The report data type gains only the structured ledger detail required by this
-  PDF.
+- The report data type gains only the structured canonical cash-event detail
+  required by this PDF.
 - The shared PDF writer may accept page dimensions, but existing landscape
   exports must retain their current media boxes.
 
@@ -145,20 +155,21 @@ screen rather than being printed as PDF decoration.
 
 Implementation is complete when:
 
-1. A failing report-data test proves dated income and expense ledger lines are
-   absent before implementation.
+1. A report-data test proves dated income and expense detail comes only from
+   resolved unit-linked canonical operating cash events.
 2. A failing PDF test proves the unit statement lacks the new portrait,
    section, date, subtotal, and net-income structure before implementation.
 3. Focused report and PDF tests pass after the smallest implementation.
 4. Existing Owner Statement, Management Fee, and generic report PDF tests
    remain green.
-5. The authenticated Unit 09A July 2026 export contains its July rent and
-   repair rows with their ledger dates.
+5. A selected-unit export retains income and expense reversal signs, exact
+   bigint cents, and every canonical source identity and operator link.
 6. The generated PDF reports portrait A4 dimensions through `pdfinfo`.
 7. Every generated page is rasterized and visually inspected for clipping,
    overlap, weak hierarchy, or unreadable text.
 8. Extracted PDF text contains the selected unit, period, both section labels,
-   transaction dates, subtotals, and final net income.
+   transaction dates, subtotals, final net income, source trace, exact source
+   IDs, and operator links.
 
 ## Out Of Scope
 

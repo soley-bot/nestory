@@ -1583,6 +1583,9 @@ export type Database = {
           organization_id: string
           raw_data: Json
           result_action: string | null
+          result_lease_id: string | null
+          result_lease_occupancy_id: string | null
+          result_lease_party_id: string | null
           result_unit_id: string | null
           row_status: string
           source_row_number: number
@@ -1599,6 +1602,9 @@ export type Database = {
           organization_id: string
           raw_data?: Json
           result_action?: string | null
+          result_lease_id?: string | null
+          result_lease_occupancy_id?: string | null
+          result_lease_party_id?: string | null
           result_unit_id?: string | null
           row_status: string
           source_row_number: number
@@ -1615,6 +1621,9 @@ export type Database = {
           organization_id?: string
           raw_data?: Json
           result_action?: string | null
+          result_lease_id?: string | null
+          result_lease_occupancy_id?: string | null
+          result_lease_party_id?: string | null
           result_unit_id?: string | null
           row_status?: string
           source_row_number?: number
@@ -1634,6 +1643,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_rows_organization_id_import_run_id_fkey"
+            columns: ["organization_id", "import_run_id"]
+            isOneToOne: false
+            referencedRelation: "import_runs"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "import_rows_result_lease_occupancy_org_fk"
+            columns: ["organization_id", "result_lease_occupancy_id"]
+            isOneToOne: false
+            referencedRelation: "lease_occupancies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "import_rows_result_lease_org_fk"
+            columns: ["organization_id", "result_lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "import_rows_result_lease_party_org_fk"
+            columns: ["organization_id", "result_lease_party_id"]
+            isOneToOne: false
+            referencedRelation: "lease_parties"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "import_rows_result_unit_id_fkey"
@@ -1660,6 +1697,8 @@ export type Database = {
           organization_id: string
           ready_rows: number
           skipped_count: number
+          snapshot_hash: string | null
+          source_claim_hash: string | null
           source_file_name: string
           source_file_size: number
           source_mime_type: string | null
@@ -1685,6 +1724,8 @@ export type Database = {
           organization_id: string
           ready_rows?: number
           skipped_count?: number
+          snapshot_hash?: string | null
+          source_claim_hash?: string | null
           source_file_name: string
           source_file_size?: number
           source_mime_type?: string | null
@@ -1710,6 +1751,8 @@ export type Database = {
           organization_id?: string
           ready_rows?: number
           skipped_count?: number
+          snapshot_hash?: string | null
+          source_claim_hash?: string | null
           source_file_name?: string
           source_file_size?: number
           source_mime_type?: string | null
@@ -1919,58 +1962,130 @@ export type Database = {
       }
       lease_occupancies: {
         Row: {
+          actual_effective_range: unknown
+          actual_move_in_confidence: string
           actual_move_in_date: string | null
+          actual_move_in_kind: string
+          actual_move_out_confidence: string
           actual_move_out_date: string | null
+          actual_move_out_kind: string
           archived_at: string | null
           archived_by: string | null
+          business_lifecycle: string
+          correction_reason: string | null
+          correction_request_id: string | null
           created_at: string
           created_by: string | null
+          evidence_reason: string
+          evidence_recorded_at: string
+          evidence_recorded_by: string | null
+          evidence_state: string
           id: string
           lease_id: string
+          notice_confidence: string
           notice_date: string | null
+          notice_kind: string
           organization_id: string
           property_id: string
+          protected_occupancy_range: unknown
+          record_source: string
+          scheduled_effective_range: unknown
+          scheduled_move_in_confidence: string
           scheduled_move_in_date: string | null
+          scheduled_move_in_kind: string
+          scheduled_move_out_confidence: string
           scheduled_move_out_date: string | null
+          scheduled_move_out_kind: string
+          source_import_row_id: string | null
           status: string
+          superseded_by_lease_occupancy_id: string | null
+          supersedes_lease_occupancy_id: string | null
           unit_id: string | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          actual_effective_range?: unknown
+          actual_move_in_confidence?: string
           actual_move_in_date?: string | null
+          actual_move_in_kind?: string
+          actual_move_out_confidence?: string
           actual_move_out_date?: string | null
+          actual_move_out_kind?: string
           archived_at?: string | null
           archived_by?: string | null
+          business_lifecycle?: string
+          correction_reason?: string | null
+          correction_request_id?: string | null
           created_at?: string
           created_by?: string | null
+          evidence_reason?: string
+          evidence_recorded_at?: string
+          evidence_recorded_by?: string | null
+          evidence_state?: string
           id?: string
           lease_id: string
+          notice_confidence?: string
           notice_date?: string | null
+          notice_kind?: string
           organization_id: string
           property_id: string
+          protected_occupancy_range?: unknown
+          record_source?: string
+          scheduled_effective_range?: unknown
+          scheduled_move_in_confidence?: string
           scheduled_move_in_date?: string | null
+          scheduled_move_in_kind?: string
+          scheduled_move_out_confidence?: string
           scheduled_move_out_date?: string | null
+          scheduled_move_out_kind?: string
+          source_import_row_id?: string | null
           status?: string
+          superseded_by_lease_occupancy_id?: string | null
+          supersedes_lease_occupancy_id?: string | null
           unit_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          actual_effective_range?: unknown
+          actual_move_in_confidence?: string
           actual_move_in_date?: string | null
+          actual_move_in_kind?: string
+          actual_move_out_confidence?: string
           actual_move_out_date?: string | null
+          actual_move_out_kind?: string
           archived_at?: string | null
           archived_by?: string | null
+          business_lifecycle?: string
+          correction_reason?: string | null
+          correction_request_id?: string | null
           created_at?: string
           created_by?: string | null
+          evidence_reason?: string
+          evidence_recorded_at?: string
+          evidence_recorded_by?: string | null
+          evidence_state?: string
           id?: string
           lease_id?: string
+          notice_confidence?: string
           notice_date?: string | null
+          notice_kind?: string
           organization_id?: string
           property_id?: string
+          protected_occupancy_range?: unknown
+          record_source?: string
+          scheduled_effective_range?: unknown
+          scheduled_move_in_confidence?: string
           scheduled_move_in_date?: string | null
+          scheduled_move_in_kind?: string
+          scheduled_move_out_confidence?: string
           scheduled_move_out_date?: string | null
+          scheduled_move_out_kind?: string
+          source_import_row_id?: string | null
           status?: string
+          superseded_by_lease_occupancy_id?: string | null
+          supersedes_lease_occupancy_id?: string | null
           unit_id?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -1998,6 +2113,27 @@ export type Database = {
             referencedColumns: ["organization_id", "id"]
           },
           {
+            foreignKeyName: "lease_occupancies_source_import_row_fk"
+            columns: ["organization_id", "source_import_row_id"]
+            isOneToOne: false
+            referencedRelation: "import_rows"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_occupancies_superseded_by_fk"
+            columns: ["organization_id", "superseded_by_lease_occupancy_id"]
+            isOneToOne: false
+            referencedRelation: "lease_occupancies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_occupancies_supersedes_fk"
+            columns: ["organization_id", "supersedes_lease_occupancy_id"]
+            isOneToOne: false
+            referencedRelation: "lease_occupancies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "lease_occupancies_unit_fk"
             columns: ["organization_id", "unit_id"]
             isOneToOne: false
@@ -2006,52 +2142,230 @@ export type Database = {
           },
         ]
       }
+      lease_occupancy_participants: {
+        Row: {
+          business_lifecycle: string
+          correction_reason: string | null
+          correction_request_id: string | null
+          created_at: string
+          created_by: string | null
+          effective_range: unknown
+          ended_on: string | null
+          ended_on_confidence: string
+          ended_on_kind: string
+          evidence_reason: string
+          evidence_recorded_at: string
+          evidence_recorded_by: string | null
+          evidence_state: string
+          id: string
+          lease_occupancy_id: string
+          lease_party_id: string
+          organization_id: string
+          record_source: string
+          source_import_row_id: string | null
+          started_on: string | null
+          started_on_confidence: string
+          started_on_kind: string
+          superseded_by_participant_id: string | null
+          supersedes_participant_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          business_lifecycle?: string
+          correction_reason?: string | null
+          correction_request_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          effective_range?: unknown
+          ended_on?: string | null
+          ended_on_confidence?: string
+          ended_on_kind?: string
+          evidence_reason: string
+          evidence_recorded_at?: string
+          evidence_recorded_by?: string | null
+          evidence_state?: string
+          id?: string
+          lease_occupancy_id: string
+          lease_party_id: string
+          organization_id: string
+          record_source: string
+          source_import_row_id?: string | null
+          started_on?: string | null
+          started_on_confidence?: string
+          started_on_kind?: string
+          superseded_by_participant_id?: string | null
+          supersedes_participant_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          business_lifecycle?: string
+          correction_reason?: string | null
+          correction_request_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          effective_range?: unknown
+          ended_on?: string | null
+          ended_on_confidence?: string
+          ended_on_kind?: string
+          evidence_reason?: string
+          evidence_recorded_at?: string
+          evidence_recorded_by?: string | null
+          evidence_state?: string
+          id?: string
+          lease_occupancy_id?: string
+          lease_party_id?: string
+          organization_id?: string
+          record_source?: string
+          source_import_row_id?: string | null
+          started_on?: string | null
+          started_on_confidence?: string
+          started_on_kind?: string
+          superseded_by_participant_id?: string | null
+          supersedes_participant_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_occupancy_participants_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_participants_occupancy_fk"
+            columns: ["organization_id", "lease_occupancy_id"]
+            isOneToOne: false
+            referencedRelation: "lease_occupancies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_participants_party_fk"
+            columns: ["organization_id", "lease_party_id"]
+            isOneToOne: false
+            referencedRelation: "lease_parties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_participants_source_import_row_fk"
+            columns: ["organization_id", "source_import_row_id"]
+            isOneToOne: false
+            referencedRelation: "import_rows"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_participants_superseded_by_fk"
+            columns: ["organization_id", "superseded_by_participant_id"]
+            isOneToOne: false
+            referencedRelation: "lease_occupancy_participants"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_participants_supersedes_fk"
+            columns: ["organization_id", "supersedes_participant_id"]
+            isOneToOne: false
+            referencedRelation: "lease_occupancy_participants"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       lease_parties: {
         Row: {
           archived_at: string | null
           archived_by: string | null
+          business_lifecycle: string
+          correction_reason: string | null
+          correction_request_id: string | null
           created_at: string
           created_by: string | null
+          effective_range: unknown
           ended_on: string | null
+          ended_on_confidence: string
+          ended_on_kind: string
+          evidence_reason: string
+          evidence_recorded_at: string
+          evidence_recorded_by: string | null
+          evidence_state: string
           id: string
           is_primary: boolean
           lease_id: string
           organization_id: string
           party_role: string
           person_id: string
+          record_source: string
+          source_import_row_id: string | null
           started_on: string | null
+          started_on_confidence: string
+          started_on_kind: string
+          superseded_by_lease_party_id: string | null
+          supersedes_lease_party_id: string | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           archived_at?: string | null
           archived_by?: string | null
+          business_lifecycle?: string
+          correction_reason?: string | null
+          correction_request_id?: string | null
           created_at?: string
           created_by?: string | null
+          effective_range?: unknown
           ended_on?: string | null
+          ended_on_confidence?: string
+          ended_on_kind?: string
+          evidence_reason?: string
+          evidence_recorded_at?: string
+          evidence_recorded_by?: string | null
+          evidence_state?: string
           id?: string
           is_primary?: boolean
           lease_id: string
           organization_id: string
           party_role: string
           person_id: string
+          record_source?: string
+          source_import_row_id?: string | null
           started_on?: string | null
+          started_on_confidence?: string
+          started_on_kind?: string
+          superseded_by_lease_party_id?: string | null
+          supersedes_lease_party_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           archived_at?: string | null
           archived_by?: string | null
+          business_lifecycle?: string
+          correction_reason?: string | null
+          correction_request_id?: string | null
           created_at?: string
           created_by?: string | null
+          effective_range?: unknown
           ended_on?: string | null
+          ended_on_confidence?: string
+          ended_on_kind?: string
+          evidence_reason?: string
+          evidence_recorded_at?: string
+          evidence_recorded_by?: string | null
+          evidence_state?: string
           id?: string
           is_primary?: boolean
           lease_id?: string
           organization_id?: string
           party_role?: string
           person_id?: string
+          record_source?: string
+          source_import_row_id?: string | null
           started_on?: string | null
+          started_on_confidence?: string
+          started_on_kind?: string
+          superseded_by_lease_party_id?: string | null
+          supersedes_lease_party_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -2075,6 +2389,27 @@ export type Database = {
             columns: ["organization_id", "person_id"]
             isOneToOne: false
             referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_parties_source_import_row_fk"
+            columns: ["organization_id", "source_import_row_id"]
+            isOneToOne: false
+            referencedRelation: "import_rows"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_parties_superseded_by_fk"
+            columns: ["organization_id", "superseded_by_lease_party_id"]
+            isOneToOne: false
+            referencedRelation: "lease_parties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_parties_supersedes_fk"
+            columns: ["organization_id", "supersedes_lease_party_id"]
+            isOneToOne: false
+            referencedRelation: "lease_parties"
             referencedColumns: ["organization_id", "id"]
           },
         ]
@@ -4383,6 +4718,27 @@ export type Database = {
         }
         Returns: string
       }
+      create_lease_with_relationships: {
+        Args: {
+          p_deposit_amount: number
+          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
+          p_idempotency_key: string
+          p_lease_end_date: string
+          p_lease_start_date: string
+          p_lease_status: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_relationship_payload: Json
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_term_status: string
+          p_unit_id: string
+        }
+        Returns: Json
+      }
       create_ledger_entry: {
         Args: {
           p_amount: number
@@ -5124,6 +5480,19 @@ export type Database = {
           p_reason: string
         }
         Returns: string
+      }
+      stage_import_run_v1: {
+        Args: {
+          p_headers: Json
+          p_import_type: string
+          p_mapping: Json
+          p_organization_id: string
+          p_rows: Json
+          p_source_file_name: string
+          p_source_file_size: number
+          p_source_mime_type: string
+        }
+        Returns: Json
       }
       terminate_authoritative_lease_term: {
         Args: {

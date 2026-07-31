@@ -12,11 +12,19 @@ export type ImportCommitSummary = {
   updated: number;
 };
 
+export type ImportRunStatus =
+  | "staged"
+  | "committing"
+  | "committed"
+  | "committed_with_errors"
+  | "failed";
+
 export type ImportReadyRowsState = {
   commitSummary?: ImportCommitSummary;
   draftKey?: string;
   message?: string;
   runId?: string;
+  runStatus?: ImportRunStatus;
   sourceFileName?: string;
   status?: "error" | "success";
   validationSummary?: ImportValidationSummary;
@@ -26,6 +34,7 @@ type StageResult = {
   draftKey?: string;
   message?: string;
   runId?: string;
+  runStatus?: ImportRunStatus;
   sourceFileName?: string;
   status?: "error" | "success";
   summary?: ImportValidationSummary;
@@ -34,6 +43,7 @@ type StageResult = {
 type CommitResult = {
   message?: string;
   runId?: string;
+  runStatus?: ImportRunStatus;
   status?: "error" | "success";
   summary?: ImportCommitSummary;
 };
@@ -67,6 +77,7 @@ export async function runImportReadyRowsFlow({
   const identity = {
     ...(staged.draftKey ? { draftKey: staged.draftKey } : {}),
     ...(staged.runId ? { runId: staged.runId } : {}),
+    ...(staged.runStatus ? { runStatus: staged.runStatus } : {}),
     ...(staged.sourceFileName
       ? { sourceFileName: staged.sourceFileName }
       : {}),
@@ -90,12 +101,37 @@ export async function runImportReadyRowsFlow({
     };
   }
 
+  return commitStagedRun({
+    commit,
+    identity: { ...identity, runId: staged.runId },
+    validationSummary: staged.summary,
+  });
+}
+
+async function commitStagedRun({
+  commit,
+  identity,
+  validationSummary,
+}: {
+  commit: RunImportReadyRowsFlowOptions["commit"];
+  identity: Pick<
+    ImportReadyRowsState,
+    "draftKey" | "runId" | "runStatus" | "sourceFileName"
+  > & { runId: string };
+  validationSummary: ImportValidationSummary;
+}): Promise<ImportReadyRowsState> {
   const commitFormData = new FormData();
-  commitFormData.set("runId", staged.runId);
+  commitFormData.set("runId", identity.runId);
   const committed = await commit({}, commitFormData);
+  const runStatus = committed.runStatus ?? identity.runStatus;
 
   return {
-    ...identity,
+    ...(identity.draftKey ? { draftKey: identity.draftKey } : {}),
+    runId: identity.runId,
+    ...(runStatus ? { runStatus } : {}),
+    ...(identity.sourceFileName
+      ? { sourceFileName: identity.sourceFileName }
+      : {}),
     ...(committed.summary ? { commitSummary: committed.summary } : {}),
     message:
       committed.message ??
@@ -103,6 +139,6 @@ export async function runImportReadyRowsFlow({
         ? "Ready rows imported."
         : "The staged import could not be committed."),
     status: committed.status ?? "error",
-    validationSummary: staged.summary,
+    validationSummary,
   };
 }

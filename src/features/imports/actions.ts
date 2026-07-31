@@ -2,12 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import {
-  buildGenericImportPreviewRows,
-  getGenericImportStats,
-} from "@/features/imports/import-config";
+import { buildGenericImportPreviewRows } from "@/features/imports/import-config";
 import {
   runImportReadyRowsFlow,
+  type ImportRunStatus,
   type ImportReadyRowsState,
 } from "@/features/imports/import-ready-rows";
 import { getImportReferenceData } from "@/features/imports/data/imports";
@@ -23,6 +21,7 @@ export type StageImportRunState = {
   draftKey?: string;
   message?: string;
   runId?: string;
+  runStatus?: ImportRunStatus;
   sourceFileName?: string;
   status?: "error" | "success";
   summary?: {
@@ -36,6 +35,7 @@ export type StageImportRunState = {
 export type CommitImportRunState = {
   message?: string;
   runId?: string;
+  runStatus?: ImportRunStatus;
   status?: "error" | "success";
   summary?: {
     created: number;
@@ -63,7 +63,7 @@ const stagePayloadSchema = z.object({
   draftKey: z.string().trim().min(1).max(2000),
   fileName: z.string().trim().min(1).max(255),
   fileSize: z.number().int().nonnegative().max(12 * 1024 * 1024),
-  headers: z.array(z.string().trim().max(120)).min(1).max(100),
+  headers: z.array(z.string().trim().min(1).max(120)).min(1).max(100),
   importType: importTypeSchema,
   mapping: importMappingSchema,
   mimeType: z.string().trim().max(120).nullable(),
@@ -75,6 +75,28 @@ const commitResultSchema = z.object({
   failed: z.number().int().nonnegative(),
   skipped: z.number().int().nonnegative(),
   updated: z.number().int().nonnegative(),
+});
+
+const importRunStatusSchema = z.enum([
+  "staged",
+  "committing",
+  "committed",
+  "committed_with_errors",
+  "failed",
+]);
+
+const stageImportResultSchema = z.object({
+  blocked: z.number().int().nonnegative(),
+  created: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  ready: z.number().int().nonnegative(),
+  runId: z.uuid(),
+  skipped: z.number().int().nonnegative(),
+  sourceFileName: z.string(),
+  status: importRunStatusSchema,
+  total: z.number().int().nonnegative(),
+  updated: z.number().int().nonnegative(),
+  warnings: z.number().int().nonnegative(),
 });
 
 export async function importReadyRowsAction(
@@ -120,53 +142,35 @@ export async function stageImportRunAction(
     referenceData,
     type: parsedPayload.data.importType,
   });
-  const stats = getGenericImportStats(rows);
-  const insertRunResult = await importDb
-    .from("import_runs")
-    .insert({
-      created_by: context.userId,
-      error_rows: stats.errorCount,
-      headers: parsedPayload.data.headers as Json,
-      import_type: parsedPayload.data.importType,
-      mapping: parsedPayload.data.mapping as Json,
-      organization_id: context.organizationId,
-      ready_rows: stats.readyCount,
-      source_file_name: parsedPayload.data.fileName,
-      source_file_size: parsedPayload.data.fileSize,
-      source_mime_type: parsedPayload.data.mimeType,
-      status: "staged",
-      total_rows: stats.totalCount,
-      updated_by: context.userId,
-      warning_rows: stats.warningCount,
-    })
-    .select("id")
-    .single();
+  const stagedRows = rows.map(toImportStageRpcRow);
+  const stageResult = await importDb.rpc("stage_import_run_v1", {
+    p_headers: parsedPayload.data.headers as Json,
+    p_import_type: parsedPayload.data.importType,
+    p_mapping: parsedPayload.data.mapping as Json,
+    p_organization_id: context.organizationId,
+    p_rows: stagedRows as Json,
+    p_source_file_name: parsedPayload.data.fileName,
+    p_source_file_size: parsedPayload.data.fileSize,
+    p_source_mime_type: parsedPayload.data.mimeType ?? "",
+  });
 
-  if (insertRunResult.error || !insertRunResult.data) {
+  if (stageResult.error) {
     return {
-      message: `Could not create import run: ${
-        insertRunResult.error?.message ?? "No run was returned."
-      }`,
+      message: `Could not stage import run: ${stageResult.error.message}`,
       status: "error",
     };
   }
 
-  const runId = insertRunResult.data.id;
-  const rowInserts = rows.map((row) =>
-    toImportRowInsert({
-      organizationId: context.organizationId,
-      row,
-      runId,
-    }),
-  );
-  const insertRowsResult = await importDb.from("import_rows").insert(rowInserts);
+  const parsedRun = stageImportResultSchema.safeParse(stageResult.data);
 
-  if (insertRowsResult.error) {
+  if (!parsedRun.success) {
     return {
-      message: `Could not stage import rows: ${insertRowsResult.error.message}`,
+      message: "Could not reconcile the staged import run.",
       status: "error",
     };
   }
+
+  const run = parsedRun.data;
 
   await importDb.from("import_mappings").upsert(
     {
@@ -183,20 +187,27 @@ export async function stageImportRunAction(
 
   revalidatePath("/import");
 
+  let message = "Import run staged and ready to commit.";
+  if (run.status === "committing") {
+    message = "Import run recovered and is still committing.";
+  } else if (run.status !== "staged") {
+    message = "Existing import result recovered.";
+  } else if (run.blocked > 0) {
+    message = "Import run staged. Fix blocked rows before committing.";
+  }
+
   return {
     draftKey: parsedPayload.data.draftKey,
-    message:
-      stats.errorCount > 0
-        ? "Import run staged. Fix blocked rows before committing."
-        : "Import run staged and ready to commit.",
-    runId,
-    sourceFileName: parsedPayload.data.fileName,
+    message,
+    runId: run.runId,
+    runStatus: run.status,
+    sourceFileName: run.sourceFileName,
     status: "success",
     summary: {
-      blocked: stats.errorCount,
-      ready: stats.readyCount,
-      total: stats.totalCount,
-      warnings: stats.warningCount,
+      blocked: run.blocked,
+      ready: run.ready,
+      total: run.total,
+      warnings: run.warnings,
     },
   };
 }
@@ -219,7 +230,9 @@ export async function commitStagedImportRunAction(
   const importDb = supabase;
   const runResult = await importDb
     .from("import_runs")
-    .select("id, import_type, status")
+    .select(
+      "id, import_type, status, total_rows, created_count, failed_count, skipped_count, updated_count",
+    )
     .eq("id", runId)
     .eq("organization_id", context.organizationId)
     .single();
@@ -243,13 +256,72 @@ export async function commitStagedImportRunAction(
     };
   }
 
-  if (
-    run.status === "committed" ||
-    run.status === "committed_with_errors"
-  ) {
+  if (run.status === "committed" || run.status === "committed_with_errors") {
+    const summary = {
+      created: run.created_count,
+      failed: run.failed_count,
+      skipped: run.skipped_count,
+      updated: run.updated_count,
+    };
+    revalidateImportPaths(importType.data);
     return {
-      message: "This import run has already been committed.",
+      message:
+        "This import run was already committed. No duplicate rows were created.",
       runId,
+      runStatus: run.status,
+      status: "success",
+      summary,
+    };
+  }
+
+  if (run.status === "failed") {
+    const summary = {
+      created: run.created_count,
+      failed: run.failed_count,
+      skipped: run.skipped_count,
+      updated: run.updated_count,
+    };
+    revalidatePath("/import");
+    return {
+      message: `${formatCommitSummaryMessage(importType.data, summary)} This terminal result was not retried.`,
+      runId,
+      runStatus: "failed",
+      status: "error",
+      summary,
+    };
+  }
+
+  if (run.status === "committing") {
+    revalidatePath("/import");
+    return {
+      message: "This import run is still committing. Reconcile it again shortly.",
+      runId,
+      runStatus: "committing",
+      status: "error",
+    };
+  }
+
+  const stagedRowsResult = await importDb
+    .from("import_rows")
+    .select("id", { count: "exact", head: true })
+    .eq("import_run_id", runId)
+    .eq("organization_id", context.organizationId);
+
+  if (stagedRowsResult.error) {
+    return {
+      message: "The staged import rows could not be reconciled.",
+      runId,
+      runStatus: "staged",
+      status: "error",
+    };
+  }
+
+  if (stagedRowsResult.count !== run.total_rows) {
+    return {
+      message:
+        "This legacy or incomplete import cannot be resumed. Re-upload the CSV to create a fresh atomic run.",
+      runId,
+      runStatus: "staged",
       status: "error",
     };
   }
@@ -289,9 +361,18 @@ async function commitUnitImportRun({
   });
 
   if (error) {
+    const recovered = await recoverStoredCommitResult({
+      importDb,
+      importType: "units",
+      organizationId,
+      runId,
+    });
+    if (recovered) return recovered;
+
     return {
       message: importRunErrorMessage(error.message),
       runId,
+      runStatus: "staged",
       status: "error",
     };
   }
@@ -302,6 +383,7 @@ async function commitUnitImportRun({
     return {
       message: "Import committed, but the commit summary could not be read.",
       runId,
+      runStatus: "committed",
       status: "success",
     };
   }
@@ -311,6 +393,7 @@ async function commitUnitImportRun({
   return {
     message: formatCommitSummaryMessage("units", summary.data),
     runId,
+    runStatus: toCommittedRunStatus(summary.data),
     status: toCommitActionStatus(summary.data),
     summary: summary.data,
   };
@@ -333,9 +416,18 @@ async function commitGenericImportRun({
   });
 
   if (error) {
+    const recovered = await recoverStoredCommitResult({
+      importDb,
+      importType,
+      organizationId,
+      runId,
+    });
+    if (recovered) return recovered;
+
     return {
       message: importRunErrorMessage(error.message),
       runId,
+      runStatus: "staged",
       status: "error",
     };
   }
@@ -346,6 +438,7 @@ async function commitGenericImportRun({
     return {
       message: "Import committed, but the commit summary could not be read.",
       runId,
+      runStatus: "committed",
       status: "success",
     };
   }
@@ -355,9 +448,78 @@ async function commitGenericImportRun({
   return {
     message: formatCommitSummaryMessage(importType, summary.data),
     runId,
+    runStatus: toCommittedRunStatus(summary.data),
     status: toCommitActionStatus(summary.data),
     summary: summary.data,
   };
+}
+
+async function recoverStoredCommitResult({
+  importDb,
+  importType,
+  organizationId,
+  runId,
+}: {
+  importDb: ImportSupabaseClient;
+  importType: ImportType;
+  organizationId: string;
+  runId: string;
+}): Promise<CommitImportRunState | null> {
+  const recovered = await importDb
+    .from("import_runs")
+    .select(
+      "status, created_count, failed_count, skipped_count, updated_count",
+    )
+    .eq("id", runId)
+    .eq("organization_id", organizationId)
+    .single();
+
+  if (recovered.error || !recovered.data) return null;
+
+  const summary = {
+    created: recovered.data.created_count,
+    failed: recovered.data.failed_count,
+    skipped: recovered.data.skipped_count,
+    updated: recovered.data.updated_count,
+  };
+
+  if (
+    recovered.data.status === "committed" ||
+    recovered.data.status === "committed_with_errors"
+  ) {
+    revalidateImportPaths(importType);
+    return {
+      message:
+        "This import run was already committed. No duplicate rows were created.",
+      runId,
+      runStatus: recovered.data.status,
+      status: "success",
+      summary,
+    };
+  }
+
+  if (recovered.data.status === "failed") {
+    revalidatePath("/import");
+    return {
+      message: `${formatCommitSummaryMessage(importType, summary)} This terminal result was not retried.`,
+      runId,
+      runStatus: "failed",
+      status: "error",
+      summary,
+    };
+  }
+
+  if (recovered.data.status === "committing") {
+    revalidatePath("/import");
+    return {
+      message: "This import run is still committing. Reconcile it again shortly.",
+      runId,
+      runStatus: "committing",
+      status: "error",
+    };
+  }
+
+  return null;
 }
 
 function formatCommitSummaryMessage(
@@ -396,28 +558,29 @@ const importTypeLabels: Record<ImportType, string> = {
   units: "unit",
 };
 
-function toImportRowInsert({
-  organizationId,
-  row,
-  runId,
-}: {
-  organizationId: string;
-  row: GenericImportPreviewRow;
-  runId: string;
-}) {
+function toImportStageRpcRow(
+  row: GenericImportPreviewRow,
+) {
   const hasErrors = row.issues.some((issue) => issue.level === "error");
   const hasWarnings = row.issues.some((issue) => issue.level === "warning");
 
   return {
     action_label: row.actionLabel,
-    import_run_id: runId,
-    issues: row.issues as Json,
-    normalized_data: row.normalizedData as Json,
-    organization_id: organizationId,
-    raw_data: row.raw as Json,
+    issues: row.issues,
+    normalized_data: row.normalizedData,
+    raw_data: row.raw,
     row_status: hasErrors ? "error" : hasWarnings ? "warning" : "ready",
     source_row_number: row.sourceRowNumber,
   };
+}
+
+function toCommittedRunStatus(
+  summary: z.infer<typeof commitResultSchema>,
+): Extract<ImportRunStatus, "committed" | "committed_with_errors" | "failed"> {
+  if (summary.failed === 0) return "committed";
+  return summary.created + summary.updated === 0
+    ? "failed"
+    : "committed_with_errors";
 }
 
 function readJsonFormValue(formData: FormData, key: string) {
@@ -477,6 +640,10 @@ function revalidateImportPaths(importType: ImportType) {
 }
 
 function importRunErrorMessage(message: string) {
+  if (message.includes("Legacy staged import must be re-uploaded")) {
+    return "This legacy staged import cannot be resumed. Re-upload the CSV to create a fresh atomic run.";
+  }
+
   if (message.includes("already been committed")) {
     return "This import run has already been committed.";
   }

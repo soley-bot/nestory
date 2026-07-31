@@ -141,6 +141,17 @@ People and leases:
   then write an authoritative normalized term atomically. Existing inferred
   term rows remain labeled `legacy_inferred`; compatibility rent/date columns
   on `leases` are display projections and cannot rewrite term authority.
+- New checked Lease creation and Lease import also create or adopt exactly one
+  primary party and one occupancy in the same transaction. Relationship rows
+  carry independent evidence state, business lifecycle, source, boundary
+  kind/confidence, correction lineage, actor/time/reason evidence, and guarded
+  accepted ranges. Pre-existing party and occupancy rows remain
+  `legacy_unresolved`; they are not promoted or rewritten. Exact individual
+  residence evidence lives in `lease_occupancy_participants` and is separate
+  from a Lease party role or Lease-level occupancy. Existing-Lease
+  relationship transitions remain fail-closed pending the checked impact
+  contract; current list/detail loaders still use the established
+  compatibility read model.
 - The lease inspector shows exact term authority, due day, frequency,
   lifecycle, rent-readiness evidence, and preserved term history. Admins may
   schedule a non-overlapping future term without changing the active term's
@@ -230,18 +241,29 @@ Documents, imports, and reports:
 - `/import` handles CSV imports for properties, units/rent roll, people, and
   leases in one vertical flow. It keeps type-specific templates, automatic and
   saved header mapping, row validation, staged import runs, and RPC-backed
-  commits. The single action stages every row, commits only ready rows, and
-  retains blocked rows for correction. Mapping, fix downloads, and past runs
-  remain available behind disclosures.
+  commits. `stage_import_run_v1` computes a deterministic raw claim and exact
+  semantic snapshot in PostgreSQL, then atomically inserts the server-generated
+  run and every staged row with SQL-derived counts. An unchanged staged snapshot
+  is reused. If reference matching changes while the run is still clean and
+  staged, the RPC atomically replaces it with a new run/snapshot so corrected
+  files can become ready. Committing and terminal runs remain immutable and are
+  recovered by raw claim. Past imports can reconcile an in-flight commit;
+  legacy non-atomic staged runs must be re-uploaded before commit.
+  Mapping and fix downloads remain available behind disclosures.
 - `/reports` resolves to `/reports/unit-profit-loss`. The only public report
   kinds are Monthly Unit Profit & Loss, Owner Statement, and Management Fee
   Statement. Each selected report has one filter row, compact totals, one
   traceable table, and PDF/Excel export.
 - Retired report URLs redirect to the operational workspace that owns the work,
   such as Units, Overview, Ledger, Leases, Maintenance, or People.
-- Monthly Unit Profit & Loss uses unit-linked operating income and expense.
-  Management Fee Statement uses collected fee receipt allocations, including
-  reversal signs. Owner Statement export remains blocked until authoritative
+- Monthly Unit Profit & Loss uses resolved unit-linked operating income and
+  expense effects from the canonical property-cash event contract, preserves
+  reversal signs, and explicitly excludes property-level, deposit,
+  owner-funding, company-fee, and unresolved events. Management Fee
+  Statement remains a defined report family but is unavailable and cannot
+  export until management-fee owner-recognition authority is resolved; legacy
+  receipt allocations are not publishable evidence. Owner Statement export
+  remains blocked until authoritative
   opening and closing owner balances exist; the UI names that limitation rather
   than inventing balances.
 - `/api/reports/pdf` and `/api/reports/excel` are the public export endpoints.
@@ -300,7 +322,8 @@ RPC write boundaries. Current table families include:
 - Property core: `properties`, `units`.
 - People and lease backbone: `people`, `person_roles`, `person_contacts`,
   `property_owners`, `vendor_profiles`, `leases`, `lease_parties`,
-  `lease_terms`, `lease_occupancies`, `lease_deposits`.
+  `lease_terms`, `lease_occupancies`, `lease_occupancy_participants`,
+  `lease_deposits`.
 - Finance and history: `finance_income_items`, `finance_expense_items`,
   `finance_receipts`, `finance_receipt_allocations`, `finance_payments`,
   `finance_receipt_allocation_journals`, `finance_payment_allocations`,

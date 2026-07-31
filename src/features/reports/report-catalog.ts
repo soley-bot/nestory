@@ -29,7 +29,7 @@ export const reportCatalog: ReportCatalogItem[] = [
   },
   {
     description:
-      "Management fee cash collected across managed properties for the selected month.",
+      "Defined management-fee statement, unavailable until owner-recognition authority is resolved.",
     kind: "management-fees",
     title: "Management Fee Statement",
   },

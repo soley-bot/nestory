@@ -8,9 +8,10 @@ statement:
 - compact A4 portrait
 - compact A4 landscape
 
-Both versions use the same financial rows, ordering, labels, and totals. The
-comparison is intended to decide which orientation should become the final
-Nestory unit-statement layout.
+Both versions use the same sample rows, ordering, labels, and totals. These are
+comparison artifacts, not the production report contract. Production now uses
+the selected-unit portrait statement plus portrait source appendix; all-unit
+exports retain the traceable landscape summary.
 
 The design should feel like a restrained spreadsheet prepared for a client:
 dense enough to scan quickly, but still clearly grouped into income, expenses,
@@ -33,11 +34,14 @@ The approved comparison uses these rules:
 
 ## Branding Boundary
 
-The sample documents use the IPS Cambodia logo published online:
+The sample documents use the reviewed IPS Cambodia logo originally published
+online:
 
 `https://biz.prlog.org/IPSCambodia/logo.png`
 
-The mark is shown as an aspect-fitted image on a white background. Excess
+The generator reads a checksum-locked local copy and never downloads the logo
+during a runtime request. The mark is shown as an aspect-fitted image on a
+white background. Excess
 whitespace around the published mark may be trimmed, but the logo itself must
 not be redrawn, recolored, stretched, or otherwise altered.
 
@@ -106,8 +110,9 @@ Rows use:
 Descriptions may wrap to a second line. A wrapped row grows only enough to
 contain the second line and may not collide with the following row.
 
-Amounts are right-aligned and display positive magnitudes inside their Income
-or Expenses section. Currency remains explicit in the rendered amount.
+Amounts are right-aligned and currency remains explicit. The current sample
+contains no reversals; production preserves negative income and expense
+reversal signs and never ellipsizes a financial value.
 
 ### Subtotals And Final Totals
 
@@ -173,8 +178,8 @@ effect of orientation rather than compare two different report contents.
 
 ## Data And Ordering
 
-Use the existing authoritative Unit 09A July 2026 ledger-linked report lines.
-Do not invent additional rows for this comparison.
+Use the locked Unit 09A July 2026 comparison fixture. It is approved only for
+layout comparison and is not financial authority for production output.
 
 Preserve:
 
@@ -186,14 +191,16 @@ Preserve:
 - stored currencies and amounts
 - report summary totals
 
-The current comparison fixture is expected to contain 20 transactions:
+The checksum-locked comparison fixture contains 20 sample transactions:
 8 income rows and 12 expense rows. Its expected summary is:
 
 - Total income: USD 1,045.00
 - Total expenses: USD 788.00
 - Net income: USD 257.00
 
-The detail lines and displayed subtotals must reconcile with these values.
+The comparison detail and displayed subtotals must reconcile with these sample
+values. Production totals instead come from resolved unit-linked operating
+`propertyCashEvents` using exact bigint cents.
 
 ## Pagination
 
@@ -255,5 +262,6 @@ Implementation is complete when:
 - changing report calculations or financial authority
 - adding new transaction fields or report types
 - redesigning the Reports application screen
-- selecting the permanent production orientation before the user reviews both
-  comparison PDFs
+- changing the production decision: selected-unit exports use portrait plus a
+  complete portrait source-trace appendix, while all-unit exports retain the
+  traceable landscape summary; these dual-orientation files remain sample-only
