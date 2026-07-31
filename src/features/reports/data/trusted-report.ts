@@ -33,6 +33,7 @@ import type {
   TrustedReport,
   TrustedReportColumn,
   TrustedReportRow,
+  UnitProfitLossLine,
 } from "@/features/reports/reports.types";
 
 export const REPORT_OPTIONS: Array<{ label: string; value: ReportKind }> = [
@@ -652,6 +653,43 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
   const operatingEvents = unitLinkedEvents.filter(
     isUnitProfitLossOperatingEvent,
   );
+  const unitProfitLossLines =
+    context.viewQuery.unitId === "all"
+      ? undefined
+      : operatingEvents
+          .map<UnitProfitLossLine>((event) => {
+            const unit = event.unitId
+              ? context.unitsById.get(event.unitId)
+              : undefined;
+            const operatingCashEffectCents =
+              event.operatingCashEffectCents ?? BigInt(0);
+
+            return {
+              amountCents:
+                event.economicClass === "operating_expense"
+                  ? -operatingCashEffectCents
+                  : operatingCashEffectCents,
+              category: normalizeCategory(event.categoryCode),
+              currency: event.currency,
+              date: event.eventDate ?? context.periodStart,
+              description: normalizeCategory(event.sourceType),
+              direction:
+                event.economicClass === "operating_expense"
+                  ? "expense"
+                  : "income",
+              id: event.eventKey,
+              property: propertyLabel(
+                context.propertiesById.get(event.propertyId),
+              ),
+              unit: unit ? `Unit ${unit.unit_number}` : "Unknown unit",
+            };
+          })
+          .toSorted(
+            (first, second) =>
+              compareStrings(first.date, second.date) ||
+              compareStrings(first.category, second.category) ||
+              compareStrings(first.id, second.id),
+          );
   const incomeEvents = operatingEvents.filter(
     (event) => event.economicClass === "operating_income",
   );
@@ -708,6 +746,9 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
     ],
     title: "Monthly Unit Profit & Loss",
     totalsTraceLabel: `Totals trace to ${operatingEvents.length} canonical unit-linked operating cash event${operatingEvents.length === 1 ? "" : "s"} in ${context.periodLabel}; ${propertyLevelCount} property-level event${propertyLevelCount === 1 ? "" : "s"} excluded and ${excludedUnitLinkedCount} non-operating or unresolved unit-linked event${excludedUnitLinkedCount === 1 ? "" : "s"} excluded.`,
+    unitProfitLossDetailScope:
+      context.viewQuery.unitId === "all" ? undefined : "single-unit",
+    unitProfitLossLines,
   });
 }
 

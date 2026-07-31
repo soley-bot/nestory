@@ -126,6 +126,18 @@ export type TrustedReportRow = {
   title: string;
 };
 
+export type UnitProfitLossLine = {
+  amountCents: bigint;
+  category: string;
+  currency: CurrencyCode;
+  date: string;
+  description: string;
+  direction: "expense" | "income";
+  id: string;
+  property: string;
+  unit: string;
+};
+
 export type TrustedReport = {
   columns: TrustedReportColumn[];
   description: string;
@@ -150,6 +162,8 @@ export type TrustedReport = {
   title: string;
   totalsTraceLabel: string;
   totalRowCount?: number;
+  unitProfitLossDetailScope?: "single-unit";
+  unitProfitLossLines?: UnitProfitLossLine[];
 };
 
 export type ReportExportValidation = NonNullable<

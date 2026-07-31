@@ -63,6 +63,42 @@ describe("Monthly Unit Profit & Loss", () => {
       ["Net income", "USD 380.00"],
       ["Units", "1"],
     ]);
+    expect(report.unitProfitLossLines).toEqual([
+      {
+        amountCents: BigInt(50_000),
+        category: "Rent",
+        currency: "USD",
+        date: "2026-07-15",
+        description: "Receipt Allocation",
+        direction: "income",
+        id: "receipt_allocation:income-source",
+        property: "P1 - Property One",
+        unit: "Unit A1",
+      },
+      {
+        amountCents: BigInt(12_000),
+        category: "Repair",
+        currency: "USD",
+        date: "2026-07-15",
+        description: "Payment Allocation",
+        direction: "expense",
+        id: "payment_allocation:expense-source",
+        property: "P1 - Property One",
+        unit: "Unit A1",
+      },
+    ]);
+
+    const lines = report.unitProfitLossLines ?? [];
+    expect(
+      lines
+        .filter(({ direction }) => direction === "income")
+        .reduce((total, line) => total + line.amountCents, BigInt(0)),
+    ).toBe(BigInt(50_000));
+    expect(
+      lines
+        .filter(({ direction }) => direction === "expense")
+        .reduce((total, line) => total + line.amountCents, BigInt(0)),
+    ).toBe(BigInt(12_000));
   });
 
   it("does not silently assign property-level canonical events to a unit", () => {
@@ -134,6 +170,20 @@ describe("Monthly Unit Profit & Loss", () => {
     expect(report.totalsTraceLabel).toContain(
       "2 non-operating or unresolved unit-linked events excluded",
     );
+    expect(report.unitProfitLossLines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          amountCents: BigInt(-5_000),
+          direction: "income",
+          id: "receipt_allocation:rent-reversal",
+        }),
+        expect.objectContaining({
+          amountCents: BigInt(-2_000),
+          direction: "expense",
+          id: "payment_allocation:expense-reversal",
+        }),
+      ]),
+    );
   });
 
   it("retains exact canonical event source identities and operator links", () => {
@@ -192,6 +242,24 @@ describe("Monthly Unit Profit & Loss", () => {
       ["Net income", "USD 1.99"],
       ["Units", "1"],
     ]);
+    expect(
+      report.unitProfitLossLines?.map(({ amountCents }) => amountCents),
+    ).toEqual(
+      expect.arrayContaining([
+        BigInt("900719925474099300"),
+        BigInt("900719925474099101"),
+      ]),
+    );
+  });
+
+  it("keeps all-unit scope on the traceable summary contract", () => {
+    const input = reportInput();
+    input.viewQuery.unitId = "all";
+
+    const report = buildTrustedReport(input);
+
+    expect(report.unitProfitLossDetailScope).toBeUndefined();
+    expect(report.unitProfitLossLines).toBeUndefined();
   });
 });
 
@@ -304,7 +372,7 @@ function reportInput(): TrustedReportInput {
       propertyId: "all",
       report: "unit-profit-loss",
       status: "all",
-      unitId: "all",
+      unitId: "unit-1",
     },
   };
 }

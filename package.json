@@ -15,6 +15,7 @@
     "test:ui-redesign": "node scripts/smoke-ui-redesign.mjs",
     "test:maintenance-mobile": "node scripts/smoke-maintenance-mobile.mjs",
     "test:properties-flow": "node scripts/smoke-properties-flow.mjs",
+    "report:unit-profit-loss:compare": "node scripts/generate-unit-profit-loss-comparison.mjs",
     "workspace:provision": "node scripts/workspace-provision.mjs",
     "finance:inventory": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/finance-inventory.mjs",
     "finance:inventory:stack": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/finance-inventory-stack.mjs",
@@ -30,7 +31,7 @@
     "db:lint": "supabase db lint",
     "db:reset": "supabase db reset",
     "db:reset:demo": "node scripts/reset-demo-data.mjs",
-    "test:demo-tools": "node --test scripts/reset-demo-data.node-test.mjs scripts/demo-seed-source.node-test.mjs scripts/demo-seed-manifest.node-test.mjs scripts/hosted-demo-cutover-plan.node-test.mjs scripts/target-org-dump.node-test.mjs",
+    "test:demo-tools": "node --test scripts/reset-demo-data.node-test.mjs scripts/demo-seed-source.node-test.mjs scripts/demo-seed-manifest.node-test.mjs scripts/hosted-demo-cutover-plan.node-test.mjs scripts/target-org-dump.node-test.mjs scripts/unit-profit-loss-comparison.node-test.mjs",
     "demo:seed:manifest": "node scripts/demo-seed-manifest.mjs",
     "demo:cutover:plan": "node scripts/hosted-demo-cutover-plan.mjs",
     "db:types": "supabase gen types --local --schema public > src/types/database.generated.ts && node -e \"const fs=require('fs');const p='src/types/database.generated.ts';fs.writeFileSync(p,fs.readFileSync(p,'utf8').trimEnd()+'\\n');\""
