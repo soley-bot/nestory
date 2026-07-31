@@ -1,11 +1,38 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertActiveTenantRoleFixture,
   evaluateArchiveAttempt,
   evaluateCreateAgainstArchivedPerson,
   evaluateUnrelatedArchive,
 } from "./lease-history-integrity-concurrency.mjs";
 
 describe("lease-history integrity concurrency result contract", () => {
+  it("requires an active, unarchived Tenant role before the mutation race", () => {
+    expect(
+      assertActiveTenantRoleFixture({
+        archived: false,
+        role: "tenant",
+        status: "active",
+      }),
+    ).toEqual({ outcome: "eligible" });
+
+    expect(() =>
+      assertActiveTenantRoleFixture({
+        archived: false,
+        role: "tenant",
+        status: "inactive",
+      }),
+    ).toThrow(/active, unarchived Tenant role/);
+
+    expect(() =>
+      assertActiveTenantRoleFixture({
+        archived: true,
+        role: "tenant",
+        status: "active",
+      }),
+    ).toThrow(/active, unarchived Tenant role/);
+  });
+
   it("accepts only the exact relationship-transition rejection", () => {
     expect(
       evaluateArchiveAttempt({

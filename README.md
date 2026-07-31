@@ -46,13 +46,14 @@ npm run test:ui-a11y
   `/work-orders`
 - Records: `/timeline`, `/financial-timeline`, `/maintenance-timeline`,
   `/property-timeline`, `/documents`, `/import`
-- Reports: `/reports`, `/reports/[reportKind]`, including
-  `/reports/people-readiness`
+- Reports: `/reports/unit-profit-loss`, `/reports/owner-statement`, and
+  `/reports/management-fees`
 - Settings/Workspace Access: `/settings`, `/users-roles`, `/account`
 - Preserved legacy entries: `/property-dashboard`, `/finance-dashboard`,
   `/maintenance-dashboard`, `/payments`, `/invoices`, `/schedule`, `/team`
   redirect to their current workspaces while retaining incoming query values.
-- APIs: `/api/workspace-search`, `/api/reports/export`, `/api/reports/pdf`
+- APIs: `/api/workspace-search`, `/api/reports/pdf`, `/api/reports/excel`, and
+  the formula-safe `/api/reports/export` compatibility endpoint
 
 `config/ui-route-coverage.json` is the executable route inventory. The latest
 local redesign evidence is in `docs/verification/ui-redesign-evidence.md`.

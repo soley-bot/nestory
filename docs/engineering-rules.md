@@ -88,6 +88,18 @@ These rules are grounded in the current implementation.
   values on `leases` are compatibility projections only; application writes,
   imports, and stale clients must use the checked lease/term RPCs and must not
   restore `leases -> lease_terms` synchronization.
+- Lease responsibility, unit occupancy, and named Person residence are
+  separate facts. Keep party, occupancy, and participant evidence typed by
+  evidence state, business lifecycle, source, boundary kind/confidence,
+  lineage, and actor/time/reason. Only accepted sufficiently known ranges may
+  participate in overlap exclusions; `legacy_unresolved` rows stay
+  non-authoritative until a checked promotion workflow exists.
+- Brand-new Lease writes must use the checked relationship composition and
+  return the exact Lease, party, occupancy, and participant identities.
+  Compatibility-trigger rows are adopted, never duplicated. Direct
+  relationship DML stays denied, and existing-Lease relationship changes stay
+  fail-closed until their impact contract and transition workflows are
+  implemented.
 - Authoritative term mutations require explicit due day and frequency,
   payload-bound idempotency, organization/lease scope checks, non-overlapping
   effective ranges, activity history, and Plan 03 property-period authority
@@ -176,25 +188,51 @@ These rules are grounded in the current implementation.
 
 ## Reports And Exports
 
-- Reports are traceable: rows carry source links, source counts, metrics, and
-  scoped period/property context.
-- Supported report kinds are rent roll, unit performance, property performance,
-  owner statement, income/expense, lease expiry, vacancy/risk, maintenance
-  cost, missing data, and People readiness.
-- People readiness remains a separate trusted-report row schema under
-  `/reports/people-readiness`; do not mix Person rows into property/unit Record
-  Readiness. Normalize its bounded `peopleView` and `archiveState` filters,
-  page through the authoritative People loader, and keep Staff access state at
-  the organization-scoped Workspace Access boundary.
-- CSV export must remain formula-safe.
-- PDF/export endpoints must stay auth-gated.
+- The public report surface is limited to Monthly Unit Profit & Loss, Owner
+  Statement, and Management Fee Statement.
+- Reports remain traceable: rows carry source links and scoped period/property
+  context. If the screen payload bounds source links, preserve the full source
+  count/summary and disclose the omitted count in the row. Do not add library
+  cards, report packets, source-count decoration, or new report kinds without
+  an approved reporting requirement.
+- Unit Profit & Loss uses resolved unit-linked operating income and expense
+  effects from `get_property_cash_events_v1_page`, preserves reversal signs,
+  and must fail closed on deposit, owner-funding, company-fee, property-level,
+  or unresolved classifications.
+  Do not allocate property-level rows to units without an approved allocation
+  rule. Management Fee Statement remains defined but unavailable until
+  owner-recognition authority exists. Legacy fee receipt allocations, earned
+  estimates, and outstanding estimates are not publishable substitutes.
+- Do not export Owner Statement until opening and closing owner balances are
+  authoritative. Never infer those balances from an incomplete source model.
+- PDF and Excel are the public export choices and must remain auth-gated. The
+  CSV compatibility endpoint must remain formula-safe.
 
 ## Imports
 
 - CSV import supports properties, unit/rent-roll data, people, and leases.
-- Keep template download, header mapping, staged import runs, validation
-  preview, cleanup queue, recent run history, and safe commit behavior.
+- Keep template download, automatic/saved header mapping, staged import runs,
+  row validation, and safe commit behavior.
+- The main UI uses one ready-row import action. Each submit must claim the run
+  from a server-owned SHA-256 identity over a versioned contract, organization
+  scope, type, ordered headers and mapping, and ordered raw records. File
+  metadata, client draft state, and reference-derived validation or normalized
+  fields are not identity inputs. `stage_import_run_v1` computes both the raw
+  claim and exact semantic snapshot in PostgreSQL and must insert the
+  server-generated run, every row, and SQL-derived counts in one transaction.
+  A duplicate claim must verify its organization, type, headers, mapping, and
+  ordered raw row set. Reuse an identical clean staged snapshot; atomically
+  replace a clean staged run with a new server UUID when reference-derived
+  semantics change; never replace a committing, terminal, or provenance-linked
+  run. Staging and commit must take the same claim advisory lock before the run
+  row lock. Commit only rows accepted by the checked RPC boundary and reconcile
+  stored committing or terminal summaries without replaying a terminal commit
+  RPC. Legacy non-atomic staged runs must fail closed and require re-upload.
+- Keep mapping diagnostics, fix downloads, and past runs secondary to the main
+  flow rather than restoring separate setup, preview-save, and commit steps.
 - Commits should stay RPC-backed and preserve activity logs.
+- Lease import commits must persist the exact normalized Lease, party, and
+  occupancy result IDs returned by the checked relationship composition.
 - Do not silently import invalid or ambiguous property, unit, people, or lease
   rows.
 

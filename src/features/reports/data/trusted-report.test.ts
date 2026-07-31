@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+
+import type { PropertyCashEvent } from "@/features/finance/data/property-cash-events.types";
 import {
   buildTrustedReport,
   getTrustedReportSourceRequirements,
@@ -6,102 +8,327 @@ import {
 
 type TrustedReportInput = Parameters<typeof buildTrustedReport>[0];
 
-type TrustedReportInputOverrides = Partial<Omit<TrustedReportInput, "viewQuery">> & {
-  viewQuery?: Partial<TrustedReportInput["viewQuery"]>;
-};
+describe("Monthly Unit Profit & Loss", () => {
+  it("uses only units and canonical property cash events", () => {
+    const requirements = getTrustedReportSourceRequirements(
+      "unit-profit-loss",
+    );
 
-function makeReportInput(
-  overrides: TrustedReportInputOverrides = {},
-): TrustedReportInput {
-  const base: TrustedReportInput = {
-    documents: [
-      {
-        file_name: "receipt, June.pdf",
-        id: "doc-1",
-        lease_id: null,
-        ledger_entry_id: "ledger-expense",
-        property_id: null,
-        timeline_event_id: "timeline-1",
-        unit_id: "unit-1",
+    expect(
+      Object.entries(requirements)
+        .filter(([, enabled]) => enabled)
+        .map(([key]) => key)
+        .toSorted(),
+    ).toEqual(["propertyCashEvents", "units"]);
+  });
+
+  it("shows canonical operating income, expense magnitude, and net income by unit", () => {
+    const report = buildTrustedReport(reportInput());
+
+    expect(report).toMatchObject({
+      exportFilenameBase: "unit-profit-loss",
+      kind: "unit-profit-loss",
+      title: "Monthly Unit Profit & Loss",
+    });
+    expect(report.columns.map(({ label }) => label)).toEqual([
+      "Property",
+      "Unit",
+      "Income",
+      "Expenses",
+      "Net income",
+    ]);
+    expect(report.rows[0]).toMatchObject({
+      cells: {
+        expenses: "USD 120.00",
+        income: "USD 500.00",
+        netIncome: "USD 380.00",
+        property: "P1 - Property One",
+        unit: "Unit A1",
       },
-    ],
-    generatedAt: "2026-06-15T00:00:00.000Z",
-    ledgerEntries: [
+      href: "/units/unit-1",
+      id: "unit-1",
+      tone: "success",
+    });
+    expect(
+      report.rows[0]?.sourceLinks.map(({ recordType }) => recordType),
+    ).toEqual([
+      "property",
+      "unit",
+      "receipt-allocation",
+      "payment-allocation",
+    ]);
+    expect(report.summary.map(({ label, value }) => [label, value])).toEqual([
+      ["Income", "USD 500.00"],
+      ["Expenses", "USD 120.00"],
+      ["Net income", "USD 380.00"],
+      ["Units", "1"],
+    ]);
+    expect(report.unitProfitLossLines).toEqual([
       {
-        amount: 500,
-        category: "rent",
+        amountCents: BigInt(50_000),
+        category: "Rent",
         currency: "USD",
-        description: "June rent",
+        date: "2026-07-15",
+        description: "Receipt Allocation",
         direction: "income",
-        id: "ledger-income",
-        property_id: "property-1",
-        transaction_date: "2026-06-05",
-        unit_id: "unit-1",
+        id: "receipt_allocation:income-source",
+        property: "P1 - Property One",
+        unit: "Unit A1",
       },
       {
-        amount: 120,
-        category: "maintenance",
+        amountCents: BigInt(12_000),
+        category: "Repair",
         currency: "USD",
-        description: "AC repair",
+        date: "2026-07-15",
+        description: "Payment Allocation",
         direction: "expense",
-        id: "ledger-expense",
-        property_id: "property-1",
-        transaction_date: "2026-06-10",
-        unit_id: "unit-1",
+        id: "payment_allocation:expense-source",
+        property: "P1 - Property One",
+        unit: "Unit A1",
       },
-    ],
-    maintenanceTasks: [
-      {
-        actual_cost_amount: 90,
-        actual_cost_currency: "USD",
-        category: "AC",
-        cost_estimate_amount: 150,
-        cost_estimate_currency: "USD",
-        created_at: "2026-06-09T00:00:00.000Z",
-        due_date: "2026-06-10",
-        due_time: "15:00",
-        id: "task-1",
-        ledger_entry_id: "ledger-expense",
-        priority: "high",
-        property_id: "property-1",
-        recurrence_frequency: "none",
-        status: "in_progress",
-        timeline_event_id: "timeline-1",
-        title: "AC repair",
-        unit_id: "unit-1",
-      },
-    ],
-    leases: [
-      {
-        id: "lease-1",
-        lease_end_date: "2026-12-31",
-        lease_start_date: "2026-01-01",
-        monthly_rent_amount: 500,
-        monthly_rent_currency: "USD",
-        primary_tenant_person_id: "person-tenant",
-        property_id: "property-1",
-        status: "active",
-        tenant_name: "Tenant One",
-        unit_id: "unit-1",
-      },
-    ],
-    owners: [
-      {
-        id: "owner-1",
-        ownership_label: "Primary",
-        ownership_percent: 100,
-        person_id: "person-owner",
-        property_id: "property-1",
-      },
-    ],
-    people: [
-      {
-        display_name: "Owner One",
-        id: "person-owner",
-      },
-    ],
-    periodEnd: "2026-06-30",
-    periodStart: "2026-06-01",
+    ]);
+
+    const lines = report.unitProfitLossLines ?? [];
+    expect(
+      lines
+        .filter(({ direction }) => direction === "income")
+        .reduce((total, line) => total + line.amountCents, BigInt(0)),
+    ).toBe(BigInt(50_000));
+    expect(
+      lines
+        .filter(({ direction }) => direction === "expense")
+        .reduce((total, line) => total + line.amountCents, BigInt(0)),
+    ).toBe(BigInt(12_000));
+  });
+
+  it("does not silently assign property-level canonical events to a unit", () => {
+    const input = reportInput();
+    input.propertyCashEvents!.push(
+      cashEvent("property-income", {
+        operatingCashEffectCents: BigInt(99_900),
+        unitId: null,
+      }),
+    );
+
+    const report = buildTrustedReport(input);
+
+    expect(report.summary.find(({ label }) => label === "Income")?.value).toBe(
+      "USD 500.00",
+    );
+    expect(report.totalsTraceLabel).toContain(
+      "2 canonical unit-linked operating cash events",
+    );
+    expect(report.totalsTraceLabel).toContain(
+      "1 property-level event excluded",
+    );
+  });
+
+  it("excludes unresolved canonical-looking events and preserves income and expense reversal signs", () => {
+    const input = reportInput();
+    input.propertyCashEvents!.push(
+      cashEvent("unresolved-income", {
+        operatingCashEffectCents: BigInt(7_500),
+        reconciliationState: "missing_stable_identity",
+        requiresResolution: true,
+        resolutionCodes: ["missing_reconciliation_source"],
+      }),
+      cashEvent("owner-funding", {
+        economicClass: "owner_contribution",
+        operatingCashEffectCents: BigInt(25_000),
+      }),
+      cashEvent("rent-reversal", {
+        isReversal: true,
+        operatingCashEffectCents: BigInt(-5_000),
+      }),
+      cashEvent("expense-reversal", {
+        economicClass: "operating_expense",
+        isReversal: true,
+        operatingCashEffectCents: BigInt(2_000),
+        sourceType: "payment_allocation",
+      }),
+    );
+
+    const report = buildTrustedReport(input);
+
+    expect(report.rows[0]?.cells).toMatchObject({
+      expenses: "USD 100.00",
+      income: "USD 450.00",
+      netIncome: "USD 350.00",
+    });
+    expect(
+      report.rows[0]?.sourceLinks
+        .filter(({ recordType }) =>
+          ["receipt-allocation", "payment-allocation"].includes(recordType),
+        )
+        .map(({ id }) => id),
+    ).toEqual([
+      "income-source",
+      "expense-source",
+      "rent-reversal",
+      "expense-reversal",
+    ]);
+    expect(report.totalsTraceLabel).toContain(
+      "2 non-operating or unresolved unit-linked events excluded",
+    );
+    expect(report.unitProfitLossLines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          amountCents: BigInt(-5_000),
+          direction: "income",
+          id: "receipt_allocation:rent-reversal",
+        }),
+        expect.objectContaining({
+          amountCents: BigInt(-2_000),
+          direction: "expense",
+          id: "payment_allocation:expense-reversal",
+        }),
+      ]),
+    );
+  });
+
+  it("retains exact canonical event source identities and operator links", () => {
+    const report = buildTrustedReport(reportInput());
+    const incomeSource = report.rows[0]?.sourceLinks.find(
+      ({ id }) => id === "income-source",
+    );
+    const expenseSource = report.rows[0]?.sourceLinks.find(
+      ({ id }) => id === "expense-source",
+    );
+
+    expect(incomeSource).toEqual({
+      href:
+        "/rent-income?archiveState=all&month=2026-07&propertyId=property-1&unitId=unit-1",
+      id: "income-source",
+      label: "Rent receipt allocation",
+      recordType: "receipt-allocation",
+    });
+    expect(expenseSource).toEqual({
+      href:
+        "/bills-expenses?archiveState=all&dateBasis=paid&month=2026-07&propertyId=property-1&unitId=unit-1",
+      id: "expense-source",
+      label: "Repair payment allocation",
+      recordType: "payment-allocation",
+    });
+  });
+
+  it("formats bigint cents exactly beyond Number.MAX_SAFE_INTEGER", () => {
+    const input = reportInput();
+    input.propertyCashEvents = [
+      cashEvent("large-income", {
+        amountCents: BigInt("900719925474099300"),
+        operatingCashEffectCents: BigInt("900719925474099300"),
+        ownerCashEffectCents: BigInt("900719925474099300"),
+      }),
+      cashEvent("large-expense", {
+        amountCents: BigInt("900719925474099101"),
+        economicClass: "operating_expense",
+        operatingCashEffectCents: BigInt("-900719925474099101"),
+        ownerCashEffectCents: BigInt("-900719925474099101"),
+        sourceType: "payment_allocation",
+        statementSection: "expense",
+      }),
+    ];
+
+    const report = buildTrustedReport(input);
+
+    expect(report.rows[0]?.cells).toMatchObject({
+      expenses: "USD 9,007,199,254,740,991.01",
+      income: "USD 9,007,199,254,740,993.00",
+      netIncome: "USD 1.99",
+    });
+    expect(report.summary.map(({ label, value }) => [label, value])).toEqual([
+      ["Income", "USD 9,007,199,254,740,993.00"],
+      ["Expenses", "USD 9,007,199,254,740,991.01"],
+      ["Net income", "USD 1.99"],
+      ["Units", "1"],
+    ]);
+    expect(
+      report.unitProfitLossLines?.map(({ amountCents }) => amountCents),
+    ).toEqual(
+      expect.arrayContaining([
+        BigInt("900719925474099300"),
+        BigInt("900719925474099101"),
+      ]),
+    );
+  });
+
+  it("keeps all-unit scope on the traceable summary contract", () => {
+    const input = reportInput();
+    input.viewQuery.unitId = "all";
+
+    const report = buildTrustedReport(input);
+
+    expect(report.unitProfitLossDetailScope).toBeUndefined();
+    expect(report.unitProfitLossLines).toBeUndefined();
+  });
+});
+
+function cashEvent(
+  sourceId: string,
+  overrides: Partial<PropertyCashEvent> = {},
+): PropertyCashEvent {
+  const sourceType = overrides.sourceType ?? "receipt_allocation";
+
+  return {
+    amountCents: BigInt(50_000),
+    archivedAt: null,
+    categoryCode: "rent",
+    classificationStatus: "source_stable",
+    contractVersion: "property_cash_events_v1",
+    createdAt: "2026-07-01T00:00:00Z",
+    createdBy: null,
+    currency: "USD",
+    depositLiabilityEffectCents: BigInt(0),
+    economicClass: "operating_income",
+    eventDate: "2026-07-15",
+    eventKey: `${sourceType}:${sourceId}`,
+    isLegacy: false,
+    isReversal: false,
+    journalEntryId: null,
+    leaseId: null,
+    ledgerEntryId: null,
+    managementFeeEffectCents: BigInt(0),
+    obligationId: null,
+    obligationType: null,
+    operatingCashEffectCents: BigInt(50_000),
+    organizationId: "organization-1",
+    ownerCashEffectCents: BigInt(50_000),
+    ownerPersonId: null,
+    periodStart: "2026-07-01",
+    projectionStatus: null,
+    propertyId: "property-1",
+    reconciliationSourceId: null,
+    reconciliationState: "not_required",
+    requiresResolution: false,
+    resolutionCodes: [],
+    reversalSourceId: null,
+    reversalSourceType: null,
+    sourceId,
+    sourceParentId: null,
+    sourceParentType: null,
+    sourceType,
+    statementSection: "income",
+    taskId: null,
+    tenantPersonId: null,
+    unitId: "unit-1",
+    updatedAt: null,
+    updatedBy: null,
+    vendorPersonId: null,
+    ...overrides,
+  };
+}
+
+function reportInput(): TrustedReportInput {
+  return {
+    documents: [],
+    generatedAt: "2026-08-01T00:00:00.000Z",
+    ledgerEntries: [],
+    leases: [],
+    maintenanceTasks: [],
+    owners: [],
+    people: [],
+    periodEnd: "2026-07-31",
+    periodStart: "2026-07-01",
     properties: [
       {
         code: "P1",
@@ -112,21 +339,19 @@ function makeReportInput(
         status: "active",
       },
     ],
-    timelineEvents: [
-      {
-        cost_amount: 80,
-        cost_currency: "USD",
-        description: "Fixed AC",
-        event_date: "2026-06-10",
-        event_type: "Repair",
-        id: "timeline-1",
-        lease_id: null,
-        ledger_entry_id: "ledger-expense",
-        property_id: "property-1",
-        title: "AC repair",
-        unit_id: "unit-1",
-      },
+    propertyCashEvents: [
+      cashEvent("income-source"),
+      cashEvent("expense-source", {
+        amountCents: BigInt(12_000),
+        categoryCode: "repair",
+        economicClass: "operating_expense",
+        operatingCashEffectCents: BigInt(-12_000),
+        ownerCashEffectCents: BigInt(-12_000),
+        sourceType: "payment_allocation",
+        statementSection: "expense",
+      }),
     ],
+    timelineEvents: [],
     units: [
       {
         current_rent_amount: null,
@@ -138,290 +363,16 @@ function makeReportInput(
         status: "occupied",
         unit_number: "A1",
       },
-      {
-        current_rent_amount: null,
-        current_rent_currency: null,
-        floor: "1",
-        id: "unit-2",
-        property_id: "property-1",
-        size_sqm: 45,
-        status: "vacant",
-        unit_number: "A2",
-      },
     ],
     viewQuery: {
-      month: "2026-06",
+      month: "2026-07",
       ownerPersonId: "all",
       peopleArchiveState: "active",
       peopleView: "relationship",
       propertyId: "all",
-      report: "unit-performance",
+      report: "unit-profit-loss",
       status: "all",
-      unitId: "all",
-    },
-  };
-
-  return {
-    ...base,
-    ...overrides,
-    viewQuery: {
-      ...base.viewQuery,
-      ...overrides.viewQuery,
+      unitId: "unit-1",
     },
   };
 }
-
-function metricValue(report: ReturnType<typeof buildTrustedReport>, label: string) {
-  return report.summary.find((metric) => metric.label === label);
-}
-
-function enabledSourceKeys(
-  requirements: ReturnType<typeof getTrustedReportSourceRequirements>,
-) {
-  return Object.entries(requirements)
-    .filter(([, enabled]) => enabled)
-    .map(([key]) => key)
-    .toSorted();
-}
-
-describe("trusted reports", () => {
-  it("declares focused source requirements for each report kind", () => {
-    const expectations = [
-      {
-        report: "income-expense",
-        sources: ["ledgerEntries", "units"],
-      },
-      {
-        report: "lease-expiry",
-        sources: ["leases", "units"],
-      },
-      {
-        report: "maintenance-cost",
-        sources: ["ledgerEntries", "maintenanceTasks", "timelineEvents", "units"],
-      },
-      {
-        report: "missing-data",
-        sources: ["documents", "leases", "owners", "units"],
-      },
-      {
-        report: "owner-statement",
-        sources: [],
-      },
-      {
-        report: "property-performance",
-        sources: ["ledgerEntries", "leases", "timelineEvents", "units"],
-      },
-      {
-        report: "rent-roll",
-        sources: ["documents", "leases", "units"],
-      },
-      {
-        report: "unit-performance",
-        sources: ["documents", "ledgerEntries", "timelineEvents", "units"],
-      },
-      {
-        report: "vacancy-risk",
-        sources: ["documents", "leases", "units"],
-      },
-    ] as const;
-
-    for (const { report, sources } of expectations) {
-      expect(enabledSourceKeys(getTrustedReportSourceRequirements(report))).toEqual(
-        sources.toSorted(),
-      );
-    }
-  });
-
-  it("calculates unit performance from ledger and timeline source rows", () => {
-    const report = buildTrustedReport(makeReportInput());
-    const unitRow = report.rows.find((row) => row.id === "unit-1");
-
-    expect(unitRow?.cells).toMatchObject({
-      documents: "1",
-      expenses: "USD 120.00",
-      income: "USD 500.00",
-      maintenance: "USD 200.00",
-      noi: "USD 380.00",
-    });
-    expect(unitRow?.sourceLinks.map((source) => source.recordType)).toEqual(
-      expect.arrayContaining([
-        "property",
-        "unit",
-        "ledger",
-        "timeline",
-        "document",
-      ]),
-    );
-    expect(
-      unitRow?.sourceLinks.find((source) => source.recordType === "document"),
-    ).toMatchObject({
-      href: "/documents?archiveState=all&documentId=doc-1",
-    });
-    expect(metricValue(report, "Income")).toMatchObject({
-      sourceCount: 1,
-      value: "USD 500.00",
-    });
-    expect(metricValue(report, "Expenses")).toMatchObject({
-      sourceCount: 1,
-      value: "USD 120.00",
-    });
-    expect(metricValue(report, "NOI")).toMatchObject({
-      sourceCount: 2,
-      value: "USD 380.00",
-    });
-  });
-
-  it("uses the effective authoritative term instead of stale lease compatibility rent", () => {
-    const input = makeReportInput({
-      effectiveLeaseDate: "2026-06-15",
-      leaseTerms: [
-        {
-          archived_at: null,
-          authority_kind: "authoritative",
-          end_date: "2026-05-31",
-          id: "term-old",
-          lease_id: "lease-1",
-          rent_amount: 500,
-          rent_currency: "USD",
-          start_date: "2026-01-01",
-          status: "active",
-          term_sequence: 1,
-        },
-        {
-          archived_at: null,
-          authority_kind: "authoritative",
-          end_date: "2026-12-31",
-          id: "term-current",
-          lease_id: "lease-1",
-          rent_amount: 650,
-          rent_currency: "USD",
-          start_date: "2026-06-01",
-          status: "upcoming",
-          term_sequence: 2,
-        },
-      ],
-      viewQuery: { report: "rent-roll" },
-    });
-
-    const report = buildTrustedReport(input);
-    const unitRow = report.rows.find((row) => row.id === "unit-1");
-
-    expect(unitRow?.cells.rent).toBe("USD 650.00");
-  });
-
-  it("filters rent roll rows by unit status", () => {
-    const report = buildTrustedReport(
-      makeReportInput({
-        viewQuery: {
-          report: "rent-roll",
-          status: "vacant",
-        },
-      }),
-    );
-
-    expect(report.rows).toHaveLength(1);
-    expect(report.rows[0]).toMatchObject({
-      href: "/units/unit-2",
-      id: "unit-2",
-      title: "P1 / Unit A2",
-    });
-    expect(report.rows[0]?.cells).toMatchObject({
-      rent: "No rent",
-      status: "Vacant",
-    });
-  });
-
-  it("limits report rows and scope labels to a deep-linked unit", () => {
-    const report = buildTrustedReport(
-      makeReportInput({
-        viewQuery: {
-          report: "unit-performance",
-          unitId: "unit-1",
-        },
-      }),
-    );
-
-    expect(report.scopeLabel).toBe("P1 - Property One / Unit A1 / Floor 1");
-    expect(report.rows).toHaveLength(1);
-    expect(report.rows[0]?.id).toBe("unit-1");
-    expect(report.rows[0]?.cells).toMatchObject({
-      income: "USD 500.00",
-      noi: "USD 380.00",
-    });
-  });
-
-  it("does not count lease-backed rent as missing property risk", () => {
-    const report = buildTrustedReport(
-      makeReportInput({
-        viewQuery: {
-          report: "property-performance",
-        },
-      }),
-    );
-
-    expect(report.rows[0]?.cells).toMatchObject({
-      occupancy: "1/2",
-      risk: "1",
-    });
-  });
-
-  it("opens scoped upload for missing unit evidence rows", () => {
-    const report = buildTrustedReport(
-      makeReportInput({
-        viewQuery: {
-          report: "missing-data",
-        },
-      }),
-    );
-
-    expect(report.rows.find((row) => row.id === "unit-docs-unit-2")).toMatchObject({
-      href: "/documents?action=create&category=Unit&propertyId=property-1&unitId=unit-2",
-    });
-  });
-
-  it("opens scoped lease creation for occupied units without active leases", () => {
-    const report = buildTrustedReport(
-      makeReportInput({
-        leases: [],
-        viewQuery: {
-          report: "missing-data",
-        },
-      }),
-    );
-
-    expect(report.rows.find((row) => row.id === "unit-lease-unit-1")).toMatchObject({
-      href: "/leases?action=create&propertyId=property-1&unitId=unit-1",
-    });
-  });
-
-  it("builds maintenance cost report from cases without double-counting linked rows", () => {
-    const report = buildTrustedReport(
-      makeReportInput({
-        viewQuery: {
-          report: "maintenance-cost",
-        },
-      }),
-    );
-
-    expect(report.rows).toHaveLength(1);
-    expect(report.rows[0]?.cells).toMatchObject({
-      amount: "USD 90.00 / Est. USD 150.00",
-      category: "Ac",
-      source: "Case",
-      status: "In Progress",
-    });
-    expect(report.rows[0]?.sourceLinks.map((source) => source.recordType)).toEqual(
-      expect.arrayContaining(["maintenance", "ledger", "timeline"]),
-    );
-    expect(metricValue(report, "Cases")).toMatchObject({
-      sourceCount: 1,
-      value: "1",
-    });
-    expect(metricValue(report, "Actual cost")).toMatchObject({
-      value: "USD 90.00",
-    });
-    expect(metricValue(report, "Estimated")).toMatchObject({
-      value: "USD 150.00",
-    });
-  });
-});

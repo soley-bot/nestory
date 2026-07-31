@@ -643,13 +643,30 @@ SELECT is(
   'checked creation produces exactly one occupancy fact'
 );
 
+RESET ROLE;
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', organization_id,
+    'sourceClaimHash', encode(extensions.digest(active_import_run_id::text, 'sha256'), 'hex'),
+    'runId', active_import_run_id
+  )::text,
+  true
+)
+FROM lease_history_guard_state;
+
 INSERT INTO public.import_runs(
   id,
   organization_id,
   import_type,
   source_file_name,
   total_rows,
-  ready_rows
+  ready_rows,
+  source_claim_hash,
+  snapshot_hash,
+  created_by,
+  updated_by
 )
 SELECT
   active_import_run_id,
@@ -657,16 +674,11 @@ SELECT
   'leases',
   'tb01-active-lease-import.csv',
   1,
-  1
-FROM lease_history_guard_state
-UNION ALL
-SELECT
-  cancelled_import_run_id,
-  organization_id,
-  'leases',
-  'tb01-cancelled-lease-import.csv',
   1,
-  1
+  encode(extensions.digest(active_import_run_id::text, 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:' || active_import_run_id::text, 'sha256'), 'hex'),
+  (SELECT auth.uid()),
+  (SELECT auth.uid())
 FROM lease_history_guard_state;
 
 INSERT INTO public.import_rows(
@@ -695,8 +707,53 @@ SELECT
     'termStatus', 'active',
     'status', 'active'
   )
-FROM lease_history_guard_state
-UNION ALL
+FROM lease_history_guard_state;
+
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', organization_id,
+    'sourceClaimHash', encode(extensions.digest(cancelled_import_run_id::text, 'sha256'), 'hex'),
+    'runId', cancelled_import_run_id
+  )::text,
+  true
+)
+FROM lease_history_guard_state;
+
+INSERT INTO public.import_runs(
+  id,
+  organization_id,
+  import_type,
+  source_file_name,
+  total_rows,
+  ready_rows,
+  source_claim_hash,
+  snapshot_hash,
+  created_by,
+  updated_by
+)
+SELECT
+  cancelled_import_run_id,
+  organization_id,
+  'leases',
+  'tb01-cancelled-lease-import.csv',
+  1,
+  1,
+  encode(extensions.digest(cancelled_import_run_id::text, 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:' || cancelled_import_run_id::text, 'sha256'), 'hex'),
+  (SELECT auth.uid()),
+  (SELECT auth.uid())
+FROM lease_history_guard_state;
+
+INSERT INTO public.import_rows(
+  import_run_id,
+  organization_id,
+  source_row_number,
+  row_status,
+  action_label,
+  normalized_data
+)
 SELECT
   cancelled_import_run_id,
   organization_id,
@@ -716,6 +773,9 @@ SELECT
     'status', 'cancelled'
   )
 FROM lease_history_guard_state;
+
+SELECT set_config('app.atomic_import_write_context', '', true);
+SET LOCAL ROLE authenticated;
 
 SELECT lives_ok(
   format(
@@ -1027,27 +1087,31 @@ SELECT set_config(
 );
 SET LOCAL ROLE authenticated;
 
-SELECT lives_ok(
-  format(
-    'SELECT public.terminate_authoritative_lease_term(%L,%L,%L,current_date,%L)',
-    (SELECT organization_id FROM lease_history_guard_state),
-    (SELECT checked_lease_id FROM lease_history_guard_state),
-    (
-      SELECT terms.id
-      FROM public.lease_terms AS terms
-      WHERE terms.organization_id =
-        (SELECT organization_id FROM lease_history_guard_state)
-        AND terms.lease_id =
-          (SELECT checked_lease_id FROM lease_history_guard_state)
-        AND terms.authority_kind = 'authoritative'
-        AND terms.archived_at IS NULL
-        AND terms.status = 'active'
-      ORDER BY terms.term_sequence DESC
-      LIMIT 1
-    ),
-    'tb01-checked-termination'
+SELECT is(
+  (
+    SELECT pg_temp.capture_error(
+      format(
+        'SELECT public.terminate_authoritative_lease_term(%L,%L,%L,current_date,%L)',
+        organization_id,
+        checked_lease_id,
+        (
+          SELECT terms.id
+          FROM public.lease_terms AS terms
+          WHERE terms.organization_id = state.organization_id
+            AND terms.lease_id = state.checked_lease_id
+            AND terms.authority_kind = 'authoritative'
+            AND terms.archived_at IS NULL
+            AND terms.status = 'active'
+          ORDER BY terms.term_sequence DESC
+          LIMIT 1
+        ),
+        'tb01-checked-termination'
+      )
+    ) ->> 'detail'
+    FROM lease_history_guard_state AS state
   ),
-  'checked Plan 04 term termination remains available'
+  'relationship_transition_required',
+  'Plan 04 termination stays fail-closed until TB-03 owns the transition'
 );
 
 SELECT is(
@@ -1057,8 +1121,8 @@ SELECT is(
     WHERE leases.id =
       (SELECT checked_lease_id FROM lease_history_guard_state)
   ),
-  'terminated',
-  'checked Plan 04 termination projects the Lease header status'
+  'active',
+  'rejected Plan 04 termination preserves the Lease header status'
 );
 
 SELECT is(
@@ -1079,7 +1143,7 @@ SELECT is(
     'started_on', NULL,
     'ended_on', NULL
   ),
-  'checked Plan 04 termination preserves exact unknown party history'
+  'rejected Plan 04 termination preserves exact unknown party history'
 );
 
 SELECT is(
@@ -1106,7 +1170,7 @@ SELECT is(
     'scheduled_move_out_date', NULL,
     'actual_move_out_date', NULL
   ),
-  'checked Plan 04 termination does not rewrite occupancy history'
+  'rejected Plan 04 termination does not rewrite occupancy history'
 );
 
 SELECT is(
@@ -1572,16 +1636,28 @@ SELECT set_config('app.people_leases_skip_sync', 'on', true);
 UPDATE public.lease_parties
 SET
   started_on = current_date - 365,
-  ended_on = current_date - 5
+  started_on_kind = 'known',
+  started_on_confidence = 'inferred',
+  ended_on = current_date - 5,
+  ended_on_kind = 'known',
+  ended_on_confidence = 'inferred'
 WHERE id = (SELECT completed_party_id FROM lease_history_guard_state);
 
 UPDATE public.lease_occupancies
 SET
   status = 'vacated',
   scheduled_move_in_date = current_date - 365,
+  scheduled_move_in_kind = 'known',
+  scheduled_move_in_confidence = 'inferred',
   actual_move_in_date = current_date - 360,
+  actual_move_in_kind = 'known',
+  actual_move_in_confidence = 'inferred',
   scheduled_move_out_date = current_date - 10,
-  actual_move_out_date = current_date - 5
+  scheduled_move_out_kind = 'known',
+  scheduled_move_out_confidence = 'inferred',
+  actual_move_out_date = current_date - 5,
+  actual_move_out_kind = 'known',
+  actual_move_out_confidence = 'inferred'
 WHERE id = (SELECT completed_occupancy_id FROM lease_history_guard_state);
 
 SELECT set_config('app.people_leases_skip_sync', 'off', true);

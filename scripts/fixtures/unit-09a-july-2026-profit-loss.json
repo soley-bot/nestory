@@ -1,0 +1,177 @@
+{
+  "organizationName": "IPS Cambodia",
+  "title": "Profit and loss details",
+  "property": "CTR-RES-018 - Central Residence",
+  "unit": "09A / Floor 9",
+  "period": "01 Jul 2026 - 31 Jul 2026",
+  "generated": "30 Jul 2026",
+  "basis": "Cash basis",
+  "currency": "USD",
+  "entries": [
+    {
+      "id": "income-parking-fee",
+      "section": "income",
+      "date": "03 Jul 2026",
+      "category": "Parking Fee",
+      "description": "July parking space fee.",
+      "amount": 60
+    },
+    {
+      "id": "income-storage-fee",
+      "section": "income",
+      "date": "06 Jul 2026",
+      "category": "Storage Fee",
+      "description": "July storage locker fee.",
+      "amount": 30
+    },
+    {
+      "id": "income-utility-reimbursement",
+      "section": "income",
+      "date": "08 Jul 2026",
+      "category": "Utility Reimbursement",
+      "description": "Tenant utility reimbursement for July.",
+      "amount": 45
+    },
+    {
+      "id": "income-late-fee",
+      "section": "income",
+      "date": "12 Jul 2026",
+      "category": "Late Fee",
+      "description": "Late payment fee collected.",
+      "amount": 25
+    },
+    {
+      "id": "income-cleaning-reimbursement",
+      "section": "income",
+      "date": "17 Jul 2026",
+      "category": "Cleaning Reimbursement",
+      "description": "Move-in cleaning reimbursement.",
+      "amount": 35
+    },
+    {
+      "id": "income-pet-fee",
+      "section": "income",
+      "date": "19 Jul 2026",
+      "category": "Pet Fee",
+      "description": "Monthly pet fee.",
+      "amount": 50
+    },
+    {
+      "id": "income-key-replacement",
+      "section": "income",
+      "date": "22 Jul 2026",
+      "category": "Key Replacement",
+      "description": "Replacement access key reimbursement.",
+      "amount": 20
+    },
+    {
+      "id": "income-rent",
+      "section": "income",
+      "date": "28 Jul 2026",
+      "category": "Rent",
+      "description": "Rent received for Central Residence 09A.",
+      "amount": 780
+    },
+    {
+      "id": "expense-building-service-charge",
+      "section": "expense",
+      "date": "02 Jul 2026",
+      "category": "Building Service Charge",
+      "description": "Monthly building service charge.",
+      "amount": 90
+    },
+    {
+      "id": "expense-water-bill",
+      "section": "expense",
+      "date": "04 Jul 2026",
+      "category": "Water Bill",
+      "description": "July shared water charge.",
+      "amount": 42
+    },
+    {
+      "id": "expense-ac-service",
+      "section": "expense",
+      "date": "05 Jul 2026",
+      "category": "Ac Service",
+      "description": "Air conditioner cleaning and inspection.",
+      "amount": 75
+    },
+    {
+      "id": "expense-cleaning-service",
+      "section": "expense",
+      "date": "07 Jul 2026",
+      "category": "Cleaning Service",
+      "description": "Deep cleaning service for the unit.",
+      "amount": 40
+    },
+    {
+      "id": "expense-electrical-repair",
+      "section": "expense",
+      "date": "10 Jul 2026",
+      "category": "Electrical Repair",
+      "description": "Replaced faulty kitchen outlet.",
+      "amount": 55
+    },
+    {
+      "id": "expense-pest-control",
+      "section": "expense",
+      "date": "13 Jul 2026",
+      "category": "Pest Control",
+      "description": "Scheduled pest control treatment.",
+      "amount": 35
+    },
+    {
+      "id": "expense-smoke-alarm-battery",
+      "section": "expense",
+      "date": "14 Jul 2026",
+      "category": "Smoke Alarm Battery",
+      "description": "Replaced smoke alarm battery.",
+      "amount": 18
+    },
+    {
+      "id": "expense-appliance-repair",
+      "section": "expense",
+      "date": "16 Jul 2026",
+      "category": "Appliance Repair",
+      "description": "Refrigerator thermostat replacement.",
+      "amount": 110
+    },
+    {
+      "id": "expense-consumable-supplies",
+      "section": "expense",
+      "date": "20 Jul 2026",
+      "category": "Consumable Supplies",
+      "description": "Light bulbs and basic unit supplies.",
+      "amount": 28
+    },
+    {
+      "id": "expense-plumbing-repair",
+      "section": "expense",
+      "date": "24 Jul 2026",
+      "category": "Plumbing Repair",
+      "description": "Kitchen sink leak follow-up parts and labor estimate.",
+      "amount": 185
+    },
+    {
+      "id": "expense-internet-service",
+      "section": "expense",
+      "date": "26 Jul 2026",
+      "category": "Internet Service",
+      "description": "July managed internet service.",
+      "amount": 65
+    },
+    {
+      "id": "expense-locksmith-service",
+      "section": "expense",
+      "date": "27 Jul 2026",
+      "category": "Locksmith Service",
+      "description": "Adjusted and serviced the entry lock.",
+      "amount": 45
+    }
+  ],
+  "totals": {
+    "income": 1045,
+    "expenses": 788,
+    "netIncome": 257
+  }
+}

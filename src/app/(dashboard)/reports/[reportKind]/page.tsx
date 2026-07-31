@@ -1,8 +1,9 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ReportBuilderScreen } from "@/features/reports/components/reports-screen";
 import { getReportsScreenData } from "@/features/reports/data/reports";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
 import { isReportKind } from "@/features/reports/report-catalog";
+import { getLegacyReportDestination } from "@/features/reports/legacy-report-destinations";
 import { requireAdminContext } from "@/lib/auth/context";
 
 type ReportBuilderPageProps = {
@@ -17,6 +18,10 @@ export default async function ReportBuilderPage({
   const { reportKind } = await params;
 
   if (!isReportKind(reportKind)) {
+    const legacyDestination = getLegacyReportDestination(reportKind);
+    if (legacyDestination) {
+      redirect(legacyDestination);
+    }
     notFound();
   }
 

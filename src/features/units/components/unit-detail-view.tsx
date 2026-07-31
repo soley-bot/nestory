@@ -6,7 +6,6 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
-  Download,
   ExternalLink,
   FileText,
   Landmark,
@@ -32,7 +31,10 @@ import type {
   UnitTimelineContext,
 } from "@/features/units/unit.types";
 import type { RecentChange } from "@/features/activity/activity.types";
-import type { ReportKind } from "@/features/reports/reports.types";
+import {
+  buildReportBuilderHref,
+  reportCatalog,
+} from "@/features/reports/report-catalog";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
@@ -50,56 +52,6 @@ const unitRecordSections: Array<{
   { id: "documents", label: "Documents" },
   { id: "reports", label: "Reports" },
   { id: "timeline", label: "Timeline" },
-];
-
-const unitReportTemplates: Array<{
-  description: string;
-  kind: ReportKind;
-  sources: string;
-  title: string;
-}> = [
-  {
-    description: "Monthly income, expenses, NOI, maintenance spend, and evidence count.",
-    kind: "unit-performance",
-    sources: "Ledger / timeline / documents",
-    title: "Unit performance",
-  },
-  {
-    description: "Tenant, occupancy status, current rent, lease end, and evidence count.",
-    kind: "rent-roll",
-    sources: "Unit / lease / documents",
-    title: "Rent roll",
-  },
-  {
-    description: "Unit-scoped income and expense rows for finance review.",
-    kind: "income-expense",
-    sources: "Ledger",
-    title: "Income and expense",
-  },
-  {
-    description: "Repair cost, estimates, priority, completion state, and linked records.",
-    kind: "maintenance-cost",
-    sources: "Maintenance / ledger / timeline",
-    title: "Maintenance cost",
-  },
-  {
-    description: "Lease end date, tenant, renewal window, and unit status.",
-    kind: "lease-expiry",
-    sources: "Lease / unit",
-    title: "Lease expiry",
-  },
-  {
-    description: "Vacancy, missing lease, missing rent, and missing evidence checks.",
-    kind: "vacancy-risk",
-    sources: "Unit / lease / documents",
-    title: "Vacancy and risk",
-  },
-  {
-    description: "Missing lease, rent, and evidence fields to clean up before reporting.",
-    kind: "missing-data",
-    sources: "Record quality",
-    title: "Missing data",
-  },
 ];
 
 export function UnitDetailView({
@@ -555,144 +507,42 @@ function UnitReportsPanel({
   return (
     <>
       <SectionTitle
-        description="Unit-scoped CSV and PDF exports"
+        description="The required monthly statement for this unit"
         icon={<FileText size={16} />}
         title="Reports"
       />
-      <div className="space-y-4 p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-          <div className="min-w-0">
-            <h3 className="text-base font-semibold">Unit report workspace</h3>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
-              Export the unit record as finance, leasing, maintenance, risk, or
-              cleanup views while keeping each row tied back to the source record.
-            </p>
-            <div className="mt-3 grid gap-2 text-[12px] text-muted sm:grid-cols-3">
-              <ReportMetaPill label="Scope" value={`Unit ${unit.unitNumber}`} />
-              <ReportMetaPill label="Period" value={reportMonth} />
-              <ReportMetaPill label="Property" value={unit.propertyCode} />
-            </div>
-          </div>
-          <ActionLink
-            href={buildUnitReportHref(unit, "unit-performance", reportMonth)}
-            icon={<ExternalLink size={14} />}
-            strong
-          >
-            Open builder
-          </ActionLink>
-        </div>
-
-        <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-          {unitReportTemplates.map((template) => (
-            <UnitReportTemplateCard
-              key={template.kind}
-              reportMonth={reportMonth}
-              template={template}
-              unit={unit}
-            />
-          ))}
-        </div>
+      <div className="p-4">
+        <Link
+          className="group flex max-w-xl items-start justify-between gap-4 rounded-md border border-border bg-surface p-3 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+          href={buildUnitProfitLossHref(unit, reportMonth)}
+          prefetch={false}
+        >
+          <span>
+            <span className="block text-sm font-semibold">
+              {reportCatalog[0].title}
+            </span>
+            <span className="mt-1 block text-[13px] leading-5 text-muted">
+              {reportCatalog[0].description}
+            </span>
+          </span>
+          <ExternalLink aria-hidden="true" className="mt-0.5 shrink-0" size={14} />
+        </Link>
       </div>
     </>
   );
 }
 
-function UnitReportTemplateCard({
-  reportMonth,
-  template,
-  unit,
-}: {
-  reportMonth: string;
-  template: (typeof unitReportTemplates)[number];
-  unit: UnitDetail;
-}) {
-  return (
-    <div className="flex min-h-[176px] flex-col justify-between rounded-md border border-border bg-surface-muted/60 p-3">
-      <div className="min-w-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="break-words text-sm font-semibold">{template.title}</h3>
-            <p className="mt-1 text-xs font-medium uppercase tracking-[0.06em] text-muted">
-              {template.sources}
-            </p>
-          </div>
-          <FileText className="shrink-0 text-muted" size={15} />
-        </div>
-        <p className="mt-3 text-sm leading-5 text-muted">{template.description}</p>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <ActionLink
-          href={buildUnitReportHref(unit, template.kind, reportMonth)}
-          icon={<ExternalLink size={14} />}
-        >
-          Preview
-        </ActionLink>
-        <ActionLink
-          href={buildUnitReportExportHref(unit, template.kind, reportMonth)}
-          icon={<Download size={14} />}
-        >
-          CSV
-        </ActionLink>
-        <ActionLink
-          href={buildUnitReportPdfHref(unit, template.kind, reportMonth)}
-          icon={<Download size={14} />}
-        >
-          PDF
-        </ActionLink>
-      </div>
-    </div>
-  );
-}
-
-function ReportMetaPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-md border border-border bg-surface px-2.5 py-2">
-      <p className="font-medium uppercase tracking-[0.06em]">{label}</p>
-      <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function buildUnitReportHref(
-  unit: UnitDetail,
-  report: ReportKind,
-  month: string,
-) {
-  return buildUnitReportUrl("/reports", unit, report, month);
-}
-
-function buildUnitReportExportHref(
-  unit: UnitDetail,
-  report: ReportKind,
-  month: string,
-) {
-  return buildUnitReportUrl("/api/reports/export", unit, report, month);
-}
-
-function buildUnitReportPdfHref(
-  unit: UnitDetail,
-  report: ReportKind,
-  month: string,
-) {
-  return buildUnitReportUrl("/api/reports/pdf", unit, report, month);
-}
-
-function buildUnitReportUrl(
-  pathname: string,
-  unit: UnitDetail,
-  report: ReportKind,
+export function buildUnitProfitLossHref(
+  unit: Pick<UnitDetail, "id" | "propertyId">,
   month: string,
 ) {
   const params = new URLSearchParams({
     month,
     propertyId: unit.propertyId,
-    report,
     unitId: unit.id,
   });
 
-  return `${pathname}?${params.toString()}`;
+  return buildReportBuilderHref("unit-profit-loss", params);
 }
 
 function ActionLink({

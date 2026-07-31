@@ -67,9 +67,9 @@ Baseline browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
 <!-- route-evidence:/reports -->
 | /reports | /reports | /reports | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/reports/[reportKind] -->
-| /reports/[reportKind] | /reports/rent-roll?month=2026-07 | /reports/rent-roll?month=2026-07 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked | 3/3 pass | preserved | None |
+| /reports/[reportKind] | /reports/unit-profit-loss?month=2026-07 | /reports/unit-profit-loss?month=2026-07 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked | 3/3 pass | preserved | None |
 <!-- route-evidence:/people-reports -->
-| /people-reports | /people-reports?report=staff-access&archiveState=archived | /reports/people-readiness?peopleView=staff&archiveState=archived | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-preserved | None |
+| /people-reports | /people-reports?report=staff-access&archiveState=archived | /people | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-normalized | None |
 <!-- route-evidence:/settings -->
 | /settings | /settings | /settings | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/settings/rent-policy -->
@@ -133,7 +133,7 @@ Baseline browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
 - Rent, expense, ledger totals and drilldowns: finance workspace component tests plus the populated browser captures.
 - Maintenance list, board, calendar, checklist, and capability-correct actions: `src/features/maintenance/components/maintenance-workspace-ui.test.tsx` and manager/member role audits.
 - Timeline scope routes and linked records: timeline route tests and the four timeline captures.
-- Report library, parameterized report, CSV/PDF/print controls: report screen tests and `/reports/rent-roll` capture.
+- Three required report tabs with PDF and Excel export: report screen tests and `/reports/unit-profit-loss` capture.
 - Settings draft, discard, save, and error: settings workspace tests and shared workflow feedback contracts.
 - Import preview create/update/skip consequences: import screen tests; browser capture remains read-only.
 

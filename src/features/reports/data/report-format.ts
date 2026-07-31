@@ -47,7 +47,7 @@ export function slugifyReportPart(value: string) {
 export function getReportExportFilename(
   report: TrustedReport,
   viewQuery: ReportsViewQuery,
-  extension: "csv" | "pdf",
+  extension: "csv" | "pdf" | "xlsx",
 ) {
   if (report.kind === "people-readiness") {
     return `${report.exportFilenameBase}-current-${viewQuery.peopleArchiveState}.${extension}`;

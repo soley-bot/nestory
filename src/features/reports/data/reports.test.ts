@@ -9,6 +9,14 @@ import type {
 describe("report screen preparation", () => {
   it("selects an Owner Statement recipient before trimming the readiness preview", () => {
     const report = ownerStatementReport(76);
+    report.rows[75]!.sourceCount = 7;
+    report.rows[75]!.sourceSummary = "7 source records";
+    report.rows[75]!.sourceLinks = Array.from({ length: 7 }, (_, index) => ({
+      href: `/ledger?entryId=owner-76-source-${index + 1}`,
+      id: `owner-76-source-${index + 1}`,
+      label: `Owner 76 source ${index + 1}`,
+      recordType: "ledger" as const,
+    }));
     const selected = prepareTrustedReportForScreen(report, {
       ...ownerStatementQuery(),
       ownerPersonId: "owner-76",
@@ -19,7 +27,11 @@ describe("report screen preparation", () => {
     expect(selected.rows[0]).toMatchObject({
       ownerPersonId: "owner-76",
       propertyId: "property-76",
+      sourceCount: 0,
+      sourceSummary: "",
     });
+    expect(selected.rows[0]?.sourceLinks).toEqual([]);
+    expect(selected.totalRowCount).toBe(1);
     expect(selected.title).toBe("Owner Statement");
   });
 
@@ -31,6 +43,29 @@ describe("report screen preparation", () => {
 
     expect(selected.rows).toHaveLength(75);
     expect(selected.totalRowCount).toBe(76);
+  });
+
+  it("preserves full source counts while bounding screen links", () => {
+    const report = ownerStatementReport(1);
+    report.rows[0]!.sourceCount = 7;
+    report.rows[0]!.sourceSummary = "7 source records";
+    report.rows[0]!.sourceLinks = Array.from({ length: 7 }, (_, index) => ({
+      href: `/ledger?entryId=source-${index + 1}`,
+      id: `source-${index + 1}`,
+      label: `Source ${index + 1}`,
+      recordType: "ledger" as const,
+    }));
+
+    const selected = prepareTrustedReportForScreen(
+      report,
+      ownerStatementQuery(),
+    );
+
+    expect(selected.rows[0]?.sourceLinks).toHaveLength(5);
+    expect(selected.rows[0]).toMatchObject({
+      sourceCount: 7,
+      sourceSummary: "7 source records",
+    });
   });
 });
 

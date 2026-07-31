@@ -729,9 +729,9 @@ SELECT throws_ok(
     (SELECT term_id FROM lease_authority_state),
     'lease-term-terminate-start-0001'
   ),
-  '22023',
-  'Termination date must be after the lease start date',
-  'termination cannot collapse the compatibility lease to a zero-day range'
+  '55000',
+  'Lease termination requires the TB-03 checked impact and transition workflow',
+  'termination stays fail-closed until the checked relationship transition exists'
 );
 
 SELECT throws_ok(
@@ -799,55 +799,37 @@ SELECT throws_ok(
   'approved policy cannot be edited through its checked draft RPC'
 );
 
+RESET ROLE;
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', organization_id,
+    'sourceClaimHash', encode(extensions.digest(import_run_id::text, 'sha256'), 'hex'),
+    'runId', import_run_id
+  )::text,
+  true
+)
+FROM lease_authority_state;
+
 INSERT INTO public.import_runs(
-  id,
-  organization_id,
-  import_type,
-  source_file_name,
-  total_rows,
-  ready_rows
+  id, organization_id, import_type, source_file_name, total_rows, ready_rows,
+  source_claim_hash, snapshot_hash, created_by, updated_by
 )
 SELECT
-  import_run_id,
-  organization_id,
-  'leases',
-  'authoritative-lease-import.csv',
-  1,
-  1
-FROM lease_authority_state
-UNION ALL
-SELECT
-  incomplete_import_run_id,
-  organization_id,
-  'leases',
-  'incomplete-lease-import.csv',
-  1,
-  1
-FROM lease_authority_state
-UNION ALL
-SELECT
-  oversized_import_run_id,
-  organization_id,
-  'leases',
-  'oversized-lease-import.csv',
-  251,
-  251
+  import_run_id, organization_id, 'leases', 'authoritative-lease-import.csv',
+  1, 1,
+  encode(extensions.digest(import_run_id::text, 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:' || import_run_id::text, 'sha256'), 'hex'),
+  (SELECT auth.uid()), (SELECT auth.uid())
 FROM lease_authority_state;
 
 INSERT INTO public.import_rows(
-  import_run_id,
-  organization_id,
-  source_row_number,
-  row_status,
-  action_label,
-  normalized_data
+  import_run_id, organization_id, source_row_number, row_status,
+  action_label, normalized_data
 )
 SELECT
-  import_run_id,
-  organization_id,
-  1,
-  'ready',
-  'Create',
+  import_run_id, organization_id, 1, 'ready', 'Create',
   jsonb_build_object(
     'propertyId', property_id,
     'unitId', import_unit_id,
@@ -861,14 +843,38 @@ SELECT
     'depositAmount', 475,
     'status', 'active'
   )
-FROM lease_authority_state
-UNION ALL
+FROM lease_authority_state;
+
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', organization_id,
+    'sourceClaimHash', encode(extensions.digest(incomplete_import_run_id::text, 'sha256'), 'hex'),
+    'runId', incomplete_import_run_id
+  )::text,
+  true
+)
+FROM lease_authority_state;
+
+INSERT INTO public.import_runs(
+  id, organization_id, import_type, source_file_name, total_rows, ready_rows,
+  source_claim_hash, snapshot_hash, created_by, updated_by
+)
 SELECT
-  incomplete_import_run_id,
-  organization_id,
-  1,
-  'ready',
-  'Create',
+  incomplete_import_run_id, organization_id, 'leases',
+  'incomplete-lease-import.csv', 1, 1,
+  encode(extensions.digest(incomplete_import_run_id::text, 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:' || incomplete_import_run_id::text, 'sha256'), 'hex'),
+  (SELECT auth.uid()), (SELECT auth.uid())
+FROM lease_authority_state;
+
+INSERT INTO public.import_rows(
+  import_run_id, organization_id, source_row_number, row_status,
+  action_label, normalized_data
+)
+SELECT
+  incomplete_import_run_id, organization_id, 1, 'ready', 'Create',
   jsonb_build_object(
     'propertyId', property_id,
     'unitId', incomplete_import_unit_id,
@@ -881,23 +887,42 @@ SELECT
   )
 FROM lease_authority_state;
 
-INSERT INTO public.import_rows(
-  import_run_id,
-  organization_id,
-  source_row_number,
-  row_status,
-  action_label,
-  normalized_data
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', organization_id,
+    'sourceClaimHash', encode(extensions.digest(oversized_import_run_id::text, 'sha256'), 'hex'),
+    'runId', oversized_import_run_id
+  )::text,
+  true
+)
+FROM lease_authority_state;
+
+INSERT INTO public.import_runs(
+  id, organization_id, import_type, source_file_name, total_rows, ready_rows,
+  source_claim_hash, snapshot_hash, created_by, updated_by
 )
 SELECT
-  state.oversized_import_run_id,
-  state.organization_id,
-  row_number,
-  'ready',
-  'Create',
-  '{}'::jsonb
+  oversized_import_run_id, organization_id, 'leases',
+  'oversized-lease-import.csv', 251, 251,
+  encode(extensions.digest(oversized_import_run_id::text, 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:' || oversized_import_run_id::text, 'sha256'), 'hex'),
+  (SELECT auth.uid()), (SELECT auth.uid())
+FROM lease_authority_state;
+
+INSERT INTO public.import_rows(
+  import_run_id, organization_id, source_row_number, row_status,
+  action_label, normalized_data
+)
+SELECT
+  state.oversized_import_run_id, state.organization_id, row_number,
+  'ready', 'Create', '{}'::jsonb
 FROM lease_authority_state AS state
 CROSS JOIN generate_series(1, 251) AS rows(row_number);
+
+SELECT set_config('app.atomic_import_write_context', '', true);
+SET LOCAL ROLE authenticated;
 
 SELECT throws_ok(
   format(

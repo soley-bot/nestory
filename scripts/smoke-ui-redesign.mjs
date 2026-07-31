@@ -727,7 +727,7 @@ function renderEvidenceDocument(summary) {
     "- Rent, expense, ledger totals and drilldowns: finance workspace component tests plus the populated browser captures.",
     "- Maintenance list, board, calendar, checklist, and capability-correct actions: `src/features/maintenance/components/maintenance-workspace-ui.test.tsx` and manager/member role audits.",
     "- Timeline scope routes and linked records: timeline route tests and the four timeline captures.",
-    "- Report library, parameterized report, CSV/PDF/print controls: report screen tests and `/reports/rent-roll` capture.",
+    "- Three required report tabs with PDF and Excel export: report screen tests and `/reports/unit-profit-loss` capture.",
     "- Settings draft, discard, save, and error: settings workspace tests and shared workflow feedback contracts.",
     "- Import preview create/update/skip consequences: import screen tests; browser capture remains read-only.",
     "",

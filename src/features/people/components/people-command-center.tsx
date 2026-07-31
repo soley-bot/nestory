@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import * as Popover from "@radix-ui/react-popover";
-import { ChevronDown, FileCheck2, UsersRound } from "lucide-react";
+import { ChevronDown, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { PeopleInsights } from "@/features/people/people.insights";
 
@@ -67,19 +67,9 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
             role="dialog"
             sideOffset={6}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-border pb-2.5">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Directory overview</p>
-                <p className="mt-0.5 text-xs text-muted">Counts and records that need attention.</p>
-              </div>
-              <Link
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
-                href="/reports/people-readiness"
-                prefetch={false}
-              >
-                <FileCheck2 aria-hidden="true" size={14} />
-                Reports
-              </Link>
+            <div className="border-b border-border pb-2.5">
+              <p className="text-sm font-semibold text-foreground">Directory overview</p>
+              <p className="mt-0.5 text-xs text-muted">Counts and records that need attention.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-3">

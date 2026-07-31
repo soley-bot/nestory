@@ -1,159 +1,109 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { SelectControl } from "@/components/ui/select-control";
-import { REPORT_OPTIONS } from "@/features/reports/data/trusted-report";
-import { UNIT_STATUS_OPTIONS } from "@/features/units/unit.types";
 import type {
   ReportPropertyOption,
   ReportsViewQuery,
+  ReportUnitOption,
 } from "@/features/reports/reports.types";
 
 type ReportsFiltersProps = {
-  action?: string;
+  action: string;
   propertyOptions: ReportPropertyOption[];
-  showReportSelect?: boolean;
+  unitOptions: ReportUnitOption[];
   viewQuery: ReportsViewQuery;
 };
 
 export function ReportsFilters({
-  action = "/reports",
+  action,
   propertyOptions,
-  showReportSelect = true,
+  unitOptions,
   viewQuery,
 }: ReportsFiltersProps) {
-  const showStatusFilter =
-    viewQuery.report === "rent-roll" || viewQuery.report === "vacancy-risk";
-  const isPeopleReadiness = viewQuery.report === "people-readiness";
+  const showUnit = viewQuery.report === "unit-profit-loss";
+  const visibleUnits =
+    viewQuery.propertyId === "all"
+      ? unitOptions
+      : unitOptions.filter(
+          ({ propertyId }) => propertyId === viewQuery.propertyId,
+        );
 
   return (
     <section
-      className="rounded-md border border-border bg-surface print:hidden"
-      data-report-stage="generate"
+      aria-label="Report filters"
+      className="border-b border-border bg-surface px-4 py-3 sm:px-6"
+      role="region"
     >
-      <div className="border-b border-border px-4 py-2.5">
-        <h2 className="text-sm font-semibold text-foreground">Report scope</h2>
-      </div>
       <form
         action={action}
-        className="grid gap-2 p-3 text-[13px]"
+        className="grid items-end gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(180px,1fr)_180px_minmax(180px,1fr)_auto_auto]"
         method="get"
       >
-        {viewQuery.unitId !== "all" &&
-        !isPeopleReadiness &&
-        viewQuery.report !== "owner-statement" ? (
-          <input name="unitId" type="hidden" value={viewQuery.unitId} />
-        ) : null}
+        <ScopeField label="Property">
+          <SelectControl
+            ariaLabel="Filter report by property"
+            className="h-9 px-2.5 text-[13px]"
+            defaultValue={viewQuery.propertyId}
+            name="propertyId"
+            options={[
+              { label: "All properties", value: "all" },
+              ...propertyOptions.map((property) => ({
+                label: property.label,
+                value: property.id,
+              })),
+            ]}
+          />
+        </ScopeField>
 
-        {showReportSelect ? (
-          <ScopeField label="Report">
+        <ScopeField label="Month">
+          <MonthPickerField
+            ariaLabel="Report month"
+            className="h-9 px-2.5 text-[13px]"
+            defaultValue={viewQuery.month}
+            name="month"
+          />
+        </ScopeField>
+
+        {showUnit ? (
+          <ScopeField label="Unit">
             <SelectControl
-              ariaLabel="Choose report"
-              className="h-8 px-2 text-[13px]"
-              defaultValue={viewQuery.report}
-              name="report"
-              options={REPORT_OPTIONS}
-            />
-          </ScopeField>
-        ) : null}
-
-        {isPeopleReadiness ? (
-          <>
-            <ScopeField label="People view">
-              <SelectControl
-                ariaLabel="Choose People readiness view"
-                className="h-8 px-2 text-[13px]"
-                defaultValue={viewQuery.peopleView}
-                name="peopleView"
-                options={[
-                  { label: "Relationship readiness", value: "relationship" },
-                  { label: "Tenant readiness", value: "tenant" },
-                  { label: "Owner readiness", value: "owner" },
-                  { label: "Vendor activity", value: "vendor" },
-                  { label: "Staff access", value: "staff" },
-                ]}
-              />
-            </ScopeField>
-            <ScopeField label="Record state">
-              <SelectControl
-                ariaLabel="Filter People records by state"
-                className="h-8 px-2 text-[13px]"
-                defaultValue={viewQuery.peopleArchiveState}
-                name="archiveState"
-                options={[
-                  { label: "Active records", value: "active" },
-                  { label: "Archived records", value: "archived" },
-                  { label: "All records", value: "all" },
-                ]}
-              />
-            </ScopeField>
-          </>
-        ) : (
-          <>
-            <ScopeField label="Property">
-              <SelectControl
-                ariaLabel="Filter report by property"
-                className="h-8 px-2 text-[13px]"
-                defaultValue={viewQuery.propertyId}
-                name="propertyId"
-                options={[
-                  { label: "All properties", value: "all" },
-                  ...propertyOptions.map((property) => ({
-                    label: property.label,
-                    value: property.id,
-                  })),
-                ]}
-              />
-            </ScopeField>
-
-            <ScopeField label="Month">
-              <MonthPickerField
-                ariaLabel="Report month"
-                className="h-8 px-2 text-[13px]"
-                defaultValue={viewQuery.month}
-                name="month"
-              />
-            </ScopeField>
-          </>
-        )}
-
-        {!isPeopleReadiness && showStatusFilter ? (
-          <ScopeField label="Status">
-            <SelectControl
-              ariaLabel="Filter units by status"
-              className="h-8 px-2 text-[13px]"
-              defaultValue={viewQuery.status}
-              name="status"
+              ariaLabel="Filter report by unit"
+              className="h-9 px-2.5 text-[13px]"
+              defaultValue={viewQuery.unitId}
+              name="unitId"
               options={[
-                { label: "All statuses", value: "all" },
-                ...UNIT_STATUS_OPTIONS,
+                { label: "All units", value: "all" },
+                ...visibleUnits.map((unit) => ({
+                  label: unit.label,
+                  value: unit.id,
+                })),
               ]}
             />
           </ScopeField>
-        ) : !isPeopleReadiness ? (
-          <input name="status" type="hidden" value="all" />
-        ) : null}
+        ) : (
+          <div className="hidden lg:block" />
+        )}
 
         <Button
-          className="h-8 justify-start gap-1.5 px-2.5 text-[13px] md:justify-center"
+          aria-label="Apply filters"
+          className="h-9 gap-1.5 px-3 text-[13px]"
           type="submit"
         >
           <SlidersHorizontal size={14} />
-          Generate preview
+          Apply
         </Button>
 
         <Link
           aria-label="Reset report filters"
-          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-          href={
-            isPeopleReadiness ? "/reports/people-readiness" : "/reports"
-          }
-          title="Reset filters"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+          href={`/reports/${viewQuery.report}`}
         >
           <RotateCcw size={14} />
-          <span className="hidden sm:inline">Reset</span>
+          Reset
         </Link>
       </form>
     </section>
@@ -168,11 +118,11 @@ function ScopeField({
   label: string;
 }) {
   return (
-    <div className="min-w-0">
+    <label className="min-w-0">
       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.06em] text-foreground-muted">
         {label}
       </span>
       {children}
-    </div>
+    </label>
   );
 }

@@ -13,6 +13,7 @@
 # testing
 /coverage
 /output/
+/tmp/
 /artifacts/ui-redesign/*
 /artifacts/finance-inventory/*
 /artifacts/finance-inventory-stack/*

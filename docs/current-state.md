@@ -29,9 +29,9 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - Dedicated property/unit photo records with private photo storage and cover
   thumbnail selection.
 - Private document storage and document metadata.
-- CSV unit import with mapping, validation, create/update commit, and cleanup
-  queue.
-- Traceable reports and CSV/PDF endpoints.
+- CSV imports for properties, units, people, and leases with automatic mapping,
+  staged validation, and safe ready-row commit.
+- Three traceable required statements with PDF and Excel export.
 - Organization branches, teams, users, roles, and access management.
 
 ## Interface Model
@@ -141,6 +141,17 @@ People and leases:
   then write an authoritative normalized term atomically. Existing inferred
   term rows remain labeled `legacy_inferred`; compatibility rent/date columns
   on `leases` are display projections and cannot rewrite term authority.
+- New checked Lease creation and Lease import also create or adopt exactly one
+  primary party and one occupancy in the same transaction. Relationship rows
+  carry independent evidence state, business lifecycle, source, boundary
+  kind/confidence, correction lineage, actor/time/reason evidence, and guarded
+  accepted ranges. Pre-existing party and occupancy rows remain
+  `legacy_unresolved`; they are not promoted or rewritten. Exact individual
+  residence evidence lives in `lease_occupancy_participants` and is separate
+  from a Lease party role or Lease-level occupancy. Existing-Lease
+  relationship transitions remain fail-closed pending the checked impact
+  contract; current list/detail loaders still use the established
+  compatibility read model.
 - The lease inspector shows exact term authority, due day, frequency,
   lifecycle, rent-readiness evidence, and preserved term history. Admins may
   schedule a non-overlapping future term without changing the active term's
@@ -183,8 +194,8 @@ Finance and history:
 
 Maintenance operations:
 
-- `/maintenance` is the cases workspace with inbox, list, board, calendar,
-  templates, and report links over the existing maintenance records.
+- `/maintenance` is the cases workspace with inbox, list, board, calendar, and
+  templates over the existing maintenance records.
 - `/work-orders` remains a legacy board route.
 - `/schedule` redirects to `/maintenance?view=calendar` for legacy links.
 - `/tasks` uses a compact My Work list for members and role-aware assignment
@@ -228,21 +239,36 @@ Documents, imports, and reports:
 - `/documents` manages private business document metadata and upload/replace,
   archive/restore, and links to property/unit/lease/ledger/timeline/task.
 - `/import` handles CSV imports for properties, units/rent roll, people, and
-  leases with type-specific templates, header mapping, saved mappings, staged
-  import runs, validation, cleanup queue, recent run history, and safe commit
-  behavior through the import run commit boundary and existing write RPCs.
-- `/reports` is the report library. `/reports/[reportKind]` is the selected
-  report builder with scope/period filters, summary metrics, traceable report
-  rows, and CSV/PDF/print export for rent roll, unit performance, property
-  performance, owner statement, income/expense, lease expiry, vacancy/risk,
-  maintenance cost, record readiness, and People readiness reports.
-- `/reports/people-readiness` owns the five People report views:
-  relationship, tenant, owner, vendor, and staff. It preserves active,
-  archived, or all-record scope, exact People and linked-record sources,
-  Staff-to-Workspace-Access actions, and generic CSV/PDF exports without the
-  former duplicate report hub or dedicated export APIs. The retired page
-  remains only as a tested bookmark redirect into this report.
-- `/api/reports/export` and `/api/reports/pdf` expose report export endpoints.
+  leases in one vertical flow. It keeps type-specific templates, automatic and
+  saved header mapping, row validation, staged import runs, and RPC-backed
+  commits. `stage_import_run_v1` computes a deterministic raw claim and exact
+  semantic snapshot in PostgreSQL, then atomically inserts the server-generated
+  run and every staged row with SQL-derived counts. An unchanged staged snapshot
+  is reused. If reference matching changes while the run is still clean and
+  staged, the RPC atomically replaces it with a new run/snapshot so corrected
+  files can become ready. Committing and terminal runs remain immutable and are
+  recovered by raw claim. Past imports can reconcile an in-flight commit;
+  legacy non-atomic staged runs must be re-uploaded before commit.
+  Mapping and fix downloads remain available behind disclosures.
+- `/reports` resolves to `/reports/unit-profit-loss`. The only public report
+  kinds are Monthly Unit Profit & Loss, Owner Statement, and Management Fee
+  Statement. Each selected report has one filter row, compact totals, one
+  traceable table, and PDF/Excel export.
+- Retired report URLs redirect to the operational workspace that owns the work,
+  such as Units, Overview, Ledger, Leases, Maintenance, or People.
+- Monthly Unit Profit & Loss uses resolved unit-linked operating income and
+  expense effects from the canonical property-cash event contract, preserves
+  reversal signs, and explicitly excludes property-level, deposit,
+  owner-funding, company-fee, and unresolved events. Management Fee
+  Statement remains a defined report family but is unavailable and cannot
+  export until management-fee owner-recognition authority is resolved; legacy
+  receipt allocations are not publishable evidence. Owner Statement export
+  remains blocked until authoritative
+  opening and closing owner balances exist; the UI names that limitation rather
+  than inventing balances.
+- `/api/reports/pdf` and `/api/reports/excel` are the public export endpoints.
+  `/api/reports/export` remains an auth-gated, formula-safe CSV compatibility
+  endpoint.
 
 Settings and access:
 
@@ -264,11 +290,9 @@ Settings and access:
   The local invitation replay passed acceptance, required password creation,
   logout, password login, and the Member workspace destination. Production
   invitation verification remains a separate release activity.
-- Multi-page People Readiness loads use deterministic `display_name` plus `id`
-  ordering and remove duplicate IDs before building the shared preview/CSV/PDF
-  report. The load is not a transactional snapshot, so concurrent People
-  inserts, archives, or renames can still change report membership while its
-  page queries are running.
+- Owner Statement cannot yet export because the current source model does not
+  provide authoritative opening and closing owner balances. This is an explicit
+  product limitation, not a derived or estimated balance.
 - Maintenance supports operational actual-cost capture and, for Admins, direct
   ledger linkage. It does not currently provide a prefilled vendor-bill or
   petty-cash handoff, link an existing finance record through a dedicated
@@ -298,7 +322,8 @@ RPC write boundaries. Current table families include:
 - Property core: `properties`, `units`.
 - People and lease backbone: `people`, `person_roles`, `person_contacts`,
   `property_owners`, `vendor_profiles`, `leases`, `lease_parties`,
-  `lease_terms`, `lease_occupancies`, `lease_deposits`.
+  `lease_terms`, `lease_occupancies`, `lease_occupancy_participants`,
+  `lease_deposits`.
 - Finance and history: `finance_income_items`, `finance_expense_items`,
   `finance_receipts`, `finance_receipt_allocations`, `finance_payments`,
   `finance_receipt_allocation_journals`, `finance_payment_allocations`,
