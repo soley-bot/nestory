@@ -557,29 +557,22 @@ steps before Finance code changes begin.
 
 The replacement outcome is constrained now:
 
-- `/rent-income` is **Tenant Income** with
-  `Due | Property / unit | Tenant | Charge | Expected | Received | Balance | Status`;
-- `/bills-expenses` is **Property Expenses** with
-  `Invoice / due | Property / unit | Payee | Expense | Total | Paid | Balance | Status`;
-- `/ledger` is **Financial History** with
-  `Date | Property / unit | Description | Source | Money in | Money out | State`;
-- `/petty-cash` uses
-  `Date | Property / unit | Detail | Paid to / received from | Cash in | Cash out | Running balance | Status`;
-- `/reports/owner-statement` uses a compact grouped statement with one
-  consolidated owner balance, and `/reports/management-fees` is the separate
-  internal IPS fee table;
-- deposits remain with `/leases`;
-- each route uses one compact totals line rather than a stat-card grid;
+- Finance has one visible owner/property perspective with Income and Expenses
+  as the prototype's primary tabs;
+- management fee appears once under Expenses with IPS as vendor, with no
+  management-company fee report product surface;
+- the current fee compatibility source remains read-only and disclosure-only;
+  ratified Plans 11-12 establish recognition and owner-deduction authority;
+- deposits remain with Leases & Deposits, while owner contributions and
+  distributions stay outside Income and Expenses;
+- each list uses one compact totals line and operational table;
 - record details and mutations use focused centered modals or a dedicated
   page, never an inspector or `SideDrawer`;
-- management fee is entered once as an owner/property deduction and reused by
-  the internal IPS fee report;
-- existing owner-contribution/payment evidence is read-only outside Tenant
-  Income and Property Expenses until Plans 13-14, and deposits are not
-  operating income; and
-- all settlement, reversal, source-identity, and calculation behavior remains
-  unchanged unless the new plan explicitly proves and authorizes a domain
-  change.
+- the approved HTML is a target prototype, not proof of runtime behavior; and
+- all obligation, settlement, approval, exact-money, RLS, reversal, lock,
+  source-identity, audit, Ledger, journal, and historical compatibility
+  behavior remains protected unless a separate reviewed plan explicitly
+  proves and authorizes the change.
 
 No commit checkpoint from the historical Task 12 remains active.
 

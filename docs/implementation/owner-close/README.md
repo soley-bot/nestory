@@ -62,8 +62,9 @@ their conclusions or run another review loop to make them appear current.
 - **Merged implementation:** Plans 01 through 05 have repository evidence and
   merged PRs.
 - **Current authoritative planning:** this README, files 96 and 97, the IPS
-  Finance simplification direction with its detailed design pending user
-  review, and any separately approved current-sequence plan.
+  Finance simplification direction with its approved product/UI design, and
+  any separately approved current-sequence plan. Runtime Finance
+  implementation still requires a separate reviewed plan.
 - **Legacy/superseded planning:** broad source files whose filename numbers no
   longer equal current sequence numbers.
 - **Historical evidence:** files 98 and 99 and older execution plans outside
@@ -150,27 +151,32 @@ their distinct authority.
 
 ## IPS first-release product boundary
 
-The IPS meeting summary makes accurate owner reporting the product goal, not
-a general accounting suite. The approved operator model is:
+The approved owner-perspective Finance model makes accurate owner reporting
+the product goal, not a general accounting suite. The operator model is:
 
-- Tenant Income contains tenant charges and their receipts only.
-- Property Expenses contains owner/property costs. A management fee appears
-  once as an owner deduction and feeds a separate internal IPS fee view.
+- Income contains tenant charges and their receipts only.
+- Expenses contains owner/property costs. The target presents a management fee
+  once as an owner/property expense with IPS as vendor. The current
+  compatibility source stays read-only and disclosure-only until Plans 11/12
+  define recognition and owner-deduction timing.
 - Deposit events stay with Leases & Deposits and stay outside Owner Statement
   operating lines, totals, and balance; any required custody evidence is a
   separate disclosure.
 - Existing owner payments are separately labeled read-only evidence, not an
   expense category. New distribution writes remain Plan 14 work.
 - Existing owner contributions are separately labeled read-only Owner funding,
-  not Tenant Income. New owner-funding writes remain Plan 13 work.
+  not Income. New owner-funding writes remain Plan 13 work.
 - Owner Statement targets opening balance + income - expenses + owner
   contributions - owner payments = closing balance, grouped by unit and
   consolidated for one owner/property/month. The compatibility preview uses
-  allocated cash for tenant income and non-fee expenses plus one manually
-  confirmed management-fee deduction on Fee date. Only qualified,
-  reversal-aware canonical Owner funding/payment allocations enter its math;
-  unallocated or ambiguously attributed rows remain disclosure and block
-  rather than inventing missing opening, funding, or distribution evidence.
+  allocated cash for tenant income and non-fee expenses. Existing
+  management-fee compatibility evidence remains read-only and
+  disclosure-only: Plans 11/12 define recognition and owner-deduction timing,
+  so neither its Fee/due date nor its receipt date authorizes a deduction.
+  Only qualified, reversal-aware canonical Owner funding/payment allocations
+  enter its math; unallocated or ambiguously attributed rows remain disclosure
+  and block rather than inventing missing opening, funding, or distribution
+  evidence.
 
 The corresponding Finance workspaces are table-first, use centered modals or a
 real detail page, do not use side inspectors or side drawers, and use one
@@ -354,8 +360,10 @@ Every implementation slice preserves:
 - balanced journals and source-transaction atomicity;
 - property-period serialization and reconciliation-source identity;
 - no generic mutation of source-linked projections;
-- allocation-based cash reporting except for an explicitly ratified
-  recognition rule such as Gate E's single-source Fee-date deduction;
+- allocation-based cash reporting; existing management-fee compatibility
+  evidence remains read-only and any company-book projection is backend
+  compatibility evidence only, not permission for a new recognition, write,
+  product-view, or dual-write path;
 - deposits outside operating income until approved disposition;
 - Owner Balance separate from operating performance; and
 - no payroll, tax accounting, corporate P&L, general ERP, or product-facing
@@ -403,9 +411,10 @@ into a supported model.
 ## Current next step
 
 No later Track A implementation slice is authorized by this package. The
-user-approved IPS Finance direction may change current operator UI, copy,
-table composition, and narrowly required compatibility adapters only after
-the detailed design is reviewed and an implementation plan is approved.
+IPS Finance product/UI design is approved, but runtime changes to operator UI,
+copy, table composition, or compatibility adapters require a separate reviewed
+implementation plan. Existing management-fee compatibility evidence remains
+read-only until Plan 11/12 authority exists.
 Plan 06 onward still requires its own approved implementation prompt. Hosted
 Plan 05 migration, backfill, deployment, and release verification also remain
 separate activities.
@@ -419,4 +428,4 @@ separate activities.
 | Track A domain owners | Typed impact adapters/actions and deterministic locks | Relationship corrections can affect occurrences, drafts, settlements, close, and artifacts | Each owner returns exact identities/states/actions/scopes/hash; composed execution locks every source/destination property-period in deterministic order before owner action. Track B only transports the opaque result | Financial history stays append-only without Track B mutation | Yes before affected execution | No |
 | Generic Documents and Track A document owners | Operational versions versus billing/close/statement artifacts | Operational evidence may be cited by a close but is not a Track A document authority | Generic Documents owns operational versioning; Track A owns invoice, receipt, close, and Owner Statement evidence and freezes exact document version/checksum references | Prevents competing publication lifecycles | Yes before official adoption | No |
 | Configuration registry / PR #38 | Billing-policy, series, and delivery ownership | PR #38 remains open and catalogue-only | Keep non-authoritative; future entries point to the owning versioned/persisted authority | Catalogue defaults cannot drive financial behavior | Yes before the unnumbered tenant-document slices use configuration | Yes |
-| IPS Finance simplification | Operator language and placement of current compatibility records | Current forms mix tenant income, deposits, owner funding, IPS fees, owner payments, and settlement state | Use Tenant Income, Property Expenses, Leases & Deposits, qualified read-only Owner funding/payment cash evidence, and separate IPS fee reporting; preserve owner/property/month scope; allow only the approved single-source Fee-date deduction beyond current cash allocation math; keep unsupported writes absent | Prevents a simpler UI from inventing or duplicating financial authority | No for presentation-only work; detailed design and TDD plan approval before the fee effect | No |
+| IPS Finance simplification | Operator language and placement of current compatibility records | Current forms mix tenant income, deposits, owner funding, IPS fees, owner payments, and settlement state | Use one owner/property perspective with Income, Expenses, Leases & Deposits, and qualified read-only Owner funding/payment evidence; show fees once under Expenses with IPS as vendor; preserve the fee compatibility source read-only until Plan 11/12 authority exists; keep unsupported writes absent | Prevents a simpler UI from inventing or duplicating financial authority | No for presentation-only work; separate reviewed implementation authority is required | No |

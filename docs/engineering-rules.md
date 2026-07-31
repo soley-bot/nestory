@@ -114,9 +114,12 @@ These rules are grounded in the current implementation.
   is never sufficient.
 - Keep property obligations separate from settlement events. Cash reporting
   uses receipt and payment dates; future accrual reporting uses charge and
-  invoice dates. The narrow IPS compatibility exception is a manually
-  confirmed management fee recognized once on its Fee date as an owner
-  deduction and recorded IPS fee; later settlement must not deduct it again.
+  invoice dates. Existing management-fee compatibility evidence is read-only
+  and shown once under owner/property Expenses with IPS as vendor for
+  disclosure only; it does not establish recognition or owner-deduction
+  timing. Any existing company-book projection is backend compatibility
+  evidence only; it authorizes no product view, new recognition/write path,
+  or dual-write.
 - A Plan 05 owner-state preview for receipt or reversal must bind the proposed
   cash-action date and return every distinct source and destination
   property-period scope in deterministic order. Never derive a cash-action
@@ -137,10 +140,13 @@ These rules are grounded in the current implementation.
   Income until a checked contribution authority exists. Only qualified,
   reversal-aware canonical allocation events may enter an Owner Preview;
   unallocated or ambiguously attributed rows are disclosure-only blockers.
-- Finance operator language defaults to the owner/property perspective.
-  Management fee is shown once as an owner/property deduction and may feed a
-  separate internal IPS fee report; never require duplicate operator entry or
-  a generic perspective selector.
+- Finance has one visible owner/property perspective. The target shows a
+  management fee once under Expenses with IPS as vendor; do not add a
+  management-company fee report, duplicate entry, or a generic perspective
+  selector. Preserve the current fee compatibility source as read-only and
+  disclosure-only until the dedicated `management_fee_assessment` authority
+  exists, and never dual-write or move it blindly into generic expense
+  storage.
 - Owner payments never use the generic property-expense form or totals.
   Preserve existing rows as read-only evidence until a checked
   owner-distribution authority exists, and apply the same qualified canonical
