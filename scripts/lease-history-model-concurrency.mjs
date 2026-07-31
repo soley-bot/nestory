@@ -66,6 +66,7 @@ async function main() {
     cleanup(container);
     fixture(container);
 
+    await proveBackendTeardown(container);
     await provePartyRace(container);
     await proveParticipantRace(container);
     await proveOccupancyRace(container);
@@ -76,7 +77,7 @@ async function main() {
   } catch (error) {
     proofError = error;
   } finally {
-    await stopProcesses();
+    await stopProcesses(container);
     try {
       cleanup(container);
     } catch (cleanupError) {
@@ -94,6 +95,36 @@ async function main() {
   if (proofError) {
     throw proofError;
   }
+}
+
+async function proveBackendTeardown(container) {
+  const held = startPsql(
+    container,
+    `\\set ON_ERROR_STOP on
+BEGIN;
+SELECT pg_backend_pid();
+\\echo TEARDOWN_BACKEND_HELD
+`,
+    { holdOpen: true },
+  );
+  await held.waitFor("TEARDOWN_BACKEND_HELD");
+
+  const teardown = await stopProcesses(container);
+
+  if (teardown.terminatedBackends !== 1) {
+    throw new Error(
+      `Teardown expected one in-container pg_terminate_backend success, found ${teardown.terminatedBackends}.`,
+    );
+  }
+
+  assertScalar(
+    container,
+    `SELECT count(*)::text
+FROM pg_stat_activity
+WHERE application_name = '${held.applicationName}';`,
+    "0",
+    "teardown backend count",
+  );
 }
 
 async function provePartyRace(container) {
@@ -1058,14 +1089,111 @@ function assertContainer(container) {
   }
 }
 
-async function stopProcesses() {
+async function stopProcesses(container) {
   const running = [...startedProcesses];
+  if (running.length === 0) {
+    return { terminatedBackends: 0 };
+  }
+
+  const applicationNames = running
+    .map(
+      (processHandle) =>
+        `'${processHandle.applicationName.replaceAll("'", "''")}'`,
+    )
+    .join(", ");
+
+  let terminationError;
+  let terminatedBackends = 0;
+  try {
+    terminatedBackends = Number.parseInt(
+      queryScalar(
+        container,
+        `SELECT count(*)::text
+FROM (
+  SELECT pg_terminate_backend(activity.pid) AS terminated
+FROM pg_stat_activity AS activity
+WHERE activity.pid <> pg_backend_pid()
+    AND activity.application_name IN (${applicationNames})
+) AS termination
+WHERE termination.terminated;`,
+      ),
+      10,
+    );
+    await waitForBackendsToExit(container, applicationNames);
+  } catch (error) {
+    terminationError = error;
+  }
+
   for (const processHandle of running) {
     processHandle.kill();
   }
-  await Promise.allSettled(
-    running.map((processHandle) => processHandle.result),
+
+  try {
+    await withTimeout(
+      Promise.allSettled(
+        running.map((processHandle) => processHandle.result),
+      ),
+      "Timed out waiting for terminated in-container psql backends.",
+    );
+  } catch (waitError) {
+    for (const processHandle of running) {
+      processHandle.kill();
+    }
+    try {
+      await withTimeout(
+        Promise.allSettled(
+          running.map((processHandle) => processHandle.result),
+        ),
+        "Timed out waiting for local psql wrappers after fallback kill.",
+      );
+    } catch (fallbackError) {
+      throw new AggregateError(
+        [waitError, fallbackError],
+        "In-container backend termination and fallback cleanup timed out.",
+      );
+    }
+    throw waitError;
+  }
+
+  if (terminationError) {
+    throw terminationError;
+  }
+
+  return { terminatedBackends };
+}
+
+async function waitForBackendsToExit(container, applicationNames) {
+  const deadline = Date.now() + markerTimeoutMs;
+  while (Date.now() < deadline) {
+    const remaining = queryScalar(
+      container,
+      `SELECT count(*)::text
+FROM pg_stat_activity AS activity
+WHERE activity.application_name IN (${applicationNames});`,
+    );
+    if (remaining === "0") {
+      return;
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+  }
+
+  throw new Error(
+    "Timed out waiting for terminated in-container Postgres backends.",
   );
+}
+
+function withTimeout(promise, message) {
+  let timeout;
+  const deadline = new Promise((_, reject) => {
+    timeout = setTimeout(
+      () => reject(new Error(message)),
+      markerTimeoutMs,
+    );
+  });
+
+  return Promise.race([promise, deadline]).finally(() => {
+    clearTimeout(timeout);
+  });
 }
 
 function readOption(name) {

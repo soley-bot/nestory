@@ -74,6 +74,24 @@ export function evaluateCreateAgainstArchivedPerson(result) {
   };
 }
 
+export function assertActiveTenantRoleFixture({
+  archived,
+  role,
+  status,
+}) {
+  if (
+    role !== "tenant" ||
+    status !== "active" ||
+    archived !== false
+  ) {
+    throw new Error(
+      "The mutation-race fixture must start with an active, unarchived Tenant role.",
+    );
+  }
+
+  return { outcome: "eligible" };
+}
+
 async function main() {
   const container =
     readOption("--container") ??
@@ -318,6 +336,20 @@ async function proveTenantRoleMutationVsCreate(
   container,
   { archiveRole, marker },
 ) {
+  const roleFixtureState = queryScalar(
+    container,
+    `SELECT jsonb_build_object(
+  'archived', roles.archived_at IS NOT NULL,
+  'role', roles.role,
+  'status', roles.status
+)::text
+FROM public.person_roles AS roles
+WHERE roles.organization_id = '${ids.organization}'::uuid
+  AND roles.person_id = '${ids.tenant}'::uuid
+  AND roles.role = 'tenant';`,
+  );
+  assertActiveTenantRoleFixture(JSON.parse(roleFixtureState));
+
   const roleMutation = startPsql(
     container,
     mutateTenantRoleBeforeCommitSql({ archiveRole, marker }),

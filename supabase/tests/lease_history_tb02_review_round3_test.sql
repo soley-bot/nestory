@@ -454,6 +454,12 @@ FROM created;
 
 RESET ROLE;
 
+SELECT set_config(
+  'app.lease_import_result_write_context',
+  'checked-v1',
+  true
+);
+
 UPDATE public.import_rows
 SET
   result_lease_id = (
@@ -466,6 +472,12 @@ SET
     SELECT imported_occupancy_id FROM lease_history_tb02_round3_state
   )
 WHERE id = 'f4950000-0000-4000-8000-000000000061';
+
+SELECT set_config(
+  'app.lease_import_result_write_context',
+  '',
+  true
+);
 
 SELECT is(
   pg_temp.probe_error(
@@ -589,7 +601,7 @@ SELECT matches(
       )
     $sql$
   ),
-  '^23503:import_rows_result_lease_(org|party|occupancy)_fk$',
+  '^23503:import_rows_result_lease_(org|party_org|occupancy_org)_fk$',
   'a referenced Lease composition cannot be deleted from audit provenance'
 );
 

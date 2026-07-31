@@ -386,12 +386,53 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_checked_result_write boolean :=
+    current_user IN ('postgres', 'supabase_admin')
+    AND coalesce(
+      current_setting(
+        'app.lease_import_result_write_context',
+        true
+      ),
+      ''
+    ) = 'checked-v1';
+  v_checked_result_fields_only boolean :=
+    NEW.id IS NOT DISTINCT FROM OLD.id
+    AND NEW.import_run_id IS NOT DISTINCT FROM OLD.import_run_id
+    AND NEW.organization_id IS NOT DISTINCT FROM OLD.organization_id
+    AND NEW.source_row_number
+      IS NOT DISTINCT FROM OLD.source_row_number
+    AND NEW.action_label IS NOT DISTINCT FROM OLD.action_label
+    AND NEW.raw_data IS NOT DISTINCT FROM OLD.raw_data
+    AND NEW.normalized_data IS NOT DISTINCT FROM OLD.normalized_data
+    AND NEW.issues IS NOT DISTINCT FROM OLD.issues
+    AND NEW.result_unit_id IS NOT DISTINCT FROM OLD.result_unit_id
+    AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at;
 BEGIN
-  IF NEW.import_run_id IS NOT DISTINCT FROM OLD.import_run_id THEN
+  IF NEW.id IS NOT DISTINCT FROM OLD.id
+    AND NEW.import_run_id IS NOT DISTINCT FROM OLD.import_run_id
+    AND NEW.organization_id IS NOT DISTINCT FROM OLD.organization_id
+    AND NEW.source_row_number
+      IS NOT DISTINCT FROM OLD.source_row_number
+    AND NEW.row_status IS NOT DISTINCT FROM OLD.row_status
+    AND NEW.action_label IS NOT DISTINCT FROM OLD.action_label
+    AND NEW.raw_data IS NOT DISTINCT FROM OLD.raw_data
+    AND NEW.normalized_data IS NOT DISTINCT FROM OLD.normalized_data
+    AND NEW.issues IS NOT DISTINCT FROM OLD.issues
+    AND NEW.result_action IS NOT DISTINCT FROM OLD.result_action
+    AND NEW.result_unit_id IS NOT DISTINCT FROM OLD.result_unit_id
+    AND NEW.error_message IS NOT DISTINCT FROM OLD.error_message
+    AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at
+    AND NEW.result_lease_id IS NOT DISTINCT FROM OLD.result_lease_id
+    AND NEW.result_lease_party_id
+      IS NOT DISTINCT FROM OLD.result_lease_party_id
+    AND NEW.result_lease_occupancy_id
+      IS NOT DISTINCT FROM OLD.result_lease_occupancy_id THEN
     RETURN NEW;
   END IF;
 
-  IF OLD.result_lease_id IS NOT NULL
+  IF (
+    OLD.result_lease_id IS NOT NULL
     OR OLD.result_lease_party_id IS NOT NULL
     OR OLD.result_lease_occupancy_id IS NOT NULL
     OR EXISTS (
@@ -411,6 +452,11 @@ BEGIN
       FROM public.lease_occupancy_participants AS participants
       WHERE participants.organization_id = OLD.organization_id
         AND participants.source_import_row_id = OLD.id
+    )
+  )
+    AND NOT (
+      v_checked_result_write
+      AND v_checked_result_fields_only
     ) THEN
     RAISE EXCEPTION
       'Lease import provenance is immutable once referenced'
@@ -427,8 +473,24 @@ REVOKE ALL ON FUNCTION
   app_private.guard_referenced_lease_import_row_membership()
 FROM PUBLIC, anon, authenticated, service_role;
 
-CREATE TRIGGER guard_referenced_lease_import_row_membership
-BEFORE UPDATE OF import_run_id
+CREATE TRIGGER assert_referenced_lease_import_row_provenance
+BEFORE UPDATE OF
+  id,
+  import_run_id,
+  organization_id,
+  source_row_number,
+  row_status,
+  action_label,
+  raw_data,
+  normalized_data,
+  issues,
+  result_action,
+  result_unit_id,
+  error_message,
+  created_at,
+  result_lease_id,
+  result_lease_party_id,
+  result_lease_occupancy_id
 ON public.import_rows
 FOR EACH ROW
 EXECUTE FUNCTION
@@ -442,7 +504,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF NEW.import_type IS NOT DISTINCT FROM OLD.import_type THEN
+  IF NEW.import_type IS NOT DISTINCT FROM OLD.import_type
+    AND NEW.organization_id IS NOT DISTINCT FROM OLD.organization_id THEN
     RETURN NEW;
   END IF;
 
@@ -491,7 +554,7 @@ REVOKE ALL ON FUNCTION
 FROM PUBLIC, anon, authenticated, service_role;
 
 CREATE TRIGGER guard_referenced_lease_import_run_type
-BEFORE UPDATE OF import_type
+BEFORE UPDATE OF import_type, organization_id
 ON public.import_runs
 FOR EACH ROW
 EXECUTE FUNCTION app_private.guard_referenced_lease_import_run_type();
@@ -937,6 +1000,57 @@ CREATE INDEX lease_participants_source_import_row_idx
     source_import_row_id
   )
   WHERE source_import_row_id IS NOT NULL;
+
+-- These transactional partial UNIQUE indexes preserve the legacy active-row
+-- uniqueness contract for accepted or unresolved facts whose time boundary
+-- cannot be fully serialized by the GiST exclusions below. They are created
+-- before the legacy indexes are dropped so the migration never exposes an
+-- unguarded active-row window. CONCURRENTLY is invalid inside this migration
+-- transaction, and PostgreSQL does not support NOT VALID for UNIQUE indexes.
+CREATE UNIQUE INDEX lease_parties_one_unbounded_primary_tenant_idx
+  ON public.lease_parties(organization_id, lease_id)
+  WHERE evidence_state IN ('accepted', 'legacy_unresolved')
+    AND business_lifecycle IN ('planned', 'effective')
+    AND party_role = 'primary_tenant'
+    AND is_primary
+    AND archived_at IS NULL
+    AND ended_on IS NULL;
+
+CREATE UNIQUE INDEX lease_parties_one_unbounded_person_role_idx
+  ON public.lease_parties(
+    organization_id,
+    lease_id,
+    person_id,
+    party_role
+  )
+  WHERE evidence_state IN ('accepted', 'legacy_unresolved')
+    AND business_lifecycle IN ('planned', 'effective')
+    AND archived_at IS NULL
+    AND ended_on IS NULL;
+
+CREATE UNIQUE INDEX lease_occupancies_one_unbounded_active_unit_idx
+  ON public.lease_occupancies(organization_id, unit_id)
+  WHERE unit_id IS NOT NULL
+    AND archived_at IS NULL
+    AND (
+      (
+        evidence_state = 'legacy_unresolved'
+        AND status IN ('reserved', 'occupied', 'notice_given')
+        AND actual_move_out_date IS NULL
+      )
+      OR (
+        evidence_state = 'accepted'
+        AND business_lifecycle IN (
+          'reserved',
+          'occupied',
+          'notice_given'
+        )
+        AND (
+          protected_occupancy_range IS NULL
+          OR upper_inf(protected_occupancy_range)
+        )
+      )
+    );
 
 DROP INDEX public.lease_parties_one_active_primary_tenant_idx;
 DROP INDEX public.lease_parties_one_active_person_role_idx;
@@ -1581,6 +1695,39 @@ BEGIN
     'actual move-out'
   );
 
+  IF v_primary_party -> 'startedOn' ->> 'kind' = 'known'
+    AND v_primary_party -> 'endedOn' ->> 'kind' = 'known'
+    AND (v_primary_party -> 'endedOn' ->> 'date')::date
+      < (v_primary_party -> 'startedOn' ->> 'date')::date THEN
+    RAISE EXCEPTION
+      'Party end date must be on or after party start date'
+      USING
+        ERRCODE = '23514',
+        DETAIL = 'lease_relationship_party_date_order_invalid';
+  END IF;
+
+  IF v_occupancy -> 'scheduledMoveIn' ->> 'kind' = 'known'
+    AND v_occupancy -> 'scheduledMoveOut' ->> 'kind' = 'known'
+    AND (v_occupancy -> 'scheduledMoveOut' ->> 'date')::date
+      < (v_occupancy -> 'scheduledMoveIn' ->> 'date')::date THEN
+    RAISE EXCEPTION
+      'Scheduled move-out date must be on or after scheduled move-in date'
+      USING
+        ERRCODE = '23514',
+        DETAIL = 'lease_relationship_scheduled_date_order_invalid';
+  END IF;
+
+  IF v_occupancy -> 'actualMoveIn' ->> 'kind' = 'known'
+    AND v_occupancy -> 'actualMoveOut' ->> 'kind' = 'known'
+    AND (v_occupancy -> 'actualMoveOut' ->> 'date')::date
+      < (v_occupancy -> 'actualMoveIn' ->> 'date')::date THEN
+    RAISE EXCEPTION
+      'Actual move-out date must be on or after actual move-in date'
+      USING
+        ERRCODE = '23514',
+        DETAIL = 'lease_relationship_actual_date_order_invalid';
+  END IF;
+
   IF jsonb_array_length(v_participants) > 20 THEN
     RAISE EXCEPTION 'A new Lease supports at most 20 explicit participants'
       USING ERRCODE = '54000';
@@ -1626,6 +1773,17 @@ BEGIN
       true,
       'participant end'
     );
+
+    IF v_participant -> 'startedOn' ->> 'kind' = 'known'
+      AND v_participant -> 'endedOn' ->> 'kind' = 'known'
+      AND (v_participant -> 'endedOn' ->> 'date')::date
+        < (v_participant -> 'startedOn' ->> 'date')::date THEN
+      RAISE EXCEPTION
+        'Participant end date must be on or after participant start date'
+        USING
+          ERRCODE = '23514',
+          DETAIL = 'lease_relationship_participant_date_order_invalid';
+    END IF;
   END LOOP;
 END;
 $$;
@@ -2311,6 +2469,11 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
+  v_import_result_write_context text :=
+    current_setting(
+      'app.lease_import_result_write_context',
+      true
+    );
   v_relationship_result jsonb;
   v_run public.import_runs%ROWTYPE;
   v_row public.import_rows%ROWTYPE;
@@ -2486,6 +2649,12 @@ BEGIN
 
       v_created_total := v_created_total + 1;
 
+      PERFORM set_config(
+        'app.lease_import_result_write_context',
+        'checked-v1',
+        true
+      );
+
       UPDATE public.import_rows
       SET
         row_status = 'committed',
@@ -2498,6 +2667,12 @@ BEGIN
           (v_relationship_result ->> 'occupancyId')::uuid,
         error_message = NULL
       WHERE id = v_row.id;
+
+      PERFORM set_config(
+        'app.lease_import_result_write_context',
+        coalesce(v_import_result_write_context, ''),
+        true
+      );
     EXCEPTION WHEN OTHERS THEN
       v_failed_total := v_failed_total + 1;
       v_row_error := SQLERRM;
