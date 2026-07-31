@@ -296,6 +296,125 @@ ALTER TABLE public.import_rows
     REFERENCES public.lease_occupancies(organization_id, id)
     ON DELETE SET NULL (result_lease_occupancy_id);
 
+CREATE OR REPLACE FUNCTION
+  app_private.enforce_import_row_lease_result_coherence()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  -- Leave missing or cross-organization references to the named foreign keys.
+  -- This trigger owns only all-or-none and same-organization tuple coherence.
+  IF (
+    NEW.result_lease_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.leases AS leases
+      WHERE leases.organization_id = NEW.organization_id
+        AND leases.id = NEW.result_lease_id
+    )
+  ) OR (
+    NEW.result_lease_party_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.lease_parties AS parties
+      WHERE parties.organization_id = NEW.organization_id
+        AND parties.id = NEW.result_lease_party_id
+    )
+  ) OR (
+    NEW.result_lease_occupancy_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.lease_occupancies AS occupancies
+      WHERE occupancies.organization_id = NEW.organization_id
+        AND occupancies.id = NEW.result_lease_occupancy_id
+    )
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.result_lease_id IS NULL
+    AND NEW.result_lease_party_id IS NULL
+    AND NEW.result_lease_occupancy_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.result_lease_id IS NULL
+    OR NEW.result_lease_party_id IS NULL
+    OR NEW.result_lease_occupancy_id IS NULL
+    OR NOT EXISTS (
+      SELECT 1
+      FROM public.lease_parties AS parties
+      JOIN public.lease_occupancies AS occupancies
+        ON occupancies.organization_id = parties.organization_id
+        AND occupancies.lease_id = parties.lease_id
+      WHERE parties.organization_id = NEW.organization_id
+        AND parties.id = NEW.result_lease_party_id
+        AND parties.lease_id = NEW.result_lease_id
+        AND occupancies.id = NEW.result_lease_occupancy_id
+        AND occupancies.lease_id = NEW.result_lease_id
+    ) THEN
+    RAISE EXCEPTION 'Import row Lease result is not a coherent tuple'
+      USING
+        ERRCODE = '23514',
+        DETAIL = 'import_row_lease_result_mismatch';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION
+  app_private.enforce_import_row_lease_result_coherence()
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE TRIGGER enforce_import_row_lease_result_coherence
+BEFORE INSERT OR UPDATE OF
+  organization_id,
+  result_lease_id,
+  result_lease_party_id,
+  result_lease_occupancy_id
+ON public.import_rows
+FOR EACH ROW
+EXECUTE FUNCTION app_private.enforce_import_row_lease_result_coherence();
+
+REVOKE INSERT, UPDATE ON public.import_rows FROM authenticated;
+
+GRANT INSERT (
+  id,
+  import_run_id,
+  organization_id,
+  source_row_number,
+  row_status,
+  action_label,
+  raw_data,
+  normalized_data,
+  issues,
+  result_action,
+  result_unit_id,
+  error_message,
+  created_at,
+  updated_at
+) ON public.import_rows TO authenticated;
+
+GRANT UPDATE (
+  id,
+  import_run_id,
+  organization_id,
+  source_row_number,
+  row_status,
+  action_label,
+  raw_data,
+  normalized_data,
+  issues,
+  result_action,
+  result_unit_id,
+  error_message,
+  created_at,
+  updated_at
+) ON public.import_rows TO authenticated;
+
 CREATE INDEX import_rows_result_lease_org_idx
   ON public.import_rows(organization_id, result_lease_id)
   WHERE result_lease_id IS NOT NULL;
@@ -1383,10 +1502,16 @@ BEGIN
 
   PERFORM 1
   FROM public.people AS people
+  JOIN public.person_roles AS roles
+    ON roles.organization_id = people.organization_id
+    AND roles.person_id = people.id
   WHERE people.organization_id = p_organization_id
     AND people.id = p_primary_tenant_person_id
     AND people.archived_at IS NULL
-  FOR KEY SHARE;
+    AND roles.role = 'tenant'
+    AND roles.status = 'active'
+    AND roles.archived_at IS NULL
+  FOR KEY SHARE OF people, roles;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION
@@ -1407,15 +1532,21 @@ BEGIN
       USING ERRCODE = '23503';
   END IF;
 
-  IF v_source_import_row_id IS NOT NULL
-    AND NOT EXISTS (
-      SELECT 1
-      FROM public.import_rows AS rows
-      WHERE rows.organization_id = p_organization_id
-        AND rows.id = v_source_import_row_id
-    ) THEN
-    RAISE EXCEPTION 'Source import row not found'
-      USING ERRCODE = '23503';
+  IF v_source_import_row_id IS NOT NULL THEN
+    PERFORM 1
+    FROM public.import_rows AS rows
+    JOIN public.import_runs AS runs
+      ON runs.organization_id = rows.organization_id
+      AND runs.id = rows.import_run_id
+    WHERE rows.organization_id = p_organization_id
+      AND rows.id = v_source_import_row_id
+      AND runs.import_type = 'leases'
+    FOR KEY SHARE OF rows, runs;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Lease source import row not found'
+        USING ERRCODE = '23503';
+    END IF;
   END IF;
 
   v_lease_id := app_private.create_lease_with_authoritative_term_plan04(
@@ -1799,6 +1930,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
+  v_normalized_lease_status text := lower(trim(p_lease_status));
   v_result jsonb;
 BEGIN
   v_result := public.create_lease_with_relationships(
@@ -1820,10 +1952,11 @@ BEGIN
       'primaryParty', jsonb_build_object(
         'personId', p_primary_tenant_person_id,
         'lifecycle', CASE
-          WHEN p_lease_status = 'cancelled'
+          WHEN v_normalized_lease_status = 'cancelled'
             THEN 'cancelled_before_effective'
-          WHEN p_lease_status IN ('ended', 'terminated') THEN 'ended'
-          WHEN p_lease_status IN ('active', 'notice_given')
+          WHEN v_normalized_lease_status IN ('ended', 'terminated')
+            THEN 'ended'
+          WHEN v_normalized_lease_status IN ('active', 'notice_given')
             THEN 'effective'
           ELSE 'planned'
         END,
@@ -1842,11 +1975,13 @@ BEGIN
       ),
       'occupancy', jsonb_build_object(
         'lifecycle', CASE
-          WHEN p_lease_status = 'cancelled'
+          WHEN v_normalized_lease_status = 'cancelled'
             THEN 'cancelled_before_effective'
-          WHEN p_lease_status IN ('ended', 'terminated') THEN 'vacated'
-          WHEN p_lease_status = 'notice_given' THEN 'notice_given'
-          WHEN p_lease_status = 'active' THEN 'occupied'
+          WHEN v_normalized_lease_status IN ('ended', 'terminated')
+            THEN 'vacated'
+          WHEN v_normalized_lease_status = 'notice_given'
+            THEN 'notice_given'
+          WHEN v_normalized_lease_status = 'active' THEN 'occupied'
           ELSE 'reserved'
         END,
         'recordSource', 'system_transition',
