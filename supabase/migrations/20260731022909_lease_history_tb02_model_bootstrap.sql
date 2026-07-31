@@ -286,15 +286,15 @@ ALTER TABLE public.import_rows
   ADD CONSTRAINT import_rows_result_lease_org_fk
     FOREIGN KEY (organization_id, result_lease_id)
     REFERENCES public.leases(organization_id, id)
-    ON DELETE SET NULL (result_lease_id),
+    ON DELETE NO ACTION,
   ADD CONSTRAINT import_rows_result_lease_party_org_fk
     FOREIGN KEY (organization_id, result_lease_party_id)
     REFERENCES public.lease_parties(organization_id, id)
-    ON DELETE SET NULL (result_lease_party_id),
+    ON DELETE NO ACTION,
   ADD CONSTRAINT import_rows_result_lease_occupancy_org_fk
     FOREIGN KEY (organization_id, result_lease_occupancy_id)
     REFERENCES public.lease_occupancies(organization_id, id)
-    ON DELETE SET NULL (result_lease_occupancy_id);
+    ON DELETE NO ACTION;
 
 CREATE OR REPLACE FUNCTION
   app_private.enforce_import_row_lease_result_coherence()
@@ -379,6 +379,123 @@ ON public.import_rows
 FOR EACH ROW
 EXECUTE FUNCTION app_private.enforce_import_row_lease_result_coherence();
 
+CREATE OR REPLACE FUNCTION
+  app_private.guard_referenced_lease_import_row_membership()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.import_run_id IS NOT DISTINCT FROM OLD.import_run_id THEN
+    RETURN NEW;
+  END IF;
+
+  IF OLD.result_lease_id IS NOT NULL
+    OR OLD.result_lease_party_id IS NOT NULL
+    OR OLD.result_lease_occupancy_id IS NOT NULL
+    OR EXISTS (
+      SELECT 1
+      FROM public.lease_parties AS parties
+      WHERE parties.organization_id = OLD.organization_id
+        AND parties.source_import_row_id = OLD.id
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.lease_occupancies AS occupancies
+      WHERE occupancies.organization_id = OLD.organization_id
+        AND occupancies.source_import_row_id = OLD.id
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.lease_occupancy_participants AS participants
+      WHERE participants.organization_id = OLD.organization_id
+        AND participants.source_import_row_id = OLD.id
+    ) THEN
+    RAISE EXCEPTION
+      'Lease import provenance is immutable once referenced'
+      USING
+        ERRCODE = '55000',
+        DETAIL = 'lease_import_provenance_immutable';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION
+  app_private.guard_referenced_lease_import_row_membership()
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE TRIGGER guard_referenced_lease_import_row_membership
+BEFORE UPDATE OF import_run_id
+ON public.import_rows
+FOR EACH ROW
+EXECUTE FUNCTION
+  app_private.guard_referenced_lease_import_row_membership();
+
+CREATE OR REPLACE FUNCTION
+  app_private.guard_referenced_lease_import_run_type()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.import_type IS NOT DISTINCT FROM OLD.import_type THEN
+    RETURN NEW;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.import_rows AS rows
+    WHERE rows.organization_id = OLD.organization_id
+      AND rows.import_run_id = OLD.id
+      AND (
+        rows.result_lease_id IS NOT NULL
+        OR rows.result_lease_party_id IS NOT NULL
+        OR rows.result_lease_occupancy_id IS NOT NULL
+        OR EXISTS (
+          SELECT 1
+          FROM public.lease_parties AS parties
+          WHERE parties.organization_id = rows.organization_id
+            AND parties.source_import_row_id = rows.id
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM public.lease_occupancies AS occupancies
+          WHERE occupancies.organization_id = rows.organization_id
+            AND occupancies.source_import_row_id = rows.id
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM public.lease_occupancy_participants AS participants
+          WHERE participants.organization_id = rows.organization_id
+            AND participants.source_import_row_id = rows.id
+        )
+      )
+  ) THEN
+    RAISE EXCEPTION
+      'Lease import provenance is immutable once referenced'
+      USING
+        ERRCODE = '55000',
+        DETAIL = 'lease_import_provenance_immutable';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION
+  app_private.guard_referenced_lease_import_run_type()
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE TRIGGER guard_referenced_lease_import_run_type
+BEFORE UPDATE OF import_type
+ON public.import_runs
+FOR EACH ROW
+EXECUTE FUNCTION app_private.guard_referenced_lease_import_run_type();
+
 REVOKE INSERT, UPDATE ON public.import_rows FROM authenticated;
 
 GRANT INSERT (
@@ -424,6 +541,136 @@ CREATE INDEX import_rows_result_lease_party_org_idx
 CREATE INDEX import_rows_result_lease_occupancy_org_idx
   ON public.import_rows(organization_id, result_lease_occupancy_id)
   WHERE result_lease_occupancy_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.ensure_lease_primary_tenant()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_checked_header_write boolean :=
+    current_user IN ('postgres', 'supabase_admin')
+    AND coalesce(
+      current_setting('app.lease_header_write_context', true),
+      ''
+    ) = 'checked-lease-update-v1';
+  v_tenant_display_name text;
+  v_tenant_person_id uuid;
+  v_trusted_fixture boolean :=
+    current_user IN ('postgres', 'supabase_admin')
+    AND coalesce(current_setting('role', true), 'none')
+      IN ('none', 'postgres', 'supabase_admin')
+    AND coalesce(
+      current_setting('app.people_leases_skip_sync', true),
+      ''
+    ) = 'on';
+BEGIN
+  IF v_trusted_fixture THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE'
+    AND NEW.tenant_name IS DISTINCT FROM OLD.tenant_name
+    AND NOT v_checked_header_write THEN
+    RAISE EXCEPTION
+      'Changing the Lease tenant requires a checked relationship transition'
+      USING
+        ERRCODE = '55000',
+        DETAIL = 'relationship_transition_required';
+  END IF;
+
+  IF NEW.primary_tenant_person_id IS NOT NULL THEN
+    SELECT people.id, people.display_name
+    INTO v_tenant_person_id, v_tenant_display_name
+    FROM public.people AS people
+    JOIN public.person_roles AS roles
+      ON roles.organization_id = people.organization_id
+      AND roles.person_id = people.id
+    WHERE people.id = NEW.primary_tenant_person_id
+      AND people.organization_id = NEW.organization_id
+      AND people.archived_at IS NULL
+      AND roles.role = 'tenant'
+      AND roles.status = 'active'
+      AND roles.archived_at IS NULL
+    ORDER BY roles.created_at, roles.id
+    LIMIT 1
+    FOR SHARE OF people, roles;
+  ELSE
+    SELECT people.id, people.display_name
+    INTO v_tenant_person_id, v_tenant_display_name
+    FROM public.people AS people
+    JOIN public.person_roles AS roles
+      ON roles.organization_id = people.organization_id
+      AND roles.person_id = people.id
+    WHERE people.organization_id = NEW.organization_id
+      AND people.display_name = trim(NEW.tenant_name)
+      AND people.archived_at IS NULL
+      AND roles.role = 'tenant'
+      AND roles.status = 'active'
+      AND roles.archived_at IS NULL
+    ORDER BY people.created_at, people.id, roles.created_at, roles.id
+    LIMIT 1
+    FOR SHARE OF people, roles;
+  END IF;
+
+  IF v_tenant_person_id IS NULL THEN
+    RAISE EXCEPTION
+      'An active Tenant role is required for the exact primary Tenant'
+      USING ERRCODE = '23503';
+  END IF;
+
+  NEW.primary_tenant_person_id := v_tenant_person_id;
+  NEW.tenant_name := v_tenant_display_name;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.ensure_lease_primary_tenant()
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION app_private.enforce_active_lease_tenant_role()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  IF TG_OP = 'UPDATE'
+    AND NEW.primary_tenant_person_id
+      IS NOT DISTINCT FROM OLD.primary_tenant_person_id THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.primary_tenant_person_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  PERFORM 1
+  FROM public.people AS person
+  JOIN public.person_roles AS person_role
+    ON person_role.organization_id = person.organization_id
+    AND person_role.person_id = person.id
+  WHERE person.id = NEW.primary_tenant_person_id
+    AND person.organization_id = NEW.organization_id
+    AND person.archived_at IS NULL
+    AND person_role.role = 'tenant'
+    AND person_role.status = 'active'
+    AND person_role.archived_at IS NULL
+  FOR SHARE OF person, person_role;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION
+      'An active Tenant role is required for the primary tenant'
+      USING ERRCODE = '23503';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION app_private.enforce_active_lease_tenant_role()
+FROM PUBLIC, anon, authenticated, service_role;
 
 ALTER TABLE public.lease_parties
   ADD COLUMN effective_range daterange
@@ -1511,7 +1758,7 @@ BEGIN
     AND roles.role = 'tenant'
     AND roles.status = 'active'
     AND roles.archived_at IS NULL
-  FOR KEY SHARE OF people, roles;
+  FOR SHARE OF people, roles;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION
@@ -1541,7 +1788,7 @@ BEGIN
     WHERE rows.organization_id = p_organization_id
       AND rows.id = v_source_import_row_id
       AND runs.import_type = 'leases'
-    FOR KEY SHARE OF rows, runs;
+    FOR SHARE OF rows, runs;
 
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Lease source import row not found'
