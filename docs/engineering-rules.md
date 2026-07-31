@@ -88,6 +88,18 @@ These rules are grounded in the current implementation.
   values on `leases` are compatibility projections only; application writes,
   imports, and stale clients must use the checked lease/term RPCs and must not
   restore `leases -> lease_terms` synchronization.
+- Lease responsibility, unit occupancy, and named Person residence are
+  separate facts. Keep party, occupancy, and participant evidence typed by
+  evidence state, business lifecycle, source, boundary kind/confidence,
+  lineage, and actor/time/reason. Only accepted sufficiently known ranges may
+  participate in overlap exclusions; `legacy_unresolved` rows stay
+  non-authoritative until a checked promotion workflow exists.
+- Brand-new Lease writes must use the checked relationship composition and
+  return the exact Lease, party, occupancy, and participant identities.
+  Compatibility-trigger rows are adopted, never duplicated. Direct
+  relationship DML stays denied, and existing-Lease relationship changes stay
+  fail-closed until their impact contract and transition workflows are
+  implemented.
 - Authoritative term mutations require explicit due day and frequency,
   payload-bound idempotency, organization/lease scope checks, non-overlapping
   effective ranges, activity history, and Plan 03 property-period authority
@@ -178,6 +190,8 @@ These rules are grounded in the current implementation.
 - Keep mapping diagnostics, fix downloads, and past runs secondary to the main
   flow rather than restoring separate setup, preview-save, and commit steps.
 - Commits should stay RPC-backed and preserve activity logs.
+- Lease import commits must persist the exact normalized Lease, party, and
+  occupancy result IDs returned by the checked relationship composition.
 - Do not silently import invalid or ambiguous property, unit, people, or lease
   rows.
 

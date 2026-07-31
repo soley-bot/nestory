@@ -10,6 +10,7 @@ import {
   parseFutureRentTermInput,
   parseIdempotencyKey,
 } from "@/features/leases/lease-action-input";
+import { buildNewLeaseRelationshipPayload } from "@/features/leases/lease-relationship-input";
 
 type LeaseFieldErrors = {
   amount?: string[];
@@ -202,18 +203,40 @@ export async function createLeaseAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: leaseId, error } = await supabase.rpc(
-    "create_lease_with_authoritative_term",
-    leaseAuthorityRpcPayload(
-      context.organizationId,
-      parsed.data,
-      idempotencyKey,
-    ),
+  const { data: relationshipResult, error } = await supabase.rpc(
+    "create_lease_with_relationships",
+    {
+      ...leaseAuthorityRpcPayload(
+        context.organizationId,
+        parsed.data,
+        idempotencyKey,
+      ),
+      p_relationship_payload: buildNewLeaseRelationshipPayload({
+        leaseStatus: parsed.data.status,
+        recordSource: "operator_confirmed",
+        tenantPersonId: parsed.data.tenantPersonId,
+      }),
+    },
   );
 
   if (error) {
     return {
       message: leaseActionErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  const leaseId =
+    relationshipResult &&
+    typeof relationshipResult === "object" &&
+    !Array.isArray(relationshipResult) &&
+    typeof relationshipResult.leaseId === "string"
+      ? relationshipResult.leaseId
+      : null;
+
+  if (!leaseId) {
+    return {
+      message: "The Lease was not returned by the checked relationship write.",
       status: "error",
     };
   }
