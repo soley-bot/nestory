@@ -1645,25 +1645,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "import_rows_result_lease_fk"
-            columns: ["result_lease_id"]
-            isOneToOne: false
-            referencedRelation: "leases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "import_rows_result_lease_occupancy_fk"
-            columns: ["result_lease_occupancy_id"]
+            foreignKeyName: "import_rows_result_lease_occupancy_org_fk"
+            columns: ["organization_id", "result_lease_occupancy_id"]
             isOneToOne: false
             referencedRelation: "lease_occupancies"
-            referencedColumns: ["id"]
+            referencedColumns: ["organization_id", "id"]
           },
           {
-            foreignKeyName: "import_rows_result_lease_party_fk"
-            columns: ["result_lease_party_id"]
+            foreignKeyName: "import_rows_result_lease_org_fk"
+            columns: ["organization_id", "result_lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "import_rows_result_lease_party_org_fk"
+            columns: ["organization_id", "result_lease_party_id"]
             isOneToOne: false
             referencedRelation: "lease_parties"
-            referencedColumns: ["id"]
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "import_rows_result_unit_id_fkey"
@@ -4681,6 +4681,26 @@ export type Database = {
           p_primary_tenant_person_id: string
           p_property_id: string
           p_status: string
+          p_unit_id: string
+        }
+        Returns: string
+      }
+      create_lease_with_authoritative_term: {
+        Args: {
+          p_deposit_amount: number
+          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
+          p_idempotency_key: string
+          p_lease_end_date: string
+          p_lease_start_date: string
+          p_lease_status: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_term_status: string
           p_unit_id: string
         }
         Returns: string

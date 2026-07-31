@@ -19,6 +19,10 @@ const ids = {
   occupancyB: "f4920000-0000-4000-8000-000000000014",
   occupancyLeaseA: "f4920000-0000-4000-8000-000000000015",
   occupancyLeaseB: "f4920000-0000-4000-8000-000000000016",
+  participantRaceUnit: "f4920000-0000-4000-8000-000000000017",
+  participantLeaseB: "f4920000-0000-4000-8000-000000000018",
+  participantPartyB: "f4920000-0000-4000-8000-000000000019",
+  participantOccupancyB: "f4920000-0000-4000-8000-000000000020",
 };
 
 const markerTimeoutMs = 10_000;
@@ -67,7 +71,7 @@ async function main() {
     await proveOccupancyRace(container);
 
     process.stdout.write(
-      "PASS TB-02 relationship concurrency: accepted party, participant, and same-Unit occupancy ranges serialized across two sessions with exactly one commit and one 23P01 exclusion rejection per race.\n",
+      "PASS TB-02 relationship concurrency: accepted party, cross-party/cross-Unit same-day participant, and same-Unit occupancy ranges serialized across two sessions with exactly one commit and one 23P01 exclusion rejection per race.\n",
     );
   } catch (error) {
     proofError = error;
@@ -119,7 +123,13 @@ FROM public.lease_parties
 WHERE organization_id = '${ids.organization}'::uuid
   AND person_id = '${ids.occupant}'::uuid
   AND party_role = 'authorized_occupant'
-  AND evidence_state = 'accepted';`,
+  AND evidence_state = 'accepted'
+  AND lease_id = (
+    SELECT id
+    FROM public.leases
+    WHERE organization_id = '${ids.organization}'::uuid
+      AND unit_id = '${ids.relationshipUnit}'::uuid
+  );`,
     "1",
     "accepted authorized-occupant party winner",
   );
@@ -143,6 +153,10 @@ WHERE organization_id = '${ids.organization}'::uuid
     container,
     insertAcceptedParticipantSql(
       ids.participantA,
+      ids.relationshipUnit,
+      ids.partyA,
+      "2027-03-01",
+      "2027-09-30",
       "PARTICIPANT_FIRST_INSERTED",
     ),
     { holdOpen: true },
@@ -153,6 +167,10 @@ WHERE organization_id = '${ids.organization}'::uuid
     container,
     insertAcceptedParticipantSql(
       ids.participantB,
+      ids.participantRaceUnit,
+      ids.participantPartyB,
+      "2027-09-30",
+      "2027-11-30",
       "PARTICIPANT_SECOND_COMMITTED",
       { commit: true },
     ),
@@ -172,11 +190,17 @@ WHERE organization_id = '${ids.organization}'::uuid
     container,
     `SELECT count(*)::text
 FROM public.lease_occupancy_participants
-WHERE organization_id = '${ids.organization}'::uuid
-  AND lease_party_id = '${ids.partyA}'::uuid
-  AND evidence_state = 'accepted';`,
+JOIN public.lease_parties
+  ON lease_parties.organization_id =
+    lease_occupancy_participants.organization_id
+  AND lease_parties.id =
+    lease_occupancy_participants.lease_party_id
+WHERE lease_occupancy_participants.organization_id =
+    '${ids.organization}'::uuid
+  AND lease_parties.person_id = '${ids.occupant}'::uuid
+  AND lease_occupancy_participants.evidence_state = 'accepted';`,
     "1",
-    "accepted participant winner",
+    "accepted cross-party/cross-Unit same-day participant winner",
   );
 }
 
@@ -283,6 +307,15 @@ INSERT INTO public.units(
   '${ids.organization}'::uuid,
   '${ids.property}'::uuid,
   'TB02-OCCUPANCY-RACE',
+  'vacant',
+  1000,
+  'USD'
+),
+(
+  '${ids.participantRaceUnit}'::uuid,
+  '${ids.organization}'::uuid,
+  '${ids.property}'::uuid,
+  'TB02-PARTICIPANT-RACE',
   'vacant',
   1000,
   'USD'
@@ -427,6 +460,125 @@ VALUES
   'draft',
   '${ids.admin}'::uuid,
   '${ids.admin}'::uuid
+),
+(
+  '${ids.participantLeaseB}'::uuid,
+  '${ids.organization}'::uuid,
+  '${ids.property}'::uuid,
+  '${ids.participantRaceUnit}'::uuid,
+  'TB-02 tenant B',
+  '${ids.tenantB}'::uuid,
+  DATE '2027-01-01',
+  DATE '2027-12-31',
+  1000,
+  'USD',
+  'draft',
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
+);
+
+SELECT set_config(
+  'app.lease_history_write_context',
+  'checked-lease-create-v2',
+  true
+);
+
+INSERT INTO public.lease_parties(
+  id,
+  organization_id,
+  lease_id,
+  person_id,
+  party_role,
+  is_primary,
+  started_on,
+  ended_on,
+  evidence_state,
+  business_lifecycle,
+  record_source,
+  started_on_kind,
+  started_on_confidence,
+  ended_on_kind,
+  ended_on_confidence,
+  evidence_recorded_by,
+  evidence_reason,
+  created_by,
+  updated_by
+)
+VALUES (
+  '${ids.participantPartyB}'::uuid,
+  '${ids.organization}'::uuid,
+  '${ids.participantLeaseB}'::uuid,
+  '${ids.occupant}'::uuid,
+  'authorized_occupant',
+  false,
+  DATE '2027-01-01',
+  DATE '2027-12-31',
+  'accepted',
+  'effective',
+  'operator_confirmed',
+  'known',
+  'confirmed',
+  'known',
+  'confirmed',
+  '${ids.admin}'::uuid,
+  'tb02_participant_cross_unit_fixture',
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
+);
+
+INSERT INTO public.lease_occupancies(
+  id,
+  organization_id,
+  lease_id,
+  property_id,
+  unit_id,
+  status,
+  scheduled_move_in_date,
+  scheduled_move_out_date,
+  evidence_state,
+  business_lifecycle,
+  record_source,
+  scheduled_move_in_kind,
+  scheduled_move_in_confidence,
+  scheduled_move_out_kind,
+  scheduled_move_out_confidence,
+  actual_move_in_kind,
+  actual_move_in_confidence,
+  actual_move_out_kind,
+  actual_move_out_confidence,
+  notice_kind,
+  notice_confidence,
+  evidence_recorded_by,
+  evidence_reason,
+  created_by,
+  updated_by
+)
+VALUES (
+  '${ids.participantOccupancyB}'::uuid,
+  '${ids.organization}'::uuid,
+  '${ids.participantLeaseB}'::uuid,
+  '${ids.property}'::uuid,
+  '${ids.participantRaceUnit}'::uuid,
+  'reserved',
+  DATE '2027-01-01',
+  DATE '2027-12-31',
+  'accepted',
+  'reserved',
+  'operator_confirmed',
+  'known',
+  'confirmed',
+  'known',
+  'confirmed',
+  'unknown',
+  'unknown',
+  'unknown',
+  'unknown',
+  'unknown',
+  'unknown',
+  '${ids.admin}'::uuid,
+  'tb02_participant_cross_unit_fixture',
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
 );
 COMMIT;`,
   );
@@ -492,6 +644,10 @@ ${commit ? "COMMIT;" : ""}
 
 function insertAcceptedParticipantSql(
   id,
+  unitId,
+  partyId,
+  startedOn,
+  endedOn,
   marker,
   { commit = false } = {},
 ) {
@@ -526,11 +682,11 @@ SELECT
   '${id}'::uuid,
   '${ids.organization}'::uuid,
   occupancies.id,
-  '${ids.partyA}'::uuid,
-  DATE '2027-03-01',
-  DATE '2027-09-30',
+  '${partyId}'::uuid,
+  DATE '${startedOn}',
+  DATE '${endedOn}',
   'accepted',
-  'present',
+  'planned',
   'operator_confirmed',
   'known',
   'confirmed',
@@ -542,7 +698,7 @@ SELECT
   '${ids.admin}'::uuid
 FROM public.lease_occupancies AS occupancies
 WHERE occupancies.organization_id = '${ids.organization}'::uuid
-  AND occupancies.unit_id = '${ids.relationshipUnit}'::uuid;
+  AND occupancies.unit_id = '${unitId}'::uuid;
 \\echo ${marker}
 ${commit ? "COMMIT;" : ""}
 `;

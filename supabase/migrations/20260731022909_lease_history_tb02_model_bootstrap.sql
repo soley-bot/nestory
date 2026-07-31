@@ -9,19 +9,7 @@ ALTER TABLE public.import_rows
   ADD COLUMN result_lease_party_id uuid,
   ADD COLUMN result_lease_occupancy_id uuid,
   ADD CONSTRAINT import_rows_organization_id_id_unique
-    UNIQUE (organization_id, id),
-  ADD CONSTRAINT import_rows_result_lease_fk
-    FOREIGN KEY (result_lease_id)
-    REFERENCES public.leases(id)
-    ON DELETE SET NULL,
-  ADD CONSTRAINT import_rows_result_lease_party_fk
-    FOREIGN KEY (result_lease_party_id)
-    REFERENCES public.lease_parties(id)
-    ON DELETE SET NULL,
-  ADD CONSTRAINT import_rows_result_lease_occupancy_fk
-    FOREIGN KEY (result_lease_occupancy_id)
-    REFERENCES public.lease_occupancies(id)
-    ON DELETE SET NULL;
+    UNIQUE (organization_id, id);
 
 ALTER TABLE public.lease_parties
   ADD COLUMN evidence_state text NOT NULL DEFAULT 'legacy_unresolved',
@@ -293,6 +281,30 @@ ALTER TABLE public.lease_occupancies
     supersedes_lease_occupancy_id IS DISTINCT FROM id
     AND superseded_by_lease_occupancy_id IS DISTINCT FROM id
   );
+
+ALTER TABLE public.import_rows
+  ADD CONSTRAINT import_rows_result_lease_org_fk
+    FOREIGN KEY (organization_id, result_lease_id)
+    REFERENCES public.leases(organization_id, id)
+    ON DELETE SET NULL (result_lease_id),
+  ADD CONSTRAINT import_rows_result_lease_party_org_fk
+    FOREIGN KEY (organization_id, result_lease_party_id)
+    REFERENCES public.lease_parties(organization_id, id)
+    ON DELETE SET NULL (result_lease_party_id),
+  ADD CONSTRAINT import_rows_result_lease_occupancy_org_fk
+    FOREIGN KEY (organization_id, result_lease_occupancy_id)
+    REFERENCES public.lease_occupancies(organization_id, id)
+    ON DELETE SET NULL (result_lease_occupancy_id);
+
+CREATE INDEX import_rows_result_lease_org_idx
+  ON public.import_rows(organization_id, result_lease_id)
+  WHERE result_lease_id IS NOT NULL;
+CREATE INDEX import_rows_result_lease_party_org_idx
+  ON public.import_rows(organization_id, result_lease_party_id)
+  WHERE result_lease_party_id IS NOT NULL;
+CREATE INDEX import_rows_result_lease_occupancy_org_idx
+  ON public.import_rows(organization_id, result_lease_occupancy_id)
+  WHERE result_lease_occupancy_id IS NOT NULL;
 
 ALTER TABLE public.lease_parties
   ADD COLUMN effective_range daterange
@@ -875,7 +887,6 @@ BEGIN
   END IF;
 
   IF NEW.evidence_state = 'accepted'
-    AND NEW.business_lifecycle IN ('present', 'ended')
     AND v_participant_range IS NOT NULL
     AND EXISTS (
       SELECT 1
@@ -883,24 +894,18 @@ BEGIN
       JOIN public.lease_parties AS existing_party
         ON existing_party.organization_id = existing.organization_id
         AND existing_party.id = existing.lease_party_id
-      JOIN public.lease_occupancies AS existing_occupancy
-        ON existing_occupancy.organization_id = existing.organization_id
-        AND existing_occupancy.id = existing.lease_occupancy_id
       WHERE existing.organization_id = NEW.organization_id
         AND existing.id <> NEW.id
         AND existing.evidence_state = 'accepted'
-        AND existing.business_lifecycle IN ('present', 'ended')
         AND existing.effective_range IS NOT NULL
         AND existing.effective_range && v_participant_range
         AND existing_party.person_id = v_party.person_id
-        AND existing_occupancy.unit_id
-          IS DISTINCT FROM v_occupancy.unit_id
     ) THEN
     RAISE EXCEPTION
-      'A Person cannot have overlapping accepted residence in different Units'
+      'A Person cannot have overlapping accepted participant intervals'
       USING
         ERRCODE = '23P01',
-        DETAIL = 'occupancy_participant_unit_overlap';
+        DETAIL = 'occupancy_participant_person_overlap';
   END IF;
 
   RETURN NEW;
@@ -1346,9 +1351,10 @@ SET search_path = ''
 AS $$
 DECLARE
   v_actor_id uuid := (SELECT auth.uid());
-  v_claim record;
   v_context text :=
     current_setting('app.lease_history_write_context', true);
+  v_idempotency_request
+    app_private.financial_idempotency_requests%ROWTYPE;
   v_lease_id uuid;
   v_occupancy_id uuid;
   v_occupancy_payload jsonb := p_relationship_payload -> 'occupancy';
@@ -1357,6 +1363,10 @@ DECLARE
   v_participant_ids jsonb := '[]'::jsonb;
   v_party_id uuid;
   v_party_payload jsonb := p_relationship_payload -> 'primaryParty';
+  v_relationship_payload_hash text :=
+    app_private.canonical_financial_payload_hash(
+      p_relationship_payload
+    );
   v_result jsonb;
   v_source_import_row_id uuid :=
     NULLIF(p_relationship_payload ->> 'sourceImportRowId', '')::uuid;
@@ -1408,35 +1418,6 @@ BEGIN
       USING ERRCODE = '23503';
   END IF;
 
-  SELECT *
-  INTO v_claim
-  FROM app_private.claim_financial_idempotency(
-    p_organization_id,
-    'create_lease_with_relationships_tb02',
-    p_idempotency_key,
-    v_actor_id,
-    jsonb_build_object(
-      'propertyId', p_property_id,
-      'unitId', p_unit_id,
-      'primaryTenantPersonId', p_primary_tenant_person_id,
-      'leaseStartDate', p_lease_start_date,
-      'leaseEndDate', p_lease_end_date,
-      'rentAmount', p_rent_amount,
-      'rentCurrency', p_rent_currency,
-      'rentDueDay', p_rent_due_day,
-      'paymentFrequency', p_payment_frequency,
-      'termStatus', p_term_status,
-      'depositAmount', p_deposit_amount,
-      'depositCurrency', p_deposit_currency,
-      'leaseStatus', p_lease_status,
-      'relationshipPayload', p_relationship_payload
-    )
-  );
-
-  IF v_claim.is_replay THEN
-    RETURN v_claim.result_ids;
-  END IF;
-
   v_lease_id := app_private.create_lease_with_authoritative_term_plan04(
     p_organization_id,
     p_property_id,
@@ -1452,8 +1433,49 @@ BEGIN
     p_deposit_amount,
     p_deposit_currency,
     p_lease_status,
-    p_idempotency_key || ':plan04'
+    p_idempotency_key
   );
+
+  SELECT requests.*
+  INTO STRICT v_idempotency_request
+  FROM app_private.financial_idempotency_requests AS requests
+  WHERE requests.organization_id = p_organization_id
+    AND requests.operation = 'create_lease_with_authoritative_term'
+    AND requests.idempotency_key = trim(p_idempotency_key)
+  FOR UPDATE;
+
+  IF v_idempotency_request.actor_id IS DISTINCT FROM v_actor_id
+    OR v_idempotency_request.status <> 'completed'
+    OR (v_idempotency_request.result_ids ->> 'leaseId')::uuid
+      IS DISTINCT FROM v_lease_id THEN
+    RAISE EXCEPTION 'Conflicting Lease creation idempotency result'
+      USING
+        ERRCODE = '22023',
+        DETAIL = 'lease_relationship_idempotency_conflict';
+  END IF;
+
+  IF v_idempotency_request.result_ids
+    ? 'relationshipPayloadHash' THEN
+    IF v_idempotency_request.result_ids
+      ->> 'relationshipPayloadHash'
+      IS DISTINCT FROM v_relationship_payload_hash THEN
+      RAISE EXCEPTION 'Conflicting Lease relationship idempotency request'
+        USING
+          ERRCODE = '22023',
+          DETAIL = 'lease_relationship_idempotency_conflict';
+    END IF;
+
+    RETURN v_idempotency_request.result_ids
+      - 'relationshipPayloadHash';
+  END IF;
+
+  IF v_idempotency_request.result_ids
+    <> jsonb_build_object('leaseId', v_lease_id) THEN
+    RAISE EXCEPTION 'Unexpected legacy Lease creation idempotency result'
+      USING
+        ERRCODE = '22023',
+        DETAIL = 'lease_relationship_idempotency_conflict';
+  END IF;
 
   SELECT parties.id
   INTO STRICT v_party_id
@@ -1688,12 +1710,21 @@ BEGIN
     'participantIds', v_participant_ids
   );
 
-  PERFORM app_private.complete_financial_idempotency(
-    v_claim.request_id,
-    p_organization_id,
-    v_actor_id,
-    v_result
-  );
+  UPDATE app_private.financial_idempotency_requests
+  SET result_ids = v_result || jsonb_build_object(
+    'relationshipPayloadHash',
+    v_relationship_payload_hash
+  )
+  WHERE id = v_idempotency_request.id
+    AND organization_id = p_organization_id
+    AND result_ids = jsonb_build_object('leaseId', v_lease_id);
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Lease relationship idempotency changed during create'
+      USING
+        ERRCODE = '40001',
+        DETAIL = 'lease_relationship_idempotency_changed';
+  END IF;
 
   RETURN v_result;
 EXCEPTION WHEN TOO_MANY_ROWS THEN
@@ -1746,21 +1777,21 @@ GRANT EXECUTE ON FUNCTION public.create_lease_with_relationships(
 TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.create_lease_with_authoritative_term(
-  uuid,
-  uuid,
-  uuid,
-  uuid,
-  date,
-  date,
-  numeric,
-  public.currency_code,
-  integer,
-  text,
-  text,
-  numeric,
-  public.currency_code,
-  text,
-  text
+  p_organization_id uuid,
+  p_property_id uuid,
+  p_unit_id uuid,
+  p_primary_tenant_person_id uuid,
+  p_lease_start_date date,
+  p_lease_end_date date,
+  p_rent_amount numeric,
+  p_rent_currency public.currency_code,
+  p_rent_due_day integer,
+  p_payment_frequency text,
+  p_term_status text,
+  p_deposit_amount numeric,
+  p_deposit_currency public.currency_code,
+  p_lease_status text,
+  p_idempotency_key text
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -1771,27 +1802,29 @@ DECLARE
   v_result jsonb;
 BEGIN
   v_result := public.create_lease_with_relationships(
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9,
-    $10,
-    $11,
-    $12,
-    $13,
-    $14,
+    p_organization_id,
+    p_property_id,
+    p_unit_id,
+    p_primary_tenant_person_id,
+    p_lease_start_date,
+    p_lease_end_date,
+    p_rent_amount,
+    p_rent_currency,
+    p_rent_due_day,
+    p_payment_frequency,
+    p_term_status,
+    p_deposit_amount,
+    p_deposit_currency,
+    p_lease_status,
     jsonb_build_object(
       'primaryParty', jsonb_build_object(
-        'personId', $4,
+        'personId', p_primary_tenant_person_id,
         'lifecycle', CASE
-          WHEN $14 = 'cancelled' THEN 'cancelled_before_effective'
-          WHEN $14 IN ('ended', 'terminated') THEN 'ended'
-          WHEN $14 IN ('active', 'notice_given') THEN 'effective'
+          WHEN p_lease_status = 'cancelled'
+            THEN 'cancelled_before_effective'
+          WHEN p_lease_status IN ('ended', 'terminated') THEN 'ended'
+          WHEN p_lease_status IN ('active', 'notice_given')
+            THEN 'effective'
           ELSE 'planned'
         END,
         'recordSource', 'system_transition',
@@ -1809,10 +1842,11 @@ BEGIN
       ),
       'occupancy', jsonb_build_object(
         'lifecycle', CASE
-          WHEN $14 = 'cancelled' THEN 'cancelled_before_effective'
-          WHEN $14 IN ('ended', 'terminated') THEN 'vacated'
-          WHEN $14 = 'notice_given' THEN 'notice_given'
-          WHEN $14 = 'active' THEN 'occupied'
+          WHEN p_lease_status = 'cancelled'
+            THEN 'cancelled_before_effective'
+          WHEN p_lease_status IN ('ended', 'terminated') THEN 'vacated'
+          WHEN p_lease_status = 'notice_given' THEN 'notice_given'
+          WHEN p_lease_status = 'active' THEN 'occupied'
           ELSE 'reserved'
         END,
         'recordSource', 'system_transition',
@@ -1840,7 +1874,7 @@ BEGIN
       ),
       'participants', '[]'::jsonb
     ),
-    $15
+    p_idempotency_key
   );
 
   RETURN (v_result ->> 'leaseId')::uuid;
