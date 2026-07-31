@@ -303,7 +303,7 @@ WHERE parties.organization_id = state.organization_id
 UPDATE lease_history_tb02_review_state
 SET relationship_result = pg_temp.capture_jsonb(
   $sql$
-    SELECT public.create_lease_with_relationships(
+    SELECT app_private.create_lease_with_relationships_internal(
       'f4930000-0000-4000-8000-000000000002',
       'f4930000-0000-4000-8000-000000000004',
       'f4930000-0000-4000-8000-000000000006',
@@ -456,7 +456,7 @@ SELECT ok(
 SELECT is(
   pg_temp.capture_error(
     $sql$
-      SELECT public.create_lease_with_relationships(
+      SELECT app_private.create_lease_with_relationships_internal(
         'f4930000-0000-4000-8000-000000000002',
         'f4930000-0000-4000-8000-000000000004',
         'f4930000-0000-4000-8000-000000000006',

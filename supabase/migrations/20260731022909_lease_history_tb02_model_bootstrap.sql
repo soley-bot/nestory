@@ -2717,6 +2717,278 @@ REVOKE ALL ON FUNCTION
 )
 FROM PUBLIC, anon, authenticated, service_role;
 
+CREATE OR REPLACE FUNCTION app_private.guard_lease_history_transition()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_checked_archive boolean :=
+    current_user IN ('postgres', 'supabase_admin')
+    AND coalesce(
+      current_setting('app.lease_archive_context', true),
+      ''
+    ) = 'checked-lease-archive-v1';
+  v_checked_term_termination boolean :=
+    current_user IN ('postgres', 'supabase_admin')
+    AND coalesce(
+      current_setting('app.lease_term_projection_context', true),
+      ''
+    ) = 'checked-v1';
+  v_trusted_fixture boolean :=
+    current_user IN ('postgres', 'supabase_admin')
+    AND coalesce(current_setting('role', true), 'none')
+      IN ('none', 'postgres', 'supabase_admin')
+    AND coalesce(
+      current_setting('app.people_leases_skip_sync', true),
+      ''
+    ) = 'on';
+BEGIN
+  IF v_trusted_fixture THEN
+    IF TG_OP = 'DELETE' THEN
+      RETURN OLD;
+    END IF;
+
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION
+      'Lease history cannot be deleted'
+      USING
+        ERRCODE = '42501',
+        DETAIL = 'lease_history_delete_forbidden';
+  END IF;
+
+  IF OLD.archived_at IS NOT NULL
+    AND NEW.archived_at IS NULL THEN
+    RAISE EXCEPTION
+      'Lease restore requires checked relationship, occupancy, and dependency review'
+      USING
+        ERRCODE = '0A000',
+        DETAIL = 'lease_restore_transition_required';
+  END IF;
+
+  IF NEW.primary_tenant_person_id
+    IS DISTINCT FROM OLD.primary_tenant_person_id THEN
+    RAISE EXCEPTION
+      'Changing the primary Tenant requires a checked relationship transition'
+      USING
+        ERRCODE = '55000',
+        DETAIL = 'relationship_transition_required';
+  END IF;
+
+  IF NEW.property_id IS DISTINCT FROM OLD.property_id
+    OR NEW.unit_id IS DISTINCT FROM OLD.unit_id THEN
+    RAISE EXCEPTION
+      'Changing Lease property or Unit requires a checked occupancy transition'
+      USING
+        ERRCODE = '55000',
+        DETAIL = 'occupancy_transition_required';
+  END IF;
+
+  IF NEW.status IS DISTINCT FROM OLD.status
+    AND NOT (
+      v_checked_term_termination
+      AND NEW.status = 'terminated'
+    ) THEN
+    RAISE EXCEPTION
+      'Changing Lease lifecycle status requires a checked occupancy transition'
+      USING
+        ERRCODE = '55000',
+        DETAIL = 'occupancy_transition_required';
+  END IF;
+
+  IF OLD.archived_at IS NULL
+    AND NEW.archived_at IS NOT NULL THEN
+    IF OLD.status IN ('active', 'draft', 'notice_given')
+      OR EXISTS (
+        SELECT 1
+        FROM public.lease_occupancies AS occupancies
+        WHERE occupancies.organization_id = OLD.organization_id
+          AND occupancies.lease_id = OLD.id
+          AND occupancies.archived_at IS NULL
+          AND (
+            (
+              occupancies.evidence_state = 'accepted'
+              AND occupancies.business_lifecycle IN (
+                'reserved',
+                'occupied',
+                'notice_given'
+              )
+            )
+            OR (
+              occupancies.evidence_state <> 'accepted'
+              AND occupancies.actual_move_out_date IS NULL
+              AND occupancies.status IN (
+                'reserved',
+                'occupied',
+                'notice_given'
+              )
+            )
+          )
+      ) THEN
+      RAISE EXCEPTION
+        'End or cancel the open occupancy through a checked transition before archiving this Lease'
+        USING
+          ERRCODE = '55000',
+          DETAIL = 'occupancy_transition_required';
+    END IF;
+
+    IF OLD.status <> 'cancelled'
+      AND EXISTS (
+        SELECT 1
+        FROM public.lease_parties AS parties
+        WHERE parties.organization_id = OLD.organization_id
+          AND parties.lease_id = OLD.id
+          AND parties.archived_at IS NULL
+          AND parties.ended_on IS NULL
+          AND NOT (
+            parties.evidence_state = 'accepted'
+            AND parties.business_lifecycle = 'ended'
+          )
+      ) THEN
+      RAISE EXCEPTION
+        'End or cancel the open Lease roles through a checked transition before archiving this Lease'
+        USING
+          ERRCODE = '55000',
+          DETAIL = 'relationship_transition_required';
+    END IF;
+
+    IF NOT v_checked_archive THEN
+      RAISE EXCEPTION
+        'Lease archive requires the checked archive operation'
+        USING
+          ERRCODE = '42501',
+          DETAIL = 'lease_archive_checked_operation_required';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION app_private.guard_lease_history_transition()
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.archive_lease(
+  p_organization_id uuid,
+  p_lease_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_archive_context text :=
+    current_setting('app.lease_archive_context', true);
+  v_lease public.leases%ROWTYPE;
+BEGIN
+  IF (SELECT auth.uid()) IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
+  END IF;
+
+  IF NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT leases.*
+  INTO v_lease
+  FROM public.leases AS leases
+  WHERE leases.id = p_lease_id
+    AND leases.organization_id = p_organization_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Lease not found' USING ERRCODE = '23503';
+  END IF;
+
+  IF v_lease.status IN ('active', 'draft', 'notice_given')
+    OR EXISTS (
+      SELECT 1
+      FROM public.lease_occupancies AS occupancies
+      WHERE occupancies.organization_id = p_organization_id
+        AND occupancies.lease_id = p_lease_id
+        AND occupancies.archived_at IS NULL
+        AND (
+          (
+            occupancies.evidence_state = 'accepted'
+            AND occupancies.business_lifecycle IN (
+              'reserved',
+              'occupied',
+              'notice_given'
+            )
+          )
+          OR (
+            occupancies.evidence_state <> 'accepted'
+            AND occupancies.actual_move_out_date IS NULL
+            AND occupancies.status IN (
+              'reserved',
+              'occupied',
+              'notice_given'
+            )
+          )
+        )
+    ) THEN
+    RAISE EXCEPTION
+      'End or cancel the open occupancy through a checked transition before archiving this Lease'
+      USING
+        ERRCODE = '55000',
+        DETAIL = 'occupancy_transition_required';
+  END IF;
+
+  IF v_lease.status <> 'cancelled'
+    AND EXISTS (
+      SELECT 1
+      FROM public.lease_parties AS parties
+      WHERE parties.organization_id = p_organization_id
+        AND parties.lease_id = p_lease_id
+        AND parties.archived_at IS NULL
+        AND parties.ended_on IS NULL
+        AND NOT (
+          parties.evidence_state = 'accepted'
+          AND parties.business_lifecycle = 'ended'
+        )
+    ) THEN
+    RAISE EXCEPTION
+      'End or cancel the open Lease roles through a checked transition before archiving this Lease'
+      USING
+        ERRCODE = '55000',
+        DETAIL = 'relationship_transition_required';
+  END IF;
+
+  PERFORM set_config(
+    'app.lease_archive_context',
+    'checked-lease-archive-v1',
+    true
+  );
+
+  UPDATE public.leases
+  SET
+    archived_at = now(),
+    archived_by = (SELECT auth.uid()),
+    updated_by = (SELECT auth.uid())
+  WHERE id = p_lease_id
+    AND organization_id = p_organization_id;
+
+  PERFORM set_config(
+    'app.lease_archive_context',
+    coalesce(v_archive_context, 'off'),
+    true
+  );
+
+  RETURN p_lease_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.archive_lease(uuid, uuid)
+FROM PUBLIC, anon, authenticated, service_role;
+
+GRANT EXECUTE ON FUNCTION public.archive_lease(uuid, uuid)
+TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.create_lease_with_relationships(
   p_organization_id uuid,
   p_property_id uuid,
@@ -2753,6 +3025,30 @@ BEGIN
       USING
         ERRCODE = '42501',
         DETAIL = 'lease_import_source_context_required';
+  END IF;
+
+  PERFORM app_private.validate_new_lease_relationship_payload(
+    p_primary_tenant_person_id,
+    p_relationship_payload
+  );
+
+  IF p_relationship_payload #>> '{primaryParty,recordSource}'
+      IS DISTINCT FROM 'operator_confirmed'
+    OR p_relationship_payload #>> '{occupancy,recordSource}'
+      IS DISTINCT FROM 'operator_confirmed'
+    OR EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        p_relationship_payload -> 'participants'
+      ) AS participants(value)
+      WHERE participants.value ->> 'recordSource'
+        IS DISTINCT FROM 'operator_confirmed'
+    ) THEN
+    RAISE EXCEPTION
+      'Imported and system Lease evidence is reserved for trusted workflows'
+      USING
+        ERRCODE = '42501',
+        DETAIL = 'lease_relationship_record_source_context_required';
   END IF;
 
   RETURN app_private.create_lease_with_relationships_internal(
@@ -2842,7 +3138,7 @@ DECLARE
   v_normalized_lease_status text := lower(trim(p_lease_status));
   v_result jsonb;
 BEGIN
-  v_result := public.create_lease_with_relationships(
+  v_result := app_private.create_lease_with_relationships_internal(
     p_organization_id,
     p_property_id,
     p_unit_id,
