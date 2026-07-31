@@ -291,22 +291,7 @@ export function buildOwnerStatementTrustedReport({
       { key: "readiness", label: "Status" },
       { key: "owner", label: "Owner" },
       { key: "property", label: "Property" },
-      { key: "ownership", label: "Ownership share" },
-      { key: "cashBasis", label: "Cash-basis rent context" },
-      { align: "right", key: "operatingCash", label: "Operating cash received" },
-      { align: "right", key: "propertyExpenses", label: "Property expenses paid" },
-      { align: "right", key: "managementEarned", label: "Management fees earned" },
-      { align: "right", key: "managementReceived", label: "Management fees received" },
-      {
-        align: "right",
-        key: "managementOutstanding",
-        label: "Management fees outstanding from this period",
-      },
-      { align: "right", key: "ownerContributions", label: "Owner contributions" },
-      { align: "right", key: "ownerPayouts", label: "Owner payouts" },
-      { align: "right", key: "depositsHeld", label: "Security deposits held" },
-      { align: "right", key: "netMovement", label: "Net owner cash movement" },
-      { key: "notes", label: "Notes" },
+      { key: "notes", label: "Reason" },
     ],
     description:
       "Review which property and owner statements are ready before generating owner-facing documents.",
@@ -318,6 +303,12 @@ export function buildOwnerStatementTrustedReport({
       viewQuery.propertyId !== "all" && properties.length === 0
         ? "Selected property unavailable"
         : "No eligible Owner Statement records",
+    exportValidation: {
+      code: "owner_statement_balances_unavailable",
+      message:
+        "Owner Statement export is unavailable until opening and closing owner balances are authoritative.",
+      status: 409,
+    },
     exportFilenameBase: "owner-statement",
     generatedAt,
     kind: "owner-statement",

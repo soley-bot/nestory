@@ -295,6 +295,17 @@ SELECT
 FROM public.people
 WHERE organization_id = 'f4970000-0000-4000-8000-000000000001';
 
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', 'f4970000-0000-4000-8000-000000000001',
+    'sourceClaimHash', encode(extensions.digest('f4970000-0000-4000-8000-000000000060', 'sha256'), 'hex'),
+    'runId', 'f4970000-0000-4000-8000-000000000060'
+  )::text,
+  true
+);
+
 INSERT INTO public.import_runs(
   id,
   organization_id,
@@ -302,7 +313,9 @@ INSERT INTO public.import_runs(
   status,
   source_file_name,
   total_rows,
-  ready_rows
+  ready_rows,
+  source_claim_hash,
+  snapshot_hash
 )
 VALUES
 (
@@ -312,7 +325,9 @@ VALUES
   'staged',
   'tb02-round5-lifecycles.csv',
   6,
-  6
+  6,
+  encode(extensions.digest('f4970000-0000-4000-8000-000000000060', 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:f4970000-0000-4000-8000-000000000060', 'sha256'), 'hex')
 ),
 (
   'f4970000-0000-4000-8000-000000000070',
@@ -321,7 +336,9 @@ VALUES
   'staged',
   'tb02-round5-unchecked-source.csv',
   1,
-  1
+  1,
+  NULL,
+  NULL
 );
 
 WITH statuses(source_row_number, lease_status) AS (
@@ -404,6 +421,8 @@ VALUES (
     'status', 'draft'
   )
 );
+
+SELECT set_config('app.atomic_import_write_context', '', true);
 
 SELECT set_config(
   'request.jwt.claim.sub',

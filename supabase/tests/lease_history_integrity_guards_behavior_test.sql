@@ -643,13 +643,30 @@ SELECT is(
   'checked creation produces exactly one occupancy fact'
 );
 
+RESET ROLE;
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', organization_id,
+    'sourceClaimHash', encode(extensions.digest(active_import_run_id::text, 'sha256'), 'hex'),
+    'runId', active_import_run_id
+  )::text,
+  true
+)
+FROM lease_history_guard_state;
+
 INSERT INTO public.import_runs(
   id,
   organization_id,
   import_type,
   source_file_name,
   total_rows,
-  ready_rows
+  ready_rows,
+  source_claim_hash,
+  snapshot_hash,
+  created_by,
+  updated_by
 )
 SELECT
   active_import_run_id,
@@ -657,16 +674,11 @@ SELECT
   'leases',
   'tb01-active-lease-import.csv',
   1,
-  1
-FROM lease_history_guard_state
-UNION ALL
-SELECT
-  cancelled_import_run_id,
-  organization_id,
-  'leases',
-  'tb01-cancelled-lease-import.csv',
   1,
-  1
+  encode(extensions.digest(active_import_run_id::text, 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:' || active_import_run_id::text, 'sha256'), 'hex'),
+  (SELECT auth.uid()),
+  (SELECT auth.uid())
 FROM lease_history_guard_state;
 
 INSERT INTO public.import_rows(
@@ -695,8 +707,53 @@ SELECT
     'termStatus', 'active',
     'status', 'active'
   )
-FROM lease_history_guard_state
-UNION ALL
+FROM lease_history_guard_state;
+
+SELECT set_config(
+  'app.atomic_import_write_context',
+  jsonb_build_object(
+    'operation', 'stage-v1',
+    'organizationId', organization_id,
+    'sourceClaimHash', encode(extensions.digest(cancelled_import_run_id::text, 'sha256'), 'hex'),
+    'runId', cancelled_import_run_id
+  )::text,
+  true
+)
+FROM lease_history_guard_state;
+
+INSERT INTO public.import_runs(
+  id,
+  organization_id,
+  import_type,
+  source_file_name,
+  total_rows,
+  ready_rows,
+  source_claim_hash,
+  snapshot_hash,
+  created_by,
+  updated_by
+)
+SELECT
+  cancelled_import_run_id,
+  organization_id,
+  'leases',
+  'tb01-cancelled-lease-import.csv',
+  1,
+  1,
+  encode(extensions.digest(cancelled_import_run_id::text, 'sha256'), 'hex'),
+  encode(extensions.digest('snapshot:' || cancelled_import_run_id::text, 'sha256'), 'hex'),
+  (SELECT auth.uid()),
+  (SELECT auth.uid())
+FROM lease_history_guard_state;
+
+INSERT INTO public.import_rows(
+  import_run_id,
+  organization_id,
+  source_row_number,
+  row_status,
+  action_label,
+  normalized_data
+)
 SELECT
   cancelled_import_run_id,
   organization_id,
@@ -716,6 +773,9 @@ SELECT
     'status', 'cancelled'
   )
 FROM lease_history_guard_state;
+
+SELECT set_config('app.atomic_import_write_context', '', true);
+SET LOCAL ROLE authenticated;
 
 SELECT lives_ok(
   format(

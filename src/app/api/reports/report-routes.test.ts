@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET as getCsv } from "@/app/api/reports/export/route";
+import { GET as getExcel } from "@/app/api/reports/excel/route";
 import { GET as getPdf } from "@/app/api/reports/pdf/route";
 import { getReportCsv } from "@/features/reports/data/csv";
+import { getReportExcel } from "@/features/reports/data/excel";
 import { getReportPdf } from "@/features/reports/data/pdf";
 import {
   getAdminMembershipForUser,
@@ -10,28 +12,34 @@ import {
 } from "@/lib/auth/context";
 
 vi.mock("@/lib/auth/context", () => ({
-  getAdminMembershipForUser: vi.fn().mockResolvedValue({
-    organizationId: "organization-1",
-    organizationName: "Demo Org",
-  }),
-  getCurrentUser: vi.fn().mockResolvedValue({ id: "user-1" }),
+  getAdminMembershipForUser: vi.fn(),
+  getCurrentUser: vi.fn(),
 }));
 
 vi.mock("@/features/reports/data/csv", () => ({
   getReportCsv: vi.fn(),
 }));
 
+vi.mock("@/features/reports/data/excel", () => ({
+  getReportExcel: vi.fn(),
+}));
+
 vi.mock("@/features/reports/data/pdf", () => ({
   getReportPdf: vi.fn(),
 }));
 
+const handlers = [
+  ["CSV", getCsv, getReportCsv, "export"],
+  ["Excel", getExcel, getReportExcel, "excel"],
+  ["PDF", getPdf, getReportPdf, "pdf"],
+] as const;
 const unitId = "8b3a08d2-0898-4de3-9495-994eaf7a08dc";
-const propertyId = "52b1ed33-0ac8-4c3d-9d9d-631e9f557014";
-const ownerPersonId = "c304facd-1caa-4f98-9d43-cf44f65ac32f";
-const message =
+const scopeMessage =
   "Owner Statements are property-level reports. Clear the unit filter to continue.";
+const publicationMessage =
+  "Owner Statement export is unavailable until opening and closing owner balances are authoritative.";
 
-describe("Owner Statement export scope", () => {
+describe("report export routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1" } as never);
@@ -41,64 +49,32 @@ describe("Owner Statement export scope", () => {
     } as never);
   });
 
-  it.each([
-    ["CSV", getCsv, "export"],
-    ["PDF", getPdf, "pdf"],
-  ] as const)("returns 401 for anonymous People Readiness %s", async (_, handler, route) => {
+  it.each(handlers)("returns 401 for anonymous %s export", async (_, handler, __, route) => {
     vi.mocked(getCurrentUser).mockResolvedValueOnce(null);
 
     const response = await handler(
       new Request(
-        `http://localhost/api/reports/${route}?report=people-readiness&peopleView=staff`,
+        `http://localhost/api/reports/${route}?report=unit-profit-loss&month=2026-07`,
       ),
     );
 
     expect(response.status).toBe(401);
   });
 
-  it.each([
-    ["CSV", getCsv, "export"],
-    ["PDF", getPdf, "pdf"],
-  ] as const)("returns 403 for non-admin People Readiness %s", async (_, handler, route) => {
+  it.each(handlers)("returns 403 for non-admin %s export", async (_, handler, __, route) => {
     vi.mocked(getAdminMembershipForUser).mockResolvedValueOnce(null);
 
     const response = await handler(
       new Request(
-        `http://localhost/api/reports/${route}?report=people-readiness&peopleView=staff`,
+        `http://localhost/api/reports/${route}?report=unit-profit-loss&month=2026-07`,
       ),
     );
 
     expect(response.status).toBe(403);
   });
 
-  it("passes the bounded People Readiness filters through the generic CSV route", async () => {
-    vi.mocked(getReportCsv).mockResolvedValue({
-      body: "People Readiness",
-      filename: "people-staff-access-current-archived.csv",
-    });
-
-    const response = await getCsv(
-      new Request(
-        "http://localhost/api/reports/export?report=people-readiness&peopleView=staff&archiveState=archived",
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    expect(getReportCsv).toHaveBeenCalledWith(
-      "organization-1",
-      expect.objectContaining({
-        peopleArchiveState: "archived",
-        peopleView: "staff",
-        report: "people-readiness",
-      }),
-    );
-  });
-
-  it.each([
-    ["CSV", getCsv, getReportCsv, "export"],
-    ["PDF", getPdf, getReportPdf, "pdf"],
-  ] as const)(
-    "returns controlled 400 for unit-scoped %s",
+  it.each(handlers)(
+    "returns controlled 400 for unit-scoped Owner Statement %s",
     async (_, handler, loader, route) => {
       const response = await handler(
         new Request(
@@ -107,123 +83,86 @@ describe("Owner Statement export scope", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(await response.text()).toBe(message);
+      expect(await response.text()).toBe(scopeMessage);
       expect(loader).not.toHaveBeenCalled();
     },
   );
 
-  it("returns a successful CSV response containing a property blocker", async () => {
+  it.each(handlers)(
+    "returns the report publication block for %s",
+    async (_, handler, loader, route) => {
+      vi.mocked(loader).mockResolvedValueOnce({
+        validation: {
+          code: "owner_statement_balances_unavailable",
+          message: publicationMessage,
+          status: 409,
+        },
+      } as never);
+
+      const response = await handler(
+        new Request(
+          `http://localhost/api/reports/${route}?report=owner-statement&month=2026-07`,
+        ),
+      );
+
+      expect(response.status).toBe(409);
+      expect(await response.text()).toBe(publicationMessage);
+    },
+  );
+
+  it("returns a real Excel attachment", async () => {
+    vi.mocked(getReportExcel).mockResolvedValue({
+      body: new Uint8Array([80, 75, 3, 4]),
+      filename: "unit-profit-loss-2026-07-all-properties.xlsx",
+    });
+
+    const response = await getExcel(
+      new Request(
+        "http://localhost/api/reports/excel?report=unit-profit-loss&month=2026-07",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    expect(response.headers.get("Content-Disposition")).toContain(".xlsx");
+    expect(Array.from(new Uint8Array(await response.arrayBuffer()))).toEqual([
+      80, 75, 3, 4,
+    ]);
+  });
+
+  it("keeps CSV as an authenticated compatibility export", async () => {
     vi.mocked(getReportCsv).mockResolvedValue({
-      body: "Blocked,Deposit reversal deposit-reversal-b is missing its original event type",
-      filename: "owner-statement-2026-07-all-properties.csv",
+      body: "Property,Unit,Income,Expenses,Net income",
+      filename: "unit-profit-loss-2026-07-all-properties.csv",
     });
 
     const response = await getCsv(
       new Request(
-        "http://localhost/api/reports/export?report=owner-statement&month=2026-07",
+        "http://localhost/api/reports/export?report=unit-profit-loss&month=2026-07",
       ),
     );
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("deposit-reversal-b");
+    expect(response.headers.get("Content-Type")).toBe(
+      "text/csv; charset=utf-8",
+    );
   });
 
-  it("returns controlled 400 when an Owner Statement PDF has no property", async () => {
+  it("returns a PDF attachment", async () => {
     vi.mocked(getReportPdf).mockResolvedValue({
-      validation: {
-        message: "Select one property before generating an Owner Statement PDF.",
-        status: 400,
-      },
+      body: new Uint8Array([37, 80, 68, 70]),
+      filename: "unit-profit-loss-2026-07-all-properties.pdf",
     });
 
     const response = await getPdf(
       new Request(
-        "http://localhost/api/reports/pdf?report=owner-statement&month=2026-07",
-      ),
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.text()).toBe(
-      "Select one property before generating an Owner Statement PDF.",
-    );
-  });
-
-  it("returns controlled 409 when the selected property is blocked", async () => {
-    vi.mocked(getReportPdf).mockResolvedValue({
-      validation: {
-        message:
-          "This Owner Statement is not ready. Resolve the property blockers before generating it.",
-        status: 409,
-      },
-    });
-
-    const response = await getPdf(
-      new Request(
-        `http://localhost/api/reports/pdf?report=owner-statement&month=2026-07&propertyId=${propertyId}`,
-      ),
-    );
-
-    expect(response.status).toBe(409);
-    expect(await response.text()).toContain("not ready");
-  });
-
-  it("returns controlled 400 when a multi-owner property has no recipient", async () => {
-    vi.mocked(getReportPdf).mockResolvedValue({
-      validation: {
-        message: "Select an owner recipient before generating this statement.",
-        status: 400,
-      },
-    });
-
-    const response = await getPdf(
-      new Request(
-        `http://localhost/api/reports/pdf?report=owner-statement&month=2026-07&propertyId=${propertyId}`,
-      ),
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.text()).toBe(
-      "Select an owner recipient before generating this statement.",
-    );
-  });
-
-  it("returns one recipient PDF for valid property and owner scope", async () => {
-    vi.mocked(getReportPdf).mockResolvedValue({
-      body: new TextEncoder().encode("owner-specific PDF"),
-      filename: "owner-statement-2026-07-p1-owner-one.pdf",
-    });
-
-    const response = await getPdf(
-      new Request(
-        `http://localhost/api/reports/pdf?report=owner-statement&month=2026-07&propertyId=${propertyId}&ownerPersonId=${ownerPersonId}`,
+        "http://localhost/api/reports/pdf?report=unit-profit-loss&month=2026-07",
       ),
     );
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toBe("owner-specific PDF");
-    expect(getReportPdf).toHaveBeenCalledWith(
-      "organization-1",
-      "Demo Org",
-      expect.objectContaining({ ownerPersonId, propertyId }),
-    );
-  });
-
-  it("returns controlled 400 for a recipient outside the selected property", async () => {
-    vi.mocked(getReportPdf).mockResolvedValue({
-      validation: {
-        message:
-          "The selected owner is not a ready recipient for this property and month.",
-        status: 400,
-      },
-    });
-
-    const response = await getPdf(
-      new Request(
-        `http://localhost/api/reports/pdf?report=owner-statement&month=2026-07&propertyId=${propertyId}&ownerPersonId=bd52e057-ef3c-47fd-971d-41e5b004cb15`,
-      ),
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.text()).toContain("not a ready recipient");
+    expect(response.headers.get("Content-Type")).toBe("application/pdf");
   });
 });

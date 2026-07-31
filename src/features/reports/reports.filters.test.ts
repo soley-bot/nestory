@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import {
   getReportMonthRange,
   getReportScopeValidation,
@@ -6,90 +7,50 @@ import {
 } from "@/features/reports/reports.filters";
 
 describe("report search params", () => {
-  it("defaults to the rent roll and keeps invalid filters safe", () => {
+  it("defaults invalid report and scope values to Monthly Unit Profit & Loss", () => {
     const query = parseReportSearchParams({
       propertyId: "not-a-real-id",
       report: "whatever",
       status: "archived",
     });
 
-    expect(query.report).toBe("rent-roll");
-    expect(query.propertyId).toBe("all");
-    expect(query.status).toBe("all");
-    expect(query.unitId).toBe("all");
-    expect(query.ownerPersonId).toBe("all");
-    expect(query.peopleArchiveState).toBe("active");
-    expect(query.peopleView).toBe("relationship");
+    expect(query).toMatchObject({
+      ownerPersonId: "all",
+      propertyId: "all",
+      report: "unit-profit-loss",
+      status: "all",
+      unitId: "all",
+    });
     expect(query.month).toMatch(/^\d{4}-\d{2}$/);
   });
 
-  it("normalizes income and expense month input from date params", () => {
+  it("normalizes the retired Unit Performance name to Unit Profit & Loss", () => {
     expect(
       parseReportSearchParams({
         date: "2026-06-25",
-        report: "income-expense",
-        status: "vacant",
+        report: "unit-performance",
       }),
-    ).toEqual({
+    ).toMatchObject({
       month: "2026-06",
-      ownerPersonId: "all",
-      peopleArchiveState: "active",
-      peopleView: "relationship",
-      propertyId: "all",
-      report: "income-expense",
-      status: "vacant",
-      unitId: "all",
+      report: "unit-profit-loss",
     });
   });
 
-  it("normalizes the bounded People Readiness view and archive scope", () => {
-    expect(
-      parseReportSearchParams({
-        archiveState: "archived",
-        peopleView: "staff",
-        report: "people-readiness",
-      }),
-    ).toMatchObject({
-      peopleArchiveState: "archived",
-      peopleView: "staff",
-      report: "people-readiness",
-    });
+  it("keeps an explicit valid report and deep-linked unit scope", () => {
+    const unitId = "8b3a08d2-0898-4de3-9495-994eaf7a08dc";
 
     expect(
       parseReportSearchParams({
-        archiveState: "deleted",
-        peopleView: "payroll",
-        report: "people-readiness",
+        report: "management-fees",
+        unitId,
       }),
     ).toMatchObject({
-      peopleArchiveState: "active",
-      peopleView: "relationship",
-      report: "people-readiness",
+      report: "management-fees",
+      unitId,
     });
-  });
-
-  it("keeps a safe unit filter for deep-linked unit reports", () => {
-    expect(
-      parseReportSearchParams({
-        unitId: "8b3a08d2-0898-4de3-9495-994eaf7a08dc",
-      }).unitId,
-    ).toBe("8b3a08d2-0898-4de3-9495-994eaf7a08dc");
     expect(parseReportSearchParams({ unitId: "not-a-real-id" }).unitId).toBe(
       "all",
     );
-  });
-
-  it("keeps old report aliases pointing at trusted report contracts", () => {
-    expect(parseReportSearchParams({ report: "occupancy" }).report).toBe(
-      "vacancy-risk",
-    );
-    expect(parseReportSearchParams({ report: "profit-loss" }).report).toBe(
-      "income-expense",
-    );
-  });
-
-  it("keeps an explicit all-status report filter", () => {
-    expect(parseReportSearchParams({ status: "all" }).status).toBe("all");
   });
 
   it("keeps an Owner Statement recipient only when it is a real person id", () => {

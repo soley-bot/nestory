@@ -59,7 +59,6 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       propertyOptions={data.propertyOptions}
       recordLabel="task"
       reminders={reminders}
-      showReportAction={false}
       staffOptions={data.staffOptions}
       summary={data.summary}
       surfaceVariant="board"

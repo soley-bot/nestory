@@ -7,8 +7,10 @@ import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 export type ReportKind =
   | "rent-roll"
   | "unit-performance"
+  | "unit-profit-loss"
   | "property-performance"
   | "owner-statement"
+  | "management-fees"
   | "income-expense"
   | "lease-expiry"
   | "vacancy-risk"
@@ -28,6 +30,12 @@ export type PeopleReadinessView =
 export type ReportPropertyOption = {
   id: string;
   label: string;
+};
+
+export type ReportUnitOption = {
+  id: string;
+  label: string;
+  propertyId: string;
 };
 
 export type ReportsViewQuery = {
@@ -53,6 +61,7 @@ export type ReportSourceRecordType =
   | "owner"
   | "payment"
   | "payment-allocation"
+  | "petty-cash-entry"
   | "person"
   | "property"
   | "receipt"
@@ -122,6 +131,11 @@ export type TrustedReport = {
   description: string;
   emptyDescription: string;
   emptyTitle: string;
+  exportValidation?: {
+    code: string;
+    message: string;
+    status: 400 | 409;
+  };
   exportFilenameBase: string;
   generatedAt: string;
   kind: ReportKind;
@@ -137,6 +151,10 @@ export type TrustedReport = {
   totalsTraceLabel: string;
   totalRowCount?: number;
 };
+
+export type ReportExportValidation = NonNullable<
+  TrustedReport["exportValidation"]
+>;
 
 export type OccupancyReportRow = {
   floorLabel: string;
@@ -174,5 +192,6 @@ export type ReportsScreenData = {
   occupancyReport?: OccupancyReport;
   propertyOptions: ReportPropertyOption[];
   trustedReport: TrustedReport;
+  unitOptions: ReportUnitOption[];
   viewQuery: ReportsViewQuery;
 };

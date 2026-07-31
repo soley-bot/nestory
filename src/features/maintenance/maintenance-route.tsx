@@ -25,7 +25,6 @@ type MaintenanceRouteOptions = {
   recordLabel: string;
   searchParams: Promise<MaintenanceRouteSearchParams>;
   showFilters?: boolean;
-  showReportAction?: boolean;
   showReviewTabs?: boolean;
   showScopeSummary?: boolean;
   surfaceVariant?: MaintenanceSurfaceVariant;
@@ -43,7 +42,6 @@ export async function renderMaintenanceRoute({
   recordLabel,
   searchParams,
   showFilters = true,
-  showReportAction = false,
   showReviewTabs = false,
   showScopeSummary = true,
   surfaceVariant,
@@ -82,7 +80,6 @@ export async function renderMaintenanceRoute({
       recordLabel={recordLabel}
       reminders={reminders}
       showFilters={showFilters}
-      showReportAction={showReportAction}
       showReviewTabs={showReviewTabs}
       showScopeSummary={showScopeSummary}
       staffOptions={data.staffOptions}
