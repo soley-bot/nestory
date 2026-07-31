@@ -1009,7 +1009,7 @@ SELECT is(
           '{participants}',
           '[{
             "personId":"f4960000-0000-4000-8000-000000000020",
-            "lifecycle":"ended",
+            "lifecycle":"planned",
             "recordSource":"operator_confirmed",
             "reason":"tb02_round4_participant_date_order",
             "startedOn":{

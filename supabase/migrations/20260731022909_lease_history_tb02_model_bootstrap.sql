@@ -1591,6 +1591,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION app_private.validate_new_lease_relationship_payload(
   p_primary_tenant_person_id uuid,
+  p_lease_status text,
   p_relationship_payload jsonb
 )
 RETURNS void
@@ -1606,6 +1607,31 @@ DECLARE
     '[]'::jsonb
   );
   v_primary_party jsonb := p_relationship_payload -> 'primaryParty';
+  v_normalized_lease_status text := lower(trim(p_lease_status));
+  v_expected_party_lifecycle text := CASE
+    WHEN v_normalized_lease_status = 'cancelled'
+      THEN 'cancelled_before_effective'
+    WHEN v_normalized_lease_status IN ('ended', 'terminated') THEN 'ended'
+    WHEN v_normalized_lease_status IN ('active', 'notice_given')
+      THEN 'effective'
+    WHEN v_normalized_lease_status = 'draft' THEN 'planned'
+  END;
+  v_expected_occupancy_lifecycle text := CASE
+    WHEN v_normalized_lease_status = 'cancelled'
+      THEN 'cancelled_before_effective'
+    WHEN v_normalized_lease_status IN ('ended', 'terminated') THEN 'vacated'
+    WHEN v_normalized_lease_status = 'notice_given' THEN 'notice_given'
+    WHEN v_normalized_lease_status = 'active' THEN 'occupied'
+    WHEN v_normalized_lease_status = 'draft' THEN 'reserved'
+  END;
+  v_expected_participant_lifecycle text := CASE
+    WHEN v_normalized_lease_status = 'cancelled'
+      THEN 'cancelled_before_effective'
+    WHEN v_normalized_lease_status IN ('ended', 'terminated') THEN 'ended'
+    WHEN v_normalized_lease_status IN ('active', 'notice_given')
+      THEN 'present'
+    WHEN v_normalized_lease_status = 'draft' THEN 'planned'
+  END;
 BEGIN
   IF jsonb_typeof(p_relationship_payload) <> 'object'
     OR jsonb_typeof(v_primary_party) <> 'object'
@@ -1642,6 +1668,18 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'New Lease relationship lifecycle is invalid'
       USING ERRCODE = '23514';
+  END IF;
+
+  IF v_expected_party_lifecycle IS NULL
+    OR v_primary_party ->> 'lifecycle'
+      IS DISTINCT FROM v_expected_party_lifecycle
+    OR v_occupancy ->> 'lifecycle'
+      IS DISTINCT FROM v_expected_occupancy_lifecycle THEN
+    RAISE EXCEPTION
+      'Lease relationship lifecycles must match the Lease status'
+      USING
+        ERRCODE = '23514',
+        DETAIL = 'lease_relationship_status_lifecycle_mismatch';
   END IF;
 
   IF v_primary_party ->> 'recordSource' NOT IN (
@@ -1763,6 +1801,15 @@ BEGIN
         USING ERRCODE = '23514';
     END IF;
 
+    IF v_participant ->> 'lifecycle'
+      IS DISTINCT FROM v_expected_participant_lifecycle THEN
+      RAISE EXCEPTION
+        'Lease participant lifecycle must match the Lease status'
+        USING
+          ERRCODE = '23514',
+          DETAIL = 'lease_relationship_status_lifecycle_mismatch';
+    END IF;
+
     PERFORM app_private.validate_lease_boundary(
       v_participant -> 'startedOn',
       false,
@@ -1790,7 +1837,7 @@ $$;
 
 REVOKE ALL ON FUNCTION
   app_private.validate_lease_boundary(jsonb, boolean, text),
-  app_private.validate_new_lease_relationship_payload(uuid, jsonb)
+  app_private.validate_new_lease_relationship_payload(uuid, text, jsonb)
 FROM PUBLIC, anon, authenticated, service_role;
 
 ALTER FUNCTION public.create_lease_with_authoritative_term(
@@ -2167,6 +2214,7 @@ BEGIN
 
   PERFORM app_private.validate_new_lease_relationship_payload(
     p_primary_tenant_person_id,
+    p_lease_status,
     p_relationship_payload
   );
 
@@ -3051,6 +3099,7 @@ BEGIN
 
   PERFORM app_private.validate_new_lease_relationship_payload(
     p_primary_tenant_person_id,
+    p_lease_status,
     p_relationship_payload
   );
 

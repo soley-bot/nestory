@@ -756,11 +756,11 @@ SELECT is(
         'upcoming',
         NULL,
         NULL,
-        'draft',
+        'active',
         '{
           "primaryParty": {
             "personId": "f4940000-0000-4000-8000-000000000023",
-            "lifecycle": "planned",
+            "lifecycle": "effective",
             "recordSource": "operator_confirmed",
             "reason": "tb02_round2_rollback",
             "startedOn": {

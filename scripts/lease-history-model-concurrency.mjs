@@ -395,7 +395,7 @@ SELECT public.create_lease_with_relationships(
   'upcoming',
   NULL,
   NULL,
-  'draft',
+  'active',
   $payload$
   {
     "primaryParty": {
