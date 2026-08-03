@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { FinanceOperationsScreen } from "./finance-operations-screen";
 import type { FinanceOperationsData } from "../finance-operations.types";
 
@@ -12,6 +12,8 @@ beforeAll(() => {
     });
   }
 });
+
+afterEach(cleanup);
 
 describe("FinanceOperationsScreen", () => {
   it("starts from a compact finance work queue and opens the four-step lease setup", () => {

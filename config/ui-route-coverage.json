@@ -3094,23 +3094,28 @@
         "src/features/finance-operations/components/finance-operations-screen.test.tsx"
       ],
       "empty": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx",
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
         "src/components/ui/empty-state.tsx"
       ],
       "error": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx"
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/error-state.tsx"
       ],
       "permission-blocked": [
-        "src/app/(dashboard)/finance-dashboard/page.tsx"
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/status-notice.tsx"
       ],
       "draft": [
-        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
       ],
       "saving": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx"
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
       ],
       "success": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx"
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/status-notice.tsx"
       ]
     },
     "smoke": {
@@ -3289,23 +3294,28 @@
         "src/features/finance-operations/components/finance-operations-screen.test.tsx"
       ],
       "empty": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx",
+        "src/app/(dashboard)/balances/page.tsx",
         "src/components/ui/empty-state.tsx"
       ],
       "error": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx"
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/error-state.tsx"
       ],
       "permission-blocked": [
-        "src/app/(dashboard)/balances/page.tsx"
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/status-notice.tsx"
       ],
       "draft": [
-        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
       ],
       "saving": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx"
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
       ],
       "success": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx"
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/status-notice.tsx"
       ]
     },
     "smoke": {
@@ -3352,23 +3362,28 @@
         "src/features/finance-operations/components/finance-operations-screen.test.tsx"
       ],
       "empty": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx",
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
         "src/components/ui/empty-state.tsx"
       ],
       "error": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx"
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/error-state.tsx"
       ],
       "permission-blocked": [
-        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx"
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/status-notice.tsx"
       ],
       "draft": [
-        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
       ],
       "saving": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx"
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
       ],
       "success": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx"
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/status-notice.tsx"
       ]
     },
     "smoke": {
@@ -3412,14 +3427,16 @@
         "src/features/finance-operations/components/finance-operations-screen.test.tsx"
       ],
       "empty": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx",
+        "src/app/(dashboard)/reports/finance-operations/page.tsx",
         "src/components/ui/empty-state.tsx"
       ],
       "error": [
-        "src/features/finance-operations/components/finance-operations-screen.tsx"
+        "src/app/(dashboard)/reports/finance-operations/page.tsx",
+        "src/components/ui/error-state.tsx"
       ],
       "permission-blocked": [
-        "src/app/(dashboard)/reports/finance-operations/page.tsx"
+        "src/app/(dashboard)/reports/finance-operations/page.tsx",
+        "src/components/ui/status-notice.tsx"
       ]
     },
     "smoke": {
