@@ -961,7 +961,7 @@ SELECT is(
     SELECT count(*)::integer
     FROM public.financial_reconciliation_sources
   ),
-  1,
+  2,
   'cross-organization admin reads only its own reconciliation metadata'
 );
 RESET ROLE;
@@ -977,7 +977,7 @@ SELECT is(
     SELECT count(*)::integer
     FROM public.financial_reconciliation_sources
   ),
-  3,
+  4,
   'same-organization admin reads its reconciliation metadata'
 );
 RESET ROLE;

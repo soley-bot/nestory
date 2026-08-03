@@ -9,5 +9,5 @@ export default async function InvoicesPage({
 }: {
   searchParams: LegacyRedirectSearchParams;
 }) {
-  redirect(await buildLegacyRedirect("/bills-expenses", searchParams));
+  redirect(await buildLegacyRedirect("/rent-income", searchParams));
 }

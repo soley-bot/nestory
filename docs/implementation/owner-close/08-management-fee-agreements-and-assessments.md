@@ -4,6 +4,14 @@
 > split this analysis into **sequence 11, fee agreements/calculation**, and
 > **sequence 12, assessment lifecycle**. Use
 > `97-ratified-final-sequence.md`; do not paste this file directly into Codex.
+>
+> Existing manual compatibility fees are read-only and shown once under
+> Expenses with IPS as vendor for disclosure only under
+> `../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`.
+> They do not establish recognition or owner-deduction timing. Do not
+> dual-write or move them into generic expense storage. Automatic basis/rate
+> calculation and the dedicated `management_fee_assessment` lifecycle remain
+> sequence 11-12 work.
 
 **Mode:** Standard  
 **Effort:** High  

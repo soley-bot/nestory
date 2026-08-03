@@ -1,14 +1,15 @@
 # Plan 05 — Atomic Income Settlement, Projection, and Reversal
 
 **Status:** Implemented by
-`20260729151842_plan05_atomic_income_settlement.sql`; hosted database
+`20260729151842_plan05_atomic_income_settlement.sql` and merged in PR #46;
+hosted database
 application and production deployment remain separately authorized release
 activities.
 **Mode:** Standard
 **Effort:** High
-**Reason:** Current receipt/allocation writes and later Ledger/journal posting
-are separate, so the same cash can be complete in one authority and missing,
-collapsed, or mutable in another.
+**Reason:** At the audited baseline, receipt/allocation writes and later
+Ledger/journal posting were separate, so the same cash could be complete in
+one authority and missing, collapsed, or mutable in another.
 **Planning/reconciliation baseline:** merged `origin/main` at
 `5210ae1c94fa5a854f9c484b79e9dbd214c99053`, containing the merged Track B
 planning package.
@@ -36,11 +37,10 @@ consume the settlement identities created here rather than replacing them.
 Ratified Plan 10 remains security-deposit custody; ratified Plans 11-12 remain
 management-fee authority.
 
-Plan 05 also does not depend on TB-01 or implement any Track B slice. Plan 05
-remains the next Track A implementation-ready slice from the shared merged
-planning baseline; TB-01 is the independent next Track B slice. Either branch
-must remain isolated, and neither may copy unmerged implementation from the
-other.
+Plan 05 also did not depend on TB-01 or implement any Track B slice. At the
+shared planning baseline, Plan 05 and TB-01 were independent next slices.
+Plan 05 is now merged; its authority remains isolated from Track B, and
+neither track may copy the other's unmerged implementation.
 
 ## Objective
 

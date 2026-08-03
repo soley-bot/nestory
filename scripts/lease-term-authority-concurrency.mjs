@@ -501,6 +501,12 @@ DELETE FROM public.property_reporting_periods
 WHERE organization_id = '${ids.organization}'::uuid;
 ALTER TABLE public.property_reporting_periods
   ENABLE TRIGGER enforce_property_period_mutation_context;
+ALTER TABLE public.financial_reconciliation_sources
+  DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
+DELETE FROM public.financial_reconciliation_sources
+WHERE organization_id = '${ids.organization}'::uuid;
+ALTER TABLE public.financial_reconciliation_sources
+  ENABLE TRIGGER enforce_financial_reconciliation_source_mutation;
 DELETE FROM public.organizations
 WHERE id = '${ids.organization}'::uuid;
 DELETE FROM auth.users

@@ -17,9 +17,7 @@ import {
 } from "@/components/ui/file-dropzone-field";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { WorkspacePage } from "@/components/layout/workspace-page";
-import {
-  WorkspaceSplitView,
-} from "@/components/layout/workspace-split-view";
+import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
 import { RecentChangesPopover } from "@/features/activity/components/recent-changes-popover";
@@ -225,22 +223,27 @@ export function TimelineScreen({
     <WorkspacePage
       actions={
         <>
-            <RecentChangesPopover
-              changes={recentChanges}
-              onSelectChange={(change) => {
-                openTimelineAction({ change, mode: "activity" });
-              }}
-            />
-            <Button
-              onClick={openCreate}
-              variant="primary"
-            >
-              <Plus size={15} />
-              Add event
-            </Button>
+          <RecentChangesPopover
+            changes={recentChanges}
+            onSelectChange={(change) => {
+              openTimelineAction({ change, mode: "activity" });
+            }}
+          />
+          <Button onClick={openCreate} variant="primary">
+            <Plus size={15} />
+            Add event
+          </Button>
         </>
       }
-      context={<><span>{getTimelineScopeLabel(scope)}</span><span className="mx-2 text-foreground-subtle">/</span><span>{pagination.totalCount} {pagination.totalCount === 1 ? "event" : "events"}</span></>}
+      context={
+        <>
+          <span>{getTimelineScopeLabel(scope)}</span>
+          <span className="mx-2 text-foreground-subtle">/</span>
+          <span>
+            {pagination.totalCount} {pagination.totalCount === 1 ? "event" : "events"}
+          </span>
+        </>
+      }
       contextHref={pathname}
       title={title}
       toolbar={
@@ -253,83 +256,82 @@ export function TimelineScreen({
       }
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
+        {statusMessage ? (
+          <div className="shrink-0 px-4 pt-3 sm:px-6">
+            <p
+              className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+              role="status"
+            >
+              {statusMessage}
+            </p>
+          </div>
+        ) : null}
 
-      {statusMessage ? (
-        <div className="shrink-0 px-4 pt-3 sm:px-6">
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role="status"
-          >
-            {statusMessage}
-          </p>
-        </div>
-      ) : null}
-
-      {reviewContext ? (
-        <TimelineReviewStrip
-          context={reviewContext}
-          count={pagination.totalCount}
-        />
-      ) : null}
-
-      <div className="min-h-0 min-w-0 flex-1">
-        {timelineInspector && selectedEvent ? (
-          <WorkspaceSplitView
-            inspector={timelineInspector}
-            inspectorLabel={`${selectedEvent.title} timeline quick view`}
-            inspectorOpen={compactInspectorOpen}
-            list={timelineList}
-            onInspectorOpenChange={setCompactInspectorOpen}
+        {reviewContext ? (
+          <TimelineReviewStrip
+            context={reviewContext}
+            count={pagination.totalCount}
           />
-        ) : (
-          <WorkspaceSplitView list={timelineList} />
-        )}
-      </div>
+        ) : null}
 
-      {drawer ? (
-        <SideDrawer
-          description={getTimelineDrawerDescription(drawer)}
-          onClose={() => setDrawer(null)}
-          open
-          title={getTimelineDrawerTitle(drawer)}
-        >
-          {drawer.mode === "archive" ? (
-            <ArchiveTimelineEventPanel
-              event={drawer.event}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
+        <div className="min-h-0 min-w-0 flex-1">
+          {timelineInspector && selectedEvent ? (
+            <WorkspaceSplitView
+              inspector={timelineInspector}
+              inspectorLabel={`${selectedEvent.title} timeline quick view`}
+              inspectorOpen={compactInspectorOpen}
+              list={timelineList}
+              onInspectorOpenChange={setCompactInspectorOpen}
             />
-          ) : drawer.mode === "restore" ? (
-            <RestoreTimelineEventPanel
-              event={drawer.event}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-            />
-          ) : drawer.mode === "document" ? (
-            <TimelineDocumentPanel
-              event={drawer.event}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-            />
-          ) : drawer.mode === "activity" ? (
-            <ActivityDetailPanel change={drawer.change} />
           ) : (
-            <TimelineEventForm
-              event={drawer.event}
-              eventTypes={eventTypes}
-              initialValues={
-                drawer.mode === "create" ? drawer.initialValues : undefined
-              }
-              key={`${drawer.mode}-${drawer.event?.id ?? "new"}`}
-              mode={drawer.mode}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-              properties={propertyOptions}
-              units={unitOptions}
-            />
+            <WorkspaceSplitView list={timelineList} />
           )}
-        </SideDrawer>
-      ) : null}
+        </div>
+
+        {drawer ? (
+          <SideDrawer
+            description={getTimelineDrawerDescription(drawer.mode)}
+            onClose={() => setDrawer(null)}
+            open
+            title={getTimelineDrawerTitle(drawer)}
+          >
+            {drawer.mode === "archive" ? (
+              <ArchiveTimelineEventPanel
+                event={drawer.event}
+                onClose={() => setDrawer(null)}
+                onSuccess={setStatusMessage}
+              />
+            ) : drawer.mode === "restore" ? (
+              <RestoreTimelineEventPanel
+                event={drawer.event}
+                onClose={() => setDrawer(null)}
+                onSuccess={setStatusMessage}
+              />
+            ) : drawer.mode === "document" ? (
+              <TimelineDocumentPanel
+                event={drawer.event}
+                onClose={() => setDrawer(null)}
+                onSuccess={setStatusMessage}
+              />
+            ) : drawer.mode === "activity" ? (
+              <ActivityDetailPanel change={drawer.change} />
+            ) : (
+              <TimelineEventForm
+                event={drawer.event}
+                eventTypes={eventTypes}
+                initialValues={
+                  drawer.mode === "create" ? drawer.initialValues : undefined
+                }
+                key={`${drawer.mode}-${drawer.event?.id ?? "new"}`}
+                mode={drawer.mode}
+                onClose={() => setDrawer(null)}
+                onSuccess={setStatusMessage}
+                properties={propertyOptions}
+                units={unitOptions}
+              />
+            )}
+          </SideDrawer>
+        ) : null}
       </div>
     </WorkspacePage>
   );
@@ -375,28 +377,18 @@ function getTimelineDrawerTitle(drawer: DrawerState) {
   return "Archive timeline event";
 }
 
-function getTimelineDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "create") {
-    return "Create a compact historical record for a property or unit.";
+export function getTimelineDrawerDescription(
+  mode: "create" | "edit" | "archive" | "restore" | "document" | "activity",
+) {
+  if (mode === "archive") {
+    return "Hides this record from normal timeline views while keeping audit history.";
   }
 
-  if (drawer.mode === "edit") {
-    return "Review and update the selected historical record.";
+  if (mode === "activity") {
+    return "Before and after values recorded in the activity log.";
   }
 
-  if (drawer.mode === "restore") {
-    return "Return this archived record to normal timeline views.";
-  }
-
-  if (drawer.mode === "document") {
-    return "Attach a PDF or image to this historical record.";
-  }
-
-  if (drawer.mode === "activity") {
-    return "Review the before and after values recorded in the activity log.";
-  }
-
-  return "Hide this record from normal timeline views while keeping audit history.";
+  return undefined;
 }
 
 function getTimelineCreateInitialValues(
@@ -428,10 +420,9 @@ function getTimelineCreateInitialValues(
   };
 }
 
-type TimelineReviewContext = {
-  countLabel: string;
-  description: string;
-  nextStep: string;
+export type TimelineReviewContext = {
+  detail?: string;
+  suffix: string;
 };
 
 type FocusedTimelineState = {
@@ -448,34 +439,29 @@ function TimelineReviewStrip({
 }) {
   return (
     <div className="border-b border-border bg-surface-muted/35 px-4 py-2 sm:px-6 lg:px-6">
-      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <p className="min-w-0 truncate font-medium text-foreground">
-          {count} {count === 1 ? "event" : "events"} {context.countLabel}
-        </p>
-        <p className="text-foreground-muted">{context.nextStep}</p>
-      </div>
-      <p className="mt-1 text-xs text-foreground-subtle">{context.description}</p>
+      <p className="min-w-0 text-[13px] font-medium text-foreground">
+        {count} {count === 1 ? "event" : "events"} · {context.suffix}
+      </p>
+      {context.detail ? (
+        <p className="mt-1 text-xs text-foreground-muted">{context.detail}</p>
+      ) : null}
     </div>
   );
 }
 
-function getTimelineReviewContext(
+export function getTimelineReviewContext(
   focusedState: FocusedTimelineState,
 ): TimelineReviewContext | null {
   if (focusedState.hasFocusedEvent) {
     return {
-      countLabel: "in this activity view",
-      description: "Opened from recent activity with archived records included.",
-      nextStep: "The focused event is available for table and inspector review.",
+      suffix: "Opened from activity history · Archived records included",
     };
   }
 
   if (focusedState.hasFocusedEventIntent) {
     return {
-      countLabel: "in this activity view",
-      description:
-        "Opened from recent activity with archived records included, but this page did not include the focused event.",
-      nextStep: "Review visible matches or broaden the current filters.",
+      detail: "The event may be outside the current filters or access scope.",
+      suffix: "Source event unavailable",
     };
   }
 
@@ -632,10 +618,7 @@ function TimelineDocumentPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form
-      action={action}
-      className="flex h-full flex-col"
-    >
+    <form action={action} className="flex h-full flex-col">
       <input name="eventId" type="hidden" value={event.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
@@ -662,10 +645,6 @@ function TimelineDocumentPanel({
             </p>
           ) : null}
         </label>
-
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs leading-5 text-muted">
-          Accepted files: PDF, JPG, PNG, and WebP up to 10 MB.
-        </p>
 
         {state.message ? (
           <p

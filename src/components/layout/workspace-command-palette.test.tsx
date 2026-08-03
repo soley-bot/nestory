@@ -274,7 +274,7 @@ describe("Workspace command palette results", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getAllByRole("option")[0].textContent).toContain("Properties");
-    expect(screen.getByRole("status").textContent).toBe("2 pages");
+    expect(screen.getByRole("status").textContent).toBe("3 pages");
   });
 
   it("debounces entity search for 500ms with private same-origin fetch options", async () => {

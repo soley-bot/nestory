@@ -5,6 +5,13 @@
 > and **sequence 14, balance/reserve/distribution**. Current sequence 09 is rent
 > occurrences and generation. Use `97-ratified-final-sequence.md`; do not paste
 > this file directly into Codex.
+>
+> Current UI may label existing Owner Contribution/Payment evidence separately
+> and show the IPS target
+> opening-income-expense-contribution-payment-closing formula under
+> `../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`.
+> It must not create owner funding or a distribution, or claim an authoritative
+> running balance, reserve, or distribution check before sequence 13-14.
 
 **Mode:** Standard  
 **Effort:** High  

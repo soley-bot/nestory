@@ -87,9 +87,11 @@ describe("BillsExpensesScreen", () => {
     const { container } = renderScreen([partialExpense, paidExpense]);
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="workspace-split-view"]')).toBeNull();
+    expect(screen.getByRole("heading", { name: "Expenses" })).not.toBeNull();
     const summaryRegion = screen.getByRole("region", { name: "Global expense summary" });
-    expect(summaryRegion.className).toContain("overflow-x-auto");
+    expect(summaryRegion.className).toContain("divide-x");
+    expect(summaryRegion.className).not.toContain("grid-cols-5");
     expect(summaryRegion.getAttribute("tabindex")).toBe("0");
     expect(summaryRegion.textContent).toContain(
       "USD 200.00",
@@ -102,6 +104,8 @@ describe("BillsExpensesScreen", () => {
     expect(
       screen.getByRole("navigation", { name: "Finance workspace" }),
     ).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Rent" })).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Expenses" })).not.toBeNull();
     fireEvent.click(within(filterForm).getByRole("button", { name: "Filters" }));
     for (const name of [
       "Expense date basis",
@@ -156,7 +160,7 @@ describe("BillsExpensesScreen", () => {
       within(rows[0]!).getByRole("button", { name: "Preview Repair Vendor" }),
     );
     let inspector = screen.getByRole("dialog", {
-      name: "Repair Vendor expense quick view",
+      name: "Repair Vendor expense details",
     });
     expect(within(inspector).getByText("Payment", { selector: "p" })).not.toBeNull();
     expect(within(inspector).getByText("Payment date")).not.toBeNull();
@@ -167,7 +171,7 @@ describe("BillsExpensesScreen", () => {
       within(rows[1]!).getByRole("button", { name: "Preview Repair Vendor" }),
     );
     inspector = screen.getByRole("dialog", {
-      name: "Repair Vendor expense quick view",
+      name: "Repair Vendor expense details",
     });
     expect(within(inspector).getByText("Reversed", { selector: "p" })).not.toBeNull();
     expect(within(inspector).getByText("Reversed date")).not.toBeNull();
@@ -237,17 +241,14 @@ describe("BillsExpensesScreen", () => {
 
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
-      expect(screen.getByRole("dialog", { name: "Repair Vendor expense quick view" })).not.toBeNull();
+      expect(screen.getByRole("dialog", { name: "Repair Vendor expense details" })).not.toBeNull();
 
       await user.click(screen.getByRole("button", { name: "Record payment" }));
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
       expect(screen.getByRole("dialog", { name: "Record payment" })).not.toBeNull();
-      const consequence = screen.getByRole("region", { name: "Payment consequence" });
+      const consequence = screen.getByRole("region", { name: "Payment summary" });
       expect(consequence.textContent).toContain("USD 150.00");
-      expect(consequence.textContent).toContain("Remaining after paymentUSD 0.00");
-      expect(consequence.textContent).toContain(
-        "Ledger effectPayment and settlement allocation",
-      );
+      expect(consequence.textContent).toContain("RemainingUSD 0.00");
       const paymentDialog = screen.getByRole("dialog", { name: "Record payment" });
       expect((paymentDialog.querySelector('input[name="expenseItemId"]') as HTMLInputElement).value).toBe(
         "expense-1",
@@ -259,7 +260,7 @@ describe("BillsExpensesScreen", () => {
         "property-1",
       );
 
-      await user.click(screen.getByRole("button", { name: "Close drawer" }));
+      await user.click(screen.getByRole("button", { name: "Close modal" }));
       expect(document.activeElement).toBe(preview);
     },
   );
@@ -276,7 +277,26 @@ describe("BillsExpensesScreen", () => {
     renderScreen([]);
     const emptyState = screen.getByText("No bills or expenses yet").closest("section")!;
     expect(emptyState.getAttribute("data-kind")).toBe("empty");
-    expect(within(emptyState).getByRole("button", { name: "Add bill" })).not.toBeNull();
+    expect(within(emptyState).getByRole("button", { name: "Add expense" })).not.toBeNull();
+  });
+
+  it("keeps Add expense focused in two short steps", async () => {
+    const user = userEvent.setup();
+    renderScreen([partialExpense]);
+
+    await user.click(screen.getByRole("button", { name: "Add expense" }));
+    const dialog = screen.getByRole("dialog", { name: "Add expense" });
+    expect(within(dialog).getByText("Step 1 of 2")).not.toBeNull();
+    expect(within(dialog).getByRole("combobox", { name: "Expense type" })).not.toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: "Recovery" })).toBeNull();
+
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(within(dialog).getByText("Step 2 of 2")).not.toBeNull();
+    expect(within(dialog).getByRole("combobox", { name: "Recovery" })).not.toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: "Expense type" })).toBeNull();
+
+    await user.click(within(dialog).getByRole("button", { name: "Back" }));
+    expect(within(dialog).getByText("Step 1 of 2")).not.toBeNull();
   });
 
   it("keeps exact invoice-basis financial totals when expense type is filtered", () => {
@@ -331,9 +351,9 @@ describe("BillsExpensesScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Preview Repair Vendor" }));
     fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
 
-    expect(screen.getByText(/remaining property payment/i).textContent).toContain(
-      "USD 150.00",
-    );
+    expect(
+      screen.getByRole("region", { name: "Payment summary" }).textContent,
+    ).toContain("USD 150.00");
     expect(
       (document.querySelector('input[name="amount"]') as HTMLInputElement).value,
     ).toBe("150");
@@ -363,7 +383,7 @@ describe("BillsExpensesScreen", () => {
 
     expect(
       screen.getByRole("dialog", {
-        name: "Repair Vendor expense quick view",
+        name: "Repair Vendor expense details",
       }),
     ).not.toBeNull();
     expect(screen.getByText("Focused from activity history")).not.toBeNull();
@@ -399,7 +419,7 @@ describe("BillsExpensesScreen", () => {
       });
 
       const inspector = screen.getByRole("dialog", {
-        name: "Repair Vendor expense quick view",
+        name: "Repair Vendor expense details",
       });
       expect(
         within(inspector).queryByRole("button", { name: expectedMutation }),

@@ -223,6 +223,12 @@ evidence unresolved. Never estimate a publishable owner balance, management
 fee, settlement, allocation, or reconciliation identity merely to populate a
 screen or export.
 
+Finance uses the configured organization name in operator-facing collection
+labels. Short money actions use focused modals; multi-step lease billing setup
+and longer conditional expense forms use right-side drawers. Internal funding,
+markup, and responsibility details remain recorded without exposing internal
+accounting terminology to tenants.
+
 ## Imports And Reports
 
 CSV import supports properties, units or rent roll, people, and leases.
@@ -265,7 +271,8 @@ Authenticated Nestory is quiet, neutral, dense operating software.
 - Keep one global `Search or jump` surface. Entity results stay server-scoped
   and must not expose raw UUIDs as operator labels.
 - Settings uses local navigation, the active workspace, and one shared
-  save/discard/status area.
+  save/discard/status area. Configuration is a read-only registry catalog until
+  persistence, approval, and effective-dating authority are implemented.
 - Label ordinary actions directly. Explain risk, consequence, permission,
   unfamiliar domain meaning, and handoffs where needed.
 - Consequential actions show the affected record, scope, and effect before

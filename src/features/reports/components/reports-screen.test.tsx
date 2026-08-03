@@ -14,17 +14,18 @@ import type {
 afterEach(cleanup);
 
 describe("minimal Reports workspace", () => {
-  it("shows exactly three report tabs and one compact filter row", () => {
+  it("links the operational Finance report beside the three report builders", () => {
     renderReport();
 
     const navigation = screen.getByRole("navigation", { name: "Reports" });
     const links = within(navigation).getAllByRole("link");
     expect(links.map((link) => link.textContent)).toEqual([
+      "Finance operations",
       "Monthly Unit Profit & Loss",
       "Owner Statement",
       "Management Fee Statement",
     ]);
-    expect(links[0]?.getAttribute("aria-current")).toBe("page");
+    expect(links[1]?.getAttribute("aria-current")).toBe("page");
 
     const filters = screen.getByRole("region", { name: "Report filters" });
     expect(
@@ -51,19 +52,15 @@ describe("minimal Reports workspace", () => {
     const exportMenu = screen.getByText("Export").closest("details");
     expect(exportMenu).not.toBeNull();
     expect(
-      within(exportMenu!).getByRole("link", { name: "PDF" }).getAttribute(
-        "href",
-      ),
-    ).toBe(
-      "/api/reports/pdf?report=unit-profit-loss&month=2026-07",
-    );
+      within(exportMenu!)
+        .getByRole("link", { name: "PDF" })
+        .getAttribute("href"),
+    ).toBe("/api/reports/pdf?report=unit-profit-loss&month=2026-07");
     expect(
-      within(exportMenu!).getByRole("link", { name: "Excel" }).getAttribute(
-        "href",
-      ),
-    ).toBe(
-      "/api/reports/excel?report=unit-profit-loss&month=2026-07",
-    );
+      within(exportMenu!)
+        .getByRole("link", { name: "Excel" })
+        .getAttribute("href"),
+    ).toBe("/api/reports/excel?report=unit-profit-loss&month=2026-07");
     expect(screen.queryByText("Export CSV")).toBeNull();
     expect(screen.queryByText("Print / PDF")).toBeNull();
   });
@@ -81,14 +78,14 @@ describe("minimal Reports workspace", () => {
     expect(within(table).getByText("P1 - Property One")).toBeTruthy();
     expect(within(table).getByText("Unit A1")).toBeTruthy();
     expect(
-      within(table).getByRole("link", { name: "Rent ledger" }).getAttribute(
-        "href",
-      ),
+      within(table)
+        .getByRole("link", { name: "Rent ledger" })
+        .getAttribute("href"),
     ).toBe("/ledger?archiveState=all&entryId=ledger-income");
     expect(
-      within(table).getByRole("link", { name: "Rent ledger" }).getAttribute(
-        "title",
-      ),
+      within(table)
+        .getByRole("link", { name: "Rent ledger" })
+        .getAttribute("title"),
     ).toBeNull();
     expect(screen.queryByText("Report library")).toBeNull();
     expect(screen.queryByText("Report families")).toBeNull();
@@ -136,9 +133,7 @@ describe("minimal Reports workspace", () => {
     expect(
       screen.queryByRole("combobox", { name: "Filter report by unit" }),
     ).toBeNull();
-    expect(
-      screen.getByRole("columnheader", { name: "Reason" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Reason" })).toBeTruthy();
   });
 
   it("keeps Management Fee Statement defined but unavailable", () => {
@@ -178,9 +173,7 @@ function renderReport({
   viewQuery?: ReportsViewQuery;
 } = {}) {
   const data: ReportsScreenData = {
-    propertyOptions: [
-      { id: "property-1", label: "P1 - Property One" },
-    ],
+    propertyOptions: [{ id: "property-1", label: "P1 - Property One" }],
     trustedReport: report,
     unitOptions: [
       {
@@ -197,9 +190,7 @@ function renderReport({
   );
 }
 
-function query(
-  overrides: Partial<ReportsViewQuery> = {},
-): ReportsViewQuery {
+function query(overrides: Partial<ReportsViewQuery> = {}): ReportsViewQuery {
   return {
     month: "2026-07",
     ownerPersonId: "all",

@@ -156,7 +156,6 @@ export function UnitInspector({
               href={`/timeline?unitId=${unit.id}`}
               icon={<ListTree size={15} />}
               label="Timeline"
-              meta="Recent history"
             />
             <PreviewLink
               href={`/ledger?propertyId=${unit.propertyId}&query=${encodeURIComponent(
@@ -164,7 +163,6 @@ export function UnitInspector({
               )}`}
               icon={<Landmark size={15} />}
               label="Ledger"
-              meta="Financial activity"
             />
           </div>
         </section>
@@ -243,7 +241,7 @@ function PreviewLink({
   href: string;
   icon: React.ReactNode;
   label: string;
-  meta: string;
+  meta?: string;
 }) {
   return (
     <Link
@@ -255,7 +253,9 @@ function PreviewLink({
         <span className="block truncate text-sm font-semibold text-foreground">
           {label}
         </span>
-        <span className="block truncate text-xs text-foreground-muted">{meta}</span>
+        {meta ? (
+          <span className="block truncate text-xs text-foreground-muted">{meta}</span>
+        ) : null}
       </span>
     </Link>
   );

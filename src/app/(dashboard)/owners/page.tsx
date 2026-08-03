@@ -10,8 +10,6 @@ export default function OwnersPage({ searchParams }: OwnersPageProps) {
       config={{
         addButtonLabel: "Add owner",
         createRole: "owner",
-        description:
-          "Owner records with property links, contact readiness, documents, and reporting context.",
         role: "owner",
         searchPlaceholder: "Search owner, contact, property, or ownership note",
         title: "Owners",

@@ -59,7 +59,6 @@ describe("PeopleModulePageContent", () => {
     await PeopleModulePageContent({
       config: {
         addButtonLabel: "Add staff",
-        description: "Staff records",
         role: "staff",
         searchPlaceholder: "Search staff",
         showAccessStatus: true,

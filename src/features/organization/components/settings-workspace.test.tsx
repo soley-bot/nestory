@@ -105,6 +105,7 @@ afterEach(() => {
 describe("SettingsWorkspace navigation and layout", () => {
   it.each([
     ["organization", "Organization"],
+    ["configuration", "Configuration"],
     ["branches", "Branches"],
     ["teams", "Teams"],
   ] as const)("keeps %s URL-backed and exactly current", (section, label) => {
@@ -120,11 +121,13 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     expect(links.map((link) => link.textContent)).toEqual([
       "Organization",
+      "Configuration",
       "Branches",
       "Teams",
     ]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/settings?section=organization",
+      "/settings?section=configuration",
       "/settings?section=branches",
       "/settings?section=teams",
     ]);
@@ -161,6 +164,20 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect(screen.getAllByText("Nestory Test")).toHaveLength(2);
     expect(screen.getByText("nestory-test")).not.toBeNull();
     expect(screen.queryByRole("button", { name: /save/i })).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("renders the read-only configuration registry catalog", () => {
+    render(<SettingsWorkspace {...defaultProps} section="configuration" />);
+
+    expect(screen.getByTestId("configuration-registry-catalog")).not.toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Configuration registry" }),
+    ).not.toBeNull();
+    expect(screen.getByText("Catalog only")).not.toBeNull();
+    expect(screen.getAllByText("Existing records").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Prospective only").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /save|edit|activate/i })).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
@@ -210,11 +227,52 @@ describe("SettingsWorkspace navigation and layout", () => {
     },
   );
 
+  it.each(["branches", "teams"] as const)(
+    "guards a dirty %s draft before opening Configuration",
+    async (section) => {
+      const user = userEvent.setup();
+      render(<SettingsWorkspace {...defaultProps} section={section} />);
+
+      const name = screen.getByRole("textbox", { name: "Name" });
+      const destination = screen.getByRole("link", { name: "Configuration" });
+      await user.type(name, "Pending draft");
+      await user.click(destination);
+
+      expect(navigation.push).not.toHaveBeenCalled();
+      expect((name as HTMLInputElement).value).toBe("Pending draft");
+      expect(
+        screen.getByRole("dialog", { name: "Open Configuration?" }),
+      ).not.toBeNull();
+
+      await user.click(
+        screen.getByRole("button", {
+          name: "Discard and open Configuration",
+        }),
+      );
+
+      expect(navigation.push).toHaveBeenCalledOnce();
+      expect(navigation.push).toHaveBeenCalledWith(
+        "/settings?section=configuration",
+      );
+      expect((name as HTMLInputElement).value).toBe("");
+    },
+  );
+
   it("keeps a clean section link as ordinary navigation without a discard prompt", async () => {
     const user = userEvent.setup();
     render(<SettingsWorkspace {...defaultProps} section="branches" />);
 
     await user.click(screen.getByRole("link", { name: "Teams" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it("leaves read-only Configuration without an unsaved-draft prompt", async () => {
+    const user = userEvent.setup();
+    render(<SettingsWorkspace {...defaultProps} section="configuration" />);
+
+    await user.click(screen.getByRole("link", { name: "Branches" }));
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(navigation.push).not.toHaveBeenCalled();

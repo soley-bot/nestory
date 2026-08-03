@@ -11,7 +11,6 @@ export default function RecurringTasksPage({
     baseReview: "recurring",
     createButtonLabel: "New recurring task",
     defaults: { review: "recurring" },
-    description: "Repeated AC cleaning, pest control, inspection, and service routines.",
     emptyLabel: "No recurring maintenance found.",
     flowLabel: "Preventive maintenance",
     listLabel: "recurring work",

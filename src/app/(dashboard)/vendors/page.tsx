@@ -10,8 +10,6 @@ export default function VendorsPage({ searchParams }: VendorsPageProps) {
       config={{
         addButtonLabel: "Add vendor",
         createRole: "vendor",
-        description:
-          "Vendor records with service category, contact readiness, maintenance links, and evidence.",
         role: "vendor",
         searchPlaceholder: "Search vendor, service, contact, or property",
         title: "Vendors",

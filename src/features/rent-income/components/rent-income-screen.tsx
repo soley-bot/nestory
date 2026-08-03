@@ -2,15 +2,12 @@
 
 import Link from "next/link";
 import type { FormEvent, ReactNode } from "react";
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Coins, Eye, Plus, RotateCcw, XCircle } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { WorkspacePage } from "@/components/layout/workspace-page";
-import {
-  WorkspaceSplitView,
-} from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
@@ -20,9 +17,9 @@ import { SearchCombo } from "@/components/ui/search-combo";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPopover } from "@/components/ui/filter-popover";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
+import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
-import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
@@ -71,7 +68,8 @@ function getRemainingReceiptAmountInput(
   return String(Math.max(dueMinorUnits - receivedMinorUnits, 0) / 100);
 }
 
-type DrawerState =
+type ModalState =
+  | { item: RentIncomeItem; mode: "detail" }
   | { mode: "create" }
   | { item: RentIncomeItem; mode: "payment" }
   | { item: RentIncomeItem; mode: "reverse"; receipt: RentIncomeReceipt }
@@ -108,32 +106,29 @@ export function RentIncomeScreen({
   const focusedIncomeItem = hasFocusedIncomeItem
     ? incomeItems.find((item) => item.id === viewQuery.incomeItemId) ?? null
     : null;
-  const [drawerState, setDrawerState] = useState<DrawerState | null>(() =>
-    createDefaults ? { mode: "create" } : null,
+  const [modalState, setModalState] = useState<ModalState | null>(() =>
+    createDefaults
+      ? { mode: "create" }
+      : focusedIncomeItem
+        ? { item: focusedIncomeItem, mode: "detail" }
+        : null,
   );
   const [selectedItemId, setSelectedItemId] = useState(
-    focusedIncomeItem?.id ??
-      (hasFocusedIncomeItem ? "" : incomeItems[0]?.id) ??
-      "",
-  );
-  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
-    Boolean(focusedIncomeItem),
+    focusedIncomeItem?.id ?? "",
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const selectedItem =
-    incomeItems.find((item) => item.id === selectedItemId) ??
-    (hasFocusedIncomeItem ? null : incomeItems[0]) ??
-    null;
+  const closeModal = useCallback(() => setModalState(null), []);
 
-  const openDrawer = (nextDrawer: DrawerState) => {
-    setCompactInspectorOpen(false);
+  const openModal = (nextModal: ModalState) => {
     setStatusMessage(null);
-    setDrawerState(nextDrawer);
+    setModalState(nextModal);
   };
 
   const previewItem = (itemId: string) => {
+    const item = incomeItems.find((candidate) => candidate.id === itemId);
+    if (!item) return;
     setSelectedItemId(itemId);
-    setCompactInspectorOpen(true);
+    openModal({ item, mode: "detail" });
   };
 
   const hasFilters =
@@ -144,7 +139,7 @@ export function RentIncomeScreen({
     viewQuery.query.trim() !== "" ||
     viewQuery.status !== "all" ||
     viewQuery.unitId !== "all";
-  const openCreate = () => openDrawer({ mode: "create" });
+  const openCreate = () => openModal({ mode: "create" });
   const incomeList = (
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
       {incomeItems.length === 0 ? (
@@ -160,7 +155,7 @@ export function RentIncomeScreen({
             ) : (
               <Button onClick={openCreate} variant="primary">
                 <Plus size={15} />
-                Add income
+                Add charge
               </Button>
             )
           }
@@ -179,7 +174,7 @@ export function RentIncomeScreen({
             <RentIncomeTable
               incomeItems={incomeItems}
               onSelectItem={previewItem}
-              selectedItemId={compactInspectorOpen ? selectedItem?.id ?? "" : ""}
+              selectedItemId={selectedItemId}
             />
           </div>
           <PaginationControls attached pagination={pagination} />
@@ -187,29 +182,18 @@ export function RentIncomeScreen({
       )}
     </section>
   );
-  const incomeInspector = selectedItem ? (
-    <RentIncomeInspector
-      item={selectedItem}
-      onRecordPayment={(item) => openDrawer({ item, mode: "payment" })}
-      onReverseReceipt={(item, receipt) =>
-        openDrawer({ item, mode: "reverse", receipt })
-      }
-      onVoid={(item) => openDrawer({ item, mode: "void" })}
-    />
-  ) : null;
-
   return (
     <WorkspacePage
       actions={
         <Button onClick={openCreate} variant="primary">
           <Plus size={15} />
-          Add income
+          Add charge
         </Button>
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/rent-income"
       localNav={<FinanceWorkspaceNavigation activeRoute="/rent-income" />}
-      title="Rent & Income"
+      title="Rent"
       toolbar={
         <RentIncomeFilters
           propertyOptions={propertyOptions}
@@ -251,60 +235,57 @@ export function RentIncomeScreen({
         />
       )}
 
-      <div className="min-h-0 min-w-0 flex-1">
-        {incomeInspector && selectedItem ? (
-          <WorkspaceSplitView
-            inspector={incomeInspector}
-            inspectorLabel={`${selectedItem.payerLabel} income quick view`}
-            inspectorOpen={compactInspectorOpen}
-            list={incomeList}
-            onInspectorOpenChange={setCompactInspectorOpen}
-          />
-        ) : (
-          <WorkspaceSplitView list={incomeList} />
-        )}
-      </div>
+      <div className="min-h-0 min-w-0 flex-1">{incomeList}</div>
 
-      {drawerState ? (
-        <SideDrawer
-          description={getDrawerDescription(drawerState)}
-          onClose={() => setDrawerState(null)}
+      {modalState ? (
+        <Modal
+          description={getModalDescription(modalState)}
+          onClose={closeModal}
           open
-          title={getDrawerTitle(drawerState)}
+          title={getModalTitle(modalState)}
         >
-          {drawerState.mode === "create" ? (
+          {modalState.mode === "detail" ? (
+            <RentIncomeInspector
+              item={modalState.item}
+              onRecordPayment={(item) => openModal({ item, mode: "payment" })}
+              onReverseReceipt={(item, receipt) =>
+                openModal({ item, mode: "reverse", receipt })
+              }
+              onVoid={(item) => openModal({ item, mode: "void" })}
+            />
+          ) : modalState.mode === "create" ? (
             <RentIncomeForm
               initialValues={createDefaults}
               leaseOptions={leaseOptions}
-              onClose={() => setDrawerState(null)}
+              onClose={closeModal}
               onSuccess={setStatusMessage}
               payerOptions={payerOptions}
               propertyOptions={propertyOptions}
               unitOptions={unitOptions}
             />
-          ) : drawerState.mode === "payment" ? (
+          ) : modalState.mode === "payment" ? (
             <RecordPaymentPanel
-              item={drawerState.item}
-              onClose={() => setDrawerState(null)}
+              item={modalState.item}
+              onClose={closeModal}
               onSuccess={setStatusMessage}
               reconciliationSources={reconciliationSources}
             />
-          ) : drawerState.mode === "reverse" ? (
+          ) : modalState.mode === "reverse" ? (
             <ReverseReceiptPanel
-              item={drawerState.item}
-              onClose={() => setDrawerState(null)}
+              item={modalState.item}
+              onClose={closeModal}
               onSuccess={setStatusMessage}
-              receipt={drawerState.receipt}
+              receipt={modalState.receipt}
               reconciliationSources={reconciliationSources}
             />
           ) : (
             <VoidIncomePanel
-              item={drawerState.item}
-              onClose={() => setDrawerState(null)}
+              item={modalState.item}
+              onClose={closeModal}
               onSuccess={setStatusMessage}
             />
           )}
-        </SideDrawer>
+        </Modal>
       ) : null}
       </div>
     </WorkspacePage>
@@ -430,9 +411,8 @@ function RentIncomeFilters({
         <div className="shrink-0">
           <FilterPopover
             activeCount={activeFilterCount}
-            description="Narrow this month by workflow state or record."
             id="income-advanced-filters"
-            title="Filter income"
+            title="Filters"
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <FilterField label="Income group">
@@ -505,7 +485,7 @@ function getScopedSummaryLabel(viewQuery: RentIncomeViewQuery) {
 
 function RentIncomeSummaryStrip({ summary }: { summary: RentIncomeSummary }) {
   return (
-    <section aria-label="Global income summary" className="grid grid-flow-col auto-cols-[minmax(156px,1fr)] gap-3 overflow-x-auto border-b border-border px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6 lg:grid-flow-row lg:grid-cols-5 lg:auto-cols-auto" tabIndex={0}>
+    <section aria-label="Global income summary" className="flex min-w-max divide-x divide-border overflow-x-auto border-b border-border px-4 py-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6" tabIndex={0}>
       <SummaryCard label="Expected" value={<MoneyDisplay value={summary.receivableTotal} />} />
       <SummaryCard label="Received" value={<MoneyDisplay value={summary.receivedTotal} />} />
       <SummaryCard label="Open rows" value={summary.openCount} />
@@ -524,11 +504,11 @@ function ScopedSummary({ label, totalCount }: { label: string; totalCount: numbe
 
 function SummaryCard({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-md border border-border bg-surface px-3 py-2">
+    <div className="min-w-[132px] px-3 py-1 first:pl-0">
       <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
         {label}
       </p>
-      <div className="mt-1 text-base font-semibold text-foreground">{value}</div>
+      <div className="mt-0.5 text-sm font-semibold text-foreground">{value}</div>
     </div>
   );
 }
@@ -544,16 +524,16 @@ function RentIncomeTable({
 }) {
   return (
     <div className="h-full overflow-auto rounded-md border border-border bg-surface">
-      <table className="w-full min-w-[920px] table-fixed border-collapse text-left text-[13px]">
+      <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-[13px]">
         <thead className="border-b border-border bg-surface-muted text-[11px] uppercase tracking-[0.06em] text-muted">
           <tr>
-            <th className="px-3 py-2">Payer</th>
+            <th className="px-3 py-2">Billed to</th>
             <th className="px-3 py-2">Property / Unit</th>
             <th className="px-3 py-2">Due</th>
-            <th className="px-3 py-2 text-right">Expected</th>
-            <th className="px-3 py-2 text-right">Received</th>
+            <th className="px-3 py-2 text-right">Rent</th>
+            <th className="px-3 py-2 text-right">Paid</th>
+            <th className="px-3 py-2 text-right">Balance</th>
             <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Next</th>
             <th className="w-[74px] px-3 py-2 text-right">Preview</th>
           </tr>
         </thead>
@@ -603,10 +583,12 @@ function RentIncomeTable({
               <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
                 <MoneyDisplay align="right" value={item.amountReceivedDisplay} />
               </td>
+              <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
+                <MoneyDisplay align="right" value={item.balanceDisplay} />
+              </td>
               <td className="px-3 py-2">
                 <StatusBadge item={item} />
               </td>
-              <td className="px-3 py-2 text-xs text-muted">{item.nextAction}</td>
               <td className="px-3 py-2 text-right">
                 <Button
                   aria-label={`Preview ${item.payerLabel}`}
@@ -683,7 +665,7 @@ function RentIncomeInspector({
           : "Cash-basis Owner Statement includes the recorded legacy cash; allocation-level Ledger evidence is unavailable.";
 
   return (
-    <aside className="rounded-md border border-border bg-surface">
+    <div className="bg-surface">
       <div className="border-b border-border px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -809,10 +791,13 @@ function RentIncomeInspector({
 
         <div className="flex flex-wrap gap-2">
           {canRecordPayment ? (
-            <Button onClick={() => onRecordPayment(item)}>
-              <Coins size={15} />
-              Record receipt
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => onRecordPayment(item)}>
+                <Coins size={15} />
+                Record payment
+              </Button>
+              <p className="text-xs text-muted">Record remaining payment</p>
+            </div>
           ) : null}
           {canVoid ? (
             <Button onClick={() => onVoid(item)} variant="ghost">
@@ -822,7 +807,7 @@ function RentIncomeInspector({
           ) : null}
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -1064,11 +1049,10 @@ function RecordPaymentPanel({
         <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
         <ConsequencePanel
           rows={[
-            { label: "Receipt", value: item.payerLabel },
-            { label: "Current balance", value: item.balanceDisplay.primary },
+            { label: "Tenant", value: item.payerLabel },
+            { label: "Balance", value: item.balanceDisplay.primary },
           ]}
-          summary="Commits the receipt, exact allocation, compatibility balance, Ledger, and balanced journal together."
-          title="Receipt consequence"
+          title="Payment summary"
         />
         <FormSection title="Received money">
           <Field
@@ -1124,7 +1108,7 @@ function RecordPaymentPanel({
         onCancel={onClose}
         pending={pending}
         submitDisabled={availableSources.length === 0}
-        submitLabel="Record receipt"
+        submitLabel="Record payment"
       />
     </form>
   );
@@ -1392,36 +1376,44 @@ function useCloseOnSuccess(
   }, [onClose, onSuccess, state.message, state.status]);
 }
 
-function getDrawerTitle(drawer: DrawerState) {
-  if (drawer.mode === "create") {
-    return "Add income";
+function getModalTitle(modal: ModalState) {
+  if (modal.mode === "detail") {
+    return `${modal.item.payerLabel} rent details`;
   }
 
-  if (drawer.mode === "payment") {
-    return "Record receipt";
+  if (modal.mode === "create") {
+    return "Add charge";
   }
 
-  if (drawer.mode === "reverse") {
+  if (modal.mode === "payment") {
+    return "Record payment";
+  }
+
+  if (modal.mode === "reverse") {
     return "Reverse receipt";
   }
 
   return "Void income";
 }
 
-function getDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "create") {
-    return "Create expected rent, deposits, fees, reimbursements, owner contributions, or other income.";
+function getModalDescription(modal: ModalState) {
+  if (modal.mode === "detail") {
+    return "Payment, property, and receipt history.";
   }
 
-  if (drawer.mode === "payment") {
-    return "Record dated cash against the remaining balance. Partial receipts stay open for more cash."
+  if (modal.mode === "create") {
+    return "Add rent or another charge.";
   }
 
-  if (drawer.mode === "reverse") {
-    return "Append a checked reversing cash event without changing the original.";
+  if (modal.mode === "payment") {
+    return "Apply money received to this charge."
   }
 
-  return "Voiding removes this row from the active income workflow.";
+  if (modal.mode === "reverse") {
+    return "Reverse this payment without changing its history.";
+  }
+
+  return "Remove this charge from the active workflow.";
 }
 
 function createSettlementIdempotencyKey() {

@@ -67,7 +67,7 @@ const admin = {
 const pendingInvitation = {
   branchId: branch.id,
   email: "pending@example.com",
-  expiresAt: "2026-07-30T12:00:00.000Z",
+  expiresAt: "2099-07-30T12:00:00.000Z",
   id: "77777777-7777-4777-8777-777777777777",
   invitedAt: "2026-07-21T11:00:00.000Z",
   lastSentAt: "2026-07-21T11:01:00.000Z",

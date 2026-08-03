@@ -2,15 +2,12 @@
 
 import type { FormEvent, ReactNode } from "react";
 import Link from "next/link";
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Eye, Plus, RotateCcw, XCircle } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { WorkspacePage } from "@/components/layout/workspace-page";
-import {
-  WorkspaceSplitView,
-} from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
@@ -20,9 +17,9 @@ import { SearchCombo } from "@/components/ui/search-combo";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPopover } from "@/components/ui/filter-popover";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
+import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
-import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
@@ -54,7 +51,8 @@ const approveInitialState: BillsExpensesActionState = {};
 const postInitialState: BillsExpensesActionState = {};
 const voidInitialState: BillsExpensesActionState = {};
 
-type DrawerState =
+type ModalState =
+  | { item: BillsExpenseItem; mode: "detail" }
   | { mode: "create" }
   | { item: BillsExpenseItem; mode: "approve" }
   | { item: BillsExpenseItem; mode: "post" }
@@ -85,30 +83,28 @@ export function BillsExpensesScreen({
   const focusedExpenseItem = hasFocusedExpenseItem
     ? expenseItems.find((item) => item.id === viewQuery.expenseItemId) ?? null
     : null;
-  const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
-  const [selectedItemId, setSelectedItemId] = useState(
-    focusedExpenseItem?.id ??
-      (hasFocusedExpenseItem ? "" : expenseItems[0]?.id) ??
-      "",
+  const [modalState, setModalState] = useState<ModalState | null>(() =>
+    focusedExpenseItem
+      ? { item: focusedExpenseItem, mode: "detail" }
+      : null,
   );
-  const [compactInspectorOpen, setCompactInspectorOpen] = useState(
-    Boolean(focusedExpenseItem),
+  const [selectedItemId, setSelectedItemId] = useState(
+    focusedExpenseItem?.id ?? "",
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const selectedItem =
-    expenseItems.find((item) => item.id === selectedItemId) ??
-    (hasFocusedExpenseItem ? null : expenseItems[0]) ??
-    null;
 
-  const openDrawer = (nextDrawer: DrawerState) => {
-    setCompactInspectorOpen(false);
+  const closeModal = useCallback(() => setModalState(null), []);
+
+  const openModal = (nextModal: ModalState) => {
     setStatusMessage(null);
-    setDrawerState(nextDrawer);
+    setModalState(nextModal);
   };
 
   const previewItem = (itemId: string) => {
+    const item = expenseItems.find((candidate) => candidate.id === itemId);
+    if (!item) return;
     setSelectedItemId(itemId);
-    setCompactInspectorOpen(true);
+    openModal({ item, mode: "detail" });
   };
 
   const hasFilters =
@@ -118,7 +114,7 @@ export function BillsExpensesScreen({
     viewQuery.query.trim() !== "" ||
     viewQuery.status !== "all" ||
     viewQuery.unitId !== "all";
-  const openCreate = () => openDrawer({ mode: "create" });
+  const openCreate = () => openModal({ mode: "create" });
   const expenseList = (
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
       {expenseItems.length === 0 ? (
@@ -134,7 +130,7 @@ export function BillsExpensesScreen({
             ) : (
               <Button onClick={openCreate} variant="primary">
                 <Plus size={15} />
-                Add bill
+                Add expense
               </Button>
             )
           }
@@ -153,7 +149,7 @@ export function BillsExpensesScreen({
             <BillsExpensesTable
               expenseItems={expenseItems}
               onSelectItem={previewItem}
-              selectedItemId={compactInspectorOpen ? selectedItem?.id ?? "" : ""}
+              selectedItemId={selectedItemId}
             />
           </div>
           <PaginationControls attached pagination={pagination} />
@@ -161,27 +157,18 @@ export function BillsExpensesScreen({
       )}
     </section>
   );
-  const expenseInspector = selectedItem ? (
-    <BillsExpensesInspector
-      item={selectedItem}
-      onApprove={(item) => openDrawer({ item, mode: "approve" })}
-      onPost={(item) => openDrawer({ item, mode: "post" })}
-      onVoid={(item) => openDrawer({ item, mode: "void" })}
-    />
-  ) : null;
-
   return (
     <WorkspacePage
       actions={
         <Button onClick={openCreate} variant="primary">
           <Plus size={15} />
-          Add bill
+          Add expense
         </Button>
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/bills-expenses"
       localNav={<FinanceWorkspaceNavigation activeRoute="/bills-expenses" />}
-      title="Bills & Expenses"
+      title="Expenses"
       toolbar={
         <BillsExpensesFilters
           propertyOptions={propertyOptions}
@@ -221,63 +208,58 @@ export function BillsExpensesScreen({
         <BillsExpensesSummaryStrip summary={summary} />
       )}
 
-      <div className="min-h-0 min-w-0 flex-1">
-        {expenseInspector && selectedItem ? (
-          <WorkspaceSplitView
-            inspector={expenseInspector}
-            inspectorLabel={`${selectedItem.vendorLabel} expense quick view`}
-            inspectorOpen={compactInspectorOpen}
-            list={expenseList}
-            onInspectorOpenChange={setCompactInspectorOpen}
-          />
-        ) : (
-          <WorkspaceSplitView list={expenseList} />
-        )}
-      </div>
+      <div className="min-h-0 min-w-0 flex-1">{expenseList}</div>
 
-      {drawerState ? (
-        <SideDrawer
-          description={getDrawerDescription(drawerState)}
-          onClose={() => setDrawerState(null)}
+      {modalState ? (
+        <Modal
+          description={getModalDescription(modalState)}
+          onClose={closeModal}
           open
-          title={getDrawerTitle(drawerState)}
+          title={getModalTitle(modalState)}
         >
-          {drawerState.mode === "create" ? (
+          {modalState.mode === "detail" ? (
+            <BillsExpensesInspector
+              item={modalState.item}
+              onApprove={(item) => openModal({ item, mode: "approve" })}
+              onPost={(item) => openModal({ item, mode: "post" })}
+              onVoid={(item) => openModal({ item, mode: "void" })}
+            />
+          ) : modalState.mode === "create" ? (
             <BillsExpenseForm
-              onClose={() => setDrawerState(null)}
+              onClose={closeModal}
               onSuccess={setStatusMessage}
               propertyOptions={propertyOptions}
               unitOptions={unitOptions}
               vendorOptions={vendorOptions}
             />
-          ) : drawerState.mode === "approve" ? (
+          ) : modalState.mode === "approve" ? (
             <StatusPanel
               action={approveBillsExpenseItemAction}
               initialState={approveInitialState}
-              item={drawerState.item}
+              item={modalState.item}
               message="Approve this bill so its payment can be recorded."
-              onClose={() => setDrawerState(null)}
+              onClose={closeModal}
               onSuccess={setStatusMessage}
               submitLabel="Approve"
             />
-          ) : drawerState.mode === "post" ? (
+          ) : modalState.mode === "post" ? (
             <PostExpensePanel
-              item={drawerState.item}
-              onClose={() => setDrawerState(null)}
+              item={modalState.item}
+              onClose={closeModal}
               onSuccess={setStatusMessage}
             />
           ) : (
             <StatusPanel
               action={voidBillsExpenseItemAction}
               initialState={voidInitialState}
-              item={drawerState.item}
+              item={modalState.item}
               message="Void this unposted bill or expense. Posted rows stay tied to the ledger."
-              onClose={() => setDrawerState(null)}
+              onClose={closeModal}
               onSuccess={setStatusMessage}
               submitLabel="Void"
             />
           )}
-        </SideDrawer>
+        </Modal>
       ) : null}
       </div>
     </WorkspacePage>
@@ -390,9 +372,8 @@ function BillsExpensesFilters({
           <FilterPopover
             activeCount={activeFilterCount}
             contentClassName="w-[min(620px,calc(100vw-2rem))]"
-            description="Narrow this month by date basis, workflow state, or record."
             id="expense-advanced-filters"
-            title="Filter bills and expenses"
+            title="Filters"
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <FilterField label="Date basis"><SelectControl ariaLabel="Expense date basis" onValueChange={(value) => replaceParam("dateBasis", value, "invoice")} options={[{ label: "Invoice date", value: "invoice" }, { label: "Paid date", value: "paid" }]} value={viewQuery.dateBasis} /></FilterField>
@@ -426,7 +407,7 @@ function BillsExpensesSummaryStrip({
   summary: BillsExpensesSummary;
 }) {
   return (
-    <section aria-label="Global expense summary" className="grid grid-flow-col auto-cols-[minmax(156px,1fr)] gap-3 overflow-x-auto border-b border-border px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6 lg:grid-flow-row lg:grid-cols-5 lg:auto-cols-auto" tabIndex={0}>
+    <section aria-label="Global expense summary" className="flex min-w-max divide-x divide-border overflow-x-auto border-b border-border px-4 py-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6" tabIndex={0}>
       <SummaryCard label="Approved" value={summary.approvedCount} />
       <SummaryCard label="Draft" value={summary.draftCount} />
       <SummaryCard label="Overdue" value={summary.overdueCount} />
@@ -446,7 +427,7 @@ function PaidBillsExpensesSummaryStrip({
   return (
     <section
       aria-label="Paid expense summary"
-      className="grid grid-flow-col auto-cols-[minmax(156px,220px)] gap-3 overflow-x-auto border-b border-border px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6"
+      className="flex min-w-max divide-x divide-border overflow-x-auto border-b border-border px-4 py-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6"
       tabIndex={0}
     >
       <SummaryCard label="Event count" value={eventCount} />
@@ -457,11 +438,11 @@ function PaidBillsExpensesSummaryStrip({
 
 function SummaryCard({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-md border border-border bg-surface px-3 py-2">
+    <div className="min-w-[132px] px-3 py-1 first:pl-0">
       <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
         {label}
       </p>
-      <div className="mt-1 text-base font-semibold text-foreground">{value}</div>
+      <div className="mt-0.5 text-sm font-semibold text-foreground">{value}</div>
     </div>
   );
 }
@@ -477,16 +458,17 @@ function BillsExpensesTable({
 }) {
   return (
     <div className="h-full overflow-auto rounded-md border border-border bg-surface">
-      <table className="w-full min-w-[930px] table-fixed border-collapse text-left text-[13px]">
+      <table className="w-full min-w-[1120px] table-fixed border-collapse text-left text-[13px]">
         <thead className="border-b border-border bg-surface-muted text-[11px] uppercase tracking-[0.06em] text-muted">
           <tr>
-            <th className="px-3 py-2">Vendor / Payee</th>
+            <th className="px-3 py-2">Date</th>
             <th className="px-3 py-2">Property / Unit</th>
-            <th className="px-3 py-2">Invoice / Paid</th>
-            <th className="px-3 py-2 text-right">Amount</th>
-            <th className="px-3 py-2">Category</th>
+            <th className="px-3 py-2">Expense</th>
+            <th className="px-3 py-2">Responsible</th>
+            <th className="px-3 py-2 text-right">Cost</th>
+            <th className="px-3 py-2 text-right">Paid</th>
+            <th className="px-3 py-2">Recovery</th>
             <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Next</th>
             <th className="w-[74px] px-3 py-2 text-right">Preview</th>
           </tr>
         </thead>
@@ -512,8 +494,14 @@ function BillsExpensesTable({
               tabIndex={0}
             >
               <td className="px-3 py-2">
-                <p className="font-medium">{item.vendorLabel}</p>
-                <p className="text-xs text-muted">{item.expenseTypeLabel}</p>
+                <p>
+                  {item.isPaymentEvent
+                    ? `${getPaymentEventLabel(item)} ${item.paidDate ? formatDate(item.paidDate) : "date unavailable"}`
+                    : formatDate(item.invoiceDate)}
+                </p>
+                {!item.isPaymentEvent && item.dueDate ? (
+                  <p className={cn("text-xs text-muted", item.isOverdue && "font-semibold text-danger")}>Due {formatDate(item.dueDate)}</p>
+                ) : null}
               </td>
               <td className="px-3 py-2">
                 <Link
@@ -526,26 +514,19 @@ function BillsExpensesTable({
                 <p className="text-xs text-muted">{item.unitNumber}</p>
               </td>
               <td className="px-3 py-2">
-                <p>
-                  {item.isPaymentEvent
-                    ? `${getPaymentEventLabel(item)} ${item.paidDate ? formatDate(item.paidDate) : "date unavailable"}`
-                    : formatDate(item.invoiceDate)}
-                </p>
-                {!item.isPaymentEvent && item.dueDate ? (
-                  <p className={cn("text-xs text-muted", item.isOverdue && "font-semibold text-danger")}>
-                    Due {formatDate(item.dueDate)}
-                  </p>
-                ) : null}
+                <p className="font-medium">{item.vendorLabel}</p>
+                <p className="text-xs text-muted">{item.category}</p>
               </td>
+              <td className="px-3 py-2">{getResponsibleLabel(item)}</td>
               <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
                 <MoneyDisplay align="right" value={item.amountDisplay} />
               </td>
-              <td className="px-3 py-2">{item.category}</td>
+              <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
+                <MoneyDisplay align="right" value={item.amountPaidDisplay} />
+              </td>
+              <td className="px-3 py-2 text-xs text-muted">{item.ownerBillStatusLabel}</td>
               <td className="px-3 py-2">
                 <StatusBadge item={item} />
-              </td>
-              <td className="px-3 py-2 text-xs text-muted">
-                {item.isPaymentEvent ? "Recorded" : item.nextAction}
               </td>
               <td className="px-3 py-2 text-right">
                 <Button
@@ -590,7 +571,7 @@ function BillsExpensesInspector({
   }
 
   return (
-    <aside className="rounded-md border border-border bg-surface">
+    <div className="bg-surface">
       <div className="border-b border-border px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -630,12 +611,12 @@ function BillsExpensesInspector({
               </Detail>
             </>
           )}
-          <Detail label="Company handling">{item.economicScopeLabel}</Detail>
-          <Detail label="Owner bill status">{item.ownerBillStatusLabel}</Detail>
+          <Detail label="Responsible">{getResponsibleLabel(item)}</Detail>
+          <Detail label="Recovery">{item.ownerBillStatusLabel}</Detail>
           <Detail label="Owner receivable">
             <MoneyDisplay value={item.ownerReceivableDisplay} />
           </Detail>
-          <Detail label="Company loss">
+          <Detail label="IPS cost">
             <MoneyDisplay value={item.companyLossDisplay} />
           </Detail>
         </div>
@@ -690,7 +671,7 @@ function BillsExpensesInspector({
           ) : null}
         </div> : null}
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -711,13 +692,33 @@ function BillsExpenseForm({
     createBillsExpenseItemAction,
     createInitialState,
   );
+  const [step, setStep] = useState<1 | 2>(1);
 
   useCloseOnSuccess(state, onClose, onSuccess);
 
   return (
     <form action={action} className="flex h-full flex-col">
-      <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
-        <FormSection title="Bill record">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
+        <div className="space-y-2" aria-live="polite">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <p className="font-semibold text-foreground">Step {step} of 2</p>
+            <p className="text-muted">
+              {step === 1 ? "Expense details" : "Responsibility and review"}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2" aria-hidden="true">
+            <span className="h-1 rounded-full bg-accent" />
+            <span
+              className={cn(
+                "h-1 rounded-full",
+                step === 2 ? "bg-accent" : "bg-border",
+              )}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-5" hidden={step !== 1}>
+          <FormSection title="Expense">
           <Field label="Expense type" error={state.fieldErrors?.expenseType?.[0]}>
             <SelectControl
               defaultValue="vendor_bill"
@@ -731,21 +732,6 @@ function BillsExpenseForm({
           </Field>
           <Field label="Vendor / payee" error={state.fieldErrors?.vendorLabel?.[0]}>
             <Input name="vendorLabel" placeholder="Vendor, owner, or payee" required />
-          </Field>
-          <Field
-            label="Known vendor record"
-            error={state.fieldErrors?.vendorPersonId?.[0]}
-          >
-            <SelectControl
-              name="vendorPersonId"
-              options={[
-                { label: "No people link", value: "" },
-                ...vendorOptions.map((option) => ({
-                  label: option.label,
-                  value: option.id,
-                })),
-              ]}
-            />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
@@ -772,12 +758,14 @@ function BillsExpenseForm({
               />
             </Field>
           </div>
-        </FormSection>
+          </FormSection>
+        </div>
 
-        <FormSection title="Company / owner handling">
+        <div className="space-y-5" hidden={step !== 2}>
+          <FormSection title="Responsibility">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
-              label="Company handling"
+              label="Responsible"
               error={state.fieldErrors?.economicScope?.[0]}
             >
               <SelectControl
@@ -791,7 +779,7 @@ function BillsExpenseForm({
               />
             </Field>
             <Field
-              label="Owner bill status"
+              label="Recovery"
               error={state.fieldErrors?.ownerBillStatus?.[0]}
             >
               <SelectControl
@@ -819,15 +807,45 @@ function BillsExpenseForm({
               <NumberInput name="ownerReimbursedAmount" placeholder="0.00" />
             </Field>
             <Field
-              label="Company loss"
+              label="IPS cost"
               error={state.fieldErrors?.companyLossAmount?.[0]}
             >
               <NumberInput name="companyLossAmount" placeholder="0.00" />
             </Field>
           </div>
-        </FormSection>
+          </FormSection>
+        </div>
 
-        <FormSection title="Dates and amount">
+        <div className="space-y-5" hidden={step !== 1}>
+          <FormSection title="Amount">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Amount" error={state.fieldErrors?.amount?.[0]}>
+              <NumberInput name="amount" placeholder="0.00" required />
+            </Field>
+            <Field label="Category" error={state.fieldErrors?.category?.[0]}>
+              <Input name="category" placeholder="Maintenance, utilities..." required />
+            </Field>
+          </div>
+          </FormSection>
+        </div>
+
+        <div className="space-y-5" hidden={step !== 2}>
+          <FormSection title="Record details">
+          <Field
+            label="Known vendor record"
+            error={state.fieldErrors?.vendorPersonId?.[0]}
+          >
+            <SelectControl
+              name="vendorPersonId"
+              options={[
+                { label: "No people link", value: "" },
+                ...vendorOptions.map((option) => ({
+                  label: option.label,
+                  value: option.id,
+                })),
+              ]}
+            />
+          </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Invoice date" error={state.fieldErrors?.invoiceDate?.[0]}>
               <DatePickerField
@@ -840,28 +858,54 @@ function BillsExpenseForm({
               <DatePickerField name="dueDate" />
             </Field>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Amount" error={state.fieldErrors?.amount?.[0]}>
-              <NumberInput name="amount" placeholder="0.00" required />
-            </Field>
-            <Field label="Category" error={state.fieldErrors?.category?.[0]}>
-              <Input name="category" placeholder="Maintenance, utilities..." required />
-            </Field>
-          </div>
-        </FormSection>
-
-        <FormSection title="Reference">
           <Field label="Reference" error={state.fieldErrors?.reference?.[0]}>
             <Input name="reference" placeholder="Invoice or receipt number" />
           </Field>
           <Field label="Note" error={state.fieldErrors?.description?.[0]}>
             <Textarea name="description" rows={4} />
           </Field>
-        </FormSection>
+          </FormSection>
+        </div>
 
         {state.message ? <FormMessage state={state} /> : null}
       </div>
-      <DrawerActions onCancel={onClose} pending={pending} submitLabel="Save bill" />
+      <div className="border-t border-border bg-surface px-5 py-4">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          {step === 1 ? (
+            <>
+              <Button className="w-full sm:w-auto" onClick={onClose} type="button">
+                Cancel
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => setStep(2)}
+                type="button"
+                variant="primary"
+              >
+                Continue
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => setStep(1)}
+                type="button"
+              >
+                Back
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                disabled={pending}
+                type="submit"
+                variant="primary"
+              >
+                {pending ? "Saving..." : "Save expense"}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
     </form>
   );
 }
@@ -897,12 +941,10 @@ function PostExpensePanel({
         <ConsequencePanel
           rows={[
             { label: "Payee", value: item.vendorLabel },
-            { label: "Cash payment", value: item.outstandingAmountDisplay.primary },
-            { label: "Remaining after payment", value: formatMoneyDisplay(0, item.currency).primary },
-            { label: "Ledger effect", value: "Payment and settlement allocation" },
+            { label: "Payment", value: item.outstandingAmountDisplay.primary },
+            { label: "Remaining", value: formatMoneyDisplay(0, item.currency).primary },
           ]}
-          summary={`Records the remaining property payment of ${item.outstandingAmountDisplay.primary} and its settlement allocation.`}
-          title="Payment consequence"
+          title="Payment summary"
         />
         <Field label="Payment date" error={state.fieldErrors?.paidDate?.[0]}>
           <DatePickerField
@@ -1101,34 +1143,50 @@ function useCloseOnSuccess(
   }, [onClose, onSuccess, state.message, state.status]);
 }
 
-function getDrawerTitle(drawer: DrawerState) {
-  if (drawer.mode === "create") {
-    return "Add bill or expense";
+function getResponsibleLabel(item: BillsExpenseItem) {
+  if (item.economicScope === "company_advance") {
+    return "Owner - IPS advanced";
   }
 
-  if (drawer.mode === "approve") {
-    return "Approve bill";
+  return item.economicScope === "company_cost" ? "IPS" : "Owner";
+}
+
+function getModalTitle(modal: ModalState) {
+  if (modal.mode === "detail") {
+    return `${modal.item.vendorLabel} expense details`;
   }
 
-  if (drawer.mode === "post") {
+  if (modal.mode === "create") {
+    return "Add expense";
+  }
+
+  if (modal.mode === "approve") {
+    return "Approve expense";
+  }
+
+  if (modal.mode === "post") {
     return "Record payment";
   }
 
-  return "Void bill";
+  return "Void expense";
 }
 
-function getDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "create") {
-    return "Create outgoing money that needs approval, posting, or evidence.";
+function getModalDescription(modal: ModalState) {
+  if (modal.mode === "detail") {
+    return "Cost, responsibility, and payment history.";
   }
 
-  if (drawer.mode === "approve") {
-    return "Approved bills can have their property payment recorded.";
+  if (modal.mode === "create") {
+    return "Add a cost for a property or IPS.";
   }
 
-  if (drawer.mode === "post") {
-    return "Record the outgoing property cash event for this bill.";
+  if (modal.mode === "approve") {
+    return "Approve this expense for payment.";
   }
 
-  return "Void this unposted bill or expense.";
+  if (modal.mode === "post") {
+    return "Apply money paid to this expense.";
+  }
+
+  return "Remove this expense from the active workflow.";
 }

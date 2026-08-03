@@ -46,6 +46,7 @@ type ActiveOwnerLink = {
 };
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type PropertyFilterQuery = ReturnType<typeof buildPropertyBaseQuery>;
 type ActiveOwnerRow = {
   person_id: string;
   property_id: string;
@@ -61,6 +62,16 @@ const propertySelect =
   "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at";
 const propertyImageMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 const propertyRelationshipBatchSize = 75;
+
+function buildPropertyBaseQuery(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+) {
+  return supabase
+    .from("properties")
+    .select(propertySelect, { count: "exact" })
+    .eq("organization_id", organizationId);
+}
 
 type PropertyImageRow = {
   property_id: string;
@@ -398,10 +409,7 @@ async function getPagedPropertyRows({
   const range = getRange(page, pageSize);
   const result = applyPropertyBaseSort(
     applyPropertyBaseFilters(
-      supabase
-        .from("properties")
-        .select(propertySelect, { count: "exact" })
-        .eq("organization_id", organizationId),
+      buildPropertyBaseQuery(supabase, organizationId),
       viewQuery,
       activeOwnerLinks,
     ),
@@ -423,7 +431,7 @@ async function getPagedPropertyRows({
 }
 
 function applyPropertyBaseFilters(
-  query: ReturnType<SupabaseServerClient["from"]>,
+  query: PropertyFilterQuery,
   viewQuery: PropertyViewQuery,
   activeOwnerLinks?: ReadonlyMap<string, ActiveOwnerLink>,
 ) {

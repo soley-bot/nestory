@@ -1,13 +1,15 @@
-import { redirect } from "next/navigation";
-import {
-  buildLegacyRedirect,
-  type LegacyRedirectSearchParams,
-} from "@/lib/navigation/legacy-redirect";
+import { FinanceOperationsScreen } from "@/features/finance-operations/components/finance-operations-screen";
+import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
+import { requireAdminContext } from "@/lib/auth/context";
 
-export default async function FinanceDashboardPage({
-  searchParams,
-}: {
-  searchParams: LegacyRedirectSearchParams;
-}) {
-  redirect(await buildLegacyRedirect("/overview?lens=finance", searchParams));
+export default async function FinanceDashboardPage() {
+  const context = await requireAdminContext();
+  const data = await getFinanceOperationsData(context.organizationId);
+  return (
+    <FinanceOperationsScreen
+      {...data}
+      organizationName={context.organizationName}
+      view="work"
+    />
+  );
 }

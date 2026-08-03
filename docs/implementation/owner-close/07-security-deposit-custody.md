@@ -3,6 +3,12 @@
 > **Legacy broad design source — not current Plan 07.** The ratified sequence
 > moved this work to **sequence 10, security-deposit custody**. Use
 > `97-ratified-final-sequence.md`; do not paste this file directly into Codex.
+>
+> Current UI placement is settled separately: deposits stay with Leases and
+> outside Owner Statement operating lines, totals, and balance under
+> `../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`.
+> Any required custody evidence is a separate disclosure. That UI change does
+> not invent sequence 10 disposition policy.
 
 **Mode:** Standard  
 **Effort:** High  

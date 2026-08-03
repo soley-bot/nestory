@@ -35,6 +35,7 @@ export function PropertyInspector({
   }
 
   const action = getPropertySummaryAction(property);
+  const openUnitCount = getOpenUnitCount(property);
   const occupancyRate =
     property.units > 0
       ? Math.round((property.occupiedUnits / property.units) * 100)
@@ -157,19 +158,17 @@ export function PropertyInspector({
               href={`/leases?propertyId=${property.id}`}
               icon={<ScrollText size={15} />}
               label="Leases"
-              meta="Review occupancy"
+              meta={`${property.occupiedUnits} occupied · ${openUnitCount} open`}
             />
             <PreviewLink
               href={`/ledger?propertyId=${property.id}`}
               icon={<Landmark size={15} />}
               label="Ledger"
-              meta="View financial activity"
             />
             <PreviewLink
               href={`/timeline?propertyId=${property.id}`}
               icon={<ListTree size={15} />}
               label="Timeline"
-              meta="Recent history"
             />
           </div>
         </section>
@@ -258,7 +257,7 @@ function PreviewLink({
   href: string;
   icon: React.ReactNode;
   label: string;
-  meta: string;
+  meta?: string;
 }) {
   return (
     <Link
@@ -270,7 +269,9 @@ function PreviewLink({
         <span className="block truncate text-sm font-semibold text-foreground">
           {label}
         </span>
-        <span className="block truncate text-xs text-foreground-muted">{meta}</span>
+        {meta ? (
+          <span className="block truncate text-xs text-foreground-muted">{meta}</span>
+        ) : null}
       </span>
     </Link>
   );
