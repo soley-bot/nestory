@@ -20,7 +20,7 @@ identity, party, occupancy, participant, relationship-date, transition, and
 historical-read evidence. Track A consumes that evidence and never mutates or
 redefines it.
 
-**Current Finance UI boundary (2026-07-30):**
+**Current Finance UI boundary (revised 2026-08-03):**
 [IPS Finance Workflow Simplification](../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md)
 owns the current operator labels, route meanings, table columns, and
 modal/page interaction model. This record continues to own future formal

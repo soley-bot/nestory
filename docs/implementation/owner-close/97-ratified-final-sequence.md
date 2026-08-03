@@ -26,18 +26,23 @@ Nestory remains an operational property-management and property-accounting
 product. It does not become the management company's corporate accounting,
 payroll, tax, or general ERP system.
 
-For the current IPS release, that boundary means Income, Expenses, Leases &
-Deposits, read-only existing Owner Contribution/Payment evidence, and
-owner/property cash history.
-The Finance UI uses compact operational tables and focused centered
-modal/page flows. It does not expose side inspectors, card-heavy dashboards,
-general-ledger language, or controls for later plan authority.
+For the current product target, that boundary means tenant billing and
+collections, owner/property expenses and balances, owner/customer recovery,
+Leases & Deposits, and a narrow IPS operating view for management fees, service
+income, recoverable advances, and paid/unpaid customer balances. The IPS view
+is not corporate accounting and does not expose payroll, tax, treasury, bank
+reconciliation, or a general ERP ledger.
 
-The current product model has one visible owner/property perspective. The
-target presents a management fee once as an owner/property expense under
-Expenses with IPS as vendor; there is no management-company fee report product
-surface. Its current compatibility source remains read-only and disclosure-only
-until Plans 11/12 define recognition and owner-deduction timing.
+The Finance UI uses compact operational tables, a short setup flow, and focused
+centered modal/page actions. It does not expose side inspectors, card-heavy
+dashboards, general-ledger language, or permanent accounting tutorials.
+
+The current product target has two linked perspectives: owner/property finance
+and limited IPS operations. One management-fee event appears as an
+owner/property expense and IPS operating income without duplicate entry or
+deduction. The current compatibility source remains read-only and
+disclosure-only until Plans 11/12 define calculation, recognition, settlement,
+and owner-deduction timing.
 Deposits remain custody tracking outside operating income and expenses. Owner
 payments reduce funds held for the owner and are not property expenses, but
 new distribution writes remain Plan 14 work. Owner contributions increase
@@ -687,9 +692,12 @@ operating totals.
 ## Plan authorization
 
 - Plans 00 through 05 are complete/merged.
-- The IPS Finance product/UI design is approved. Runtime implementation still
-  requires a separate reviewed plan. Neither the design nor planning
-  authorizes Plan 06 onward,
+- The revised linked owner/property and IPS Finance product/UI design is
+  approved. The presentation-only
+  `docs/superpowers/plans/2026-08-03-finance-ux-first-slice.md` is separately
+  approved for the existing Rent and Expenses routes. It changes no stored
+  financial facts, RPC, migration, or recognition rule. Neither that slice nor
+  the design authorizes Plan 06 onward,
   tenant-invoice publication, Owner Close, hosted execution, deployment,
   backfill, or merge.
 - A separate reviewed UI implementation plan may propose only the six
@@ -698,11 +706,11 @@ operating totals.
   `general_repairs`, `laundry_service`, `access_card_fee`, and `pet_fee`) plus
   matching constraint/action/type changes. It may not use that exception for a
   generic schema expansion, owner-contribution write, or owner-payment write.
-- Existing management-fee compatibility evidence remains read-only and is
-  shown once under owner/property Expenses with IPS as vendor. Any existing
+- Existing management-fee compatibility evidence remains read-only. The target
+  may preview its linked owner-expense and IPS-income meanings, but any existing
   company-book projection is backend compatibility evidence only. No UI plan
-  may add a fee recognition, write, product-view, or dual-write path before
-  Plan 11/12 authority exists.
+  may add fee calculation, recognition, settlement, owner deduction, or a
+  dual-write path before Plan 11/12 authority exists.
 - Every implementation prompt starts from latest merged `main`, confirms the
   corresponding row and prerequisites, and stops on material drift.
 - Legacy broad files do not authorize implementation by filename.

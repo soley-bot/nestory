@@ -62,9 +62,12 @@ their conclusions or run another review loop to make them appear current.
 - **Merged implementation:** Plans 01 through 05 have repository evidence and
   merged PRs.
 - **Current authoritative planning:** this README, files 96 and 97, the IPS
-  Finance simplification direction with its approved product/UI design, and
-  any separately approved current-sequence plan. Runtime Finance
-  implementation still requires a separate reviewed plan.
+  Finance simplification direction with its approved product/UI design, the
+  approved presentation-only
+  [Finance UX first slice](../../superpowers/plans/2026-08-03-finance-ux-first-slice.md),
+  and any separately approved current-sequence plan. That first slice changes
+  the live Rent and Expenses presentation only; new financial authority still
+  requires its own reviewed plan.
 - **Legacy/superseded planning:** broad source files whose filename numbers no
   longer equal current sequence numbers.
 - **Historical evidence:** files 98 and 99 and older execution plans outside
@@ -410,14 +413,15 @@ into a supported model.
 
 ## Current next step
 
-No later Track A implementation slice is authorized by this package. The
-IPS Finance product/UI design is approved, but runtime changes to operator UI,
-copy, table composition, or compatibility adapters require a separate reviewed
-implementation plan. Existing management-fee compatibility evidence remains
-read-only until Plan 11/12 authority exists.
-Plan 06 onward still requires its own approved implementation prompt. Hosted
-Plan 05 migration, backfill, deployment, and release verification also remain
-separate activities.
+The 2026-08-03 Finance UX first slice is approved for the existing Rent and
+Expenses presentation. It may shorten navigation and copy, replace split
+inspectors and side drawers with centered modals, and replace stat-card strips
+with compact totals. It may not add or reinterpret stored financial facts,
+RPCs, migrations, owner balances, direct-owner collection, tenant invoices, or
+management-fee writes. Existing management-fee compatibility evidence remains
+read-only until Plan 11/12 authority exists. Plan 06 onward still requires its
+own approved implementation prompt. Hosted Plan 05 migration, backfill,
+deployment, and release verification also remain separate activities.
 
 ## Required Cross-Plan Amendments
 

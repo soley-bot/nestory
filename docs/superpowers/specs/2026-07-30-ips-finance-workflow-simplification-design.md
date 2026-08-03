@@ -1,382 +1,752 @@
-# IPS Finance Workflow Simplification Design
+# IPS Finance Domain and Simplified UX Design
 
-**Date:** 2026-07-30
-**Status:** Approved product/UI target; runtime implementation requires a
-separate reviewed plan
+**Original date:** 2026-07-30
+**Revised:** 2026-08-03
+**Status:** Finance domain approved by the user; the consolidated model, staff
+flows, and first-release UX wireframes are placed in Figma for review. Runtime
+implementation still requires a separate reviewed plan.
 
-## Authority and supersession
+**Design artifact:** [Nestory Finance — Simplified Flow & UX Wireframes
+(Complete)](https://www.figma.com/design/N7HYfaJ9159eWDdBev0sxG)
 
-This design translates the
-[Nestory Finance Model - Owner Perspective](https://docs.google.com/document/d/1pYARcqQFq7_c7tuVbTOaO9fHv4R7pHN0nfsV04uvqTo)
-into the smallest coherent Nestory Finance experience.
+## Purpose
 
-For Finance product scope, operator language, form placement, table design,
-and first-release interaction, this document supersedes:
+This document replaces the earlier owner-only Finance product direction with
+the approved model shown in the user's Nestory finance diagram and clarified
+through the product discussion.
 
-- the operator-UI portions of
-  `docs/superpowers/plans/2026-07-06-finance-workspace-v1.md`;
-- the Finance inspector, drawer, and dashboard assumptions in the platform UI
-  redesign spec and plan;
-- the product-roadmap and operator-UI portions of the accounting-kernel spec
-  and plan;
-- the Finance presentation portions of the Overview property-performance spec
-  and plan; and
-- the owner-facing presentation in the 2026-07-14 Owner Statement spec and
-  plan.
+Nestory must show two linked but clearly separated financial perspectives:
 
-Historical plans remain historical evidence. Their original bodies must not be
-rewritten as if they described this design.
+1. the owner and property's financial position; and
+2. a small IPS operating view for management-fee income, service income,
+   recoverable advances, and customer balances.
 
-This document does not supersede or authorize changes to existing RPC, RLS,
-exact-money, obligation, settlement, approval, reversal, source-identity,
-activity, period-lock, Ledger, journal, or audit guarantees. The Owner Close
-package remains the authority for financial safety and future write, close,
-balance, and publication work.
+One real business event may affect both perspectives, but staff must enter it
+only once. Nestory is not intended to become a complete accounting or ERP
+system for IPS.
 
-The approved owner-perspective HTML prototype is target interaction evidence.
-It is not proof that production persistence, authorization, accounting
-projection, settlement, or close behavior has been implemented.
+This revision supersedes the previous decisions that Finance must expose only
+one owner/property perspective, exactly two primary tabs, and no IPS operating
+view. Historical documents remain evidence of earlier product direction and
+must not be rewritten as though they already described this model.
 
-## Product decision
+This design does not itself authorize production writes, schema changes,
+backfills, migrations, or release work. Existing RPC, RLS, exact-money,
+approval, reversal, source-identity, idempotency, period-lock, Ledger, journal,
+and audit guarantees remain mandatory. The Owner Close plan package remains
+the authority for gated accounting and publication work.
 
-Nestory Finance has one visible financial perspective: the owner and property.
-It records the property's income, the owner's property expenses, custody
-money, and owner funding or distributions without exposing IPS corporate
-accounting as a Nestory product.
+## Product principles
 
-Consequences:
+- Start from the staff task, not the accounting structure.
+- Keep one property linked to one owner in the first version.
+- Keep every property's balances and activity separate.
+- Use one linked event instead of duplicate owner and IPS entry.
+- Separate what the owner earned from cash IPS physically holds.
+- Show unpaid amounts separately from confirmed collections.
+- Use customer language on customer documents.
+- Use pages or focused centered modals instead of cramming unrelated sections
+  into one screen.
+- Remove permanent explanatory filler from working screens. Use short labels,
+  validation, statuses, and a small optional evidence area instead.
+- Preserve complex controls in the backend and audit trail without requiring
+  ordinary staff to understand accounting implementation details.
 
-- do not add a perspective selector;
-- do not add an IPS management-company fee report, dashboard, tab, or parallel
-  income workspace;
-- show a management fee once under Expenses, with IPS as the vendor;
-- keep deposits outside Income, Expenses, and operating totals;
-- keep owner contributions and owner distributions outside Income and
-  Expenses; and
-- classify a record by its effect on the owner/property, not by which party
-  receives the cash first.
+## First-version scope
 
-## Financial model
+The first version covers:
 
-| Business event | Owner/property meaning | Visible placement |
+- property and owner finance;
+- lease billing rules;
+- tenant and company invoices;
+- rent collected through IPS or directly by the owner;
+- management-fee calculation and recovery;
+- owner- or tenant-responsible costs paid by IPS;
+- optional service markup stored internally;
+- owner invoices for management fees and IPS advances;
+- owner/property running balance and IPS-held cash;
+- IPS-staff owner withdrawals;
+- paid, partly paid, unpaid, and overdue customer balances;
+- owner reports and a small IPS operating report; and
+- property-value and ROI analytics.
+
+It excludes IPS payroll, tax, treasury, bank reconciliation, a complete IPS
+general ledger, and a generic ERP workflow engine.
+
+## Core domain model
+
+### Parties and ownership
+
+- A property has one owner in the first version.
+- A property may have units and multiple leases over time.
+- A lease has one effective-dated billing recipient: an individual tenant or a
+  company. Invoice issuance snapshots the debtor and recipient selected from
+  authoritative lease terms and accepted party evidence at that time; changing
+  a contact later does not rewrite an issued invoice.
+- A company-billed lease keeps its occupants as references, but the company is
+  the invoice recipient.
+- Financial activity, balances, invoices, withdrawals, and owner reporting
+  never combine different properties into one account.
+- An owner dashboard may consolidate read-only totals across the owner's
+  properties while preserving each property's separate records.
+
+### Linked finance event
+
+`Linked event` is a product concept, not a proposed universal transaction
+table. Each action remains owned by a typed domain source such as a rent
+receipt, owner collection confirmation, management-fee assessment, expense
+settlement, customer invoice, or owner withdrawal. Deterministic projections
+link those typed sources into owner/property and IPS views. No implementation
+may replace them with one generic writable financial-event schema.
+
+| Event | Owner/property effect | IPS effect |
 | --- | --- | --- |
-| Tenant charge and receipt | Income generated by the property | Income |
-| Vendor bill and payment | Expense incurred to operate the property | Expenses |
-| Management fee | Owner/property expense payable to vendor IPS | Expenses |
-| Security, utility, or pet deposit | Custody liability that may be returned or applied | Leases & Deposits |
-| Owner contribution | Owner funding; not income | Owner Balance/Statement context when authoritative |
-| Owner distribution or withdrawal | Settlement of funds held for the owner; not an expense | Owner Balance/Statement context when authoritative |
+| Rent received by IPS | Confirmed rent income; IPS-held owner cash increases | IPS holds cash for the property |
+| Rent received by owner | Confirmed rent income; IPS-held cash unchanged | External collection recorded only |
+| Management fee | Owner management-fee expense | IPS management-fee income |
+| Owner cost funded from held cash | Owner cost; held cash decreases | No IPS advance |
+| Owner cost advanced by IPS | Owner cost; amount owed to IPS increases | Recoverable IPS advance |
+| Tenant service charge | No owner expense | Tenant receivable, cost recovery, and optional markup income |
+| Owner withdrawal | Owner running balance and held cash decrease | Cash paid to the owner |
 
-Income examples include Rent, Parking, Utility recovery, Late fee, Cleaning
-charged to tenant, General maintenance charged to tenant, General repairs
-charged to tenant, Laundry service, Access card fee, Pet fee, and Other tenant
-charge.
+Every event stores its property, source record, responsible party, funding
+source, collection route where applicable, amount, currency, business date,
+and evidence references.
 
-Expense examples include Management fee, Maintenance, Cleaning, Electricity,
-Water, Cable and Internet, Gas, Commission, Association fees, Bank fees, Car
-parking, Air-conditioner cleaning, Unit refresh, Furnishing, General supplies,
-Insurance, Laundry services, Legal and professional fees, Renovation, Taxes,
-Labor, and Other expense.
+## Lease and billing rules
 
-`Property management services fee` is the same owner/property category as
-`Management fee`; it is not a second record family.
+Each lease stores effective-dated financial terms:
 
-### Obligations and settlements remain distinct
+- normal monthly rent;
+- rent collection route: `Through IPS` or `Direct to owner`;
+- management fee as a flat amount or percentage of normal monthly rent;
+- whether the management fee is charged while the lease is active;
+- whether first-month rent may be prorated;
+- whether final-month rent may be prorated;
+- whether the management fee remains full during a prorated month; and
+- billing recipient and billing information.
 
-A simple interface must not collapse financial meaning:
+Rent and management-fee changes require an effective date. Historical invoices
+and fees retain the terms that applied to their billing period.
 
-- a charge or bill is an obligation;
-- a receipt or payment is a settlement event allocated to that obligation;
-- approval is a separate capability and state;
-- reversal creates append-only opposite evidence and preserves the original;
-- classification, approval state, and cash state are separate operator facts;
+For the first and final month, staff may select prorated billing and enter the
+agreed amount. Automatic daily proration is not required in the first version.
+The management fee remains the full normal amount by default, with a per-lease
+option to use a different rule.
+
+For company billing, Nestory creates one invoice per lease and billing period,
+addresses it to the company, and lists the occupants as references.
+
+## Tenant and company invoices
+
+The approved product target is one invoice per lease and billing period. That
+invoice may contain:
+
+- Rent;
+- Cleaning;
+- Utility;
+- Repairs and Maintenance; and
+- Other.
+
+Customer documents never use `Disbursement` as a line label. They also never
+show an internal markup or service-fee split.
+
+Example:
+
+```text
+Internal record: Cleaning cost $50 + markup $20
+Customer invoice: Cleaning $70
+```
+
+The internal record retains the base cost and markup separately. The customer
+sees one understandable service line and total.
+
+Basic invoice states are `Unpaid`, `Partly paid`, `Paid`, and `Voided`.
+`Overdue` is derived from an unpaid balance after the due date.
+
+Each invoice line has an immutable identity and binds to one typed obligation.
+When a payment does not cover the full invoice, Nestory proposes draft
+allocations to Rent first. Staff may select `Change what this payment covers`
+before committing the payment. A committed allocation is never silently
+retargeted; correction uses append-only reversal and a new allocation.
+
+The current runtime's narrower invoice and allocation cardinality does not yet
+authorize this target. Multi-line issuance and atomic multi-allocation payment
+commit remain gated by the ratified tenant-invoice and formal-receipt plans. The
+UI must not expose this flow until the backend can commit all selected line
+allocations idempotently in one checked action.
+
+## Rent collection
+
+### Rent collected through IPS
+
+1. IPS records the received payment against the tenant or company invoice.
+2. After the invoice-bound allocation commits, Nestory creates the product
+   target `IPS Payment Receipt`.
+3. The allocated rent becomes confirmed owner rent income.
+4. IPS-held cash increases only by the owner's rent portion.
+5. The management fee becomes an owner expense and IPS income.
+6. Amounts due to IPS are settled from available held cash before an owner
+   withdrawal.
+
+### Rent collected directly by the owner
+
+1. IPS staff record an `Owner Collection Confirmation`.
+2. The checked action stores a canonical source ID, idempotency key, amount,
+   date, tenant/company, lease, property, invoice/obligation allocation,
+   confirmer, confirmation timestamp, reconciliation source
+   `owner_external_collection`, and an owner receipt or reference when
+   available.
+3. The allocated amount settles the tenant balance and becomes confirmed owner
+   rent income.
+4. The event is visibly labelled `Collected by owner`.
+5. IPS-held cash does not increase.
+6. IPS does not issue a tenant Payment Receipt because IPS did not receive the
+   money.
+7. The management fee still becomes an owner expense and IPS income.
+8. If it cannot be settled from existing held cash, it creates or joins an
+   Owner Invoice.
+
+The confirmation action requires an authorized IPS staff member, prevents the
+same tenant balance from being settled twice, and supports append-only reversal
+that restores the derived outstanding balance while preserving the original
+confirmation. Supporting proof remains optional in the basic workflow, but the
+confirmation identity, authority, allocation, and audit evidence are required.
+
+Only rent received by IPS or confirmed as received by the owner affects the
+owner running balance. Rent charged but not collected remains an outstanding
+tenant/customer balance.
+
+### Receipt authority boundary
+
+`Payment Receipt` is the approved customer-facing document target, not a claim
+that formal receipt authority exists today. A formal receipt requires a unique
+number, immutable committed allocation identity, issuer, issue timestamp,
+reversal relationship, artifact status, and delivery history. Until the
+ratified formal-receipt plan is implemented, the runtime may show checked
+payment evidence but must not label it as an issued formal receipt. The same
+boundary applies to receipts for direct owner payments to IPS.
+
+## Management fee
+
+- The fee is configured per lease as a flat amount or percentage.
+- The fee rule and amount are effective-dated.
+- The fee is charged for an active lease according to the lease's billing
+  period rule.
+- A prorated rent month still uses the full management fee by default.
+- The owner/property side records one management-fee expense.
+- The IPS side records one management-fee income item.
+- One linked fee event creates both effects; the fee is never entered or
+  deducted twice.
+- If sufficient IPS-held owner cash exists, the fee is settled from that cash.
+- Otherwise, the unpaid fee appears on an Owner Invoice.
+
+These are approved product and contract defaults, not current calculation or
+recognition authority. Flat/percentage basis, minor-unit rounding, tax,
+waiver, reversal, recognition timing, and settlement must be ratified and
+implemented through Plans 11/12 before the UI can create or deduct a fee. `Full
+fee during a prorated month` is a proposed per-lease policy default until that
+authority accepts it; it is not permission to calculate from compatibility
+dates or records.
+
+## Costs paid by IPS
+
+Staff record the following critical fields:
+
+- property and optional unit;
+- category: Utility, Cleaning, Repairs and Maintenance, or Other;
+- vendor, date, amount, and currency;
+- responsible party: Owner or Tenant/company;
+- funding source: owner cash held by IPS or IPS advance;
+- optional internal markup; and
+- receipt or supporting document.
+
+Responsibility is selected manually for each transaction in the first version.
+Lease- or category-based defaults may be added later.
+
+Split funding, expense settlement, recovery, and reversal require one checked
+typed expense-settlement contract. The product flow below remains Plan-06-gated
+until that atomic authority can update its source, allocations, owner/IPS
+effects, and reversal evidence without duplicate cash.
+
+### Owner responsible
+
+- The full owner-responsible amount becomes an owner expense.
+- IPS uses held owner cash when sufficient.
+- If held cash covers only part, Nestory records a split funding source.
+- The portion paid with IPS company money becomes an `IPS advance` and an
+  amount the owner owes IPS.
+- Only the advanced portion is invoiced to the owner.
+- Recovery of that advance later clears the amount owed; it does not create a
+  second expense.
+
+Example:
+
+```text
+Repair cost:                         $300
+Owner cash held by IPS:              $100
+IPS advance and owner invoice:       $200
+```
+
+### Tenant or company responsible
+
+- The cost never becomes an owner expense.
+- The tenant/company invoice uses the real service category and customer-facing
+  total.
+- IPS retains the original cost, optional markup, vendor evidence, and funding
+  record internally.
+- The base amount recovers IPS's cost and the markup is IPS service income.
+
+For the basic cash-based IPS operating report, a service markup is recognized
+only when customer cash is committed to that service line. Internal allocation
+recovers the base cost first and then the markup. A partial payment that has not
+reached the markup portion creates no markup income. Reversal removes the same
+recognized amount through opposite evidence. This timing must be implemented
+in the checked invoice-allocation authority before IPS reporting uses it.
+
+## Owner invoices
+
+An Owner Invoice is created when an amount due to IPS cannot be settled from
+IPS-held owner cash. It may contain, for the same property:
+
+- management fee;
+- repair paid by IPS;
+- cleaning paid by IPS;
+- utility paid by IPS; and
+- another owner-responsible IPS advance.
+
+Items from different properties are never combined on one owner invoice.
+
+If IPS later receives rent for the property, staff may apply that held rent to
+open owner invoices before an owner withdrawal. If the owner continues to
+collect rent directly, the invoice remains unpaid until the owner pays IPS.
+When IPS receives direct payment from the owner, IPS records it and issues a
+Payment Receipt.
+
+Owner invoice states are `Unpaid`, `Partly paid`, `Paid`, and `Voided`, with
+`Overdue` derived from the due date.
+
+## Property account and balances
+
+Each owner-property pair has a small configurable account with these standard
+categories:
+
+- Rent income;
+- Management-fee expense;
+- Owner-responsible expense;
+- Withdrawal; and
+- Running balance.
+
+The first version also exposes three operational amounts:
+
+### Owner running balance
+
+```text
+Confirmed rent income
+- management fees
+- owner-responsible expenses
+- completed withdrawals
+= owner running balance
+```
+
+This is an economic-performance projection, not cash payable to the owner and
+not the amount available for withdrawal. Confirmed owner-direct rent is
+included because it is property income even though IPS does not hold the cash.
+An authoritative opening balance, ownership-effective source, owner funding,
+reserves, and correction history remain Plans 13/14 work. Until those sources
+exist, the UI must label the amount `Running balance from tracked activity` and
+must not invent an opening zero or present it as close-backed.
+
+### Cash held by IPS
+
+This is only cash IPS physically controls for that property. It increases from
+owner rent received through IPS and decreases through settled owner costs,
+settled amounts due to IPS, and owner withdrawals. Owner-direct rent never
+increases it.
+
+Withdrawal eligibility is driven only by checked IPS-held cash after required
+set-off of amounts due to IPS, never by the economic running balance.
+
+### Amount owner owes IPS
+
+This is the unpaid balance of management fees and IPS advances that have not
+been settled from held cash or paid directly by the owner.
+
+Account categories must be designed so more configuration can be added later,
+but the first release must not expose a chart-of-accounts editor.
+
+## Owner withdrawal
+
+- Only IPS staff can record a withdrawal.
+- There is no owner self-service withdrawal in the first version.
+- Open amounts due to IPS are settled from held cash before withdrawal money is
+  made available.
+- A withdrawal cannot exceed available IPS-held cash for that property.
+- A completed withdrawal reduces both owner running balance and IPS-held cash.
+- Owner-direct rent is not withdrawable from IPS.
+- The withdrawal appears in the property account and Owner Report.
+
+## Property value and ROI analytics
+
+Property onboarding has two analytics paths:
+
+- `New`: enter the value of a newly listed property.
+- `Existing`: estimate current value and optionally estimate historical revenue.
+
+Property value and estimated historical revenue are analytics-only. They never
+create an opening balance, journal, income item, or cash event.
+
+For a selected month or year:
+
+```text
+ROI =
+(confirmed rent income
+ - management fees
+ - owner-responsible expenses)
+/ latest property value
+```
+
+Withdrawals and tenant-responsible charges are excluded from ROI.
+
+## Reports and customer balances
+
+### Operational Owner Report
+
+The Owner Report is separate for each property and shows:
+
+- opening owner running balance;
+- rent charged;
+- rent collected through IPS;
+- rent confirmed as collected by owner;
+- outstanding rent;
+- management fees;
+- owner-responsible expenses;
+- withdrawals;
+- amount owner owes IPS;
+- ending owner running balance; and
+- ending cash held by IPS.
+
+Supported report views are monthly, transaction detail, yearly total, yearly by
+month, and optional ROI. Only confirmed collections affect the running balance;
+unpaid rent appears separately.
+
+This is an operational preview/report until reconciliation, close, immutable
+Owner Statement artifacts, and delivery are implemented through Plans 15-19.
+It may be printed or exported only with `Operational report — not close-backed`
+identification. The action `Issue Owner Statement` and any claim of official
+publication remain unavailable until those plans are authorized.
+
+### IPS operating report
+
+The small IPS report shows:
+
+- management-fee income;
+- service/markup income;
+- IPS advances still unpaid;
+- owner invoices paid, partly paid, unpaid, or overdue;
+- tenant/company invoices paid, partly paid, unpaid, or overdue; and
+- yearly total and yearly-by-month views.
+
+It does not include IPS payroll, tax, treasury, bank reconciliation, or a full
+corporate balance sheet.
+
+### Customer balances
+
+Customer balances use separate views:
+
+- `Owners`: management fees and owner-responsible IPS advances.
+- `Tenants & companies`: rent and tenant-responsible service charges.
+
+Staff can filter by property, customer, billing period, and payment state, then
+open the underlying invoice and payment history.
+
+## Simplified UX architecture
+
+The existing implementation exposes competing Finance destinations, split
+inspectors, side drawers, large summary-card strips, and long paragraphs that
+explain internal mechanics. The new UX removes those patterns from the normal
+staff flow.
+
+Nestory keeps one application shell. The existing global sidebar and command
+bar remain the primary navigation; Finance does not introduce a second left
+sidebar. Finance uses the same horizontal local-navigation pattern as the rest
+of the authenticated product. The first implementation slice shortens the
+existing destinations and simplifies the live Rent and Expenses workspaces
+before adding new Finance routes.
+
+### Finance navigation
+
+The eventual first-version information architecture is:
+
+```text
+Finance
+|- Finance work
+|- Rent
+|- Expenses
+|- Balances
+|- Leases
+`- More
+
+Property record
+`- Property account
+
+`More` contains Financial History/Ledger and Petty Cash. Global Reports stays
+in the existing Nestory sidebar and is linked contextually from Finance; it is
+not duplicated as a competing Finance navigation destination. Deposits remain
+owned by Leases.
+```
+
+`Reports` contains separate Owner and IPS report views. IPS operating totals do
+not appear in the default owner/property Overview.
+
+### Screen 1: Finance work
+
+Purpose: show what staff must handle next.
+
+- Period and Property filters.
+- One primary action: `Record payment`.
+- One compact totals line: Rent due, Rent collected, Owner expenses, Cash held.
+- `Needs attention` table: overdue rent, owner collections awaiting
+  confirmation, unpaid owner invoices, and expense items missing a responsible
+  party or funding source.
+- Recent activity table.
+- No charts, glossary cards, or accounting explanations.
+
+### Screen 2: Rent
+
+- Primary action: `Record payment`.
+- Secondary action: `Add charge` when a manual tenant service charge is needed.
+- Filters: Period, Property, Status, and Collection route.
+- Table: Due, Property/unit, Billed to, Rent, Paid, Balance, Status, Route.
+- Row opens a centered invoice detail modal for a simple record.
+- A durable invoice page is used when payment allocations, documents, and
+  history need multiple sections or a shareable URL.
+
+### Screen 3: Expenses
+
+- Primary action: `Add expense`.
+- Filters: Property, Category, Responsible party, and Recovery state.
+- Table: Date, Property, Category, Vendor, Responsible party, Cost, Paid from,
+  Recovery state.
+- Row opens a centered expense detail modal.
+- The normal list never exposes debit/credit, journal, or projection terms.
+
+### Screen 4: Customer balances
+
+- Two tabs: `Owners` and `Tenants & companies`.
+- Filters: Property, Customer, Period, and Status.
+- Table: Customer, Property, Invoiced, Paid, Balance, Oldest due, Status.
+- Selecting a customer opens a dedicated customer account page with invoices,
+  payments, receipts, and activity history.
+- Owner and tenant/company balances are never mixed in one total.
+
+### Screen 5: Property account
+
+This is a dedicated page because it has several independent sections:
+
+- Owner running balance.
+- Cash held by IPS.
+- Amount owner owes IPS.
+- Available withdrawal amount.
+- Activity table with Rent income, Management fee, Owner expense, and
+  Withdrawal.
+- Primary action: `Record withdrawal` for authorized IPS staff.
+- Links to owner invoices and Owner Reports.
+
+### Screen 6: Reports
+
+- Tabs: `Owner reports` and `IPS report`.
+- Owner report filters: Owner, Property, Period, and Report type.
+- IPS report filters: Property, Period, Customer type, and Status.
+- Reports open on an operational preview page. Official issue is unavailable
+  until the close-backed Owner Statement path is authorized.
+- ROI appears only when a property value exists.
+
+## Focused actions
+
+Working screens use centered modals for short actions and dedicated pages for
+multi-section records. Finance does not use a persistent split inspector or a
+large side drawer.
+
+### Record payment modal
+
+- Invoice.
+- Amount.
+- Payment date.
+- Route: `Through IPS` or `Direct to owner`.
+- Method and reference.
+- Proof attachment when available.
+- `Change what this payment covers` optional allocation control.
+- Final action changes to `Record payment` or `Confirm owner collection` based
+  on route.
+
+The confirmation summary uses only three short lines:
+
+- Tenant balance after payment.
+- Owner rent confirmed.
+- IPS cash increase or `No IPS cash received`.
+
+### Add expense modal
+
+Step 1, expense:
+
+- Property/unit.
+- Category.
+- Vendor and date.
+- Amount/currency.
+- Receipt or reference.
+
+Step 2, responsibility:
+
+- Owner or Tenant/company.
+- Paid from owner cash or IPS advance.
+- Optional markup.
+
+The modal shows only fields relevant to the selected responsibility. The save
+confirmation states which customer balance or property account will change.
+
+### Owner payment modal
+
+- Owner invoice.
+- Amount and date.
+- Method and reference.
+- Receipt action.
+
+### Withdrawal modal
+
+- Property.
+- Available IPS-held cash.
+- Amount and date.
+- Method and reference.
+- The submit button is disabled above the available amount.
+
+## Onboarding flow
+
+A property or active lease missing financial setup opens a dedicated four-step
+setup page instead of showing explanatory blocks across every Finance screen.
+
+1. `Property & owner`: confirm property, owner, and analytics value path.
+2. `Lease billing`: rent, effective date, individual/company bill-to, and
+   occupants.
+3. `Collection & fee`: rent collector, flat/percentage fee, active-lease rule,
+   and proration selections.
+4. `Review & activate`: one concise summary and `Activate billing`.
+
+The setup page shows step names and progress, not tutorial paragraphs. After
+activation, the permanent Finance UI contains only the operational fields and
+statuses needed to do the work.
+
+## Language rules
+
+Use:
+
+- Rent
+- Cleaning
+- Utility
+- Repairs and Maintenance
+- Other
+- Through IPS
+- Collected by owner
+- Awaiting confirmation
+- Unpaid
+- Partly paid
+- Paid
+- Overdue
+- Owner owes IPS
+- Cash held by IPS
+
+Do not expose these internal terms on ordinary customer or task screens:
+
+- Disbursement
+- Proportion allocation
+- Operator-selected allocation
+- Debit / credit
+- Journal projection
+- Accounting authority
+- Compatibility adapter
+
+Internal evidence may use technical terms in an optional collapsed Evidence
+section for authorized users.
+
+## Current implementation transition
+
+A later implementation plan should make the following presentation changes
+without weakening current financial controls:
+
+- replace the current five-destination Finance local navigation with the new
+  task-based structure;
+- remove persistent Finance split inspectors and side drawers;
+- replace large summary-card strips with one compact totals line;
+- remove permanent paragraphs that explain obligation, settlement, Ledger,
+  journal, and Owner Statement internals;
+- keep historical incompatible categories visible as read-only compatibility
+  evidence instead of offering them in ordinary create forms;
+- preserve existing URLs through explicit redirects or compatibility pages;
+- keep Ledger/Financial History secondary and source-linked;
+- introduce owner and IPS projections only through reviewed backend authority;
   and
-- a visible total must state whether it describes recorded obligations,
-  allocated cash, or outstanding balance.
+- never implement the linked model by dual-writing unrelated generic records.
 
-The UI may use plain language, but it must not flatten these records into one
-universal transaction table or one generic write path.
+The approved 2026-08-03 first implementation slice is narrower: it changes the
+current Rent and Expenses presentation to full-width tables, compact totals,
+and one centered modal at a time. It keeps every existing loader, action, RPC,
+URL, and stored field. It does not add direct-owner collection, customer
+invoices, owner balances, management-fee calculation, or a database migration.
+Those capabilities remain separate authority and migration slices.
 
-## Visible workspace
+## Safety and implementation guardrails
 
-The approved Finance prototype has exactly two primary workspace tabs:
+A future implementation must preserve:
 
-| Tab | Primary action | Single job |
-| --- | --- | --- |
-| Income | Add tenant charge | Record tenant obligations and their receipt lifecycle |
-| Expenses | Add expense | Record owner/property obligations and their approval/payment lifecycle |
+- exact money and currency;
+- organization scope and RLS;
+- role and approval checks;
+- immutable source identity;
+- idempotent event creation;
+- explicit invoice/payment allocation;
+- typed, domain-owned source records rather than a universal event table;
+- append-only reversal and void evidence;
+- period locks;
+- private supporting documents;
+- activity history;
+- deterministic Ledger and balanced journal projections where authorized;
+- separation of obligation, settlement, approval, and cash state; and
+- prevention of duplicate management-fee or expense recovery.
 
-Supporting product surfaces remain separate by financial meaning:
+The UI may preview an event's effects, but preview text is not financial
+authority. Missing owner, lease, billing, responsibility, funding, confirmation,
+or balance evidence must block the action rather than invent a default.
 
-- Leases & Deposits owns deposit custody events;
-- Financial History/Ledger remains a read model and controlled adjustment
-  surface, not a competing transaction store;
-- Petty Cash remains one accountable physical cash register; and
-- Owner Statement remains a preview until Owner Close authority exists.
+## UX acceptance criteria
 
-There is no separate management-fee report product surface. Existing URLs may
-remain technically compatible during a later implementation, but they must not
-be presented as an active Finance destination or an alternative perspective.
-Any redirect, retirement, or compatibility behavior requires its own reviewed
-implementation plan.
-
-## Interaction contract
-
-Each Income or Expenses list uses:
-
-```text
-Title + one contextual primary action
-Income / Expenses local navigation
-Search + Property + Status + Date/Period when useful
-One compact route-specific totals line
-One compact operational table
-Pagination / result count
-```
-
-Rules:
-
-- no persistent or responsive side inspector;
-- selecting a row opens one centered record modal and preserves URL filters
-  and scroll context;
-- create and lifecycle actions use focused centered modals;
-- close the current modal before opening another action;
-- Escape, backdrop, and a visible close control dismiss the modal and return
-  focus to the opener;
-- use a dedicated page only when a record needs multiple independent sections
-  or a durable shareable URL;
-- keep direct record links for keyboard and assistive-technology users;
-- no stat-card grids, decorative dashboards, or charts above the table; and
-- never add amounts from different currencies into one displayed total.
-
-The prototype's plain-language grouping and interaction are the target. Its
-in-memory state is not a safe persistence design.
-
-## Income
-
-Income creation contains tenant charge categories only. It excludes deposits,
-owner contributions, management fees, owner distributions, and property
-expenses.
-
-Desktop table:
-
-1. Due
-2. Property / unit
-3. Tenant
-4. Charge
-5. Expected
-6. Received
-7. Balance
-8. Classification
-9. Cash state
-
-The totals line is Expected, Received, and Outstanding for one selected
-currency. Supported cash states are Open, Partial, Received, and Void. A
-receipt reversal preserves the original receipt and returns the obligation to
-its derived balance state.
-
-Receipt and reversal flows must preserve the implemented Plan 05 contract:
-exact allocation, partial receipts, idempotency, append-only reversal, source
-identity, activity, locks, and matched Ledger/journal projections.
-
-## Expenses
-
-Expenses contains owner/property costs only. It excludes deposits and owner
-transactions.
-
-Desktop table:
-
-1. Invoice / due
-2. Property / unit
-3. Vendor
-4. Expense
-5. Amount
-6. Paid
-7. Balance
-8. Classification
-9. Approval
-10. Cash state
-
-The totals line is Recorded, Paid, and Outstanding for one selected currency.
-Approval remains explicit and does not itself move cash. Ordinary bill states
-use plain operator language such as Draft, Approved/Ready to pay, Partially
-paid, Paid, and Void. Technical projection status is secondary evidence, not
-the main business state.
-
-The ordinary expense form contains:
-
-- Expense category
-- Property
-- Unit, when applicable
-- Vendor/payee
-- Invoice date
-- Due date
-- Amount and currency
-- Reference
-- Note
-
-Payment remains a separate action against an approved bill. It accepts payment
-date, amount, and reference and cannot exceed the remaining balance. Until
-atomic expense settlement authority is implemented, the UI must not pretend
-that a compatibility payment and a separate Ledger projection are one
-transaction or offer a shortcut that can duplicate cash.
-
-## Management-fee boundary
-
-Management fee is an owner/property expense. In visible rows and statement
-lines:
-
-- category is `Management fee`;
-- vendor is IPS;
-- it appears once under Expenses; and
-- it reduces owner/property results once when the applicable authority says it
-  is recognized.
-
-The current management-fee compatibility source remains preserved, read-only,
-and disclosure-only. Neither its due/Fee date nor its receipt date authorizes
-recognition or an owner deduction. It must not be copied into generic expense
-storage, rewritten as tenant income, or dual-written as expense plus corporate
-revenue.
-
-The prototype demonstrates the intended owner-facing form and lifecycle, but
-it does not authorize a production management-fee write against the current
-compatibility source or generic expense RPC. Production creation, calculation,
-approval, recognition, settlement, and reversal remain gated by:
-
-- ratified Plan 11 for fee agreements and calculation; and
-- ratified Plan 12 for the dedicated assessment lifecycle and canonical
-  `management_fee_assessment` authority.
-
-Those plans remain intact. A later implementation may replace the compatibility
-adapter only after the dedicated authority is approved and implemented. It
-must migrate or classify historical compatibility evidence deliberately,
-preserve source identity, and prove that one fee cannot be deducted twice.
-
-Automatic percentage or flat-rate calculation, fee collection state, and
-management-company accounting are not part of this UI slice.
-
-## Deposits and owner transactions
-
-Deposit events stay with the lease and the checked `lease_deposit_events`
-workflow. Security, utility, and pet deposits remain custody liabilities,
-outside operating income, operating expenses, and owner-balance calculations.
-Any statement custody disclosure is separate from operating totals.
-
-Owner contributions and owner distributions remain separate record families:
-
-- contribution is owner funding, not tenant income;
-- distribution/withdrawal is an owner-liability settlement, not a property
-  expense;
-- existing exact compatibility evidence may remain read-only and separately
-  labeled; and
-- no new contribution, distribution, reserve, or available-balance write is
-  authorized here.
-
-## Financial History, projections, and controls
-
-Financial History/Ledger remains a projection and evidence surface:
-
-- source-derived rows are read-only and link to their owning workflow;
-- journal-linked manual rows remain append-only until a checked
-  reversal-and-replacement authority exists;
-- manual adjustments cannot mutate source-derived records;
-- exact money and currency remain mandatory;
-- organization scope and RLS remain mandatory;
-- activity and source identity remain preserved;
-- period locks continue to govern historical writes;
-- reversals preserve originals; and
-- balanced, idempotent Ledger/journal projections remain required where the
-  owning backend authority emits them.
-
-Simplifying visible categories must not weaken or bypass these controls.
-
-## Owner Statement target
-
-The future owner/property statement model is:
-
-```text
-Previous owner balance
-+ property income
-- property expenses, including management fees
-+ owner contributions
-- owner distributions
-= current owner balance
-```
-
-Deposits are excluded from the calculation. A custody appendix may disclose
-them separately when close evidence requires it.
-
-The current report remains a `Preview`. This design does not claim that an
-authoritative opening Owner Balance, fee automation, atomic expense
-settlement, close, immutable statement publication, or delivery exists.
-Missing opening balance, owner identity, ownership allocation, funding,
-distribution, settlement, reversal, reconciliation, or close evidence must
-produce an explicit blocker rather than an invented zero or official result.
-
-Plans 13-19 continue to own owner authority, balance/reserve/distribution,
-reconciliation, close, statement data, immutable artifacts, and
-delivery/history.
-
-## Implementation guardrails
-
-A later implementation plan must:
-
-- make no backend or production claim from prototype behavior;
-- preserve route compatibility deliberately without reviving removed product
-  surfaces;
-- keep obligation and settlement writes separate unless the owning atomic RPC
-  explicitly joins them;
-- preserve approval checks and role capability;
-- use exact money, currency, organization scope, RLS, private evidence,
-  activity, source identity, idempotency, reversals, and period locks;
-- keep Ledger and journals as deterministic projections/controls;
-- reject generic edit, archive, or restore of source-linked or journal-linked
-  financial records;
-- keep management-fee compatibility evidence read-only until Plan 11/12
-  authority exists;
-- never dual-write a management fee; and
-- never introduce a universal finance transaction schema merely to match the
-  simplified screen.
-
-## Verification requirements
-
-Documentation and prototype review must prove:
-
-- one visible owner/property perspective;
-- exactly Income and Expenses as the prototype's primary tabs;
-- no management-company report or perspective selector;
-- management fee under Expenses with IPS as vendor;
-- deposits and owner transactions excluded from both create flows and totals;
-- classification, approval, and cash state remain distinct;
-- centered single-modal behavior, focus return, and phone usability; and
-- prototype limitations are explicit.
-
-Any later runtime implementation additionally requires:
-
-- tests for tenant-only Income categories and owner/property-only Expense
-  categories;
-- tests that management-fee compatibility records remain one read-only source
-  until the dedicated authority exists;
-- tests preventing fee dual-write and duplicate owner deduction;
-- obligation/settlement, approval, partial-payment, reversal, and void
-  regression tests;
-- exact-money and mixed-currency tests;
-- organization-scope, RLS, idempotency, activity, lock, source-identity,
-  Ledger, and balanced-journal tests;
-- deposit custody and operating-total exclusion tests;
-- owner contribution/distribution separation tests;
-- Owner Statement `Preview` and missing-authority blocker tests;
-- URL/filter retention, modal accessibility, horizontal-overflow, desktop, and
-  phone checks; and
-- the standard lint, TypeScript, application-test, build, and applicable
-  database gates.
+- A new property can complete finance setup in four clear steps.
+- Every working page has one obvious primary action.
+- The default Overview shows only critical totals and work needing attention.
+- No working screen contains permanent accounting tutorial paragraphs.
+- Simple records open in a centered modal; multi-section records use a page.
+- Rent collection route is visible on every payment and receipt record.
+- Direct-owner collection settles the tenant without increasing IPS-held cash.
+- Tenant-responsible costs never appear as owner expenses.
+- The customer invoice shows the service total without internal markup.
+- Owner invoices clearly show unpaid fees and IPS-paid owner costs.
+- Owner running balance, IPS-held cash, and owner amount owed are never merged.
+- Owner and tenant/company customer balances remain separate.
+- A withdrawal cannot exceed available held cash.
+- The same linked event cannot create duplicate owner or IPS effects.
+- Laptop layouts at 1440x900 and 1280px width retain readable tables, visible
+  actions, modal focus return, and no horizontal page overflow. Small-screen
+  fallback remains usable, but mobile-specific redesign is not a first-release
+  acceptance gate.
 
 ## Non-goals
 
-- IPS payroll, overhead, company P&L, tax, treasury, or ERP UI
-- A management-company fee report
-- A perspective selector
-- A universal finance transaction table or generic workflow engine
-- A card-based Finance dashboard
-- New management-fee, owner-balance, distribution, close, or statement
-  authority
-- Production database mutation, deployment, backfill, or cutover
+- Multiple owners for one property
+- Full IPS accounting, payroll, tax, treasury, or bank reconciliation
+- Automatic daily rent-proration calculation
+- Owner self-service withdrawals
+- A first-version chart-of-accounts editor
+- Historical revenue as an opening financial balance
+- A universal finance transaction schema
+- A generic workflow engine
+- Production database mutation, deployment, backfill, or cutover from this
+  design document alone
