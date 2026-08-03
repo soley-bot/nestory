@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useRef, type MouseEvent } from "react";
-import { Building2, Landmark, UsersRound } from "lucide-react";
+import { Building2, Landmark, SlidersHorizontal, UsersRound } from "lucide-react";
 import {
   SettingsNavigationGuardProvider,
   useSettingsNavigationGuard,
 } from "@/components/layout/settings-navigation-guard";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
+import { ConfigurationRegistryCatalog } from "@/features/configuration/components/configuration-registry-catalog";
 import {
   BranchEditor,
   type SettingsEditorHandle,
@@ -20,10 +21,15 @@ import type {
 } from "@/features/organization/data";
 import { cn } from "@/lib/utils";
 
-export type SettingsSection = "organization" | "branches" | "teams";
+export type SettingsSection =
+  | "organization"
+  | "configuration"
+  | "branches"
+  | "teams";
 
 const sections = [
   { icon: Landmark, label: "Organization", value: "organization" },
+  { icon: SlidersHorizontal, label: "Configuration", value: "configuration" },
   { icon: Building2, label: "Branches", value: "branches" },
   { icon: UsersRound, label: "Teams", value: "teams" },
 ] as const;
@@ -127,6 +133,8 @@ function SettingsWorkspaceContent({
           organizationSlug={organizationSlug}
           teams={teams}
         />
+      ) : section === "configuration" ? (
+        <ConfigurationRegistryCatalog />
       ) : section === "branches" ? (
         <BranchEditor
           branches={branches}
