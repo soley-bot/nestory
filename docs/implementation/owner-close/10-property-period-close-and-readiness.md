@@ -1,5 +1,14 @@
 # Plan 10 — Property-Period Close and Readiness
 
+> **Legacy broad design source — not current Plan 10.** The ratified sequence
+> split this analysis into **sequence 15, reconciliation/readiness**, and
+> **sequence 16, append-only close lifecycle**. Use
+> `97-ratified-final-sequence.md`; do not paste this file directly into Codex.
+>
+> The current Finance simplification removes controls that imply close
+> authority is ready. Its table/modal redesign does not implement sequence
+> 15-16 reconciliation or close.
+
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** Owner Statement readiness must prove a complete, reconciled property month rather than only valid ownership or zero technical posting queues.

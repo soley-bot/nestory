@@ -1,8 +1,10 @@
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import {
   configurationRegistry,
+  type ConfigurationHistoryPolicy,
   type ConfigurationModule,
 } from "@/features/configuration/registry";
+import type { WorkspaceRole } from "@/lib/auth/context";
 
 const moduleLabels: Record<ConfigurationModule, string> = {
   workspace: "Workspace",
@@ -20,6 +22,12 @@ const frequencyLabels = {
   occasional: "Occasional",
   frequent: "Frequent",
 } as const;
+
+const historyPolicyLabels: Record<ConfigurationHistoryPolicy, string> = {
+  display_only: "Display only",
+  prospective_only: "Prospective only",
+  recalculate_unposted: "Recalculate unposted",
+};
 
 export function ConfigurationRegistryCatalog() {
   const grouped = configurationRegistry.reduce(
@@ -91,6 +99,10 @@ export function ConfigurationRegistryCatalog() {
                         value={frequencyLabels[definition.changeFrequency]}
                       />
                       <RegistryFact
+                        label="Existing records"
+                        value={historyPolicyLabels[definition.historyPolicy]}
+                      />
+                      <RegistryFact
                         label="After go-live"
                         value={definition.safeAfterGoLive ? "Allowed" : "Restricted"}
                       />
@@ -142,8 +154,8 @@ function formatValue(value: boolean | number | string) {
   return String(value);
 }
 
-function formatOwner(owner: "admin" | "finance_admin" | "operations_admin") {
-  if (owner === "finance_admin") return "Finance admin";
-  if (owner === "operations_admin") return "Operations admin";
-  return "Admin";
+function formatOwner(owner: WorkspaceRole) {
+  if (owner === "admin") return "Admin";
+  if (owner === "manager") return "Manager";
+  return "Member";
 }

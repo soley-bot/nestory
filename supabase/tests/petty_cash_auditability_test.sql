@@ -310,9 +310,13 @@ SELECT throws_ok(
   'cross-organization counterparty is rejected'
 );
 
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
+
 UPDATE public.people
 SET archived_at = now()
 WHERE id = '80200000-0000-0000-0000-000000000008';
+
+SELECT set_config('app.people_leases_skip_sync', 'off', true);
 
 SELECT throws_ok(
   $$SELECT public.create_petty_cash_entry(
@@ -344,9 +348,14 @@ SELECT throws_ok(
   'archived counterparty is rejected'
 );
 
-UPDATE public.people
-SET archived_at = NULL
-WHERE id = '80200000-0000-0000-0000-000000000008';
+DO $$
+BEGIN
+  PERFORM public.restore_person(
+    '00000000-0000-0000-0000-000000000001',
+    '80200000-0000-0000-0000-000000000008'
+  );
+END;
+$$;
 
 SELECT lives_ok(
   $$SELECT public.create_petty_cash_entry(

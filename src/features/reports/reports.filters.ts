@@ -17,7 +17,7 @@ const datePattern = /^(\d{4})-(0[1-9]|1[0-2])-\d{2}$/;
 
 type ReportSearchParams = Record<string, SearchParamValue>;
 
-export const DEFAULT_REPORT_KIND: ReportKind = "rent-roll";
+export const DEFAULT_REPORT_KIND: ReportKind = "unit-profit-loss";
 export const DEFAULT_REPORT_STATUS: ReportStatusFilter = "all";
 
 export const OWNER_STATEMENT_UNIT_SCOPE_MESSAGE =
@@ -71,23 +71,13 @@ export function getReportScopeValidation(viewQuery: ReportsViewQuery) {
 function parseReportKind(value: string | string[] | undefined): ReportKind {
   const candidate = getFirstSearchParam(value);
 
-  if (candidate === "profit-loss") {
-    return "income-expense";
+  if (candidate === "profit-loss" || candidate === "unit-performance") {
+    return "unit-profit-loss";
   }
 
-  if (candidate === "occupancy") {
-    return "vacancy-risk";
-  }
-
-  return candidate === "unit-performance" ||
-    candidate === "property-performance" ||
+  return candidate === "unit-profit-loss" ||
     candidate === "owner-statement" ||
-    candidate === "income-expense" ||
-    candidate === "lease-expiry" ||
-    candidate === "vacancy-risk" ||
-    candidate === "maintenance-cost" ||
-    candidate === "missing-data" ||
-    candidate === "people-readiness"
+    candidate === "management-fees"
     ? candidate
     : DEFAULT_REPORT_KIND;
 }

@@ -3,11 +3,21 @@
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** Before changing financial writes, Nestory needs a read-only, exact inventory of every current representation, bypass path, inferred historical row, and report contradiction.  
-**Authorization:** This is the first and only implementation slice authorized for prompt preparation. It does not authorize Plan 02.
+**Status:** Implemented and merged in PR #35. The original first-slice
+authorization is historical and does not authorize another plan. Use
+`README.md` and `97-ratified-final-sequence.md` for current status.
 
 ## Context and baseline
 
 Planning baseline is merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`. The implementation branch must instead record the latest merged `main` SHA at start and stop if relevant finance code has changed materially.
+
+The later Track A/Track B reconciliation baseline is merged `origin/main` at
+`5210ae1c94fa5a854f9c484b79e9dbd214c99053`. The Track B amendments consumed
+by this package are recorded in
+`../lease-occupancy-history/92-required-cross-plan-amendments.md`. The original
+Plan 01 baseline above remains historical evidence; the reconciled diagnostic
+contract below prevents future readers from treating today's Lease headers as
+historical financial identity.
 
 Verified current behavior:
 
@@ -87,6 +97,19 @@ At minimum detect:
 - duplicate effect across settlement, Ledger, maintenance, petty cash, deposit, fee, or owner-cash source;
 - canonical candidate that exceeds configured pagination/report caps;
 - direct table privilege or public/generic RPC path capable of bypassing intended authority.
+- receipt, deposit, invoice, Ledger, close, or statement attribution that
+  resolves a historical tenant from today's
+  `leases.primary_tenant_person_id`, `tenant_name`, current Lease status, or
+  current party row rather than source-stored/event-time identity;
+- Lease header/term dates presented as confirmed actual occupancy, party
+  responsibility boundaries, or move/notice evidence;
+- a charge, obligation, invoice, receipt allocation, close source, or
+  statement line missing the exact Lease, authoritative term, accepted Track B
+  party/Person/occupancy/participant source IDs and versions, evidence
+  resolution state, or material hash required by its owner contract; and
+- a relationship correction whose affected financial source has no merged
+  Track A owner-state adapter, no owner-declared checked action, or no complete
+  source/destination property/currency/period scope for deterministic locking.
 
 Use valid implementation identifiers; this list is the required semantic coverage, not a required SQL enum spelling.
 
@@ -264,3 +287,14 @@ Stop and return findings without continuing if:
 - a run cannot detect source changes/staleness;
 - current merged `main` contains a new financial path not covered by this plan; or
 - the implementation begins changing authority rather than inventorying it.
+
+## Required Cross-Plan Amendments
+
+This merged inventory plan adds no new implementation authority. Current
+amendment detail is authoritative in
+`96-tenant-billing-reconciliation.md`.
+
+| Target planning package | Target concept/file | Repository evidence | Required decision or wording | Reason | Blocks this track? | Can wait for reconciliation? |
+|---|---|---|---|---|---|---|
+| Track B — Lease and Occupancy History | Accepted relationship/date evidence inventory | Plan 01 records ambiguity rather than inventing classification, and merged Track B file 92 defines the evidence boundary | Inventory exact party/Person/occupancy/participant/notice IDs, versions, resolution states, and material hashes; separately flag Lease-header-as-history and absent evidence without selecting a debtor or calculation | Migration and statement evidence cannot use current rows or term dates to infer past tenant scope or actual occupancy | No; Plan 01 is merged | Yes, until the consuming owner lands |
+| Track A domain owners | Adapter and lock-readiness diagnostics | Relationship impact can identify candidate financial sources, but only the owner can classify state/action and all affected financial scopes | Emit a diagnostic when the versioned owner adapter, selected checked action, or complete deterministic property-period lock set is unavailable | A missing adapter must remain unavailable instead of being guessed from columns or UI labels | No for Plan 01; yes before affected execution | No for the enabled execution path |

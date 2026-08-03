@@ -30,7 +30,15 @@ import type { WorkspaceRole } from "@/lib/auth/context";
 import { getWorkspaceEntryPath } from "@/lib/auth/workspace-entry";
 
 type GlobalDestination = {
-  id: "overview" | "properties" | "people" | "finance" | "maintenance" | "records" | "reports" | "settings";
+  id:
+    | "overview"
+    | "properties"
+    | "people"
+    | "finance"
+    | "maintenance"
+    | "records"
+    | "reports"
+    | "settings";
   href: string;
   icon: LucideIcon;
   label: string;
@@ -57,18 +65,11 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     href: "/people",
     icon: UsersRound,
     label: "People",
-    routes: [
-      "/people",
-      "/tenants",
-      "/owners",
-      "/vendors",
-      "/staff",
-      "/team",
-    ],
+    routes: ["/people", "/tenants", "/owners", "/vendors", "/staff", "/team"],
   },
   {
     id: "finance",
-    href: "/rent-income",
+    href: "/finance-dashboard",
     icon: Landmark,
     label: "Finance",
     routes: [
@@ -79,7 +80,9 @@ const ADMIN_GLOBAL_DESTINATIONS = [
       "/petty-cash",
       "/payments",
       "/invoices",
+      "/tenant-invoices",
       "/finance-dashboard",
+      "/balances",
     ],
   },
   {
@@ -134,7 +137,9 @@ type AppShellProps = {
   userEmail?: string;
 };
 
-function getGlobalDestinations(role: WorkspaceRole): readonly GlobalDestination[] {
+function getGlobalDestinations(
+  role: WorkspaceRole,
+): readonly GlobalDestination[] {
   if (role === "admin") {
     return ADMIN_GLOBAL_DESTINATIONS;
   }
@@ -271,9 +276,7 @@ export function AppShell({
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
                       "flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
-                      isActive
-                        ? "bg-accent-soft text-foreground"
-                        : null,
+                      isActive ? "bg-accent-soft text-foreground" : null,
                     )}
                     href={destination.href}
                     key={destination.id}
@@ -292,16 +295,27 @@ export function AppShell({
           data-slot="workspace-command-entry"
         >
           <button
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={
+              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+            }
             className="hidden h-8 w-8 shrink-0 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring lg:grid"
             data-slot="workspace-sidebar-toggle"
-            onClick={sidebarCollapsed ? expandDesktopSidebar : collapseDesktopSidebar}
+            onClick={
+              sidebarCollapsed ? expandDesktopSidebar : collapseDesktopSidebar
+            }
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             type="button"
           >
-            {sidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+            {sidebarCollapsed ? (
+              <PanelLeftOpen size={14} />
+            ) : (
+              <PanelLeftClose size={14} />
+            )}
           </button>
-          <div className="flex min-w-0 flex-1 items-center" id="workspace-page-tools" />
+          <div
+            className="flex min-w-0 flex-1 items-center"
+            id="workspace-page-tools"
+          />
           <WorkspaceCommandPalette role={role} />
           <div className="hidden shrink-0 items-center gap-1 lg:flex">
             <ThemeToggle onToggle={toggleTheme} />
@@ -363,7 +377,6 @@ function ExpandedDesktopSidebar({
           ))}
         </div>
       </nav>
-
     </div>
   );
 }
@@ -417,7 +430,6 @@ function CollapsedDesktopSidebar({
           );
         })}
       </nav>
-
     </div>
   );
 }

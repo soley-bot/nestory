@@ -52,10 +52,9 @@ describe("People Reports retirement", () => {
 
     expect(manifest.find((entry) => entry.route === "/people-reports")).toMatchObject({
       smoke: {
-        expectedFinalPath:
-          "/reports/people-readiness?peopleView=staff&archiveState=archived",
+        expectedFinalPath: "/people",
         path: "/people-reports?report=staff-access&archiveState=archived",
-        queryContract: "redirect-preserved",
+        queryContract: "redirect-normalized",
       },
       states: [],
       surface: "redirect",

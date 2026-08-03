@@ -1,8 +1,15 @@
 # Property Finance Accounting Kernel Design
 
 **Date:** 2026-07-10
-**Status:** Proposed for implementation
+**Status:** Historical design; compatibility/control implementation is merged
 **Product model:** Professional third-party property management
+
+> **Authority amendment (2026-07-30):** Retain this document only as
+> accounting-control and compatibility-kernel source material under the Owner
+> Close sequence. Its broader product roadmap and operator-facing accounting
+> workspace are not approved. Current Finance scope, language, tables, and
+> modal/page interaction are governed by
+> `2026-07-30-ips-finance-workflow-simplification-design.md`.
 
 ## Purpose
 

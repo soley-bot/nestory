@@ -1,6 +1,12 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
@@ -115,7 +121,7 @@ describe("AppShell global navigation hierarchy", () => {
     ["/property-dashboard", "Properties"],
     ["/people", "People"],
     ["/people/person-1", "People"],
-    ["/reports/people-readiness", "Reports"],
+    ["/reports/owner-statement", "Reports"],
     ["/tenants", "People"],
     ["/owners", "People"],
     ["/vendors", "People"],
@@ -128,7 +134,9 @@ describe("AppShell global navigation hierarchy", () => {
     ["/petty-cash", "Finance"],
     ["/payments", "Finance"],
     ["/invoices", "Finance"],
+    ["/tenant-invoices", "Finance"],
     ["/finance-dashboard", "Finance"],
+    ["/balances", "Finance"],
     ["/maintenance", "Maintenance"],
     ["/tasks", "Maintenance"],
     ["/work-orders", "Maintenance"],
@@ -143,7 +151,7 @@ describe("AppShell global navigation hierarchy", () => {
     ["/documents", "Records"],
     ["/import", "Records"],
     ["/reports", "Reports"],
-    ["/reports/rent-roll", "Reports"],
+    ["/reports/unit-profit-loss", "Reports"],
     ["/settings", "Settings"],
     ["/users-roles", "Settings"],
     ["/account", "Settings"],
@@ -187,7 +195,9 @@ describe("AppShell global navigation hierarchy", () => {
       );
 
       for (const label of ["Global navigation", "Global mobile navigation"]) {
-        const globalNavigation = screen.getByRole("navigation", { name: label });
+        const globalNavigation = screen.getByRole("navigation", {
+          name: label,
+        });
         const current = within(globalNavigation)
           .getAllByRole("link")
           .filter((link) => link.getAttribute("aria-current") === "page");
@@ -312,7 +322,9 @@ describe("AppShell global navigation hierarchy", () => {
       </AppShell>,
     );
 
-    expect(container.querySelector('[tabindex]:not([tabindex="0"])')).toBeNull();
+    expect(
+      container.querySelector('[tabindex]:not([tabindex="0"])'),
+    ).toBeNull();
 
     for (const label of ["Global navigation", "Global mobile navigation"]) {
       const navigationElement = screen.getByRole("navigation", { name: label });
@@ -344,15 +356,25 @@ describe("AppShell global navigation hierarchy", () => {
     const globalNavigation = screen.getByRole("navigation", {
       name: "Global navigation",
     });
-    expect(within(globalNavigation).getByRole("link", { name: "Settings" })).toBeTruthy();
-    expect(within(globalNavigation).queryByRole("link", { name: "Workspace" })).toBeNull();
-    expect(within(globalNavigation).queryByRole("link", { name: "Workspace Access" })).toBeNull();
+    expect(
+      within(globalNavigation).getByRole("link", { name: "Settings" }),
+    ).toBeTruthy();
+    expect(
+      within(globalNavigation).queryByRole("link", { name: "Workspace" }),
+    ).toBeNull();
+    expect(
+      within(globalNavigation).queryByRole("link", {
+        name: "Workspace Access",
+      }),
+    ).toBeNull();
 
     const localNavigation = screen.getByRole("navigation", {
       name: "Settings sections",
     });
     expect(
-      within(localNavigation).getAllByRole("link").map((link) => link.textContent),
+      within(localNavigation)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
     ).toEqual(["Workspace", "Workspace Access"]);
     expect(
       within(localNavigation)
@@ -390,10 +412,22 @@ describe("AppShell viewport contract", () => {
     });
 
     expect(commandEntry).not.toBeNull();
-    expect(within(commandEntry!).getByRole("button", { name: "Toggle color theme" })).toBeTruthy();
-    expect(within(commandEntry!).getByRole("button", { name: "Open profile menu" })).toBeTruthy();
-    expect(within(desktopNavigation).queryByRole("button", { name: "Toggle color theme" })).toBeNull();
-    expect(within(desktopNavigation).queryByRole("button", { name: "Open profile menu" })).toBeNull();
+    expect(
+      within(commandEntry!).getByRole("button", { name: "Toggle color theme" }),
+    ).toBeTruthy();
+    expect(
+      within(commandEntry!).getByRole("button", { name: "Open profile menu" }),
+    ).toBeTruthy();
+    expect(
+      within(desktopNavigation).queryByRole("button", {
+        name: "Toggle color theme",
+      }),
+    ).toBeNull();
+    expect(
+      within(desktopNavigation).queryByRole("button", {
+        name: "Open profile menu",
+      }),
+    ).toBeNull();
   });
 
   it("bounds authenticated content while preserving an internal legacy-page scroller", () => {
@@ -418,9 +452,9 @@ describe("AppShell viewport contract", () => {
     expect(contentViewport?.className).toContain("min-w-0");
     expect(contentViewport?.className).toContain("flex-1");
     expect(contentViewport?.className).toContain("overflow-y-auto");
-    expect(contentViewport?.contains(screen.getByText("Legacy page content"))).toBe(
-      true,
-    );
+    expect(
+      contentViewport?.contains(screen.getByText("Legacy page content")),
+    ).toBe(true);
   });
 
   it("keeps the mobile header fixed in the flex stack and releases bounds for print", () => {

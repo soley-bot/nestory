@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Historical implementation record — do not treat as final statement
+> authority.** Preserve the live compatibility calculation and its tests. The
+> future owner-facing presentation and balance semantics are superseded by
+> `docs/superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`;
+> immutable close-backed publication remains Owner Close Plans 17-19.
+
 **Goal:** Replace the ledger-based Owner Statement with a property-cash-kernel statement that validates and allocates effective ownership exactly.
 
 **Architecture:** A pure report-owned module calls `buildPropertyCash`, validates dated ownership rosters, allocates cents, and returns domain rows/evidence/blockers. The Reports loader adapts organization-scoped Supabase records into an internal readiness `TrustedReport`. CSV preserves that report and its exact evidence; a pure recipient selector narrows one ready property/owner row for owner-facing preview, print, and PDF.

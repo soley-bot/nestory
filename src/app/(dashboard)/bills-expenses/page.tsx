@@ -1,22 +1,15 @@
-import { BillsExpensesScreen } from "@/features/bills-expenses/components/bills-expenses-screen";
-import { getBillsExpensesScreenData } from "@/features/bills-expenses/data/bills-expenses";
-import { parseBillsExpensesSearchParams } from "@/features/bills-expenses/bills-expenses.filters";
+import { FinanceOperationsScreen } from "@/features/finance-operations/components/finance-operations-screen";
+import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
 import { requireAdminContext } from "@/lib/auth/context";
 
-type BillsExpensesPageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-};
-
-export default async function BillsExpensesPage({
-  searchParams,
-}: BillsExpensesPageProps) {
+export default async function BillsExpensesPage() {
   const context = await requireAdminContext();
-  const params = (await searchParams) ?? {};
-  const viewQuery = parseBillsExpensesSearchParams(params);
-  const data = await getBillsExpensesScreenData(
-    context.organizationId,
-    viewQuery,
+  const data = await getFinanceOperationsData(context.organizationId);
+  return (
+    <FinanceOperationsScreen
+      {...data}
+      organizationName={context.organizationName}
+      view="expenses"
+    />
   );
-
-  return <BillsExpensesScreen {...data} />;
 }

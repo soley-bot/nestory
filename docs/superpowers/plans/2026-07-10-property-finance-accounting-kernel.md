@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Historical plan — do not execute by filename.** Preserve its implemented
+> control/compatibility evidence, but the current Owner Close sequence owns
+> financial authority and authorization. Its product-roadmap and operator-UI
+> portions are superseded by
+> `docs/superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`.
+> Do not expose books, journals, chart-of-accounts, or ledger-inspector
+> concepts as first-release Finance product UI.
+
 **Goal:** Add a balanced, immutable, organization-scoped accounting kernel and atomically dual-post existing Nestory finance activity into it without breaking the current operational ledger.
 
 **Architecture:** New accounting books, chart-of-accounts, periods, journal headers, and journal lines become the accounting source of truth. Existing finance RPCs continue to create `ledger_entries`, but the same database transaction also creates a balanced journal and links it back to the legacy row; historical legacy rows are backfilled through deterministic mappings and clearing accounts.

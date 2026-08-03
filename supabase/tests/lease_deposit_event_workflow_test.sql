@@ -2,6 +2,9 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT plan(13);
 
+-- The workflow assertions build their own balance history.
+DELETE FROM public.lease_deposit_events;
+
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SET LOCAL ROLE authenticated;
 

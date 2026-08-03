@@ -26,7 +26,7 @@ export type ConfigurationHistoryPolicy =
   | "recalculate_unposted"
   | "display_only";
 
-export type ConfigurationDefinition = {
+type ConfigurationDefinitionBase = {
   auditRequired: boolean;
   changeFrequency: ConfigurationChangeFrequency;
   description: string;
@@ -34,12 +34,35 @@ export type ConfigurationDefinition = {
   key: string;
   label: string;
   module: ConfigurationModule;
-  owner: "admin" | "finance_admin" | "operations_admin";
+  owner: WorkspaceRole;
   safeAfterGoLive: boolean;
-  valueType: ConfigurationValueType;
-  defaultValue: boolean | number | string;
-  options?: readonly { label: string; value: string }[];
 };
+
+type ConfigurationOption = { label: string; value: string };
+
+export type ConfigurationDefinition = ConfigurationDefinitionBase &
+  (
+    | {
+        defaultValue: boolean;
+        options?: never;
+        valueType: "boolean";
+      }
+    | {
+        defaultValue: number;
+        options?: never;
+        valueType: "number" | "percentage";
+      }
+    | {
+        defaultValue: string;
+        options?: never;
+        valueType: "currency" | "string";
+      }
+    | {
+        defaultValue: string;
+        options: readonly [ConfigurationOption, ...ConfigurationOption[]];
+        valueType: "enum";
+      }
+  );
 
 export const configurationRegistry = [
   {
@@ -81,7 +104,7 @@ export const configurationRegistry = [
       { label: "Percentage of rent", value: "percentage" },
       { label: "Fixed amount", value: "fixed" },
     ],
-    owner: "finance_admin",
+    owner: "manager",
     safeAfterGoLive: true,
     valueType: "enum",
   },
@@ -94,7 +117,7 @@ export const configurationRegistry = [
     key: "finance.management_fee_percentage",
     label: "Management fee percentage",
     module: "finance",
-    owner: "finance_admin",
+    owner: "manager",
     safeAfterGoLive: true,
     valueType: "percentage",
   },
@@ -111,7 +134,7 @@ export const configurationRegistry = [
       { label: "Hold as owner balance", value: "owner_balance" },
       { label: "Monthly distribution", value: "monthly_distribution" },
     ],
-    owner: "finance_admin",
+    owner: "manager",
     safeAfterGoLive: true,
     valueType: "enum",
   },
@@ -129,7 +152,7 @@ export const configurationRegistry = [
       { label: "30-day month", value: "daily_30" },
       { label: "No proration", value: "none" },
     ],
-    owner: "finance_admin",
+    owner: "manager",
     safeAfterGoLive: true,
     valueType: "enum",
   },
@@ -142,7 +165,7 @@ export const configurationRegistry = [
     key: "leases.default_rent_due_day",
     label: "Default rent due day",
     module: "leases",
-    owner: "finance_admin",
+    owner: "manager",
     safeAfterGoLive: true,
     valueType: "number",
   },
@@ -155,7 +178,7 @@ export const configurationRegistry = [
     key: "finance.invoice_approval_required",
     label: "Invoice approval required",
     module: "finance",
-    owner: "finance_admin",
+    owner: "manager",
     safeAfterGoLive: true,
     valueType: "boolean",
   },
@@ -186,7 +209,7 @@ export const configurationRegistry = [
     key: "maintenance.recurring_reminder_days",
     label: "Recurring work reminder",
     module: "maintenance",
-    owner: "operations_admin",
+    owner: "manager",
     safeAfterGoLive: true,
     valueType: "number",
   },
@@ -212,7 +235,7 @@ export const configurationRegistry = [
     key: "maintenance.manager_review_enabled",
     label: "Manager review",
     module: "maintenance",
-    owner: "operations_admin",
+    owner: "manager",
     safeAfterGoLive: true,
     valueType: "boolean",
   },
@@ -227,3 +250,4 @@ export function getConfigurationDefinition(key: string) {
 export function getConfigurationDefinitionsByModule(module: ConfigurationModule) {
   return configurationRegistry.filter((definition) => definition.module === module);
 }
+import type { WorkspaceRole } from "@/lib/auth/context";

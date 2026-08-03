@@ -164,6 +164,7 @@ INSERT INTO public.person_roles(organization_id, person_id, role)
 SELECT organization_id, tenant_id, 'tenant'
 FROM financial_authority_test_state;
 
+
 INSERT INTO public.leases(
   id, organization_id, property_id, unit_id, primary_tenant_person_id,
   tenant_name, lease_start_date, lease_end_date, monthly_rent_amount,
@@ -960,7 +961,7 @@ SELECT is(
     SELECT count(*)::integer
     FROM public.financial_reconciliation_sources
   ),
-  1,
+  2,
   'cross-organization admin reads only its own reconciliation metadata'
 );
 RESET ROLE;
@@ -976,7 +977,7 @@ SELECT is(
     SELECT count(*)::integer
     FROM public.financial_reconciliation_sources
   ),
-  3,
+  4,
   'same-organization admin reads its reconciliation metadata'
 );
 RESET ROLE;

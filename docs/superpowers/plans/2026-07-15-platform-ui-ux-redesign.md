@@ -10,16 +10,27 @@
 
 **Approved design:** `docs/superpowers/specs/2026-07-15-platform-ui-ux-redesign-design.md`
 
+**Finance amendment (2026-07-30):** Task 12 and every Finance interaction
+assumption in this plan are superseded by
+`docs/superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`.
+Finance implementation requires a new reviewed test-first plan; do not execute
+the historical Task 12 as written.
+
 ## Global Constraints
 
 - Read `PROJECT_RULES.md`, the relevant current-state/engineering/verification doc, and the applicable guide under `node_modules/next/dist/docs/` before changing Next.js behavior.
 - Preserve current route URLs, query-string filters, server/client ownership, role checks, RLS, RPC boundaries, calculation semantics, redirects, exports, and print behavior.
 - Keep authenticated UI quiet, dense, neutral, and operational. Do not copy CodeRabbit's brand, orange palette, terminology, or developer-product styling.
 - Use three surface levels only: canvas, work surface, and raised/selected surface. Use deep teal/sage for selection, amber for attention, red only for destructive or failed states.
-- Keep list workspaces table-first with a persistent inspector where the viewport permits it. Preserve the current 13px table body and 11px table-header density; use 14px for ordinary body, form, and inspector content.
+- Keep list workspaces table-first. Use a persistent inspector only where the
+  module contract calls for one; Finance uses centered record modals or
+  dedicated pages. Preserve the current 13px table body and 11px table-header
+  density; use 14px for ordinary body, form, and record-view content.
 - Label actions clearly. Explain only consequences, permissions, unfamiliar property/accounting meaning, irreversible actions, or handoffs. Remove instructions that merely narrate visible controls.
 - Keep visible labels for fields and primary actions. Placeholder-only forms and unlabeled icon-only actions are out of scope even when a control seems obvious.
-- Use progressive disclosure: local navigation and the dominant task remain visible; secondary metadata, advanced filters, and background detail belong in inspectors, drawers, or expandable regions.
+- Use progressive disclosure: local navigation and the dominant task remain
+  visible; secondary metadata, advanced filters, and background detail belong
+  in the module-approved modal, page, inspector, drawer, or expandable region.
 - Add tests before each behavior change. Run the narrow failing test, implement the smallest change, rerun the narrow test, then run the phase gate.
 - Use additive migrations only. Never weaken RLS or move privileged reads/writes into the browser.
 - Do not deploy, push, or change hosted data without explicit approval.
@@ -537,34 +548,33 @@ Run People/Lease component, filter, insight, and summary tests; typecheck; lint;
 
 Commit checkpoint: `feat(ui): migrate people and lease workspaces`
 
-### Task 12: Migrate Finance workspaces
+### Task 12: Finance workspaces — superseded; do not execute
 
-**Files:**
+The historical Task 12 inspector/drawer design is replaced by
+`docs/superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`.
+A new reviewed test-first implementation plan must name the exact files and
+steps before Finance code changes begin.
 
-- Modify: `src/features/rent-income/components/rent-income-screen.tsx`
-- Modify: `src/features/bills-expenses/components/bills-expenses-screen.tsx`
-- Modify: `src/features/ledger/components/ledger-screen.tsx`
-- Modify: `src/features/ledger/components/ledger-table.tsx`
-- Modify: `src/features/ledger/components/ledger-inspector.tsx`
-- Modify: `src/features/petty-cash/components/petty-cash-screen.tsx`
-- Modify: `src/features/rent-income/components/rent-income-screen.test.tsx`
-- Modify: `src/features/bills-expenses/components/bills-expenses-screen.test.tsx`
-- Create: `src/features/ledger/components/ledger-screen.test.tsx`
-- Create: `src/features/petty-cash/components/petty-cash-screen.test.tsx`
+The replacement outcome is constrained now:
 
-**Step 1: Write failing finance experience tests**
+- Finance has one visible owner/property perspective with Income and Expenses
+  as the prototype's primary tabs;
+- management fee appears once under Expenses with IPS as vendor, with no
+  management-company fee report product surface;
+- the current fee compatibility source remains read-only and disclosure-only;
+  ratified Plans 11-12 establish recognition and owner-deduction authority;
+- deposits remain with Leases & Deposits, while owner contributions and
+  distributions stay outside Income and Expenses;
+- each list uses one compact totals line and operational table;
+- record details and mutations use focused centered modals or a dedicated
+  page, never an inspector or `SideDrawer`;
+- the approved HTML is a target prototype, not proof of runtime behavior; and
+- all obligation, settlement, approval, exact-money, RLS, reversal, lock,
+  source-identity, audit, Ledger, journal, and historical compatibility
+  behavior remains protected unless a separate reviewed plan explicitly
+  proves and authorizes the change.
 
-Require readable currency alignment, stable totals, status/date/property filters, inspector drilldown, explicit posted/pending/reversed state, and confirmation/consequence treatment for allocation, reversal, reconciliation, or cash-impacting actions. The visual redesign must not alter cash/deposit/accounting calculations.
-
-**Step 2: Implement route by route**
-
-Order: `/rent-income`, `/bills-expenses`, `/ledger`, `/petty-cash`. Reuse workspace and feedback primitives; retain feature-owned columns and business language. Surface consequences next to the mutation action, not in generic page introductions.
-
-**Step 3: Verify**
-
-Run all tests under `src/features/rent-income`, `bills-expenses`, `ledger`, `petty-cash`, and `finance`; then typecheck, lint, and smoke all four routes with a role that has finance access.
-
-Commit checkpoint: `feat(ui): migrate finance workspaces`
+No commit checkpoint from the historical Task 12 remains active.
 
 ### Task 13: Migrate Maintenance execution workspaces
 
@@ -659,7 +669,10 @@ npx tsc --noEmit
 npm run lint
 ```
 
-Run the read-only browser matrix for every Phase 3 route at desktop and compact desktop, plus phone for Properties, People, Finance, and Maintenance. Compare tables, active local navigation, inspector behavior, empty states, and horizontal overflow against the approved design.
+Run the read-only browser matrix for every Phase 3 route at desktop and
+compact desktop, plus phone for Properties, People, Finance, and Maintenance.
+Compare tables, active local navigation, each module's approved record
+behavior, empty states, and horizontal overflow against the approved design.
 
 ---
 
@@ -726,6 +739,9 @@ Commit checkpoint: `feat(settings): clarify access and account consequences`
 
 ### Task 18: Standardize record-creation and record-edit drawers
 
+This task excludes Finance forms and Lease deposit actions. Those use the
+centered modal/page contract in the IPS Finance simplification design.
+
 **Files:**
 
 - Modify: `src/features/properties/components/property-form.tsx`
@@ -746,7 +762,12 @@ Run: `npm test -- src/components/ui/record-form-contract.test.tsx`
 
 **Step 3: Migrate one form at a time**
 
-Use `FormSection`, `ConsequencePanel`, `DraftActionBar`, and extended `SideDrawer`. Preserve current Zod/schema validation, server actions, normalized payloads, optimistic behavior, and revalidation. Do not combine unrelated forms into a generic schema-driven form engine.
+Use `FormSection`, `ConsequencePanel`, `DraftActionBar`, and extended
+`SideDrawer` for the files listed in this task. Preserve current Zod/schema
+validation, server actions, normalized payloads, optimistic behavior, and
+revalidation. Do not apply this drawer requirement to Finance or deposit
+forms, and do not combine unrelated forms into a generic schema-driven form
+engine.
 
 **Step 4: Verify**
 
@@ -937,7 +958,8 @@ Add `"test:ui-a11y": "node scripts/smoke-ui-redesign.mjs --axe"`. Fail on seriou
 For every route family, verify:
 
 1. keyboard-only global/local navigation and command palette;
-2. table row, inspector, drawer, form, and close behavior;
+2. table row, module-approved modal/page/inspector/drawer, form, and close
+   behavior;
 3. 200% browser zoom without lost content/actions;
 4. focus indicator visibility on all surfaces;
 5. screen-reader names for icons, status chips, chart summaries, and loading/error announcements.
@@ -1090,7 +1112,11 @@ Run `npm run db:reset` only against the confirmed local stack, regenerate databa
 
 **Step 3: Update current documentation**
 
-Document the shared workspace anatomy, command palette/search scopes, three-zone settings pattern, consequence-copy rule, responsive inspector behavior, route coverage gate, and verification commands. Correct the README route map from the manifest; do not reintroduce obsolete roadmap material.
+Document the shared workspace anatomy, command palette/search scopes,
+three-zone settings pattern, consequence-copy rule, responsive record behavior
+(including the Finance modal/page exception), route coverage gate, and
+verification commands. Correct the README route map from the manifest; do not
+reintroduce obsolete roadmap material.
 
 **Step 4: Review the diff for accidental scope changes**
 
@@ -1138,7 +1164,9 @@ The redesign is incomplete until each group below has test or browser evidence:
 
 - The filesystem and the route manifest match exactly.
 - Every route uses the approved surface, typography, focus, control, and state language or is a verified redirect.
-- Every list workspace has an instinctive primary action, URL-safe filters, obvious selection, and responsive inspector/drawer behavior.
+- Every list workspace has an instinctive primary action, URL-safe filters,
+  obvious selection, and its approved responsive record behavior. Finance
+  specifically uses centered modals/pages rather than inspectors/drawers.
 - Every consequential mutation shows scope/effect before submit and clear outcome afterward; ordinary controls are not burdened with explanatory prose.
 - Admin, staff, maintenance, unaffiliated, and anonymous access behavior is unchanged and verified.
 - All declared route states have automated test or browser evidence.

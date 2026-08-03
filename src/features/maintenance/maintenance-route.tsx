@@ -18,14 +18,12 @@ type MaintenanceRouteOptions = {
   baseReview?: MaintenanceViewQuery["review"];
   createButtonLabel?: string;
   defaults?: Partial<Record<keyof MaintenanceViewQuery, string>>;
-  description: string;
   emptyLabel: string;
   flowLabel: string;
   listLabel: string;
   recordLabel: string;
   searchParams: Promise<MaintenanceRouteSearchParams>;
   showFilters?: boolean;
-  showReportAction?: boolean;
   showReviewTabs?: boolean;
   showScopeSummary?: boolean;
   surfaceVariant?: MaintenanceSurfaceVariant;
@@ -36,14 +34,12 @@ export async function renderMaintenanceRoute({
   baseReview,
   createButtonLabel = "New case",
   defaults = {},
-  description,
   emptyLabel,
   flowLabel,
   listLabel,
   recordLabel,
   searchParams,
   showFilters = true,
-  showReportAction = false,
   showReviewTabs = false,
   showScopeSummary = true,
   surfaceVariant,
@@ -72,7 +68,6 @@ export async function renderMaintenanceRoute({
       capabilities={capabilities}
       cases={data.cases}
       createButtonLabel={createButtonLabel}
-      description={description}
       emptyLabel={emptyLabel}
       flowLabel={flowLabel}
       initialTaskId={initialTaskId}
@@ -82,7 +77,6 @@ export async function renderMaintenanceRoute({
       recordLabel={recordLabel}
       reminders={reminders}
       showFilters={showFilters}
-      showReportAction={showReportAction}
       showReviewTabs={showReviewTabs}
       showScopeSummary={showScopeSummary}
       staffOptions={data.staffOptions}

@@ -1,6 +1,6 @@
 # Current State
 
-Last rebuilt from code inventory on 2026-07-24. This file describes what is
+Last rebuilt from code inventory on 2026-08-03. This file describes what is
 implemented now. It is not a roadmap or early-stage plan.
 
 ## Product Baseline
@@ -16,8 +16,9 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - People directory split into tenants, owners, vendors, and staff.
 - Lease operations with normalized tenant/person and lease backbone records.
 - Ledger operations, timeline history, period locks, and document attachment.
-- Rent & Income operations for expected and received incoming money before
-  confirmed rows post into the ledger.
+- Rent & Income operations for expected and received incoming money. Each
+  checked receipt or reversal atomically creates its allocation-based Ledger
+  and balanced journal evidence; there is no separate operator posting step.
 - Bills & Expenses operations for outgoing bills and expense approvals before
   approved rows post into the ledger.
 - A compatibility accounting kernel retained behind existing operational
@@ -28,9 +29,9 @@ Nestory is a multi-module property operations app. The implemented core covers:
 - Dedicated property/unit photo records with private photo storage and cover
   thumbnail selection.
 - Private document storage and document metadata.
-- CSV unit import with mapping, validation, create/update commit, and cleanup
-  queue.
-- Traceable reports and CSV/PDF endpoints.
+- CSV imports for properties, units, people, and leases with automatic mapping,
+  staged validation, and safe ready-row commit.
+- Three traceable required statements with PDF and Excel export.
 - Organization branches, teams, users, roles, and access management.
 
 ## Interface Model
@@ -135,19 +136,53 @@ People and leases:
   linked-member eligibility boundary.
 - `/leases` supports lease list, filters, create/update/archive/restore, linked
   tenant/person data, terms, occupancy, deposits, documents, timeline context,
-  risk, and next actions.
+  risk, and next actions. Checked create/update/import operations require
+  explicit due day, payment frequency, dates, amount, currency, and lifecycle,
+  then write an authoritative normalized term atomically. Existing inferred
+  term rows remain labeled `legacy_inferred`; compatibility rent/date columns
+  on `leases` are display projections and cannot rewrite term authority.
+- New checked Lease creation and Lease import also create or adopt exactly one
+  primary party and one occupancy in the same transaction. Relationship rows
+  carry independent evidence state, business lifecycle, source, boundary
+  kind/confidence, correction lineage, actor/time/reason evidence, and guarded
+  accepted ranges. Pre-existing party and occupancy rows remain
+  `legacy_unresolved`; they are not promoted or rewritten. Exact individual
+  residence evidence lives in `lease_occupancy_participants` and is separate
+  from a Lease party role or Lease-level occupancy. Existing-Lease
+  relationship transitions remain fail-closed pending the checked impact
+  contract; current list/detail loaders still use the established
+  compatibility read model.
+- The lease inspector shows exact term authority, due day, frequency,
+  lifecycle, rent-readiness evidence, and preserved term history. Admins may
+  schedule a non-overlapping future term without changing the active term's
+  identity. `/settings/rent-policy` is the Admin-only effective-dated policy
+  workspace: unresolved drafts are allowed, incomplete approval is blocked,
+  and approved versions are immutable.
 
 Finance and history:
 
 - `/rent-income` supports expected and received incoming money across rent,
   deposits, reimbursements, parking, late fees, owner contributions, company
-  revenue compatibility categories, and other income. Leases can generate
-  idempotent monthly rent charge rows for active/notice leases. Confirmed
-  receipts post into the official ledger; property reporting excludes deposits
-  and owner contributions from operating income.
+  revenue compatibility categories, and other income. Supported receipts
+  require an active reconciliation source and commit the receipt, exact
+  allocation, compatibility balance, allocation-linked Ledger row, balanced
+  journal, activity, and idempotency result in one transaction. Operators can
+  inspect source evidence and append an exact dated reversal; they cannot
+  separately post or mutate derived projections. Property reporting excludes
+  deposits and owner contributions from operating income. The legacy monthly
+  lease generator is blocked: Plan 09 must consume exact authoritative term
+  and approved-policy identities before automated rent obligations resume.
 - `/bills-expenses` supports outgoing vendor bills, maintenance, utilities,
   supplies, owner payouts, refunds, and other property expenses. Approved
   obligations can be settled through dated payments and allocations.
+- Rent and Expenses use the laptop-first Finance presentation model: a short
+  local navigation bar, one compact totals line, and a full-width operating
+  table. Short invoice, payment, owner-payment, and withdrawal actions use one
+  centered modal at a time. Lease billing uses a four-step setup wizard in the
+  shared drawer; Add expense uses one drawer with Expense details and
+  Responsibility sections. These surfaces do not change the existing action
+  payloads or persistence authority. Collection copy uses the configured
+  organization name instead of a hardcoded management-company label.
 - `/ledger` supports income/expense records, filters, create/update/archive,
   restore, period locks, receipt attachment, month-close workflow queues, and
   linked timeline/document context. Posted rows carry source metadata for
@@ -167,8 +202,8 @@ Finance and history:
 
 Maintenance operations:
 
-- `/maintenance` is the cases workspace with inbox, list, board, calendar,
-  templates, and report links over the existing maintenance records.
+- `/maintenance` is the cases workspace with inbox, list, board, calendar, and
+  templates over the existing maintenance records.
 - `/work-orders` remains a legacy board route.
 - `/schedule` redirects to `/maintenance?view=calendar` for legacy links.
 - `/tasks` uses a compact My Work list for members and role-aware assignment
@@ -212,21 +247,36 @@ Documents, imports, and reports:
 - `/documents` manages private business document metadata and upload/replace,
   archive/restore, and links to property/unit/lease/ledger/timeline/task.
 - `/import` handles CSV imports for properties, units/rent roll, people, and
-  leases with type-specific templates, header mapping, saved mappings, staged
-  import runs, validation, cleanup queue, recent run history, and safe commit
-  behavior through the import run commit boundary and existing write RPCs.
-- `/reports` is the report library. `/reports/[reportKind]` is the selected
-  report builder with scope/period filters, summary metrics, traceable report
-  rows, and CSV/PDF/print export for rent roll, unit performance, property
-  performance, owner statement, income/expense, lease expiry, vacancy/risk,
-  maintenance cost, record readiness, and People readiness reports.
-- `/reports/people-readiness` owns the five People report views:
-  relationship, tenant, owner, vendor, and staff. It preserves active,
-  archived, or all-record scope, exact People and linked-record sources,
-  Staff-to-Workspace-Access actions, and generic CSV/PDF exports without the
-  former duplicate report hub or dedicated export APIs. The retired page
-  remains only as a tested bookmark redirect into this report.
-- `/api/reports/export` and `/api/reports/pdf` expose report export endpoints.
+  leases in one vertical flow. It keeps type-specific templates, automatic and
+  saved header mapping, row validation, staged import runs, and RPC-backed
+  commits. `stage_import_run_v1` computes a deterministic raw claim and exact
+  semantic snapshot in PostgreSQL, then atomically inserts the server-generated
+  run and every staged row with SQL-derived counts. An unchanged staged snapshot
+  is reused. If reference matching changes while the run is still clean and
+  staged, the RPC atomically replaces it with a new run/snapshot so corrected
+  files can become ready. Committing and terminal runs remain immutable and are
+  recovered by raw claim. Past imports can reconcile an in-flight commit;
+  legacy non-atomic staged runs must be re-uploaded before commit.
+  Mapping and fix downloads remain available behind disclosures.
+- `/reports` resolves to `/reports/unit-profit-loss`. The only public report
+  kinds are Monthly Unit Profit & Loss, Owner Statement, and Management Fee
+  Statement. Each selected report has one filter row, compact totals, one
+  traceable table, and PDF/Excel export.
+- Retired report URLs redirect to the operational workspace that owns the work,
+  such as Units, Overview, Ledger, Leases, Maintenance, or People.
+- Monthly Unit Profit & Loss uses resolved unit-linked operating income and
+  expense effects from the canonical property-cash event contract, preserves
+  reversal signs, and explicitly excludes property-level, deposit,
+  owner-funding, company-fee, and unresolved events. Management Fee
+  Statement remains a defined report family but is unavailable and cannot
+  export until management-fee owner-recognition authority is resolved; legacy
+  receipt allocations are not publishable evidence. Owner Statement export
+  remains blocked until authoritative
+  opening and closing owner balances exist; the UI names that limitation rather
+  than inventing balances.
+- `/api/reports/pdf` and `/api/reports/excel` are the public export endpoints.
+  `/api/reports/export` remains an auth-gated, formula-safe CSV compatibility
+  endpoint.
 
 Settings and access:
 
@@ -248,11 +298,9 @@ Settings and access:
   The local invitation replay passed acceptance, required password creation,
   logout, password login, and the Member workspace destination. Production
   invitation verification remains a separate release activity.
-- Multi-page People Readiness loads use deterministic `display_name` plus `id`
-  ordering and remove duplicate IDs before building the shared preview/CSV/PDF
-  report. The load is not a transactional snapshot, so concurrent People
-  inserts, archives, or renames can still change report membership while its
-  page queries are running.
+- Owner Statement cannot yet export because the current source model does not
+  provide authoritative opening and closing owner balances. This is an explicit
+  product limitation, not a derived or estimated balance.
 - Maintenance supports operational actual-cost capture and, for Admins, direct
   ledger linkage. It does not currently provide a prefilled vendor-bill or
   petty-cash handoff, link an existing finance record through a dedicated
@@ -282,14 +330,32 @@ RPC write boundaries. Current table families include:
 - Property core: `properties`, `units`.
 - People and lease backbone: `people`, `person_roles`, `person_contacts`,
   `property_owners`, `vendor_profiles`, `leases`, `lease_parties`,
-  `lease_terms`, `lease_occupancies`, `lease_deposits`.
+  `lease_terms`, `lease_occupancies`, `lease_occupancy_participants`,
+  `lease_deposits`.
 - Finance and history: `finance_income_items`, `finance_expense_items`,
   `finance_receipts`, `finance_receipt_allocations`, `finance_payments`,
-  `finance_payment_allocations`, `lease_deposit_events`, `ledger_entries`,
-  `ledger_period_locks`, `petty_cash_accounts`, `petty_cash_periods`,
-  `petty_cash_entries`, `timeline_events`, `activity_logs`. Income and expense
-  items represent obligations; receipt, payment, allocation, and deposit-event
-  rows represent dated settlement activity used by cash reporting.
+  `finance_receipt_allocation_journals`, `finance_payment_allocations`,
+  `financial_reconciliation_sources`, `lease_deposit_events`,
+  `ledger_entries`, `ledger_period_locks`, `property_reporting_periods`,
+  `petty_cash_accounts`, `petty_cash_periods`, `petty_cash_entries`,
+  `timeline_events`, `activity_logs`. Income and expense items represent
+  obligations; receipt, payment, allocation, and deposit-event rows represent
+  dated settlement activity used by cash reporting. Canonical income
+  allocations freeze source, scope, economic class, signed amount,
+  balance-after, publication class, direct reversal identity, and exact
+  Ledger/journal links. Reversing receipt Ledger rows remain income with a
+  negative amount, so generic Ledger consumers net the receipt without
+  misclassifying returned rent as an expense. Direct obligation-level Ledger
+  links and transitions into or out of `posted` require the checked settlement
+  context even before the first allocation. The Plan 05 owner-state adapter
+  binds a proposed receipt/reversal date into its material hash and returns
+  every distinct source and destination month in deterministic lock order,
+  using the receipt header when a retained legacy allocation lacks the newer
+  immutable scope snapshot.
+  Ledger classifies receipt-allocation projections as Rent & Income evidence
+  and suppresses lifecycle controls that the reserved projection guard rejects.
+  Finance inventory compares negative contra-income to its positive balanced
+  journal controls by magnitude without weakening other parity checks.
   Checked public RPCs record and reverse deposit events while private
   implementations and direct event-table writes remain unavailable to API
   callers. The lease quick view shows held balance and immutable event history.
@@ -318,8 +384,11 @@ Implemented RPC families include:
   durable proof or differs from the matching private provider challenge.
 - Property, unit, person, lease, document, ledger, timeline, and maintenance
   create/update/archive/restore.
-- Finance income and expense workflow creation, status changes, dated receipt
-  and payment settlement, allocation, reversal, and deposit events.
+- Finance income and expense workflow creation and status changes. Versioned
+  Plan 05 income RPCs provide payload-idempotent, property-period-safe receipt
+  and exact reversal transactions with an admin-only, read-only owner-state
+  adapter; dated expense payment and deposit-event workflows retain their
+  existing boundaries.
 - Compatibility journal posting, accounting period locking, reversals, and
   historical ledger backfill retained behind existing workflows.
 - Ledger period locking.
@@ -359,6 +428,15 @@ Implemented RPC families include:
 
 - The default local workflow runs Next.js directly against the Supabase CLI
   stack using the repository scripts and local environment variables.
+- The local seed exposes three operating properties, 18 units, 13 normalized
+  leases with authoritative terms, two owners, current finance/deposit/petty
+  cash/maintenance examples, and a separate empty Demo workspace. Additional
+  fixed rows used by rollback-based accounting verification are archived from
+  normal operator views.
+- `npm run db:reset:demo -- --reference-date YYYY-MM-DD` performs a local reset
+  and replays the deterministic fixture at an explicit business date.
+  `npm run demo:seed:manifest` emits only stable fixture IDs and counts for
+  reset comparison.
 - A Docker workflow is also implemented for the production Next.js runtime:
   `Dockerfile` builds the Next.js standalone output on Node.js 24,
   `compose.yaml` runs the non-root app container with a health check, and the
@@ -375,12 +453,15 @@ lease summaries, ledger summaries/filters, timeline filters, maintenance
 filters/checklists/summary/notifications, imports, reports/export, auth tenant
 host parsing, and schema-error helpers. Database tests additionally cover the
 settlement-event allocation, reversal, RLS, backfill, pagination behavior, and
-the maintenance manager/member/reviewer workflow boundary.
+the maintenance manager/member/reviewer workflow boundary. Plan 05 also has
+focused pgTAP and a two-session concurrency harness for competing receipts,
+same-key receipt/reversal replay, and receipt/reversal races with property
+period close.
 Compatibility database tests still cover the accounting schema and security
 boundary, balanced/idempotent posting, period locks and reversals, historical
 backfill, transaction rollback, and seeded ledger-to-journal parity.
 
-The UI route manifest currently covers all 53 page routes. Local redesign
+The UI route manifest currently covers all 54 page routes. Local redesign
 verification captures every route at 1440x900, 1024x768, and 390x844, audits
 admin/manager/member/anonymous access outcomes, and rejects serious/critical
 axe findings, application errors, document overflow, unreachable actions,

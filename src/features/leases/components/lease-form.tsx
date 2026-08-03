@@ -15,10 +15,12 @@ import {
 } from "@/features/leases/actions";
 import type {
   LeaseFormValues,
+  LeasePaymentFrequency,
   LeasePropertyOption,
   LeaseStatusValue,
   LeaseSummary,
   LeaseTenantOption,
+  LeaseTermStatus,
   LeaseUnitOption,
 } from "@/features/leases/lease.types";
 
@@ -31,6 +33,23 @@ const statusOptions: { label: string; value: LeaseStatusValue }[] = [
   { label: "Ended", value: "ended" },
   { label: "Terminated", value: "terminated" },
   { label: "Cancelled", value: "cancelled" },
+];
+const paymentFrequencyOptions: {
+  label: string;
+  value: LeasePaymentFrequency;
+}[] = [
+  { label: "Monthly", value: "monthly" },
+  { label: "Quarterly", value: "quarterly" },
+  { label: "Semi-annual", value: "semi_annual" },
+  { label: "Annual", value: "annual" },
+  { label: "One time", value: "one_time" },
+];
+const termStatusOptions: { label: string; value: LeaseTermStatus }[] = [
+  { label: "Active now", value: "active" },
+  { label: "Upcoming", value: "upcoming" },
+  { label: "Draft", value: "draft" },
+  { label: "Expired", value: "expired" },
+  { label: "Terminated", value: "terminated" },
 ];
 
 type LeaseFormProps = {
@@ -64,10 +83,17 @@ export function LeaseForm({
     initialState,
   );
   const defaults = getLeaseDefaults(lease, initialValues);
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [selectedPropertyId, setSelectedPropertyId] = useState(
     defaults.propertyId,
   );
   const [selectedStatus, setSelectedStatus] = useState(defaults.status);
+  const [selectedTermStatus, setSelectedTermStatus] = useState(
+    defaults.termStatus,
+  );
+  const [selectedPaymentFrequency, setSelectedPaymentFrequency] = useState(
+    defaults.paymentFrequency,
+  );
   const [selectedTenantId, setSelectedTenantId] = useState(
     defaults.tenantPersonId,
   );
@@ -132,6 +158,12 @@ export function LeaseForm({
       {isEditMode && lease ? (
         <input name="leaseId" type="hidden" value={lease.id} />
       ) : null}
+      <input
+        name="idempotencyKey"
+        suppressHydrationWarning
+        type="hidden"
+        value={idempotencyKey}
+      />
 
       <ConsequencePanel
         rows={[
@@ -151,11 +183,20 @@ export function LeaseForm({
             label: "Status",
             value: selectedStatusOption?.label ?? selectedStatus,
           },
+          {
+            label: "Rent authority",
+            value:
+              termStatusOptions.find(
+                (option) => option.value === selectedTermStatus,
+              )?.label ?? "Choose term status",
+          },
         ]}
         summary={
-          initialValues?.unitId
+          isEditMode
+            ? "Relationship, occupancy, and Lease lifecycle changes require a checked transition. Tenant, property, unit, and Lease status stay unchanged here."
+            : initialValues?.unitId
             ? "Saving links this tenant to the selected vacancy. Open lease statuses affect unit occupancy."
-            : "Saving links this tenant, property, and optional unit. Open lease statuses affect unit occupancy."
+            : "Saving links this tenant, property, and unit. Rent due day and frequency are recorded explicitly; no policy default is inferred."
         }
         title="Tenancy effect"
       />
@@ -170,6 +211,7 @@ export function LeaseForm({
           >
             <PersonSelect
               context="Lease tenant"
+              disabled={isEditMode}
               name="tenantPersonId"
               onValueChange={setSelectedTenantId}
               options={tenantOptions}
@@ -196,9 +238,13 @@ export function LeaseForm({
             name="status"
             required
           >
+            {isEditMode ? (
+              <input name="status" type="hidden" value={selectedStatus} />
+            ) : null}
             <SelectControl
               ariaLabel="Status"
-              name="status"
+              disabled={isEditMode}
+              name={isEditMode ? undefined : "status"}
               onValueChange={(value) =>
                 setSelectedStatus(value as LeaseStatusValue)
               }
@@ -216,9 +262,17 @@ export function LeaseForm({
             name="propertyId"
             required
           >
+            {isEditMode ? (
+              <input
+                name="propertyId"
+                type="hidden"
+                value={selectedPropertyId}
+              />
+            ) : null}
             <SelectControl
               ariaLabel="Property"
-              name="propertyId"
+              disabled={isEditMode}
+              name={isEditMode ? undefined : "propertyId"}
               onValueChange={(value) => {
                 setSelectedPropertyId(value);
                 setSelectedUnitId("");
@@ -240,10 +294,13 @@ export function LeaseForm({
             label="Unit"
             name="unitId"
           >
+            {isEditMode ? (
+              <input name="unitId" type="hidden" value={formUnitId} />
+            ) : null}
             <SelectControl
               ariaLabel="Unit"
-              disabled={!selectedPropertyId}
-              name="unitId"
+              disabled={isEditMode || !selectedPropertyId}
+              name={isEditMode ? undefined : "unitId"}
               onValueChange={setSelectedUnitId}
               options={[
                 { label: "No unit assigned", value: "" },
@@ -291,7 +348,7 @@ export function LeaseForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <RecordField
-            label="Monthly rent"
+            label="Rent amount"
             name="monthlyRentAmount"
             error={state.fieldErrors?.monthlyRentAmount?.[0]}
             required
@@ -307,19 +364,85 @@ export function LeaseForm({
           </RecordField>
 
           <RecordField
-            error={state.fieldErrors?.depositAmount?.[0]}
-            label="Deposit"
-            name="depositAmount"
+            error={state.fieldErrors?.rentDueDay?.[0]}
+            label="Rent due day"
+            name="rentDueDay"
+            required
           >
             <NumberInput
-              defaultValue={defaults.depositAmount}
-              min="0"
-              name="depositAmount"
-              placeholder="0.00"
-              step="0.01"
+              defaultValue={defaults.rentDueDay}
+              max="31"
+              min="1"
+              name="rentDueDay"
+              placeholder="1-31"
+              required
+              step="1"
             />
           </RecordField>
         </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RecordField
+            error={state.fieldErrors?.paymentFrequency?.[0]}
+            label="Payment frequency"
+            name="paymentFrequency"
+            required
+          >
+            <SelectControl
+              ariaLabel="Payment frequency"
+              name="paymentFrequency"
+              onValueChange={(value) =>
+                setSelectedPaymentFrequency(value as LeasePaymentFrequency)
+              }
+              options={[
+                { label: "Choose frequency", value: "" },
+                ...paymentFrequencyOptions,
+              ]}
+              required
+              value={selectedPaymentFrequency}
+            />
+          </RecordField>
+
+          <RecordField
+            error={state.fieldErrors?.termStatus?.[0]}
+            label="Term status"
+            name="termStatus"
+            required
+          >
+            <SelectControl
+              ariaLabel="Term status"
+              name="termStatus"
+              onValueChange={(value) =>
+                setSelectedTermStatus(value as LeaseTermStatus)
+              }
+              options={[
+                { label: "Choose term status", value: "" },
+                ...termStatusOptions,
+              ]}
+              required
+              value={selectedTermStatus}
+            />
+          </RecordField>
+        </div>
+
+        <RecordField
+          error={state.fieldErrors?.depositAmount?.[0]}
+          label="Deposit"
+          name="depositAmount"
+        >
+          <NumberInput
+            defaultValue={defaults.depositAmount}
+            min="0"
+            name="depositAmount"
+            placeholder="0.00"
+            step="0.01"
+          />
+        </RecordField>
+
+        <p className="text-xs text-muted">
+          Readiness stays blocked until an approved rent policy supports this
+          frequency and the term is authoritative.
+        </p>
       </FormSection>
     </RecordForm>
   );
@@ -336,11 +459,14 @@ function getLeaseDefaults(
     leaseEndDate: formValues?.leaseEndDate ?? "",
     leaseStartDate: formValues?.leaseStartDate ?? "",
     monthlyRentAmount: toInputNumber(formValues?.monthlyRentAmount),
+    paymentFrequency: formValues?.paymentFrequency ?? "",
     propertyId: formValues?.propertyId ?? initialValues.propertyId ?? "",
+    rentDueDay: toInputNumber(formValues?.rentDueDay),
     status: formValues?.status ?? "active",
     tenantPersonId:
       formValues?.tenantPersonId ?? initialValues.tenantPersonId ?? "",
     tenantName: formValues?.tenantName ?? "",
+    termStatus: formValues?.termStatus ?? "",
     unitId: formValues?.unitId ?? initialValues.unitId ?? "",
   };
 }

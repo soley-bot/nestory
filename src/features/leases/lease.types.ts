@@ -28,6 +28,18 @@ export type LeaseStatusValue =
 
 export type LeaseStatusFilter = LeaseStatusValue | "all" | "current";
 export type LeaseTenantStatusFilter = "all" | "missing";
+export type LeasePaymentFrequency =
+  | "annual"
+  | "monthly"
+  | "one_time"
+  | "quarterly"
+  | "semi_annual";
+export type LeaseTermStatus =
+  | "active"
+  | "draft"
+  | "expired"
+  | "terminated"
+  | "upcoming";
 
 export type LeasePropertyOption = {
   id: string;
@@ -49,10 +61,13 @@ export type LeaseFormValues = {
   leaseStartDate: string;
   monthlyRentAmount: number;
   monthlyRentCurrency: CurrencyCode;
+  paymentFrequency?: LeasePaymentFrequency | null;
   propertyId: string;
+  rentDueDay?: number | null;
   status: LeaseStatusValue;
   tenantPersonId: string;
   tenantName: string;
+  termStatus?: LeaseTermStatus | null;
   unitId?: string | null;
 };
 
@@ -90,11 +105,32 @@ export type LeaseLinkedPerson = {
 };
 
 export type LeaseTermContext = {
+  authorityKind: "authoritative" | "legacy_inferred";
+  authorityLabel: string;
   datesLabel: string;
+  dueLabel: string;
+  endDate: string;
   id: string;
+  paymentFrequency: LeasePaymentFrequency | null;
+  paymentFrequencyLabel: string;
+  rentAmount: number;
+  rentCurrency: CurrencyCode;
+  rentDueDay: number | null;
   rentDisplay: MoneyDisplayValue;
   rentLabel: string;
+  startDate: string;
+  status: LeaseTermStatus | "superseded";
   statusLabel: string;
+};
+
+export type LeaseRentReadiness = {
+  label: string;
+  policyId?: string;
+  reasonCode: string;
+  repairLabel: string;
+  status: string;
+  termId?: string;
+  tone: LeaseBadgeTone;
 };
 
 export type LeaseOccupancyContext = {
@@ -187,6 +223,7 @@ export type LeaseSummary = {
   recordCounts: LeaseRecordCounts;
   rentDisplay: MoneyDisplayValue;
   rentLabel: string;
+  rentReadiness: LeaseRentReadiness;
   rentUsd: number;
   riskIndicators: LeaseRiskIndicator[];
   startDateLabel: string;

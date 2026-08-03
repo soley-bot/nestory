@@ -80,12 +80,29 @@ export type RentIncomeCreateDefaults = {
 };
 
 export type RentIncomeReceipt = {
+  allocationId: string;
   amount: number;
   amountDisplay: MoneyDisplayValue;
+  canReverse: boolean;
   id: string;
+  journalEntryIds: string[];
+  ledgerEntryId: string | null;
+  publicationSourceClass: string;
   receivedDate: string;
+  reconciliationSourceId: string | null;
+  reconciliationSourceLabel: string;
   reference: string;
+  reversalOfAllocationId: string | null;
   reversed: boolean;
+  settlementBasis: string;
+};
+
+export type RentIncomeReconciliationSource = {
+  archivedAt?: string | null;
+  currency: CurrencyCode;
+  id: string;
+  label: string;
+  propertyId: string | null;
 };
 
 export type RentIncomeItem = {
@@ -128,9 +145,9 @@ export type RentIncomeItem = {
 export type RentIncomeSummary = {
   openCount: string;
   overdueCount: string;
+  receivedObligationCount: string;
   receivedTotal: MoneyDisplayValue;
   receivableTotal: MoneyDisplayValue;
-  unpostedCount: string;
 };
 
 export type RentIncomePagination = {
@@ -149,6 +166,7 @@ export type RentIncomeScreenData = {
   pagination: RentIncomePagination;
   payerOptions: PersonSelectOption[];
   propertyOptions: RentIncomeOption[];
+  reconciliationSources: RentIncomeReconciliationSource[];
   summary: RentIncomeSummary;
   unitOptions: RentIncomeUnitOption[];
   viewQuery: RentIncomeViewQuery;

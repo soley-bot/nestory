@@ -15,10 +15,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
   return (
     <div>
-      <PageHeader
-        description="Organization structure, workspace configuration, and access."
-        title="Settings"
-      />
+      <PageHeader title="Settings" />
       <OrganizationSettingsScreen
         branches={data.branches}
         canManageStructure={context.role === "admin"}

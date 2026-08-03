@@ -23,6 +23,7 @@ import {
   type RentIncomeOption,
   type RentIncomeStatus,
   type RentIncomeReceipt,
+  type RentIncomeReconciliationSource,
   type RentIncomeScreenData,
   type RentIncomeSummary,
   type RentIncomeUnitOption,
@@ -53,11 +54,27 @@ type LeaseRow = Pick<
 >;
 type ReceiptAllocationRow = Pick<
   Database["public"]["Tables"]["finance_receipt_allocations"]["Row"],
-  "amount" | "income_item_id" | "receipt_id"
+  | "amount"
+  | "id"
+  | "income_item_id"
+  | "ledger_entry_id"
+  | "publication_source_class"
+  | "receipt_id"
+  | "reconciliation_source_id"
+  | "reversal_of_allocation_id"
+  | "settlement_basis"
 >;
 type ReceiptRow = Pick<
   Database["public"]["Tables"]["finance_receipts"]["Row"],
   "id" | "received_date" | "reference" | "reversal_of_id"
+>;
+type ReceiptJournalRow = Pick<
+  Database["public"]["Tables"]["finance_receipt_allocation_journals"]["Row"],
+  "allocation_id" | "journal_entry_id"
+>;
+type ReconciliationSourceRow = Pick<
+  Database["public"]["Tables"]["financial_reconciliation_sources"]["Row"],
+  "archived_at" | "code" | "currency" | "display_name" | "id" | "property_id"
 >;
 
 export async function getRentIncomeScreenData(
@@ -67,7 +84,13 @@ export async function getRentIncomeScreenData(
 ): Promise<RentIncomeScreenData> {
   const supabase = await createSupabaseServerClient();
   const monthScope = getRentIncomeMonthScope(viewQuery.month);
-  const [propertiesResult, unitsResult, leasesResult, payerOptions] = await Promise.all([
+  const [
+    propertiesResult,
+    unitsResult,
+    leasesResult,
+    reconciliationSourcesResult,
+    payerOptions,
+  ] = await Promise.all([
     supabase
       .from("properties")
       .select("id, name, code")
@@ -89,6 +112,11 @@ export async function getRentIncomeScreenData(
       .is("archived_at", null)
       .in("status", ["active", "notice_given"])
       .order("tenant_name", { ascending: true }),
+    supabase
+      .from("financial_reconciliation_sources")
+      .select("id, property_id, currency, display_name, code, archived_at")
+      .eq("organization_id", organizationId)
+      .order("code", { ascending: true }),
     getPersonSelectOptions({
       organizationId,
       roles: ["tenant", "owner", "vendor", "staff"],
@@ -111,9 +139,18 @@ export async function getRentIncomeScreenData(
     );
   }
 
+  if (reconciliationSourcesResult.error) {
+    throw new Error(
+      `Could not load reconciliation sources: ${reconciliationSourcesResult.error.message}`,
+    );
+  }
+
   const properties = propertiesResult.data ?? [];
   const units = unitsResult.data ?? [];
   const leases = leasesResult.data ?? [];
+  const reconciliationSources = (
+    (reconciliationSourcesResult.data ?? []) as ReconciliationSourceRow[]
+  ).map(toReconciliationSource);
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
   const incomeSearchColumns = ["payer_label", "description", "reference"];
@@ -225,6 +262,7 @@ export async function getRentIncomeScreenData(
   const receiptsByIncomeId = await getReceiptsByIncomeId({
     incomeItemIds: rows.map((row) => row.id),
     organizationId,
+    reconciliationSources,
     supabase,
   });
   const propertyOptions = toPropertyOptions(properties);
@@ -252,6 +290,7 @@ export async function getRentIncomeScreenData(
     pagination,
     payerOptions,
     propertyOptions,
+    reconciliationSources,
     summary: buildRentIncomeSummary(summaryRow),
     unitOptions,
     viewQuery,
@@ -276,6 +315,7 @@ function toRentIncomeItem({
   const workflow = getRentIncomeWorkflow({
     amountDue: row.amount_due,
     amountReceived: row.amount_received,
+    incomeType: row.income_type as RentIncomeItem["incomeType"],
     ledgerEntryId: row.ledger_entry_id,
     status: row.status as RentIncomeStatus,
   });
@@ -331,9 +371,9 @@ function buildRentIncomeSummary(
   return {
     openCount: String(row?.open_count ?? 0),
     overdueCount: String(row?.overdue_count ?? 0),
+    receivedObligationCount: String(row?.unposted_count ?? 0),
     receivedTotal: formatMoneyDisplay(row?.received_total ?? 0),
     receivableTotal: formatMoneyDisplay(row?.receivable_total ?? 0),
-    unpostedCount: String(row?.unposted_count ?? 0),
   };
 }
 
@@ -395,10 +435,12 @@ function getStatusLabel(status: string) {
 async function getReceiptsByIncomeId({
   incomeItemIds,
   organizationId,
+  reconciliationSources,
   supabase,
 }: {
   incomeItemIds: string[];
   organizationId: string;
+  reconciliationSources: RentIncomeReconciliationSource[];
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
 }) {
   const receiptsByIncomeId = new Map<string, RentIncomeReceipt[]>();
@@ -406,7 +448,9 @@ async function getReceiptsByIncomeId({
 
   const allocationsResult = await supabase
     .from("finance_receipt_allocations")
-    .select("income_item_id, receipt_id, amount")
+    .select(
+      "id, income_item_id, receipt_id, amount, ledger_entry_id, settlement_basis, publication_source_class, reconciliation_source_id, reversal_of_allocation_id",
+    )
     .eq("organization_id", organizationId)
     .in("income_item_id", incomeItemIds);
 
@@ -420,18 +464,47 @@ async function getReceiptsByIncomeId({
   const receiptIds = [...new Set(allocations.map((row) => row.receipt_id))];
   if (receiptIds.length === 0) return receiptsByIncomeId;
 
-  const receiptsResult = await supabase
-    .from("finance_receipts")
-    .select("id, received_date, reference, reversal_of_id")
-    .eq("organization_id", organizationId)
-    .in("id", receiptIds);
+  const allocationIds = allocations.map((row) => row.id);
+  const [receiptsResult, journalsResult] = await Promise.all([
+    supabase
+      .from("finance_receipts")
+      .select("id, received_date, reference, reversal_of_id")
+      .eq("organization_id", organizationId)
+      .in("id", receiptIds),
+    supabase
+      .from("finance_receipt_allocation_journals")
+      .select("allocation_id, journal_entry_id")
+      .eq("organization_id", organizationId)
+      .in("allocation_id", allocationIds),
+  ]);
 
   if (receiptsResult.error) {
     throw new Error(`Could not load income receipts: ${receiptsResult.error.message}`);
   }
 
+  if (journalsResult.error) {
+    throw new Error(
+      `Could not load income journal evidence: ${journalsResult.error.message}`,
+    );
+  }
+
+  const receipts = (receiptsResult.data ?? []) as ReceiptRow[];
   const receiptById = new Map(
-    ((receiptsResult.data ?? []) as ReceiptRow[]).map((row) => [row.id, row]),
+    receipts.map((row) => [row.id, row]),
+  );
+  const reversedReceiptIds = new Set(
+    receipts.flatMap((receipt) =>
+      receipt.reversal_of_id ? [receipt.reversal_of_id] : [],
+    ),
+  );
+  const journalIdsByAllocationId = new Map<string, string[]>();
+  for (const link of (journalsResult.data ?? []) as ReceiptJournalRow[]) {
+    const current = journalIdsByAllocationId.get(link.allocation_id) ?? [];
+    current.push(link.journal_entry_id);
+    journalIdsByAllocationId.set(link.allocation_id, current);
+  }
+  const sourceById = new Map(
+    reconciliationSources.map((source) => [source.id, source]),
   );
 
   for (const allocation of allocations) {
@@ -440,12 +513,29 @@ async function getReceiptsByIncomeId({
     const reversed = receipt.reversal_of_id !== null;
     const amount = reversed ? -allocation.amount : allocation.amount;
     const next: RentIncomeReceipt = {
+      allocationId: allocation.id,
       amount,
       amountDisplay: formatMoneyDisplay(amount),
+      canReverse:
+        !reversed &&
+        !reversedReceiptIds.has(receipt.id) &&
+        allocation.settlement_basis !== null,
       id: receipt.id,
+      journalEntryIds:
+        journalIdsByAllocationId.get(allocation.id)?.sort() ?? [],
+      ledgerEntryId: allocation.ledger_entry_id,
+      publicationSourceClass:
+        allocation.publication_source_class ?? "unclassified",
       receivedDate: receipt.received_date,
+      reconciliationSourceId: allocation.reconciliation_source_id,
+      reconciliationSourceLabel: allocation.reconciliation_source_id
+        ? (sourceById.get(allocation.reconciliation_source_id)?.label ??
+          "Unavailable source")
+        : "Legacy source unavailable",
       reference: receipt.reference ?? "",
+      reversalOfAllocationId: allocation.reversal_of_allocation_id,
       reversed,
+      settlementBasis: allocation.settlement_basis ?? "legacy_unclassified",
     };
     const current = receiptsByIncomeId.get(allocation.income_item_id) ?? [];
     current.push(next);
@@ -459,6 +549,18 @@ async function getReceiptsByIncomeId({
   }
 
   return receiptsByIncomeId;
+}
+
+function toReconciliationSource(
+  row: ReconciliationSourceRow,
+): RentIncomeReconciliationSource {
+  return {
+    archivedAt: row.archived_at,
+    currency: row.currency,
+    id: row.id,
+    label: `${row.code} · ${row.display_name}`,
+    propertyId: row.property_id,
+  };
 }
 
 function indexById<T extends { id: string }>(rows: T[]) {

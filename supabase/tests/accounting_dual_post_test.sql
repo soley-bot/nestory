@@ -10,6 +10,17 @@ SELECT set_config(
   true
 );
 
+-- Compatibility anchors are archived in the demo workspace. This transaction
+-- restores only the two properties needed by the accounting fixture.
+UPDATE public.properties
+SET archived_at = NULL, archived_by = NULL
+WHERE id IN (
+  '10000000-0000-0000-0000-000000000004',
+  '10000000-0000-0000-0000-000000000005'
+);
+
+SELECT app_private.set_finance_settlement_context(true);
+
 INSERT INTO public.finance_income_items (
   id,
   organization_id,
@@ -119,6 +130,8 @@ VALUES
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   );
+
+SELECT app_private.set_finance_settlement_context(false);
 
 INSERT INTO public.finance_expense_items (
   id,
@@ -236,6 +249,11 @@ VALUES
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   );
+
+-- Plan 05 revokes this legacy posting command from operator roles. These
+-- compatibility assertions run as the database owner and explicitly opt into
+-- the private settlement capability instead of reopening split authority.
+SELECT app_private.set_finance_settlement_context(true);
 
 SELECT lives_ok(
   $$SELECT public.post_finance_income_item(
@@ -590,6 +608,8 @@ SELECT is(
   NULL::uuid,
   'failed locked-period posting creates no legacy ledger row'
 );
+
+SELECT app_private.set_finance_settlement_context(false);
 
 SELECT * FROM finish();
 

@@ -39,10 +39,14 @@ Use this for authenticated operational screens before calling a flow ready.
 
 - Keep a compact title and one instinctive primary action at the top.
 - Keep filters/search/view state URL-backed in the workspace tools zone.
-- Use the shared record surface and responsive inspector; open the inspector as
-  a focus-managed drawer when there is not enough width for a useful split view.
-- Use the shared side drawer for create, edit, archive, restore, upload, and
-  other focused record work.
+- Use the module-approved record surface. Inspectors may become focus-managed
+  drawers when their module needs that pattern. Finance uses centered modals
+  for short money actions, a drawer for multi-step setup or longer conditional
+  forms, and a dedicated page for full account history.
+- Use the shared side drawer for focused record work except where a module has
+  an approved modal/page contract. Finance receipt, payment, reversal, deposit,
+  and adjustment flows remain centered-modal or page actions; only approved
+  setup and longer conditional forms use the drawer.
 - Settings pages keep local navigation, active workspace, and draft actions as
   three distinct zones with one save/discard/status model.
 
@@ -53,7 +57,7 @@ Use this for authenticated operational screens before calling a flow ready.
   accessible names for screen readers.
 - Keep heading levels in document order, mark the current global and local
   destination with `aria-current`, and announce loading, errors, and success.
-- Each drawer should have one announced close button.
+- Each modal or drawer should have one announced close button.
 - Dialogs and drawers must trap focus, close with Escape, and return focus to
   the control that opened them.
 - Focus, keyboard submit, and disabled states must work at 200% zoom and at
@@ -63,7 +67,8 @@ Use this for authenticated operational screens before calling a flow ready.
 
 ## Verification
 
-- Add a focused browser smoke for create/edit/archive/restore drawer changes.
+- Add a focused browser smoke for create/edit/archive/restore modal or drawer
+  changes.
 - Prefer no-mutation smokes unless the test also owns cleanup.
 - Run `npm run test:ui-a11y` against a local fixture workspace. It rejects
   serious or critical axe findings, uncaught browser errors, horizontal

@@ -12,6 +12,7 @@ import type {
   OccupancyReport,
   OccupancyReportRow,
   ReportPropertyOption,
+  ReportUnitOption,
   ReportsScreenData,
   ReportsViewQuery,
   TrustedReport,
@@ -67,6 +68,7 @@ type ReportBaseData = {
   propertiesById: Map<string, PropertyRow>;
   propertyOptions: ReportPropertyOption[];
   supabase: SupabaseServerClient;
+  unitOptions: ReportUnitOption[];
 };
 
 type OccupancyReportData = Pick<
@@ -80,7 +82,8 @@ export async function getReportsScreenData(
   organizationId: string,
   viewQuery: ReportsViewQuery,
 ): Promise<ReportsScreenData> {
-  const { propertyOptions } = await getReportBaseData(organizationId);
+  const { propertyOptions, unitOptions } =
+    await getReportBaseData(organizationId);
   const trustedReport = await getTrustedReport({
     organizationId,
     viewQuery,
@@ -89,6 +92,7 @@ export async function getReportsScreenData(
   return {
     propertyOptions,
     trustedReport: prepareTrustedReportForScreen(trustedReport, viewQuery),
+    unitOptions,
     viewQuery,
   };
 }
@@ -99,11 +103,14 @@ export function prepareTrustedReportForScreen(
 ): TrustedReport {
   if (
     report.kind === "owner-statement" &&
+    !report.exportValidation &&
     !report.scopeValidation &&
     (viewQuery.ownerPersonId !== "all" || viewQuery.ownerPersonIdInvalid)
   ) {
     const selection = selectOwnerStatementRecipient(report, viewQuery);
-    return "report" in selection ? selection.report : report;
+    return trimTrustedReportForScreen(
+      "report" in selection ? selection.report : report,
+    );
   }
 
   return trimTrustedReportForScreen(report);
@@ -159,8 +166,34 @@ async function getReportBaseData(
   const properties = propertiesResult.data ?? [];
   const propertyOptions = toPropertyOptions(properties);
   const propertiesById = indexById(properties);
+  const propertyIds = properties.map(({ id }) => id);
+  const unitsResult =
+    propertyIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from("units")
+          .select("id, property_id, unit_number")
+          .eq("organization_id", organizationId)
+          .in("property_id", propertyIds)
+          .is("archived_at", null)
+          .order("unit_number", { ascending: true });
 
-  return { propertiesById, propertyOptions, supabase };
+  if (unitsResult.error) {
+    throw new Error(
+      `Could not load report unit options: ${unitsResult.error.message}`,
+    );
+  }
+
+  const unitOptions = (unitsResult.data ?? []).map((unit) => {
+    const property = propertiesById.get(unit.property_id);
+    return {
+      id: unit.id,
+      label: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
+      propertyId: unit.property_id,
+    };
+  });
+
+  return { propertiesById, propertyOptions, supabase, unitOptions };
 }
 
 async function getOccupancyReport({

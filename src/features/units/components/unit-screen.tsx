@@ -454,13 +454,13 @@ function hasActiveUnitFilters(viewQuery: UnitViewQuery) {
 }
 
 export function getVacantUnitsReportHref(propertyId: string) {
-  const params = new URLSearchParams({ status: "vacant" });
+  const params = new URLSearchParams({ occupancy: "unoccupied" });
 
   if (propertyId !== "all") {
     params.set("propertyId", propertyId);
   }
 
-  return `/reports/vacancy-risk?${params.toString()}`;
+  return `/units?${params.toString()}`;
 }
 
 function getCreateLeaseHref(unit: UnitSummary) {

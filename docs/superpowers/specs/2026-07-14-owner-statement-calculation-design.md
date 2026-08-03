@@ -1,7 +1,15 @@
 # Trustworthy Owner Statement Calculation Design
 
 **Date:** 2026-07-14
-**Status:** Approved for implementation
+**Status:** Historical design; live compatibility calculation is implemented
+
+> **Authority amendment (2026-07-30):** This is the historical design for the
+> current live compatibility calculation and evidence preview. It is not
+> immutable close-backed Owner Statement authority. The future owner-facing
+> grouping, balance formula, deposit exclusion, management-fee language, and
+> single owner/property perspective are governed by
+> `2026-07-30-ips-finance-workflow-simplification-design.md` plus Owner Close
+> Plans 17-19.
 
 ## Purpose
 
@@ -35,12 +43,13 @@ Overview UI types, URLs, or formatting helpers.
 
 - Operating receipts use receipt event dates.
 - Property expenses use payment event dates.
-- Management fees earned use obligation due dates.
-- Management fees received use receipt event dates.
-- Management fees outstanding are the remaining balance at period end for each
-  fee obligation due in the selected month, allocated by that obligation's
-  due-date owner roster. The label is **Management fees outstanding from this
-  period**. It is disclosure-only.
+- The live compatibility preview groups fee-obligation evidence by due date
+  and fee-receipt evidence by receipt event date. This is historical
+  compatibility behavior, not approved fee-recognition or owner-deduction
+  timing.
+- Its management-fee earned, received, and outstanding fields remain
+  disclosure-only. Plans 11/12 define future agreement, assessment,
+  recognition, settlement, and owner-deduction authority.
 - Owner contributions and payouts use their receipt/payment event dates and are
   assigned directly only when exactly one owner is effective.
 - Reversals use the reversal event date and signed kernel cents.
@@ -48,9 +57,11 @@ Overview UI types, URLs, or formatting helpers.
   using the valid roster effective on the final day of the month.
 - Prior-period settlement and deposit source lines remain evidence. They are
   not blindly summed as current-period cash.
-- Net owner cash movement is operating cash received minus property expenses
-  paid minus management fees received plus owner contributions minus owner
-  payouts. It is not an amount payable or a reconciled bank balance.
+- The historical compatibility metric named net owner cash movement subtracts
+  fee receipts by receipt date from operating cash received and property
+  expenses paid, then adds owner contributions and subtracts owner payouts. It
+  is not an amount payable, a reconciled bank balance, or an approved
+  fee-recognition or owner-deduction formula.
 
 ## Ownership Contract
 

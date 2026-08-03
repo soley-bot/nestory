@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { getPeopleMutationErrorMessage } from "@/features/people/people-action-errors";
 import type { PersonRoleValue } from "@/features/people/people.types";
 
 type PeopleFieldErrors = {
@@ -129,7 +130,7 @@ export async function createPersonAction(
 
   if (error) {
     return {
-      message: peopleActionErrorMessage(error.message),
+      message: getPeopleMutationErrorMessage(error, "create"),
       status: "error",
     };
   }
@@ -171,7 +172,7 @@ export async function updatePersonAction(
 
   if (error) {
     return {
-      message: peopleActionErrorMessage(error.message),
+      message: getPeopleMutationErrorMessage(error, "update"),
       status: "error",
     };
   }
@@ -238,7 +239,10 @@ async function updatePersonArchiveState({
 
   if (error) {
     return {
-      message: peopleActionErrorMessage(error.message),
+      message: getPeopleMutationErrorMessage(
+        error,
+        archived ? "archive" : "restore",
+      ),
       status: "error",
     };
   }
@@ -265,20 +269,4 @@ function revalidatePeoplePaths() {
   revalidatePath("/timeline");
   revalidatePath("/units");
   revalidatePath("/reports");
-}
-
-function peopleActionErrorMessage(message: string) {
-  if (message.includes("duplicate key")) {
-    return "That person or role already exists.";
-  }
-
-  if (message.includes("Not authorized") || message.includes("row-level security")) {
-    return "You do not have access to save this person.";
-  }
-
-  if (message.includes("Person not found")) {
-    return "We could not find that person.";
-  }
-
-  return "We could not save the person. Please check the fields and try again.";
 }

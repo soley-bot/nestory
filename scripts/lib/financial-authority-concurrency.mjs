@@ -790,6 +790,15 @@ WHERE organization_id IN (
   '${fixture.organizationId}'::uuid,
   '${fixture.otherOrganizationId}'::uuid
 );
+ALTER TABLE public.financial_reconciliation_sources
+  DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
+DELETE FROM public.financial_reconciliation_sources
+WHERE organization_id IN (
+  '${fixture.organizationId}'::uuid,
+  '${fixture.otherOrganizationId}'::uuid
+);
+ALTER TABLE public.financial_reconciliation_sources
+  ENABLE TRIGGER enforce_financial_reconciliation_source_mutation;
 DELETE FROM public.properties
 WHERE organization_id IN (
   '${fixture.organizationId}'::uuid,

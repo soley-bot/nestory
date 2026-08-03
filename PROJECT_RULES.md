@@ -26,6 +26,11 @@ verification.
 - Dashboard pages should answer what needs attention and link into records.
 - Operational pages should optimize for repeated work: dense tables, filters,
   inspectors, drawers, linked records, and clear status.
+- Finance is the deliberate exception to the inspector default. Finance lists
+  use one compact table and a compact totals line. Short money actions use a
+  centered modal; multi-step setup and longer conditional forms may use the
+  shared side drawer. Do not add side inspectors or stat-card grids to Finance
+  workspaces.
 - Detail pages should show the full operating record without hiding important
   financial, lease, maintenance, document, or timeline context.
 - Placeholder routes are allowed only when navigation needs a destination. Do
@@ -60,6 +65,11 @@ verification.
 - Authenticated Nestory should feel quiet, neutral, dense, and operational.
 - Prefer tables, filters, list/card selectors, side drawers, record inspectors,
   badges, and compact actions over marketing layout.
+- On Finance routes, use table -> centered modal for short money actions,
+  table -> side drawer for multi-step setup or longer conditional forms, and a
+  dedicated page for full account history. Keep forms focused, preserve the
+  filtered list context, and never require a side inspector to understand or
+  act on a transaction.
 - Keep primary records and useful actions early in the viewport.
 - Desktop workspace pages should be viewport-bounded: keep headers and filters
   natural height, give the main work area the remaining height, and use internal

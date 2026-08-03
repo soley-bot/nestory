@@ -33,4 +33,21 @@ describe("configuration registry", () => {
     expect(setupSettings.length).toBeGreaterThan(0);
     expect(setupSettings.every((definition) => !definition.safeAfterGoLive)).toBe(true);
   });
+
+  it("assigns ownership only to workspace roles", () => {
+    const workspaceRoles = new Set(["admin", "manager", "member"]);
+
+    expect(configurationRegistry.every((definition) => workspaceRoles.has(definition.owner))).toBe(
+      true,
+    );
+  });
+
+  it("provides options for every enum setting", () => {
+    const enumSettings = configurationRegistry.filter(
+      (definition) => definition.valueType === "enum",
+    );
+
+    expect(enumSettings.length).toBeGreaterThan(0);
+    expect(enumSettings.every((definition) => definition.options.length > 0)).toBe(true);
+  });
 });

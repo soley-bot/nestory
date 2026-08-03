@@ -30,6 +30,7 @@ vi.mock("@/features/leases/actions", () => ({
   recordLeaseDepositEventAction: async () => ({}),
   restoreLeaseAction: async () => ({}),
   reverseLeaseDepositEventAction: async () => ({}),
+  scheduleFutureRentTermAction: async () => ({}),
   updateLeaseAction: async () => ({}),
 }));
 
@@ -103,18 +104,46 @@ describe("LeaseScreen redesign contract", () => {
     const firstQuickView = screen.getByRole("dialog", {
       name: "Alice Tenant lease quick view",
     });
+    const firstScheduleKey = firstQuickView
+      .querySelector<HTMLInputElement>('input[name="idempotencyKey"]')
+      ?.value;
+    expect(firstScheduleKey).toContain("lease-1");
+    expect(
+      within(firstQuickView).getByText("Readiness not checked"),
+    ).not.toBeNull();
     expect(within(firstQuickView).getByText("USD 1,200.00 held")).not.toBeNull();
     expect(within(firstQuickView).getByText("Event type")).not.toBeNull();
     expect(within(firstQuickView).getByText("Event date")).not.toBeNull();
     expect(within(firstQuickView).getByText("Amount")).not.toBeNull();
     expect(within(firstQuickView).getByText("Reference")).not.toBeNull();
+    expect(
+      within(firstQuickView).getByRole("heading", {
+        name: "Schedule future rent",
+      }),
+    ).not.toBeNull();
+    expect(
+      within(firstQuickView).getByRole("button", {
+        name: "Schedule future term",
+      }),
+    ).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
 
     fireEvent.click(rows[1]!);
     expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
+    const secondQuickView = screen.getByRole("dialog", {
+      name: "Ben Tenant lease quick view",
+    });
+    expect(secondQuickView).not.toBeNull();
     expect(
-      screen.getByRole("dialog", { name: "Ben Tenant lease quick view" }),
-    ).not.toBeNull();
+      secondQuickView.querySelector<HTMLInputElement>(
+        'input[name="idempotencyKey"]',
+      )?.value,
+    ).toContain("lease-2");
+    expect(
+      secondQuickView.querySelector<HTMLInputElement>(
+        'input[name="idempotencyKey"]',
+      )?.value,
+    ).not.toBe(firstScheduleKey);
     expect(screen.queryByText(/select a lease row/i)).toBeNull();
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });
@@ -144,8 +173,123 @@ describe("LeaseScreen redesign contract", () => {
     await user.click(screen.getByRole("button", { name: "Edit lease for Alice Tenant" }));
 
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByRole("dialog", { name: "Edit lease" })).not.toBeNull();
+    const drawer = screen.getByRole("dialog", { name: "Edit lease" });
+    expect(drawer).not.toBeNull();
     expect(screen.queryByRole("dialog", { name: "Alice Tenant lease quick view" })).toBeNull();
+    expect(
+      (
+        within(drawer).getByRole("combobox", {
+          name: /Tenant/,
+        }) as HTMLInputElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        within(drawer).getByRole("combobox", {
+          name: "Status",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        within(drawer).getByRole("combobox", {
+          name: "Property",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        within(drawer).getByRole("combobox", {
+          name: "Unit",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      drawer.querySelector<HTMLInputElement>(
+        'input[name="tenantPersonId"]:not([disabled])',
+      )?.value,
+    ).toBe("person-1");
+    expect(
+      drawer.querySelector<HTMLInputElement>(
+        'input[name="propertyId"]:not([disabled])',
+      )?.value,
+    ).toBe("property-1");
+    expect(
+      drawer.querySelector<HTMLInputElement>(
+        'input[name="unitId"]:not([disabled])',
+      )?.value,
+    ).toBe("unit-1");
+    expect(
+      drawer.querySelector<HTMLInputElement>(
+        'input[name="status"]:not([disabled])',
+      )?.value,
+    ).toBe("active");
+    expect(
+      (
+        within(drawer).getByRole("textbox", {
+          name: /Rent amount/,
+        }) as HTMLInputElement
+      ).disabled,
+    ).toBe(false);
+    expect(
+      within(drawer).getByText(
+        /relationship, occupancy, and Lease lifecycle changes require a checked transition/i,
+      ),
+    ).not.toBeNull();
+  });
+
+  it("shows archived Lease restore as unavailable pending checked review", async () => {
+    const user = userEvent.setup();
+    renderLeases({
+      leases: [makeLease("lease-archived", "Archived Tenant", "Unit 4C", true)],
+      viewQuery: { ...defaultViewQuery, archiveState: "archived" },
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Preview lease for Archived Tenant" }),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Review restore requirements for Archived Tenant",
+      }),
+    );
+
+    const drawer = screen.getByRole("dialog", { name: "Restore unavailable" });
+    expect(
+      within(drawer).getByText(
+        /relationship, occupancy, and dependency review/i,
+      ),
+    ).not.toBeNull();
+    expect(
+      (
+        within(drawer).getByRole("button", {
+          name: "Restore unavailable",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
+  it("requires explicit due day, frequency, and term lifecycle in the create drawer", async () => {
+    const user = userEvent.setup();
+    renderLeases();
+
+    await user.click(screen.getByRole("button", { name: "Add lease" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Add lease" });
+    expect(
+      within(drawer).getByRole("group", { name: /Rent due day/ }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("group", { name: /Payment frequency/ }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("group", { name: /Term status/ }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByText(
+        /no policy default is inferred/i,
+      ),
+    ).not.toBeNull();
   });
 
   it("distinguishes filtered and true empty states and hides unauthorized actions", () => {
@@ -271,7 +415,12 @@ function expectLeaseMetric(
   expect(within(metric!).getByText(value)).not.toBeNull();
 }
 
-function makeLease(id: string, tenantName: string, unitNumber: string) {
+function makeLease(
+  id: string,
+  tenantName: string,
+  unitNumber: string,
+  isArchived = false,
+) {
   const personId = id === "lease-1" ? "person-1" : "person-2";
   const unitId = id === "lease-1" ? "unit-1" : "unit-2";
 
@@ -300,7 +449,7 @@ function makeLease(id: string, tenantName: string, unitNumber: string) {
     ],
     ledgerEntryCount: 1,
     lease: {
-      archived_at: null,
+      archived_at: isArchived ? "2026-07-20T00:00:00.000Z" : null,
       deposit_amount: 1200,
       deposit_currency: "USD",
       id,
@@ -329,6 +478,22 @@ function makeLease(id: string, tenantName: string, unitNumber: string) {
       },
     ],
     property: { code: "RIVER", id: "property-1", name: "Riverside House" },
+    terms: [
+      {
+        archived_at: null,
+        authority_kind: "authoritative",
+        end_date: "2027-06-30",
+        id: `${id}-term`,
+        lease_id: id,
+        payment_frequency: "monthly",
+        rent_amount: 850,
+        rent_currency: "USD",
+        rent_due_day: 10,
+        start_date: "2026-07-01",
+        status: "active",
+        term_sequence: 1,
+      },
+    ],
     unit: {
       floor: id === "lease-1" ? null : "3",
       id: unitId,

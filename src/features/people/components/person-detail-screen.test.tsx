@@ -34,6 +34,7 @@ describe("PersonDetailScreen", () => {
       name: "Person record sections",
     });
     expect(within(navigation).getByRole("tab", { name: "Overview" }).getAttribute("aria-selected")).toBe("true");
+    expect(within(navigation).queryByRole("tab", { name: "Reports" })).toBeNull();
     fireEvent.click(within(navigation).getByRole("tab", { name: "Links" }));
     expect(within(navigation).getByRole("tab", { name: "Links" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByRole("heading", { name: "Linked records" })).toBeTruthy();
@@ -65,6 +66,19 @@ describe("PersonDetailScreen", () => {
     expect(
       screen.getByRole("checkbox", { name: "Staff" }).getAttribute("data-state"),
     ).toBe("unchecked");
+  });
+
+  it("warns that open Lease roles must be resolved before archive", () => {
+    render(<PersonDetailScreen person={person} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Archive person" });
+    expect(
+      within(drawer).getByText(
+        /open Lease roles must be ended or cancelled through a checked relationship transition first/i,
+      ),
+    ).toBeTruthy();
   });
 
   it.each([

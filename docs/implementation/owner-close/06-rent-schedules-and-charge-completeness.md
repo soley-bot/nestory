@@ -1,5 +1,12 @@
 # Plan 06 — Rent Schedules and Charge Completeness
 
+> **Legacy broad design source — not current Plan 06.** The ratified sequence
+> split this analysis into **sequence 04, authoritative lease terms and rent
+> policy**, implemented from
+> `04-authoritative-lease-terms-and-rent-policy.md`, and **sequence 09, rent
+> occurrences/generation**. Use `97-ratified-final-sequence.md`; do not paste
+> this file directly into Codex.
+
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** Outstanding balances and Owner Statements cannot be trusted while expected rent depends on an operator remembering to generate the current month manually.

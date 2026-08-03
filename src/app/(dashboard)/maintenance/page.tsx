@@ -43,7 +43,6 @@ export default async function MaintenancePage({
       capabilities={capabilities}
       cases={data.cases}
       createButtonLabel="New case"
-      description="Maintenance intake, work orders, scheduling, templates, costs, and closeout in one operating queue."
       emptyLabel={routeConfig.emptyLabel}
       flowLabel={routeConfig.flowLabel}
       initialTaskId={initialTaskId}
@@ -53,7 +52,6 @@ export default async function MaintenancePage({
       recordLabel="case"
       staffOptions={data.staffOptions}
       showCaseViewTabs
-      showReportAction={context.role === "admin"}
       showReviewTabs={routeConfig.showReviewTabs}
       showScopeSummary={routeConfig.showScopeSummary}
       summary={data.summary}

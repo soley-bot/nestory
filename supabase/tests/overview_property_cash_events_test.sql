@@ -4,6 +4,9 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
 SELECT plan(59);
 
+-- This migration contract creates its own isolated deposit-event history.
+DELETE FROM public.lease_deposit_events;
+
 SELECT has_table('public', 'finance_receipts', 'finance_receipts exists');
 SELECT has_table('public', 'finance_receipt_allocations', 'receipt allocations exist');
 SELECT has_table('public', 'finance_payments', 'finance_payments exists');
@@ -12,7 +15,7 @@ SELECT has_table('public', 'lease_deposit_events', 'deposit events exist');
 
 SELECT is(
   (
-    SELECT count(*)::bigint
+    SELECT count(DISTINCT table_record.relname)::bigint
     FROM pg_constraint AS constraint_record
     JOIN pg_class AS table_record
       ON table_record.oid = constraint_record.conrelid
@@ -45,7 +48,7 @@ SELECT is(
 
 SELECT is(
   (
-    SELECT count(*)::bigint
+    SELECT count(DISTINCT table_record.relname)::bigint
     FROM pg_class AS table_record
     JOIN pg_namespace AS schema_record
       ON schema_record.oid = table_record.relnamespace
@@ -91,7 +94,7 @@ SELECT policies_are(
 
 SELECT is(
   (
-    SELECT count(*)::bigint
+    SELECT count(DISTINCT table_record.relname)::bigint
     FROM pg_constraint AS constraint_record
     JOIN pg_class AS table_record
       ON table_record.oid = constraint_record.conrelid
@@ -114,7 +117,7 @@ SELECT is(
 
 SELECT is(
   (
-    SELECT count(*)::bigint
+    SELECT count(DISTINCT table_record.relname)::bigint
     FROM pg_constraint AS constraint_record
     JOIN pg_class AS table_record
       ON table_record.oid = constraint_record.conrelid
@@ -210,6 +213,8 @@ SELECT set_config(
   true
 );
 
+SELECT app_private.set_finance_settlement_context(true);
+
 INSERT INTO public.finance_income_items (
   id, organization_id, property_id, income_type, payer_label, due_date,
   received_date, amount_due, amount_received, currency, status, created_by, updated_by
@@ -222,6 +227,8 @@ INSERT INTO public.finance_income_items (
   '00000000-0000-0000-0000-000000000101',
   '00000000-0000-0000-0000-000000000101'
 );
+
+SELECT app_private.set_finance_settlement_context(false);
 
 INSERT INTO public.finance_expense_items (
   id, organization_id, property_id, expense_type, vendor_label, invoice_date,
@@ -324,10 +331,26 @@ INSERT INTO public.finance_expense_items (
 );
 
 CREATE TEMP TABLE property_cash_event_state (
-  initial_income_id uuid
+  initial_income_id uuid,
+  reconciliation_source_id uuid
 ) ON COMMIT DROP;
 
-GRANT SELECT, INSERT ON property_cash_event_state TO authenticated;
+INSERT INTO property_cash_event_state DEFAULT VALUES;
+
+UPDATE property_cash_event_state
+SET reconciliation_source_id =
+  public.create_financial_reconciliation_source(
+    '00000000-0000-0000-0000-000000000001',
+    'CASH-EVENT-TEST',
+    'Cash event test bank',
+    'bank',
+    'property_dedicated',
+    'USD',
+    '10000000-0000-0000-0000-000000000001',
+    '****1006'
+  );
+
+GRANT SELECT, INSERT, UPDATE ON property_cash_event_state TO authenticated;
 
 SET LOCAL ROLE authenticated;
 
@@ -344,8 +367,8 @@ SELECT throws_ok(
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   )$$,
-  '55000',
-  'Income settlement fields are event-derived',
+  '22023',
+  'income_obligation_must_start_unsettled',
   'direct settled income inserts are rejected'
 );
 
@@ -404,8 +427,8 @@ SELECT lives_ok(
 );
 
 SELECT lives_ok(
-  $$INSERT INTO property_cash_event_state (initial_income_id)
-    SELECT public.create_finance_income_item(
+  $$UPDATE property_cash_event_state
+    SET initial_income_id = public.create_finance_income_item(
       '00000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000001',
       NULL,
@@ -414,106 +437,94 @@ SELECT lives_ok(
       'Initial receipt tenant',
       '2026-07-01',
       300,
-      300,
-      '2026-07-09',
-      'Created with initial cash',
+      0,
+      NULL,
+      'Created before cash',
       'INITIAL-RECEIPT'
     )$$,
-  'initial received income creates through the compatibility RPC'
+  'income obligation creates without initial cash'
 );
 
 SELECT ok(
   (
-    SELECT income.amount_received = 300
-      AND income.received_date = '2026-07-09'
-      AND income.status = 'received'
+    SELECT income.amount_received = 0
+      AND income.received_date IS NULL
+      AND income.status = 'open'
     FROM public.finance_income_items AS income
     WHERE income.id = (SELECT initial_income_id FROM property_cash_event_state)
   )
   AND (
-    SELECT count(*) = 1
+    SELECT count(*) = 0
     FROM public.finance_receipt_allocations AS allocation
-    JOIN public.finance_receipts AS receipt ON receipt.id = allocation.receipt_id
     WHERE allocation.income_item_id = (
       SELECT initial_income_id FROM property_cash_event_state
     )
-      AND allocation.amount = 300
-      AND receipt.reference = 'INITIAL-RECEIPT'
   ),
-  'initial received income is backed by one receipt allocation'
+  'new obligations do not synthesize receipt allocations'
 );
 
 RESET ROLE;
 
-SELECT lives_ok(
-  $$SELECT public.post_finance_income_item(
-    (SELECT initial_income_id FROM property_cash_event_state),
-    '00000000-0000-0000-0000-000000000001'
-  )$$,
-  'received income can be posted before immutability checks'
+SELECT ok(
+  NOT has_function_privilege(
+    'authenticated',
+    'public.post_finance_income_item(uuid,uuid)',
+    'EXECUTE'
+  ),
+  'operators cannot separately post income'
 );
 
 SET LOCAL ROLE authenticated;
 
-SELECT throws_ok(
-  $$SELECT public.record_finance_receipt(
-    '00000000-0000-0000-0000-000000000001',
-    (SELECT initial_income_id FROM property_cash_event_state),
-    25,
-    '2026-07-10',
-    'POSTED-EXTRA-RECEIPT'
-  )$$,
-  '55000',
-  'Posted income cannot accept receipt changes; reverse the ledger posting first',
-  'posted income rejects additional receipt recording'
+SELECT ok(
+  NOT has_function_privilege(
+    'authenticated',
+    'public.record_finance_receipt(uuid,uuid,numeric,date,text)',
+    'EXECUTE'
+  ),
+  'operators cannot use the legacy non-idempotent receipt command'
 );
 
-SELECT throws_ok(
-  $$SELECT public.reverse_finance_receipt(
-    '00000000-0000-0000-0000-000000000001',
-    (
-      SELECT receipt.id
-      FROM public.finance_receipts AS receipt
-      JOIN public.finance_receipt_allocations AS allocation
-        ON allocation.receipt_id = receipt.id
-      WHERE allocation.income_item_id = (
-        SELECT initial_income_id FROM property_cash_event_state
-      )
-        AND receipt.reversal_of_id IS NULL
-    ),
-    '2026-07-10',
-    'POSTED-RECEIPT-REVERSAL'
-  )$$,
-  '55000',
-  'Posted income cannot reverse receipts; reverse the ledger posting first',
-  'posted income rejects receipt reversal'
+SELECT ok(
+  NOT has_function_privilege(
+    'authenticated',
+    'public.reverse_finance_receipt(uuid,uuid,date,text)',
+    'EXECUTE'
+  ),
+  'operators cannot use the legacy reversal command'
 );
 
 SELECT ok(
   (
-    SELECT status = 'posted'
-      AND ledger_entry_id IS NOT NULL
-      AND amount_received = 300
+    SELECT status = 'open'
+      AND ledger_entry_id IS NULL
+      AND amount_received = 0
     FROM public.finance_income_items
     WHERE id = (SELECT initial_income_id FROM property_cash_event_state)
   ),
-  'rejected cash changes preserve posted income compatibility state'
+  'creating an obligation alone leaves cash and Ledger evidence empty'
 );
 
 SELECT lives_ok(
-  $$SELECT public.record_finance_income_payment(
-    'a1000000-0000-0000-0000-000000000001',
+  $$SELECT public.record_finance_receipt_v2(
     '00000000-0000-0000-0000-000000000001',
+    'a1000000-0000-0000-0000-000000000001',
     100,
     '2026-07-10',
-    'TEST-RECEIPT'
+    (SELECT reconciliation_source_id
+     FROM property_cash_event_state),
+    'TEST-RECEIPT',
+    'property-cash-test-receipt'
   )$$,
-  'legacy receipt wrapper records one settlement'
+  'Plan 05 receipt command records one settlement'
 );
 
 SELECT ok(
   (
     SELECT count(*) = 1
+      AND bool_and(settlement_contract_version = 'plan05.v1')
+      AND bool_and(ledger_entry_id IS NOT NULL)
+      AND bool_and(signed_amount = 100)
     FROM public.finance_receipt_allocations
     WHERE income_item_id = 'a1000000-0000-0000-0000-000000000001'
   )
@@ -526,11 +537,19 @@ SELECT ok(
       AND receipt.reference = 'TEST-RECEIPT'
   )
   AND (
+    SELECT count(*) = 1
+    FROM public.finance_receipt_allocation_journals AS link
+    JOIN public.finance_receipt_allocations AS allocation
+      ON allocation.id = link.allocation_id
+    WHERE allocation.income_item_id =
+      'a1000000-0000-0000-0000-000000000001'
+  )
+  AND (
     SELECT amount_received = 100 AND status = 'partially_received'
     FROM public.finance_income_items
     WHERE id = 'a1000000-0000-0000-0000-000000000001'
   ),
-  'receipt allocation derives income compatibility columns'
+  'receipt allocation derives compatibility, Ledger, and journal evidence'
 );
 
 SELECT lives_ok(
@@ -640,24 +659,30 @@ SELECT throws_ok(
 );
 
 SELECT throws_ok(
-  $$SELECT public.record_finance_receipt(
+  $$SELECT public.record_finance_receipt_v2(
     '00000000-0000-0000-0000-000000000001',
     'a1000000-0000-0000-0000-000000000001',
     999999,
     '2026-07-10',
-    'OVER'
+    (SELECT reconciliation_source_id
+     FROM property_cash_event_state),
+    'OVER',
+    'property-cash-over-allocation'
   )$$,
-  'P0001',
+  '22023',
   'Receipt allocation exceeds open balance',
   'receipt over-allocation is rejected'
 );
 
 SELECT lives_ok(
-  $$SELECT public.reverse_finance_receipt(
+  $$SELECT public.reverse_finance_receipt_v2(
     '00000000-0000-0000-0000-000000000001',
     (SELECT id FROM public.finance_receipts WHERE reference = 'TEST-RECEIPT'),
     '2026-07-11',
-    'REVERSE-TEST-RECEIPT'
+    (SELECT reconciliation_source_id
+     FROM property_cash_event_state),
+    'REVERSE-TEST-RECEIPT',
+    'property-cash-reverse-receipt'
   )$$,
   'receipt reversal RPC records a balancing event'
 );
@@ -680,11 +705,14 @@ SELECT ok(
 );
 
 SELECT throws_ok(
-  $$SELECT public.reverse_finance_receipt(
+  $$SELECT public.reverse_finance_receipt_v2(
     '00000000-0000-0000-0000-000000000001',
     (SELECT id FROM public.finance_receipts WHERE reference = 'TEST-RECEIPT'),
     '2026-07-12',
-    'DUPLICATE-RECEIPT-REVERSAL'
+    (SELECT reconciliation_source_id
+     FROM property_cash_event_state),
+    'DUPLICATE-RECEIPT-REVERSAL',
+    'property-cash-duplicate-reversal'
   )$$,
   '22023',
   'Finance receipt is already reversed',
@@ -737,12 +765,15 @@ SELECT set_config(
 );
 
 SELECT throws_ok(
-  $$SELECT public.record_finance_receipt(
+  $$SELECT public.record_finance_receipt_v2(
     '00000000-0000-0000-0000-000000000001',
     'a1000000-0000-0000-0000-000000000001',
     25,
     '2026-07-10',
-    'CROSS-ORG'
+    (SELECT reconciliation_source_id
+     FROM property_cash_event_state),
+    'CROSS-ORG',
+    'property-cash-cross-org'
   )$$,
   '42501',
   'Not authorized',

@@ -446,7 +446,7 @@ function getLeaseDrawerTitle(drawer: DrawerState) {
   }
 
   if (drawer.mode === "restore") {
-    return "Restore lease";
+    return "Restore unavailable";
   }
 
   return "Archive lease";
@@ -462,11 +462,11 @@ function getLeaseDrawerDescription(drawer: DrawerState) {
   }
 
   if (drawer.mode === "edit") {
-    return "Update tenant, unit, status, dates, rent, and deposit.";
+    return "Update authoritative term, policy, and safe Lease metadata. Relationship, occupancy, and lifecycle changes stay locked.";
   }
 
   if (drawer.mode === "restore") {
-    return "Return this archived lease to normal operational views.";
+    return "Restore requires checked relationship, occupancy, and dependency review.";
   }
 
   return "Hide this lease from active operational views without deleting its history.";

@@ -51,10 +51,7 @@ export default async function UsersRolesPage({
 
   return (
     <div>
-      <PageHeader
-        description="Invite Staff to sign in and manage existing workspace access."
-        title="Workspace Access"
-      />
+      <PageHeader title="Workspace Access" />
       <AccessSettingsScreen
         branches={data.branches}
         currentUserId={context.userId}

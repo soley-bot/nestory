@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 import { getRentIncomeWorkflow } from "@/features/rent-income/rent-income-workflow";
 
 describe("getRentIncomeWorkflow", () => {
-  it("keeps a charge-only row out of posting while receipts remain available", () => {
+  it("keeps a charge-only row available for its first atomic receipt", () => {
     expect(
       getRentIncomeWorkflow({
         amountDue: 1000,
         amountReceived: 0,
+        incomeType: "rent",
         ledgerEntryId: null,
         status: "open",
       }),
     ).toMatchObject({
-      canPost: false,
       canRecordReceipt: true,
       nextAction: "Record receipt",
       ownerStatementState: "no_cash",
@@ -24,11 +24,11 @@ describe("getRentIncomeWorkflow", () => {
       getRentIncomeWorkflow({
         amountDue: 1000,
         amountReceived: 400,
+        incomeType: "rent",
         ledgerEntryId: null,
         status: "partially_received",
       }),
     ).toMatchObject({
-      canPost: false,
       canRecordReceipt: true,
       nextAction: "Record remaining receipt",
       ownerStatementState: "partial_cash",
@@ -36,20 +36,21 @@ describe("getRentIncomeWorkflow", () => {
     });
   });
 
-  it("allows posting only after the full receipt is recorded", () => {
+  it("makes a fully received row settled without a second posting action", () => {
     expect(
       getRentIncomeWorkflow({
         amountDue: 1000,
         amountReceived: 1000,
+        incomeType: "rent",
         ledgerEntryId: null,
         status: "received",
       }),
     ).toMatchObject({
-      canPost: true,
       canRecordReceipt: false,
-      nextAction: "Post to ledger",
+      nextAction: "Settled",
       ownerStatementState: "full_cash",
       remainingAmount: 0,
+      stageLabel: "Settled and projected",
     });
   });
 
@@ -58,14 +59,31 @@ describe("getRentIncomeWorkflow", () => {
       getRentIncomeWorkflow({
         amountDue: 1000,
         amountReceived: 1000,
+        incomeType: "rent",
         ledgerEntryId: "ledger-1",
         status: "posted",
       }),
     ).toMatchObject({
-      canPost: false,
       canRecordReceipt: false,
-      nextAction: "Posted to ledger",
-      stageLabel: "Posted",
+      nextAction: "Legacy posted",
+      stageLabel: "Legacy posted",
+    });
+  });
+
+  it("routes unsupported classes to their dedicated workflow", () => {
+    expect(
+      getRentIncomeWorkflow({
+        amountDue: 1000,
+        amountReceived: 0,
+        incomeType: "security_deposit",
+        ledgerEntryId: null,
+        status: "open",
+      }),
+    ).toMatchObject({
+      canRecordReceipt: false,
+      nextAction: "Use dedicated workflow",
+      ownerStatementState: "no_cash",
+      remainingAmount: 1000,
     });
   });
 });

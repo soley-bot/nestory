@@ -175,6 +175,8 @@ describe("SettingsWorkspace navigation and layout", () => {
       screen.getByRole("heading", { name: "Configuration registry" }),
     ).not.toBeNull();
     expect(screen.getByText("Catalog only")).not.toBeNull();
+    expect(screen.getAllByText("Existing records").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Prospective only").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /save|edit|activate/i })).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
   });

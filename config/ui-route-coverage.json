@@ -1885,7 +1885,7 @@
       ]
     },
     "smoke": {
-      "path": "/reports/rent-roll?month=2026-07",
+      "path": "/reports/unit-profit-loss?month=2026-07",
       "expectedAccess": {
         "admin": "accessible",
         "manager": "permission-blocked",
@@ -1921,12 +1921,12 @@
         "member": "permission-blocked",
         "anonymous": "login-required"
       },
-      "queryContract": "redirect-preserved",
+      "queryContract": "redirect-normalized",
       "workflowEvidence": [
         "src/app/(dashboard)/people-reports/page.test.tsx"
       ],
       "limitations": [],
-      "expectedFinalPath": "/reports/people-readiness?peopleView=staff&archiveState=archived"
+      "expectedFinalPath": "/people"
     }
   },
   {
@@ -1996,6 +1996,78 @@
         "src/components/ui/error-state.tsx",
         "src/components/ui/status-notice.tsx",
         "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/settings/rent-policy",
+    "source": "src/app/(dashboard)/settings/rent-policy/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/settings/rent-policy",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx"
       ],
       "limitations": []
     }
@@ -2997,27 +3069,69 @@
   {
     "route": "/finance-dashboard",
     "source": "src/app/(dashboard)/finance-dashboard/page.tsx",
-    "phase": 6,
-    "surface": "redirect",
+    "phase": 3,
+    "surface": "workspace",
     "roles": [
       "admin"
     ],
-    "states": [],
-    "evidence": {},
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
     "smoke": {
-      "path": "/finance-dashboard?query=HOME&tag=late&tag=open",
+      "path": "/finance-dashboard",
       "expectedAccess": {
-        "admin": "redirected",
+        "admin": "accessible",
         "manager": "permission-blocked",
         "member": "permission-blocked",
         "anonymous": "login-required"
       },
-      "queryContract": "redirect-preserved",
+      "queryContract": "not-applicable",
       "workflowEvidence": [
-        "src/app/legacy-redirects.test.ts"
+        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
       ],
-      "limitations": [],
-      "expectedFinalPath": "/overview?lens=finance&query=HOME&tag=late&tag=open"
+      "limitations": []
     }
   },
   {
@@ -3095,7 +3209,7 @@
         "src/app/legacy-redirects.test.ts"
       ],
       "limitations": [],
-      "expectedFinalPath": "/bills-expenses?query=HOME&tag=late&tag=open"
+      "expectedFinalPath": "/rent-income?query=HOME&tag=late&tag=open"
     }
   },
   {
@@ -3150,6 +3264,221 @@
       ],
       "limitations": [],
       "expectedFinalPath": "/staff?query=HOME&tag=late&tag=open"
+    }
+  },
+  {
+    "route": "/balances",
+    "source": "src/app/(dashboard)/balances/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/balances",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/properties/[propertyId]/account",
+    "source": "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+    "phase": 5,
+    "surface": "detail",
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/properties/10000000-0000-0000-0000-000000000001/account",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/reports/finance-operations",
+    "source": "src/app/(dashboard)/reports/finance-operations/page.tsx",
+    "phase": 3,
+    "surface": "detail",
+    "roles": [
+      "admin"
+    ],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/reports/finance-operations/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/reports/finance-operations/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/reports/finance-operations/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/reports/finance-operations/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/reports/finance-operations/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/reports/finance-operations?view=owner",
+      "expectedAccess": {
+        "admin": "accessible",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/reports/finance-operations/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/tenant-invoices",
+    "source": "src/app/(dashboard)/tenant-invoices/page.tsx",
+    "phase": 6,
+    "surface": "redirect",
+    "roles": [
+      "admin"
+    ],
+    "states": [],
+    "evidence": {},
+    "smoke": {
+      "path": "/tenant-invoices",
+      "expectedAccess": {
+        "admin": "redirected",
+        "manager": "permission-blocked",
+        "member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "redirect-normalized",
+      "workflowEvidence": [
+        "src/app/(dashboard)/tenant-invoices/page.tsx"
+      ],
+      "limitations": [],
+      "expectedFinalPath": "/rent-income"
     }
   }
 ]

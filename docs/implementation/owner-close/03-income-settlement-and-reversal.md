@@ -1,5 +1,9 @@
 # Plan 03 — Income Settlement and Reversal
 
+> **Legacy broad design source — not current Plan 03.** The ratified sequence
+> moved this work to **sequence 05, atomic income settlement**. Use
+> `97-ratified-final-sequence.md`; do not paste this file directly into Codex.
+
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** Receipt allocation, ledger projection, journal projection, compatibility totals, reversal, and period checks must become one atomic financial operation.

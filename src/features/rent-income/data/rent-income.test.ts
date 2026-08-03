@@ -138,6 +138,89 @@ describe("getRentIncomeScreenData", () => {
     });
   });
 
+  it("preserves an archived cash-account label for receipt history", async () => {
+    const incomeItemId = "4f7ea031-33bb-4c4f-96cb-b1f90d5019cf";
+    const sourceId = "81644791-4098-4bc0-87b9-2e02e1c842fb";
+    const supabase = createQueryTrackingSupabase(
+      [
+        {
+          amount_due: 500,
+          amount_received: 500,
+          archived_at: null,
+          currency: "USD",
+          description: null,
+          due_date: "2026-07-01",
+          id: incomeItemId,
+          income_type: "rent",
+          lease_id: null,
+          ledger_entry_id: null,
+          organization_id: "org-1",
+          payer_label: "Historical tenant",
+          payer_person_id: null,
+          property_id: "property-1",
+          received_date: "2026-07-05",
+          reference: "JULY-RENT",
+          status: "received",
+          unit_id: null,
+        },
+      ],
+      {
+        finance_receipt_allocation_journals: [],
+        finance_receipt_allocations: [
+          {
+            amount: 500,
+            id: "allocation-1",
+            income_item_id: incomeItemId,
+            ledger_entry_id: "ledger-1",
+            organization_id: "org-1",
+            publication_source_class: "legacy_cash_non_publishable",
+            receipt_id: "receipt-1",
+            reconciliation_source_id: sourceId,
+            reversal_of_allocation_id: null,
+            settlement_basis: "pre_cutover_uninvoiced",
+          },
+        ],
+        finance_receipts: [
+          {
+            id: "receipt-1",
+            organization_id: "org-1",
+            received_date: "2026-07-05",
+            reference: "BANK-500",
+            reversal_of_id: null,
+          },
+        ],
+        financial_reconciliation_sources: [
+          {
+            archived_at: "2026-07-20T00:00:00.000Z",
+            code: "BANK",
+            currency: "USD",
+            display_name: "Operating",
+            id: sourceId,
+            organization_id: "org-1",
+            property_id: "property-1",
+          },
+        ],
+      },
+    );
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+
+    const result = await getRentIncomeScreenData(
+      "org-1",
+      parseRentIncomeSearchParams({ month: "2026-07" }),
+    );
+
+    expect(result.reconciliationSources).toContainEqual({
+      archivedAt: "2026-07-20T00:00:00.000Z",
+      currency: "USD",
+      id: sourceId,
+      label: "BANK · Operating",
+      propertyId: "property-1",
+    });
+    expect(result.incomeItems[0]?.receipts[0]?.reconciliationSourceLabel).toBe(
+      "BANK · Operating",
+    );
+  });
+
   it("composes the management-company group and individual income type filters", async () => {
     const inCalls: Array<[string, unknown[]]> = [];
     const eqCalls: Array<[string, unknown]> = [];
@@ -174,8 +257,15 @@ type QueryCall = {
 
 type IncomeTestRow = Record<string, unknown>;
 
-function createQueryTrackingSupabase(incomeRows: IncomeTestRow[]) {
+function createQueryTrackingSupabase(
+  incomeRows: IncomeTestRow[],
+  additionalRows: Record<string, IncomeTestRow[]> = {},
+) {
   const incomeCalls: QueryCall[] = [];
+  const rowsByTable: Record<string, IncomeTestRow[]> = {
+    ...additionalRows,
+    finance_income_items: incomeRows,
+  };
 
   const from = vi.fn((table: string) => {
     const filters: QueryCall[] = [];
@@ -191,10 +281,9 @@ function createQueryTrackingSupabase(incomeRows: IncomeTestRow[]) {
       range: () => chain,
       select: () => chain,
       then: (resolve: (value: unknown) => unknown) => {
-        const data =
-          table === "finance_income_items"
-            ? incomeRows.filter((row) => matchesFilters(row, filters))
-            : [];
+        const data = (rowsByTable[table] ?? []).filter((row) =>
+          matchesFilters(row, filters),
+        );
         return Promise.resolve({ count: data.length, data, error: null }).then(
           resolve,
         );

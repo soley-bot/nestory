@@ -1,5 +1,14 @@
 # Plan 04 — Expense Settlement and Reversal
 
+> **Legacy broad design source — not current Plan 04.** The ratified sequence
+> moved this work to **sequence 06, atomic expense settlement**. Current Plan
+> 04 is `04-authoritative-lease-terms-and-rent-policy.md`. Use
+> `97-ratified-final-sequence.md`; do not paste this file directly into Codex.
+>
+> Current Property Expenses table/form simplification is governed by
+> `../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`.
+> Presentation changes do not implement sequence 06 settlement authority.
+
 **Mode:** Standard  
 **Effort:** High  
 **Reason:** The current payment action can affect Owner Statement settlement sources without atomically producing the same Ledger and journal truth.
