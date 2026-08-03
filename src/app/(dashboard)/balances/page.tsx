@@ -2,8 +2,8 @@ import { FinanceOperationsScreen } from "@/features/finance-operations/component
 import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
 import { requireAdminContext } from "@/lib/auth/context";
 
-export default async function FinanceDashboardPage() {
+export default async function BalancesPage() {
   const context = await requireAdminContext();
   const data = await getFinanceOperationsData(context.organizationId);
-  return <FinanceOperationsScreen {...data} view="work" />;
+  return <FinanceOperationsScreen {...data} view="balances" />;
 }

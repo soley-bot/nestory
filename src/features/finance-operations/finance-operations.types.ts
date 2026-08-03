@@ -1,0 +1,143 @@
+export type FinanceOption = {
+  id: string;
+  label: string;
+  propertyId?: string | null;
+};
+
+export type LeaseBillingSummary = {
+  billingRecipientKind: "company" | "individual";
+  billingRecipientPersonId: string;
+  chargeManagementFeeWhenActive: boolean;
+  collectionRoute: "direct_to_owner" | "through_ips";
+  effectiveFrom: string;
+  finalPeriodProratedAmount: number | null;
+  firstPeriodProratedAmount: number | null;
+  fullManagementFeeDuringProration: boolean;
+  id: string;
+  managementFeeMode: "flat" | "percentage";
+  managementFeeValue: number;
+};
+
+export type FinanceLease = {
+  billing: LeaseBillingSummary | null;
+  endDate: string;
+  id: string;
+  monthlyRent: number;
+  ownerLabel: string;
+  ownerPersonId: string | null;
+  propertyId: string;
+  propertyLabel: string;
+  startDate: string;
+  status: string;
+  tenantLabel: string;
+  tenantPersonId: string | null;
+  unitId: string | null;
+  unitLabel: string;
+};
+
+export type TenantInvoiceLine = {
+  amount: number;
+  balanceDue: number;
+  id: string;
+  label: string;
+  lineType: string;
+};
+
+export type TenantInvoiceSummary = {
+  balanceDue: number;
+  collectedByOwner: number;
+  collectionRoute: "direct_to_owner" | "through_ips";
+  dueDate: string;
+  id: string;
+  invoiceNumber: string;
+  issueDate: string;
+  leaseId: string;
+  lines: TenantInvoiceLine[];
+  occupantLabels: string[];
+  paidThroughIps: number;
+  paymentStatus: "paid" | "partly_paid" | "unpaid" | "voided";
+  propertyId: string;
+  propertyLabel: string;
+  recipientLabel: string;
+  totalAmount: number;
+  unitId: string | null;
+  unitLabel: string;
+};
+
+export type OwnerInvoiceSummary = {
+  balanceDue: number;
+  dueDate: string;
+  id: string;
+  invoiceNumber: string;
+  ownerLabel: string;
+  ownerPersonId: string;
+  paidByOwner: number;
+  paidFromHeldCash: number;
+  paymentStatus: "paid" | "partly_paid" | "unpaid" | "voided";
+  propertyId: string;
+  propertyLabel: string;
+  totalAmount: number;
+};
+
+export type FinanceExpenseSummary = {
+  category: string;
+  customerLabel: string;
+  customerTotal: number;
+  date: string;
+  heldCashAmount: number;
+  id: string;
+  internalCost: number;
+  internalMarkup: number;
+  ipsAdvanceAmount: number;
+  propertyId: string;
+  propertyLabel: string;
+  responsibility: "owner" | "tenant";
+  responsibleLabel: string;
+  unitId: string | null;
+  unitLabel: string;
+  vendorLabel: string;
+};
+
+export type PropertyFinancePosition = {
+  availableWithdrawal: number;
+  cashHeldByIps: number;
+  managementFeeExpense: number;
+  ownerExpense: number;
+  ownerLabel: string;
+  ownerOwesIps: number;
+  ownerPersonId: string | null;
+  propertyId: string;
+  propertyLabel: string;
+  rentIncome: number;
+  runningBalance: number;
+  withdrawals: number;
+};
+
+export type PropertyAccountEntry = {
+  amount: number;
+  category: string;
+  date: string;
+  id: string;
+  label: string;
+  note: string | null;
+  propertyId: string;
+  runningBalance: number;
+};
+
+export type FinanceOperationsData = {
+  accountEntries: PropertyAccountEntry[];
+  expenses: FinanceExpenseSummary[];
+  leases: FinanceLease[];
+  ownerInvoices: OwnerInvoiceSummary[];
+  peopleOptions: FinanceOption[];
+  positions: PropertyFinancePosition[];
+  propertyOptions: FinanceOption[];
+  reconciliationSources: FinanceOption[];
+  tenantInvoices: TenantInvoiceSummary[];
+  unitOptions: FinanceOption[];
+};
+
+export type FinanceOperationsActionState = {
+  message?: string;
+  status?: "error" | "success";
+};

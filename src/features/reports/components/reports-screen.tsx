@@ -1,9 +1,5 @@
 import Link from "next/link";
-import {
-  AlertTriangle,
-  ChevronDown,
-  Download,
-} from "lucide-react";
+import { AlertTriangle, ChevronDown, Download } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
@@ -49,9 +45,7 @@ export function ReportBuilderScreen({
   return (
     <div className="min-h-screen bg-background">
       <PageHeader
-        actions={
-          validation ? undefined : <ExportMenu viewQuery={viewQuery} />
-        }
+        actions={validation ? undefined : <ExportMenu viewQuery={viewQuery} />}
         context={`${trustedReport.scopeLabel} · ${trustedReport.periodLabel}`}
         description={selectedReport.description}
         title="Reports"
@@ -195,11 +189,15 @@ function ReportTabs({ viewQuery }: { viewQuery: ReportsViewQuery }) {
       className="overflow-x-auto border-b border-border bg-surface px-4 py-1.5 sm:px-6"
     >
       <div className="flex min-w-max items-center gap-1">
+        <Link
+          className="inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+          href="/reports/finance-operations"
+        >
+          Finance operations
+        </Link>
         {reportCatalog.map((report) => (
           <Link
-            aria-current={
-              viewQuery.report === report.kind ? "page" : undefined
-            }
+            aria-current={viewQuery.report === report.kind ? "page" : undefined}
             className={cn(
               "inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
               viewQuery.report === report.kind
@@ -299,9 +297,7 @@ function ReportRow({
                   {source.label}
                 </Link>
               ) : (
-                <span
-                  key={`${source.recordType}:${source.id}`}
-                >
+                <span key={`${source.recordType}:${source.id}`}>
                   {source.label}
                 </span>
               ),
@@ -344,10 +340,7 @@ function buildExportHref(path: string, viewQuery: ReportsViewQuery) {
   if (viewQuery.propertyId !== "all") {
     params.set("propertyId", viewQuery.propertyId);
   }
-  if (
-    viewQuery.report === "unit-profit-loss" &&
-    viewQuery.unitId !== "all"
-  ) {
+  if (viewQuery.report === "unit-profit-loss" && viewQuery.unitId !== "all") {
     params.set("unitId", viewQuery.unitId);
   }
   return `${path}?${params.toString()}`;
