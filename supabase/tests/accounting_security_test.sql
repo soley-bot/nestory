@@ -9,6 +9,13 @@ SELECT app_private.ensure_accounting_books_and_accounts(
   'USD'::public.currency_code
 );
 
+-- The demo seed moves historical Ledger locks relative to current_date. This
+-- test owns June 2026 and must isolate that month before testing accounting
+-- book locks, otherwise the fixture changes meaning as the calendar advances.
+DELETE FROM public.ledger_period_locks
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid
+  AND period_start = '2026-06-01'::date;
+
 SELECT set_config(
   'request.jwt.claim.sub',
   '00000000-0000-0000-0000-000000000101',

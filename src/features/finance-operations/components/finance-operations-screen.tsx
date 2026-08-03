@@ -1,0 +1,2054 @@
+"use client";
+
+import Link from "next/link";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { useFormStatus } from "react-dom";
+import {
+  ArrowLeft,
+  Check,
+  ChevronRight,
+  Plus,
+  WalletCards,
+} from "lucide-react";
+import { MoneyDisplay } from "@/components/data/money-display";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/ui/date-picker-field";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
+import { NumberInput } from "@/components/ui/number-input";
+import { SelectControl } from "@/components/ui/select-control";
+import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
+import {
+  confirmOwnerCollectionAction,
+  generateTenantInvoiceAction,
+  recordIpsExpenseAction,
+  recordOwnerPaymentAction,
+  recordTenantInvoicePaymentAction,
+  recordWithdrawalAction,
+  saveLeaseBillingAction,
+} from "@/features/finance-operations/actions";
+import type {
+  FinanceLease,
+  FinanceOperationsActionState,
+  FinanceOperationsData,
+  OwnerInvoiceSummary,
+  PropertyFinancePosition,
+  TenantInvoiceSummary,
+} from "@/features/finance-operations/finance-operations.types";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { formatDate } from "@/lib/dates/format";
+import { formatMoneyDisplay } from "@/lib/money/format";
+import { cn } from "@/lib/utils";
+
+export type FinanceOperationsView =
+  "account" | "balances" | "expenses" | "rent" | "reports" | "work";
+
+type ModalState =
+  | { lease: FinanceLease; mode: "billing" }
+  | { lease: FinanceLease; mode: "generate" }
+  | { mode: "choose-payment" }
+  | { invoice: TenantInvoiceSummary; mode: "settle" }
+  | {
+      initialInvoiceId?: string;
+      initialResponsibility?: "owner" | "tenant";
+      mode: "expense";
+    }
+  | { invoice: OwnerInvoiceSummary; mode: "owner-payment" }
+  | { mode: "withdrawal"; position: PropertyFinancePosition };
+
+type FinanceOperationsScreenProps = FinanceOperationsData & {
+  reportView?: "ips" | "owner";
+  selectedPropertyId?: string | null;
+  view: FinanceOperationsView;
+};
+
+const actionInitialState: FinanceOperationsActionState = {};
+
+export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
+  const [modal, setModal] = useState<ModalState | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const closeModal = () => setModal(null);
+  const openModal = (next: ModalState) => {
+    setStatusMessage(null);
+    setModal(next);
+  };
+  const onActionSuccess = (message: string) => {
+    setStatusMessage(message);
+    closeModal();
+  };
+  const screen = getScreen(props, openModal);
+
+  return (
+    <WorkspacePage
+      actions={screen.actions}
+      context={screen.context}
+      contextHref={screen.contextHref}
+      localNav={
+        props.view === "reports" ? undefined : (
+          <FinanceWorkspaceNavigation activeRoute={screen.activeRoute} />
+        )
+      }
+      title={screen.title}
+      toolbar={screen.toolbar}
+    >
+      <div className="flex h-full min-h-0 flex-col">
+        {statusMessage ? (
+          <div className="shrink-0 border-b border-border bg-surface px-4 py-2 sm:px-6">
+            <p className="text-sm" role="status">
+              {statusMessage}
+            </p>
+          </div>
+        ) : null}
+        {screen.body}
+      </div>
+
+      {modal ? (
+        <Modal onClose={closeModal} open title={getModalTitle(modal)}>
+          {modal.mode === "billing" ? (
+            <BillingSetupForm
+              lease={modal.lease}
+              onSuccess={onActionSuccess}
+              peopleOptions={props.peopleOptions}
+            />
+          ) : modal.mode === "generate" ? (
+            <GenerateInvoiceForm
+              lease={modal.lease}
+              onSuccess={onActionSuccess}
+            />
+          ) : modal.mode === "choose-payment" ? (
+            <PaymentChooser
+              invoices={props.tenantInvoices.filter(
+                (invoice) => invoice.balanceDue > 0,
+              )}
+              onChoose={(invoice) => setModal({ invoice, mode: "settle" })}
+            />
+          ) : modal.mode === "settle" ? (
+            <SettleInvoiceForm
+              invoice={modal.invoice}
+              onSuccess={onActionSuccess}
+              reconciliationSources={props.reconciliationSources}
+            />
+          ) : modal.mode === "expense" ? (
+            <ExpenseForm
+              initialInvoiceId={modal.initialInvoiceId}
+              initialResponsibility={modal.initialResponsibility}
+              invoices={props.tenantInvoices}
+              onSuccess={onActionSuccess}
+              propertyOptions={props.propertyOptions}
+              unitOptions={props.unitOptions}
+            />
+          ) : modal.mode === "owner-payment" ? (
+            <OwnerPaymentForm
+              invoice={modal.invoice}
+              onSuccess={onActionSuccess}
+            />
+          ) : (
+            <WithdrawalForm
+              onSuccess={onActionSuccess}
+              position={modal.position}
+            />
+          )}
+        </Modal>
+      ) : null}
+    </WorkspacePage>
+  );
+}
+
+function getScreen(
+  props: FinanceOperationsScreenProps,
+  openModal: (modal: ModalState) => void,
+) {
+  if (props.view === "rent") {
+    return {
+      activeRoute: "/rent-income" as const,
+      actions: (
+        <>
+          <Button
+            onClick={() => openModal({ mode: "choose-payment" })}
+            variant="primary"
+          >
+            <WalletCards size={15} /> Record payment
+          </Button>
+          <Button
+            onClick={() =>
+              openModal({ initialResponsibility: "tenant", mode: "expense" })
+            }
+          >
+            <Plus size={15} /> Add charge
+          </Button>
+        </>
+      ),
+      body: <RentView invoices={props.tenantInvoices} openModal={openModal} />,
+      context: `${props.tenantInvoices.length} invoices`,
+      contextHref: "/rent-income",
+      title: "Rent",
+      toolbar: undefined,
+    };
+  }
+
+  if (props.view === "expenses") {
+    return {
+      activeRoute: "/bills-expenses" as const,
+      actions: (
+        <Button
+          onClick={() => openModal({ mode: "expense" })}
+          variant="primary"
+        >
+          <Plus size={15} /> Add expense
+        </Button>
+      ),
+      body: <ExpensesView expenses={props.expenses} />,
+      context: `${props.expenses.length} expenses`,
+      contextHref: "/bills-expenses",
+      title: "Expenses",
+      toolbar: undefined,
+    };
+  }
+
+  if (props.view === "balances") {
+    return {
+      activeRoute: "/balances" as const,
+      actions: undefined,
+      body: (
+        <BalancesView
+          invoices={props.tenantInvoices}
+          openModal={openModal}
+          ownerInvoices={props.ownerInvoices}
+          positions={props.positions}
+        />
+      ),
+      context: `${props.positions.length} properties`,
+      contextHref: "/balances",
+      title: "Balances",
+      toolbar: undefined,
+    };
+  }
+
+  if (props.view === "account") {
+    const position =
+      props.positions.find(
+        (item) => item.propertyId === props.selectedPropertyId,
+      ) ?? null;
+    return {
+      activeRoute: "/balances" as const,
+      actions:
+        position && position.availableWithdrawal > 0 ? (
+          <Button
+            onClick={() => openModal({ mode: "withdrawal", position })}
+            variant="primary"
+          >
+            Record withdrawal
+          </Button>
+        ) : undefined,
+      body: (
+        <PropertyAccountView
+          entries={props.accountEntries}
+          position={position}
+        />
+      ),
+      context: (
+        <Link
+          className="inline-flex items-center gap-1 text-sm"
+          href="/balances"
+        >
+          <ArrowLeft size={13} /> Balances
+        </Link>
+      ),
+      contextHref: position
+        ? `/properties/${position.propertyId}/account`
+        : "/balances",
+      title: position?.propertyLabel ?? "Property account",
+      toolbar: undefined,
+    };
+  }
+
+  if (props.view === "reports") {
+    return {
+      activeRoute: "/finance-dashboard" as const,
+      actions: undefined,
+      body: <FinanceReportsView {...props} />,
+      context: "Operational",
+      contextHref: "/reports/finance-operations",
+      title: "Finance reports",
+      toolbar: undefined,
+    };
+  }
+
+  return {
+    activeRoute: "/finance-dashboard" as const,
+    actions: (
+      <Button
+        onClick={() => openModal({ mode: "choose-payment" })}
+        variant="primary"
+      >
+        <WalletCards size={15} /> Record payment
+      </Button>
+    ),
+    body: (
+      <FinanceWorkView
+        leases={props.leases}
+        openModal={openModal}
+        ownerInvoices={props.ownerInvoices}
+        tenantInvoices={props.tenantInvoices}
+      />
+    ),
+    context: "Open work",
+    contextHref: "/finance-dashboard",
+    title: "Finance work",
+    toolbar: undefined,
+  };
+}
+
+function FinanceWorkView({
+  leases,
+  openModal,
+  ownerInvoices,
+  tenantInvoices,
+}: {
+  leases: FinanceLease[];
+  openModal: (modal: ModalState) => void;
+  ownerInvoices: OwnerInvoiceSummary[];
+  tenantInvoices: TenantInvoiceSummary[];
+}) {
+  const leasesNeedingSetup = leases.filter((lease) => !lease.billing);
+  const readyWithoutInvoice = leases.filter(
+    (lease) =>
+      lease.billing &&
+      !tenantInvoices.some((invoice) => invoice.leaseId === lease.id),
+  );
+  const tenantDue = tenantInvoices.filter((invoice) => invoice.balanceDue > 0);
+  const ownerDue = ownerInvoices.filter((invoice) => invoice.balanceDue > 0);
+  const workCount =
+    leasesNeedingSetup.length +
+    readyWithoutInvoice.length +
+    tenantDue.length +
+    ownerDue.length;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-surface">
+      <CompactTotals
+        items={[
+          { label: "Needs setup", value: leasesNeedingSetup.length },
+          { label: "Tenant balances", value: tenantDue.length },
+          { label: "Owner balances", value: ownerDue.length },
+        ]}
+      />
+      {workCount === 0 ? (
+        <EmptyState
+          body="Billing and balances are up to date."
+          className="flex-1"
+          kind="empty"
+          title="No finance work"
+        />
+      ) : (
+        <TableFrame>
+          <table className="w-full min-w-[860px] text-sm">
+            <thead>
+              <tr>
+                <Th>Work</Th>
+                <Th>Property</Th>
+                <Th>Amount</Th>
+                <Th>Due</Th>
+                <Th align="right">Action</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {leasesNeedingSetup.map((lease) => (
+                <tr
+                  className="border-b border-border"
+                  key={`setup-${lease.id}`}
+                >
+                  <Td>
+                    <p className="font-medium">Set up lease billing</p>
+                    <p className="text-xs text-muted">
+                      {lease.tenantLabel} · {lease.unitLabel}
+                    </p>
+                  </Td>
+                  <Td>{lease.propertyLabel}</Td>
+                  <Td>—</Td>
+                  <Td>Before invoicing</Td>
+                  <Td align="right">
+                    <Button
+                      onClick={() => openModal({ lease, mode: "billing" })}
+                    >
+                      Set up
+                    </Button>
+                  </Td>
+                </tr>
+              ))}
+              {readyWithoutInvoice.map((lease) => (
+                <tr
+                  className="border-b border-border"
+                  key={`invoice-${lease.id}`}
+                >
+                  <Td>
+                    <p className="font-medium">Create rent invoice</p>
+                    <p className="text-xs text-muted">
+                      {lease.tenantLabel} · {lease.unitLabel}
+                    </p>
+                  </Td>
+                  <Td>{lease.propertyLabel}</Td>
+                  <Td>
+                    <Money amount={lease.monthlyRent} />
+                  </Td>
+                  <Td>This month</Td>
+                  <Td align="right">
+                    <Button
+                      onClick={() => openModal({ lease, mode: "generate" })}
+                    >
+                      Create
+                    </Button>
+                  </Td>
+                </tr>
+              ))}
+              {tenantDue.map((invoice) => (
+                <tr
+                  className="border-b border-border"
+                  key={`tenant-${invoice.id}`}
+                >
+                  <Td>
+                    <p className="font-medium">
+                      {invoice.collectionRoute === "through_ips"
+                        ? "Tenant payment"
+                        : "Confirm owner collection"}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {invoice.recipientLabel} · {invoice.invoiceNumber}
+                    </p>
+                  </Td>
+                  <Td>{invoice.propertyLabel}</Td>
+                  <Td>
+                    <Money amount={invoice.balanceDue} />
+                  </Td>
+                  <Td>{formatDate(invoice.dueDate)}</Td>
+                  <Td align="right">
+                    <Button
+                      onClick={() => openModal({ invoice, mode: "settle" })}
+                    >
+                      {invoice.collectionRoute === "through_ips"
+                        ? "Record"
+                        : "Confirm"}
+                    </Button>
+                  </Td>
+                </tr>
+              ))}
+              {ownerDue.map((invoice) => (
+                <tr
+                  className="border-b border-border"
+                  key={`owner-${invoice.id}`}
+                >
+                  <Td>
+                    <p className="font-medium">Owner payment to IPS</p>
+                    <p className="text-xs text-muted">
+                      {invoice.ownerLabel} · {invoice.invoiceNumber}
+                    </p>
+                  </Td>
+                  <Td>{invoice.propertyLabel}</Td>
+                  <Td>
+                    <Money amount={invoice.balanceDue} />
+                  </Td>
+                  <Td>{formatDate(invoice.dueDate)}</Td>
+                  <Td align="right">
+                    <Button
+                      onClick={() =>
+                        openModal({ invoice, mode: "owner-payment" })
+                      }
+                    >
+                      Record
+                    </Button>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableFrame>
+      )}
+    </div>
+  );
+}
+
+function RentView({
+  invoices,
+  openModal,
+}: {
+  invoices: TenantInvoiceSummary[];
+  openModal: (modal: ModalState) => void;
+}) {
+  const unpaid = invoices.reduce((sum, invoice) => sum + invoice.balanceDue, 0);
+  const collected = invoices.reduce(
+    (sum, invoice) => sum + invoice.paidThroughIps + invoice.collectedByOwner,
+    0,
+  );
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-surface">
+      <CompactTotals
+        items={[
+          { label: "Collected", value: <Money amount={collected} /> },
+          { label: "Outstanding", value: <Money amount={unpaid} /> },
+          { label: "Invoices", value: invoices.length },
+        ]}
+      />
+      {invoices.length === 0 ? (
+        <EmptyState
+          body="Set up an active lease, then create its first rent invoice."
+          className="flex-1"
+          kind="empty"
+          title="No rent invoices"
+        />
+      ) : (
+        <TableFrame>
+          <table className="w-full min-w-[980px] text-sm">
+            <thead>
+              <tr>
+                <Th>Invoice</Th>
+                <Th>Billed to</Th>
+                <Th>Property</Th>
+                <Th>Collection</Th>
+                <Th>Total</Th>
+                <Th>Balance</Th>
+                <Th>Status</Th>
+                <Th align="right">Action</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((invoice) => (
+                <tr className="border-b border-border" key={invoice.id}>
+                  <Td>
+                    <p className="font-medium">{invoice.invoiceNumber}</p>
+                    <p className="text-xs text-muted">
+                      Due {formatDate(invoice.dueDate)}
+                    </p>
+                  </Td>
+                  <Td>
+                    <p>{invoice.recipientLabel}</p>
+                    {invoice.occupantLabels.length ? (
+                      <p className="text-xs text-muted">
+                        Occupants: {invoice.occupantLabels.join(", ")}
+                      </p>
+                    ) : null}
+                  </Td>
+                  <Td>
+                    <p>{invoice.propertyLabel}</p>
+                    <p className="text-xs text-muted">{invoice.unitLabel}</p>
+                  </Td>
+                  <Td>
+                    {invoice.collectionRoute === "through_ips"
+                      ? "Through IPS"
+                      : "Owner directly"}
+                  </Td>
+                  <Td>
+                    <Money amount={invoice.totalAmount} />
+                  </Td>
+                  <Td>
+                    <Money amount={invoice.balanceDue} />
+                  </Td>
+                  <Td>
+                    <StatusBadge status={invoice.paymentStatus} />
+                  </Td>
+                  <Td align="right">
+                    {invoice.balanceDue > 0 ? (
+                      <Button
+                        onClick={() => openModal({ invoice, mode: "settle" })}
+                      >
+                        {invoice.collectionRoute === "through_ips"
+                          ? "Record payment"
+                          : "Confirm collected"}
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted">Done</span>
+                    )}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableFrame>
+      )}
+    </div>
+  );
+}
+
+function ExpensesView({
+  expenses,
+}: {
+  expenses: FinanceOperationsData["expenses"];
+}) {
+  return expenses.length === 0 ? (
+    <EmptyState
+      body="Record a cost IPS paid and choose whether the owner or tenant is responsible."
+      className="h-full"
+      kind="empty"
+      title="No expenses"
+    />
+  ) : (
+    <TableFrame>
+      <table className="w-full min-w-[980px] text-sm">
+        <thead>
+          <tr>
+            <Th>Date</Th>
+            <Th>Expense</Th>
+            <Th>Property</Th>
+            <Th>Responsible</Th>
+            <Th>IPS paid</Th>
+            <Th>Customer total</Th>
+            <Th>Funding</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {expenses.map((expense) => (
+            <tr className="border-b border-border" key={expense.id}>
+              <Td>{formatDate(expense.date)}</Td>
+              <Td>
+                <p className="font-medium">{expense.customerLabel}</p>
+                <p className="text-xs text-muted">{expense.vendorLabel}</p>
+              </Td>
+              <Td>
+                <p>{expense.propertyLabel}</p>
+                <p className="text-xs text-muted">{expense.unitLabel}</p>
+              </Td>
+              <Td>
+                <Badge
+                  tone={
+                    expense.responsibility === "owner" ? "accent" : "neutral"
+                  }
+                >
+                  {expense.responsibility === "owner" ? "Owner" : "Tenant"}
+                </Badge>
+                <p className="mt-1 text-xs text-muted">
+                  {expense.responsibleLabel}
+                </p>
+              </Td>
+              <Td>
+                <Money amount={expense.internalCost} />
+              </Td>
+              <Td>
+                <Money amount={expense.customerTotal} />
+              </Td>
+              <Td>
+                {expense.responsibility === "tenant" ? (
+                  "Tenant invoice"
+                ) : expense.ipsAdvanceAmount > 0 ? (
+                  <span className="text-warning">
+                    IPS advance <Money amount={expense.ipsAdvanceAmount} />
+                  </span>
+                ) : (
+                  "Held cash"
+                )}
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableFrame>
+  );
+}
+
+function BalancesView({
+  invoices,
+  openModal,
+  ownerInvoices,
+  positions,
+}: {
+  invoices: TenantInvoiceSummary[];
+  openModal: (modal: ModalState) => void;
+  ownerInvoices: OwnerInvoiceSummary[];
+  positions: PropertyFinancePosition[];
+}) {
+  const [tab, setTab] = useState<"owners" | "tenants">("owners");
+  const tenantBalances = useMemo(() => {
+    const map = new Map<
+      string,
+      { label: string; total: number; invoices: number; settled: number }
+    >();
+    for (const invoice of invoices) {
+      const current = map.get(invoice.recipientLabel) ?? {
+        invoices: 0,
+        label: invoice.recipientLabel,
+        settled: 0,
+        total: 0,
+      };
+      current.invoices += 1;
+      current.settled += invoice.paidThroughIps + invoice.collectedByOwner;
+      current.total += invoice.balanceDue;
+      map.set(invoice.recipientLabel, current);
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  }, [invoices]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-surface">
+      <div className="flex shrink-0 gap-1 border-b border-border px-4 py-2 sm:px-6">
+        <TabButton active={tab === "owners"} onClick={() => setTab("owners")}>
+          Owners
+        </TabButton>
+        <TabButton active={tab === "tenants"} onClick={() => setTab("tenants")}>
+          Tenants &amp; companies
+        </TabButton>
+      </div>
+      {tab === "owners" ? (
+        <TableFrame>
+          <table className="w-full min-w-[1040px] text-sm">
+            <thead>
+              <tr>
+                <Th>Property</Th>
+                <Th>Owner</Th>
+                <Th>Running balance</Th>
+                <Th>Cash held by IPS</Th>
+                <Th>Owner owes IPS</Th>
+                <Th>Available</Th>
+                <Th align="right">Action</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {positions.map((position) => {
+                const ownerInvoice = ownerInvoices.find(
+                  (invoice) =>
+                    invoice.propertyId === position.propertyId &&
+                    invoice.balanceDue > 0,
+                );
+                return (
+                  <tr
+                    className="border-b border-border"
+                    key={position.propertyId}
+                  >
+                    <Td>
+                      <Link
+                        className="font-medium hover:underline"
+                        href={`/properties/${position.propertyId}/account`}
+                      >
+                        {position.propertyLabel}
+                      </Link>
+                    </Td>
+                    <Td>{position.ownerLabel}</Td>
+                    <Td>
+                      <Money amount={position.runningBalance} />
+                    </Td>
+                    <Td>
+                      <Money amount={position.cashHeldByIps} />
+                    </Td>
+                    <Td>
+                      <Money amount={position.ownerOwesIps} />
+                    </Td>
+                    <Td>
+                      <Money amount={position.availableWithdrawal} />
+                    </Td>
+                    <Td align="right">
+                      <div className="flex justify-end gap-1">
+                        {ownerInvoice ? (
+                          <Button
+                            onClick={() =>
+                              openModal({
+                                invoice: ownerInvoice,
+                                mode: "owner-payment",
+                              })
+                            }
+                          >
+                            Owner payment
+                          </Button>
+                        ) : null}
+                        {position.availableWithdrawal > 0 ? (
+                          <Button
+                            onClick={() =>
+                              openModal({ mode: "withdrawal", position })
+                            }
+                          >
+                            Withdrawal
+                          </Button>
+                        ) : null}
+                      </div>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableFrame>
+      ) : (
+        <TableFrame>
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr>
+                <Th>Customer</Th>
+                <Th>Invoices</Th>
+                <Th>Outstanding</Th>
+                <Th>Status</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {tenantBalances.map((balance) => (
+                <tr className="border-b border-border" key={balance.label}>
+                  <Td className="font-medium">{balance.label}</Td>
+                  <Td>{balance.invoices}</Td>
+                  <Td>
+                    <Money amount={balance.total} />
+                  </Td>
+                  <Td>
+                    <StatusBadge
+                      status={
+                        balance.total === 0
+                          ? "paid"
+                          : balance.settled > 0
+                            ? "partly_paid"
+                            : "unpaid"
+                      }
+                    />
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableFrame>
+      )}
+    </div>
+  );
+}
+
+function PropertyAccountView({
+  entries,
+  position,
+}: {
+  entries: FinanceOperationsData["accountEntries"];
+  position: PropertyFinancePosition | null;
+}) {
+  if (!position)
+    return (
+      <EmptyState
+        body="This property account is not available."
+        className="h-full"
+        kind="empty"
+        title="Account unavailable"
+      />
+    );
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-surface">
+      <CompactTotals
+        items={[
+          {
+            label: "Running balance",
+            value: <Money amount={position.runningBalance} />,
+          },
+          {
+            label: "Cash held by IPS",
+            value: <Money amount={position.cashHeldByIps} />,
+          },
+          {
+            label: "Owner owes IPS",
+            value: <Money amount={position.ownerOwesIps} />,
+          },
+          {
+            label: "Available withdrawal",
+            value: <Money amount={position.availableWithdrawal} />,
+          },
+        ]}
+      />
+      {entries.length === 0 ? (
+        <EmptyState
+          body="Rent, fees, owner costs, and withdrawals will appear here."
+          className="flex-1"
+          kind="empty"
+          title="No account activity"
+        />
+      ) : (
+        <TableFrame>
+          <table className="w-full min-w-[820px] text-sm">
+            <thead>
+              <tr>
+                <Th>Date</Th>
+                <Th>Type</Th>
+                <Th>Details</Th>
+                <Th>Amount</Th>
+                <Th>Running balance</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <tr
+                  className="border-b border-border"
+                  key={`${entry.category}-${entry.id}`}
+                >
+                  <Td>{formatDate(entry.date)}</Td>
+                  <Td>{entry.label}</Td>
+                  <Td className="text-muted">{entry.note ?? "—"}</Td>
+                  <Td>
+                    <Money
+                      amount={
+                        entry.category === "rent_income"
+                          ? entry.amount
+                          : -entry.amount
+                      }
+                    />
+                  </Td>
+                  <Td>
+                    <Money amount={entry.runningBalance} />
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableFrame>
+      )}
+    </div>
+  );
+}
+
+function FinanceReportsView(props: FinanceOperationsScreenProps) {
+  const reportView = props.reportView ?? "owner";
+  const totalFees = props.positions.reduce(
+    (sum, position) => sum + position.managementFeeExpense,
+    0,
+  );
+  const totalMarkup = props.expenses.reduce(
+    (sum, expense) => sum + expense.internalMarkup,
+    0,
+  );
+  const unpaidAdvances = props.positions.reduce(
+    (sum, position) => sum + position.ownerOwesIps,
+    0,
+  );
+  const unpaidTenantInvoices = props.tenantInvoices.filter(
+    (invoice) => invoice.balanceDue > 0,
+  ).length;
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-surface">
+      <div className="flex shrink-0 gap-1 border-b border-border px-4 py-2 sm:px-6">
+        <Link
+          className={tabClass(reportView === "owner")}
+          href="/reports/finance-operations?view=owner"
+        >
+          Owner report
+        </Link>
+        <Link
+          className={tabClass(reportView === "ips")}
+          href="/reports/finance-operations?view=ips"
+        >
+          IPS report
+        </Link>
+      </div>
+      {reportView === "owner" ? (
+        <TableFrame>
+          <table className="w-full min-w-[960px] text-sm">
+            <thead>
+              <tr>
+                <Th>Property</Th>
+                <Th>Rent income</Th>
+                <Th>Management fee</Th>
+                <Th>Owner expenses</Th>
+                <Th>Withdrawals</Th>
+                <Th>Balance</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {props.positions.map((position) => (
+                <tr
+                  className="border-b border-border"
+                  key={position.propertyId}
+                >
+                  <Td>
+                    <Link
+                      className="font-medium hover:underline"
+                      href={`/properties/${position.propertyId}/account`}
+                    >
+                      {position.propertyLabel}
+                    </Link>
+                    <p className="text-xs text-muted">{position.ownerLabel}</p>
+                  </Td>
+                  <Td>
+                    <Money amount={position.rentIncome} />
+                  </Td>
+                  <Td>
+                    <Money amount={position.managementFeeExpense} />
+                  </Td>
+                  <Td>
+                    <Money amount={position.ownerExpense} />
+                  </Td>
+                  <Td>
+                    <Money amount={position.withdrawals} />
+                  </Td>
+                  <Td>
+                    <Money amount={position.runningBalance} />
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableFrame>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="overflow-hidden rounded-md border border-border">
+            <ReportLine
+              label="Management fee income"
+              value={<Money amount={totalFees} />}
+            />
+            <ReportLine
+              label="Markup income"
+              value={<Money amount={totalMarkup} />}
+            />
+            <ReportLine
+              label="Unpaid owner advances and fees"
+              value={<Money amount={unpaidAdvances} />}
+            />
+            <ReportLine
+              label="Tenant invoices with a balance"
+              value={unpaidTenantInvoices}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BillingSetupForm({
+  lease,
+  onSuccess,
+  peopleOptions,
+}: {
+  lease: FinanceLease;
+  onSuccess: (message: string) => void;
+  peopleOptions: FinanceOperationsData["peopleOptions"];
+}) {
+  const idempotencyKey = useStableActionId("billing");
+  const [step, setStep] = useState(1);
+  const [state, action] = useActionState(
+    saveLeaseBillingAction,
+    actionInitialState,
+  );
+  const [recipientKind, setRecipientKind] = useState<"company" | "individual">(
+    lease.billing?.billingRecipientKind ?? "individual",
+  );
+  const [recipientId, setRecipientId] = useState(
+    lease.billing?.billingRecipientPersonId ?? lease.tenantPersonId ?? "",
+  );
+  const [firstProrata, setFirstProrata] = useState(
+    lease.billing?.firstPeriodProratedAmount?.toString() ?? "",
+  );
+  const [finalProrata, setFinalProrata] = useState(
+    lease.billing?.finalPeriodProratedAmount?.toString() ?? "",
+  );
+  const [route, setRoute] = useState<"direct_to_owner" | "through_ips">(
+    lease.billing?.collectionRoute ?? "through_ips",
+  );
+  const [feeMode, setFeeMode] = useState<"flat" | "percentage">(
+    lease.billing?.managementFeeMode ?? "percentage",
+  );
+  const [feeValue, setFeeValue] = useState(
+    lease.billing?.managementFeeValue.toString() ?? "10",
+  );
+  const [chargeFee, setChargeFee] = useState(
+    lease.billing?.chargeManagementFeeWhenActive ?? true,
+  );
+  const [fullFeeDuringProration, setFullFeeDuringProration] = useState(
+    lease.billing?.fullManagementFeeDuringProration ?? true,
+  );
+  const today = getBusinessDateValue();
+  useSuccess(state, onSuccess);
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <StepIndicator
+        current={step}
+        labels={[
+          "Property & owner",
+          "Lease billing",
+          "Collection & fee",
+          "Review",
+        ]}
+      />
+      <input name="leaseId" type="hidden" value={lease.id} />
+      <input
+        name="effectiveFrom"
+        type="hidden"
+        value={lease.billing?.effectiveFrom ?? lease.startDate ?? today}
+      />
+      <input name="billingRecipientKind" type="hidden" value={recipientKind} />
+      <input
+        name="billingRecipientPersonId"
+        type="hidden"
+        value={recipientId}
+      />
+      <input
+        name="firstPeriodProratedAmount"
+        type="hidden"
+        value={firstProrata}
+      />
+      <input
+        name="finalPeriodProratedAmount"
+        type="hidden"
+        value={finalProrata}
+      />
+      <input name="collectionRoute" type="hidden" value={route} />
+      <input name="managementFeeMode" type="hidden" value={feeMode} />
+      <input name="managementFeeValue" type="hidden" value={feeValue} />
+      <input
+        name="chargeManagementFeeWhenActive"
+        type="hidden"
+        value={chargeFee ? "on" : ""}
+      />
+      <input
+        name="fullManagementFeeDuringProration"
+        type="hidden"
+        value={fullFeeDuringProration ? "on" : ""}
+      />
+      <input
+        name="supersedesBillingTermId"
+        type="hidden"
+        value={lease.billing?.id ?? ""}
+      />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+
+      {step === 1 ? (
+        <DefinitionRows
+          rows={[
+            ["Property", lease.propertyLabel],
+            ["Owner", lease.ownerLabel],
+            ["Lease", `${lease.tenantLabel} · ${lease.unitLabel}`],
+            ["Monthly rent", formatMoneyDisplay(lease.monthlyRent).primary],
+          ]}
+        />
+      ) : null}
+      {step === 2 ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Bill to">
+            <SelectControl
+              onValueChange={(value) =>
+                setRecipientKind(value as "company" | "individual")
+              }
+              options={[
+                { label: "Individual tenant", value: "individual" },
+                { label: "Company", value: "company" },
+              ]}
+              value={recipientKind}
+            />
+          </Field>
+          <Field label={recipientKind === "company" ? "Company" : "Tenant"}>
+            <SelectControl
+              onValueChange={setRecipientId}
+              options={peopleOptions.map((option) => ({
+                label: option.label,
+                value: option.id,
+              }))}
+              value={recipientId}
+            />
+          </Field>
+          <Field label="First month amount (optional)">
+            <NumberInput
+              onChange={(event) => setFirstProrata(event.target.value)}
+              placeholder="Use full rent"
+              value={firstProrata}
+            />
+          </Field>
+          <Field label="Final month amount (optional)">
+            <NumberInput
+              onChange={(event) => setFinalProrata(event.target.value)}
+              placeholder="Use full rent"
+              value={finalProrata}
+            />
+          </Field>
+        </div>
+      ) : null}
+      {step === 3 ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Who collects rent">
+            <SelectControl
+              onValueChange={(value) => setRoute(value as typeof route)}
+              options={[
+                { label: "IPS collects", value: "through_ips" },
+                { label: "Owner collects directly", value: "direct_to_owner" },
+              ]}
+              value={route}
+            />
+          </Field>
+          <Field label="Management fee">
+            <SelectControl
+              onValueChange={(value) => setFeeMode(value as typeof feeMode)}
+              options={[
+                { label: "Percentage", value: "percentage" },
+                { label: "Flat amount", value: "flat" },
+              ]}
+              value={feeMode}
+            />
+          </Field>
+          <Field
+            label={feeMode === "percentage" ? "Fee percentage" : "Fee amount"}
+          >
+            <NumberInput
+              onChange={(event) => setFeeValue(event.target.value)}
+              required
+              value={feeValue}
+            />
+          </Field>
+          <div className="space-y-2 pt-5">
+            <Checkbox
+              checked={chargeFee}
+              label="Charge fee while lease is active"
+              onChange={setChargeFee}
+            />
+            <Checkbox
+              checked={fullFeeDuringProration}
+              label="Keep full fee in pro-rata months"
+              onChange={setFullFeeDuringProration}
+            />
+          </div>
+        </div>
+      ) : null}
+      {step === 4 ? (
+        <DefinitionRows
+          rows={[
+            [
+              "Bill to",
+              peopleOptions.find((item) => item.id === recipientId)?.label ??
+                "Not selected",
+            ],
+            [
+              "Collection",
+              route === "through_ips"
+                ? "IPS collects"
+                : "Owner collects directly",
+            ],
+            [
+              "Management fee",
+              feeMode === "percentage"
+                ? `${feeValue}%`
+                : formatMoneyDisplay(Number(feeValue || 0)).primary,
+            ],
+            [
+              "Pro-rata",
+              firstProrata || finalProrata
+                ? "Manual first/final amount"
+                : "Full monthly rent",
+            ],
+          ]}
+        />
+      ) : null}
+      <ActionMessage state={state} />
+      <FormFooter>
+        {step > 1 ? (
+          <Button onClick={() => setStep((current) => current - 1)}>
+            Back
+          </Button>
+        ) : (
+          <span />
+        )}
+        {step < 4 ? (
+          <Button
+            disabled={step === 2 && !recipientId}
+            onClick={() => setStep((current) => current + 1)}
+            variant="primary"
+          >
+            Continue <ChevronRight size={14} />
+          </Button>
+        ) : (
+          <SubmitButton label="Activate billing" />
+        )}
+      </FormFooter>
+    </form>
+  );
+}
+
+function GenerateInvoiceForm({
+  lease,
+  onSuccess,
+}: {
+  lease: FinanceLease;
+  onSuccess: (message: string) => void;
+}) {
+  const idempotencyKey = useStableActionId("invoice");
+  const [state, action] = useActionState(
+    generateTenantInvoiceAction,
+    actionInitialState,
+  );
+  const today = getBusinessDateValue();
+  useSuccess(state, onSuccess);
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <DefinitionRows
+        rows={[
+          ["Lease", `${lease.tenantLabel} · ${lease.unitLabel}`],
+          ["Property", lease.propertyLabel],
+          ["Rent", formatMoneyDisplay(lease.monthlyRent).primary],
+        ]}
+      />
+      <input name="leaseId" type="hidden" value={lease.id} />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Billing month">
+          <Input
+            defaultValue={`${today.slice(0, 7)}-01`}
+            name="billingPeriodStart"
+            required
+            type="date"
+          />
+        </Field>
+        <Field label="Issue date">
+          <DatePickerField defaultValue={today} name="issueDate" required />
+        </Field>
+      </div>
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton label="Create invoice" />
+      </FormFooter>
+    </form>
+  );
+}
+
+function PaymentChooser({
+  invoices,
+  onChoose,
+}: {
+  invoices: TenantInvoiceSummary[];
+  onChoose: (invoice: TenantInvoiceSummary) => void;
+}) {
+  return (
+    <div className="max-h-[520px] overflow-y-auto p-2">
+      {invoices.length === 0 ? (
+        <p className="p-4 text-sm text-muted">
+          There are no open tenant invoices.
+        </p>
+      ) : (
+        invoices.map((invoice) => (
+          <button
+            className="flex w-full items-center justify-between gap-4 rounded-md px-3 py-3 text-left hover:bg-surface-muted"
+            key={invoice.id}
+            onClick={() => onChoose(invoice)}
+            type="button"
+          >
+            <span>
+              <span className="block text-sm font-medium">
+                {invoice.recipientLabel}
+              </span>
+              <span className="block text-xs text-muted">
+                {invoice.propertyLabel} · {invoice.invoiceNumber}
+              </span>
+            </span>
+            <span className="flex items-center gap-2">
+              <Money amount={invoice.balanceDue} />
+              <ChevronRight className="text-muted" size={15} />
+            </span>
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+function SettleInvoiceForm({
+  invoice,
+  onSuccess,
+  reconciliationSources,
+}: {
+  invoice: TenantInvoiceSummary;
+  onSuccess: (message: string) => void;
+  reconciliationSources: FinanceOperationsData["reconciliationSources"];
+}) {
+  const idempotencyKey = useStableActionId(
+    invoice.collectionRoute === "through_ips" ? "payment" : "owner-confirm",
+  );
+  const action =
+    invoice.collectionRoute === "through_ips"
+      ? recordTenantInvoicePaymentAction
+      : confirmOwnerCollectionAction;
+  const [state, formAction] = useActionState(action, actionInitialState);
+  const sources = reconciliationSources.filter(
+    (source) => !source.propertyId || source.propertyId === invoice.propertyId,
+  );
+  useSuccess(state, onSuccess);
+  return (
+    <form action={formAction} className="space-y-4 p-4">
+      <DefinitionRows
+        rows={[
+          ["Invoice", invoice.invoiceNumber],
+          ["Customer", invoice.recipientLabel],
+          ["Balance", formatMoneyDisplay(invoice.balanceDue).primary],
+        ]}
+      />
+      <input name="invoiceId" type="hidden" value={invoice.id} />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Amount">
+          <NumberInput
+            defaultValue={invoice.balanceDue}
+            name="amount"
+            required
+          />
+        </Field>
+        <Field
+          label={
+            invoice.collectionRoute === "through_ips"
+              ? "Received date"
+              : "Confirmed date"
+          }
+        >
+          <DatePickerField
+            defaultValue={getBusinessDateValue()}
+            name="settlementDate"
+            required
+          />
+        </Field>
+        {invoice.collectionRoute === "through_ips" ? (
+          <Field label="Received in">
+            <SelectControl
+              name="reconciliationSourceId"
+              options={sources.map((source) => ({
+                label: source.label,
+                value: source.id,
+              }))}
+              required
+            />
+          </Field>
+        ) : null}
+        <Field label="Reference">
+          <Input name="reference" placeholder="Optional" />
+        </Field>
+      </div>
+      {invoice.lines.length > 1 ? (
+        <details className="rounded-md border border-border">
+          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
+            Change how payment is applied
+          </summary>
+          <div className="grid gap-3 border-t border-border p-3 sm:grid-cols-2">
+            {invoice.lines
+              .filter((line) => line.balanceDue > 0)
+              .map((line) => (
+                <Field
+                  key={line.id}
+                  label={`${line.label} · ${formatMoneyDisplay(line.balanceDue).primary}`}
+                >
+                  <NumberInput
+                    name={`allocation:${line.id}`}
+                    placeholder="Leave blank for Rent first"
+                  />
+                </Field>
+              ))}
+          </div>
+        </details>
+      ) : null}
+      {invoice.collectionRoute === "direct_to_owner" ? (
+        <p className="text-xs text-muted">
+          This marks the invoice “Collected by owner” and does not create an IPS
+          cash receipt.
+        </p>
+      ) : null}
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton
+          label={
+            invoice.collectionRoute === "through_ips"
+              ? "Record payment"
+              : "Confirm collected"
+          }
+        />
+      </FormFooter>
+    </form>
+  );
+}
+
+function ExpenseForm({
+  initialInvoiceId,
+  initialResponsibility,
+  invoices,
+  onSuccess,
+  propertyOptions,
+  unitOptions,
+}: {
+  initialInvoiceId?: string;
+  initialResponsibility?: "owner" | "tenant";
+  invoices: TenantInvoiceSummary[];
+  onSuccess: (message: string) => void;
+  propertyOptions: FinanceOperationsData["propertyOptions"];
+  unitOptions: FinanceOperationsData["unitOptions"];
+}) {
+  const idempotencyKey = useStableActionId("expense");
+  const initialInvoice = invoices.find(
+    (invoice) => invoice.id === initialInvoiceId,
+  );
+  const [step, setStep] = useState(1);
+  const [state, action] = useActionState(
+    recordIpsExpenseAction,
+    actionInitialState,
+  );
+  const [propertyId, setPropertyId] = useState(
+    initialInvoice?.propertyId ?? propertyOptions[0]?.id ?? "",
+  );
+  const [unitId, setUnitId] = useState(initialInvoice?.unitId ?? "");
+  const [category, setCategory] = useState("cleaning");
+  const [vendor, setVendor] = useState("");
+  const [cost, setCost] = useState("");
+  const [markup, setMarkup] = useState("0");
+  const [expenseDate, setExpenseDate] = useState(getBusinessDateValue());
+  const [reference, setReference] = useState("");
+  const [responsibility, setResponsibility] = useState<"owner" | "tenant">(
+    initialResponsibility ?? "owner",
+  );
+  const [tenantInvoiceId, setTenantInvoiceId] = useState(
+    initialInvoiceId ?? "",
+  );
+  const effectiveResponsibility =
+    responsibility === "tenant" ? "tenant" : "owner";
+  const matchingInvoices = invoices.filter(
+    (invoice) => invoice.propertyId === propertyId && invoice.balanceDue > 0,
+  );
+  useSuccess(state, onSuccess);
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <StepIndicator current={step} labels={["Cost", "Who pays"]} />
+      <input name="propertyId" type="hidden" value={propertyId} />
+      <input name="unitId" type="hidden" value={unitId} />
+      <input name="category" type="hidden" value={category} />
+      <input name="vendorLabel" type="hidden" value={vendor} />
+      <input name="internalCost" type="hidden" value={cost} />
+      <input name="internalMarkup" type="hidden" value={markup} />
+      <input name="expenseDate" type="hidden" value={expenseDate} />
+      <input name="reference" type="hidden" value={reference} />
+      <input
+        name="responsibility"
+        type="hidden"
+        value={effectiveResponsibility}
+      />
+      <input
+        name="tenantInvoiceId"
+        type="hidden"
+        value={effectiveResponsibility === "tenant" ? tenantInvoiceId : ""}
+      />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      {step === 1 ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Property">
+            <SelectControl
+              onValueChange={(value) => {
+                setPropertyId(value);
+                setUnitId("");
+                setTenantInvoiceId("");
+              }}
+              options={propertyOptions.map((option) => ({
+                label: option.label,
+                value: option.id,
+              }))}
+              value={propertyId}
+            />
+          </Field>
+          <Field label="Unit">
+            <SelectControl
+              onValueChange={setUnitId}
+              options={[
+                { label: "No unit", value: "" },
+                ...unitOptions
+                  .filter((option) => option.propertyId === propertyId)
+                  .map((option) => ({ label: option.label, value: option.id })),
+              ]}
+              value={unitId}
+            />
+          </Field>
+          <Field label="Expense">
+            <SelectControl
+              onValueChange={setCategory}
+              options={[
+                { label: "Cleaning", value: "cleaning" },
+                { label: "Utility", value: "utility" },
+                {
+                  label: "Repairs and Maintenance",
+                  value: "repairs_maintenance",
+                },
+                { label: "Other", value: "other" },
+              ]}
+              value={category}
+            />
+          </Field>
+          <Field label="Vendor">
+            <Input
+              onChange={(event) => setVendor(event.target.value)}
+              placeholder="Who IPS paid"
+              required
+              value={vendor}
+            />
+          </Field>
+          <Field label="IPS paid">
+            <NumberInput
+              onChange={(event) => setCost(event.target.value)}
+              required
+              value={cost}
+            />
+          </Field>
+          <Field label="Markup / service fee">
+            <NumberInput
+              onChange={(event) => setMarkup(event.target.value)}
+              required
+              value={markup}
+            />
+          </Field>
+          <Field label="Date">
+            <Input
+              onChange={(event) => setExpenseDate(event.target.value)}
+              type="date"
+              value={expenseDate}
+            />
+          </Field>
+          <Field label="Receipt / reference">
+            <Input
+              onChange={(event) => setReference(event.target.value)}
+              placeholder="Receipt number or note"
+              value={reference}
+            />
+          </Field>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <Field label="Who is responsible?">
+            <SelectControl
+              onValueChange={(value) => {
+                if (value === "owner" || value === "tenant") {
+                  setResponsibility(value);
+                }
+              }}
+              options={[
+                { label: "Owner", value: "owner" },
+                { label: "Tenant", value: "tenant" },
+              ]}
+              value={effectiveResponsibility}
+            />
+          </Field>
+          {effectiveResponsibility === "tenant" ? (
+            <Field label="Add to invoice">
+              <SelectControl
+                onValueChange={setTenantInvoiceId}
+                options={matchingInvoices.map((invoice) => ({
+                  label: `${invoice.recipientLabel} · ${invoice.invoiceNumber}`,
+                  value: invoice.id,
+                }))}
+                placeholder="Choose invoice"
+                value={tenantInvoiceId}
+              />
+            </Field>
+          ) : null}
+          <DefinitionRows
+            rows={[
+              [
+                "Customer sees",
+                `${categoryLabel(category)} · ${formatMoneyDisplay(Number(cost || 0) + Number(markup || 0)).primary}`,
+              ],
+              [
+                "IPS keeps internally",
+                `Cost ${formatMoneyDisplay(Number(cost || 0)).primary} · Markup ${formatMoneyDisplay(Number(markup || 0)).primary}`,
+              ],
+            ]}
+          />
+        </div>
+      )}
+      <ActionMessage state={state} />
+      <FormFooter>
+        {step === 2 ? (
+          <Button onClick={() => setStep(1)}>Back</Button>
+        ) : (
+          <span />
+        )}
+        {step === 1 ? (
+          <Button
+            disabled={!propertyId || !vendor || Number(cost) <= 0}
+            onClick={() => setStep(2)}
+            variant="primary"
+          >
+            Continue <ChevronRight size={14} />
+          </Button>
+        ) : (
+          <SubmitButton
+            disabled={effectiveResponsibility === "tenant" && !tenantInvoiceId}
+            label="Record expense"
+          />
+        )}
+      </FormFooter>
+    </form>
+  );
+}
+
+function OwnerPaymentForm({
+  invoice,
+  onSuccess,
+}: {
+  invoice: OwnerInvoiceSummary;
+  onSuccess: (message: string) => void;
+}) {
+  const idempotencyKey = useStableActionId("owner-payment");
+  const [state, action] = useActionState(
+    recordOwnerPaymentAction,
+    actionInitialState,
+  );
+  useSuccess(state, onSuccess);
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <DefinitionRows
+        rows={[
+          ["Owner", invoice.ownerLabel],
+          ["Property", invoice.propertyLabel],
+          ["Balance", formatMoneyDisplay(invoice.balanceDue).primary],
+        ]}
+      />
+      <input name="ownerInvoiceId" type="hidden" value={invoice.id} />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Amount">
+          <NumberInput
+            defaultValue={invoice.balanceDue}
+            name="amount"
+            required
+          />
+        </Field>
+        <Field label="Received date">
+          <DatePickerField
+            defaultValue={getBusinessDateValue()}
+            name="receivedDate"
+            required
+          />
+        </Field>
+        <Field label="Reference">
+          <Input name="reference" placeholder="Optional" />
+        </Field>
+      </div>
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton label="Record owner payment" />
+      </FormFooter>
+    </form>
+  );
+}
+
+function WithdrawalForm({
+  onSuccess,
+  position,
+}: {
+  onSuccess: (message: string) => void;
+  position: PropertyFinancePosition;
+}) {
+  const idempotencyKey = useStableActionId("withdrawal");
+  const [state, action] = useActionState(
+    recordWithdrawalAction,
+    actionInitialState,
+  );
+  useSuccess(state, onSuccess);
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <DefinitionRows
+        rows={[
+          ["Property", position.propertyLabel],
+          ["Owner", position.ownerLabel],
+          [
+            "Available",
+            formatMoneyDisplay(position.availableWithdrawal).primary,
+          ],
+        ]}
+      />
+      <input name="propertyId" type="hidden" value={position.propertyId} />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Amount">
+          <NumberInput
+            max={position.availableWithdrawal}
+            name="amount"
+            required
+          />
+        </Field>
+        <Field label="Date">
+          <DatePickerField
+            defaultValue={getBusinessDateValue()}
+            name="withdrawalDate"
+            required
+          />
+        </Field>
+        <Field label="Reference">
+          <Input name="reference" placeholder="Bank transfer or note" />
+        </Field>
+      </div>
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton label="Record withdrawal" />
+      </FormFooter>
+    </form>
+  );
+}
+
+function getModalTitle(modal: ModalState) {
+  if (modal.mode === "billing") return "Set up lease billing";
+  if (modal.mode === "generate") return "Create rent invoice";
+  if (modal.mode === "choose-payment") return "Choose invoice";
+  if (modal.mode === "settle")
+    return modal.invoice.collectionRoute === "through_ips"
+      ? "Record payment"
+      : "Confirm owner collection";
+  if (modal.mode === "expense") return "Add expense";
+  if (modal.mode === "owner-payment") return "Owner payment";
+  return "Owner withdrawal";
+}
+function useSuccess(
+  state: FinanceOperationsActionState,
+  onSuccess: (message: string) => void,
+) {
+  useEffect(() => {
+    if (state.status === "success" && state.message) onSuccess(state.message);
+  }, [onSuccess, state.message, state.status]);
+}
+function useStableActionId(prefix: string) {
+  const [id] = useState(() => stableId(prefix));
+  return id;
+}
+function stableId(prefix: string) {
+  return `${prefix}-${globalThis.crypto.randomUUID()}`;
+}
+function categoryLabel(category: string) {
+  return category === "repairs_maintenance"
+    ? "Repairs and Maintenance"
+    : category.charAt(0).toUpperCase() + category.slice(1);
+}
+
+function CompactTotals({
+  items,
+}: {
+  items: { label: string; value: ReactNode }[];
+}) {
+  return (
+    <div
+      className="grid shrink-0 divide-x divide-border border-b border-border bg-surface-muted/35"
+      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+    >
+      {items.map((item) => (
+        <div className="px-4 py-2.5 sm:px-6" key={item.label}>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
+            {item.label}
+          </p>
+          <div className="mt-0.5 text-sm font-semibold">{item.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+function TableFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-h-0 flex-1 overflow-auto p-3">
+      <div className="overflow-hidden rounded-md border border-border">
+        {children}
+      </div>
+    </div>
+  );
+}
+function Th({
+  align = "left",
+  children,
+}: {
+  align?: "left" | "right";
+  children: ReactNode;
+}) {
+  return (
+    <th
+      className={cn(
+        "border-b border-border bg-surface-muted/65 px-3 py-2 text-xs font-semibold text-muted",
+        align === "right" ? "text-right" : "text-left",
+      )}
+    >
+      {children}
+    </th>
+  );
+}
+function Td({
+  align = "left",
+  children,
+  className,
+}: {
+  align?: "left" | "right";
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <td
+      className={cn(
+        "px-3 py-2.5 align-middle",
+        align === "right" ? "text-right" : "text-left",
+        className,
+      )}
+    >
+      {children}
+    </td>
+  );
+}
+function Money({ amount }: { amount: number }) {
+  return <MoneyDisplay align="right" value={formatMoneyDisplay(amount)} />;
+}
+function StatusBadge({ status }: { status: string }) {
+  const label =
+    status === "partly_paid"
+      ? "Partly paid"
+      : status === "paid"
+        ? "Paid"
+        : status === "voided"
+          ? "Voided"
+          : "Unpaid";
+  return (
+    <Badge
+      tone={
+        status === "paid"
+          ? "success"
+          : status === "partly_paid"
+            ? "warning"
+            : status === "voided"
+              ? "neutral"
+              : "danger"
+      }
+    >
+      {label}
+    </Badge>
+  );
+}
+function TabButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      className={cn(active && "bg-accent-soft")}
+      onClick={onClick}
+      variant="ghost"
+    >
+      {children}
+    </Button>
+  );
+}
+function tabClass(active: boolean) {
+  return cn(
+    "inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium hover:bg-surface-muted",
+    active ? "bg-accent-soft" : "text-muted",
+  );
+}
+function Field({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <label className="block space-y-1.5 text-sm">
+      <span className="font-medium">{label}</span>
+      {children}
+    </label>
+  );
+}
+function Checkbox({
+  checked,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <input
+        checked={checked}
+        className="size-4 rounded border-control-border"
+        onChange={(event) => onChange(event.target.checked)}
+        type="checkbox"
+      />
+      {label}
+    </label>
+  );
+}
+function FormFooter({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
+      {children}
+    </div>
+  );
+}
+function SubmitButton({
+  disabled,
+  label,
+}: {
+  disabled?: boolean;
+  label: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <Button disabled={disabled || pending} type="submit" variant="primary">
+      {pending ? "Saving…" : label}
+    </Button>
+  );
+}
+function ActionMessage({ state }: { state: FinanceOperationsActionState }) {
+  return state.status === "error" && state.message ? (
+    <p
+      className="rounded-md border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger"
+      role="alert"
+    >
+      {state.message}
+    </p>
+  ) : null;
+}
+function DefinitionRows({ rows }: { rows: [string, ReactNode][] }) {
+  return (
+    <dl className="overflow-hidden rounded-md border border-border">
+      {rows.map(([label, value]) => (
+        <div
+          className="grid grid-cols-[minmax(120px,0.4fr)_1fr] gap-3 border-b border-border px-3 py-2 last:border-b-0"
+          key={label}
+        >
+          <dt className="text-sm text-muted">{label}</dt>
+          <dd className="text-sm font-medium">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+function StepIndicator({
+  current,
+  labels,
+}: {
+  current: number;
+  labels: string[];
+}) {
+  return (
+    <ol className="flex items-center gap-2 border-b border-border pb-3">
+      {labels.map((label, index) => {
+        const number = index + 1;
+        return (
+          <li
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-2 text-xs",
+              number === current
+                ? "font-semibold text-foreground"
+                : number < current
+                  ? "text-success"
+                  : "text-muted",
+            )}
+            key={label}
+          >
+            <span
+              className={cn(
+                "grid size-5 shrink-0 place-items-center rounded-full border",
+                number < current && "border-success bg-success-soft",
+              )}
+            >
+              {number < current ? <Check size={12} /> : number}
+            </span>
+            <span className="truncate">{label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+function ReportLine({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3 last:border-b-0">
+      <span className="text-sm">{label}</span>
+      <span className="text-sm font-semibold">{value}</span>
+    </div>
+  );
+}

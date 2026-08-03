@@ -2,12 +2,7 @@ import type { WorkspaceRole } from "@/lib/auth/context";
 import type { WorkspaceSearchResult } from "@/features/workspace-search/workspace-search.types";
 
 export type WorkspaceSearchScope =
-  | "properties"
-  | "units"
-  | "people"
-  | "leases"
-  | "tasks"
-  | "documents";
+  "properties" | "units" | "people" | "leases" | "tasks" | "documents";
 
 export type WorkspaceSearchAction = WorkspaceSearchResult & {
   kind: "action";
@@ -34,31 +29,70 @@ const ADMIN_ACTIONS = [
   action("owners", "Owners", "/owners"),
   action("staff", "Staff", "/staff", ["team"]),
   action("vendors", "Vendors", "/vendors"),
-  action("maintenance", "Cases", "/maintenance", ["maintenance", "work orders"]),
+  action("maintenance", "Cases", "/maintenance", [
+    "maintenance",
+    "work orders",
+  ]),
   action("tasks", "Tasks", "/tasks", ["assignments", "my work"]),
-  action("work-orders", "Work Orders", "/work-orders", ["maintenance", "board"]),
-  action("inspections", "Inspections", "/inspections", ["maintenance", "checklist"]),
-  action("recurring-tasks", "Recurring Work", "/recurring-tasks", ["maintenance"]),
-  action("rent-income", "Rent & Income", "/rent-income", ["payments"]),
-  action("bills-expenses", "Bills & Expenses", "/bills-expenses", ["invoices"]),
+  action("work-orders", "Work Orders", "/work-orders", [
+    "maintenance",
+    "board",
+  ]),
+  action("inspections", "Inspections", "/inspections", [
+    "maintenance",
+    "checklist",
+  ]),
+  action("recurring-tasks", "Recurring Work", "/recurring-tasks", [
+    "maintenance",
+  ]),
+  action("finance-work", "Finance work", "/finance-dashboard", [
+    "finance",
+    "open work",
+  ]),
+  action("rent-income", "Rent", "/rent-income", [
+    "income",
+    "payments",
+    "tenant invoices",
+  ]),
+  action("bills-expenses", "Expenses", "/bills-expenses", ["bills", "charges"]),
+  action("balances", "Balances", "/balances", [
+    "owners",
+    "customers",
+    "property accounts",
+  ]),
   action("leases", "Leases", "/leases"),
   action("ledger", "Ledger", "/ledger"),
   action("petty-cash", "Petty Cash", "/petty-cash"),
   action("timeline", "Global Timeline", "/timeline", ["history"]),
-  action("property-timeline", "Property Timeline", "/property-timeline", ["history"]),
-  action("maintenance-timeline", "Maintenance Timeline", "/maintenance-timeline", [
+  action("property-timeline", "Property Timeline", "/property-timeline", [
     "history",
   ]),
-  action("financial-timeline", "Financial Timeline", "/financial-timeline", ["history"]),
+  action(
+    "maintenance-timeline",
+    "Maintenance Timeline",
+    "/maintenance-timeline",
+    ["history"],
+  ),
+  action("financial-timeline", "Financial Timeline", "/financial-timeline", [
+    "history",
+  ]),
   action("reports", "Reports", "/reports"),
   action("documents", "Documents", "/documents", ["files"]),
   action("import", "Import data", "/import", ["csv", "upload"]),
   action("settings", "Organization settings", "/settings"),
-  action("users-roles", "Workspace Access", "/users-roles", ["access", "permissions", "users", "roles"]),
+  action("users-roles", "Workspace Access", "/users-roles", [
+    "access",
+    "permissions",
+    "users",
+    "roles",
+  ]),
 ] satisfies readonly WorkspaceSearchAction[];
 
 const MANAGER_ACTIONS = [
-  action("maintenance", "Cases", "/maintenance", ["maintenance", "work orders"]),
+  action("maintenance", "Cases", "/maintenance", [
+    "maintenance",
+    "work orders",
+  ]),
   action("tasks", "Tasks", "/tasks", ["assignments"]),
 ] satisfies readonly WorkspaceSearchAction[];
 
