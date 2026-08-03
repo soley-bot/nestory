@@ -1,7 +1,7 @@
 # Fixture Dependency Inventory
 
 **Inventory baseline:** `b592557f3d2919ab5bd7932426fc218a1bea5d4d`
-**Test-only baseline:** `supabase/tests/fixtures/legacy-baseline.sql`
+**Test-only baseline:** `supabase/test-fixtures/baseline.sql`
 **Runtime seeding:** disabled; normal local resets start empty
 **Inventory method:** full-repository UUID, login, route, name, status, and
 script search; pgTAP bodies were classified by whether they read/mutate seeded

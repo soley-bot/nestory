@@ -42,9 +42,8 @@ async function main() {
   const fixturePath = path.join(
     cwd,
     "supabase",
-    "tests",
-    "fixtures",
-    "legacy-baseline.sql",
+    "test-fixtures",
+    "baseline.sql",
   );
   const fixtureSql = await readFile(fixturePath, "utf8");
   const container = findLocalDatabaseContainer(cwd);
