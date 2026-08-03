@@ -10,8 +10,6 @@ export default function TenantsPage({ searchParams }: TenantsPageProps) {
       config={{
         addButtonLabel: "Add tenant",
         createRole: "tenant",
-        description:
-          "Tenant records with lease links, contact readiness, evidence, and follow-up actions.",
         role: "tenant",
         searchPlaceholder: "Search tenant, contact, lease, unit, or property",
         title: "Tenants",

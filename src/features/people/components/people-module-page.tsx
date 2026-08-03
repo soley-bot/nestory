@@ -17,7 +17,6 @@ type PeopleModulePageProps = {
 export type PeopleModuleConfig = {
   addButtonLabel: string;
   createRole?: PersonRoleValue;
-  description: string;
   role?: PersonRoleValue;
   searchPlaceholder: string;
   showAccessStatus?: boolean;
@@ -31,12 +30,7 @@ export function PeopleModulePage({
 }: PeopleModulePageProps) {
   return (
     <Suspense
-      fallback={
-        <PeopleScreenSkeleton
-          description={config.description}
-          title={config.title}
-        />
-      }
+      fallback={<PeopleScreenSkeleton title={config.title} />}
     >
       <PeopleModulePageContent config={config} searchParams={searchParams} />
     </Suspense>
@@ -79,7 +73,6 @@ export async function PeopleModulePageContent({
       accessByPersonId={accessByPersonId}
       addButtonLabel={config.addButtonLabel}
       createRole={config.createRole}
-      description={config.description}
       initialPersonId={initialPersonId}
       insights={insights}
       key={initialPersonId ?? config.role ?? "people"}
