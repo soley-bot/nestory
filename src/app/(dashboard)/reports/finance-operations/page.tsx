@@ -14,6 +14,7 @@ export default async function FinanceOperationsReportPage({
   return (
     <FinanceOperationsScreen
       {...data}
+      organizationName={context.organizationName}
       reportView={rawView === "ips" ? "ips" : "owner"}
       view="reports"
     />

@@ -5,5 +5,11 @@ import { requireAdminContext } from "@/lib/auth/context";
 export default async function FinanceDashboardPage() {
   const context = await requireAdminContext();
   const data = await getFinanceOperationsData(context.organizationId);
-  return <FinanceOperationsScreen {...data} view="work" />;
+  return (
+    <FinanceOperationsScreen
+      {...data}
+      organizationName={context.organizationName}
+      view="work"
+    />
+  );
 }

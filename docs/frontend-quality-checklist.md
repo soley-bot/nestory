@@ -39,12 +39,14 @@ Use this for authenticated operational screens before calling a flow ready.
 
 - Keep a compact title and one instinctive primary action at the top.
 - Keep filters/search/view state URL-backed in the workspace tools zone.
-- Use the module-approved record surface. Inspectors may become
-  focus-managed drawers when their module needs that pattern; Finance instead
-  uses centered modals or a dedicated page at every viewport.
+- Use the module-approved record surface. Inspectors may become focus-managed
+  drawers when their module needs that pattern. Finance uses centered modals
+  for short money actions, a drawer for multi-step setup or longer conditional
+  forms, and a dedicated page for full account history.
 - Use the shared side drawer for focused record work except where a module has
-  an approved modal/page contract. Finance create, edit, receipt, payment,
-  reversal, deposit, and adjustment flows are the explicit exception.
+  an approved modal/page contract. Finance receipt, payment, reversal, deposit,
+  and adjustment flows remain centered-modal or page actions; only approved
+  setup and longer conditional forms use the drawer.
 - Settings pages keep local navigation, active workspace, and draft actions as
   three distinct zones with one save/discard/status model.
 

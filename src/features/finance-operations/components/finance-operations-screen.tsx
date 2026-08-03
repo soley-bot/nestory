@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
+import { SideDrawer } from "@/components/ui/side-drawer";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
   confirmOwnerCollectionAction,
@@ -53,19 +54,25 @@ export type FinanceOperationsView =
   "account" | "balances" | "expenses" | "rent" | "reports" | "work";
 
 type ModalState =
-  | { lease: FinanceLease; mode: "billing" }
   | { lease: FinanceLease; mode: "generate" }
-  | { mode: "choose-payment" }
-  | { invoice: TenantInvoiceSummary; mode: "settle" }
   | {
-      initialInvoiceId?: string;
-      initialResponsibility?: "owner" | "tenant";
-      mode: "expense";
+      canChooseAnother?: boolean;
+      invoice?: TenantInvoiceSummary;
+      mode: "payment";
     }
   | { invoice: OwnerInvoiceSummary; mode: "owner-payment" }
   | { mode: "withdrawal"; position: PropertyFinancePosition };
 
+type DrawerState =
+  | { lease: FinanceLease; mode: "billing" }
+  | {
+      initialInvoiceId?: string;
+      initialResponsibility?: "owner" | "tenant";
+      mode: "expense";
+    };
+
 type FinanceOperationsScreenProps = FinanceOperationsData & {
+  organizationName: string;
   reportView?: "ips" | "owner";
   selectedPropertyId?: string | null;
   view: FinanceOperationsView;
@@ -74,18 +81,32 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
 const actionInitialState: FinanceOperationsActionState = {};
 
 export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
+  const organizationName = props.organizationName.trim() || "our company";
+  const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const closeDrawer = () => setDrawer(null);
   const closeModal = () => setModal(null);
+  const openDrawer = (next: DrawerState) => {
+    setStatusMessage(null);
+    setModal(null);
+    setDrawer(next);
+  };
   const openModal = (next: ModalState) => {
     setStatusMessage(null);
+    setDrawer(null);
     setModal(next);
   };
   const onActionSuccess = (message: string) => {
     setStatusMessage(message);
+    closeDrawer();
     closeModal();
   };
-  const screen = getScreen(props, openModal);
+  const screen = getScreen(
+    { ...props, organizationName },
+    openModal,
+    openDrawer,
+  );
 
   return (
     <WorkspacePage
@@ -111,41 +132,61 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
         {screen.body}
       </div>
 
-      {modal ? (
-        <Modal onClose={closeModal} open title={getModalTitle(modal)}>
-          {modal.mode === "billing" ? (
+      {drawer ? (
+        <SideDrawer
+          onClose={closeDrawer}
+          open
+          title={getDrawerTitle(drawer)}
+        >
+          {drawer.mode === "billing" ? (
             <BillingSetupForm
-              lease={modal.lease}
+              lease={drawer.lease}
               onSuccess={onActionSuccess}
+              organizationName={organizationName}
               peopleOptions={props.peopleOptions}
             />
-          ) : modal.mode === "generate" ? (
-            <GenerateInvoiceForm
-              lease={modal.lease}
-              onSuccess={onActionSuccess}
-            />
-          ) : modal.mode === "choose-payment" ? (
-            <PaymentChooser
-              invoices={props.tenantInvoices.filter(
-                (invoice) => invoice.balanceDue > 0,
-              )}
-              onChoose={(invoice) => setModal({ invoice, mode: "settle" })}
-            />
-          ) : modal.mode === "settle" ? (
-            <SettleInvoiceForm
-              invoice={modal.invoice}
-              onSuccess={onActionSuccess}
-              reconciliationSources={props.reconciliationSources}
-            />
-          ) : modal.mode === "expense" ? (
+          ) : (
             <ExpenseForm
-              initialInvoiceId={modal.initialInvoiceId}
-              initialResponsibility={modal.initialResponsibility}
+              initialInvoiceId={drawer.initialInvoiceId}
+              initialResponsibility={drawer.initialResponsibility}
               invoices={props.tenantInvoices}
               onSuccess={onActionSuccess}
               propertyOptions={props.propertyOptions}
               unitOptions={props.unitOptions}
             />
+          )}
+        </SideDrawer>
+      ) : null}
+
+      {modal ? (
+        <Modal onClose={closeModal} open title={getModalTitle(modal)}>
+          {modal.mode === "generate" ? (
+            <GenerateInvoiceForm
+              lease={modal.lease}
+              onSuccess={onActionSuccess}
+            />
+          ) : modal.mode === "payment" ? (
+            modal.invoice ? (
+              <SettleInvoiceForm
+                invoice={modal.invoice}
+                onChooseAnother={
+                  modal.canChooseAnother
+                    ? () => setModal({ mode: "payment" })
+                    : undefined
+                }
+                onSuccess={onActionSuccess}
+                reconciliationSources={props.reconciliationSources}
+              />
+            ) : (
+              <PaymentChooser
+                invoices={props.tenantInvoices.filter(
+                  (invoice) => invoice.balanceDue > 0,
+                )}
+                onChoose={(invoice) =>
+                  setModal({ canChooseAnother: true, invoice, mode: "payment" })
+                }
+              />
+            )
           ) : modal.mode === "owner-payment" ? (
             <OwnerPaymentForm
               invoice={modal.invoice}
@@ -166,6 +207,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
 function getScreen(
   props: FinanceOperationsScreenProps,
   openModal: (modal: ModalState) => void,
+  openDrawer: (drawer: DrawerState) => void,
 ) {
   if (props.view === "rent") {
     return {
@@ -173,21 +215,27 @@ function getScreen(
       actions: (
         <>
           <Button
-            onClick={() => openModal({ mode: "choose-payment" })}
+            onClick={() => openModal({ mode: "payment" })}
             variant="primary"
           >
             <WalletCards size={15} /> Record payment
           </Button>
           <Button
             onClick={() =>
-              openModal({ initialResponsibility: "tenant", mode: "expense" })
+              openDrawer({ initialResponsibility: "tenant", mode: "expense" })
             }
           >
             <Plus size={15} /> Add charge
           </Button>
         </>
       ),
-      body: <RentView invoices={props.tenantInvoices} openModal={openModal} />,
+      body: (
+        <RentView
+          invoices={props.tenantInvoices}
+          openModal={openModal}
+          organizationName={props.organizationName}
+        />
+      ),
       context: `${props.tenantInvoices.length} invoices`,
       contextHref: "/rent-income",
       title: "Rent",
@@ -200,7 +248,7 @@ function getScreen(
       activeRoute: "/bills-expenses" as const,
       actions: (
         <Button
-          onClick={() => openModal({ mode: "expense" })}
+          onClick={() => openDrawer({ mode: "expense" })}
           variant="primary"
         >
           <Plus size={15} /> Add expense
@@ -287,7 +335,7 @@ function getScreen(
     activeRoute: "/finance-dashboard" as const,
     actions: (
       <Button
-        onClick={() => openModal({ mode: "choose-payment" })}
+        onClick={() => openModal({ mode: "payment" })}
         variant="primary"
       >
         <WalletCards size={15} /> Record payment
@@ -296,6 +344,7 @@ function getScreen(
     body: (
       <FinanceWorkView
         leases={props.leases}
+        openDrawer={openDrawer}
         openModal={openModal}
         ownerInvoices={props.ownerInvoices}
         tenantInvoices={props.tenantInvoices}
@@ -310,11 +359,13 @@ function getScreen(
 
 function FinanceWorkView({
   leases,
+  openDrawer,
   openModal,
   ownerInvoices,
   tenantInvoices,
 }: {
   leases: FinanceLease[];
+  openDrawer: (drawer: DrawerState) => void;
   openModal: (modal: ModalState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
   tenantInvoices: TenantInvoiceSummary[];
@@ -378,7 +429,7 @@ function FinanceWorkView({
                   <Td>Before invoicing</Td>
                   <Td align="right">
                     <Button
-                      onClick={() => openModal({ lease, mode: "billing" })}
+                      onClick={() => openDrawer({ lease, mode: "billing" })}
                     >
                       Set up
                     </Button>
@@ -432,7 +483,7 @@ function FinanceWorkView({
                   <Td>{formatDate(invoice.dueDate)}</Td>
                   <Td align="right">
                     <Button
-                      onClick={() => openModal({ invoice, mode: "settle" })}
+                      onClick={() => openModal({ invoice, mode: "payment" })}
                     >
                       {invoice.collectionRoute === "through_ips"
                         ? "Record"
@@ -447,7 +498,7 @@ function FinanceWorkView({
                   key={`owner-${invoice.id}`}
                 >
                   <Td>
-                    <p className="font-medium">Owner payment to IPS</p>
+                    <p className="font-medium">Owner payment</p>
                     <p className="text-xs text-muted">
                       {invoice.ownerLabel} · {invoice.invoiceNumber}
                     </p>
@@ -479,9 +530,11 @@ function FinanceWorkView({
 function RentView({
   invoices,
   openModal,
+  organizationName,
 }: {
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
+  organizationName: string;
 }) {
   const unpaid = invoices.reduce((sum, invoice) => sum + invoice.balanceDue, 0);
   const collected = invoices.reduce(
@@ -542,8 +595,8 @@ function RentView({
                   </Td>
                   <Td>
                     {invoice.collectionRoute === "through_ips"
-                      ? "Through IPS"
-                      : "Owner directly"}
+                      ? `Collected by ${organizationName}`
+                      : "Collected by owner"}
                   </Td>
                   <Td>
                     <Money amount={invoice.totalAmount} />
@@ -557,7 +610,7 @@ function RentView({
                   <Td align="right">
                     {invoice.balanceDue > 0 ? (
                       <Button
-                        onClick={() => openModal({ invoice, mode: "settle" })}
+                        onClick={() => openModal({ invoice, mode: "payment" })}
                       >
                         {invoice.collectionRoute === "through_ips"
                           ? "Record payment"
@@ -584,7 +637,7 @@ function ExpensesView({
 }) {
   return expenses.length === 0 ? (
     <EmptyState
-      body="Record a cost IPS paid and choose whether the owner or tenant is responsible."
+      body="Record a property cost and choose whether the owner or tenant is responsible."
       className="h-full"
       kind="empty"
       title="No expenses"
@@ -598,7 +651,7 @@ function ExpensesView({
             <Th>Expense</Th>
             <Th>Property</Th>
             <Th>Responsible</Th>
-            <Th>IPS paid</Th>
+            <Th>Amount paid</Th>
             <Th>Customer total</Th>
             <Th>Funding</Th>
           </tr>
@@ -638,7 +691,7 @@ function ExpensesView({
                   "Tenant invoice"
                 ) : expense.ipsAdvanceAmount > 0 ? (
                   <span className="text-warning">
-                    IPS advance <Money amount={expense.ipsAdvanceAmount} />
+                    Advance paid <Money amount={expense.ipsAdvanceAmount} />
                   </span>
                 ) : (
                   "Held cash"
@@ -702,8 +755,8 @@ function BalancesView({
                 <Th>Property</Th>
                 <Th>Owner</Th>
                 <Th>Running balance</Th>
-                <Th>Cash held by IPS</Th>
-                <Th>Owner owes IPS</Th>
+                <Th>Owner funds held</Th>
+                <Th>Owner amount due</Th>
                 <Th>Available</Th>
                 <Th align="right">Action</Th>
               </tr>
@@ -837,11 +890,11 @@ function PropertyAccountView({
             value: <Money amount={position.runningBalance} />,
           },
           {
-            label: "Cash held by IPS",
+            label: "Owner funds held",
             value: <Money amount={position.cashHeldByIps} />,
           },
           {
-            label: "Owner owes IPS",
+            label: "Owner amount due",
             value: <Money amount={position.ownerOwesIps} />,
           },
           {
@@ -930,7 +983,7 @@ function FinanceReportsView(props: FinanceOperationsScreenProps) {
           className={tabClass(reportView === "ips")}
           href="/reports/finance-operations?view=ips"
         >
-          IPS report
+          {props.organizationName} report
         </Link>
       </div>
       {reportView === "owner" ? (
@@ -1010,10 +1063,12 @@ function FinanceReportsView(props: FinanceOperationsScreenProps) {
 function BillingSetupForm({
   lease,
   onSuccess,
+  organizationName,
   peopleOptions,
 }: {
   lease: FinanceLease;
   onSuccess: (message: string) => void;
+  organizationName: string;
   peopleOptions: FinanceOperationsData["peopleOptions"];
 }) {
   const idempotencyKey = useStableActionId("billing");
@@ -1156,12 +1211,15 @@ function BillingSetupForm({
       ) : null}
       {step === 3 ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Who collects rent">
+          <Field label="Who collects rent?">
             <SelectControl
               onValueChange={(value) => setRoute(value as typeof route)}
               options={[
-                { label: "IPS collects", value: "through_ips" },
-                { label: "Owner collects directly", value: "direct_to_owner" },
+                {
+                  label: `Collected by ${organizationName}`,
+                  value: "through_ips",
+                },
+                { label: "Collected by owner", value: "direct_to_owner" },
               ]}
               value={route}
             />
@@ -1210,8 +1268,8 @@ function BillingSetupForm({
             [
               "Collection",
               route === "through_ips"
-                ? "IPS collects"
-                : "Owner collects directly",
+                ? `Collected by ${organizationName}`
+                : "Collected by owner",
             ],
             [
               "Management fee",
@@ -1342,10 +1400,12 @@ function PaymentChooser({
 
 function SettleInvoiceForm({
   invoice,
+  onChooseAnother,
   onSuccess,
   reconciliationSources,
 }: {
   invoice: TenantInvoiceSummary;
+  onChooseAnother?: () => void;
   onSuccess: (message: string) => void;
   reconciliationSources: FinanceOperationsData["reconciliationSources"];
 }) {
@@ -1433,13 +1493,17 @@ function SettleInvoiceForm({
       ) : null}
       {invoice.collectionRoute === "direct_to_owner" ? (
         <p className="text-xs text-muted">
-          This marks the invoice “Collected by owner” and does not create an IPS
-          cash receipt.
+          This marks the invoice “Collected by owner” and does not add cash to
+          the property account.
         </p>
       ) : null}
       <ActionMessage state={state} />
       <FormFooter>
-        <span />
+        {onChooseAnother ? (
+          <Button onClick={onChooseAnother}>Choose another</Button>
+        ) : (
+          <span />
+        )}
         <SubmitButton
           label={
             invoice.collectionRoute === "through_ips"
@@ -1471,7 +1535,6 @@ function ExpenseForm({
   const initialInvoice = invoices.find(
     (invoice) => invoice.id === initialInvoiceId,
   );
-  const [step, setStep] = useState(1);
   const [state, action] = useActionState(
     recordIpsExpenseAction,
     actionInitialState,
@@ -1499,8 +1562,7 @@ function ExpenseForm({
   );
   useSuccess(state, onSuccess);
   return (
-    <form action={action} className="space-y-4 p-4">
-      <StepIndicator current={step} labels={["Cost", "Who pays"]} />
+    <form action={action} className="space-y-5 p-5">
       <input name="propertyId" type="hidden" value={propertyId} />
       <input name="unitId" type="hidden" value={unitId} />
       <input name="category" type="hidden" value={category} />
@@ -1520,7 +1582,7 @@ function ExpenseForm({
         value={effectiveResponsibility === "tenant" ? tenantInvoiceId : ""}
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
-      {step === 1 ? (
+      <FormSection title="Expense details">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Property">
             <SelectControl
@@ -1566,12 +1628,12 @@ function ExpenseForm({
           <Field label="Vendor">
             <Input
               onChange={(event) => setVendor(event.target.value)}
-              placeholder="Who IPS paid"
+              placeholder="Vendor or payee"
               required
               value={vendor}
             />
           </Field>
-          <Field label="IPS paid">
+          <Field label="Amount paid">
             <NumberInput
               onChange={(event) => setCost(event.target.value)}
               required
@@ -1600,7 +1662,8 @@ function ExpenseForm({
             />
           </Field>
         </div>
-      ) : (
+      </FormSection>
+      <FormSection title="Responsibility">
         <div className="space-y-4">
           <Field label="Who is responsible?">
             <SelectControl
@@ -1636,34 +1699,25 @@ function ExpenseForm({
                 `${categoryLabel(category)} · ${formatMoneyDisplay(Number(cost || 0) + Number(markup || 0)).primary}`,
               ],
               [
-                "IPS keeps internally",
+                "Internal breakdown",
                 `Cost ${formatMoneyDisplay(Number(cost || 0)).primary} · Markup ${formatMoneyDisplay(Number(markup || 0)).primary}`,
               ],
             ]}
           />
         </div>
-      )}
+      </FormSection>
       <ActionMessage state={state} />
       <FormFooter>
-        {step === 2 ? (
-          <Button onClick={() => setStep(1)}>Back</Button>
-        ) : (
-          <span />
-        )}
-        {step === 1 ? (
-          <Button
-            disabled={!propertyId || !vendor || Number(cost) <= 0}
-            onClick={() => setStep(2)}
-            variant="primary"
-          >
-            Continue <ChevronRight size={14} />
-          </Button>
-        ) : (
-          <SubmitButton
-            disabled={effectiveResponsibility === "tenant" && !tenantInvoiceId}
-            label="Record expense"
-          />
-        )}
+        <span />
+        <SubmitButton
+          disabled={
+            !propertyId ||
+            !vendor ||
+            Number(cost) <= 0 ||
+            (effectiveResponsibility === "tenant" && !tenantInvoiceId)
+          }
+          label="Record expense"
+        />
       </FormFooter>
     </form>
   );
@@ -1777,16 +1831,16 @@ function WithdrawalForm({
 }
 
 function getModalTitle(modal: ModalState) {
-  if (modal.mode === "billing") return "Set up lease billing";
   if (modal.mode === "generate") return "Create rent invoice";
-  if (modal.mode === "choose-payment") return "Choose invoice";
-  if (modal.mode === "settle")
-    return modal.invoice.collectionRoute === "through_ips"
+  if (modal.mode === "payment")
+    return !modal.invoice || modal.invoice.collectionRoute === "through_ips"
       ? "Record payment"
       : "Confirm owner collection";
-  if (modal.mode === "expense") return "Add expense";
   if (modal.mode === "owner-payment") return "Owner payment";
   return "Owner withdrawal";
+}
+function getDrawerTitle(drawer: DrawerState) {
+  return drawer.mode === "billing" ? "Set up lease billing" : "Add expense";
 }
 function useSuccess(
   state: FinanceOperationsActionState,
@@ -1931,6 +1985,20 @@ function tabClass(active: boolean) {
     active ? "bg-accent-soft" : "text-muted",
   );
 }
+function FormSection({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="space-y-4 border-b border-border pb-5 last:border-b-0 last:pb-0">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      {children}
+    </section>
+  );
+}
 function Field({ children, label }: { children: ReactNode; label: string }) {
   return (
     <label className="block space-y-1.5 text-sm">
@@ -2019,6 +2087,8 @@ function StepIndicator({
         const number = index + 1;
         return (
           <li
+            aria-current={number === current ? "step" : undefined}
+            aria-label={`Step ${number} of ${labels.length}: ${label}`}
             className={cn(
               "flex min-w-0 flex-1 items-center gap-2 text-xs",
               number === current

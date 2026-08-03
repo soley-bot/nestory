@@ -5,5 +5,11 @@ import { requireAdminContext } from "@/lib/auth/context";
 export default async function BalancesPage() {
   const context = await requireAdminContext();
   const data = await getFinanceOperationsData(context.organizationId);
-  return <FinanceOperationsScreen {...data} view="balances" />;
+  return (
+    <FinanceOperationsScreen
+      {...data}
+      organizationName={context.organizationName}
+      view="balances"
+    />
+  );
 }

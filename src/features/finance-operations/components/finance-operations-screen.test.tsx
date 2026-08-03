@@ -17,7 +17,13 @@ afterEach(cleanup);
 
 describe("FinanceOperationsScreen", () => {
   it("starts from a compact finance work queue and opens the four-step lease setup", () => {
-    render(<FinanceOperationsScreen {...data()} view="work" />);
+    render(
+      <FinanceOperationsScreen
+        {...data()}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
 
     const navigation = screen.getByRole("navigation", {
       name: "Finance workspace",
@@ -37,6 +43,60 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
     expect(screen.getByText("Property & owner")).not.toBeNull();
     expect(screen.getByText("Sokha Owner")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
+    expect(
+      screen
+        .getByLabelText("Step 1 of 4: Property & owner")
+        .getAttribute("aria-current"),
+    ).toBe("step");
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(
+      screen.getAllByText("Collected by Sokha Property Services").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Collected by owner").length).toBeGreaterThan(0);
+  });
+
+  it("uses one expense drawer without turning the transaction into setup", () => {
+    render(
+      <FinanceOperationsScreen
+        {...data()}
+        organizationName="Sokha Property Services"
+        view="expenses"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add expense" }));
+    expect(screen.getByRole("dialog", { name: "Add expense" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
+    expect(screen.getByText("Expense details")).not.toBeNull();
+    expect(screen.getByText("Responsibility")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    expect(screen.getByLabelText("Amount paid")).not.toBeNull();
+  });
+
+  it("keeps invoice selection inside the record payment modal", () => {
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    input.tenantInvoices = [invoice];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+
+    const toolbar = screen.getByRole("toolbar", { name: "Workspace tools" });
+    fireEvent.click(within(toolbar).getByRole("button", { name: "Record payment" }));
+    const chooser = screen.getByRole("dialog", { name: "Record payment" });
+    fireEvent.click(within(chooser).getByText("Sokha Trading Co.").closest("button")!);
+
+    expect(screen.getByRole("dialog", { name: "Record payment" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Choose another" })).not.toBeNull();
   });
 
   it("shows direct-owner collection without pretending IPS received cash", () => {
@@ -56,11 +116,17 @@ describe("FinanceOperationsScreen", () => {
     };
     input.tenantInvoices = [tenantInvoice()];
 
-    render(<FinanceOperationsScreen {...input} view="rent" />);
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
 
     expect(screen.getByText("Sokha Trading Co.")).not.toBeNull();
     expect(screen.getByText("Occupants: Dara Tenant")).not.toBeNull();
-    expect(screen.getByText("Owner directly")).not.toBeNull();
+    expect(screen.getByText("Collected by owner")).not.toBeNull();
     expect(
       screen.getByRole("button", { name: "Confirm collected" }),
     ).not.toBeNull();
@@ -76,13 +142,19 @@ describe("FinanceOperationsScreen", () => {
     partialInvoice.paymentStatus = "partly_paid";
     input.tenantInvoices = [partialInvoice];
 
-    render(<FinanceOperationsScreen {...input} view="balances" />);
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        organizationName="Sokha Property Services"
+        view="balances"
+      />,
+    );
 
     expect(
-      screen.getByRole("columnheader", { name: "Cash held by IPS" }),
+      screen.getByRole("columnheader", { name: "Owner funds held" }),
     ).not.toBeNull();
     expect(
-      screen.getByRole("columnheader", { name: "Owner owes IPS" }),
+      screen.getByRole("columnheader", { name: "Owner amount due" }),
     ).not.toBeNull();
     expect(
       screen.getByRole("columnheader", { name: "Available" }),

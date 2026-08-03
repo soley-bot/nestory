@@ -175,12 +175,14 @@ Finance and history:
 - `/bills-expenses` supports outgoing vendor bills, maintenance, utilities,
   supplies, owner payouts, refunds, and other property expenses. Approved
   obligations can be settled through dated payments and allocations.
-- Rent and Expenses now use the laptop-first Finance presentation model: a
-  short local navigation bar, one compact totals line, a full-width operating
-  table, and one centered modal at a time. The old split inspector and side
-  drawer are no longer used on these routes. Add expense separates the current
-  fields into two short steps without changing the existing action payload or
-  persistence authority.
+- Rent and Expenses use the laptop-first Finance presentation model: a short
+  local navigation bar, one compact totals line, and a full-width operating
+  table. Short invoice, payment, owner-payment, and withdrawal actions use one
+  centered modal at a time. Lease billing uses a four-step setup wizard in the
+  shared drawer; Add expense uses one drawer with Expense details and
+  Responsibility sections. These surfaces do not change the existing action
+  payloads or persistence authority. Collection copy uses the configured
+  organization name instead of a hardcoded management-company label.
 - `/ledger` supports income/expense records, filters, create/update/archive,
   restore, period locks, receipt attachment, month-close workflow queues, and
   linked timeline/document context. Posted rows carry source metadata for

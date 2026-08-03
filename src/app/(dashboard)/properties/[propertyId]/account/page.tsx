@@ -19,6 +19,7 @@ export default async function PropertyAccountPage({
   return (
     <FinanceOperationsScreen
       {...data}
+      organizationName={context.organizationName}
       selectedPropertyId={propertyId}
       view="account"
     />

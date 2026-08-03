@@ -167,10 +167,11 @@ These rules are grounded in the current implementation.
   and the close control dismiss it and return focus to the opener. Where a true
   detail route exists, retain an explicit record link and allow double-click as
   a pointer shortcut; do not invent detail routes for modules that lack one.
-- Finance routes go further: use centered modals or an existing dedicated
-  detail page for create, detail, and lifecycle work; do not use `SideDrawer`
-  or inspector terminology. Replace multi-card metric grids with one compact
-  totals line above the operational table.
+- Finance routes go further: use centered modals for short money actions, the
+  shared `SideDrawer` for multi-step setup or longer conditional forms, and an
+  existing dedicated detail page for full account history. Do not add a side
+  inspector. Replace multi-card metric grids with one compact totals line above
+  the operational table.
 - Keep one global `Search or jump` command surface. Navigation actions may be
   client-known; entity results must remain organization/role scoped through the
   server search boundary. Do not expose raw UUIDs in results or URLs shown as
