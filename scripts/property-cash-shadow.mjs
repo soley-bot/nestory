@@ -5,30 +5,6 @@ import { fileURLToPath } from "node:url";
 
 import { createClient } from "@supabase/supabase-js";
 
-import {
-  iteratePropertyCashEvents,
-} from "../src/features/finance/data/property-cash-events.ts";
-import {
-  buildPropertyCashShadowArtifact,
-  propertyCashShadowStrictIssues,
-} from "../src/features/finance/data/property-cash-shadow-artifact.ts";
-import {
-  buildPropertyCashShadowParity,
-} from "../src/features/finance/data/property-cash-shadow-parity.ts";
-import {
-  buildPropertyCashShadowMaterialStateToken,
-  canonicalizePropertySummaryLedgerForMaterial,
-} from "../src/features/finance/data/property-cash-shadow-material.ts";
-import {
-  loadPropertyCashShadowDocuments,
-} from "../src/features/finance/data/property-cash-shadow-documents.ts";
-import {
-  assertDisposableStackIdentity,
-  assertRepositoryState,
-  collectInventoryPages,
-  compareWatermarks,
-} from "../src/features/finance/inventory/finance-inventory.ts";
-
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const options = parseOptions(process.argv.slice(2));
 if (options.has("help")) {
@@ -45,6 +21,30 @@ and writes deterministic JSON plus Markdown under artifacts/property-cash-shadow
 `);
   process.exit(0);
 }
+
+const [
+  { iteratePropertyCashEvents },
+  { buildPropertyCashShadowArtifact, propertyCashShadowStrictIssues },
+  { buildPropertyCashShadowParity },
+  {
+    buildPropertyCashShadowMaterialStateToken,
+    canonicalizePropertySummaryLedgerForMaterial,
+  },
+  { loadPropertyCashShadowDocuments },
+  {
+    assertDisposableStackIdentity,
+    assertRepositoryState,
+    collectInventoryPages,
+    compareWatermarks,
+  },
+] = await Promise.all([
+  import("../src/features/finance/data/property-cash-events.ts"),
+  import("../src/features/finance/data/property-cash-shadow-artifact.ts"),
+  import("../src/features/finance/data/property-cash-shadow-parity.ts"),
+  import("../src/features/finance/data/property-cash-shadow-material.ts"),
+  import("../src/features/finance/data/property-cash-shadow-documents.ts"),
+  import("../src/features/finance/inventory/finance-inventory.ts"),
+]);
 
 for (const key of [
   "organization",
