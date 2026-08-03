@@ -1,6 +1,6 @@
 # Current State
 
-Last rebuilt from code inventory on 2026-07-29. This file describes what is
+Last rebuilt from code inventory on 2026-08-03. This file describes what is
 implemented now. It is not a roadmap or early-stage plan.
 
 ## Product Baseline
@@ -175,6 +175,12 @@ Finance and history:
 - `/bills-expenses` supports outgoing vendor bills, maintenance, utilities,
   supplies, owner payouts, refunds, and other property expenses. Approved
   obligations can be settled through dated payments and allocations.
+- Rent and Expenses now use the laptop-first Finance presentation model: a
+  short local navigation bar, one compact totals line, a full-width operating
+  table, and one centered modal at a time. The old split inspector and side
+  drawer are no longer used on these routes. Add expense separates the current
+  fields into two short steps without changing the existing action payload or
+  persistence authority.
 - `/ledger` supports income/expense records, filters, create/update/archive,
   restore, period locks, receipt attachment, month-close workflow queues, and
   linked timeline/document context. Posted rows carry source metadata for

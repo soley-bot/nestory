@@ -246,12 +246,9 @@ describe("BillsExpensesScreen", () => {
       await user.click(screen.getByRole("button", { name: "Record payment" }));
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
       expect(screen.getByRole("dialog", { name: "Record payment" })).not.toBeNull();
-      const consequence = screen.getByRole("region", { name: "Payment consequence" });
+      const consequence = screen.getByRole("region", { name: "Payment summary" });
       expect(consequence.textContent).toContain("USD 150.00");
-      expect(consequence.textContent).toContain("Remaining after paymentUSD 0.00");
-      expect(consequence.textContent).toContain(
-        "Ledger effectPayment and settlement allocation",
-      );
+      expect(consequence.textContent).toContain("RemainingUSD 0.00");
       const paymentDialog = screen.getByRole("dialog", { name: "Record payment" });
       expect((paymentDialog.querySelector('input[name="expenseItemId"]') as HTMLInputElement).value).toBe(
         "expense-1",
@@ -281,6 +278,25 @@ describe("BillsExpensesScreen", () => {
     const emptyState = screen.getByText("No bills or expenses yet").closest("section")!;
     expect(emptyState.getAttribute("data-kind")).toBe("empty");
     expect(within(emptyState).getByRole("button", { name: "Add expense" })).not.toBeNull();
+  });
+
+  it("keeps Add expense focused in two short steps", async () => {
+    const user = userEvent.setup();
+    renderScreen([partialExpense]);
+
+    await user.click(screen.getByRole("button", { name: "Add expense" }));
+    const dialog = screen.getByRole("dialog", { name: "Add expense" });
+    expect(within(dialog).getByText("Step 1 of 2")).not.toBeNull();
+    expect(within(dialog).getByRole("combobox", { name: "Expense type" })).not.toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: "Recovery" })).toBeNull();
+
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(within(dialog).getByText("Step 2 of 2")).not.toBeNull();
+    expect(within(dialog).getByRole("combobox", { name: "Recovery" })).not.toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: "Expense type" })).toBeNull();
+
+    await user.click(within(dialog).getByRole("button", { name: "Back" }));
+    expect(within(dialog).getByText("Step 1 of 2")).not.toBeNull();
   });
 
   it("keeps exact invoice-basis financial totals when expense type is filtered", () => {
@@ -335,9 +351,9 @@ describe("BillsExpensesScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Preview Repair Vendor" }));
     fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
 
-    expect(screen.getByText(/remaining property payment/i).textContent).toContain(
-      "USD 150.00",
-    );
+    expect(
+      screen.getByRole("region", { name: "Payment summary" }).textContent,
+    ).toContain("USD 150.00");
     expect(
       (document.querySelector('input[name="amount"]') as HTMLInputElement).value,
     ).toBe("150");

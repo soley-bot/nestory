@@ -411,9 +411,8 @@ function RentIncomeFilters({
         <div className="shrink-0">
           <FilterPopover
             activeCount={activeFilterCount}
-            description="Narrow this month by workflow state or record."
             id="income-advanced-filters"
-            title="Filter income"
+            title="Filters"
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <FilterField label="Income group">
@@ -1050,11 +1049,10 @@ function RecordPaymentPanel({
         <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
         <ConsequencePanel
           rows={[
-            { label: "Receipt", value: item.payerLabel },
-            { label: "Current balance", value: item.balanceDisplay.primary },
+            { label: "Tenant", value: item.payerLabel },
+            { label: "Balance", value: item.balanceDisplay.primary },
           ]}
-          summary="Commits the receipt, exact allocation, compatibility balance, Ledger, and balanced journal together."
-          title="Receipt consequence"
+          title="Payment summary"
         />
         <FormSection title="Received money">
           <Field

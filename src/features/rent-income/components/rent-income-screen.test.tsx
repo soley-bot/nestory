@@ -237,9 +237,9 @@ describe("RentIncomeScreen", () => {
       await user.click(screen.getByRole("button", { name: "Record payment" }));
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
       expect(screen.getByRole("dialog", { name: "Record payment" })).not.toBeNull();
-      const consequence = screen.getByRole("region", { name: "Receipt consequence" });
+      const consequence = screen.getByRole("region", { name: "Payment summary" });
       expect(consequence.textContent).toContain("USD 400.00");
-      expect(within(consequence).getByText("Current balance")).not.toBeNull();
+      expect(within(consequence).getByText("Balance")).not.toBeNull();
       expect(within(consequence).queryByText("Remaining")).toBeNull();
       expect(
         (document.querySelector('input[name="incomeItemId"]') as HTMLInputElement).value,

@@ -372,9 +372,8 @@ function BillsExpensesFilters({
           <FilterPopover
             activeCount={activeFilterCount}
             contentClassName="w-[min(620px,calc(100vw-2rem))]"
-            description="Narrow this month by date basis, workflow state, or record."
             id="expense-advanced-filters"
-            title="Filter bills and expenses"
+            title="Filters"
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <FilterField label="Date basis"><SelectControl ariaLabel="Expense date basis" onValueChange={(value) => replaceParam("dateBasis", value, "invoice")} options={[{ label: "Invoice date", value: "invoice" }, { label: "Paid date", value: "paid" }]} value={viewQuery.dateBasis} /></FilterField>
@@ -693,13 +692,33 @@ function BillsExpenseForm({
     createBillsExpenseItemAction,
     createInitialState,
   );
+  const [step, setStep] = useState<1 | 2>(1);
 
   useCloseOnSuccess(state, onClose, onSuccess);
 
   return (
     <form action={action} className="flex h-full flex-col">
-      <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
-        <FormSection title="Expense">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
+        <div className="space-y-2" aria-live="polite">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <p className="font-semibold text-foreground">Step {step} of 2</p>
+            <p className="text-muted">
+              {step === 1 ? "Expense details" : "Responsibility and review"}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2" aria-hidden="true">
+            <span className="h-1 rounded-full bg-accent" />
+            <span
+              className={cn(
+                "h-1 rounded-full",
+                step === 2 ? "bg-accent" : "bg-border",
+              )}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-5" hidden={step !== 1}>
+          <FormSection title="Expense">
           <Field label="Expense type" error={state.fieldErrors?.expenseType?.[0]}>
             <SelectControl
               defaultValue="vendor_bill"
@@ -713,21 +732,6 @@ function BillsExpenseForm({
           </Field>
           <Field label="Vendor / payee" error={state.fieldErrors?.vendorLabel?.[0]}>
             <Input name="vendorLabel" placeholder="Vendor, owner, or payee" required />
-          </Field>
-          <Field
-            label="Known vendor record"
-            error={state.fieldErrors?.vendorPersonId?.[0]}
-          >
-            <SelectControl
-              name="vendorPersonId"
-              options={[
-                { label: "No people link", value: "" },
-                ...vendorOptions.map((option) => ({
-                  label: option.label,
-                  value: option.id,
-                })),
-              ]}
-            />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
@@ -754,9 +758,11 @@ function BillsExpenseForm({
               />
             </Field>
           </div>
-        </FormSection>
+          </FormSection>
+        </div>
 
-        <FormSection title="Responsibility">
+        <div className="space-y-5" hidden={step !== 2}>
+          <FormSection title="Responsibility">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
               label="Responsible"
@@ -807,9 +813,39 @@ function BillsExpenseForm({
               <NumberInput name="companyLossAmount" placeholder="0.00" />
             </Field>
           </div>
-        </FormSection>
+          </FormSection>
+        </div>
 
-        <FormSection title="Dates and amount">
+        <div className="space-y-5" hidden={step !== 1}>
+          <FormSection title="Amount">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Amount" error={state.fieldErrors?.amount?.[0]}>
+              <NumberInput name="amount" placeholder="0.00" required />
+            </Field>
+            <Field label="Category" error={state.fieldErrors?.category?.[0]}>
+              <Input name="category" placeholder="Maintenance, utilities..." required />
+            </Field>
+          </div>
+          </FormSection>
+        </div>
+
+        <div className="space-y-5" hidden={step !== 2}>
+          <FormSection title="Record details">
+          <Field
+            label="Known vendor record"
+            error={state.fieldErrors?.vendorPersonId?.[0]}
+          >
+            <SelectControl
+              name="vendorPersonId"
+              options={[
+                { label: "No people link", value: "" },
+                ...vendorOptions.map((option) => ({
+                  label: option.label,
+                  value: option.id,
+                })),
+              ]}
+            />
+          </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Invoice date" error={state.fieldErrors?.invoiceDate?.[0]}>
               <DatePickerField
@@ -822,28 +858,54 @@ function BillsExpenseForm({
               <DatePickerField name="dueDate" />
             </Field>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Amount" error={state.fieldErrors?.amount?.[0]}>
-              <NumberInput name="amount" placeholder="0.00" required />
-            </Field>
-            <Field label="Category" error={state.fieldErrors?.category?.[0]}>
-              <Input name="category" placeholder="Maintenance, utilities..." required />
-            </Field>
-          </div>
-        </FormSection>
-
-        <FormSection title="Reference">
           <Field label="Reference" error={state.fieldErrors?.reference?.[0]}>
             <Input name="reference" placeholder="Invoice or receipt number" />
           </Field>
           <Field label="Note" error={state.fieldErrors?.description?.[0]}>
             <Textarea name="description" rows={4} />
           </Field>
-        </FormSection>
+          </FormSection>
+        </div>
 
         {state.message ? <FormMessage state={state} /> : null}
       </div>
-      <DrawerActions onCancel={onClose} pending={pending} submitLabel="Save expense" />
+      <div className="border-t border-border bg-surface px-5 py-4">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          {step === 1 ? (
+            <>
+              <Button className="w-full sm:w-auto" onClick={onClose} type="button">
+                Cancel
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => setStep(2)}
+                type="button"
+                variant="primary"
+              >
+                Continue
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => setStep(1)}
+                type="button"
+              >
+                Back
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                disabled={pending}
+                type="submit"
+                variant="primary"
+              >
+                {pending ? "Saving..." : "Save expense"}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
     </form>
   );
 }
@@ -879,12 +941,10 @@ function PostExpensePanel({
         <ConsequencePanel
           rows={[
             { label: "Payee", value: item.vendorLabel },
-            { label: "Cash payment", value: item.outstandingAmountDisplay.primary },
-            { label: "Remaining after payment", value: formatMoneyDisplay(0, item.currency).primary },
-            { label: "Ledger effect", value: "Payment and settlement allocation" },
+            { label: "Payment", value: item.outstandingAmountDisplay.primary },
+            { label: "Remaining", value: formatMoneyDisplay(0, item.currency).primary },
           ]}
-          summary={`Records the remaining property payment of ${item.outstandingAmountDisplay.primary} and its settlement allocation.`}
-          title="Payment consequence"
+          title="Payment summary"
         />
         <Field label="Payment date" error={state.fieldErrors?.paidDate?.[0]}>
           <DatePickerField
@@ -1085,7 +1145,7 @@ function useCloseOnSuccess(
 
 function getResponsibleLabel(item: BillsExpenseItem) {
   if (item.economicScope === "company_advance") {
-    return "Owner · IPS advanced";
+    return "Owner - IPS advanced";
   }
 
   return item.economicScope === "company_cost" ? "IPS" : "Owner";
