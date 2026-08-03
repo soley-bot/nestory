@@ -1773,6 +1773,136 @@ export type Database = {
           },
         ]
       }
+      lease_billing_terms: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          billing_recipient_kind: string
+          billing_recipient_person_id: string
+          charge_management_fee_when_active: boolean
+          collection_route: string
+          confirmed_at: string
+          confirmed_by: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_range: unknown
+          effective_to: string
+          final_period_prorated_amount: number | null
+          first_period_prorated_amount: number | null
+          full_management_fee_during_proration: boolean
+          id: string
+          lease_id: string
+          management_fee_mode: string
+          management_fee_value: number
+          organization_id: string
+          property_id: string
+          superseded_at: string | null
+          superseded_by: string | null
+          supersedes_billing_term_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          billing_recipient_kind: string
+          billing_recipient_person_id: string
+          charge_management_fee_when_active?: boolean
+          collection_route: string
+          confirmed_at?: string
+          confirmed_by: string
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_range?: unknown
+          effective_to: string
+          final_period_prorated_amount?: number | null
+          first_period_prorated_amount?: number | null
+          full_management_fee_during_proration?: boolean
+          id?: string
+          lease_id: string
+          management_fee_mode: string
+          management_fee_value: number
+          organization_id: string
+          property_id: string
+          superseded_at?: string | null
+          superseded_by?: string | null
+          supersedes_billing_term_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          billing_recipient_kind?: string
+          billing_recipient_person_id?: string
+          charge_management_fee_when_active?: boolean
+          collection_route?: string
+          confirmed_at?: string
+          confirmed_by?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_range?: unknown
+          effective_to?: string
+          final_period_prorated_amount?: number | null
+          first_period_prorated_amount?: number | null
+          full_management_fee_during_proration?: boolean
+          id?: string
+          lease_id?: string
+          management_fee_mode?: string
+          management_fee_value?: number
+          organization_id?: string
+          property_id?: string
+          superseded_at?: string | null
+          superseded_by?: string | null
+          supersedes_billing_term_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_billing_terms_billing_recipient_fkey"
+            columns: ["organization_id", "billing_recipient_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_billing_terms_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_billing_terms_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_billing_terms_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_billing_terms_supersedes_fkey"
+            columns: [
+              "organization_id",
+              "lease_id",
+              "supersedes_billing_term_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "lease_billing_terms"
+            referencedColumns: ["organization_id", "lease_id", "id"]
+          },
+        ]
+      }
       lease_deposit_events: {
         Row: {
           amount: number
@@ -5319,6 +5449,48 @@ export type Database = {
           unit_id: string
         }[]
       }
+      resolve_lease_billing_term: {
+        Args: {
+          p_effective_date: string
+          p_lease_id: string
+          p_organization_id: string
+        }
+        Returns: {
+          archived_at: string | null
+          archived_by: string | null
+          billing_recipient_kind: string
+          billing_recipient_person_id: string
+          charge_management_fee_when_active: boolean
+          collection_route: string
+          confirmed_at: string
+          confirmed_by: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_range: unknown
+          effective_to: string
+          final_period_prorated_amount: number | null
+          first_period_prorated_amount: number | null
+          full_management_fee_during_proration: boolean
+          id: string
+          lease_id: string
+          management_fee_mode: string
+          management_fee_value: number
+          organization_id: string
+          property_id: string
+          superseded_at: string | null
+          superseded_by: string | null
+          supersedes_billing_term_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "lease_billing_terms"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       resolve_lease_rent_readiness: {
         Args: {
           p_effective_date: string
@@ -5471,6 +5643,25 @@ export type Database = {
           p_status: string
         }
         Returns: undefined
+      }
+      set_lease_billing_term: {
+        Args: {
+          p_billing_recipient_kind: string
+          p_billing_recipient_person_id: string
+          p_charge_management_fee_when_active: boolean
+          p_collection_route: string
+          p_effective_from: string
+          p_final_period_prorated_amount: number
+          p_first_period_prorated_amount: number
+          p_full_management_fee_during_proration: boolean
+          p_idempotency_key: string
+          p_lease_id: string
+          p_management_fee_mode: string
+          p_management_fee_value: number
+          p_organization_id: string
+          p_supersedes_billing_term_id: string
+        }
+        Returns: string
       }
       set_ledger_period_lock: {
         Args: {
