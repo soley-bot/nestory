@@ -257,8 +257,8 @@ Therefore:
 - a successor lease receives no deposit balance automatically;
 - transfer, refund, retention, or application requires Track A's checked
   operation and exact event identity; and
-- the required Owner Close amendment is recorded in
-  `92-required-cross-plan-amendments.md`.
+- the current Owner Close boundary is consolidated in
+  [PROJECT.md](../../../PROJECT.md).
 
 ## Archive and cancellation
 

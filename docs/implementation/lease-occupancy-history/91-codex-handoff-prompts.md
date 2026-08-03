@@ -29,9 +29,7 @@ The implementation prerequisite is the merged planning package under:
 
 At startup:
 
-1. Read `PROJECT_RULES.md`, `docs/current-state.md`,
-   `docs/engineering-rules.md`, `docs/verification.md`, and this planning
-   package.
+1. Read `PROJECT.md` and this planning package.
 2. Fetch `origin` with pruning.
 3. Record the exact latest merged `origin/main` SHA.
 4. Require `origin/main` to contain this planning package. If it is still the
@@ -435,7 +433,7 @@ Relevant files:
 - `git diff --check`; and
 - final grant/RLS/function ACL inspection.
 
-Run the repository's full relevant checks from `docs/verification.md`. State
+Run the repository's full relevant checks from `PROJECT.md`. State
 what was not run.
 
 ### Scope exclusions
@@ -505,8 +503,7 @@ Merged predecessor: TB-02 Relationship model, legacy bootstrap, and safe
 creation.
 
 Fetch/prune origin; record the exact merged `origin/main` SHA containing TB-02;
-read repo rules, the Track B package, `docs/financial-authority-kernel.md`,
-`docs/property-cash-events-v1.md`, and the ratified Owner Close sequence.
+read `PROJECT.md`, the Track B package, and the ratified Owner Close sequence.
 STOP if TB-02 is unmerged, if Track B source semantics changed, or if the
 implementation would depend on an unmerged Track A branch. Use a clean
 worktree/branch `codex/lease-history-tb-03-impact`.
@@ -544,8 +541,7 @@ Relevant files:
 - Track B file 03 and file 92;
 - merged TB-02 migration/actions/tests;
 - finance schema migrations and generated types;
-- `docs/financial-authority-kernel.md`;
-- `docs/property-cash-events-v1.md`;
+- `PROJECT.md`;
 - `src/features/leases/actions.ts`;
 - focused Lease UI/data files;
 - new pgTAP and material-token/concurrency script.

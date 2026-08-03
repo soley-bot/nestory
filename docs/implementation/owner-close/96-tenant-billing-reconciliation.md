@@ -43,10 +43,10 @@ Use the current planning set in this order:
 Files 98 and 99 remain unchanged historical evidence. Neither is represented
 as having reviewed this reconciliation.
 
-The complete source cross-track requirements are in
-`../lease-occupancy-history/92-required-cross-plan-amendments.md`. This record
-adopts all fourteen at the ownership boundary below without renumbering the
-ratified Owner Close sequence.
+The current cross-track boundary is consolidated in
+[PROJECT.md](../../../PROJECT.md). This historical record adopts all fourteen
+requirements at the ownership boundary below without renumbering the ratified
+Owner Close sequence.
 
 ## Objective
 
@@ -160,19 +160,8 @@ may transport this opaque result but never writes Track A tables.
 
 | File | Classification and use |
 |---|---|
-| `PROJECT_RULES.md` | Current repository boundary and documentation routing |
-| `docs/current-state.md` | Current merged routes, modules, schema families, and Plan 09 generator blocker |
-| `docs/engineering-rules.md` | Current auth, data, mutation, financial-authority, and UI rules |
-| `docs/verification.md` | Current local/database/browser and handoff verification expectations |
-| `docs/finance-inventory.md` | Merged Plan 01 evidence; documents current source/report contradictions without making proposed classifications authoritative |
-| `docs/property-cash-events-v1.md` | Merged Plan 02 shadow cash-event contract |
-| `docs/financial-authority-kernel.md` | Merged Plan 03 locking, reconciliation-source, idempotency, projection, and bypass authority |
-| `docs/superpowers/plans/2026-07-06-finance-workspace-v1.md` | Historical Finance workspace execution plan; its older Ledger/route assumptions do not supersede current Owner Close authority |
-| `docs/superpowers/plans/2026-07-10-property-finance-accounting-kernel.md` | Historical accounting-kernel execution plan; journals remain controls under the current sequence |
+| `PROJECT.md` | Current repository boundary, product truth, engineering rules, financial authority, and verification expectations |
 | `docs/superpowers/specs/2026-07-14-owner-statement-calculation-design.md` | Historical live Owner Statement calculation design; explicitly not immutable close/publication authority |
-| `docs/superpowers/plans/2026-07-14-owner-statement-calculation.md` | Historical implementation record for the live report/PDF workflow |
-| `docs/superpowers/plans/2026-07-28-plan-04-authoritative-lease-terms.md` | Historical Plan 04 execution record supporting the merged current plan |
-| `docs/superpowers/plans/2026-07-28-fresh-demo-data-rebuild.md` | PR #40 scope evidence; fixture work is not an application billing write path |
 
 ### Merged implementation
 

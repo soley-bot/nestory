@@ -16,8 +16,7 @@ Track B PR #42 merge.
 **Current sequence authority:** [97-ratified-final-sequence.md](97-ratified-final-sequence.md).
 **Current tenant-billing decision authority:**
 [96-tenant-billing-reconciliation.md](96-tenant-billing-reconciliation.md).
-**Merged Track B amendment source:**
-[92-required-cross-plan-amendments.md](../lease-occupancy-history/92-required-cross-plan-amendments.md).
+**Current project contract:** [PROJECT.md](../../../PROJECT.md).
 
 ## Authority order
 
@@ -29,7 +28,7 @@ Use this package in the following order:
    — current charge, obligation, invoice, receipt, projection, route,
    configuration, cardinality, migration, and Track A/Track B decisions.
 3. Track B
-   [92-required-cross-plan-amendments.md](../lease-occupancy-history/92-required-cross-plan-amendments.md)
+   [PROJECT.md](../../../PROJECT.md)
    — accepted relationship/date evidence inputs and cross-track requirements;
    it does not authorize Track A financial implementation.
 4. The narrow ratified plan or unnumbered coordination slice being prepared:

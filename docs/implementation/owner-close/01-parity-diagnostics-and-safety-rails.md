@@ -14,7 +14,7 @@ Planning baseline is merged `main` at `823deb4735b8124edefd1e68e451c21f1962b075`
 The later Track A/Track B reconciliation baseline is merged `origin/main` at
 `5210ae1c94fa5a854f9c484b79e9dbd214c99053`. The Track B amendments consumed
 by this package are recorded in
-`../lease-occupancy-history/92-required-cross-plan-amendments.md`. The original
+the repository's [PROJECT.md](../../../PROJECT.md). The original
 Plan 01 baseline above remains historical evidence; the reconciled diagnostic
 contract below prevents future readers from treating today's Lease headers as
 historical financial identity.

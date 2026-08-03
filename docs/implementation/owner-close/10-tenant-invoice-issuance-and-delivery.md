@@ -94,7 +94,7 @@ Primary evidence:
 - `src/features/reports/data/pdf.ts`
 - `src/app/(dashboard)/invoices/page.tsx`
 - `src/app/legacy-redirects.test.ts`
-- `docs/current-state.md`
+- `PROJECT.md`
 - `96-tenant-billing-reconciliation.md`
 
 ## Prerequisites and decision gates

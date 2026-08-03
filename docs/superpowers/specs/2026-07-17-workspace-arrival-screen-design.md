@@ -119,4 +119,4 @@ Implementation is complete when:
 6. The action renders with frost glass, a quiet frost border, and frost text;
    hover changes only surface opacity and does not translate the control.
 7. The touched page and styles pass the focused lint/test checks required by
-   `docs/verification.md`.
+   `PROJECT.md`.

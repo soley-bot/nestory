@@ -14,10 +14,7 @@ describe("People Reports retirement", () => {
   it("leaves no stale People Reports route or dedicated API references", () => {
     const activeFiles = [
       ...walkSource(sourceRoot),
-      "README.md",
-      "docs/current-state.md",
-      "docs/engineering-rules.md",
-      "docs/verification.md",
+      "PROJECT.md",
     ];
     const stale = activeFiles.flatMap((file) => {
       const normalized = file.replaceAll("\\", "/");

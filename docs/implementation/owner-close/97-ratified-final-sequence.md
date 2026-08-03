@@ -13,8 +13,7 @@ remains unauthorized and requires a separate approved prompt.
 `APPROVE WITH CHANGES` against an older plan set. It remains historical and did
 not review tenant invoice or formal receipt plans.
 **Tenant-billing decisions:** `96-tenant-billing-reconciliation.md`.
-**Track B amendment source:**
-`../lease-occupancy-history/92-required-cross-plan-amendments.md`.
+**Current project contract:** [PROJECT.md](../../../PROJECT.md).
 **Further architecture-review loop:** No. This document records Nestory's
 current synthesis; files 98 and 99 remain unchanged historical evidence.
 

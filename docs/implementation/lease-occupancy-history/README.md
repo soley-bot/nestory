@@ -50,7 +50,7 @@ Use this package in this order:
 6. [Migration and pilot](05-migration-and-pilot.md)
 7. [Implementation sequence](90-implementation-sequence.md)
 8. [Codex handoff prompts](91-codex-handoff-prompts.md)
-9. [Required cross-plan amendments](92-required-cross-plan-amendments.md)
+9. [Canonical project contract](../../../PROJECT.md)
 
 This package owns lease identity, dated lease-party roles, lease-level
 occupancy periods, person-to-occupancy participation evidence, lease

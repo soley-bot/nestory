@@ -44,7 +44,7 @@ This is review only. Do not implement code, create migrations, modify tests, exe
    - ownership schema and effective-date allocation;
    - documents/private Storage behavior relevant to immutable artifacts;
    - generated database types, seed/fixtures, pgTAP, Vitest, and browser verification scripts;
-   - `PROJECT_RULES.md`, `docs/current-state.md`, `docs/engineering-rules.md`, and `docs/verification.md`.
+   - `PROJECT.md`.
 4. Inspect all files in `docs/implementation/owner-close/`, not only the README.
 5. Use exact file/migration/function/test evidence for material conclusions.
 

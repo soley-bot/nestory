@@ -308,7 +308,7 @@ After pilot acceptance and a defined observation period:
 - remove new compatibility deposit-income, manual fee, and owner-payout choices;
 - switch relevant report loaders from legacy Ledger aggregation to canonical or closed snapshots;
 - preserve historical tables/columns and compatibility readers until a separate, evidence-backed retirement decision;
-- update `docs/current-state.md`, `docs/engineering-rules.md`, `docs/verification.md`, and production runbooks to describe only merged behavior;
+- update `PROJECT.md` and production runbooks to describe only merged behavior;
 - add monitoring for parity, failed projections, close blockers, statement publication, and delivery failures.
 
 Do not drop accounting or legacy finance tables in this plan.
