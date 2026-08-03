@@ -95,9 +95,11 @@ describe("RentIncomeScreen", () => {
     const { container } = renderIncome("all", [partialIncome, postedIncome]);
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="workspace-split-view"]')).toBeNull();
+    expect(screen.getByRole("heading", { name: "Rent" })).not.toBeNull();
     const summaryRegion = screen.getByRole("region", { name: "Global income summary" });
-    expect(summaryRegion.className).toContain("overflow-x-auto");
+    expect(summaryRegion.className).toContain("divide-x");
+    expect(summaryRegion.className).not.toContain("grid-cols-5");
     expect(summaryRegion.getAttribute("tabindex")).toBe("0");
     expect(summaryRegion.textContent).toContain(
       "USD 400.00",
@@ -110,6 +112,8 @@ describe("RentIncomeScreen", () => {
     expect(
       screen.getByRole("navigation", { name: "Finance workspace" }),
     ).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Rent" })).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Expenses" })).not.toBeNull();
     fireEvent.click(within(filterForm).getByRole("button", { name: "Filters" }));
     for (const name of ["Income group", "Income type", "Income status", "Property", "Unit"]) {
       expect(screen.getByRole("combobox", { name })).not.toBeNull();
@@ -228,11 +232,11 @@ describe("RentIncomeScreen", () => {
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
-      expect(screen.getByRole("dialog", { name: "Tenant income quick view" })).not.toBeNull();
+      expect(screen.getByRole("dialog", { name: "Tenant rent details" })).not.toBeNull();
 
-      await user.click(screen.getByRole("button", { name: "Record receipt" }));
+      await user.click(screen.getByRole("button", { name: "Record payment" }));
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
-      expect(screen.getByRole("dialog", { name: "Record receipt" })).not.toBeNull();
+      expect(screen.getByRole("dialog", { name: "Record payment" })).not.toBeNull();
       const consequence = screen.getByRole("region", { name: "Receipt consequence" });
       expect(consequence.textContent).toContain("USD 400.00");
       expect(within(consequence).getByText("Current balance")).not.toBeNull();
@@ -244,7 +248,7 @@ describe("RentIncomeScreen", () => {
         (document.querySelector('input[name="amountReceived"]') as HTMLInputElement).value,
       ).toBe("400");
 
-      await user.click(screen.getByRole("button", { name: "Close drawer" }));
+      await user.click(screen.getByRole("button", { name: "Close modal" }));
       expect(document.activeElement).toBe(preview);
     },
   );
@@ -261,7 +265,7 @@ describe("RentIncomeScreen", () => {
     renderIncome("all", []);
     const emptyState = screen.getByText("No income yet").closest("section")!;
     expect(emptyState.getAttribute("data-kind")).toBe("empty");
-    expect(within(emptyState).getByRole("button", { name: "Add income" })).not.toBeNull();
+    expect(within(emptyState).getByRole("button", { name: "Add charge" })).not.toBeNull();
   });
 
   it("shows a truthful filtered count instead of global money summaries for management-company income", () => {
@@ -297,7 +301,7 @@ describe("RentIncomeScreen", () => {
     });
 
     expect(
-      screen.getByRole("dialog", { name: "Tenant income quick view" }),
+      screen.getByRole("dialog", { name: "Tenant rent details" }),
     ).not.toBeNull();
     expect(screen.getByText("Focused from activity history")).not.toBeNull();
     expect(
@@ -308,8 +312,8 @@ describe("RentIncomeScreen", () => {
   });
 
   it.each([
-    ["partially received", partialIncome, "Record receipt"],
-    ["fully received", receivedIncome, "Record receipt"],
+    ["partially received", partialIncome, "Record payment"],
+    ["fully received", receivedIncome, "Record payment"],
   ])(
     "keeps archived focused %s income history read-only",
     (_label, item, expectedMutation) => {
@@ -323,7 +327,7 @@ describe("RentIncomeScreen", () => {
       });
 
       const inspector = screen.getByRole("dialog", {
-        name: "Tenant income quick view",
+        name: "Tenant rent details",
       });
       expect(
         within(inspector).queryByRole("button", { name: expectedMutation }),
@@ -413,7 +417,7 @@ describe("RentIncomeScreen", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
-    fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
 
     expect(
       (document.querySelector('input[name="amountReceived"]') as HTMLInputElement)
@@ -434,7 +438,7 @@ describe("RentIncomeScreen", () => {
     renderIncome("all", [fractionalIncome]);
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
-    fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
 
     expect(
       (document.querySelector('input[name="amountReceived"]') as HTMLInputElement)
@@ -461,7 +465,7 @@ describe("RentIncomeScreen", () => {
     ]);
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
-    fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
 
     expect(
       (
@@ -476,9 +480,9 @@ describe("RentIncomeScreen", () => {
     renderIncome("all", [partialIncome], {}, []);
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
-    fireEvent.click(screen.getByRole("button", { name: "Record receipt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
 
-    const dialog = screen.getByRole("dialog", { name: "Record receipt" });
+    const dialog = screen.getByRole("dialog", { name: "Record payment" });
     expect(
       within(dialog).getByText(
         "No active cash account is available for this property and currency.",
@@ -487,7 +491,7 @@ describe("RentIncomeScreen", () => {
     expect(
       (
         within(dialog).getByRole("button", {
-          name: "Record receipt",
+          name: "Record payment",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -510,9 +514,9 @@ describe("RentIncomeScreen", () => {
     renderIncome("all", [partialIncome]);
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Tenant" }));
-    expect(screen.getByRole("button", { name: "Record receipt" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Record payment" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Post to ledger" })).toBeNull();
-    expect(screen.getByText("Record remaining receipt")).toBeTruthy();
+    expect(screen.getByText("Record remaining payment")).toBeTruthy();
   });
 
   it("shows source evidence and opens checked reversal for a canonical receipt", () => {
