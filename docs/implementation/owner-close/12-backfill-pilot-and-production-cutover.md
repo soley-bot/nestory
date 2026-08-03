@@ -5,6 +5,10 @@
 > resumable backfill**, **sequence 22, pilot/cutover**, and **sequence 23,
 > compatibility retirement**. Use `97-ratified-final-sequence.md`; do not paste
 > this file directly into Codex.
+>
+> The current IPS Finance UI simplification is not a pilot or cutover. It
+> preserves compatibility sources and does not authorize backfill, hosted data
+> changes, report/write cutover, or compatibility retirement.
 
 **Mode:** Standard  
 **Effort:** Extra High  

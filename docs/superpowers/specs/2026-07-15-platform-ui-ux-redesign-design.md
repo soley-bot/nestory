@@ -2,6 +2,12 @@
 
 **Status:** Approved for implementation planning by the user's request on 2026-07-15.
 
+**Finance amendment (2026-07-30):** For `/rent-income`,
+`/bills-expenses`, `/ledger`, `/petty-cash`, and deposit actions in `/leases`,
+the [IPS Finance Workflow Simplification](2026-07-30-ips-finance-workflow-simplification-design.md)
+supersedes this document's inspector, drawer, stat-card, table, and Finance
+form assumptions. The rest of this platform design remains in force.
+
 ## Goal
 
 Redesign every user-facing Nestory surface so the product is immediately understandable, visually coherent, accessible, and efficient for repeated property operations without changing the underlying domain behavior, authorization model, URLs, or RPC-backed write boundaries.
@@ -31,7 +37,9 @@ This is preferred over a big-bang redesign because each phase can be reviewed, t
 ### Operational density
 
 - Keep table-first workflows for record-heavy modules.
-- Keep URL-backed filters, pagination, inspectors, drawers, linked records, and archive/restore behavior.
+- Keep URL-backed filters, pagination, linked records, and archive/restore
+  behavior. Inspectors and drawers remain module-specific rather than
+  universal; Finance uses centered record modals or dedicated pages.
 - Keep 13px table-body density and 11px table headers; use at least 14px for normal page, form, and inspector body copy.
 - Keep primary records and the next operator action visible without document-level scrolling on desktop.
 
@@ -69,16 +77,25 @@ Every authenticated module uses the same structural contract:
 2. Optional local workspace navigation for multi-view modules.
 3. Toolbar: search, filters, view mode, review queues, and bulk-safe actions.
 4. Main work surface: table, board, calendar, report, or focused form.
-5. Inspector or consequence panel when selected context matters.
-6. Drawer for create/edit/archive/restore flows that should not replace the current list context.
+5. Optional inspector or consequence panel when selected context matters.
+6. A focused modal, drawer, or page for mutations, chosen by the module's
+   approved interaction contract.
+
+Finance lists use a compact table, one totals line, and centered record/modal
+flows. They do not use side inspectors or side drawers.
 
 ### Operational lists
 
-- Preserve single-click or keyboard selection and a docked inspector on wide desktop.
+- Preserve single-click or keyboard selection. Use a docked inspector on wide
+  desktop only where the module contract calls for one; Finance opens a
+  centered record modal.
 - Expose selection with `aria-selected` or the appropriate selected-state contract.
 - Provide a direct keyboard-operable record link; do not rely on double-click instructions.
-- Make one next action visually primary in the inspector. Group linked-record navigation separately from mutation actions.
-- On mobile, replace the docked inspector with the existing preview drawer pattern.
+- Make one next action visually primary in the record view. Group
+  linked-record navigation separately from mutation actions.
+- On mobile, use the module's approved record pattern. Finance keeps a
+  focused modal or navigates to a dedicated page rather than changing into a
+  side inspector.
 
 ### Settings
 
@@ -103,6 +120,8 @@ The Overview default lens answers `What needs attention now?` before presenting 
 
 - Use visible labels, concise supporting copy, and domain examples only where needed.
 - Separate common fields from advanced options.
+- Finance create, edit, receipt, payment, reversal, deposit, and adjustment
+  flows use focused centered modals or a dedicated page, never `SideDrawer`.
 - Keep server-action validation, zod validation, RPC boundaries, activity logging, storage rollback, and route revalidation unchanged.
 - Destructive actions show the record, consequence, and recovery path before confirmation.
 - Finance, period locks, imports, permissions, and maintenance review display a consequence summary before commit.
@@ -126,17 +145,23 @@ The redesign covers every current user-facing route family:
 
 - Meet WCAG 2.2 AA contrast targets for normal text, large text, focus indicators, and non-text controls.
 - Use one visible focus style across all interactive primitives.
-- Provide keyboard access for navigation, command search, list selection, inspector actions, drawers, tabs, boards, and calendars.
-- Preserve logical focus when drawers open and return focus to the trigger when they close.
+- Provide keyboard access for navigation, command search, list selection,
+  record-view actions, modals, drawers, tabs, boards, and calendars.
+- Preserve logical focus when a modal or drawer opens and return focus to the
+  trigger when it closes.
 - Announce loading, success, error, blocked, selection, and search-result count changes.
 - Support 200% zoom, 320px reflow, reduced motion, and touch targets of at least 44px where density permits; compact desktop controls must retain an equivalent accessible target.
 - Do not claim full conformance until automated and manual keyboard/screen-reader checks pass.
 
 ## Responsive Contract
 
-- Wide desktop: persistent shell, bounded workspace, internal scrolling, and docked inspector.
-- Standard desktop/tablet: collapsible shell, reduced columns, and preview drawer instead of a docked inspector when space is insufficient.
-- Mobile: horizontal primary navigation, stacked filters, card/list rows, bottom or side preview drawer, and no hidden primary actions.
+- Wide desktop: persistent shell, bounded workspace, internal scrolling, and
+  the module-approved record view. Finance uses centered modals.
+- Standard desktop/tablet: collapsible shell, reduced columns, and the
+  module-approved responsive record view.
+- Mobile: horizontal primary navigation, stacked filters, readable list/table
+  rows, the module-approved modal/page/drawer pattern, and no hidden primary
+  actions.
 - All responsive states preserve the same route, filter, selection, and mutation behavior.
 
 ## Data and Security Boundaries
@@ -161,7 +186,9 @@ The redesign covers every current user-facing route family:
 
 - No redesign-driven schema rewrite.
 - No generic workflow engine or universal dashboard framework.
-- No removal of inspectors, drawers, tables, URL-backed filters, pagination, or archive/restore flows.
+- No platform-wide removal of inspectors or drawers. Finance intentionally
+  replaces them with centered modals/pages while preserving tables,
+  URL-backed filters, pagination, and archive/restore flows.
 - No management-company payroll, overhead, P&L, tax, general-ledger, or ERP UI.
 - No broad route renaming or navigation consolidation that changes product behavior.
 - No decorative marketing composition inside authenticated workspaces.

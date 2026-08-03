@@ -4,6 +4,11 @@
 > split this analysis into **sequence 07, maintenance handoff**, and **sequence
 > 08, petty-cash authority**. Use `97-ratified-final-sequence.md`; do not paste
 > this file directly into Codex.
+>
+> Current Petty Cash form/table simplification is governed by
+> `../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`.
+> It may clarify physical movement and economic responsibility but does not
+> implement sequence 07 or 08 authority.
 
 **Mode:** Standard  
 **Effort:** High  

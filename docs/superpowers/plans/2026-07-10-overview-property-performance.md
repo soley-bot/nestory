@@ -2,6 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Finance presentation amendment (2026-07-30):** Keep this plan as the
+> historical Overview implementation record. Finance event classification,
+> fee-entry UX, Owner Statement language, and Finance tables/forms are
+> superseded by
+> `docs/superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`.
+> Overview remains read-only for those sources.
+
 **Goal:** Replace the company-accounting-oriented Overview with a neutral, table-first property performance workspace backed by cash settlement events and consistent Portfolio, Property finance, Leasing, Maintenance, and Records lenses.
 
 **Architecture:** Preserve the authenticated App Router page and stable lens URL values, but move query normalization into an Overview filter module, move cash calculations into a pure property-performance module, and split the oversized screen into focused header, scorecard, lens, and property-detail components. Add organization-scoped receipt, payment, allocation, and deposit-event tables through an additive Supabase migration; current aggregate finance columns remain compatibility values while Overview reads settlement events.

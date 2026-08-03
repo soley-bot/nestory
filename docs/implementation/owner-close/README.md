@@ -16,6 +16,8 @@ Track B PR #42 merge.
 **Current sequence authority:** [97-ratified-final-sequence.md](97-ratified-final-sequence.md).
 **Current tenant-billing decision authority:**
 [96-tenant-billing-reconciliation.md](96-tenant-billing-reconciliation.md).
+**Current IPS Finance product/UI authority:**
+[2026-07-30 IPS Finance Workflow Simplification](../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md).
 **Merged Track B amendment source:**
 [92-required-cross-plan-amendments.md](../lease-occupancy-history/92-required-cross-plan-amendments.md).
 
@@ -28,23 +30,28 @@ Use this package in the following order:
 2. [96-tenant-billing-reconciliation.md](96-tenant-billing-reconciliation.md)
    — current charge, obligation, invoice, receipt, projection, route,
    configuration, cardinality, migration, and Track A/Track B decisions.
-3. Track B
+3. [2026-07-30 IPS Finance Workflow Simplification](../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md)
+   — current first-release operator language, form placement, table design,
+   management-fee presentation, and owner-reporting product boundary. It does
+   not authorize or weaken later Owner Close writes.
+4. Track B
    [92-required-cross-plan-amendments.md](../lease-occupancy-history/92-required-cross-plan-amendments.md)
    — accepted relationship/date evidence inputs and cross-track requirements;
    it does not authorize Track A financial implementation.
-4. The narrow ratified plan or unnumbered coordination slice being prepared:
-   [Plan 05](05-atomic-income-settlement.md),
+5. The relevant ratified plan or unnumbered coordination slice:
+   merged [Plan 05](05-atomic-income-settlement.md),
    [tenant invoice](10-tenant-invoice-issuance-and-delivery.md), or
    [formal receipt](11-formal-tenant-receipt-publication.md). The latter two
    filenames are local coordination aliases, not ratified Plan 10/11 numbers.
-5. Accepted [Plan 00](00-architecture-and-decision-gates.md),
+6. Accepted [Plan 00](00-architecture-and-decision-gates.md),
    [Plan 01](01-parity-diagnostics-and-safety-rails.md),
    [Plan 02](02-canonical-property-cash-contract.md), the merged Plan 03
    financial-authority kernel evidence, and accepted
-   [Plan 04](04-authoritative-lease-terms-and-rent-policy.md).
-6. Legacy broad Plans 03 through 12 only as design source material under the
+   [Plan 04](04-authoritative-lease-terms-and-rent-policy.md) and
+   [Plan 05](05-atomic-income-settlement.md).
+7. Legacy broad Plans 03 through 12 only as design source material under the
    mapping below.
-7. Files [98](98-ultra-review-response.md) and
+8. Files [98](98-ultra-review-response.md) and
    [99](99-ultra-review-request.md) as unchanged historical evidence only.
 
 Files 98 and 99 did not review the tenant-billing reconciliation. Do not edit
@@ -52,10 +59,15 @@ their conclusions or run another review loop to make them appear current.
 
 ## Status and planning classes
 
-- **Merged implementation:** Plans 01 through 04 have repository evidence and
+- **Merged implementation:** Plans 01 through 05 have repository evidence and
   merged PRs.
-- **Current authoritative planning:** this README, files 96 and 97, and a
-  narrow current-sequence plan.
+- **Current authoritative planning:** this README, files 96 and 97, the IPS
+  Finance simplification direction with its approved product/UI design, the
+  approved presentation-only
+  [Finance UX first slice](../../superpowers/plans/2026-08-03-finance-ux-first-slice.md),
+  and any separately approved current-sequence plan. That first slice changes
+  the live Rent and Expenses presentation only; new financial authority still
+  requires its own reviewed plan.
 - **Legacy/superseded planning:** broad source files whose filename numbers no
   longer equal current sequence numbers.
 - **Historical evidence:** files 98 and 99 and older execution plans outside
@@ -139,6 +151,41 @@ their distinct authority.
 - A **property close** fixes one append-only property-period evidence revision.
 - An **Owner Statement** is an owner-facing version/artifact for one exact close
   revision. It does not create or deliver tenant documents.
+
+## IPS first-release product boundary
+
+The approved owner-perspective Finance model makes accurate owner reporting
+the product goal, not a general accounting suite. The operator model is:
+
+- Income contains tenant charges and their receipts only.
+- Expenses contains owner/property costs. The target presents a management fee
+  once as an owner/property expense with IPS as vendor. The current
+  compatibility source stays read-only and disclosure-only until Plans 11/12
+  define recognition and owner-deduction timing.
+- Deposit events stay with Leases & Deposits and stay outside Owner Statement
+  operating lines, totals, and balance; any required custody evidence is a
+  separate disclosure.
+- Existing owner payments are separately labeled read-only evidence, not an
+  expense category. New distribution writes remain Plan 14 work.
+- Existing owner contributions are separately labeled read-only Owner funding,
+  not Income. New owner-funding writes remain Plan 13 work.
+- Owner Statement targets opening balance + income - expenses + owner
+  contributions - owner payments = closing balance, grouped by unit and
+  consolidated for one owner/property/month. The compatibility preview uses
+  allocated cash for tenant income and non-fee expenses. Existing
+  management-fee compatibility evidence remains read-only and
+  disclosure-only: Plans 11/12 define recognition and owner-deduction timing,
+  so neither its Fee/due date nor its receipt date authorizes a deduction.
+  Only qualified, reversal-aware canonical Owner funding/payment allocations
+  enter its math; unallocated or ambiguously attributed rows remain disclosure
+  and block rather than inventing missing opening, funding, or distribution
+  evidence.
+
+The corresponding Finance workspaces are table-first, use centered modals or a
+real detail page, do not use side inspectors or side drawers, and use one
+compact totals line instead of stat-card grids. These product and presentation
+decisions do not make unresolved fee calculation, owner-balance, close, or
+publication authority safe.
 
 Track B owns accepted, versioned Lease-party, occupancy, participant,
 relationship-date, notice, boundary/confidence/resolution, and transition
@@ -224,6 +271,11 @@ The full consistency matrix is in
 9. Plans 20-23 — exact migration, backfill, bounded pilot, and compatibility
    retirement.
 
+The simple Finance UI is not a shortcut implementation of Plans 06-23 and does
+not wait for all of them. It may simplify current compatible records and
+actions while leaving unsupported future controls absent. Each later financial
+authority still requires its own approved implementation slice.
+
 Two planned tenant-document coordination slices remain outside the numeric
 sequence: tenant invoice follows Plan 09, and formal receipt consumes Plan 05
 cash plus issued tenant-invoice identity.
@@ -231,8 +283,8 @@ cash plus issued tenant-invoice identity.
 Plan 05 is implemented independently from Track B. Plan 09 later waits for
 merged TB-05 relationship evidence; Plan 05 does not.
 
-Implementation order is not event chronology. Plan 05 can make current
-obligation settlement safe before Plan 09 or tenant invoicing exists. The
+Implementation order is not event chronology. Merged Plan 05 made current
+obligation settlement safe before Plan 09 or tenant invoicing existed. The
 unnumbered tenant-invoice slice follows Plan 09 because normal new-business
 invoice lines require exact occurrence and obligation links; ratified Plan 20
 owns the narrow reviewed legacy-migration exception. The unnumbered
@@ -311,7 +363,10 @@ Every implementation slice preserves:
 - balanced journals and source-transaction atomicity;
 - property-period serialization and reconciliation-source identity;
 - no generic mutation of source-linked projections;
-- cash-basis property reporting;
+- allocation-based cash reporting; existing management-fee compatibility
+  evidence remains read-only and any company-book projection is backend
+  compatibility evidence only, not permission for a new recognition, write,
+  product-view, or dual-write path;
 - deposits outside operating income until approved disposition;
 - Owner Balance separate from operating performance; and
 - no payroll, tax accounting, corporate P&L, general ERP, or product-facing
@@ -358,10 +413,15 @@ into a supported model.
 
 ## Current next step
 
-No later Track A implementation slice is authorized by this package. Plan 06
-remains planned and requires its own approved implementation prompt. Hosted
-Plan 05 migration, backfill, deployment, and release verification also remain
-separate activities.
+The 2026-08-03 Finance UX first slice is approved for the existing Rent and
+Expenses presentation. It may shorten navigation and copy, replace split
+inspectors and side drawers with centered modals, and replace stat-card strips
+with compact totals. It may not add or reinterpret stored financial facts,
+RPCs, migrations, owner balances, direct-owner collection, tenant invoices, or
+management-fee writes. Existing management-fee compatibility evidence remains
+read-only until Plan 11/12 authority exists. Plan 06 onward still requires its
+own approved implementation prompt. Hosted Plan 05 migration, backfill,
+deployment, and release verification also remain separate activities.
 
 ## Required Cross-Plan Amendments
 
@@ -372,3 +432,4 @@ separate activities.
 | Track A domain owners | Typed impact adapters/actions and deterministic locks | Relationship corrections can affect occurrences, drafts, settlements, close, and artifacts | Each owner returns exact identities/states/actions/scopes/hash; composed execution locks every source/destination property-period in deterministic order before owner action. Track B only transports the opaque result | Financial history stays append-only without Track B mutation | Yes before affected execution | No |
 | Generic Documents and Track A document owners | Operational versions versus billing/close/statement artifacts | Operational evidence may be cited by a close but is not a Track A document authority | Generic Documents owns operational versioning; Track A owns invoice, receipt, close, and Owner Statement evidence and freezes exact document version/checksum references | Prevents competing publication lifecycles | Yes before official adoption | No |
 | Configuration registry / PR #38 | Billing-policy, series, and delivery ownership | PR #38 remains open and catalogue-only | Keep non-authoritative; future entries point to the owning versioned/persisted authority | Catalogue defaults cannot drive financial behavior | Yes before the unnumbered tenant-document slices use configuration | Yes |
+| IPS Finance simplification | Operator language and placement of current compatibility records | Current forms mix tenant income, deposits, owner funding, IPS fees, owner payments, and settlement state | Use one owner/property perspective with Income, Expenses, Leases & Deposits, and qualified read-only Owner funding/payment evidence; show fees once under Expenses with IPS as vendor; preserve the fee compatibility source read-only until Plan 11/12 authority exists; keep unsupported writes absent | Prevents a simpler UI from inventing or duplicating financial authority | No for presentation-only work; separate reviewed implementation authority is required | No |

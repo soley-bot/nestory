@@ -4,6 +4,11 @@
 > split this analysis into **sequence 17, statement data**, **sequence 18,
 > immutable artifacts**, and **sequence 19, delivery/history**. Use
 > `97-ratified-final-sequence.md`; do not paste this file directly into Codex.
+>
+> The current report remains a clearly labeled preview. Its future grouped-unit
+> layout and consolidated owner-balance formula are governed by
+> `../../superpowers/specs/2026-07-30-ips-finance-workflow-simplification-design.md`;
+> official publication still requires sequence 17-19.
 
 **Mode:** Standard  
 **Effort:** High  
