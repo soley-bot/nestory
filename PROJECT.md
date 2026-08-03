@@ -32,7 +32,7 @@ The implemented product includes:
 
 - Invite-only authentication, organization membership, roles, and workspace
   access.
-- Overview and attention surfaces for portfolio, property finance, leasing,
+- Overview and attention surfaces for portfolio, leasing,
   maintenance, and record readiness.
 - Property and unit records with linked leases, money, maintenance, documents,
   photos, and timeline history.
@@ -44,8 +44,8 @@ The implemented product includes:
   scheduling, reminders, and completion review.
 - Private documents and photos.
 - Staged CSV imports for properties, units, people, and leases.
-- Traceable Unit Profit and Loss reporting plus deliberately blocked statement
-  families whose authority is incomplete.
+- Monthly Owner Activity and traceable Unit Profit and Loss reporting, with
+  statement families blocked where their authority remains incomplete.
 - Organization settings, branches, teams, invitations, and access management.
 
 The executable route inventory is `config/ui-route-coverage.json`. Route files
@@ -60,10 +60,11 @@ These are intentional truth boundaries, not invitations to synthesize data:
   authoritative lease-term and approved rent-policy identities.
 - Existing-lease party, occupancy, and resident transitions remain fail-closed
   until their impact and correction workflows are implemented.
-- Owner Statement export is blocked because authoritative opening and closing
-  owner balances do not yet exist.
-- Management Fee Statement is defined but unavailable until owner-recognition
-  authority exists. Legacy allocations and estimates are not substitutes.
+- Owner Statement publication remains outside the public report catalog until
+  authoritative opening and closing owner balances exist.
+- A separate Management Fee Statement remains outside the public report catalog
+  until owner-recognition authority exists. Legacy allocations and estimates
+  are not substitutes.
 - Maintenance can capture actual cost and, for administrators, link an official
   ledger effect. It does not yet provide a complete bill or petty-cash handoff
   with reciprocal links, duplicate prevention, and void recovery.
@@ -246,12 +247,15 @@ CSV import supports properties, units or rent roll, people, and leases.
 - Invalid or ambiguous records are visible and excluded; they are never
   silently imported.
 
-The public report catalog is limited to Monthly Unit Profit and Loss, Owner
-Statement, and Management Fee Statement. Reports remain traceable to source
-records and scoped period/property context. PDF and Excel are the public export
-formats; the retained CSV compatibility endpoint must remain auth-gated and
-formula-safe. Do not add report families or infer blocked balances without an
-approved product and data-authority change.
+The public report catalog is limited to Monthly Owner Activity and Monthly Unit
+Profit and Loss. Owner Activity mirrors the property account categories for
+rent, management fees, owner-responsible property costs, withdrawals, and net
+change. Retired statement families have no public routes; their checked data
+compatibility code stays internal until replacement authority is approved.
+Reports remain traceable to source records and scoped period/property context.
+PDF and Excel are the public export formats; the retained CSV compatibility
+endpoint must remain auth-gated and formula-safe. Do not add report families or
+infer blocked balances without an approved product and data-authority change.
 
 ## Interface Contract
 

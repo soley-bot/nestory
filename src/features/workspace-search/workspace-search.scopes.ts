@@ -45,7 +45,7 @@ const ADMIN_ACTIONS = [
   action("recurring-tasks", "Recurring Work", "/recurring-tasks", [
     "maintenance",
   ]),
-  action("finance-work", "Finance work", "/finance-dashboard", [
+  action("finance-work", "Finance work", "/finance", [
     "finance",
     "open work",
   ]),

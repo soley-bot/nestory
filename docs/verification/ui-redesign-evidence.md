@@ -70,8 +70,6 @@ Baseline browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
 | /reports | /reports | /reports | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked | 3/3 pass | not-applicable | None |
 <!-- route-evidence:/reports/[reportKind] -->
 | /reports/[reportKind] | /reports/unit-profit-loss?month=2026-07 | /reports/unit-profit-loss?month=2026-07 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked | 3/3 pass | preserved | None |
-<!-- route-evidence:/reports/finance-operations -->
-| /reports/finance-operations | /reports/finance-operations?view=owner | /reports/finance-operations?view=owner | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked | not rerun | preserved | Implementation and focused component evidence only; the full browser route sweep was not rerun. |
 <!-- route-evidence:/people-reports -->
 | /people-reports | /people-reports?report=staff-access&archiveState=archived | /people | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-normalized | None |
 <!-- route-evidence:/settings -->
@@ -118,16 +116,10 @@ Baseline browser artifacts: `artifacts/ui-redesign/2026-07-24T06-32-13Z`.
 | /no-access | /no-access | /no-access | accessible (expected accessible) | accessible (expected accessible) | login-required (expected login-required) | permission-blocked | 3/3 pass | not-applicable | Unlinked-account browser presentation is covered by unit and state contracts; the retained local fixtures represent linked roles. |
 <!-- route-evidence:/property-dashboard -->
 | /property-dashboard | /property-dashboard?query=HOME&tag=late&tag=open | /overview?lens=records&query=HOME&tag=late&tag=open | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-preserved | None |
-<!-- route-evidence:/finance-dashboard -->
-| /finance-dashboard | /finance-dashboard | /finance-dashboard | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 1/1 focused | not-applicable | Focused authenticated laptop check passed; the full browser route sweep was not rerun. |
+<!-- route-evidence:/finance -->
+| /finance | /finance | /finance | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 1/1 focused | not-applicable | Focused authenticated laptop check passed for the canonical finance work queue. |
 <!-- route-evidence:/maintenance-dashboard -->
 | /maintenance-dashboard | /maintenance-dashboard?query=HOME&tag=late&tag=open | /overview?lens=maintenance&query=HOME&tag=late&tag=open | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-preserved | None |
-<!-- route-evidence:/payments -->
-| /payments | /payments?query=HOME&tag=late&tag=open | /rent-income?query=HOME&tag=late&tag=open | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-preserved | None |
-<!-- route-evidence:/invoices -->
-| /invoices | /invoices?query=HOME&tag=late&tag=open | /rent-income?query=HOME&tag=late&tag=open | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-preserved | None |
-<!-- route-evidence:/tenant-invoices -->
-| /tenant-invoices | /tenant-invoices | /rent-income | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | redirect only | not rerun | redirect-normalized | Implementation-backed redirect evidence only; the full browser route sweep was not rerun. |
 <!-- route-evidence:/schedule -->
 | /schedule | /schedule?query=HOME&tag=late&tag=open | /maintenance?view=calendar&query=HOME&tag=late&tag=open | redirected (expected redirected) | redirected (expected redirected) | login-required (expected login-required) | redirect only | 3/3 pass | redirect-preserved | None |
 <!-- route-evidence:/team -->

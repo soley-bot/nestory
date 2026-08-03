@@ -7,13 +7,14 @@ import { cn } from "@/lib/utils";
 
 const financeDestinations = [
   {
-    href: "/finance-dashboard",
+    href: "/finance",
     label: "Finance work",
-    route: "/finance-dashboard",
+    route: "/finance",
   },
   { href: "/rent-income", label: "Rent", route: "/rent-income" },
   { href: "/bills-expenses", label: "Expenses", route: "/bills-expenses" },
   { href: "/balances", label: "Balances", route: "/balances" },
+  { href: "/reports/owner-activity", label: "Reports", route: "/reports" },
   { href: "/leases", label: "Leases", route: "/leases" },
 ] as const;
 

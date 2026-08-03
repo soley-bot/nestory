@@ -1,8 +1,5 @@
 import { getReportExcel } from "@/features/reports/data/excel";
-import {
-  getReportScopeValidation,
-  parseReportSearchParams,
-} from "@/features/reports/reports.filters";
+import { parseReportSearchParams } from "@/features/reports/reports.filters";
 import {
   getAdminMembershipForUser,
   getCurrentUser,
@@ -26,12 +23,6 @@ export async function GET(request: Request) {
 
   const searchParams = Object.fromEntries(new URL(request.url).searchParams);
   const viewQuery = parseReportSearchParams(searchParams);
-  const scopeValidation = getReportScopeValidation(viewQuery);
-
-  if (scopeValidation) {
-    return textValidation(scopeValidation);
-  }
-
   const excel = await getReportExcel(membership.organizationId, viewQuery);
 
   if (excel.validation) {

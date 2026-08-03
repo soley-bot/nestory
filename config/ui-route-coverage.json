@@ -3067,8 +3067,8 @@
     }
   },
   {
-    "route": "/finance-dashboard",
-    "source": "src/app/(dashboard)/finance-dashboard/page.tsx",
+    "route": "/finance",
+    "source": "src/app/(dashboard)/finance/page.tsx",
     "phase": 3,
     "surface": "workspace",
     "roles": [
@@ -3086,40 +3086,40 @@
     ],
     "evidence": {
       "loading": [
-        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/app/(dashboard)/finance/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
       "populated": [
-        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/app/(dashboard)/finance/page.tsx",
         "src/features/finance-operations/components/finance-operations-screen.test.tsx"
       ],
       "empty": [
-        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/app/(dashboard)/finance/page.tsx",
         "src/components/ui/empty-state.tsx"
       ],
       "error": [
-        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/app/(dashboard)/finance/page.tsx",
         "src/components/ui/error-state.tsx"
       ],
       "permission-blocked": [
-        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/app/(dashboard)/finance/page.tsx",
         "src/components/ui/status-notice.tsx"
       ],
       "draft": [
-        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/app/(dashboard)/finance/page.tsx",
         "src/components/ui/workflow-feedback.test.tsx"
       ],
       "saving": [
-        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/app/(dashboard)/finance/page.tsx",
         "src/components/ui/workflow-feedback.test.tsx"
       ],
       "success": [
-        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/app/(dashboard)/finance/page.tsx",
         "src/components/ui/status-notice.tsx"
       ]
     },
     "smoke": {
-      "path": "/finance-dashboard",
+      "path": "/finance",
       "expectedAccess": {
         "admin": "accessible",
         "manager": "permission-blocked",
@@ -3128,7 +3128,7 @@
       },
       "queryContract": "not-applicable",
       "workflowEvidence": [
-        "src/app/(dashboard)/finance-dashboard/page.tsx",
+        "src/app/(dashboard)/finance/page.tsx",
         "src/features/finance-operations/components/finance-operations-screen.test.tsx"
       ],
       "limitations": []
@@ -3158,58 +3158,6 @@
       ],
       "limitations": [],
       "expectedFinalPath": "/overview?lens=maintenance&query=HOME&tag=late&tag=open"
-    }
-  },
-  {
-    "route": "/payments",
-    "source": "src/app/(dashboard)/payments/page.tsx",
-    "phase": 6,
-    "surface": "redirect",
-    "roles": [
-      "admin"
-    ],
-    "states": [],
-    "evidence": {},
-    "smoke": {
-      "path": "/payments?query=HOME&tag=late&tag=open",
-      "expectedAccess": {
-        "admin": "redirected",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
-        "anonymous": "login-required"
-      },
-      "queryContract": "redirect-preserved",
-      "workflowEvidence": [
-        "src/app/legacy-redirects.test.ts"
-      ],
-      "limitations": [],
-      "expectedFinalPath": "/rent-income?query=HOME&tag=late&tag=open"
-    }
-  },
-  {
-    "route": "/invoices",
-    "source": "src/app/(dashboard)/invoices/page.tsx",
-    "phase": 6,
-    "surface": "redirect",
-    "roles": [
-      "admin"
-    ],
-    "states": [],
-    "evidence": {},
-    "smoke": {
-      "path": "/invoices?query=HOME&tag=late&tag=open",
-      "expectedAccess": {
-        "admin": "redirected",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
-        "anonymous": "login-required"
-      },
-      "queryContract": "redirect-preserved",
-      "workflowEvidence": [
-        "src/app/legacy-redirects.test.ts"
-      ],
-      "limitations": [],
-      "expectedFinalPath": "/rent-income?query=HOME&tag=late&tag=open"
     }
   },
   {
@@ -3400,85 +3348,6 @@
         "src/features/finance-operations/components/finance-operations-screen.test.tsx"
       ],
       "limitations": []
-    }
-  },
-  {
-    "route": "/reports/finance-operations",
-    "source": "src/app/(dashboard)/reports/finance-operations/page.tsx",
-    "phase": 3,
-    "surface": "detail",
-    "roles": [
-      "admin"
-    ],
-    "states": [
-      "loading",
-      "populated",
-      "empty",
-      "error",
-      "permission-blocked"
-    ],
-    "evidence": {
-      "loading": [
-        "src/app/(dashboard)/reports/finance-operations/page.tsx",
-        "src/components/layout/module-loading.tsx"
-      ],
-      "populated": [
-        "src/app/(dashboard)/reports/finance-operations/page.tsx",
-        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
-      ],
-      "empty": [
-        "src/app/(dashboard)/reports/finance-operations/page.tsx",
-        "src/components/ui/empty-state.tsx"
-      ],
-      "error": [
-        "src/app/(dashboard)/reports/finance-operations/page.tsx",
-        "src/components/ui/error-state.tsx"
-      ],
-      "permission-blocked": [
-        "src/app/(dashboard)/reports/finance-operations/page.tsx",
-        "src/components/ui/status-notice.tsx"
-      ]
-    },
-    "smoke": {
-      "path": "/reports/finance-operations?view=owner",
-      "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
-        "anonymous": "login-required"
-      },
-      "queryContract": "preserved",
-      "workflowEvidence": [
-        "src/app/(dashboard)/reports/finance-operations/page.tsx",
-        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
-      ],
-      "limitations": []
-    }
-  },
-  {
-    "route": "/tenant-invoices",
-    "source": "src/app/(dashboard)/tenant-invoices/page.tsx",
-    "phase": 6,
-    "surface": "redirect",
-    "roles": [
-      "admin"
-    ],
-    "states": [],
-    "evidence": {},
-    "smoke": {
-      "path": "/tenant-invoices",
-      "expectedAccess": {
-        "admin": "redirected",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
-        "anonymous": "login-required"
-      },
-      "queryContract": "redirect-normalized",
-      "workflowEvidence": [
-        "src/app/(dashboard)/tenant-invoices/page.tsx"
-      ],
-      "limitations": [],
-      "expectedFinalPath": "/rent-income"
     }
   }
 ]

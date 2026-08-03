@@ -22,22 +22,20 @@ describe("parseOverviewSearchParams", () => {
     });
   });
 
-  it.each([
-    ["company-pnl", "finance", "collections"],
-    ["owner-receivables", "finance", "management-fees"],
-    ["ledger", "finance", "transactions"],
-    ["property-ranking", "all", "collections"],
-  ] as const)("maps legacy %s links", (financeView, lens, expectedView) => {
+  it.each(["company-pnl", "owner-receivables", "ledger", "property-ranking"])(
+    "normalizes retired finance view %s to Portfolio",
+    (financeView) => {
     expect(
       parseOverviewSearchParams(
         { financeView, lens: "finance" },
         new Date("2026-07-10"),
       ),
     ).toMatchObject({
-      financeView: expectedView,
-      lens,
+      financeView: "collections",
+      lens: "all",
     });
-  });
+    },
+  );
 
   it.each(["constructor", "__proto__"])(
     "rejects inherited object key %s as a finance view",

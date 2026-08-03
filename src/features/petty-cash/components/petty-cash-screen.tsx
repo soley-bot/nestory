@@ -42,10 +42,6 @@ import {
   voidPettyCashEntryAction,
   type PettyCashActionState,
 } from "@/features/petty-cash/actions";
-import {
-  economicScopeOptions,
-  ownerBillStatusOptions,
-} from "@/features/bills-expenses/bills-expenses.types";
 import type {
   PettyCashAccount,
   PettyCashEntry,
@@ -54,6 +50,10 @@ import type {
   PettyCashSchemaStatus,
   PettyCashSummary,
   PettyCashUnitOption,
+} from "@/features/petty-cash/petty-cash.types";
+import {
+  pettyCashEconomicScopeOptions,
+  pettyCashOwnerBillStatusOptions,
 } from "@/features/petty-cash/petty-cash.types";
 import {
   PERSON_SELECT_EXTERNAL_VALUE,
@@ -1188,7 +1188,7 @@ function PettyCashEntryForm({
                       value === "company_advance" ? "billable" : "not_billable",
                     );
                   }}
-                  options={[...economicScopeOptions]}
+                  options={[...pettyCashEconomicScopeOptions]}
                   value={economicScope}
                 />
               </Field>
@@ -1201,7 +1201,7 @@ function PettyCashEntryForm({
                   disabled={economicScope !== "company_advance"}
                   name="ownerBillStatus"
                   onValueChange={setOwnerBillStatus}
-                  options={[...ownerBillStatusOptions]}
+                  options={[...pettyCashOwnerBillStatusOptions]}
                   value={ownerBillStatus}
                 />
               </Field>
@@ -1630,7 +1630,7 @@ function getDrawerTitle(drawer: DrawerState) {
 
 function getDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "account") {
-    return "Start the IPS-style PM cash register.";
+    return "Start the property cash register.";
   }
 
   if (drawer.mode === "post") {

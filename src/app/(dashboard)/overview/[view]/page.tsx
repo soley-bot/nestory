@@ -31,5 +31,5 @@ export default async function OverviewDetailRoute({
 }
 
 function isOverviewDetailView(value: string): value is OverviewDetailView {
-  return value === "attention" || value === "readiness";
+  return value === "attention";
 }

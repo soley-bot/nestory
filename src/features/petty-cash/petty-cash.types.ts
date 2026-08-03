@@ -14,6 +14,21 @@ export type PettyCashOwnerBillStatus =
   | "reimbursed"
   | "written_off";
 
+export const pettyCashEconomicScopeOptions = [
+  { label: "Property expense", value: "property_expense" },
+  { label: "Company advance", value: "company_advance" },
+  { label: "Company cost", value: "company_cost" },
+] as const;
+
+export const pettyCashOwnerBillStatusOptions = [
+  { label: "Not billable", value: "not_billable" },
+  { label: "Billable", value: "billable" },
+  { label: "Billed", value: "billed" },
+  { label: "Partially reimbursed", value: "partially_reimbursed" },
+  { label: "Reimbursed", value: "reimbursed" },
+  { label: "Written off", value: "written_off" },
+] as const;
+
 export type PettyCashAccount = {
   accountNumber: string;
   currency: CurrencyCode;

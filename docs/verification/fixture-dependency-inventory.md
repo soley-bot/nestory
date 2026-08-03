@@ -1,7 +1,8 @@
 # Fixture Dependency Inventory
 
-**Inventory baseline:** `b592557f3d2919ab5bd7932426fc218a1bea5d4d`  
-**Seed file:** `supabase/seed.sql`  
+**Inventory baseline:** `b592557f3d2919ab5bd7932426fc218a1bea5d4d`
+**Test-only baseline:** `supabase/tests/fixtures/legacy-baseline.sql`
+**Runtime seeding:** disabled; normal local resets start empty
 **Inventory method:** full-repository UUID, login, route, name, status, and
 script search; pgTAP bodies were classified by whether they read/mutate seeded
 rows or merely reuse the UUID namespace inside transaction-local fixtures.
@@ -20,7 +21,7 @@ rows or merely reuse the UUID namespace inside transaction-local fixtures.
 | Primary branch | `00000000-0000-0000-0000-000000000501` | access and maintenance scope |
 | Secondary branch | `00000000-0000-0000-0000-000000000503` | access uniqueness/acceptance coverage |
 
-All four logins keep the local-only password documented in the seed. No test
+All four logins keep the local-only password documented in the test fixture. No test
 may inspect a password hash.
 
 ## Material pgTAP dependencies
@@ -60,11 +61,11 @@ report-document snapshot. They do not require rich portfolio rows.
   fixture login and exercises assigned work.
 - Component tests use presentation-only names such as `Riverside House` and
   `Dara Sok`; only the SQL income-payer suite couples a presentation name to
-  the database seed.
+  the database test fixture.
 
-## Current seed bypass inventory
+## Test baseline bypass inventory
 
-The baseline seed directly inserts every operational layer:
+The test-only baseline directly inserts every operational layer:
 
 - organizations, branches, properties, units, people, memberships, roles,
   contacts, owners, vendors;
@@ -76,11 +77,10 @@ allocations, deposit events, petty cash, accounting source links, documents, or
 photos. Direct seeded Ledger rows therefore dominate the old demo story and
 do not represent current finance workflows.
 
-Direct deterministic inserts remain necessary for local reset identities
-because the checked creation RPCs generate random primary keys. The rebuilt
-seed must label that boundary, insert the same normalized/source columns those
-RPCs enforce, and prove equivalent invariants with pgTAP. Application code
-continues to use checked RPCs.
+Direct deterministic inserts remain in the test-only baseline because some
+checked creation RPCs generate random primary keys. Normal local work starts
+from migrations without application data; application code continues to use
+checked RPCs.
 
 ## Rows to retire or refresh
 

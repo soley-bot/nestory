@@ -14,7 +14,6 @@ import { cn } from "@/lib/utils";
 
 const lenses: Array<{ label: string; value: OverviewLens }> = [
   { label: "Portfolio", value: "all" },
-  { label: "Property finance", value: "finance" },
   { label: "Leasing", value: "leasing" },
   { label: "Maintenance", value: "maintenance" },
   { label: "Records", value: "records" },

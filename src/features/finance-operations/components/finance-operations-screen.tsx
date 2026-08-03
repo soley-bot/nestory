@@ -51,7 +51,7 @@ import { formatMoneyDisplay } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 export type FinanceOperationsView =
-  "account" | "balances" | "expenses" | "rent" | "reports" | "work";
+  "account" | "balances" | "expenses" | "rent" | "work";
 
 type ModalState =
   | { lease: FinanceLease; mode: "generate" }
@@ -73,7 +73,6 @@ type DrawerState =
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
   organizationName: string;
-  reportView?: "ips" | "owner";
   selectedPropertyId?: string | null;
   view: FinanceOperationsView;
 };
@@ -113,11 +112,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       actions={screen.actions}
       context={screen.context}
       contextHref={screen.contextHref}
-      localNav={
-        props.view === "reports" ? undefined : (
-          <FinanceWorkspaceNavigation activeRoute={screen.activeRoute} />
-        )
-      }
+      localNav={<FinanceWorkspaceNavigation activeRoute={screen.activeRoute} />}
       title={screen.title}
       toolbar={screen.toolbar}
     >
@@ -319,20 +314,8 @@ function getScreen(
     };
   }
 
-  if (props.view === "reports") {
-    return {
-      activeRoute: "/finance-dashboard" as const,
-      actions: undefined,
-      body: <FinanceReportsView {...props} />,
-      context: "Operational",
-      contextHref: "/reports/finance-operations",
-      title: "Finance reports",
-      toolbar: undefined,
-    };
-  }
-
   return {
-    activeRoute: "/finance-dashboard" as const,
+    activeRoute: "/finance" as const,
     actions: (
       <Button
         onClick={() => openModal({ mode: "payment" })}
@@ -351,7 +334,7 @@ function getScreen(
       />
     ),
     context: "Open work",
-    contextHref: "/finance-dashboard",
+    contextHref: "/finance",
     title: "Finance work",
     toolbar: undefined,
   };
@@ -650,10 +633,10 @@ function ExpensesView({
             <Th>Date</Th>
             <Th>Expense</Th>
             <Th>Property</Th>
-            <Th>Responsible</Th>
-            <Th>Amount paid</Th>
-            <Th>Customer total</Th>
-            <Th>Funding</Th>
+            <Th>Charged to</Th>
+            <Th>Paid</Th>
+            <Th>Billed</Th>
+            <Th>Status</Th>
           </tr>
         </thead>
         <tbody>
@@ -674,7 +657,9 @@ function ExpensesView({
                     expense.responsibility === "owner" ? "accent" : "neutral"
                   }
                 >
-                  {expense.responsibility === "owner" ? "Owner" : "Tenant"}
+                  {expense.responsibility === "owner"
+                    ? "Property owner"
+                    : "Tenant or company"}
                 </Badge>
                 <p className="mt-1 text-xs text-muted">
                   {expense.responsibleLabel}
@@ -688,13 +673,13 @@ function ExpensesView({
               </Td>
               <Td>
                 {expense.responsibility === "tenant" ? (
-                  "Tenant invoice"
+                  "Added to invoice"
                 ) : expense.ipsAdvanceAmount > 0 ? (
                   <span className="text-warning">
-                    Advance paid <Money amount={expense.ipsAdvanceAmount} />
+                    Owner owes <Money amount={expense.ipsAdvanceAmount} />
                   </span>
                 ) : (
-                  "Held cash"
+                  "Deducted from owner funds"
                 )}
               </Td>
             </tr>
@@ -948,113 +933,6 @@ function PropertyAccountView({
             </tbody>
           </table>
         </TableFrame>
-      )}
-    </div>
-  );
-}
-
-function FinanceReportsView(props: FinanceOperationsScreenProps) {
-  const reportView = props.reportView ?? "owner";
-  const totalFees = props.positions.reduce(
-    (sum, position) => sum + position.managementFeeExpense,
-    0,
-  );
-  const totalMarkup = props.expenses.reduce(
-    (sum, expense) => sum + expense.internalMarkup,
-    0,
-  );
-  const unpaidAdvances = props.positions.reduce(
-    (sum, position) => sum + position.ownerOwesIps,
-    0,
-  );
-  const unpaidTenantInvoices = props.tenantInvoices.filter(
-    (invoice) => invoice.balanceDue > 0,
-  ).length;
-  return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
-      <div className="flex shrink-0 gap-1 border-b border-border px-4 py-2 sm:px-6">
-        <Link
-          className={tabClass(reportView === "owner")}
-          href="/reports/finance-operations?view=owner"
-        >
-          Owner report
-        </Link>
-        <Link
-          className={tabClass(reportView === "ips")}
-          href="/reports/finance-operations?view=ips"
-        >
-          {props.organizationName} report
-        </Link>
-      </div>
-      {reportView === "owner" ? (
-        <TableFrame>
-          <table className="w-full min-w-[960px] text-sm">
-            <thead>
-              <tr>
-                <Th>Property</Th>
-                <Th>Rent income</Th>
-                <Th>Management fee</Th>
-                <Th>Owner expenses</Th>
-                <Th>Withdrawals</Th>
-                <Th>Balance</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {props.positions.map((position) => (
-                <tr
-                  className="border-b border-border"
-                  key={position.propertyId}
-                >
-                  <Td>
-                    <Link
-                      className="font-medium hover:underline"
-                      href={`/properties/${position.propertyId}/account`}
-                    >
-                      {position.propertyLabel}
-                    </Link>
-                    <p className="text-xs text-muted">{position.ownerLabel}</p>
-                  </Td>
-                  <Td>
-                    <Money amount={position.rentIncome} />
-                  </Td>
-                  <Td>
-                    <Money amount={position.managementFeeExpense} />
-                  </Td>
-                  <Td>
-                    <Money amount={position.ownerExpense} />
-                  </Td>
-                  <Td>
-                    <Money amount={position.withdrawals} />
-                  </Td>
-                  <Td>
-                    <Money amount={position.runningBalance} />
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableFrame>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-          <div className="overflow-hidden rounded-md border border-border">
-            <ReportLine
-              label="Management fee income"
-              value={<Money amount={totalFees} />}
-            />
-            <ReportLine
-              label="Markup income"
-              value={<Money amount={totalMarkup} />}
-            />
-            <ReportLine
-              label="Unpaid owner advances and fees"
-              value={<Money amount={unpaidAdvances} />}
-            />
-            <ReportLine
-              label="Tenant invoices with a balance"
-              value={unpaidTenantInvoices}
-            />
-          </div>
-        </div>
       )}
     </div>
   );
@@ -1560,6 +1438,9 @@ function ExpenseForm({
   const matchingInvoices = invoices.filter(
     (invoice) => invoice.propertyId === propertyId && invoice.balanceDue > 0,
   );
+  const effectiveMarkup =
+    effectiveResponsibility === "tenant" ? markup : "0";
+  const invoiceTotal = Number(cost || 0) + Number(effectiveMarkup || 0);
   useSuccess(state, onSuccess);
   return (
     <form action={action} className="space-y-5 p-5">
@@ -1568,7 +1449,7 @@ function ExpenseForm({
       <input name="category" type="hidden" value={category} />
       <input name="vendorLabel" type="hidden" value={vendor} />
       <input name="internalCost" type="hidden" value={cost} />
-      <input name="internalMarkup" type="hidden" value={markup} />
+      <input name="internalMarkup" type="hidden" value={effectiveMarkup} />
       <input name="expenseDate" type="hidden" value={expenseDate} />
       <input name="reference" type="hidden" value={reference} />
       <input
@@ -1582,130 +1463,144 @@ function ExpenseForm({
         value={effectiveResponsibility === "tenant" ? tenantInvoiceId : ""}
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
-      <FormSection title="Expense details">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Property">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Property">
+          <SelectControl
+            onValueChange={(value) => {
+              setPropertyId(value);
+              setUnitId("");
+              setTenantInvoiceId("");
+            }}
+            options={propertyOptions.map((option) => ({
+              label: option.label,
+              value: option.id,
+            }))}
+            value={propertyId}
+          />
+        </Field>
+        <Field label="Unit">
+          <SelectControl
+            onValueChange={setUnitId}
+            options={[
+              { label: "No unit", value: "" },
+              ...unitOptions
+                .filter((option) => option.propertyId === propertyId)
+                .map((option) => ({ label: option.label, value: option.id })),
+            ]}
+            value={unitId}
+          />
+        </Field>
+        <Field label="Expense">
+          <SelectControl
+            onValueChange={setCategory}
+            options={[
+              { label: "Cleaning", value: "cleaning" },
+              { label: "Utility", value: "utility" },
+              {
+                label: "Repairs and maintenance",
+                value: "repairs_maintenance",
+              },
+              { label: "Other", value: "other" },
+            ]}
+            value={category}
+          />
+        </Field>
+        <Field label="Paid to">
+          <Input
+            onChange={(event) => setVendor(event.target.value)}
+            placeholder="Vendor or payee"
+            required
+            value={vendor}
+          />
+        </Field>
+        <Field label="Amount paid">
+          <NumberInput
+            onChange={(event) => setCost(event.target.value)}
+            required
+            value={cost}
+          />
+        </Field>
+        <Field label="Date">
+          <Input
+            onChange={(event) => setExpenseDate(event.target.value)}
+            type="date"
+            value={expenseDate}
+          />
+        </Field>
+      </div>
+
+      <fieldset className="space-y-2 border-t border-border pt-4">
+        <legend className="text-sm font-semibold">Charge this to</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button
+            aria-pressed={effectiveResponsibility === "owner"}
+            className={cn(
+              "rounded-md border px-3 py-3 text-left text-sm font-medium transition-colors",
+              effectiveResponsibility === "owner"
+                ? "border-accent bg-accent-soft text-foreground"
+                : "border-border bg-surface text-foreground-muted hover:bg-surface-muted",
+            )}
+            onClick={() => setResponsibility("owner")}
+            type="button"
+          >
+            Property owner
+          </button>
+          <button
+            aria-pressed={effectiveResponsibility === "tenant"}
+            className={cn(
+              "rounded-md border px-3 py-3 text-left text-sm font-medium transition-colors",
+              effectiveResponsibility === "tenant"
+                ? "border-accent bg-accent-soft text-foreground"
+                : "border-border bg-surface text-foreground-muted hover:bg-surface-muted",
+            )}
+            onClick={() => setResponsibility("tenant")}
+            type="button"
+          >
+            Tenant or company
+          </button>
+        </div>
+      </fieldset>
+
+      {effectiveResponsibility === "tenant" ? (
+        <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
+          <Field label="Invoice">
             <SelectControl
-              onValueChange={(value) => {
-                setPropertyId(value);
-                setUnitId("");
-                setTenantInvoiceId("");
-              }}
-              options={propertyOptions.map((option) => ({
-                label: option.label,
-                value: option.id,
+              onValueChange={setTenantInvoiceId}
+              options={matchingInvoices.map((invoice) => ({
+                label: `${invoice.recipientLabel} · ${invoice.invoiceNumber}`,
+                value: invoice.id,
               }))}
-              value={propertyId}
+              placeholder={
+                matchingInvoices.length > 0
+                  ? "Choose invoice"
+                  : "No open invoice"
+              }
+              value={tenantInvoiceId}
             />
           </Field>
-          <Field label="Unit">
-            <SelectControl
-              onValueChange={setUnitId}
-              options={[
-                { label: "No unit", value: "" },
-                ...unitOptions
-                  .filter((option) => option.propertyId === propertyId)
-                  .map((option) => ({ label: option.label, value: option.id })),
-              ]}
-              value={unitId}
-            />
-          </Field>
-          <Field label="Expense">
-            <SelectControl
-              onValueChange={setCategory}
-              options={[
-                { label: "Cleaning", value: "cleaning" },
-                { label: "Utility", value: "utility" },
-                {
-                  label: "Repairs and Maintenance",
-                  value: "repairs_maintenance",
-                },
-                { label: "Other", value: "other" },
-              ]}
-              value={category}
-            />
-          </Field>
-          <Field label="Vendor">
-            <Input
-              onChange={(event) => setVendor(event.target.value)}
-              placeholder="Vendor or payee"
-              required
-              value={vendor}
-            />
-          </Field>
-          <Field label="Amount paid">
-            <NumberInput
-              onChange={(event) => setCost(event.target.value)}
-              required
-              value={cost}
-            />
-          </Field>
-          <Field label="Markup / service fee">
+          <Field label="Service fee">
             <NumberInput
               onChange={(event) => setMarkup(event.target.value)}
               required
               value={markup}
             />
           </Field>
-          <Field label="Date">
-            <Input
-              onChange={(event) => setExpenseDate(event.target.value)}
-              type="date"
-              value={expenseDate}
-            />
-          </Field>
-          <Field label="Receipt / reference">
-            <Input
-              onChange={(event) => setReference(event.target.value)}
-              placeholder="Receipt number or note"
-              value={reference}
-            />
-          </Field>
+          <div className="flex items-center justify-between gap-4 border-t border-border pt-3 text-sm sm:col-span-2">
+            <span className="text-muted">Invoice line</span>
+            <span className="font-semibold">
+              {categoryLabel(category)} · {formatMoneyDisplay(invoiceTotal).primary}
+            </span>
+          </div>
         </div>
-      </FormSection>
-      <FormSection title="Responsibility">
-        <div className="space-y-4">
-          <Field label="Who is responsible?">
-            <SelectControl
-              onValueChange={(value) => {
-                if (value === "owner" || value === "tenant") {
-                  setResponsibility(value);
-                }
-              }}
-              options={[
-                { label: "Owner", value: "owner" },
-                { label: "Tenant", value: "tenant" },
-              ]}
-              value={effectiveResponsibility}
-            />
-          </Field>
-          {effectiveResponsibility === "tenant" ? (
-            <Field label="Add to invoice">
-              <SelectControl
-                onValueChange={setTenantInvoiceId}
-                options={matchingInvoices.map((invoice) => ({
-                  label: `${invoice.recipientLabel} · ${invoice.invoiceNumber}`,
-                  value: invoice.id,
-                }))}
-                placeholder="Choose invoice"
-                value={tenantInvoiceId}
-              />
-            </Field>
-          ) : null}
-          <DefinitionRows
-            rows={[
-              [
-                "Customer sees",
-                `${categoryLabel(category)} · ${formatMoneyDisplay(Number(cost || 0) + Number(markup || 0)).primary}`,
-              ],
-              [
-                "Internal breakdown",
-                `Cost ${formatMoneyDisplay(Number(cost || 0)).primary} · Markup ${formatMoneyDisplay(Number(markup || 0)).primary}`,
-              ],
-            ]}
-          />
-        </div>
-      </FormSection>
+      ) : null}
+
+      <Field label="Receipt or reference">
+        <Input
+          onChange={(event) => setReference(event.target.value)}
+          placeholder="Optional"
+          value={reference}
+        />
+      </Field>
       <ActionMessage state={state} />
       <FormFooter>
         <span />
@@ -1716,7 +1611,11 @@ function ExpenseForm({
             Number(cost) <= 0 ||
             (effectiveResponsibility === "tenant" && !tenantInvoiceId)
           }
-          label="Record expense"
+          label={
+            effectiveResponsibility === "tenant"
+              ? "Add to invoice"
+              : "Save owner expense"
+          }
         />
       </FormFooter>
     </form>
@@ -1979,26 +1878,6 @@ function TabButton({
     </Button>
   );
 }
-function tabClass(active: boolean) {
-  return cn(
-    "inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium hover:bg-surface-muted",
-    active ? "bg-accent-soft" : "text-muted",
-  );
-}
-function FormSection({
-  children,
-  title,
-}: {
-  children: ReactNode;
-  title: string;
-}) {
-  return (
-    <section className="space-y-4 border-b border-border pb-5 last:border-b-0 last:pb-0">
-      <h3 className="text-sm font-semibold">{title}</h3>
-      {children}
-    </section>
-  );
-}
 function Field({ children, label }: { children: ReactNode; label: string }) {
   return (
     <label className="block space-y-1.5 text-sm">
@@ -2112,13 +1991,5 @@ function StepIndicator({
         );
       })}
     </ol>
-  );
-}
-function ReportLine({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3 last:border-b-0">
-      <span className="text-sm">{label}</span>
-      <span className="text-sm font-semibold">{value}</span>
-    </div>
   );
 }

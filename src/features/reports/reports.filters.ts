@@ -17,11 +17,8 @@ const datePattern = /^(\d{4})-(0[1-9]|1[0-2])-\d{2}$/;
 
 type ReportSearchParams = Record<string, SearchParamValue>;
 
-export const DEFAULT_REPORT_KIND: ReportKind = "unit-profit-loss";
+export const DEFAULT_REPORT_KIND: ReportKind = "owner-activity";
 export const DEFAULT_REPORT_STATUS: ReportStatusFilter = "all";
-
-export const OWNER_STATEMENT_UNIT_SCOPE_MESSAGE =
-  "Owner Statements are property-level reports. Clear the unit filter to continue.";
 
 export function parseReportSearchParams(
   params: ReportSearchParams,
@@ -58,26 +55,11 @@ export function getReportMonthRange(month: string) {
   };
 }
 
-export function getReportScopeValidation(viewQuery: ReportsViewQuery) {
-  return viewQuery.report === "owner-statement" && viewQuery.unitId !== "all"
-    ? {
-        code: "owner_statement_unit_scope" as const,
-        message: OWNER_STATEMENT_UNIT_SCOPE_MESSAGE,
-        status: 400 as const,
-      }
-    : null;
-}
-
 function parseReportKind(value: string | string[] | undefined): ReportKind {
   const candidate = getFirstSearchParam(value);
 
-  if (candidate === "profit-loss" || candidate === "unit-performance") {
-    return "unit-profit-loss";
-  }
-
-  return candidate === "unit-profit-loss" ||
-    candidate === "owner-statement" ||
-    candidate === "management-fees"
+  return candidate === "owner-activity" ||
+    candidate === "unit-profit-loss"
     ? candidate
     : DEFAULT_REPORT_KIND;
 }

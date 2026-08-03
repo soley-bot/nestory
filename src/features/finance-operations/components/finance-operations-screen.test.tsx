@@ -58,7 +58,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getAllByText("Collected by owner").length).toBeGreaterThan(0);
   });
 
-  it("uses one expense drawer without turning the transaction into setup", () => {
+  it("keeps the expense drawer plain and reveals billing only when needed", () => {
     render(
       <FinanceOperationsScreen
         {...data()}
@@ -70,10 +70,20 @@ describe("FinanceOperationsScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add expense" }));
     expect(screen.getByRole("dialog", { name: "Add expense" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
-    expect(screen.getByText("Expense details")).not.toBeNull();
-    expect(screen.getByText("Responsibility")).not.toBeNull();
+    expect(screen.getByText("Charge this to")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Property owner" })).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Tenant or company" }),
+    ).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
     expect(screen.getByLabelText("Amount paid")).not.toBeNull();
+    expect(screen.queryByText("Internal breakdown")).toBeNull();
+    expect(screen.queryByText("Service fee")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tenant or company" }));
+    expect(screen.getByText("Service fee")).not.toBeNull();
+    expect(screen.getByText("Invoice line")).not.toBeNull();
+    expect(screen.getByText("No open invoice")).not.toBeNull();
   });
 
   it("keeps invoice selection inside the record payment modal", () => {

@@ -88,6 +88,9 @@ jobs:
           npm run db:types
           git diff --exit-code -- src/types/database.generated.ts
 
+      - name: Load database test baseline
+        run: npm run db:test:fixture
+
       - name: Test database
         run: npx supabase test db --local supabase/tests
 

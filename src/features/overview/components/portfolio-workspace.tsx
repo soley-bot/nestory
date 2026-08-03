@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { PropertyScorecard } from "@/features/overview/components/property-scorecard";
 import type {
   OverviewScreenData,
   OverviewViewQuery,
@@ -14,31 +12,80 @@ export function PortfolioWorkspace({
   data: OverviewScreenData;
   query: OverviewViewQuery;
 }) {
-  const summary = data.propertyPerformance.summary;
-  const readiness = summary.statementReadiness;
-  const readinessParams = new URLSearchParams({ month: query.month });
-  if (query.propertyId !== "all") {
-    readinessParams.set("propertyId", query.propertyId);
-  }
   return (
-    <div className="space-y-2.5">
-      <PropertyScorecard query={query} rows={data.propertyPerformance.rows} />
-      <section className="flex flex-wrap items-center gap-2 border-y border-border px-1 py-2">
-        <span className="text-xs font-semibold text-foreground">Statement readiness</span>
-        <Badge tone={readiness.blockedPropertyCount > 0 ? "warning" : "success"}>
-          {readiness.readyPropertyCount} ready {readiness.readyPropertyCount === 1 ? "property" : "properties"}
-        </Badge>
-        <span className="text-xs text-foreground-muted">
-          {readiness.totalPropertyCount} total {readiness.totalPropertyCount === 1 ? "property" : "properties"}
-        </span>
-        <Link
-          className="ml-auto inline-flex h-7 items-center gap-1.5 px-2.5 text-xs font-medium text-foreground-muted hover:text-foreground"
-          href={`/overview/readiness?${readinessParams.toString()}`}
-        >
-          Review readiness
-          <ArrowRight aria-hidden="true" size={13} />
-        </Link>
+    <div className="space-y-3">
+      <section
+        aria-label="Portfolio counts"
+        className="grid overflow-hidden rounded-lg border border-border bg-surface sm:grid-cols-4"
+      >
+        <Count label="Properties" value={data.workspaceSetup.propertyCount} />
+        <Count label="Units" value={data.workspaceSetup.unitCount} />
+        <Count label="Active leases" value={data.workspaceSetup.activeLeaseCount} />
+        <Count label="Open checks" value={data.attentionTotal} />
       </section>
+
+      <section className="overflow-hidden border-y border-border">
+        <div className="flex items-center gap-3 border-b border-border px-3 py-2.5">
+          <div className="mr-auto">
+            <h2 className="text-sm font-semibold">Properties</h2>
+            <p className="mt-0.5 text-xs text-foreground-muted">
+              Occupancy and current operating records.
+            </p>
+          </div>
+          <Link
+            className="inline-flex items-center gap-1 text-xs font-medium hover:underline"
+            href="/properties"
+          >
+            View all <ArrowRight size={13} />
+          </Link>
+        </div>
+        <div className="grid grid-cols-[minmax(0,1fr)_90px_90px] gap-3 border-b border-border px-3 py-2 text-xs font-medium uppercase tracking-wide text-foreground-muted">
+          <span>Property</span>
+          <span>Occupied</span>
+          <span>Units</span>
+        </div>
+        {data.occupancyByProperty.length > 0 ? (
+          <div className="divide-y divide-border">
+            {data.occupancyByProperty.map((property) => (
+              <Link
+                className="grid grid-cols-[minmax(0,1fr)_90px_90px] gap-3 px-3 py-3 text-sm hover:bg-surface-muted"
+                href={property.href}
+                key={property.href}
+              >
+                <span className="truncate font-medium">{property.label}</span>
+                <span className="tabular-nums">{property.percent}%</span>
+                <span className="tabular-nums">{property.totalUnits}</span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="px-3 py-8 text-sm text-foreground-muted">
+            No properties are available.
+          </p>
+        )}
+      </section>
+
+      {data.attentionTotal > 0 ? (
+        <Link
+          className="flex items-center gap-2 border-y border-border px-3 py-3 text-sm hover:bg-surface-muted"
+          href={`/overview/attention?month=${query.month}`}
+        >
+          <span className="mr-auto font-medium">Needs attention</span>
+          <span className="tabular-nums text-foreground-muted">
+            {data.attentionTotal} open checks
+          </span>
+          <ArrowRight size={14} />
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+function Count({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="border-b border-border px-3 py-2.5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+      <p className="text-xs text-foreground-muted">{label}</p>
+      <p className="mt-1 text-sm font-semibold tabular-nums">{value}</p>
     </div>
   );
 }

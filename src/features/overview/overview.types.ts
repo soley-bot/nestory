@@ -6,19 +6,13 @@ import type {
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
 export type OverviewMetricTone = "neutral" | "success" | "warning" | "danger";
-export type OverviewLens = "all" | "finance" | "leasing" | "maintenance" | "records";
-export type OverviewFinanceView =
-  | "collections"
-  | "expenses"
-  | "management-fees"
-  | "owner-statements"
-  | "transactions";
+export type OverviewLens = "all" | "leasing" | "maintenance" | "records";
+export type OverviewFinanceView = "collections";
 export type OverviewReview =
   | "all"
   | "negative"
   | "arrears"
-  | "bills"
-  | "statement-blocked";
+  | "bills";
 export type OverviewPropertySort =
   | "property-asc"
   | "property-desc"
@@ -92,55 +86,6 @@ export type OverviewLedgerPoint = {
   net: number;
 };
 
-export type OverviewPropertyPerformanceRow = {
-  arrears: MoneyDisplayValue;
-  arrearsAmount: number;
-  cashExpenses: MoneyDisplayValue;
-  cashExpensesAmount: number;
-  cashIncome: MoneyDisplayValue;
-  cashIncomeAmount: number;
-  collectionRate: number;
-  href: string;
-  label: string;
-  managementFeeEarned: MoneyDisplayValue;
-  managementFeeEarnedAmount: number;
-  managementFeeOutstandingAmount: number;
-  managementFeeReceived: MoneyDisplayValue;
-  managementFeeReceivedAmount: number;
-  netCash: MoneyDisplayValue;
-  netCashAmount: number;
-  propertyId: string;
-  readyStatementCount: number;
-  securityDepositHeldAmount: number;
-  statementBlockers: number;
-  status: "healthy" | "attention" | "arrears" | "loss";
-  unitCount: number;
-};
-
-export type OverviewStatementReadiness = {
-  blockedPropertyCount: number;
-  readyPropertyCount: number;
-  readyStatementCount: number;
-  totalPropertyCount: number;
-};
-
-export type OverviewPortfolioSummary = {
-  arrearsAmount: number;
-  cashExpensesAmount: number;
-  cashIncomeAmount: number;
-  collectionRate: number;
-  managementFeeEarnedAmount: number;
-  managementFeeOutstandingAmount: number;
-  managementFeeReceivedAmount: number;
-  netCashAmount: number;
-  statementReadiness: OverviewStatementReadiness;
-};
-
-export type OverviewPropertyPerformance = {
-  rows: OverviewPropertyPerformanceRow[];
-  summary: OverviewPortfolioSummary;
-};
-
 export type OverviewLeaseEndingPoint = {
   count: number;
   href: string;
@@ -172,8 +117,6 @@ export type OverviewRecordPoint = {
   label: string;
   missingTenantLinks: number;
   ownerLinked: boolean;
-  readyStatementCount: number;
-  statementBlockers: number;
   unitCount: number;
 };
 
@@ -202,7 +145,6 @@ export type OverviewScreenData = {
   maintenanceByProperty: OverviewMaintenancePoint[];
   metrics: OverviewMetric[];
   occupancyByProperty: OverviewOccupancyPoint[];
-  propertyPerformance: OverviewPropertyPerformance;
   recordsByProperty: OverviewRecordPoint[];
   quickActions: OverviewQuickAction[];
   recentChanges: RecentChange[];

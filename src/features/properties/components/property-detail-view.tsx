@@ -456,11 +456,11 @@ function PropertyReportsPanel({
   return (
     <>
       <SectionTitle
-        description="The three monthly statements required by the Nestory reporting brief"
+        description="Monthly owner activity and unit profit and loss"
         icon={<FileText size={16} />}
         title="Reports"
       />
-      <div className="grid gap-2 p-4 md:grid-cols-3">
+      <div className="grid gap-2 p-4 md:grid-cols-2">
         {reportCatalog.map((statement) => (
           <Link
             className="group flex min-h-32 flex-col rounded-md border border-border bg-surface p-3 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -477,7 +477,7 @@ function PropertyReportsPanel({
               {statement.description}
             </p>
             <span className="mt-auto inline-flex items-center gap-1.5 pt-3 text-xs font-medium text-foreground">
-              Open statement
+              Open report
               <ExternalLink aria-hidden="true" size={13} />
             </span>
           </Link>

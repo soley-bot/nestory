@@ -1,5 +1,4 @@
 import { getTrustedReport } from "@/features/reports/data/trusted-report";
-import { selectOwnerStatementRecipient } from "@/features/reports/data/owner-statement-report";
 import {
   formatLongReportDate,
   getReportExportFilename,
@@ -10,7 +9,6 @@ import type {
   OccupancyReportRow,
   ReportsViewQuery,
   TrustedReport,
-  TrustedReportRow,
   UnitProfitLossLine,
 } from "@/features/reports/reports.types";
 
@@ -81,11 +79,6 @@ type IncomeExpenseStatementEntry = {
   property: string;
 };
 
-type OwnerStatementMoneyMetric = {
-  key: string;
-  label: string;
-};
-
 type UnitStatementFlowRow =
   | { height: number; kind: "section"; label: "EXPENSES" | "INCOME" }
   | {
@@ -135,9 +128,6 @@ const tableTopY = 382;
 const statementTableTopY = 438;
 const tableBottomY = 45;
 const headerRowHeight = 24;
-const ownerStatementIdentityHeight = 56;
-const ownerStatementMoneyRowHeight = 54;
-const ownerStatementSectionHeaderHeight = 18;
 const unitStatementFirstContentTop = 620;
 const unitStatementContinuationContentTop = 704;
 const unitStatementContentBottom = 58;
@@ -189,35 +179,6 @@ const unitStatementSourceTraceColumns: PdfColumn[] = [
   { label: "Source link", maxLines: 10, width: 200 },
 ];
 
-const ownerStatementCashRows: OwnerStatementMoneyMetric[][] = [
-  [
-    { key: "operatingCash", label: "Operating cash received" },
-    { key: "propertyExpenses", label: "Property expenses paid" },
-    { key: "managementReceived", label: "Management fees received" },
-  ],
-  [
-    { key: "ownerContributions", label: "Owner contributions" },
-    { key: "ownerPayouts", label: "Owner payouts" },
-    { key: "netMovement", label: "Net owner cash movement" },
-  ],
-];
-
-const ownerStatementDisclosureRows: OwnerStatementMoneyMetric[][] = [
-  [
-    { key: "managementEarned", label: "Management fees earned" },
-    {
-      key: "managementOutstanding",
-      label: "Management fees outstanding from this period",
-    },
-    { key: "depositsHeld", label: "Security deposits held" },
-  ],
-];
-
-const ownerStatementMoneyRows = [
-  ...ownerStatementCashRows,
-  ...ownerStatementDisclosureRows,
-];
-
 const columns: PdfColumn[] = [
   { align: "center", label: "No.", maxLines: 1, width: 30 },
   { label: "Property Name", maxLines: 2, width: 168 },
@@ -241,24 +202,9 @@ export async function getReportPdf(
   if (readinessReport.exportValidation) {
     return { validation: readinessReport.exportValidation };
   }
-  let report = readinessReport;
-
-  if (readinessReport.kind === "owner-statement") {
-    const selection = selectOwnerStatementRecipient(readinessReport, viewQuery);
-    if ("status" in selection) {
-      return {
-        validation: {
-          message: selection.message,
-          status: selection.status,
-        },
-      };
-    }
-    report = selection.report;
-  }
-
   return {
-    body: buildTrustedReportPdf({ organizationName, report }),
-    filename: getReportExportFilename(report, viewQuery, "pdf"),
+    body: buildTrustedReportPdf({ organizationName, report: readinessReport }),
+    filename: getReportExportFilename(readinessReport, viewQuery, "pdf"),
   };
 }
 
@@ -278,10 +224,6 @@ export function buildTrustedReportPdf({
   if (report.kind === "income-expense") {
     return buildIncomeExpenseStatementPdf({ organizationName, report });
   }
-  if (report.kind === "owner-statement") {
-    return buildOwnerStatementPdf({ organizationName, report });
-  }
-
   const reportColumns = buildTrustedReportPdfColumns(report);
   const rows = buildTrustedReportPdfRows(report, reportColumns);
   const pages = paginateRows(rows);
@@ -1350,241 +1292,6 @@ function drawUnitProfitLossFooter(
   });
 }
 
-function buildOwnerStatementPdf({
-  organizationName,
-  report,
-}: {
-  organizationName: string;
-  report: TrustedReport;
-}) {
-  const commands: string[] = [];
-  const row = report.rows.length === 1 ? report.rows[0] : undefined;
-
-  drawOwnerStatementHeader(commands, organizationName, report);
-  if (!row || isBlockedOwnerStatementRow(row)) {
-    drawOwnerStatementUnavailable(commands);
-  } else {
-    drawReadyOwnerStatement(
-      commands,
-      row,
-      438,
-      ownerStatementIdentityHeight +
-        ownerStatementMoneyRowHeight * ownerStatementMoneyRows.length +
-        ownerStatementSectionHeaderHeight * 2,
-    );
-  }
-  drawOwnerStatementFooter(commands);
-
-  return createPdfDocument([commands.join("\n")]);
-}
-
-function drawOwnerStatementHeader(
-  commands: string[],
-  organizationName: string,
-  report: TrustedReport,
-) {
-  drawText(commands, organizationName, marginX, 552, {
-    bold: true,
-    color: colors.ink,
-    fontSize: 10,
-    width: 260,
-  });
-  drawText(commands, report.title, marginX, 520, {
-    bold: true,
-    color: colors.ink,
-    fontSize: 20,
-    width: 430,
-  });
-  drawText(commands, report.periodLabel, pageWidth - marginX - 300, 523, {
-    align: "right",
-    bold: true,
-    color: colors.ink,
-    fontSize: 10,
-    width: 300,
-  });
-  drawText(commands, "Cash basis", pageWidth - marginX - 300, 507, {
-    align: "right",
-    color: colors.muted,
-    fontSize: 8.5,
-    width: 300,
-  });
-  drawLine(commands, marginX, 488, marginX + tableWidth, 488, colors.border, 0.8);
-}
-
-function drawReadyOwnerStatement(
-  commands: string[],
-  row: TrustedReportRow,
-  yTop: number,
-  height: number,
-) {
-  const yBottom = yTop - height;
-  drawRect(commands, marginX, yBottom, tableWidth, height, {
-    fill: colors.rowFill,
-    stroke: colors.border,
-  });
-  drawRect(
-    commands,
-    marginX,
-    yTop - ownerStatementIdentityHeight,
-    tableWidth,
-    ownerStatementIdentityHeight,
-    { fill: colors.soft, stroke: colors.border },
-  );
-
-  drawOwnerStatementMeta(
-    commands,
-    "Owner",
-    row.cells.owner ?? "-",
-    marginX + 12,
-    yTop,
-    230,
-  );
-  drawOwnerStatementMeta(
-    commands,
-    "Property",
-    row.cells.property ?? "-",
-    marginX + 258,
-    yTop,
-    340,
-  );
-  drawOwnerStatementMeta(
-    commands,
-    "Ownership share",
-    row.cells.ownership ?? "-",
-    marginX + 615,
-    yTop,
-    143,
-  );
-
-  let moneyRowTop = yTop - ownerStatementIdentityHeight;
-  drawOwnerStatementSectionHeader(commands, "Cash activity", moneyRowTop);
-  moneyRowTop -= ownerStatementSectionHeaderHeight;
-  for (const metrics of ownerStatementCashRows) {
-    drawOwnerStatementMoneyRow(commands, row, moneyRowTop, metrics);
-    moneyRowTop -= ownerStatementMoneyRowHeight;
-  }
-  drawOwnerStatementSectionHeader(
-    commands,
-    "Period disclosures",
-    moneyRowTop,
-  );
-  moneyRowTop -= ownerStatementSectionHeaderHeight;
-  for (const metrics of ownerStatementDisclosureRows) {
-    drawOwnerStatementMoneyRow(commands, row, moneyRowTop, metrics);
-    moneyRowTop -= ownerStatementMoneyRowHeight;
-  }
-}
-
-function drawOwnerStatementSectionHeader(
-  commands: string[],
-  label: string,
-  yTop: number,
-) {
-  drawText(commands, label.toUpperCase(), marginX + 2, yTop - 12, {
-    bold: true,
-    color: colors.muted,
-    fontSize: 6.8,
-    width: tableWidth - 4,
-  });
-}
-
-function drawOwnerStatementMeta(
-  commands: string[],
-  label: string,
-  value: string,
-  x: number,
-  yTop: number,
-  width: number,
-) {
-  drawText(commands, label.toUpperCase(), x, yTop - 15, {
-    bold: true,
-    color: colors.muted,
-    fontSize: 6.8,
-    width,
-  });
-  const valueLines = wrapText(value, width, 9, 2);
-  valueLines.forEach((line, index) => {
-    drawText(commands, line, x, yTop - 31 - index * 10.5, {
-      bold: true,
-      color: colors.ink,
-      fontSize: 9,
-      width,
-    });
-  });
-}
-
-function drawOwnerStatementMoneyRow(
-  commands: string[],
-  row: TrustedReportRow,
-  yTop: number,
-  metrics: OwnerStatementMoneyMetric[],
-) {
-  const gap = 8;
-  const cellWidth = (tableWidth - gap * (metrics.length - 1)) / metrics.length;
-  const yBottom = yTop - ownerStatementMoneyRowHeight;
-
-  for (const [index, metric] of metrics.entries()) {
-    const x = marginX + index * (cellWidth + gap);
-    drawRect(commands, x, yBottom, cellWidth, ownerStatementMoneyRowHeight, {
-      fill: colors.rowFill,
-      stroke: colors.border,
-    });
-    const labelLines = wrapText(metric.label, cellWidth - 16, 6.5, 3);
-    labelLines.forEach((line, lineIndex) => {
-      drawText(commands, line, x + 8, yTop - 13 - lineIndex * 7.2, {
-        bold: true,
-        color: colors.muted,
-        fontSize: 6.5,
-        width: cellWidth - 16,
-      });
-    });
-    drawText(commands, row.cells[metric.key] ?? "-", x + 8, yBottom + 9, {
-      align: "right",
-      bold: true,
-      color: colors.ink,
-      fontSize: 10,
-      width: cellWidth - 16,
-    });
-  }
-}
-
-function drawOwnerStatementUnavailable(commands: string[]) {
-  drawRect(commands, marginX, 342, tableWidth, 96, {
-    fill: colors.rowFill,
-    stroke: colors.border,
-  });
-  drawText(commands, "Statement unavailable", marginX + 16, 397, {
-    bold: true,
-    color: colors.ink,
-    fontSize: 13,
-    width: tableWidth - 32,
-  });
-  drawText(
-    commands,
-    "Select one ready owner recipient before generating this document.",
-    marginX + 16,
-    374,
-    {
-      color: colors.muted,
-      fontSize: 9,
-      width: tableWidth - 32,
-    },
-  );
-}
-
-function drawOwnerStatementFooter(commands: string[]) {
-  drawLine(commands, marginX, 30, marginX + tableWidth, 30, colors.border, 0.6);
-  drawText(commands, "Page 1 of 1", marginX, 18, {
-    align: "right",
-    color: colors.muted,
-    fontSize: 8,
-    width: tableWidth,
-  });
-}
-
-function isBlockedOwnerStatementRow(row: TrustedReportRow) {
-  return row.cells.readiness === "Blocked";
-}
 function buildIncomeExpenseStatementPdf({
   organizationName,
   report,
@@ -2235,7 +1942,7 @@ function drawHeader(
   drawMeta(
     commands,
     "Template",
-    "IPS available units",
+    "Available units",
     marginX + 594,
     501,
     150,

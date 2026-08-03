@@ -14,16 +14,14 @@ import type {
 afterEach(cleanup);
 
 describe("minimal Reports workspace", () => {
-  it("links the operational Finance report beside the three report builders", () => {
+  it("keeps only the two useful reports in the primary flow", () => {
     renderReport();
 
     const navigation = screen.getByRole("navigation", { name: "Reports" });
     const links = within(navigation).getAllByRole("link");
     expect(links.map((link) => link.textContent)).toEqual([
-      "Finance operations",
-      "Monthly Unit Profit & Loss",
-      "Owner Statement",
-      "Management Fee Statement",
+      "Owner activity",
+      "Unit P&L",
     ]);
     expect(links[1]?.getAttribute("aria-current")).toBe("page");
 
@@ -106,7 +104,7 @@ describe("minimal Reports workspace", () => {
     report.rows[0]!.sourceCount = 7;
     report.rows[0]!.sourceSummary = "7 source records";
 
-    renderReport({ report: prepareTrustedReportForScreen(report, query()) });
+    renderReport({ report: prepareTrustedReportForScreen(report) });
 
     expect(screen.getByText("+2 more")).toBeTruthy();
     expect(
@@ -116,53 +114,6 @@ describe("minimal Reports workspace", () => {
     ).toBeTruthy();
   });
 
-  it("shows Owner Statement readiness without an export escape hatch", () => {
-    renderReport({
-      report: ownerStatementReport(),
-      viewQuery: query({ report: "owner-statement" }),
-    });
-
-    expect(
-      screen.getByText(
-        "Owner Statement export is unavailable until opening and closing owner balances are authoritative.",
-      ),
-    ).toBeTruthy();
-    expect(screen.queryByText("Export")).toBeNull();
-    expect(screen.queryByRole("link", { name: "PDF" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Excel" })).toBeNull();
-    expect(
-      screen.queryByRole("combobox", { name: "Filter report by unit" }),
-    ).toBeNull();
-    expect(screen.getByRole("columnheader", { name: "Reason" })).toBeTruthy();
-  });
-
-  it("keeps Management Fee Statement defined but unavailable", () => {
-    const report = unitProfitLossReport();
-    report.kind = "management-fees";
-    report.title = "Management Fee Statement";
-    report.scopeValidation = {
-      code: "management_fee_owner_recognition_unresolved",
-      message:
-        "Management Fee Statement is unavailable until management-fee owner-recognition authority is resolved.",
-    };
-    report.exportValidation = {
-      ...report.scopeValidation,
-      status: 409,
-    };
-    report.rows = [];
-
-    renderReport({
-      report,
-      viewQuery: query({ report: "management-fees" }),
-    });
-
-    expect(screen.getByText("Report unavailable")).toBeTruthy();
-    expect(screen.getAllByText(/owner-recognition authority/)).toHaveLength(2);
-    expect(screen.queryByText("Export")).toBeNull();
-    expect(
-      screen.getByRole("link", { name: "Management Fee Statement" }),
-    ).toBeTruthy();
-  });
 });
 
 function renderReport({
@@ -189,7 +140,6 @@ function renderReport({
     <ReportBuilderScreen {...data} organizationName="Demo Organization" />,
   );
 }
-
 function query(overrides: Partial<ReportsViewQuery> = {}): ReportsViewQuery {
   return {
     month: "2026-07",
@@ -273,55 +223,5 @@ function unitProfitLossReport(): TrustedReport {
     ],
     title: "Monthly Unit Profit & Loss",
     totalsTraceLabel: "Totals trace to 2 unit-linked ledger rows.",
-  };
-}
-
-function ownerStatementReport(): TrustedReport {
-  return {
-    columns: [
-      { key: "readiness", label: "Status" },
-      { key: "owner", label: "Owner" },
-      { key: "property", label: "Property" },
-      { key: "notes", label: "Reason" },
-    ],
-    description: "Owner Statement readiness.",
-    emptyDescription: "No owner statement rows.",
-    emptyTitle: "No owner statement rows",
-    exportFilenameBase: "owner-statement",
-    exportValidation: {
-      code: "owner_statement_balances_unavailable",
-      message:
-        "Owner Statement export is unavailable until opening and closing owner balances are authoritative.",
-      status: 409,
-    },
-    generatedAt: "2026-08-01T00:00:00.000Z",
-    kind: "owner-statement",
-    periodLabel: "01 Jul 2026 - 31 Jul 2026",
-    rows: [
-      {
-        cells: {
-          notes: "Opening and closing balances are unavailable",
-          owner: "Owner One",
-          property: "P1 - Property One",
-          readiness: "Not publishable",
-        },
-        id: "owner-1",
-        sourceCount: 1,
-        sourceLinks: [],
-        sourceSummary: "1 source row",
-        title: "Owner One / P1",
-      },
-    ],
-    scopeLabel: "All properties",
-    summary: [
-      {
-        detail: "Ready properties",
-        label: "Ready properties",
-        sourceCount: 1,
-        value: "1",
-      },
-    ],
-    title: "Owner Statement",
-    totalsTraceLabel: "Readiness only.",
   };
 }

@@ -29,10 +29,9 @@
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "db:lint": "supabase db lint",
-    "db:reset": "supabase db reset",
-    "db:reset:demo": "node scripts/reset-demo-data.mjs",
-    "test:demo-tools": "node --test scripts/reset-demo-data.node-test.mjs scripts/demo-seed-source.node-test.mjs scripts/demo-seed-manifest.node-test.mjs scripts/hosted-demo-cutover-plan.node-test.mjs scripts/target-org-dump.node-test.mjs scripts/unit-profit-loss-comparison.node-test.mjs",
-    "demo:seed:manifest": "node scripts/demo-seed-manifest.mjs",
+    "db:reset": "supabase db reset --local --no-seed",
+    "db:test:fixture": "node scripts/load-test-fixture.mjs",
+    "test:demo-tools": "node --test scripts/hosted-demo-cutover-plan.node-test.mjs scripts/target-org-dump.node-test.mjs scripts/unit-profit-loss-comparison.node-test.mjs",
     "demo:cutover:plan": "node scripts/hosted-demo-cutover-plan.mjs",
     "db:types": "supabase gen types --local --schema public > src/types/database.generated.ts && node -e \"const fs=require('fs');const p='src/types/database.generated.ts';fs.writeFileSync(p,fs.readFileSync(p,'utf8').trimEnd()+'\\n');\""
   },

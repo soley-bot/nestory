@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import PropertyDashboardPage from "@/app/(dashboard)/property-dashboard/page";
 import MaintenanceDashboardPage from "@/app/(dashboard)/maintenance-dashboard/page";
-import PaymentsPage from "@/app/(dashboard)/payments/page";
-import InvoicesPage from "@/app/(dashboard)/invoices/page";
 import SchedulePage from "@/app/(dashboard)/schedule/page";
 import TeamPage from "@/app/(dashboard)/team/page";
 
@@ -23,14 +21,6 @@ describe("legacy route redirects", () => {
     [
       MaintenanceDashboardPage,
       "/overview?lens=maintenance&query=HOME&tag=late&tag=open&view=ignored",
-    ],
-    [
-      PaymentsPage,
-      "/rent-income?lens=ignored&query=HOME&tag=late&tag=open&view=ignored",
-    ],
-    [
-      InvoicesPage,
-      "/rent-income?lens=ignored&query=HOME&tag=late&tag=open&view=ignored",
     ],
     [
       SchedulePage,

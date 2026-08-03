@@ -1,9 +1,8 @@
 import type { ReportKind } from "@/features/reports/reports.types";
 
 export const reportKindValues = [
+  "owner-activity",
   "unit-profit-loss",
-  "owner-statement",
-  "management-fees",
 ] as const satisfies readonly ReportKind[];
 
 export type CurrentReportKind = (typeof reportKindValues)[number];
@@ -11,33 +10,33 @@ export type CurrentReportKind = (typeof reportKindValues)[number];
 export type ReportCatalogItem = {
   description: string;
   kind: CurrentReportKind;
+  tabLabel: string;
   title: string;
 };
 
-export const reportCatalog: ReportCatalogItem[] = [
+const reportDefinitions: ReportCatalogItem[] = [
+  {
+    description:
+      "Rent, management fees, property costs, withdrawals, and net movement for the selected month.",
+    kind: "owner-activity",
+    tabLabel: "Owner activity",
+    title: "Owner activity",
+  },
   {
     description:
       "Income, expenses, and net income by unit for the selected month.",
     kind: "unit-profit-loss",
+    tabLabel: "Unit P&L",
     title: "Monthly Unit Profit & Loss",
-  },
-  {
-    description:
-      "Owner statement readiness for opening balance, net income, payments, and closing balance.",
-    kind: "owner-statement",
-    title: "Owner Statement",
-  },
-  {
-    description:
-      "Defined management-fee statement, unavailable until owner-recognition authority is resolved.",
-    kind: "management-fees",
-    title: "Management Fee Statement",
   },
 ];
 
+export const reportCatalog = reportDefinitions;
+
 export function getReportCatalogItem(kind: ReportKind) {
   return (
-    reportCatalog.find((report) => report.kind === kind) ?? reportCatalog[0]
+    reportDefinitions.find((report) => report.kind === kind) ??
+    reportDefinitions[0]
   );
 }
 

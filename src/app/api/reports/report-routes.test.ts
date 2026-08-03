@@ -33,11 +33,8 @@ const handlers = [
   ["Excel", getExcel, getReportExcel, "excel"],
   ["PDF", getPdf, getReportPdf, "pdf"],
 ] as const;
-const unitId = "8b3a08d2-0898-4de3-9495-994eaf7a08dc";
-const scopeMessage =
-  "Owner Statements are property-level reports. Clear the unit filter to continue.";
 const publicationMessage =
-  "Owner Statement export is unavailable until opening and closing owner balances are authoritative.";
+  "Report data is not available for export.";
 
 describe("report export routes", () => {
   beforeEach(() => {
@@ -74,26 +71,11 @@ describe("report export routes", () => {
   });
 
   it.each(handlers)(
-    "returns controlled 400 for unit-scoped Owner Statement %s",
-    async (_, handler, loader, route) => {
-      const response = await handler(
-        new Request(
-          `http://localhost/api/reports/${route}?report=owner-statement&month=2026-07&unitId=${unitId}`,
-        ),
-      );
-
-      expect(response.status).toBe(400);
-      expect(await response.text()).toBe(scopeMessage);
-      expect(loader).not.toHaveBeenCalled();
-    },
-  );
-
-  it.each(handlers)(
     "returns the report publication block for %s",
     async (_, handler, loader, route) => {
       vi.mocked(loader).mockResolvedValueOnce({
         validation: {
-          code: "owner_statement_balances_unavailable",
+          code: "report_data_unavailable",
           message: publicationMessage,
           status: 409,
         },
@@ -101,7 +83,7 @@ describe("report export routes", () => {
 
       const response = await handler(
         new Request(
-          `http://localhost/api/reports/${route}?report=owner-statement&month=2026-07`,
+          `http://localhost/api/reports/${route}?report=owner-activity&month=2026-07`,
         ),
       );
 

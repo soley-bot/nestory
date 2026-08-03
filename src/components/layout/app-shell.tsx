@@ -69,7 +69,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
   },
   {
     id: "finance",
-    href: "/finance-dashboard",
+    href: "/finance",
     icon: Landmark,
     label: "Finance",
     routes: [
@@ -78,10 +78,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
       "/leases",
       "/ledger",
       "/petty-cash",
-      "/payments",
-      "/invoices",
-      "/tenant-invoices",
-      "/finance-dashboard",
+      "/finance",
       "/balances",
     ],
   },

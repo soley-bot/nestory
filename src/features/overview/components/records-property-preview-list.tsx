@@ -13,15 +13,15 @@ export function RecordsPropertyPreviewList({ rows }: { rows: OverviewRecordPoint
     <>
       <section className="min-w-0 max-w-full overflow-hidden border-y border-border">
         <div className="border-b border-border px-3 py-2.5">
-          <h2 className="text-sm font-semibold">Record readiness</h2>
+          <h2 className="text-sm font-semibold">Property records</h2>
           <p className="mt-0.5 text-xs text-foreground-muted">
-            Properties ranked by statement readiness and record-link issues.
+            Owner links, tenant links, documents, and units.
           </p>
         </div>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_100px_160px_20px] gap-3 border-b border-border px-3 py-2 text-xs font-medium uppercase tracking-wide text-foreground-muted max-md:hidden">
           <span>Property</span>
           <span>Record issues</span>
-          <span>Readiness</span>
+          <span>Records</span>
           <span aria-hidden="true" />
         </div>
         {rows.length > 0 ? (
@@ -36,12 +36,12 @@ export function RecordsPropertyPreviewList({ rows }: { rows: OverviewRecordPoint
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold">{row.label}</span>
                   <span className="mt-0.5 block text-xs text-foreground-muted md:hidden">
-                    {readinessSummary(row)}
+                    {recordSummary(row)}
                   </span>
                 </span>
                 <span className="text-sm font-semibold tabular-nums">{recordIssueCount(row)}</span>
                 <span className="hidden truncate text-xs text-foreground-muted md:block">
-                  {readinessSummary(row)}
+                  {recordSummary(row)}
                 </span>
                 <ArrowRight
                   aria-hidden="true"
@@ -59,10 +59,10 @@ export function RecordsPropertyPreviewList({ rows }: { rows: OverviewRecordPoint
       </section>
 
       <Modal
-        description="Linked records and owner-statement readiness for this property."
+        description="Linked operating records for this property."
         onClose={() => setSelectedRow(null)}
         open={selectedRow !== null}
-        title={selectedRow?.label ?? "Record readiness"}
+        title={selectedRow?.label ?? "Property records"}
       >
         {selectedRow ? (
           <>
@@ -75,9 +75,9 @@ export function RecordsPropertyPreviewList({ rows }: { rows: OverviewRecordPoint
               ))}
             </div>
             <section className="border-t border-border px-4 py-3">
-              <h3 className="text-sm font-semibold">Readiness</h3>
+              <h3 className="text-sm font-semibold">Record check</h3>
               <p className="mt-1 text-xs leading-5 text-foreground-muted">
-                {readinessDetail(selectedRow)}
+                {recordDetail(selectedRow)}
               </p>
             </section>
             <div className="flex justify-end border-t border-border px-4 py-3">
@@ -100,54 +100,34 @@ function recordIssueCount(row: OverviewRecordPoint) {
   return Number(!row.ownerLinked) + row.missingTenantLinks;
 }
 
-function readinessSummary(row: OverviewRecordPoint) {
-  if (row.statementBlockers > 0) {
-    return `${row.statementBlockers} statement ${row.statementBlockers === 1 ? "blocker" : "blockers"}`;
-  }
-  if (row.readyStatementCount > 0) {
-    return row.readyStatementCount === 1
-      ? "1 owner statement ready"
-      : `${row.readyStatementCount} owner statements ready`;
-  }
-  return "No owner statement ready";
+function recordSummary(row: OverviewRecordPoint) {
+  const issues = recordIssueCount(row);
+  if (issues > 0) return `${issues} link ${issues === 1 ? "issue" : "issues"}`;
+  return `${row.documentCount} documents · ${row.unitCount} units`;
 }
 
 function modalFacts(row: OverviewRecordPoint): Array<[string, string]> {
   return [
-    ["Statement blockers", String(row.statementBlockers)],
-    ["Owner statements ready", String(row.readyStatementCount)],
     ["Owner linked", row.ownerLinked ? "Yes" : "No"],
     ["Missing tenant links", String(row.missingTenantLinks)],
     ["Documents", String(row.documentCount)],
     ["Units", String(row.unitCount)],
-    ["Statement status", statementIsReady(row) ? "Ready" : "Needs review"],
     ["Record quality", recordIssueCount(row) === 0 ? "Clear" : "Needs review"],
   ];
 }
 
-function readinessDetail(row: OverviewRecordPoint) {
+function recordDetail(row: OverviewRecordPoint) {
   const recordIssues = [
     !row.ownerLinked ? "link an owner" : null,
     row.missingTenantLinks > 0
       ? `repair ${row.missingTenantLinks} tenant ${row.missingTenantLinks === 1 ? "link" : "links"}`
       : null,
   ].filter((issue): issue is string => issue !== null);
-  const statementDetail =
-    row.statementBlockers > 0
-      ? `Resolve ${row.statementBlockers} statement ${row.statementBlockers === 1 ? "blocker" : "blockers"}.`
-      : row.readyStatementCount > 0
-        ? `${readinessSummary(row)}.`
-        : "No owner statement is ready.";
-
   if (recordIssues.length === 0) {
-    return `${statementDetail} No owner or tenant link issues.`;
+    return "No owner or tenant link issues.";
   }
 
-  return `${statementDetail} Record-quality ${recordIssues.length === 1 ? "issue" : "issues"}: ${joinIssues(recordIssues)}.`;
-}
-
-function statementIsReady(row: OverviewRecordPoint) {
-  return row.statementBlockers === 0 && row.readyStatementCount > 0;
+  return `Record ${recordIssues.length === 1 ? "issue" : "issues"}: ${joinIssues(recordIssues)}.`;
 }
 
 function joinIssues(issues: string[]) {

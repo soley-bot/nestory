@@ -30,14 +30,6 @@ describe("ReportsFilters", () => {
       within(filters).getByRole("button", { name: "Apply filters" }),
     ).toBeTruthy();
   });
-
-  it("omits unit scope from property-level statements", () => {
-    renderFilters(query({ report: "management-fees" }));
-
-    expect(
-      screen.queryByRole("combobox", { name: "Filter report by unit" }),
-    ).toBeNull();
-  });
 });
 
 function renderFilters(viewQuery: ReportsViewQuery) {

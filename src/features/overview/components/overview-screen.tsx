@@ -2,9 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Building2, Upload } from "lucide-react";
 import { OverviewHeader } from "@/features/overview/components/overview-header";
 import { OverviewLensWorkspace } from "@/features/overview/components/overview-lens-workspace";
-import { OverviewSummaryCards } from "@/features/overview/components/overview-summary-cards";
 import { PortfolioWorkspace } from "@/features/overview/components/portfolio-workspace";
-import { PropertyFinanceWorkspace } from "@/features/overview/components/property-finance-workspace";
 import type { OverviewScreenData, OverviewViewQuery } from "@/features/overview/overview.types";
 
 export function OverviewScreen({ data, query }: { data: OverviewScreenData; query?: OverviewViewQuery }) {
@@ -15,11 +13,8 @@ export function OverviewScreen({ data, query }: { data: OverviewScreenData; quer
       <div className="space-y-2.5">
         <OverviewHeader query={resolvedQuery} />
         {!isBaseSetupComplete(data.workspaceSetup) ? <SetupProgressPanel data={data} /> : null}
-        {resolvedQuery.lens === "all" ? <OverviewSummaryCards data={data} query={resolvedQuery} /> : null}
         {resolvedQuery.lens === "all" ? (
           <PortfolioWorkspace data={data} query={resolvedQuery} />
-        ) : resolvedQuery.lens === "finance" ? (
-          <PropertyFinanceWorkspace data={data} query={resolvedQuery} />
         ) : (
           <OverviewLensWorkspace data={data} query={resolvedQuery} />
         )}

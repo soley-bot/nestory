@@ -14,7 +14,6 @@ import {
 const monthPattern = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const overviewLenses: OverviewLens[] = [
   "all",
-  "finance",
   "leasing",
   "maintenance",
   "records",
@@ -24,7 +23,6 @@ const overviewReviews: OverviewReview[] = [
   "negative",
   "arrears",
   "bills",
-  "statement-blocked",
 ];
 const propertySorts: OverviewPropertySort[] = [
   "property-asc",
@@ -91,10 +89,7 @@ export function buildOverviewHref(
 ) {
   const next = { ...query, ...updates };
   const params = new URLSearchParams();
-  if (next.lens === "finance") {
-    params.set("lens", next.lens);
-    params.set("financeView", next.financeView);
-  } else if (next.lens !== "all") {
+  if (next.lens !== "all") {
     params.set("lens", next.lens);
   }
   params.set("month", next.month);
@@ -105,23 +100,8 @@ export function buildOverviewHref(
 }
 
 function normalizeFinanceView(value: string | undefined): OverviewFinanceView {
-  switch (value) {
-    case "collections":
-    case "expenses":
-    case "management-fees":
-    case "owner-statements":
-    case "transactions":
-      return value;
-    case "company-pnl":
-    case "property-ranking":
-      return "collections";
-    case "owner-receivables":
-      return "management-fees";
-    case "ledger":
-      return "transactions";
-    default:
-      return "collections";
-  }
+  void value;
+  return "collections";
 }
 
 function normalizeOverviewLens(value: SearchParamValue): OverviewLens {

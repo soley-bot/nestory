@@ -4,7 +4,6 @@ import {
   buildReportBuilderHref,
   isReportKind,
 } from "@/features/reports/report-catalog";
-import { getLegacyReportDestination } from "@/features/reports/legacy-report-destinations";
 import { requireAdminContext } from "@/lib/auth/context";
 
 type ReportsPageProps = {
@@ -14,17 +13,6 @@ type ReportsPageProps = {
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   await requireAdminContext();
   const rawSearchParams = await searchParams;
-  const rawReport = Array.isArray(rawSearchParams.report)
-    ? rawSearchParams.report[0]
-    : rawSearchParams.report;
-  const legacyDestination = rawReport
-    ? getLegacyReportDestination(rawReport)
-    : null;
-
-  if (legacyDestination) {
-    redirect(legacyDestination);
-  }
-
   const viewQuery = parseReportSearchParams(rawSearchParams);
   const query = new URLSearchParams({ month: viewQuery.month });
 

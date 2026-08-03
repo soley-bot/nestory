@@ -322,11 +322,11 @@ function simplifyDatabaseMessage(message: string) {
 
 function revalidateFinance() {
   for (const path of [
-    "/finance-dashboard",
+    "/finance",
     "/rent-income",
     "/bills-expenses",
     "/balances",
-    "/reports/finance-operations",
+    "/reports/owner-activity",
     "/properties",
   ]) {
     revalidatePath(path);

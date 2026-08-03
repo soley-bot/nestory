@@ -10,7 +10,7 @@ import type {
 } from "@/features/overview/overview.types";
 import { buildOverviewHref } from "@/features/overview/overview.filters";
 
-type OperatingLens = Exclude<OverviewLens, "all" | "finance">;
+type OperatingLens = Exclude<OverviewLens, "all">;
 
 export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenData; query: OverviewViewQuery }) {
   const lens = query.lens as OperatingLens;
@@ -46,7 +46,6 @@ function getLensConfig(data: OverviewScreenData, query: OverviewViewQuery, lens:
   const maintenanceItem = attentionByLabel(data.attentionItems, "Open maintenance");
   const missingOwners = attentionByLabel(data.attentionItems, "Properties without owner link");
   const missingLeaseLinks = attentionByLabel(data.attentionItems, "Leases missing tenant link");
-  const statementReadiness = data.propertyPerformance.summary.statementReadiness;
   const vacant = data.occupancyByProperty.reduce((sum, row) => sum + row.unoccupiedUnits, 0);
   const expiring = data.leaseRiskCount;
 
@@ -72,9 +71,9 @@ function getLensConfig(data: OverviewScreenData, query: OverviewViewQuery, lens:
 
   return {
     metrics: [
-      { href: buildOverviewHref(query, { lens: "records", review: "statement-blocked" }), label: "Blocked properties", value: String(statementReadiness.blockedPropertyCount) },
+      { href: destinationHref("/reports/owner-activity", query, true), label: "Owner activity", value: String(data.recordsByProperty.length) },
       { href: destinationHref("/properties?ownerStatus=missing", query, false), label: "Missing owner links", value: missingOwners ? String(missingOwners.count) : "Not calculated" },
-      { href: destinationHref("/reports/owner-statement", query, true), label: "Owner statements ready", value: String(statementReadiness.readyStatementCount) },
+      { href: destinationHref("/documents", query, false), label: "Documents", value: String(data.recordsByProperty.reduce((sum, row) => sum + row.documentCount, 0)) },
       { href: destinationHref("/leases?status=current&tenantStatus=missing", query, false), label: "Missing lease links", value: missingLeaseLinks ? String(missingLeaseLinks.count) : "Not calculated" },
     ],
     title: "Records",

@@ -6,8 +6,7 @@ import {
   type CurrencyCode,
 } from "@/lib/money/format";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
-import { getOwnerStatementReport } from "@/features/reports/data/owner-statement-report";
-import { getManagementFeeReport } from "@/features/reports/data/management-fee-report";
+import { getOwnerActivityReport } from "@/features/reports/data/owner-activity-report";
 import { resolvePropertyCashEventHref } from "@/features/finance/data/property-cash-events.links";
 import { iteratePropertyCashEvents } from "@/features/finance/data/property-cash-events";
 import type {
@@ -37,9 +36,8 @@ import type {
 } from "@/features/reports/reports.types";
 
 export const REPORT_OPTIONS: Array<{ label: string; value: ReportKind }> = [
+  { label: "Owner activity", value: "owner-activity" },
   { label: "Monthly Unit Profit & Loss", value: "unit-profit-loss" },
-  { label: "Owner Statement", value: "owner-statement" },
-  { label: "Management Fee Statement", value: "management-fees" },
 ];
 
 const reportLeaseSelect =
@@ -220,7 +218,6 @@ type ReportContext = Omit<TrustedReportInput, "propertyCashEvents"> & {
 const activeLeaseStatuses = new Set(["active", "notice_given"]);
 const repairEventTypes = new Set(["Maintenance", "Repair", "Renovation"]);
 const trustedReportSourceRequirements = {
-  "management-fees": requiresReportSources(),
   "income-expense": requiresReportSources("ledgerEntries", "units"),
   "lease-expiry": requiresReportSources("leases", "units"),
   "maintenance-cost": requiresReportSources(
@@ -230,7 +227,7 @@ const trustedReportSourceRequirements = {
     "units",
   ),
   "missing-data": requiresReportSources("documents", "leases", "owners", "units"),
-  "owner-statement": requiresReportSources(),
+  "owner-activity": requiresReportSources(),
   "people-readiness": requiresReportSources(),
   "property-performance": requiresReportSources(
     "ledgerEntries",
@@ -256,12 +253,8 @@ export async function getTrustedReport({
   organizationId: string;
   viewQuery: ReportsViewQuery;
 }): Promise<TrustedReport> {
-  if (viewQuery.report === "owner-statement") {
-    return getOwnerStatementReport({ organizationId, viewQuery });
-  }
-
-  if (viewQuery.report === "management-fees") {
-    return getManagementFeeReport({ organizationId, viewQuery });
+  if (viewQuery.report === "owner-activity") {
+    return getOwnerActivityReport({ organizationId, viewQuery });
   }
 
   if (viewQuery.report === "people-readiness") {
@@ -398,12 +391,6 @@ export function buildTrustedReport(input: TrustedReportInput): TrustedReport {
 
   if (context.viewQuery.report === "property-performance") {
     return buildPropertyPerformanceReport(context);
-  }
-
-  if (context.viewQuery.report === "owner-statement") {
-    throw new Error(
-      "Owner Statement must be built through the property-cash report loader",
-    );
   }
 
   if (context.viewQuery.report === "people-readiness") {

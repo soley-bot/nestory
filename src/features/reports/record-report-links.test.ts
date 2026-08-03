@@ -3,7 +3,7 @@ import { buildPropertyStatementHref } from "@/features/properties/components/pro
 import { buildUnitProfitLossHref } from "@/features/units/components/unit-detail-view";
 
 describe("record detail report links", () => {
-  it("opens each property statement in the three-report workspace", () => {
+  it("opens each property report in the two-report workspace", () => {
     expect(
       buildPropertyStatementHref(
         "property-1",
@@ -16,20 +16,11 @@ describe("record detail report links", () => {
     expect(
       buildPropertyStatementHref(
         "property-1",
-        "owner-statement",
+        "owner-activity",
         "2026-07",
       ),
     ).toBe(
-      "/reports/owner-statement?month=2026-07&propertyId=property-1",
-    );
-    expect(
-      buildPropertyStatementHref(
-        "property-1",
-        "management-fees",
-        "2026-07",
-      ),
-    ).toBe(
-      "/reports/management-fees?month=2026-07&propertyId=property-1",
+      "/reports/owner-activity?month=2026-07&propertyId=property-1",
     );
   });
 

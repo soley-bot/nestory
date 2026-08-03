@@ -7,16 +7,14 @@ import {
 } from "@/features/reports/report-catalog";
 
 describe("report catalog", () => {
-  it("offers only the three reports required by the operating brief", () => {
+  it("keeps two useful reports in the visible workspace", () => {
     expect(reportKindValues).toEqual([
+      "owner-activity",
       "unit-profit-loss",
-      "owner-statement",
-      "management-fees",
     ]);
     expect(reportCatalog.map(({ title }) => title)).toEqual([
+      "Owner activity",
       "Monthly Unit Profit & Loss",
-      "Owner Statement",
-      "Management Fee Statement",
     ]);
   });
 });
@@ -33,11 +31,8 @@ describe("buildReportBuilderHref", () => {
     expect(buildReportBuilderHref("unit-profit-loss", query)).toBe(
       "/reports/unit-profit-loss?month=2026-07&propertyId=property-1&unitId=unit-1",
     );
-    expect(buildReportBuilderHref("owner-statement", query)).toBe(
-      "/reports/owner-statement?month=2026-07&propertyId=property-1",
-    );
-    expect(buildReportBuilderHref("management-fees", query)).toBe(
-      "/reports/management-fees?month=2026-07&propertyId=property-1",
+    expect(buildReportBuilderHref("owner-activity", query)).toBe(
+      "/reports/owner-activity?month=2026-07&propertyId=property-1",
     );
   });
 });

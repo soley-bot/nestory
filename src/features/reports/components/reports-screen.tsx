@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { AlertTriangle, ChevronDown, Download } from "lucide-react";
 
-import { PageHeader } from "@/components/layout/page-header";
+import { WorkspacePage } from "@/components/layout/workspace-page";
+import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import {
   buildReportBuilderHref,
@@ -29,38 +30,30 @@ export function ReportBuilderScreen({
   const selectedReport = getReportCatalogItem(viewQuery.report);
   const validation =
     trustedReport.scopeValidation ?? trustedReport.exportValidation;
-  const visibleSummary =
-    trustedReport.kind === "owner-statement"
-      ? trustedReport.summary.filter(({ label }) =>
-          [
-            "Ready properties",
-            "Owner statements ready",
-            "Blocked properties",
-          ].includes(label),
-        )
-      : trustedReport.summary.slice(0, 4);
+  const visibleSummary = trustedReport.summary.slice(0, 4);
   const reportRowCount =
     trustedReport.totalRowCount ?? trustedReport.rows.length;
+  const showRecords = trustedReport.kind !== "owner-activity";
 
   return (
-    <div className="min-h-screen bg-background">
-      <PageHeader
-        actions={validation ? undefined : <ExportMenu viewQuery={viewQuery} />}
-        context={`${trustedReport.scopeLabel} · ${trustedReport.periodLabel}`}
-        description={selectedReport.description}
-        title="Reports"
-      />
+    <WorkspacePage
+      actions={validation ? undefined : <ExportMenu viewQuery={viewQuery} />}
+      context={`${trustedReport.scopeLabel} · ${trustedReport.periodLabel}`}
+      contextHref={`/reports/${viewQuery.report}`}
+      localNav={<FinanceWorkspaceNavigation activeRoute="/reports" />}
+      title={selectedReport.title}
+    >
+      <div className="flex h-full min-h-0 flex-col bg-background">
+        <ReportTabs viewQuery={viewQuery} />
 
-      <ReportTabs viewQuery={viewQuery} />
+        <ReportsFilters
+          action={`/reports/${viewQuery.report}`}
+          propertyOptions={propertyOptions}
+          unitOptions={unitOptions}
+          viewQuery={viewQuery}
+        />
 
-      <ReportsFilters
-        action={`/reports/${viewQuery.report}`}
-        propertyOptions={propertyOptions}
-        unitOptions={unitOptions}
-        viewQuery={viewQuery}
-      />
-
-      <main className="space-y-3 px-4 py-4 sm:px-6">
+        <main className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6">
         {validation ? (
           <div
             className={cn(
@@ -144,9 +137,11 @@ export function ReportBuilderScreen({
                       {column.label}
                     </th>
                   ))}
-                  <th className="border-b border-border px-3 py-2 font-semibold">
-                    Sources
-                  </th>
+                  {showRecords ? (
+                    <th className="border-b border-border px-3 py-2 font-semibold">
+                      Records
+                    </th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -154,7 +149,10 @@ export function ReportBuilderScreen({
                   <tr>
                     <td
                       className="px-4 py-10 text-center"
-                      colSpan={Math.max(1, trustedReport.columns.length + 1)}
+                      colSpan={Math.max(
+                        1,
+                        trustedReport.columns.length + (showRecords ? 1 : 0),
+                      )}
                     >
                       <p className="font-medium text-foreground">
                         {trustedReport.emptyTitle}
@@ -170,6 +168,7 @@ export function ReportBuilderScreen({
                       columns={trustedReport.columns}
                       key={row.id}
                       row={row}
+                      showRecords={showRecords}
                     />
                   ))
                 )}
@@ -177,8 +176,9 @@ export function ReportBuilderScreen({
             </table>
           </div>
         </section>
-      </main>
-    </div>
+        </main>
+      </div>
+    </WorkspacePage>
   );
 }
 
@@ -189,12 +189,6 @@ function ReportTabs({ viewQuery }: { viewQuery: ReportsViewQuery }) {
       className="overflow-x-auto border-b border-border bg-surface px-4 py-1.5 sm:px-6"
     >
       <div className="flex min-w-max items-center gap-1">
-        <Link
-          className="inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
-          href="/reports/finance-operations"
-        >
-          Finance operations
-        </Link>
         {reportCatalog.map((report) => (
           <Link
             aria-current={viewQuery.report === report.kind ? "page" : undefined}
@@ -207,7 +201,7 @@ function ReportTabs({ viewQuery }: { viewQuery: ReportsViewQuery }) {
             href={reportTabHref(report.kind, viewQuery)}
             key={report.kind}
           >
-            {report.title}
+            {report.tabLabel}
           </Link>
         ))}
       </div>
@@ -247,9 +241,11 @@ function ExportMenu({ viewQuery }: { viewQuery: ReportsViewQuery }) {
 function ReportRow({
   columns,
   row,
+  showRecords,
 }: {
   columns: TrustedReport["columns"];
   row: TrustedReportRow;
+  showRecords: boolean;
 }) {
   const hiddenSourceCount = Math.max(
     0,
@@ -282,38 +278,40 @@ function ReportRow({
           </td>
         );
       })}
-      <td className="border-b border-border px-3 py-2.5 leading-5 text-foreground-muted last:border-b-0">
-        {row.sourceLinks.length === 0 && hiddenSourceCount === 0 ? (
-          "—"
-        ) : (
-          <div className="flex max-w-72 flex-wrap gap-x-2 gap-y-1">
-            {row.sourceLinks.map((source) =>
-              source.href ? (
-                <Link
-                  className="font-medium text-foreground underline-offset-4 hover:underline"
-                  href={source.href}
-                  key={`${source.recordType}:${source.id}`}
+      {showRecords ? (
+        <td className="border-b border-border px-3 py-2.5 leading-5 text-foreground-muted last:border-b-0">
+          {row.sourceLinks.length === 0 && hiddenSourceCount === 0 ? (
+            "—"
+          ) : (
+            <div className="flex max-w-72 flex-wrap gap-x-2 gap-y-1">
+              {row.sourceLinks.map((source) =>
+                source.href ? (
+                  <Link
+                    className="font-medium text-foreground underline-offset-4 hover:underline"
+                    href={source.href}
+                    key={`${source.recordType}:${source.id}`}
+                  >
+                    {source.label}
+                  </Link>
+                ) : (
+                  <span key={`${source.recordType}:${source.id}`}>
+                    {source.label}
+                  </span>
+                ),
+              )}
+              {hiddenSourceCount > 0 ? (
+                <span
+                  aria-label={`${row.sourceSummary}; ${hiddenSourceCount} additional source${hiddenSourceCount === 1 ? " is" : "s are"} available in PDF and Excel exports`}
+                  className="font-medium text-muted"
+                  title={row.sourceSummary}
                 >
-                  {source.label}
-                </Link>
-              ) : (
-                <span key={`${source.recordType}:${source.id}`}>
-                  {source.label}
+                  +{hiddenSourceCount} more
                 </span>
-              ),
-            )}
-            {hiddenSourceCount > 0 ? (
-              <span
-                aria-label={`${row.sourceSummary}; ${hiddenSourceCount} additional source${hiddenSourceCount === 1 ? " is" : "s are"} available in PDF and Excel exports`}
-                className="font-medium text-muted"
-                title={row.sourceSummary}
-              >
-                +{hiddenSourceCount} more
-              </span>
-            ) : null}
-          </div>
-        )}
-      </td>
+              ) : null}
+            </div>
+          )}
+        </td>
+      ) : null}
     </tr>
   );
 }

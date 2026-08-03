@@ -7,12 +7,11 @@ import type {
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
 
-export type OverviewDetailView = "attention" | "readiness";
+export type OverviewDetailView = "attention";
 
 export function OverviewDetailPage({
   data,
   query,
-  view,
 }: {
   data: OverviewScreenData;
   query: OverviewViewQuery;
@@ -27,14 +26,10 @@ export function OverviewDetailPage({
   return (
     <main className="min-h-screen bg-background px-4 py-3 sm:px-5">
       <PageBreadcrumb
-        current={view === "attention" ? "Needs attention" : "Statement readiness"}
+        current="Needs attention"
         items={[{ href: overviewHref, label: "Overview" }]}
       />
-      {view === "attention" ? (
-        <AttentionWorkspace data={data} />
-      ) : (
-        <ReadinessWorkspace data={data} />
-      )}
+      <AttentionWorkspace data={data} />
     </main>
   );
 }
@@ -77,48 +72,6 @@ function AttentionWorkspace({ data }: { data: OverviewScreenData }) {
       ) : (
         <p className="py-8 text-sm text-foreground-muted">No operating checks need attention.</p>
       )}
-    </section>
-  );
-}
-
-function ReadinessWorkspace({ data }: { data: OverviewScreenData }) {
-  const readiness = data.propertyPerformance.summary.statementReadiness;
-  return (
-    <section className="mt-5">
-      <header className="border-b border-border pb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="mr-auto text-lg font-semibold text-foreground">Statement readiness</h1>
-          <Badge tone={readiness.blockedPropertyCount > 0 ? "warning" : "success"}>
-            {readiness.readyPropertyCount} ready properties
-          </Badge>
-          <span className="text-xs text-foreground-muted">of {readiness.totalPropertyCount}</span>
-        </div>
-        <p className="mt-1 text-sm text-foreground-muted">
-          Review each property before preparing owner statements.
-        </p>
-      </header>
-      <div className="divide-y divide-border">
-        {data.propertyPerformance.rows.map((row) => (
-          <Link
-            className="flex min-h-14 items-center gap-3 px-1 py-3 hover:bg-surface-muted"
-            href={row.href}
-            key={row.propertyId}
-          >
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-foreground">{row.label}</span>
-              <span className="block text-xs text-foreground-muted">
-                {row.statementBlockers > 0
-                  ? `${row.statementBlockers} statement blockers`
-                  : "Ready for statement review"}
-              </span>
-            </span>
-            <Badge tone={row.statementBlockers > 0 ? "warning" : "success"}>
-              {row.statementBlockers > 0 ? "Review" : "Ready"}
-            </Badge>
-            <ArrowRight aria-hidden="true" className="text-foreground-muted" size={14} />
-          </Link>
-        ))}
-      </div>
     </section>
   );
 }
