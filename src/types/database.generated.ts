@@ -2875,6 +2875,100 @@ export type Database = {
           },
         ]
       }
+      management_fee_occurrences: {
+        Row: {
+          amount: number
+          billing_term_id: string
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          fee_date: string
+          fee_mode: string
+          fee_value: number
+          id: string
+          lease_id: string
+          organization_id: string
+          property_id: string
+          settlement_status: string
+          tenant_invoice_id: string
+        }
+        Insert: {
+          amount: number
+          billing_term_id: string
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          fee_date: string
+          fee_mode: string
+          fee_value: number
+          id?: string
+          lease_id: string
+          organization_id: string
+          property_id: string
+          settlement_status?: string
+          tenant_invoice_id: string
+        }
+        Update: {
+          amount?: number
+          billing_term_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          fee_date?: string
+          fee_mode?: string
+          fee_value?: number
+          id?: string
+          lease_id?: string
+          organization_id?: string
+          property_id?: string
+          settlement_status?: string
+          tenant_invoice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "management_fee_occurrences_billing_term_fkey"
+            columns: ["organization_id", "lease_id", "billing_term_id"]
+            isOneToOne: false
+            referencedRelation: "lease_billing_terms"
+            referencedColumns: ["organization_id", "lease_id", "id"]
+          },
+          {
+            foreignKeyName: "management_fee_occurrences_invoice_fkey"
+            columns: ["organization_id", "tenant_invoice_id"]
+            isOneToOne: true
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "management_fee_occurrences_invoice_fkey"
+            columns: ["organization_id", "tenant_invoice_id"]
+            isOneToOne: true
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "management_fee_occurrences_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "management_fee_occurrences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "management_fee_occurrences_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       organization_branches: {
         Row: {
           address: string | null
@@ -3158,6 +3252,159 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      owner_collection_confirmation_allocations: {
+        Row: {
+          allocation_order: number
+          amount: number
+          confirmation_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          income_item_id: string
+          invoice_id: string
+          invoice_line_id: string
+          organization_id: string
+        }
+        Insert: {
+          allocation_order: number
+          amount: number
+          confirmation_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          income_item_id: string
+          invoice_id: string
+          invoice_line_id: string
+          organization_id: string
+        }
+        Update: {
+          allocation_order?: number
+          amount?: number
+          confirmation_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          income_item_id?: string
+          invoice_id?: string
+          invoice_line_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_collection_confirmation_allocations_confirmation_fkey"
+            columns: ["organization_id", "confirmation_id"]
+            isOneToOne: false
+            referencedRelation: "owner_collection_confirmations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_confirmation_allocations_income_fkey"
+            columns: ["organization_id", "income_item_id"]
+            isOneToOne: false
+            referencedRelation: "finance_income_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_confirmation_allocations_invoice_fkey"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_confirmation_allocations_invoice_fkey"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_confirmation_allocations_line_fkey"
+            columns: ["organization_id", "invoice_line_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_lines"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_confirmation_allocations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_collection_confirmations: {
+        Row: {
+          amount: number
+          confirmation_number: string
+          confirmed_date: string
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          id: string
+          invoice_id: string
+          organization_id: string
+          owner_person_id: string
+          reference: string | null
+        }
+        Insert: {
+          amount: number
+          confirmation_number: string
+          confirmed_date: string
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          invoice_id: string
+          organization_id: string
+          owner_person_id: string
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          confirmation_number?: string
+          confirmed_date?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          invoice_id?: string
+          organization_id?: string
+          owner_person_id?: string
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_collection_confirmations_invoice_fkey"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_confirmations_invoice_fkey"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_confirmations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_collection_confirmations_owner_fkey"
+            columns: ["organization_id", "owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
       }
       people: {
         Row: {
@@ -4274,6 +4521,360 @@ export type Database = {
           },
         ]
       }
+      tenant_invoice_lines: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          customer_label: string
+          description: string | null
+          id: string
+          income_item_id: string
+          internal_cost_amount: number | null
+          internal_markup_amount: number
+          invoice_id: string
+          line_type: string
+          organization_id: string
+          sort_order: number
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          customer_label: string
+          description?: string | null
+          id?: string
+          income_item_id: string
+          internal_cost_amount?: number | null
+          internal_markup_amount?: number
+          invoice_id: string
+          line_type: string
+          organization_id: string
+          sort_order: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          customer_label?: string
+          description?: string | null
+          id?: string
+          income_item_id?: string
+          internal_cost_amount?: number | null
+          internal_markup_amount?: number
+          invoice_id?: string
+          line_type?: string
+          organization_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invoice_lines_income_fkey"
+            columns: ["organization_id", "income_item_id"]
+            isOneToOne: true
+            referencedRelation: "finance_income_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_invoice_fkey"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_invoice_fkey"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_invoice_payment_allocations: {
+        Row: {
+          allocation_order: number
+          amount: number
+          created_at: string
+          created_by: string | null
+          finance_receipt_id: string
+          id: string
+          income_item_id: string
+          invoice_id: string
+          invoice_line_id: string
+          organization_id: string
+          payment_id: string
+        }
+        Insert: {
+          allocation_order: number
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          finance_receipt_id: string
+          id?: string
+          income_item_id: string
+          invoice_id: string
+          invoice_line_id: string
+          organization_id: string
+          payment_id: string
+        }
+        Update: {
+          allocation_order?: number
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          finance_receipt_id?: string
+          id?: string
+          income_item_id?: string
+          invoice_id?: string
+          invoice_line_id?: string
+          organization_id?: string
+          payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invoice_payment_allocations_income_fkey"
+            columns: ["organization_id", "income_item_id"]
+            isOneToOne: false
+            referencedRelation: "finance_income_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_payment_allocations_invoice_fkey"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_payment_allocations_invoice_fkey"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_payment_allocations_line_fkey"
+            columns: ["organization_id", "invoice_line_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_lines"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_payment_allocations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_payment_allocations_payment_fkey"
+            columns: ["organization_id", "payment_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_payments"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_payment_allocations_receipt_fkey"
+            columns: ["organization_id", "finance_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "finance_receipts"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      tenant_invoice_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          id: string
+          invoice_id: string
+          organization_id: string
+          receipt_number: string
+          received_date: string
+          reconciliation_source_id: string
+          reference: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          invoice_id: string
+          organization_id: string
+          receipt_number: string
+          received_date: string
+          reconciliation_source_id: string
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          invoice_id?: string
+          organization_id?: string
+          receipt_number?: string
+          received_date?: string
+          reconciliation_source_id?: string
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invoice_payments_invoice_fkey"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_payments_invoice_fkey"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_payments_source_fkey"
+            columns: ["organization_id", "reconciliation_source_id"]
+            isOneToOne: false
+            referencedRelation: "financial_reconciliation_sources"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      tenant_invoices: {
+        Row: {
+          billing_period_end: string
+          billing_period_start: string
+          billing_term_id: string
+          collection_route: string
+          created_at: string
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          due_date: string
+          id: string
+          invoice_number: string
+          issue_date: string
+          lease_id: string
+          lifecycle: string
+          occupant_labels: string[]
+          organization_id: string
+          property_id: string
+          recipient_kind: string
+          recipient_label: string
+          recipient_person_id: string
+          total_amount: number
+          unit_id: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          billing_period_end: string
+          billing_period_start: string
+          billing_term_id: string
+          collection_route: string
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          due_date: string
+          id?: string
+          invoice_number: string
+          issue_date: string
+          lease_id: string
+          lifecycle?: string
+          occupant_labels?: string[]
+          organization_id: string
+          property_id: string
+          recipient_kind: string
+          recipient_label: string
+          recipient_person_id: string
+          total_amount: number
+          unit_id?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          billing_period_end?: string
+          billing_period_start?: string
+          billing_term_id?: string
+          collection_route?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          due_date?: string
+          id?: string
+          invoice_number?: string
+          issue_date?: string
+          lease_id?: string
+          lifecycle?: string
+          occupant_labels?: string[]
+          organization_id?: string
+          property_id?: string
+          recipient_kind?: string
+          recipient_label?: string
+          recipient_person_id?: string
+          total_amount?: number
+          unit_id?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invoices_billing_term_fkey"
+            columns: ["organization_id", "lease_id", "billing_term_id"]
+            isOneToOne: false
+            referencedRelation: "lease_billing_terms"
+            referencedColumns: ["organization_id", "lease_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_recipient_fkey"
+            columns: ["organization_id", "recipient_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       tenant_requests: {
         Row: {
           archived_at: string | null
@@ -4605,7 +5206,75 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      tenant_invoice_balances: {
+        Row: {
+          balance_due: number | null
+          billing_period_end: string | null
+          billing_period_start: string | null
+          billing_term_id: string | null
+          collected_by_owner: number | null
+          collection_route: string | null
+          created_at: string | null
+          created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"] | null
+          due_date: string | null
+          id: string | null
+          invoice_number: string | null
+          is_overdue: boolean | null
+          issue_date: string | null
+          lease_id: string | null
+          lifecycle: string | null
+          occupant_labels: string[] | null
+          organization_id: string | null
+          paid_through_ips: number | null
+          payment_status: string | null
+          property_id: string | null
+          recipient_kind: string | null
+          recipient_label: string | null
+          recipient_person_id: string | null
+          total_amount: number | null
+          unit_id: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invoices_billing_term_fkey"
+            columns: ["organization_id", "lease_id", "billing_term_id"]
+            isOneToOne: false
+            referencedRelation: "lease_billing_terms"
+            referencedColumns: ["organization_id", "lease_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_recipient_fkey"
+            columns: ["organization_id", "recipient_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_organization_invitation: {
@@ -4686,6 +5355,18 @@ export type Database = {
           p_payment_frequency: string
           p_rent_due_day: number
           p_status: string
+        }
+        Returns: string
+      }
+      confirm_owner_collected_rent: {
+        Args: {
+          p_allocations: Json
+          p_amount: number
+          p_confirmed_date: string
+          p_idempotency_key: string
+          p_invoice_id: string
+          p_organization_id: string
+          p_reference: string
         }
         Returns: string
       }
@@ -5063,6 +5744,16 @@ export type Database = {
         Args: { p_month?: string; p_organization_id: string }
         Returns: number
       }
+      generate_tenant_rent_invoice: {
+        Args: {
+          p_billing_period_start: string
+          p_idempotency_key: string
+          p_issue_date: string
+          p_lease_id: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
       get_finance_expense_scoped_summary: {
         Args: {
           p_expense_type?: string
@@ -5411,6 +6102,19 @@ export type Database = {
           p_lease_deposit_id: string
           p_organization_id: string
           p_reference?: string
+        }
+        Returns: string
+      }
+      record_tenant_invoice_payment: {
+        Args: {
+          p_allocations: Json
+          p_amount: number
+          p_idempotency_key: string
+          p_invoice_id: string
+          p_organization_id: string
+          p_received_date: string
+          p_reconciliation_source_id: string
+          p_reference: string
         }
         Returns: string
       }

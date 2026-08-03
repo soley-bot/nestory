@@ -64,6 +64,7 @@ type UnknownRecord = Record<string, unknown>;
 type SupabaseServerClient = Awaited<
   ReturnType<typeof createSupabaseServerClient>
 >;
+type PeopleFilterQuery = ReturnType<typeof buildPeopleBaseQuery>;
 type PeopleQueryResult = {
   count?: number | null;
   data: unknown;
@@ -83,6 +84,16 @@ type PersonRow = {
   taxIdentifier: string | null;
   updatedAt: string;
 };
+
+function buildPeopleBaseQuery(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+) {
+  return supabase
+    .from("people")
+    .select(peopleSelect, { count: "exact" })
+    .eq("organization_id", organizationId);
+}
 
 type RoleRow = {
   archivedAt: string | null;
@@ -513,10 +524,7 @@ async function getPagedPeopleRows({
   const result = await applyPeopleBaseSort(
     applyPeopleIdPrefilter(
       applyPeopleArchiveFilter(
-        supabase
-          .from("people")
-          .select(peopleSelect, { count: "exact" })
-          .eq("organization_id", organizationId),
+        buildPeopleBaseQuery(supabase, organizationId),
         viewQuery.archiveState,
       ),
       idFilter,
@@ -555,10 +563,7 @@ async function getPeopleRowsForFilter({
   const result = await applyPeopleBaseSort(
     applyPeopleIdPrefilter(
       applyPeopleArchiveFilter(
-        supabase
-          .from("people")
-          .select(peopleSelect, { count: "exact" })
-          .eq("organization_id", organizationId),
+        buildPeopleBaseQuery(supabase, organizationId),
         viewQuery.archiveState,
       ),
       idFilter,
@@ -580,7 +585,7 @@ async function getPeopleRowsForFilter({
 }
 
 function applyPeopleArchiveFilter(
-  query: ReturnType<SupabaseServerClient["from"]>,
+  query: PeopleFilterQuery,
   archiveState: PeopleArchiveState,
 ) {
   if (archiveState === "active") {
@@ -595,7 +600,7 @@ function applyPeopleArchiveFilter(
 }
 
 function applyPeopleBaseSort(
-  query: ReturnType<SupabaseServerClient["from"]>,
+  query: PeopleFilterQuery,
   sort: PeopleViewQuery["sort"],
   archiveState: PeopleArchiveState,
 ) {
@@ -621,7 +626,7 @@ function applyPeopleBaseSort(
 }
 
 function applyPeopleIdPrefilter(
-  query: ReturnType<SupabaseServerClient["from"]>,
+  query: PeopleFilterQuery,
   idFilter: PeopleIdPrefilter,
 ) {
   let nextQuery = query;

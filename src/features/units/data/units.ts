@@ -57,9 +57,20 @@ const detailRecordLimit = 12;
 const unitRelationshipBatchSize = 75;
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type UnitFilterQuery = ReturnType<typeof buildUnitBaseQuery>;
 type UnitRowWithProperty = UnitRecord & {
   property: UnitPropertyRecord | UnitPropertyRecord[] | null;
 };
+
+function buildUnitBaseQuery(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+) {
+  return supabase
+    .from("units")
+    .select(unitWithPropertySelect, { count: "exact" })
+    .eq("organization_id", organizationId);
+}
 type PagedUnitRowsResult = {
   propertiesById: Map<string, UnitPropertyRecord>;
   totalCount: number;
@@ -200,10 +211,7 @@ async function getPagedUnitRows({
   viewQuery: UnitViewQuery;
 }): Promise<PagedUnitRowsResult> {
   const range = getRange(page, pageSize);
-  let unitsQuery = supabase
-    .from("units")
-    .select(unitWithPropertySelect, { count: "exact" })
-    .eq("organization_id", organizationId);
+  let unitsQuery = buildUnitBaseQuery(supabase, organizationId);
 
   unitsQuery = applyUnitBaseFilters(unitsQuery, viewQuery, activeLeaseUnitIds);
   unitsQuery = applyUnitBaseSort(unitsQuery, viewQuery);
@@ -226,7 +234,7 @@ async function getPagedUnitRows({
 }
 
 function applyUnitBaseFilters(
-  query: Awaited<ReturnType<SupabaseServerClient["from"]>["select"]>,
+  query: UnitFilterQuery,
   viewQuery: UnitViewQuery,
   activeLeaseUnitIds: ReadonlySet<string> | null,
 ) {
