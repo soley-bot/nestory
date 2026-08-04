@@ -7,6 +7,7 @@ type PageHeaderProps = {
   description?: string;
   context?: ReactNode;
   actions?: ReactNode;
+  navigation?: ReactNode;
 };
 
 export function PageHeader({
@@ -15,6 +16,7 @@ export function PageHeader({
   description,
   context,
   actions,
+  navigation,
 }: PageHeaderProps) {
   return (
     <header className="border-b border-border bg-surface px-4 py-3 sm:px-6">
@@ -23,25 +25,33 @@ export function PageHeader({
           <div className="min-w-0">{breadcrumb}</div>
         </WorkspaceHeaderPortal>
       ) : null}
-      <h1 className="text-base font-semibold leading-6 text-foreground">
-        {title}
-      </h1>
-      {description || context || actions ? (
-        <div
-          className="mt-1 flex min-w-0 flex-wrap items-center justify-between gap-x-5 gap-y-2 text-sm leading-5"
-          data-slot="page-header-meta"
-        >
+      <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="shrink-0 text-base font-semibold leading-6 text-foreground">
+            {title}
+          </h1>
           {description || context ? (
-            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-foreground-muted">
+            <div
+              className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm leading-5 text-foreground-muted"
+              data-slot="page-header-meta"
+            >
               {description ? <p className="max-w-2xl">{description}</p> : null}
               {context ? <div className="min-w-0">{context}</div> : null}
             </div>
           ) : null}
-          {actions ? (
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              {actions}
-            </div>
-          ) : null}
+        </div>
+        {actions ? (
+          <div
+            className="ml-auto flex shrink-0 flex-wrap items-center gap-2"
+            data-slot="page-header-actions"
+          >
+            {actions}
+          </div>
+        ) : null}
+      </div>
+      {navigation ? (
+        <div className="mt-2 min-w-0" data-slot="page-header-navigation">
+          {navigation}
         </div>
       ) : null}
     </header>

@@ -112,12 +112,13 @@ afterEach(() => {
 });
 
 describe("shared workspace anatomy", () => {
-  it("keeps one page title with legacy detail, context, and actions in a compact row", () => {
+  it("keeps one page title with detail, context, actions, and navigation in one header", () => {
     render(
       <PageHeader
         actions={<button type="button">Add lease</button>}
         context={<span>Riverside Heights</span>}
         description="Active leases"
+        navigation={<nav aria-label="Lease sections">Lease sections</nav>}
         title="Leases"
       />,
     );
@@ -130,10 +131,17 @@ describe("shared workspace anatomy", () => {
     );
     expect(metaRow).not.toBeNull();
     expect(metaRow?.contains(screen.getByText("Active leases"))).toBe(true);
-    expect(metaRow?.contains(screen.getByRole("button", { name: "Add lease" }))).toBe(
-      true,
-    );
     expect(metaRow?.className).toContain("text-sm");
+
+    const actions = screen.getByRole("button", { name: "Add lease" }).closest(
+      '[data-slot="page-header-actions"]',
+    );
+    expect(actions).not.toBeNull();
+
+    const navigation = screen.getByRole("navigation", {
+      name: "Lease sections",
+    }).closest('[data-slot="page-header-navigation"]');
+    expect(navigation).not.toBeNull();
   });
 
   it("moves detail breadcrumbs into the global workspace bar", () => {
@@ -161,6 +169,27 @@ describe("shared workspace anatomy", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Bassac Garden Apartments" }),
     ).toBeTruthy();
+  });
+
+  it("keeps detail breadcrumbs in the header when the global workspace bar is unavailable", () => {
+    const { container } = render(
+      <PageHeader
+        breadcrumb={
+          <PageBreadcrumb
+            current="Bassac Garden Apartments"
+            items={[{ href: "/properties", label: "Properties" }]}
+          />
+        }
+        title="Bassac Garden Apartments"
+      />,
+    );
+
+    const header = container.querySelector("header");
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+
+    expect(header).not.toBeNull();
+    expect(header?.contains(breadcrumb)).toBe(true);
+    expect(within(breadcrumb).getByRole("link", { name: "Properties" })).toBeTruthy();
   });
 
   it("shows one visible active item in local workspace navigation", () => {
@@ -247,7 +276,7 @@ describe("shared workspace anatomy", () => {
     expect(page?.className).toContain("overflow-x-hidden");
   });
 
-  it("moves list context into the app bar and keeps actions with workspace tools", () => {
+  it("renders a generated visible header with portal breadcrumbs and header actions", () => {
     const pageTools = document.createElement("div");
     pageTools.id = "workspace-page-tools";
     document.body.append(pageTools);
@@ -258,7 +287,6 @@ describe("shared workspace anatomy", () => {
         context="24 records"
         contextHref="/leases"
         title="Leases"
-        toolbar={<button type="button">Filter leases</button>}
       >
         <div>Lease list</div>
       </WorkspacePage>,
@@ -269,13 +297,41 @@ describe("shared workspace anatomy", () => {
     });
     expect(within(breadcrumb).getByRole("link", { name: "Leases" })).toBeTruthy();
     expect(within(breadcrumb).getByText("24 records")).toBeTruthy();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+
+    const heading = screen.getByRole("heading", { level: 1, name: "Leases" });
+    expect(heading.className).not.toContain("sr-only");
+
+    const actions = screen.getByRole("button", { name: "Add lease" }).closest(
+      '[data-slot="page-header-actions"]',
+    );
+    expect(actions).not.toBeNull();
+    expect(screen.queryByRole("toolbar")).toBeNull();
+  });
+
+  it("keeps local navigation and workspace tools in one controls region", () => {
+    render(
+      <WorkspacePage
+        header={<PageHeader title="Leases" />}
+        localNav={<nav aria-label="Lease views">Lease views</nav>}
+        toolbar={<button type="button">Filter leases</button>}
+      >
+        <div>Lease list</div>
+      </WorkspacePage>,
+    );
+
+    const controls = screen.getByText("Lease views").closest(
+      '[data-slot="workspace-controls"]',
+    );
+    expect(controls).not.toBeNull();
     expect(
-      screen.getByRole("heading", { level: 1, name: "Leases" }).className,
-    ).toContain("sr-only");
+      controls?.contains(screen.getByRole("navigation", { name: "Lease views" })),
+    ).toBe(true);
 
     const toolbar = screen.getByRole("toolbar", { name: "Workspace tools" });
     expect(within(toolbar).getByRole("button", { name: "Filter leases" })).toBeTruthy();
-    expect(within(toolbar).getByRole("button", { name: "Add lease" })).toBeTruthy();
+    expect(controls?.contains(toolbar)).toBe(true);
+    expect(screen.getAllByRole("toolbar")).toHaveLength(1);
   });
 
   it.each([1440, 1024, 390])(

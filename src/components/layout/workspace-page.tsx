@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
-import { WorkspacePageContext } from "@/components/layout/workspace-page-context";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
 
 type WorkspacePageProps = {
   actions?: ReactNode;
@@ -23,8 +24,19 @@ export function WorkspacePage({
   title,
   toolbar,
 }: WorkspacePageProps) {
-  const compactHeader = title && contextHref ? (
-    <WorkspacePageContext context={context} href={contextHref} title={title} />
+  const breadcrumb = title && contextHref ? (
+    <PageBreadcrumb
+      current={context ?? title}
+      items={[{ href: contextHref, label: title }]}
+    />
+  ) : null;
+  const generatedHeader = title ? (
+    <PageHeader
+      actions={actions}
+      breadcrumb={breadcrumb}
+      context={context}
+      title={title}
+    />
   ) : null;
 
   return (
@@ -32,31 +44,28 @@ export function WorkspacePage({
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background"
       data-slot="workspace-page"
     >
-      <div className="shrink-0" data-slot="workspace-header">
-        {compactHeader ?? header}
-      </div>
-      {localNav ? (
+      {header ?? generatedHeader}
+      {localNav || toolbar ? (
         <div
-          className="min-w-0 shrink-0 border-b border-border bg-surface"
-          data-slot="workspace-local-nav"
+          className="flex min-w-0 shrink-0 flex-col border-b border-border bg-surface lg:flex-row lg:items-center"
+          data-slot="workspace-controls"
         >
-          {localNav}
-        </div>
-      ) : null}
-      {toolbar || actions ? (
-        <div
-          aria-label="Workspace tools"
-          className="flex min-w-0 shrink-0 flex-col gap-2 border-b border-border bg-surface px-4 py-2 text-sm sm:px-6 lg:flex-row lg:items-start"
-          data-slot="workspace-toolbar"
-          role="toolbar"
-        >
-          {toolbar ? <div className="min-w-0 flex-1">{toolbar}</div> : null}
-          {actions ? (
+          {localNav ? (
             <div
-              className="flex shrink-0 flex-wrap items-center justify-end gap-2"
-              data-slot="workspace-toolbar-actions"
+              className="min-w-0 flex-1"
+              data-slot="workspace-local-nav"
             >
-              {actions}
+              {localNav}
+            </div>
+          ) : null}
+          {toolbar ? (
+            <div
+              aria-label="Workspace tools"
+              className="min-w-0 px-4 py-2 text-sm sm:px-6 lg:ml-auto lg:pl-0"
+              data-slot="workspace-toolbar"
+              role="toolbar"
+            >
+              {toolbar}
             </div>
           ) : null}
         </div>
