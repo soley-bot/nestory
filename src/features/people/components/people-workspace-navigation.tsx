@@ -1,3 +1,5 @@
+"use client";
+
 import { useSearchParams } from "next/navigation";
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import type { PersonRoleValue } from "@/features/people/people.types";
