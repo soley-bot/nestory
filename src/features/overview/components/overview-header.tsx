@@ -44,34 +44,39 @@ export function OverviewHeader({
   return (
     <>
       {target ? createPortal(breadcrumb, target) : breadcrumb}
-      <header className="min-w-0 border-b border-border px-1">
-        <div className="flex min-w-0 items-center gap-3 py-2">
-          <h1 className="mr-auto text-xl font-semibold tracking-tight text-foreground">Overview</h1>
-          <OverviewMonthPicker query={query} />
-        </div>
-        <nav
-          aria-label="Overview lenses"
-          className="flex min-w-0 gap-4 overflow-x-auto"
+      <header className="min-w-0 px-1">
+        <div
+          className="flex min-w-0 flex-col gap-2 py-2 md:flex-row md:items-center"
+          data-slot="overview-header-row"
         >
-          {lenses.map((lens) => {
-            const active = lens.value === query.lens;
-            return (
-              <Link
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "shrink-0 border-b-2 px-0.5 py-2 text-[13px] font-medium text-foreground",
-                  active
-                    ? "border-foreground"
-                    : "border-transparent text-foreground-muted hover:border-border hover:text-foreground",
-                )}
-                href={buildLensHref(query, lens.value)}
-                key={lens.value}
-              >
-                {lens.label}
-              </Link>
-            );
-          })}
-        </nav>
+          <h1 className="shrink-0 text-xl font-semibold tracking-tight text-foreground">Overview</h1>
+          <nav
+            aria-label="Overview lenses"
+            className="order-3 flex min-w-0 gap-4 overflow-x-auto md:order-none md:flex-1"
+          >
+            {lenses.map((lens) => {
+              const active = lens.value === query.lens;
+              return (
+                <Link
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "shrink-0 border-b-2 px-0.5 py-2 text-[13px] font-medium text-foreground",
+                    active
+                      ? "border-foreground"
+                      : "border-transparent text-foreground-muted hover:border-border hover:text-foreground",
+                  )}
+                  href={buildLensHref(query, lens.value)}
+                  key={lens.value}
+                >
+                  {lens.label}
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="shrink-0">
+            <OverviewMonthPicker query={query} />
+          </div>
+        </div>
       </header>
     </>
   );

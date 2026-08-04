@@ -15,7 +15,7 @@ export function OverviewSummary({
   label: string;
 }) {
   return (
-    <section aria-label={`${label} summary`} className="border-y border-border py-2.5">
+    <section aria-label={`${label} summary`} className="px-1 py-1.5">
       <dl className="flex flex-wrap items-baseline gap-x-5 gap-y-2 text-sm">
         {items.map((item) => (
           <div className="flex items-baseline gap-1.5 whitespace-nowrap" key={item.label}>

@@ -9,8 +9,8 @@ export function OverviewScreen({ data, query }: { data: OverviewScreenData; quer
   if (!data.workspaceSetup.hasAnyOperatingData) return <EmptyWorkspaceOnboarding data={data} />;
   const resolvedQuery = query ?? defaultQuery();
   return (
-    <main className="flex min-h-screen bg-background px-4 py-3 sm:px-5">
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+    <main className="flex h-full min-h-0 bg-background px-4 py-3 sm:px-5">
+      <div className="flex h-full min-h-0 flex-1 flex-col gap-2.5">
         <OverviewHeader query={resolvedQuery} />
         {!isBaseSetupComplete(data.workspaceSetup) ? <SetupProgressPanel data={data} /> : null}
         <div className="flex min-h-0 flex-1 flex-col">
@@ -27,7 +27,7 @@ export function OverviewScreen({ data, query }: { data: OverviewScreenData; quer
 
 function EmptyWorkspaceOnboarding({ data }: { data: OverviewScreenData }) {
   return (
-    <main className="min-h-screen bg-background px-4 py-5 sm:px-6 sm:py-7">
+    <main className="h-full min-h-0 overflow-y-auto bg-background px-4 py-5 sm:px-6 sm:py-7">
       <section data-slot="empty-workspace-onboarding">
         <header className="border-b border-border pb-5">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Start with your operating records.</h1>

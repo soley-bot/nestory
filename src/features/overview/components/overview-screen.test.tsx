@@ -12,6 +12,59 @@ import type {
 describe("OverviewScreen", () => {
   afterEach(cleanup);
 
+  it("keeps the title, lenses, and month control in one responsive header row", () => {
+    render(<OverviewScreen data={data} query={query} />);
+
+    const header = screen.getByRole("banner");
+    const headerRows = header.querySelectorAll('[data-slot="overview-header-row"]');
+    const headerRow = headerRows.item(0);
+
+    expect(headerRows).toHaveLength(1);
+    expect(classTokens(headerRow)).toContain("md:flex-row");
+    expect(headerRow.contains(screen.getByRole("heading", { name: "Overview", level: 1 }))).toBe(true);
+    expect(headerRow.contains(screen.getByRole("navigation", { name: "Overview lenses" }))).toBe(true);
+    expect(
+      headerRow.contains(
+        screen.getByRole("button", {
+          name: "Change reporting month, currently August 2026",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("uses app-shell height containment and one unframed operating scroll", () => {
+    render(<OverviewScreen data={data} query={query} />);
+
+    const screenRoot = screen.getByRole("main");
+    const header = screen.getByRole("banner");
+    const operatingWork = screen.getByRole("region", {
+      name: "Portfolio operating work",
+    });
+    const summary = screen.getByRole("region", { name: "Portfolio summary" });
+    const scrollOwners = Array.from(screenRoot.querySelectorAll("*")).filter((element) =>
+      classTokens(element).includes("overflow-y-auto"),
+    );
+
+    expect(classTokens(screenRoot)).toContain("h-full");
+    expect(classTokens(screenRoot)).toContain("min-h-0");
+    expect(classTokens(screenRoot)).not.toContain("min-h-screen");
+    expect(scrollOwners).toEqual([operatingWork]);
+    expect(classTokens(header)).not.toContain("border-b");
+    expect(classTokens(operatingWork)).not.toContain("border-y");
+    expect(classTokens(summary)).not.toContain("border-y");
+  });
+
+  it("neutralizes the legacy lens-list frame while keeping one operating scroll", () => {
+    render(<OverviewScreen data={data} query={{ ...query, lens: "leasing" }} />);
+
+    const operatingWork = screen.getByRole("region", {
+      name: "Leasing operating work",
+    });
+
+    expect(classTokens(operatingWork)).toContain("[&>section]:border-y-0");
+    expect(classTokens(operatingWork)).toContain("overflow-y-auto");
+  });
+
   it("keeps overview controls while making portfolio work precede one inline summary", () => {
     render(<OverviewScreen data={data} query={query} />);
 
@@ -129,3 +182,7 @@ const data = {
     unitCount: 1,
   },
 } satisfies OverviewScreenData;
+
+function classTokens(element: Element) {
+  return (element.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
+}

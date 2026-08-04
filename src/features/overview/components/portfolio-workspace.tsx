@@ -15,7 +15,11 @@ export function PortfolioWorkspace({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <section aria-label="Portfolio operating work" className="flex min-h-0 flex-1 flex-col overflow-hidden border-y border-border">
+      <section
+        aria-label="Portfolio operating work"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+        data-slot="overview-operating-scroll"
+      >
         <div className="flex items-center gap-3 border-b border-border px-3 py-2.5">
           <div className="mr-auto">
             <h2 className="text-sm font-semibold">Properties</h2>
@@ -35,7 +39,7 @@ export function PortfolioWorkspace({
           <span>Occupied</span>
           <span>Units</span>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div>
           {data.occupancyByProperty.length > 0 ? (
             <div className="divide-y divide-border">
             {data.occupancyByProperty.map((property) => (
