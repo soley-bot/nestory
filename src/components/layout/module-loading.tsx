@@ -1,16 +1,26 @@
+import { cn } from "@/lib/utils";
+
 type ModuleLoadingProps = {
+  heightMode?: "parent" | "viewport";
   kind?: "dashboard" | "list" | "report";
   title: string;
 };
 
-export function ModuleLoading({ kind = "list", title }: ModuleLoadingProps) {
+export function ModuleLoading({
+  heightMode = "parent",
+  kind = "list",
+  title,
+}: ModuleLoadingProps) {
   const isDashboard = kind === "dashboard";
   const isReport = kind === "report";
 
   return (
     <div
       aria-busy="true"
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+      className={cn(
+        "flex min-h-0 min-w-0 flex-col overflow-hidden bg-background",
+        heightMode === "viewport" ? "h-dvh" : "h-full",
+      )}
       data-loading-kind={kind}
     >
       <div

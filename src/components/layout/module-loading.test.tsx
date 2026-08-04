@@ -2,6 +2,7 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import AuthCompleteLoading from "@/app/auth/complete/loading";
 import { ModuleLoading } from "@/components/layout/module-loading";
 
 afterEach(cleanup);
@@ -50,6 +51,36 @@ describe("ModuleLoading task-first layout", () => {
       expect(workSurface.className).toMatch(/(?:^|\s)min-h-/);
     },
   );
+
+  it("uses viewport height only for an explicit standalone loading state", () => {
+    const { container } = render(
+      <ModuleLoading
+        heightMode="viewport"
+        title="Secure email verification"
+      />,
+    );
+    const state = container.querySelector('[data-loading-kind="list"]')!;
+    const titleActions = state.querySelector(
+      '[data-slot="loading-title-actions"]',
+    )!;
+
+    expect(state.classList.contains("h-dvh")).toBe(true);
+    expect(state.classList.contains("h-full")).toBe(false);
+    expect(state.classList.contains("min-h-screen")).toBe(false);
+    expect(titleActions.classList.contains("sm:flex-row")).toBe(true);
+    expect(state.getAttribute("aria-busy")).toBe("true");
+  });
+
+  it("lets the standalone auth completion loader own the viewport", () => {
+    const { container } = render(<AuthCompleteLoading />);
+    const state = container.querySelector('[data-loading-kind="list"]')!;
+
+    expect(state.classList.contains("h-dvh")).toBe(true);
+    expect(state.classList.contains("h-full")).toBe(false);
+    expect(screen.getByRole("status").textContent).toContain(
+      "Secure email verification is loading",
+    );
+  });
 
   it.each(["dashboard", "list", "report"] as const)(
     "keeps the %s variant announced while flattening its live workspace",

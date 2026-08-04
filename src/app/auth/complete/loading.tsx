@@ -1,5 +1,10 @@
 import { ModuleLoading } from "@/components/layout/module-loading";
 
 export default function AuthCompleteLoading() {
-  return <ModuleLoading title="Secure email verification" />;
+  return (
+    <ModuleLoading
+      heightMode="viewport"
+      title="Secure email verification"
+    />
+  );
 }
