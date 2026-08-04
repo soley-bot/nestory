@@ -19,6 +19,7 @@ import { PeopleScreen } from "@/features/people/components/people-screen";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import { getPeopleInsights } from "@/features/people/people.insights";
 import type {
+  PeoplePagination,
   PeopleSummary,
   PeopleViewQuery,
   PersonRoleValue,
@@ -215,13 +216,20 @@ describe("People route family redesign contract", () => {
     expect(screen.queryByRole("complementary")).toBeNull();
   });
 
-  it("selects the matching directory lens for a bookmarked role URL", () => {
-    navigation.searchParams = new URLSearchParams("role=owner&page=2");
-    renderPeople({
-      viewQuery: { ...defaultViewQuery, page: 2, role: "owner" },
-    });
+  it("updates the selected lens when role history changes and the workspace rerenders", () => {
+    const rendered = renderPeople();
 
-    const lenses = screen.getByRole("navigation", { name: "People views" });
+    let lenses = screen.getByRole("navigation", { name: "People views" });
+    expect(
+      within(lenses)
+        .getByRole("link", { name: "All" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+
+    navigation.searchParams = new URLSearchParams("role=owner&page=2");
+    rendered.rerender(getPeopleScreen());
+
+    lenses = screen.getByRole("navigation", { name: "People views" });
     expect(
       within(lenses)
         .getByRole("link", { name: "Owners" })
@@ -232,6 +240,44 @@ describe("People route family redesign contract", () => {
         .getByRole("link", { name: "All" })
         .getAttribute("aria-current"),
     ).toBeNull();
+
+    navigation.searchParams = new URLSearchParams();
+    rendered.rerender(getPeopleScreen());
+
+    lenses = screen.getByRole("navigation", { name: "People views" });
+    expect(
+      within(lenses)
+        .getByRole("link", { name: "All" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      within(lenses)
+        .getByRole("link", { name: "Owners" })
+        .getAttribute("aria-current"),
+    ).toBeNull();
+  });
+
+  it("preserves role and search parameters in pagination links", () => {
+    navigation.searchParams = new URLSearchParams(
+      "role=owner&query=Alice+Tenant&page=2",
+    );
+    renderPeople({
+      pagination: {
+        from: 51,
+        page: 2,
+        pageSize: 50,
+        to: 100,
+        totalCount: 150,
+        totalPages: 3,
+      },
+    });
+
+    expect(
+      screen.getByRole("link", { name: "Previous" }).getAttribute("href"),
+    ).toBe("/people?role=owner&query=Alice+Tenant");
+    expect(
+      screen.getByRole("link", { name: "Next" }).getAttribute("href"),
+    ).toBe("/people?role=owner&query=Alice+Tenant&page=3");
   });
 
   it.each([
@@ -605,16 +651,45 @@ function renderPeople({
   accessByPersonId,
   canCreate = true,
   lockedRole,
+  pagination,
   people: nextPeople = people,
   viewQuery = defaultViewQuery,
 }: {
   accessByPersonId?: Record<string, OrganizationPersonAccessStatus>;
   canCreate?: boolean;
   lockedRole?: PersonRoleValue;
+  pagination?: PeoplePagination;
   people?: PeopleSummary[];
   viewQuery?: PeopleViewQuery;
 } = {}) {
   return render(
+    getPeopleScreen({
+      accessByPersonId,
+      canCreate,
+      lockedRole,
+      pagination,
+      people: nextPeople,
+      viewQuery,
+    }),
+  );
+}
+
+function getPeopleScreen({
+  accessByPersonId,
+  canCreate = true,
+  lockedRole,
+  pagination,
+  people: nextPeople = people,
+  viewQuery = defaultViewQuery,
+}: {
+  accessByPersonId?: Record<string, OrganizationPersonAccessStatus>;
+  canCreate?: boolean;
+  lockedRole?: PersonRoleValue;
+  pagination?: PeoplePagination;
+  people?: PeopleSummary[];
+  viewQuery?: PeopleViewQuery;
+} = {}) {
+  return (
     <PeopleScreen
       accessByPersonId={accessByPersonId}
       addButtonLabel={lockedRole ? `Add ${lockedRole}` : "Add person"}
@@ -622,17 +697,19 @@ function renderPeople({
       createRole={lockedRole}
       insights={getPeopleInsights(nextPeople, nextPeople.length)}
       lockedRole={lockedRole}
-      pagination={{
-        from: nextPeople.length > 0 ? 1 : 0,
-        page: 1,
-        pageSize: 50,
-        to: nextPeople.length,
-        totalCount: nextPeople.length,
-        totalPages: nextPeople.length > 0 ? 1 : 0,
-      }}
+      pagination={
+        pagination ?? {
+          from: nextPeople.length > 0 ? 1 : 0,
+          page: 1,
+          pageSize: 50,
+          to: nextPeople.length,
+          totalCount: nextPeople.length,
+          totalPages: nextPeople.length > 0 ? 1 : 0,
+        }
+      }
       people={nextPeople}
       viewQuery={viewQuery}
-    />,
+    />
   );
 }
 
