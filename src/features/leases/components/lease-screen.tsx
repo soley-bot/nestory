@@ -14,6 +14,7 @@ import {
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeSearchParams } from "@/lib/url/href";
@@ -222,7 +223,7 @@ export function LeaseScreen({
         />
       ) : (
         <>
-          <div className="min-h-0 flex-1 p-3">
+          <div className="min-h-0 flex-1 p-3 md:p-0">
             <LeasesTable
               archiveState={viewQuery.archiveState}
               leases={leases}
@@ -291,8 +292,6 @@ export function LeaseScreen({
           </div>
         </div>
       ) : null}
-
-      <LeaseCommandStrip leases={leases} />
 
       {reviewContext ? (
         <LeaseReviewStrip
@@ -492,16 +491,25 @@ function LeaseReviewStrip({
   count: number;
   propertyLabel?: string;
 }) {
+  const title = `${count} ${count === 1 ? "lease" : "leases"} ${context.countLabel}${propertyLabel ? ` in ${propertyLabel}` : ""}`;
+
   return (
-    <div className="border-b border-border bg-warning-soft/20 px-4 py-2 sm:px-6 lg:px-6">
-      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <p className="min-w-0 truncate font-medium text-foreground">
-          {count} {count === 1 ? "lease" : "leases"} {context.countLabel}
-          {propertyLabel ? ` in ${propertyLabel}` : ""}
-        </p>
-        <p className="text-foreground-muted">{context.nextStep}</p>
-      </div>
-      <p className="mt-1 text-xs text-foreground-subtle">{context.description}</p>
+    <div className="shrink-0 bg-warning-soft/20 px-4 py-2 sm:px-6">
+      <ConsequencePanel
+        className="grid min-w-0 gap-x-4 gap-y-1 text-[13px] sm:grid-cols-[minmax(0,auto)_minmax(0,1fr)] sm:items-baseline [&>div]:mt-0 [&>h3]:truncate"
+        summary={
+          <div className="flex min-w-0 flex-col gap-1 text-xs sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+            <span className="min-w-0 text-foreground-subtle">
+              {context.description}
+            </span>
+            <span className="shrink-0 text-foreground-muted">
+              {context.nextStep}
+            </span>
+          </div>
+        }
+        title={title}
+        variant="inline"
+      />
     </div>
   );
 }
@@ -580,108 +588,6 @@ function getLeaseReviewContext(
   }
 
   return null;
-}
-
-function LeaseCommandStrip({
-  leases,
-}: {
-  leases: LeaseSummary[];
-}) {
-  const currentCount = leases.filter(
-    (lease) =>
-      lease.statusValue === "active" || lease.statusValue === "notice_given",
-  ).length;
-  const endingSoonCount = leases.filter((lease) =>
-    lease.riskIndicators.some((item) => item.id === "end" && item.tone !== "success"),
-  ).length;
-  const missingTenantCount = leases.filter(
-    (lease) => !lease.formValues.tenantPersonId,
-  ).length;
-  const missingDocumentsCount = leases.filter(
-    (lease) => lease.recordCounts.documents === 0,
-  ).length;
-  const rentAtRisk = leases
-    .filter((lease) =>
-      lease.riskIndicators.some((item) => item.id === "end" && item.tone !== "success"),
-    )
-    .reduce((total, lease) => total + lease.rentUsd, 0);
-
-  return (
-    <section
-      aria-label="Lease summary"
-      className="shrink-0 border-b border-border bg-surface px-4 py-2 sm:px-6"
-      role="region"
-    >
-      <div
-        aria-label="Lease metrics"
-        className="flex min-w-0 overflow-x-auto rounded-md border border-border bg-surface-muted/25 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
-        data-mobile-summary-strip="lease-metrics"
-        tabIndex={0}
-      >
-        <div className="flex min-w-[84px] shrink-0 items-center border-r border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
-          This page
-        </div>
-        <LeaseCommandMetric label="Leases" value={String(leases.length)} />
-        <LeaseCommandMetric label="Current" value={String(currentCount)} />
-        <LeaseCommandMetric
-          label="Ending risk"
-          tone={endingSoonCount > 0 ? "warning" : "success"}
-          value={String(endingSoonCount)}
-        />
-        <LeaseCommandMetric
-          label="Tenant gaps"
-          tone={missingTenantCount > 0 ? "warning" : "success"}
-          value={String(missingTenantCount)}
-        />
-        <LeaseCommandMetric
-          label="Missing docs"
-          tone={missingDocumentsCount > 0 ? "warning" : "success"}
-          value={String(missingDocumentsCount)}
-        />
-        <LeaseCommandMetric
-          label="Rent at risk"
-          tone={rentAtRisk > 0 ? "warning" : "neutral"}
-          value={formatDollarMetric(rentAtRisk)}
-        />
-      </div>
-    </section>
-  );
-}
-
-function LeaseCommandMetric({
-  label,
-  tone = "neutral",
-  value,
-}: {
-  label: string;
-  tone?: "neutral" | "success" | "warning";
-  value: string;
-}) {
-  const toneClass =
-    tone === "success"
-      ? "text-success"
-      : tone === "warning"
-        ? "text-warning"
-        : "text-foreground";
-
-  return (
-    <div className="min-w-[128px] flex-1 border-r border-border px-3 py-2 last:border-r-0">
-      <p className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
-        {label}
-      </p>
-      <p className={`mt-1 truncate text-sm font-semibold tabular-nums ${toneClass}`}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function formatDollarMetric(value: number) {
-  return value.toLocaleString("en-US", {
-    currency: "USD",
-    maximumFractionDigits: 0,
-    style: "currency",
-  });
 }
 
 function formatLeaseMonth(monthValue: string) {

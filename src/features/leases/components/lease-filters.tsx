@@ -4,8 +4,8 @@ import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { RotateCcw, SlidersHorizontal } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { RotateCcw } from "lucide-react";
+import { FilterPopover } from "@/components/ui/filter-popover";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -35,17 +35,12 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
     source: viewQuery.query,
     value: viewQuery.query,
   });
-  const hasAdvancedFilters =
-    viewQuery.propertyId !== "all" ||
-    viewQuery.unitId !== "all" ||
-    viewQuery.status !== "all" ||
-    viewQuery.tenantStatus !== "all" ||
-    viewQuery.archiveState !== DEFAULT_LEASE_ARCHIVE_STATE ||
+  const advancedFilterCount = getAdvancedFilterCount(viewQuery);
+  const hasActiveFilters =
+    viewQuery.query.trim().length > 0 ||
+    advancedFilterCount > 0 ||
     viewQuery.endsWithinDays !== null ||
-    viewQuery.endMonth !== "" ||
-    viewQuery.sort !== DEFAULT_LEASE_SORT ||
-    viewQuery.pageSize !== DEFAULT_LEASE_PAGE_SIZE;
-  const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
+    viewQuery.endMonth !== "";
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
   const compactSelectClassName = "h-8 px-2 text-[13px]";
@@ -92,51 +87,30 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
 
   return (
     <div className="w-full min-w-0">
-      <div className="space-y-2.5">
-        <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
-          <SearchCombo
-            ariaLabel="Search leases"
-            disabled={isPending}
-            onQueryChange={(value) =>
-              setQueryState({
-                source: viewQuery.query,
-                value,
-              })
-            }
-            onSubmit={handleSearchSubmit}
-            placeholder="Search tenant, unit, property, or term"
-            query={query}
-            submitLabel="Search leases"
-          />
+      <div className="flex min-w-0 items-center gap-2 text-[13px]">
+        <SearchCombo
+          ariaLabel="Search leases"
+          disabled={isPending}
+          onQueryChange={(value) =>
+            setQueryState({
+              source: viewQuery.query,
+              value,
+            })
+          }
+          onSubmit={handleSearchSubmit}
+          placeholder="Search tenant, unit, property, or term"
+          query={query}
+          submitLabel="Search leases"
+        />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              aria-controls="lease-advanced-search"
-              aria-expanded={advancedOpen}
-              className="h-8 w-full gap-1.5 px-2.5 sm:w-auto"
-              onClick={() => setAdvancedOpen((open) => !open)}
-              type="button"
-            >
-              <SlidersHorizontal size={14} />
-              Filters
-            </Button>
-            <Link
-              aria-label="Reset lease filters"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-              href={pathname}
-              scroll={false}
-              title="Reset filters"
-            >
-              <RotateCcw size={14} />
-            </Link>
-          </div>
-        </div>
-
-        {advancedOpen ? (
-          <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(160px,220px)_minmax(160px,220px)_minmax(132px,150px)_minmax(132px,160px)_minmax(132px,150px)_minmax(132px,160px)_minmax(84px,104px)]"
-            id="lease-advanced-search"
-          >
+        <FilterPopover
+          activeCount={advancedFilterCount}
+          contentClassName="w-[min(760px,calc(100vw-2rem))]"
+          description="Narrow leases by property, unit, lifecycle, record state, sort, or page size."
+          id="lease-advanced-search"
+          title="Filter leases"
+        >
+          <div className="grid gap-2 text-[13px] sm:grid-cols-2 lg:grid-cols-4">
             <SelectControl
               ariaLabel="Filter leases by property"
               className={compactSelectClassName}
@@ -238,9 +212,34 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
               }))}
               value={String(viewQuery.pageSize)}
             />
+            {hasActiveFilters ? (
+              <div className="flex justify-end sm:col-span-2 lg:col-span-4">
+                <Link
+                  aria-label="Reset lease filters"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  href={pathname}
+                  scroll={false}
+                >
+                  <RotateCcw size={14} />
+                  Reset
+                </Link>
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </FilterPopover>
       </div>
     </div>
   );
+}
+
+function getAdvancedFilterCount(viewQuery: LeaseViewQuery) {
+  return [
+    viewQuery.propertyId !== "all",
+    viewQuery.unitId !== "all",
+    viewQuery.status !== "all",
+    viewQuery.tenantStatus !== "all",
+    viewQuery.archiveState !== DEFAULT_LEASE_ARCHIVE_STATE,
+    viewQuery.sort !== DEFAULT_LEASE_SORT,
+    viewQuery.pageSize !== DEFAULT_LEASE_PAGE_SIZE,
+  ].filter(Boolean).length;
 }

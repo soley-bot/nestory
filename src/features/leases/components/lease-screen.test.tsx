@@ -65,23 +65,46 @@ beforeEach(() => {
     return 1;
   });
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
 });
 
 describe("LeaseScreen redesign contract", () => {
-  it("uses the shared dense lifecycle workspace with deliberate quick views and direct context links", () => {
+  it("keeps the visible page identity and actions while removing page-local summary framing", () => {
     const { container } = renderLeases();
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
-    const summary = screen.getByRole("region", { name: "Lease summary" });
-    const summaryStrip = summary.querySelector('[data-mobile-summary-strip="lease-metrics"]');
-    expect(summaryStrip?.className).toContain("overflow-x-auto");
-    expect(summaryStrip?.getAttribute("tabindex")).toBe("0");
+    expect(screen.getByRole("heading", { level: 1, name: "Leases" })).not.toBeNull();
+    expect(
+      within(container.querySelector('[data-slot="page-header-actions"]')!).getByRole(
+        "button",
+        { name: "Add lease" },
+      ),
+    ).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "Lease summary" })).toBeNull();
+    expect(screen.queryByText("This page")).toBeNull();
+
+    const tableFrame = container.querySelector<HTMLElement>(
+      '[data-slot="register-table-frame"]',
+    );
+    expect(tableFrame).not.toBeNull();
+    expect(tableFrame!.className).not.toContain("rounded");
+    expect(tableFrame!.className).not.toContain("border");
+    expect(tableFrame!.className).not.toMatch(/(?:^|\s)p[xytrbl]?-/);
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
@@ -146,6 +169,79 @@ describe("LeaseScreen redesign contract", () => {
     ).not.toBe(firstScheduleKey);
     expect(screen.queryByText(/select a lease row/i)).toBeNull();
     expect(screen.queryByText(/double-click/i)).toBeNull();
+  });
+
+  it("keeps search visible and discloses the seven advanced filters on demand", async () => {
+    const user = userEvent.setup();
+    renderLeases();
+
+    expect(screen.getByRole("textbox", { name: "Search leases" })).not.toBeNull();
+    const advancedFilterNames = [
+      "Filter leases by property",
+      "Filter leases by unit",
+      "Filter leases by status",
+      "Filter leases by tenant link",
+      "Filter leases by archive state",
+      "Sort leases",
+      "Lease rows per page",
+    ];
+
+    for (const name of advancedFilterNames) {
+      expect(screen.queryByRole("combobox", { name })).toBeNull();
+    }
+    expect(screen.queryByRole("link", { name: "Reset lease filters" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(screen.getByText("Filter leases")).not.toBeNull();
+    for (const name of advancedFilterNames) {
+      expect(screen.getByRole("combobox", { name })).not.toBeNull();
+    }
+    expect(screen.queryByRole("link", { name: "Reset lease filters" })).toBeNull();
+  });
+
+  it("announces the advanced filter count, enables reset, and preserves URL serialization", async () => {
+    navigation.searchParams = new URLSearchParams(
+      "propertyId=property-1&page=2&leaseId=lease-1",
+    );
+    const user = userEvent.setup();
+    renderLeases({
+      viewQuery: { ...defaultViewQuery, propertyId: "property-1" },
+    });
+
+    const filters = screen.getByRole("button", { name: "Filters (1)" });
+    expect(
+      screen.queryByRole("combobox", { name: "Filter leases by property" }),
+    ).toBeNull();
+
+    await user.click(filters);
+
+    const reset = screen.getByRole("link", { name: "Reset lease filters" });
+    expect(reset).not.toBeNull();
+    expect(reset.getAttribute("href")).toBe("/leases");
+
+    await user.click(
+      screen.getByRole("combobox", { name: "Filter leases by status" }),
+    );
+    await user.click(screen.getByRole("option", { name: "Active" }));
+
+    expect(navigation.replace).toHaveBeenCalledWith(
+      "/leases?propertyId=property-1&status=active",
+      { scroll: false },
+    );
+  });
+
+  it("renders filtered review context as inline status", () => {
+    renderLeases({
+      viewQuery: { ...defaultViewQuery, status: "current" },
+    });
+
+    const review = screen.getByRole("region", {
+      name: "2 leases currently active or in notice",
+    });
+    expect(review.getAttribute("data-variant")).toBe("inline");
+    expect(review.className).not.toContain("rounded");
+    expect(review.className).not.toContain("border");
   });
 
   it.each([1024, 390])("uses one responsive quick-view dialog at %ipx and returns focus", async (width) => {
@@ -315,7 +411,7 @@ describe("LeaseScreen redesign contract", () => {
     expect(screen.queryByRole("dialog", { name: "Add lease" })).toBeNull();
   });
 
-  it("scopes every summary metric to this page on a later result page", () => {
+  it("keeps authoritative totals and pagination range on a later result page", () => {
     renderLeases({
       pagination: {
         from: 51,
@@ -327,14 +423,9 @@ describe("LeaseScreen redesign contract", () => {
       },
     });
 
-    const summary = screen.getByRole("region", { name: "Lease summary" });
-    expect(within(summary).getByText("This page")).not.toBeNull();
-    expectLeaseMetric(summary, "Leases", "2");
-    expectLeaseMetric(summary, "Current", "2");
-    expectLeaseMetric(summary, "Tenant gaps", "0");
-    expectLeaseMetric(summary, "Missing docs", "2");
-    expect(within(summary).queryByText("121")).toBeNull();
-    expect(screen.getByText("121 records")).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "Lease summary" })).toBeNull();
+    expect(screen.queryByText("This page")).toBeNull();
+    expect(screen.getAllByText("121 records")).not.toHaveLength(0);
     expect(
       screen.getByText(
         (_, element) =>
@@ -402,17 +493,6 @@ function renderLeases({
       viewQuery={viewQuery}
     />,
   );
-}
-
-function expectLeaseMetric(
-  summary: HTMLElement,
-  label: string,
-  value: string,
-) {
-  const metric = within(summary).getByText(label).closest("div");
-
-  expect(metric).not.toBeNull();
-  expect(within(metric!).getByText(value)).not.toBeNull();
 }
 
 function makeLease(
