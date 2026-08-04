@@ -100,7 +100,9 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    const headerActions = document.querySelector('[data-slot="page-header-actions"]');
+    const headerActions = document.querySelector<HTMLElement>(
+      '[data-slot="page-header-actions"]',
+    );
     expect(headerActions).not.toBeNull();
     fireEvent.click(
       within(headerActions!).getByRole("button", { name: "Record payment" }),

@@ -1255,7 +1255,7 @@ function useAccessDraft<TValues extends Record<string, string>>({
 function invitationWasPersisted(result: OrganizationActionState) {
   return (
     result.status === "success" ||
-    result.message.startsWith("Invitation saved, but email delivery failed")
+    result.message?.startsWith("Invitation saved, but email delivery failed") === true
   );
 }
 
