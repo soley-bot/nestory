@@ -103,18 +103,16 @@ export function ReportBuilderScreen({
           className="overflow-hidden bg-surface"
           data-slot="report-table-frame"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2.5">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">
-                {trustedReport.title}
-              </h2>
-              <p className="mt-0.5 text-xs text-muted">
-                {reportRowCount} {reportRowCount === 1 ? "row" : "rows"}
-                {reportRowCount > trustedReport.rows.length
-                  ? ` · showing ${trustedReport.rows.length}`
-                  : ""}
-              </p>
-            </div>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-border px-3 py-2.5">
+            <h2 className="min-w-0 text-sm font-semibold text-foreground">
+              {trustedReport.title}
+            </h2>
+            <p className="whitespace-nowrap text-xs text-muted">
+              {reportRowCount} {reportRowCount === 1 ? "row" : "rows"}
+              {reportRowCount > trustedReport.rows.length
+                ? ` · showing ${trustedReport.rows.length}`
+                : ""}
+            </p>
           </div>
 
           <div
@@ -166,9 +164,10 @@ export function ReportBuilderScreen({
                     </td>
                   </tr>
                 ) : (
-                  trustedReport.rows.map((row) => (
+                  trustedReport.rows.map((row, index) => (
                     <ReportRow
                       columns={trustedReport.columns}
+                      isLast={index === trustedReport.rows.length - 1}
                       key={row.id}
                       row={row}
                       showRecords={showRecords}
@@ -243,10 +242,12 @@ function ExportMenu({ viewQuery }: { viewQuery: ReportsViewQuery }) {
 
 function ReportRow({
   columns,
+  isLast,
   row,
   showRecords,
 }: {
   columns: TrustedReport["columns"];
+  isLast: boolean;
   row: TrustedReportRow;
   showRecords: boolean;
 }) {
@@ -256,13 +257,19 @@ function ReportRow({
   );
 
   return (
-    <tr className="align-top hover:bg-surface-muted/60" data-tone={row.tone}>
+    <tr
+      className={cn(
+        "align-top hover:bg-surface-muted/60",
+        !isLast && "border-b border-border",
+      )}
+      data-tone={row.tone}
+    >
       {columns.map((column, index) => {
         const value = row.cells[column.key] || "—";
         return (
           <td
             className={cn(
-              "border-b border-border px-3 py-2.5 leading-5 text-foreground-muted last:border-b-0",
+              "px-3 py-2.5 leading-5 text-foreground-muted",
               column.align === "right" &&
                 "text-right font-medium tabular-nums text-foreground",
             )}
@@ -282,7 +289,7 @@ function ReportRow({
         );
       })}
       {showRecords ? (
-        <td className="border-b border-border px-3 py-2.5 leading-5 text-foreground-muted last:border-b-0">
+        <td className="px-3 py-2.5 leading-5 text-foreground-muted">
           {row.sourceLinks.length === 0 && hiddenSourceCount === 0 ? (
             "—"
           ) : (

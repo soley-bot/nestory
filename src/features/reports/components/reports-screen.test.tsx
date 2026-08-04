@@ -105,6 +105,52 @@ describe("minimal Reports workspace", () => {
     expect(screen.queryByText("Generate preview")).toBeNull();
   });
 
+  it("keeps the report title and row count inline until the heading needs to wrap", () => {
+    renderReport();
+
+    const title = screen.getByRole("heading", {
+      level: 2,
+      name: "Monthly Unit Profit & Loss",
+    });
+    const heading = title.parentElement;
+    const rowCount = within(heading!).getByText("1 row");
+
+    expect(heading).not.toBeNull();
+    expect(heading?.className).toContain("flex");
+    expect(heading?.className).toContain("flex-wrap");
+    expect(title.parentElement).toBe(heading);
+    expect(rowCount.parentElement).toBe(heading);
+    expect(rowCount.className).not.toContain("mt-0.5");
+  });
+
+  it("draws each report row separator across the full row and omits the final one", () => {
+    const report = unitProfitLossReport();
+    report.rows.push({
+      ...report.rows[0]!,
+      cells: {
+        ...report.rows[0]!.cells,
+        property: "P2 - Property Two",
+        unit: "Unit B1",
+      },
+      href: "/units/unit-2",
+      id: "unit-2",
+      title: "P2 / Unit B1",
+    });
+
+    renderReport({ report });
+
+    const bodyRows = screen
+      .getByRole("table", { name: "Monthly Unit Profit & Loss" })
+      .querySelectorAll("tbody > tr");
+
+    expect(bodyRows).toHaveLength(2);
+    expect(bodyRows[0]?.className).toContain("border-b");
+    expect(bodyRows[1]?.className).not.toContain("border-b");
+    for (const cell of bodyRows[0]!.querySelectorAll("td")) {
+      expect(cell.className).not.toContain("border-b");
+    }
+  });
+
   it("discloses when the bounded Sources cell omits additional source links", () => {
     const report = unitProfitLossReport();
     report.rows[0]!.sourceLinks = Array.from({ length: 7 }, (_, index) => ({

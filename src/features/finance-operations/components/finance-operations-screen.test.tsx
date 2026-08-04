@@ -207,6 +207,26 @@ describe("FinanceOperationsScreen", () => {
       within(tableFrame!).getByRole("row", { name: /Riverside Home/ }).className,
     ).toContain("border-b");
   });
+
+  it("lets the finance table scroll horizontally without an inner clipping layer", () => {
+    const { container } = render(
+      <FinanceOperationsScreen
+        {...data()}
+        organizationName="Sokha Property Services"
+        view="balances"
+      />,
+    );
+
+    const tableFrame = container.querySelector<HTMLElement>(
+      '[data-slot="finance-table-frame"]',
+    );
+
+    expect(tableFrame).not.toBeNull();
+    const table = within(tableFrame!).getByRole("table");
+    expect(tableFrame?.className).toContain("overflow-auto");
+    expect(tableFrame?.className).not.toContain("overflow-hidden");
+    expect(table.parentElement).toBe(tableFrame);
+  });
 });
 
 function data(): FinanceOperationsData {

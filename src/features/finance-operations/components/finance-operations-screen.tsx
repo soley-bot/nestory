@@ -1785,10 +1785,11 @@ function CompactTotals({
 }
 function TableFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-0 flex-1 overflow-auto p-3">
-      <div className="overflow-hidden" data-slot="finance-table-frame">
-        {children}
-      </div>
+    <div
+      className="min-h-0 flex-1 overflow-auto p-3"
+      data-slot="finance-table-frame"
+    >
+      {children}
     </div>
   );
 }
