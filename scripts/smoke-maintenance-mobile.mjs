@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
+import { MAINTENANCE_CAPTURE_VIEWPORTS } from "./smoke-ui-redesign-policy.mjs";
 
 const baseUrl = process.env.NESTORY_BASE_URL ?? "http://localhost:3000";
 const email = process.env.NESTORY_TEST_EMAIL?.trim();
@@ -21,16 +22,11 @@ const routeMatrix = [
   { active: "Inspections", heading: "Inspections", label: "inspections", path: "/inspections", primary: "New inspection", surface: "checklist" },
   { active: "Work orders", heading: "Work Orders", label: "work-orders", path: "/work-orders", primary: "New work order", surface: "board" },
 ];
-const matrixViewports = [
-  { height: 900, width: 1440 },
-  { height: 768, width: 1024 },
-  { height: 844, width: 390 },
-];
+const matrixViewports = MAINTENANCE_CAPTURE_VIEWPORTS;
 const legacyMaintenanceViewports = [
   { height: 700, width: 320 },
   { height: 812, width: 375 },
   { height: 896, width: 414 },
-  { height: 800, width: 1280 },
 ];
 const artifactDirectory = path.resolve(
   "artifacts",

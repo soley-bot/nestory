@@ -1,5 +1,49 @@
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
 
+export const MAIN_CAPTURE_VIEWPORTS = Object.freeze([
+  { height: 900, name: "desktop", width: 1440 },
+  { height: 800, name: "laptop", width: 1280 },
+  { height: 768, name: "compact-desktop", width: 1024 },
+  { height: 844, name: "phone", width: 390 },
+]);
+
+export const MAINTENANCE_CAPTURE_VIEWPORTS = MAIN_CAPTURE_VIEWPORTS;
+
+export const KEYBOARD_ZOOM_VIEWPORT = Object.freeze({
+  height: 450,
+  name: "zoom-equivalent-200",
+  width: 720,
+});
+
+export const FINAL_ACCEPTANCE_ROUTES = Object.freeze([
+  { label: "Overview", manifestRoute: "/overview" },
+  { label: "Properties", manifestRoute: "/properties" },
+  { label: "Units", manifestRoute: "/units" },
+  { label: "People", manifestRoute: "/people" },
+  { label: "Leases", manifestRoute: "/leases" },
+  { label: "Maintenance list", path: "/maintenance", source: "maintenance" },
+  {
+    label: "Maintenance board",
+    path: "/maintenance?view=board",
+    source: "maintenance",
+  },
+  { label: "Records", manifestRoute: "/timeline" },
+  { label: "Settings", manifestRoute: "/settings" },
+  { label: "Workspace Access", manifestRoute: "/users-roles" },
+  { label: "Account", manifestRoute: "/account" },
+  { label: "Finance Operations", manifestRoute: "/rent-income" },
+  { label: "Ledger", manifestRoute: "/ledger" },
+  { label: "Reports", manifestRoute: "/reports" },
+]);
+
+const keyboardZoomRouteDefinitions = Object.freeze([
+  { label: "Overview", manifestRoute: "/overview" },
+  { label: "Leases", manifestRoute: "/leases" },
+  { label: "Maintenance", manifestRoute: "/maintenance" },
+  { label: "Property detail", manifestRoute: "/properties/[propertyId]" },
+  { label: "Settings", manifestRoute: "/settings" },
+]);
+
 export function validateLocalBaseUrl(value) {
   let parsedBaseUrl;
 
@@ -78,6 +122,7 @@ export function collectSmokeFailures(
   routeResults,
   accessAudits,
   blockedRequests,
+  keyboardZoomAudits = null,
 ) {
   const failures = blockedRequests.map(
     (request) =>
@@ -96,7 +141,144 @@ export function collectSmokeFailures(
     }
   }
 
+  if (keyboardZoomAudits !== null) {
+    failures.push(...getKeyboardZoomSuiteFailures(keyboardZoomAudits));
+    for (const audit of keyboardZoomAudits) {
+      failures.push(...getKeyboardZoomAuditFailures(audit));
+    }
+  }
+
   return failures;
+}
+
+export function resolveKeyboardZoomRoutes(manifest) {
+  return keyboardZoomRouteDefinitions.map((definition) => {
+    const entry = manifest.find(
+      (candidate) => candidate.route === definition.manifestRoute,
+    );
+
+    if (!entry?.smoke?.path || !entry.smoke.expectedAccess?.admin) {
+      throw new Error(
+        `Keyboard audit route is missing from the manifest: ${definition.manifestRoute}`,
+      );
+    }
+
+    return {
+      expectedAccess: entry.smoke.expectedAccess.admin,
+      label: definition.label,
+      manifestRoute: definition.manifestRoute,
+      path: entry.smoke.path,
+    };
+  });
+}
+
+export function formatViewportSummary(viewports) {
+  return joinList(
+    viewports.map(
+      (viewport) =>
+        `${viewport.name} (${viewport.width}x${viewport.height})`,
+    ),
+  );
+}
+
+export function formatViewportPass(results, viewports) {
+  const passingViewportNames = new Set(
+    results
+      .filter((result) => getRouteResultFailures(result).length === 0)
+      .map((result) => result.viewport),
+  );
+  const passingCount = viewports.filter((viewport) =>
+    passingViewportNames.has(viewport.name),
+  ).length;
+
+  return `${passingCount}/${viewports.length} ${
+    passingCount === viewports.length ? "pass" : "FAIL"
+  }`;
+}
+
+export function getKeyboardZoomSuiteFailures(audits) {
+  const auditedRoutes = new Set(
+    audits.map((audit) => audit.manifestRoute),
+  );
+
+  return keyboardZoomRouteDefinitions
+    .filter((route) => !auditedRoutes.has(route.manifestRoute))
+    .map(
+      (route) =>
+        `${KEYBOARD_ZOOM_VIEWPORT.name}: missing keyboard audit for ${route.label} (${route.manifestRoute})`,
+    );
+}
+
+export function getKeyboardZoomAuditFailures(result) {
+  const failures = [];
+  const prefix = `${result.viewport} ${result.route}`;
+
+  if (result.navigationError) {
+    failures.push(`${prefix}: navigation-error`);
+  }
+  if (result.accessResult !== result.expectedAccess) {
+    failures.push(
+      `${prefix}: expected ${result.expectedAccess}, received ${result.accessResult}`,
+    );
+  }
+  if (result.h1?.error || result.h1?.count !== 1) {
+    failures.push(
+      `${prefix}: expected exactly one H1, received ${result.h1?.count ?? "missing"}`,
+    );
+  }
+  if (
+    result.horizontalOverflow?.error ||
+    result.horizontalOverflow?.hasOverflow !== false
+  ) {
+    failures.push(`${prefix}: horizontal overflow check failed`);
+  }
+
+  const traversal = result.keyboardTraversal;
+  if (traversal?.error) {
+    failures.push(`${prefix}: keyboard traversal failed`);
+  }
+  if (!traversal?.eligibleTargets?.length) {
+    failures.push(`${prefix}: no eligible keyboard focus targets`);
+  }
+  if (!traversal?.reachedTargets?.length) {
+    failures.push(`${prefix}: no keyboard focus targets reached`);
+  }
+  if (!traversal?.reachedRegions?.length) {
+    failures.push(`${prefix}: no keyboard focus regions reached`);
+  }
+  if (traversal?.unreachableTargets?.length > 0) {
+    failures.push(
+      `${prefix}: ${traversal.unreachableTargets.length} keyboard target(s) unreachable`,
+    );
+  }
+  if (traversal?.offViewportFocus?.length > 0) {
+    failures.push(
+      `${prefix}: ${traversal.offViewportFocus.length} off-viewport focus target(s)`,
+    );
+  }
+  if (
+    traversal?.reverseTraversal?.attempted !== true ||
+    traversal.reverseTraversal.reached !== true
+  ) {
+    failures.push(`${prefix}: reverse keyboard traversal failed`);
+  }
+  if (result.screenshotError || !result.screenshotPath) {
+    failures.push(`${prefix}: screenshot evidence missing`);
+  }
+
+  return failures;
+}
+
+export function renderKeyboardZoomEvidence(audits = []) {
+  const routeFailures = audits.flatMap(getKeyboardZoomAuditFailures);
+  const suiteFailures = getKeyboardZoomSuiteFailures(audits);
+  const passingCount = audits.filter(
+    (audit) => getKeyboardZoomAuditFailures(audit).length === 0,
+  ).length;
+  const status =
+    routeFailures.length === 0 && suiteFailures.length === 0 ? "pass" : "open";
+
+  return `- ${passingCount}/${keyboardZoomRouteDefinitions.length} ${status}: keyboard traversal at a 720x450 CSS viewport equivalent to 1440x900 at 200%. This is an equivalent layout audit, not actual browser zoom. Actual 200% browser zoom remains manual and unverified.`;
 }
 
 export function getRouteResultFailures(result) {
@@ -163,4 +345,12 @@ function readHeader(headers, name) {
   );
 
   return match?.[1];
+}
+
+function joinList(values) {
+  if (values.length <= 1) {
+    return values[0] ?? "";
+  }
+
+  return `${values.slice(0, -1).join(", ")} and ${values.at(-1)}`;
 }

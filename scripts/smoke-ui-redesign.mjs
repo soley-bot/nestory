@@ -5,7 +5,12 @@ import { chromium } from "playwright";
 import {
   collectSmokeFailures,
   createReadOnlyRequestPolicy,
-  getRouteResultFailures,
+  formatViewportPass,
+  formatViewportSummary,
+  KEYBOARD_ZOOM_VIEWPORT,
+  MAIN_CAPTURE_VIEWPORTS,
+  renderKeyboardZoomEvidence,
+  resolveKeyboardZoomRoutes,
   validateLocalBaseUrl,
 } from "./smoke-ui-redesign-policy.mjs";
 
@@ -44,6 +49,7 @@ const routes = manifest
     path: entry.smoke.path,
     queryContract: entry.smoke.queryContract,
   }));
+const keyboardZoomRoutes = resolveKeyboardZoomRoutes(manifest);
 
 if (routes.length === 0) {
   throw new Error(`No manifest route matched --route=${routeFilter}`);
@@ -62,11 +68,7 @@ if (evidenceSummaryPath) {
   process.exit(0);
 }
 
-const viewports = [
-  { height: 900, name: "desktop", width: 1440 },
-  { height: 768, name: "compact-desktop", width: 1024 },
-  { height: 844, name: "phone", width: 390 },
-];
+const viewports = MAIN_CAPTURE_VIEWPORTS;
 
 const startedAt = new Date();
 const runName = startedAt
@@ -79,6 +81,7 @@ const blockedMutationRequests = [];
 const results = [];
 const roleAudits = [];
 const knownAxeExceptions = [];
+const keyboardZoomAudits = [];
 
 await mkdir(runDirectory, { recursive: true });
 
@@ -133,6 +136,15 @@ try {
     await page.close();
   }
 
+  if (!routeFilter) {
+    keyboardZoomAudits.push(
+      ...(await auditKeyboardZoomRoutes({
+        browserContext: context,
+        routes: keyboardZoomRoutes,
+      })),
+    );
+  }
+
   for (const fixture of [
     { email: "manager@nestory.com", role: "manager" },
     { email: "member@nestory.com", role: "member" },
@@ -155,6 +167,7 @@ try {
     baseUrl,
     blockedMutationRequests,
     completedAt: new Date().toISOString(),
+    keyboardZoomAudits,
     results,
     roleAudits,
     runDirectory: toArtifactPath(runDirectory),
@@ -168,6 +181,7 @@ try {
     results,
     roleAudits,
     blockedMutationRequests,
+    routeFilter ? null : keyboardZoomAudits,
   );
 
   if (writeEvidence && failures.length === 0) {
@@ -411,6 +425,304 @@ async function captureRoute({
     screenshotPath: toArtifactPath(screenshotPath),
     viewport: viewport.name,
   };
+}
+
+async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) {
+  const auditDirectory = resolve(
+    runDirectory,
+    KEYBOARD_ZOOM_VIEWPORT.name,
+  );
+  const auditResults = [];
+
+  await mkdir(auditDirectory, { recursive: true });
+
+  const page = await browserContext.newPage();
+  await page.setViewportSize({
+    height: KEYBOARD_ZOOM_VIEWPORT.height,
+    width: KEYBOARD_ZOOM_VIEWPORT.width,
+  });
+
+  try {
+    for (const route of auditRoutes) {
+      const requestedUrl = new URL(route.path, `${baseUrl}/`).toString();
+      const screenshotPath = resolve(
+        auditDirectory,
+        `${routeSlug(route.path)}.png`,
+      );
+      let navigationError = null;
+      let responseStatus = null;
+
+      try {
+        const response = await page.goto(requestedUrl, {
+          timeout: 30_000,
+          waitUntil: "domcontentloaded",
+        });
+        responseStatus = response?.status() ?? null;
+        await page
+          .waitForLoadState("networkidle", { timeout: 5_000 })
+          .catch(() => {});
+      } catch (error) {
+        navigationError = error instanceof Error ? error.message : String(error);
+      }
+
+      const h1 = await measureH1(page).catch((error) => ({
+        count: null,
+        error: error instanceof Error ? error.message : String(error),
+        texts: [],
+      }));
+      const horizontalOverflow = await measureHorizontalOverflow(page).catch(
+        (error) => ({
+          error: error instanceof Error ? error.message : String(error),
+          hasOverflow: null,
+        }),
+      );
+      const keyboardTraversal = await traverseKeyboardTargets(page).catch(
+        (error) => ({
+          eligibleTargets: [],
+          error: error instanceof Error ? error.message : String(error),
+          offViewportFocus: [],
+          reachedRegions: [],
+          reachedTargets: [],
+          reverseTraversal: { attempted: false, reached: false, target: null },
+          unreachableTargets: [],
+        }),
+      );
+      let screenshotError = null;
+
+      try {
+        await page.screenshot({
+          animations: "disabled",
+          fullPage: true,
+          path: screenshotPath,
+        });
+      } catch (error) {
+        screenshotError = error instanceof Error ? error.message : String(error);
+      }
+
+      const finalUrl = page.url();
+      auditResults.push({
+        accessResult: getAccessResult({
+          finalUrl,
+          navigationError,
+          requestedRoute: route.path,
+          responseStatus,
+        }),
+        expectedAccess: route.expectedAccess,
+        finalPath: toPathAndSearch(finalUrl),
+        h1,
+        horizontalOverflow,
+        keyboardTraversal,
+        label: route.label,
+        manifestRoute: route.manifestRoute,
+        navigationError,
+        responseStatus,
+        route: route.path,
+        screenshotError,
+        screenshotPath: screenshotError ? null : toArtifactPath(screenshotPath),
+        viewport: KEYBOARD_ZOOM_VIEWPORT.name,
+      });
+    }
+  } finally {
+    await page.close();
+  }
+
+  return auditResults;
+}
+
+async function measureH1(page) {
+  const texts = await page
+    .getByRole("heading", { level: 1 })
+    .evaluateAll((headings) =>
+      headings.map((heading) => heading.textContent?.trim() ?? ""),
+    );
+
+  return { count: texts.length, error: null, texts };
+}
+
+async function traverseKeyboardTargets(page) {
+  const eligibleTargets = await inspectKeyboardTargets(page, true);
+  const reachedTargets = new Map();
+  const offViewportFocus = new Map();
+  const maximumTabs = Math.min(
+    Math.max(eligibleTargets.length + 2, 3),
+    200,
+  );
+
+  for (let index = 0; index < maximumTabs; index += 1) {
+    await page.keyboard.press("Tab");
+    const target = await inspectKeyboardTargets(page, false);
+
+    recordFocusedTarget({ offViewportFocus, reachedTargets, target });
+    if (reachedTargets.size === eligibleTargets.length) {
+      break;
+    }
+  }
+
+  await page.keyboard.press("Shift+Tab");
+  const reverseTarget = await inspectKeyboardTargets(page, false);
+  recordFocusedTarget({
+    offViewportFocus,
+    reachedTargets,
+    target: reverseTarget,
+  });
+
+  const eligibleKeys = new Set(eligibleTargets.map((target) => target.key));
+  const reached = [...reachedTargets.values()].filter((target) =>
+    eligibleKeys.has(target.key),
+  );
+
+  return {
+    eligibleTargets,
+    error: null,
+    offViewportFocus: [...offViewportFocus.values()],
+    reachedRegions: [
+      ...new Set(reached.map((target) => target.region).filter(Boolean)),
+    ],
+    reachedTargets: reached,
+    reverseTraversal: {
+      attempted: true,
+      reached: Boolean(reverseTarget && eligibleKeys.has(reverseTarget.key)),
+      target: reverseTarget,
+    },
+    unreachableTargets: eligibleTargets.filter(
+      (target) => !reachedTargets.has(target.key),
+    ),
+  };
+}
+
+function recordFocusedTarget({ offViewportFocus, reachedTargets, target }) {
+  if (!target?.key) {
+    return;
+  }
+
+  reachedTargets.set(target.key, target);
+  if (target.offViewport) {
+    offViewportFocus.set(target.key, target);
+  }
+}
+
+async function inspectKeyboardTargets(page, includeInventory) {
+  return page.evaluate((shouldReturnInventory) => {
+    const selector = [
+      "a[href]",
+      "button",
+      "input:not([type='hidden'])",
+      "select",
+      "textarea",
+      "[contenteditable='true']",
+      "[tabindex]",
+    ].join(",");
+
+    function elementKey(element) {
+      if (element.id) {
+        return `#${element.id}`;
+      }
+
+      const parts = [];
+      let current = element;
+
+      while (current && current !== document.body) {
+        const siblings = current.parentElement
+          ? [...current.parentElement.children].filter(
+              (sibling) => sibling.tagName === current.tagName,
+            )
+          : [];
+        parts.unshift(
+          `${current.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(current) + 1})`,
+        );
+        current = current.parentElement;
+      }
+
+      return parts.join(">");
+    }
+
+    function regionName(element) {
+      const region = element.closest(
+        "nav, header, main, aside, footer, [role='region'], [role='dialog'], [role='navigation'], [role='toolbar'], [role='search']",
+      );
+
+      if (!region) {
+        return "document";
+      }
+
+      return (
+        region.getAttribute("aria-label") ||
+        region.getAttribute("role") ||
+        region.tagName.toLowerCase()
+      );
+    }
+
+    function targetSnapshot(element) {
+      if (!(element instanceof HTMLElement)) {
+        return null;
+      }
+
+      const bounds = element.getBoundingClientRect();
+      const labelledBy = element.getAttribute("aria-labelledby");
+      const labelledText = labelledBy
+        ? labelledBy
+            .split(/\s+/)
+            .map((id) => document.getElementById(id)?.textContent?.trim())
+            .filter(Boolean)
+            .join(" ")
+        : "";
+
+      return {
+        bounds: {
+          bottom: Math.round(bounds.bottom),
+          height: Math.round(bounds.height),
+          left: Math.round(bounds.left),
+          right: Math.round(bounds.right),
+          top: Math.round(bounds.top),
+          width: Math.round(bounds.width),
+        },
+        key: elementKey(element),
+        label: (
+          element.getAttribute("aria-label") ||
+          labelledText ||
+          element.getAttribute("title") ||
+          element.textContent ||
+          element.getAttribute("value") ||
+          element.tagName
+        )
+          .trim()
+          .slice(0, 120),
+        offViewport:
+          bounds.left < -0.5 ||
+          bounds.top < -0.5 ||
+          bounds.right > window.innerWidth + 0.5 ||
+          bounds.bottom > window.innerHeight + 0.5,
+        region: regionName(element),
+        tagName: element.tagName,
+      };
+    }
+
+    if (!shouldReturnInventory) {
+      return targetSnapshot(document.activeElement);
+    }
+
+    return [...document.querySelectorAll(selector)]
+      .filter((element) => {
+        if (!(element instanceof HTMLElement)) {
+          return false;
+        }
+
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return (
+          !element.matches(":disabled") &&
+          !element.closest("[inert]") &&
+          element.tabIndex >= 0 &&
+          element.getAttribute("aria-hidden") !== "true" &&
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          bounds.width > 0 &&
+          bounds.height > 0
+        );
+      })
+      .map(targetSnapshot)
+      .filter(Boolean);
+  }, includeInventory);
 }
 
 function isExpectedDevServerConsoleError(message) {
@@ -671,7 +983,9 @@ function renderEvidenceDocument(summary) {
     summary.results,
     summary.roleAudits,
     summary.blockedMutationRequests,
+    summary.keyboardZoomAudits ?? null,
   ).length;
+  const viewportSummary = formatViewportSummary(summary.viewports);
   const lines = [
     "# UI Redesign Verification Evidence",
     "",
@@ -680,7 +994,7 @@ function renderEvidenceDocument(summary) {
     "",
     "## Verdict",
     "",
-    `- ${summary.results.length} admin route/viewport captures completed across desktop, compact desktop, and phone.`,
+    `- ${summary.results.length} admin route/viewport captures completed across ${viewportSummary}.`,
     `- ${summary.roleAudits.length} manager, member, and anonymous access checks matched the manifest.`,
     `- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: ${failureCount}.`,
     "- Local fixture evidence only; this is not hosted production certification.",
@@ -706,14 +1020,12 @@ function renderEvidenceDocument(summary) {
           `${audit.accessResult} (expected ${audit.expectedAccess})`,
         ]),
     );
-    const viewportPass = adminResults.every(
-      (result) => getRouteResultFailures(result).length === 0,
-    );
+    const viewportPass = formatViewportPass(adminResults, summary.viewports);
     const limitation = entry.smoke.limitations.join(" ") || "None";
 
     lines.push(`<!-- route-evidence:${entry.route} -->`);
     lines.push(
-      `| ${escapeTable(entry.route)} | ${escapeTable(entry.smoke.path)} | ${escapeTable(adminFinalPaths)} | ${escapeTable(audits.manager)} | ${escapeTable(audits.member)} | ${escapeTable(audits.anonymous)} | ${escapeTable(entry.states.join(", ") || "redirect only")} | ${viewportPass ? "3/3 pass" : "FAIL"} | ${escapeTable(entry.smoke.queryContract)} | ${escapeTable(limitation)} |`,
+      `| ${escapeTable(entry.route)} | ${escapeTable(entry.smoke.path)} | ${escapeTable(adminFinalPaths)} | ${escapeTable(audits.manager)} | ${escapeTable(audits.member)} | ${escapeTable(audits.anonymous)} | ${escapeTable(entry.states.join(", ") || "redirect only")} | ${viewportPass} | ${escapeTable(entry.smoke.queryContract)} | ${escapeTable(limitation)} |`,
     );
   }
 
@@ -734,7 +1046,8 @@ function renderEvidenceDocument(summary) {
     "## Keyboard, zoom, and state evidence",
     "",
     "- Native tab order, current navigation, command palette focus trap, drawer Escape/return, field error association, and live announcements are enforced by `src/lib/ui/accessibility-contract.test.tsx` and feature interaction tests.",
-    "- The 1440x900, 1024x768, and 390x844 captures provide 3/3 responsive evidence for every manifest row. A separate 720x450, 200%-equivalent layout audit covered ten representative route families without document overflow.",
+    `- The saved manifest captures cover ${viewportSummary}; pass counts in the route matrix are derived from this runtime viewport list.`,
+    renderKeyboardZoomEvidence(summary.keyboardZoomAudits ?? []),
     "- Loading, true empty, filtered empty, error/retry, permission blocked, draft, saving, and success evidence is mapped per route in the manifest and validated by `src/lib/ui/route-state-evidence.test.ts`.",
     "",
     "## Known limitation",

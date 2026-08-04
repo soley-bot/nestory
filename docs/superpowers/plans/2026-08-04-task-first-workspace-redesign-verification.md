@@ -69,6 +69,26 @@ user's selected in-app browser unless the user explicitly authorizes switching
 to Playwright CLI. A controller with that selected browser must complete any
 remaining browser-only evidence.
 
+The static browser harness is now prepared, but remains unrun:
+
+- The main manifest sweep is configured to save 1440 x 900, 1280 x 800,
+  1024 x 768, and 390 x 844 captures, with generated evidence deriving its
+  viewport names and pass counts from the runtime summary.
+- The Maintenance saved matrix uses the same four viewports, including list
+  and board screenshots at 1280 x 800. The old duplicate 1280 x 800 list-only
+  legacy measurement was removed.
+- A read-only keyboard traversal audit is configured for Overview, Leases,
+  Maintenance, Property detail, and Settings at a 720 x 450 CSS viewport,
+  equivalent to the 1440 x 900 layout at 200%. It records H1 count, document
+  overflow, reached and unreachable focus targets and regions, off-viewport
+  focus, reverse traversal, and one screenshot per route in the structured
+  summary and failure gate.
+
+No line above is runtime browser evidence. The exact captures and equivalent
+keyboard audit remain open until the browser commands run. Actual 200% browser
+zoom is not automated by this harness and remains a separate manual, unverified
+Task 18 acceptance item.
+
 ## Selected-browser evidence actually available
 
 Browser: the user's authenticated in-app browser at its fixed 1280 x 720 CSS
@@ -99,10 +119,12 @@ Invite Staff, Petty Cash, Documents, and Property Setup under
 `D:\nestory\output\playwright\task-first-wave-b` through
 `D:\nestory\output\playwright\task-first-wave-e`.
 
-The required 1440 x 900 and 1280 x 800 captures do not exist. The required 200%
-zoom keyboard-only checks for Overview, Leases, Maintenance, Property detail,
-and Settings were not exercised. The selected in-app browser cannot set those
-viewport sizes or browser zoom. These are open evidence gaps, not pass claims.
+The required 1440 x 900 and 1280 x 800 final-matrix captures do not exist. The
+configured 720 x 450 200%-equivalent keyboard-only checks for Overview, Leases,
+Maintenance, Property detail, and Settings were not exercised. Actual 200%
+browser zoom was not exercised either. The selected in-app browser cannot set
+those viewport sizes or browser zoom. These are open evidence gaps, not pass
+claims.
 
 No manager, member, anonymous, or hosted role was exercised for this visual
 checkpoint. Hosted authentication, hosted database behavior, production deploy
@@ -156,4 +178,5 @@ was reviewed rather than deleted mechanically:
   documentation-contract change, and none was blindly removed.
 
 This is local authenticated implementation evidence only. It does not certify
-the unrun browser-smoke commands or the missing exact viewport and zoom states.
+the unrun browser-smoke commands, the prepared but unrun exact-viewport and
+200%-equivalent keyboard harness, or actual 200% browser zoom.
