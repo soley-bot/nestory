@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { SettingsNavigationGuardProvider } from "@/components/layout/settings-navigation-guard";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
 import {
@@ -15,6 +16,7 @@ import type {
 export function OrganizationSettingsScreen({
   branches,
   canManageStructure = true,
+  header,
   organizationName,
   organizationSlug,
   section,
@@ -23,6 +25,7 @@ export function OrganizationSettingsScreen({
 }: {
   branches: OrganizationBranch[];
   canManageStructure?: boolean;
+  header?: ReactNode;
   organizationName: string;
   organizationSlug?: string;
   section: SettingsSection;
@@ -31,7 +34,7 @@ export function OrganizationSettingsScreen({
 }) {
   return (
     <SettingsNavigationGuardProvider>
-      <SettingsTabs activeHref="/settings" />
+      {header ?? <SettingsTabs activeHref="/settings" />}
       <SettingsWorkspace
         branches={branches}
         canManageStructure={canManageStructure}

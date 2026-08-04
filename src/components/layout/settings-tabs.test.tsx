@@ -2,6 +2,7 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { PageHeader } from "@/components/layout/page-header";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
 
 afterEach(cleanup);
@@ -33,4 +34,34 @@ describe("SettingsTabs", () => {
       ).toBe(true);
     },
   );
+
+  it("shares the page header row without recreating a full-width tab band", () => {
+    render(
+      <PageHeader
+        navigation={<SettingsTabs activeHref="/settings" />}
+        title="Settings"
+      />,
+    );
+
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "Settings",
+    });
+    const navigation = screen.getByRole("navigation", {
+      name: "Settings sections",
+    });
+    const navigationSlot = navigation.parentElement;
+
+    expect(heading.closest("header")).toBe(navigation.closest("header"));
+    expect(navigationSlot?.getAttribute("data-slot")).toBe(
+      "page-header-navigation",
+    );
+    expect(navigationSlot?.parentElement?.getAttribute("data-slot")).toBe(
+      "page-header-primary-row",
+    );
+    expect(navigationSlot?.className).not.toContain("mt-2");
+    expect(navigation.className).toContain("overflow-x-auto");
+    expect(navigation.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
+    expect(navigation.className).not.toContain("bg-surface");
+  });
 });

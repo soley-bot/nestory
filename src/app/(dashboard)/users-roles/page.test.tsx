@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { getAccessSettingsData, requireAdminContext, screenSpy } = vi.hoisted(() => ({
@@ -10,9 +11,14 @@ const { getAccessSettingsData, requireAdminContext, screenSpy } = vi.hoisted(() 
 vi.mock("@/lib/auth/context", () => ({ requireAdminContext }));
 vi.mock("@/features/organization/data", () => ({ getAccessSettingsData }));
 vi.mock("@/features/organization/components/access-settings-screen", () => ({
-  AccessSettingsScreen: (props: Record<string, unknown>) => {
+  AccessSettingsScreen: (props: Record<string, unknown> & { header?: ReactNode }) => {
     screenSpy(props);
-    return <div>Access workspace</div>;
+    return (
+      <div>
+        {props.header}
+        <div>Access workspace</div>
+      </div>
+    );
   },
 }));
 
@@ -47,6 +53,19 @@ describe("UsersRolesPage", () => {
         inviteDefaults: undefined,
       }),
     );
+  });
+
+  it("renders one Workspace Access heading with settings navigation in the same header", async () => {
+    const html = renderToStaticMarkup(
+      await UsersRolesPage({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).toContain("Workspace Access</h1>");
+    expect(html).toMatch(
+      /<header[^>]*>[\s\S]*aria-label="Settings sections"[\s\S]*<\/header>/,
+    );
+    expect(requireAdminContext).toHaveBeenCalledOnce();
   });
 
   it("prefills only a current Staff record with its authoritative primary email", async () => {

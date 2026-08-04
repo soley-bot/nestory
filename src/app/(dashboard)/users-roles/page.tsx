@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/page-header";
+import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { buildAccessByPersonId } from "@/features/organization/access-status";
 import { AccessSettingsScreen } from "@/features/organization/components/access-settings-screen";
 import { getAccessSettingsData } from "@/features/organization/data";
@@ -50,20 +51,23 @@ export default async function UsersRolesPage({
     : undefined;
 
   return (
-    <div>
-      <PageHeader title="Workspace Access" />
-      <AccessSettingsScreen
-        branches={data.branches}
-        currentUserId={context.userId}
-        focusedInvitationId={focusedInvitationId}
-        focusedMemberId={focusedMemberId}
-        inviteDefaults={inviteDefaults}
-        invitations={data.invitations}
-        members={data.members}
-        people={data.linkedPeople ?? data.staff}
-        requestedStaffId={selectedStaff?.id}
-      />
-    </div>
+    <AccessSettingsScreen
+      branches={data.branches}
+      currentUserId={context.userId}
+      focusedInvitationId={focusedInvitationId}
+      focusedMemberId={focusedMemberId}
+      header={
+        <PageHeader
+          navigation={<SettingsTabs activeHref="/users-roles" />}
+          title="Workspace Access"
+        />
+      }
+      inviteDefaults={inviteDefaults}
+      invitations={data.invitations}
+      members={data.members}
+      people={data.linkedPeople ?? data.staff}
+      requestedStaffId={selectedStaff?.id}
+    />
   );
 }
 

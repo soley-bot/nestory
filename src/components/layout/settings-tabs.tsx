@@ -16,9 +16,9 @@ export function SettingsTabs({ activeHref }: { activeHref: string }) {
   return (
     <nav
       aria-label="Settings sections"
-      className="border-b border-border bg-surface px-4 sm:px-6 lg:px-6"
+      className="min-w-0 overflow-x-auto"
     >
-      <div className="flex gap-1 overflow-x-auto py-2">
+      <div className="flex min-w-max gap-1 py-1">
         {settingsTabs.map((tab, index) => {
           const active = index === (activeIndex === -1 ? 0 : activeIndex);
 

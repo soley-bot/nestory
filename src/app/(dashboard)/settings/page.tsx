@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/layout/page-header";
+import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { OrganizationSettingsScreen } from "@/features/organization/components/organization-settings-screen";
 import type { SettingsSection } from "@/features/organization/components/settings-workspace";
 import { getOrganizationSettingsData } from "@/features/organization/data";
@@ -14,18 +15,21 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   const data = await getOrganizationSettingsData(context.organizationId);
 
   return (
-    <div>
-      <PageHeader title="Settings" />
-      <OrganizationSettingsScreen
-        branches={data.branches}
-        canManageStructure={context.role === "admin"}
-        organizationName={context.organizationName}
-        organizationSlug={context.organizationSlug}
-        section={readSection(params.section)}
-        staff={data.staff}
-        teams={data.teams}
-      />
-    </div>
+    <OrganizationSettingsScreen
+      branches={data.branches}
+      canManageStructure={context.role === "admin"}
+      header={
+        <PageHeader
+          navigation={<SettingsTabs activeHref="/settings" />}
+          title="Settings"
+        />
+      }
+      organizationName={context.organizationName}
+      organizationSlug={context.organizationSlug}
+      section={readSection(params.section)}
+      staff={data.staff}
+      teams={data.teams}
+    />
   );
 }
 

@@ -25,8 +25,15 @@ export function PageHeader({
           <div className="min-w-0">{breadcrumb}</div>
         </WorkspaceHeaderPortal>
       ) : null}
-      <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
-        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
+      <div
+        className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2 lg:flex-nowrap"
+        data-slot="page-header-primary-row"
+      >
+        <div
+          className={`flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 ${
+            navigation ? "lg:flex-none" : ""
+          }`}
+        >
           <h1 className="shrink-0 text-base font-semibold leading-6 text-foreground">
             {title}
           </h1>
@@ -40,6 +47,14 @@ export function PageHeader({
             </div>
           ) : null}
         </div>
+        {navigation ? (
+          <div
+            className="order-last min-w-0 basis-full lg:order-none lg:flex-1 lg:basis-auto"
+            data-slot="page-header-navigation"
+          >
+            {navigation}
+          </div>
+        ) : null}
         {actions ? (
           <div
             className="ml-auto flex shrink-0 flex-wrap items-center gap-2"
@@ -49,11 +64,6 @@ export function PageHeader({
           </div>
         ) : null}
       </div>
-      {navigation ? (
-        <div className="mt-2 min-w-0" data-slot="page-header-navigation">
-          {navigation}
-        </div>
-      ) : null}
     </header>
   );
 }

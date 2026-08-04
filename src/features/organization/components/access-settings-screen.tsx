@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import { MailPlus, UserPlus, UsersRound } from "lucide-react";
 import { SettingsNavigationGuardProvider, useSettingsNavigationGuard } from "@/components/layout/settings-navigation-guard";
@@ -54,6 +55,7 @@ export function AccessSettingsScreen({
   currentUserId,
   focusedInvitationId,
   focusedMemberId,
+  header,
   inviteDefaults,
   invitations = [],
   members,
@@ -64,6 +66,7 @@ export function AccessSettingsScreen({
   currentUserId?: string;
   focusedInvitationId?: string;
   focusedMemberId?: string;
+  header?: ReactNode;
   inviteDefaults?: {
     email?: string;
     personId?: string;
@@ -76,7 +79,7 @@ export function AccessSettingsScreen({
 }) {
   return (
     <SettingsNavigationGuardProvider>
-      <SettingsTabs activeHref="/users-roles" />
+      {header ?? <SettingsTabs activeHref="/users-roles" />}
       <AccessWorkspace
         branches={branches}
         currentUserId={currentUserId}

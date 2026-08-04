@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -21,8 +22,17 @@ vi.mock("@/features/organization/data", () => ({
 }));
 
 vi.mock("@/features/organization/components/organization-settings-screen", () => ({
-  OrganizationSettingsScreen: ({ section }: { section: string }) => (
-    <div>Organization settings: {section}</div>
+  OrganizationSettingsScreen: ({
+    header,
+    section,
+  }: {
+    header?: ReactNode;
+    section: string;
+  }) => (
+    <div>
+      {header}
+      <div>Organization settings: {section}</div>
+    </div>
   ),
 }));
 
@@ -65,5 +75,19 @@ describe("SettingsPage", () => {
     expect(html).toContain(`Organization settings: ${expected}`);
     expect(requireAdminContext).toHaveBeenCalledOnce();
     expect(requireWorkspaceContext).not.toHaveBeenCalled();
+  });
+
+  it("renders one Settings heading with section navigation in the same header", async () => {
+    const html = renderToStaticMarkup(
+      await SettingsPage({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).toContain("<h1");
+    expect(html).toContain("Settings</h1>");
+    expect(html).toMatch(
+      /<header[^>]*>[\s\S]*aria-label="Settings sections"[\s\S]*<\/header>/,
+    );
+    expect(requireAdminContext).toHaveBeenCalledOnce();
   });
 });
