@@ -47,7 +47,7 @@ export function WorkspacePage({
       {header ?? generatedHeader}
       {localNav || toolbar ? (
         <div
-          className="flex min-w-0 shrink-0 flex-col border-b border-border bg-surface lg:flex-row lg:items-center"
+          className="flex min-w-0 shrink-0 flex-col bg-surface lg:flex-row lg:items-center"
           data-slot="workspace-controls"
         >
           {localNav ? (

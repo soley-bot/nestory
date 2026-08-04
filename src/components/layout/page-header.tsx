@@ -19,7 +19,7 @@ export function PageHeader({
   navigation,
 }: PageHeaderProps) {
   return (
-    <header className="border-b border-border bg-surface px-4 py-3 sm:px-6">
+    <header className="bg-surface px-4 py-3 sm:px-6">
       {breadcrumb ? (
         <WorkspaceHeaderPortal>
           <div className="min-w-0">{breadcrumb}</div>

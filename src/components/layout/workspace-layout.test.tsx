@@ -302,6 +302,11 @@ describe("shared workspace anatomy", () => {
     const heading = screen.getByRole("heading", { level: 1, name: "Leases" });
     expect(heading.className).not.toContain("sr-only");
 
+    const pageHeader = heading.closest("header");
+    expect(pageHeader).not.toBeNull();
+    expect(pageHeader?.className).not.toContain("border-b");
+    expect(pageHeader?.className).not.toContain("border-border");
+
     const actions = screen.getByRole("button", { name: "Add lease" }).closest(
       '[data-slot="page-header-actions"]',
     );
@@ -324,6 +329,8 @@ describe("shared workspace anatomy", () => {
       '[data-slot="workspace-controls"]',
     );
     expect(controls).not.toBeNull();
+    expect(controls?.className).not.toContain("border-b");
+    expect(controls?.className).not.toContain("border-border");
     expect(
       controls?.contains(screen.getByRole("navigation", { name: "Lease views" })),
     ).toBe(true);
