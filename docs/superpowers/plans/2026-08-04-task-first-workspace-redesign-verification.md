@@ -7,7 +7,9 @@ Verified on 2026-08-04 in the isolated worktree
 
 - Branch: `codex/task-first-workspace-redesign`
 - Baseline: `2bc6cd677ad50110ed2d4df797dfe87f28d403ef`
-- Exact candidate HEAD verified before this documentation-only evidence refresh:
+- Exact post-fix code candidate covered by the final full gate:
+  `516668c4711b59ec67e67432ea4473cafbdc50a9`
+- Earlier pre-fix Task 18 evidence candidate:
   `224f451bf01ff609f7fa028883951a9079bb547b`
 - External implementation plan inspected read-only:
   `D:\nestory\docs\superpowers\plans\2026-08-04-task-first-workspace-redesign.md`
@@ -26,28 +28,27 @@ URL, URL parameter contract, or permission contract. Finance terminology,
 report-period logic, transaction state, balances, collection labels, and
 accounting authority remain unchanged.
 
-## Fresh code and production-build gate
+## Fresh post-fix code and production-build gate
 
-The following commands were run against the exact candidate HEAD above, one at
-a time. Time-limited attempts are recorded as attempts, not test failures or
-passes.
+The controller ran the following commands against exact code HEAD
+`516668c4711b59ec67e67432ea4473cafbdc50a9`, one at a time. A launcher failure
+before Next started is recorded as an attempt, not a build verdict.
 
 | Command | Exit | Evidence |
 | --- | ---: | --- |
 | `npm run lint` | 0 | Repository ESLint completed without findings. |
 | `npx tsc --noEmit` | 0 | Integrated TypeScript gate completed without findings. |
-| `npm run test:all` (60-second process ceiling) | 124 | The wrapper terminated the process before Vitest returned a verdict. |
-| `npm run test:all` (180-second process ceiling) | 124 | The wrapper again terminated the process before Vitest returned a verdict. |
-| `npm run test:all` (completed rerun) | 0 | 176/176 application test files and 1,310/1,310 tests passed; 18/18 demo-tool tests passed. The existing jsdom navigation notices remained non-failing output. |
-| First read-only root-environment build launcher | 1 | The direct `npm.cmd` launcher exited before invoking Next and emitted no build output. This is not a build verdict. |
-| Root environment loaded read-only with `@next/env`, then `npm run build` | 0 | Next production compilation, TypeScript, page-data collection, and all 18 static pages completed. No environment file was copied. The existing multiple-lockfile root-inference warning remains. |
+| `npm run test:all` | 0 | 176/176 application test files and 1,315/1,315 application tests passed; 18/18 demo-tool tests passed. |
+| First `@next/env` plus direct `spawnSync npm.cmd` build launcher | 1 | The launcher returned `EINVAL` before Next started. This is not a build verdict. |
+| Root environment loaded read-only, then build retried through the Windows shell | 0 | Next compiled, its TypeScript phase passed, and 18/18 static pages generated. No environment file was copied. |
 | `npm run test:ui-coverage` | 0 | 54/54 page routes covered. |
-| `npm run test:ui-copy` | 0 | Zero prohibited narration occurrences. |
-| `Get-FileHash -Algorithm SHA256` on the external plan | 0 | Returned the exact SHA-256 recorded in Provenance. |
-| Required residual-pattern `rg` scan | 0 | 410 matching lines across 93 files were reviewed; an exit of 0 means matches were found, not that they were failures. |
-| `git diff --check` | 0 | No whitespace errors; Git emitted only the expected LF-to-CRLF working-copy warning on this Markdown file. |
-| `git status --short` | 0 | Before staging, only this verification document was modified. |
-| `git diff --stat origin/main...HEAD` | 0 | The branch diff contained 76 files, 4,389 insertions, and 1,943 deletions before this documentation refresh. |
+| `npm run test:ui-copy` | 0 | Zero prohibited occurrences. |
+
+The earlier pre-fix gate at `224f451bf01ff609f7fa028883951a9079bb547b`
+is retained only as historical Task 18 evidence. Its completed application run
+covered 176/176 files and 1,310/1,310 tests before the final-review regressions
+raised the post-fix total to 1,315. The post-fix table above supersedes that
+earlier code-gate result.
 
 The route and copy contracts did not change, so
 `scripts/verify-ui-route-coverage.mjs` and `scripts/verify-ui-copy.mjs` require
@@ -138,7 +139,7 @@ smokes, or 200% zoom keyboard checks.
   links, validation focus, save errors, duplicate handoff, delivery failure,
   permissions, and last-administrator safety.
 
-## Residual-pattern review
+## Residual-pattern review from the earlier pre-fix gate
 
 The required scan returned 410 matching lines across 93 files. Each category
 was reviewed rather than deleted mechanically:
