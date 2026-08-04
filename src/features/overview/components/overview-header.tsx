@@ -33,10 +33,7 @@ export function OverviewHeader({
   const breadcrumb = (
     <PageBreadcrumb
       current={activeLensLabel}
-      items={[
-        { href: `/overview?month=${query.month}`, label: "Overview" },
-        { href: buildLensHref(query, query.lens), label: activeLensLabel },
-      ]}
+      items={[{ href: `/overview?month=${query.month}`, label: "Overview" }]}
     />
   );
   const target = mounted ? document.getElementById("workspace-page-tools") : null;

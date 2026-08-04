@@ -30,6 +30,9 @@ describe("OverviewScreen", () => {
         }),
       ),
     ).toBe(true);
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(breadcrumb).getAllByText("Portfolio")).toHaveLength(1);
   });
 
   it("uses app-shell height containment and one unframed operating scroll", () => {
