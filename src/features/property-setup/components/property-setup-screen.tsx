@@ -141,9 +141,9 @@ export function PropertySetupScreen({
               <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
                 {steps[step - 1]?.label}
               </p>
-              <h1 className="mt-1 text-lg font-semibold text-foreground">
+              <h2 className="mt-1 text-lg font-semibold text-foreground">
                 {stepTitle(step)}
-              </h1>
+              </h2>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-foreground-muted">
                 {stepDescription(step)}
               </p>

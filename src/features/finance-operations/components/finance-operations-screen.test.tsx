@@ -100,8 +100,11 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    const toolbar = screen.getByRole("toolbar", { name: "Workspace tools" });
-    fireEvent.click(within(toolbar).getByRole("button", { name: "Record payment" }));
+    const headerActions = document.querySelector('[data-slot="page-header-actions"]');
+    expect(headerActions).not.toBeNull();
+    fireEvent.click(
+      within(headerActions!).getByRole("button", { name: "Record payment" }),
+    );
     const chooser = screen.getByRole("dialog", { name: "Record payment" });
     fireEvent.click(within(chooser).getByText("Sokha Trading Co.").closest("button")!);
 

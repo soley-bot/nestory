@@ -24,6 +24,17 @@ describe("PropertySetupScreen", () => {
   it("steers an occupied unit to its open lease and blocks new lease creation", () => {
     render(<PropertySetupScreen data={data} step={4} />);
 
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Set up property" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", {
+        level: 2,
+        name: "Connect the tenant through a lease",
+      }),
+    ).toBeTruthy();
+
     expect(
       screen.getByText(/This unit already has an open lease for Existing tenant/),
     ).toBeTruthy();
