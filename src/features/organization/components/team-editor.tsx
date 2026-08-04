@@ -2,16 +2,24 @@
 
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
+  useState,
 } from "react";
 import { UsersRound } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DraftActionBar } from "@/components/ui/draft-action-bar";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
+import {
+  SideDrawer,
+  useDrawerDraftGuard,
+} from "@/components/ui/side-drawer";
 import { createTeamAction } from "@/features/organization/actions";
 import type {
   OrganizationBranch,
@@ -58,6 +66,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
     controllerRef,
   ) {
   const formRef = useRef<HTMLFormElement>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const draft = useSettingsDraft({
     action: createTeamAction,
     errorMessage: "Team not saved",
@@ -79,6 +88,9 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
     draft.status === "error" && draft.resultMessage
       ? `Team not saved: ${draft.resultMessage}`
       : undefined;
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
+  }, []);
 
   useImperativeHandle(
     controllerRef,
@@ -98,7 +110,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
   return (
     <>
       <section
-        className="min-w-0 overflow-hidden rounded-md border border-border bg-surface"
+        className="min-w-0 overflow-hidden"
         data-testid="settings-editor"
       >
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -111,6 +123,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
               {teams.length} {teams.length === 1 ? "team" : "teams"}
             </p>
           </div>
+          <Button onClick={() => setDrawerOpen(true)}>Add team</Button>
         </div>
 
         {teams.length > 0 ? (
@@ -134,8 +147,21 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
           </div>
         ) : null}
 
+      </section>
+
+      <SideDrawer
+        description={`Add one team to ${organizationName}.`}
+        onClose={closeDrawer}
+        open={drawerOpen}
+        title="Add team"
+      >
+        <TeamDrawerDraftGuard
+          onClose={closeDrawer}
+          onDiscard={draft.discard}
+          status={draft.status}
+        />
         <form
-          className="min-w-0 px-4 py-4"
+          className="flex min-h-full min-w-0 flex-col"
           onSubmit={(event) => {
             event.preventDefault();
             void draft.submit(() => {
@@ -147,114 +173,136 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
           }}
           ref={formRef}
         >
-          <FormSection title="Add team">
-            <div className="block min-w-0 text-sm font-medium text-foreground">
-              <label htmlFor="team-name">Name</label>
-              <Input
-                aria-describedby={draft.errors.name ? "team-name-error" : undefined}
-                aria-invalid={draft.errors.name ? "true" : undefined}
-                className="mt-1"
-                disabled={!canManageStructure || draft.status === "saving"}
-                id="team-name"
-                maxLength={120}
-                name="name"
-                onChange={(event) => draft.setField("name", event.target.value)}
-                value={draft.values.name}
-              />
-              {draft.errors.name ? (
-                <span
-                  className="mt-1 block text-sm font-normal text-danger"
-                  id="team-name-error"
-                >
-                  {draft.errors.name}
-                </span>
+          <div className="px-5 py-5">
+            <FormSection title="Team details">
+              <div className="block min-w-0 text-sm font-medium text-foreground">
+                <label htmlFor="team-name">Name</label>
+                <Input
+                  aria-describedby={draft.errors.name ? "team-name-error" : undefined}
+                  aria-invalid={draft.errors.name ? "true" : undefined}
+                  className="mt-1"
+                  disabled={!canManageStructure || draft.status === "saving"}
+                  id="team-name"
+                  maxLength={120}
+                  name="name"
+                  onChange={(event) => draft.setField("name", event.target.value)}
+                  value={draft.values.name}
+                />
+                {draft.errors.name ? (
+                  <span
+                    className="mt-1 block text-sm font-normal text-danger"
+                    id="team-name-error"
+                  >
+                    {draft.errors.name}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block min-w-0 text-sm font-medium text-foreground">
+                  <span>Branch</span>
+                  <SelectControl
+                    ariaLabel="Branch"
+                    className="mt-1"
+                    disabled={!canManageStructure || draft.status === "saving"}
+                    name="branchId"
+                    onValueChange={(value) => draft.setField("branchId", value)}
+                    options={[
+                      { label: "All branches", value: "" },
+                      ...branches.map((branch) => ({
+                        label: `${branch.code} - ${branch.name}`,
+                        value: branch.id,
+                      })),
+                    ]}
+                    value={draft.values.branchId}
+                  />
+                </label>
+                <label className="block min-w-0 text-sm font-medium text-foreground">
+                  <span>Manager</span>
+                  <SelectControl
+                    ariaLabel="Manager"
+                    className="mt-1"
+                    disabled={!canManageStructure || draft.status === "saving"}
+                    name="managerPersonId"
+                    onValueChange={(value) =>
+                      draft.setField("managerPersonId", value)
+                    }
+                    options={[
+                      { label: "No manager", value: "" },
+                      ...staff.map((person) => ({
+                        label: person.label,
+                        value: person.id,
+                      })),
+                    ]}
+                    value={draft.values.managerPersonId}
+                  />
+                </label>
+              </div>
+              {draft.status === "saved" && draft.resultMessage ? (
+                <p className="text-sm text-success">
+                  {draft.resultMessage}
+                </p>
               ) : null}
-            </div>
+            </FormSection>
+          </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block min-w-0 text-sm font-medium text-foreground">
-                <span>Branch</span>
-                <SelectControl
-                  ariaLabel="Branch"
-                  className="mt-1"
-                  disabled={!canManageStructure || draft.status === "saving"}
-                  name="branchId"
-                  onValueChange={(value) => draft.setField("branchId", value)}
-                  options={[
-                    { label: "All branches", value: "" },
-                    ...branches.map((branch) => ({
-                      label: `${branch.code} - ${branch.name}`,
-                      value: branch.id,
-                    })),
-                  ]}
-                  value={draft.values.branchId}
-                />
-              </label>
-              <label className="block min-w-0 text-sm font-medium text-foreground">
-                <span>Manager</span>
-                <SelectControl
-                  ariaLabel="Manager"
-                  className="mt-1"
-                  disabled={!canManageStructure || draft.status === "saving"}
-                  name="managerPersonId"
-                  onValueChange={(value) =>
-                    draft.setField("managerPersonId", value)
-                  }
-                  options={[
-                    { label: "No manager", value: "" },
-                    ...staff.map((person) => ({
-                      label: person.label,
-                      value: person.id,
-                    })),
-                  ]}
-                  value={draft.values.managerPersonId}
-                />
-              </label>
-            </div>
-            {draft.status === "saved" && draft.resultMessage ? (
-              <p className="text-sm text-success">
-                {draft.resultMessage}
-              </p>
-            ) : null}
-          </FormSection>
+          <div className="mt-auto w-full border-t border-border px-5 py-4">
+            <ConsequencePanel
+              id="team-impact"
+              rows={[
+                { label: "Scope", value: selectedBranch?.name ?? organizationName },
+                { label: "Team", value: draft.values.name.trim() || "New team" },
+                { label: "Affected records", value: "1 team" },
+                { label: "Manager link", value: selectedManager?.label ?? "None" },
+                { label: "Access changes", value: "None" },
+                { label: "Draft", value: draftStatusLabel(draft.status) },
+              ]}
+              summary="Saving adds one team record and an optional manager link. Existing teams and access remain unchanged."
+              title="Team impact"
+              variant="inline"
+            />
+          </div>
+
+          <div className="sticky bottom-0 z-10 w-full">
+            <DraftActionBar
+              describedBy="team-impact"
+              disabledReason={permissionReason}
+              focusOnError={focusServerError && Boolean(serverError)}
+              onDiscard={draft.discard}
+              onSave={() => formRef.current?.requestSubmit()}
+              saveLabel="Save"
+              status={draft.status}
+              statusMessage={serverError ?? draft.statusMessage}
+            />
+          </div>
         </form>
-
-        <div className="sticky bottom-0 z-10">
-          <DraftActionBar
-            describedBy="team-impact"
-            disabledReason={permissionReason}
-            focusOnError={focusServerError && Boolean(serverError)}
-            onDiscard={draft.discard}
-            onSave={() => formRef.current?.requestSubmit()}
-            saveLabel="Save"
-            status={draft.status}
-            statusMessage={serverError ?? draft.statusMessage}
-          />
-        </div>
-      </section>
-
-      <aside
-        className="min-w-0 lg:col-start-2 xl:col-start-3 xl:row-start-1"
-        data-testid="settings-summary"
-      >
-        <ConsequencePanel
-          id="team-impact"
-          rows={[
-            { label: "Scope", value: selectedBranch?.name ?? organizationName },
-            { label: "Team", value: draft.values.name.trim() || "New team" },
-            { label: "Affected records", value: "1 team" },
-            { label: "Manager link", value: selectedManager?.label ?? "None" },
-            { label: "Access changes", value: "None" },
-            { label: "Draft", value: draftStatusLabel(draft.status) },
-          ]}
-          summary="Saving adds one team record and an optional manager link. Existing teams and access remain unchanged."
-          title="Team impact"
-        />
-      </aside>
+      </SideDrawer>
     </>
   );
   },
 );
+
+function TeamDrawerDraftGuard({
+  onClose,
+  onDiscard,
+  status,
+}: {
+  onClose: () => void;
+  onDiscard: () => void;
+  status: DraftStatus;
+}) {
+  const discardAndClose = useCallback(() => {
+    onDiscard();
+    onClose();
+  }, [onClose, onDiscard]);
+  const guard = useMemo(
+    () => ({ onDiscard: discardAndClose, status }),
+    [discardAndClose, status],
+  );
+  useDrawerDraftGuard(guard);
+
+  return null;
+}
 
 function validateTeam(values: TeamDraft) {
   return values.name.trim().length < 2
