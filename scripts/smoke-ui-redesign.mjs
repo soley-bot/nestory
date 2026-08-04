@@ -3,14 +3,18 @@ import { relative, resolve, sep } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright";
 import {
+  assertEvidenceSummary,
+  buildArtifactRunName,
   collectSmokeFailures,
   createReadOnlyRequestPolicy,
   formatViewportPass,
   formatViewportSummary,
   KEYBOARD_ZOOM_VIEWPORT,
   MAIN_CAPTURE_VIEWPORTS,
+  readPngDimensions,
   renderKeyboardZoomEvidence,
   resolveKeyboardZoomRoutes,
+  UI_EVIDENCE_SCHEMA_VERSION,
   validateLocalBaseUrl,
 } from "./smoke-ui-redesign-policy.mjs";
 
@@ -71,19 +75,25 @@ if (evidenceSummaryPath) {
 const viewports = MAIN_CAPTURE_VIEWPORTS;
 
 const startedAt = new Date();
-const runName = startedAt
-  .toISOString()
-  .replace(/:/g, "-")
-  .replace(/\.\d{3}Z$/, "Z");
-const runDirectory = resolve("artifacts", "ui-redesign", runName);
+const runMode = axeEnabled ? "axe" : "baseline";
+const runName = buildArtifactRunName({
+  date: startedAt,
+  mode: runMode,
+  pid: process.pid,
+  prefix: "ui-redesign",
+});
+const artifactRoot = resolve("artifacts", "ui-redesign");
+const runDirectory = resolve(artifactRoot, runName);
 const summaryPath = resolve(runDirectory, "summary.json");
 const blockedMutationRequests = [];
 const results = [];
 const roleAudits = [];
 const knownAxeExceptions = [];
 const keyboardZoomAudits = [];
+const maintenanceBoardResults = [];
 
-await mkdir(runDirectory, { recursive: true });
+await mkdir(artifactRoot, { recursive: true });
+await mkdir(runDirectory);
 
 const browser = await chromium.launch({ headless: true });
 const context = await createReadOnlyContext(browser, "admin");
@@ -133,6 +143,32 @@ try {
       activeErrors = null;
     }
 
+    if (!routeFilter) {
+      const maintenanceEntry = manifest.find(
+        (entry) => entry.route === "/maintenance",
+      );
+      activeErrors = {
+        consoleErrors: [],
+        ignoredConsoleErrors: [],
+        pageErrors: [],
+      };
+      maintenanceBoardResults.push(
+        await captureRoute({
+          axeEnabled,
+          errors: activeErrors,
+          expectedAccess: maintenanceEntry.smoke.expectedAccess.admin,
+          expectedFinalPath: null,
+          manifestRoute: maintenanceEntry.route,
+          page,
+          queryContract: "preserved",
+          route: "/maintenance?view=board",
+          viewport,
+          viewportDirectory,
+        }),
+      );
+      activeErrors = null;
+    }
+
     await page.close();
   }
 
@@ -168,9 +204,12 @@ try {
     blockedMutationRequests,
     completedAt: new Date().toISOString(),
     keyboardZoomAudits,
+    maintenanceBoardResults,
     results,
     roleAudits,
+    runMode,
     runDirectory: toArtifactPath(runDirectory),
+    schemaVersion: UI_EVIDENCE_SCHEMA_VERSION,
     startedAt: startedAt.toISOString(),
     viewports,
   };
@@ -178,7 +217,7 @@ try {
   await writeFile(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
 
   const failures = collectSmokeFailures(
-    results,
+    [...results, ...maintenanceBoardResults],
     roleAudits,
     blockedMutationRequests,
     routeFilter ? null : keyboardZoomAudits,
@@ -342,7 +381,10 @@ async function captureRoute({
   viewportDirectory,
 }) {
   const requestedUrl = new URL(route, `${baseUrl}/`).toString();
-  const screenshotPath = resolve(viewportDirectory, `${routeSlug(route)}.png`);
+  const screenshotPath = resolve(
+    viewportDirectory,
+    `${routeSlug(route)}-${viewport.width}x${viewport.height}.png`,
+  );
   let navigationError = null;
   let responseStatus = null;
 
@@ -382,17 +424,10 @@ async function captureRoute({
       }))
     : null;
 
-  try {
-    await page.screenshot({
-      animations: "disabled",
-      fullPage: true,
-      path: screenshotPath,
-    });
-  } catch (error) {
-    errors.pageErrors.push(
-      `Screenshot failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+  const screenshot = await saveViewportScreenshot({
+    page,
+    screenshotPath,
+  });
 
   return {
     accessResult: getAccessResult({
@@ -422,9 +457,36 @@ async function captureRoute({
     }),
     responseStatus,
     route,
-    screenshotPath: toArtifactPath(screenshotPath),
+    screenshot,
     viewport: viewport.name,
+    viewportHeight: viewport.height,
+    viewportWidth: viewport.width,
   };
+}
+
+async function saveViewportScreenshot({ page, screenshotPath }) {
+  try {
+    const png = await page.screenshot({
+      animations: "disabled",
+      fullPage: false,
+    });
+    const dimensions = readPngDimensions(png);
+    await writeFile(screenshotPath, png);
+
+    return {
+      error: null,
+      height: dimensions.height,
+      path: toArtifactPath(screenshotPath),
+      width: dimensions.width,
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : String(error),
+      height: null,
+      path: null,
+      width: null,
+    };
+  }
 }
 
 async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) {
@@ -447,7 +509,7 @@ async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) 
       const requestedUrl = new URL(route.path, `${baseUrl}/`).toString();
       const screenshotPath = resolve(
         auditDirectory,
-        `${routeSlug(route.path)}.png`,
+        `${routeSlug(route.path)}-${KEYBOARD_ZOOM_VIEWPORT.width}x${KEYBOARD_ZOOM_VIEWPORT.height}.png`,
       );
       let navigationError = null;
       let responseStatus = null;
@@ -480,24 +542,22 @@ async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) 
         (error) => ({
           eligibleTargets: [],
           error: error instanceof Error ? error.message : String(error),
+          forwardUnreachableTargets: [],
+          forwardTraversal: { attempted: false, reached: false, target: null },
           offViewportFocus: [],
           reachedRegions: [],
           reachedTargets: [],
+          requiredWorkSurfaceTargetKeys: [],
+          reverseReachedTargets: [],
           reverseTraversal: { attempted: false, reached: false, target: null },
+          reverseUnreachableTargets: [],
           unreachableTargets: [],
         }),
       );
-      let screenshotError = null;
-
-      try {
-        await page.screenshot({
-          animations: "disabled",
-          fullPage: true,
-          path: screenshotPath,
-        });
-      } catch (error) {
-        screenshotError = error instanceof Error ? error.message : String(error);
-      }
+      const screenshot = await saveViewportScreenshot({
+        page,
+        screenshotPath,
+      });
 
       const finalUrl = page.url();
       auditResults.push({
@@ -517,9 +577,10 @@ async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) 
         navigationError,
         responseStatus,
         route: route.path,
-        screenshotError,
-        screenshotPath: screenshotError ? null : toArtifactPath(screenshotPath),
+        screenshot,
         viewport: KEYBOARD_ZOOM_VIEWPORT.name,
+        viewportHeight: KEYBOARD_ZOOM_VIEWPORT.height,
+        viewportWidth: KEYBOARD_ZOOM_VIEWPORT.width,
       });
     }
   } finally {
@@ -541,53 +602,104 @@ async function measureH1(page) {
 
 async function traverseKeyboardTargets(page) {
   const eligibleTargets = await inspectKeyboardTargets(page, true);
-  const reachedTargets = new Map();
   const offViewportFocus = new Map();
-  const maximumTabs = Math.min(
-    Math.max(eligibleTargets.length + 2, 3),
-    200,
-  );
-
-  for (let index = 0; index < maximumTabs; index += 1) {
-    await page.keyboard.press("Tab");
-    const target = await inspectKeyboardTargets(page, false);
-
-    recordFocusedTarget({ offViewportFocus, reachedTargets, target });
-    if (reachedTargets.size === eligibleTargets.length) {
-      break;
-    }
-  }
-
-  await page.keyboard.press("Shift+Tab");
-  const reverseTarget = await inspectKeyboardTargets(page, false);
-  recordFocusedTarget({
-    offViewportFocus,
-    reachedTargets,
-    target: reverseTarget,
-  });
-
   const eligibleKeys = new Set(eligibleTargets.map((target) => target.key));
-  const reached = [...reachedTargets.values()].filter((target) =>
-    eligibleKeys.has(target.key),
+  const requiredWorkSurfaceTargetKeys = eligibleTargets
+    .filter((target) => target.inWorkSurface)
+    .map((target) => target.key);
+  const forward = await traverseKeyboardDirection({
+    eligibleKeys,
+    key: "Tab",
+    offViewportFocus,
+    page,
+  });
+  const reverse = await traverseKeyboardDirection({
+    eligibleKeys,
+    key: "Shift+Tab",
+    offViewportFocus,
+    page,
+  });
+  const forwardUnreachableTargets = eligibleTargets.filter(
+    (target) => !forward.reachedTargets.has(target.key),
   );
+  const reverseUnreachableTargets = eligibleTargets.filter(
+    (target) => !reverse.reachedTargets.has(target.key),
+  );
+  const reached = [...forward.reachedTargets.values()];
 
   return {
     eligibleTargets,
     error: null,
+    forwardUnreachableTargets,
+    forwardTraversal: {
+      attempted: true,
+      reached: forwardUnreachableTargets.length === 0 && forward.wrapped === true,
+      target: forward.lastTarget,
+    },
     offViewportFocus: [...offViewportFocus.values()],
     reachedRegions: [
       ...new Set(reached.map((target) => target.region).filter(Boolean)),
     ],
     reachedTargets: reached,
+    requiredWorkSurfaceTargetKeys,
+    reverseReachedTargets: [...reverse.reachedTargets.values()],
     reverseTraversal: {
       attempted: true,
-      reached: Boolean(reverseTarget && eligibleKeys.has(reverseTarget.key)),
-      target: reverseTarget,
+      reached:
+        reverseUnreachableTargets.length === 0 && reverse.wrapped === true,
+      target: reverse.lastTarget,
     },
-    unreachableTargets: eligibleTargets.filter(
-      (target) => !reachedTargets.has(target.key),
-    ),
+    reverseUnreachableTargets,
+    unreachableTargets: forwardUnreachableTargets,
   };
+}
+
+async function traverseKeyboardDirection({
+  eligibleKeys,
+  key,
+  offViewportFocus,
+  page,
+}) {
+  await resetKeyboardFocus(page);
+
+  const reachedTargets = new Map();
+  const maximumPresses = Math.min(Math.max(eligibleKeys.size * 2 + 4, 6), 400);
+  let firstTargetKey = null;
+  let lastTarget = null;
+  let wrapped = false;
+
+  for (let index = 0; index < maximumPresses; index += 1) {
+    await page.keyboard.press(key);
+    const target = await inspectKeyboardTargets(page, false);
+
+    if (!target?.key || !eligibleKeys.has(target.key)) {
+      continue;
+    }
+    if (firstTargetKey === null) {
+      firstTargetKey = target.key;
+    } else if (
+      target.key === firstTargetKey &&
+      reachedTargets.size === eligibleKeys.size
+    ) {
+      wrapped = true;
+      lastTarget = target;
+      break;
+    }
+
+    recordFocusedTarget({ offViewportFocus, reachedTargets, target });
+    lastTarget = target;
+  }
+
+  return { lastTarget, reachedTargets, wrapped };
+}
+
+async function resetKeyboardFocus(page) {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    window.scrollTo({ left: 0, top: 0 });
+  });
 }
 
 function recordFocusedTarget({ offViewportFocus, reachedTargets, target }) {
@@ -692,6 +804,9 @@ async function inspectKeyboardTargets(page, includeInventory) {
           bounds.top < -0.5 ||
           bounds.right > window.innerWidth + 0.5 ||
           bounds.bottom > window.innerHeight + 0.5,
+        inWorkSurface: Boolean(
+          element.closest('[data-slot="app-shell-content"], main'),
+        ),
         region: regionName(element),
         tagName: element.tagName,
       };
@@ -980,7 +1095,7 @@ function routeSlug(route) {
 
 function renderEvidenceDocument(summary) {
   const failureCount = collectSmokeFailures(
-    summary.results,
+    [...summary.results, ...summary.maintenanceBoardResults],
     summary.roleAudits,
     summary.blockedMutationRequests,
     summary.keyboardZoomAudits ?? null,
@@ -995,6 +1110,7 @@ function renderEvidenceDocument(summary) {
     "## Verdict",
     "",
     `- ${summary.results.length} admin route/viewport captures completed across ${viewportSummary}.`,
+    `- ${summary.maintenanceBoardResults.length} supplemental Maintenance board viewport captures completed in the same read-only run.`,
     `- ${summary.roleAudits.length} manager, member, and anonymous access checks matched the manifest.`,
     `- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: ${failureCount}.`,
     "- Local fixture evidence only; this is not hosted production certification.",
@@ -1059,6 +1175,7 @@ function renderEvidenceDocument(summary) {
 }
 
 async function writeEvidenceDocument(summary) {
+  assertEvidenceSummary(summary, manifest);
   const evidenceDirectory = resolve("docs", "verification");
   await mkdir(evidenceDirectory, { recursive: true });
   await writeFile(

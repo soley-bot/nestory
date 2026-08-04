@@ -1,7 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
-import { MAINTENANCE_CAPTURE_VIEWPORTS } from "./smoke-ui-redesign-policy.mjs";
+import {
+  buildArtifactRunName,
+  getScreenshotFailures,
+  MAINTENANCE_CAPTURE_VIEWPORTS,
+  readPngDimensions,
+} from "./smoke-ui-redesign-policy.mjs";
 
 const baseUrl = process.env.NESTORY_BASE_URL ?? "http://localhost:3000";
 const email = process.env.NESTORY_TEST_EMAIL?.trim();
@@ -28,18 +33,27 @@ const legacyMaintenanceViewports = [
   { height: 812, width: 375 },
   { height: 896, width: 414 },
 ];
+const artifactRoot = path.resolve("artifacts", "ui-redesign");
 const artifactDirectory = path.resolve(
-  "artifacts",
-  "ui-redesign",
-  `maintenance-${new Date().toISOString().replaceAll(":", "-")}`,
+  artifactRoot,
+  buildArtifactRunName({
+    date: new Date(),
+    mode: "smoke",
+    pid: process.pid,
+    prefix: "maintenance",
+  }),
 );
 
-await fs.mkdir(artifactDirectory, { recursive: true });
+await fs.mkdir(artifactRoot, { recursive: true });
+await fs.mkdir(artifactDirectory);
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({
   deviceScaleFactor: 1,
-  viewport: matrixViewports[0],
+  viewport: {
+    height: matrixViewports[0].height,
+    width: matrixViewports[0].width,
+  },
 });
 const consoleProblems = [];
 const blockedMutationRequests = [];
@@ -59,6 +73,7 @@ try {
 
   const measurements = [];
   const failures = [];
+  const screenshots = [];
 
   for (const route of routeMatrix) {
     for (const viewport of matrixViewports) {
@@ -119,10 +134,21 @@ try {
         }
       }
 
-      await page.screenshot({
-        fullPage: true,
-        path: path.join(artifactDirectory, `${label}.png`),
+      const screenshot = await saveViewportScreenshot({
+        screenshotPath: path.join(
+          artifactDirectory,
+          `${route.label}-${viewport.width}x${viewport.height}.png`,
+        ),
+        viewport,
       });
+      screenshots.push({ route: route.path, screenshot, viewport });
+      failures.push(
+        ...getScreenshotFailures({
+          screenshot,
+          viewportHeight: viewport.height,
+          viewportWidth: viewport.width,
+        }).map((failure) => `${label} ${failure}.`),
+      );
     }
   }
 
@@ -161,6 +187,7 @@ try {
     consoleProblems,
     measurements,
     routes: routeMatrix.map((route) => route.path),
+    screenshots,
     viewports: matrixViewports,
   };
   await fs.writeFile(
@@ -194,6 +221,28 @@ async function signIn() {
   }
 }
 
+async function saveViewportScreenshot({ screenshotPath }) {
+  try {
+    const png = await page.screenshot({ fullPage: false });
+    const dimensions = readPngDimensions(png);
+    await fs.writeFile(screenshotPath, png);
+
+    return {
+      error: null,
+      height: dimensions.height,
+      path: screenshotPath,
+      width: dimensions.width,
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : String(error),
+      height: null,
+      path: null,
+      width: null,
+    };
+  }
+}
+
 async function installReadOnlyGuard() {
   await page.route("**/*", async (route) => {
     const request = route.request();
@@ -210,7 +259,10 @@ async function installReadOnlyGuard() {
 }
 
 async function openRoute(route, viewport) {
-  await page.setViewportSize(viewport);
+  await page.setViewportSize({
+    height: viewport.height,
+    width: viewport.width,
+  });
   await page.goto(`${baseUrl}${route.path}`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { level: 1, name: route.heading }).waitFor();
   await page.getByRole("navigation", { name: "Maintenance workspace" }).waitFor();

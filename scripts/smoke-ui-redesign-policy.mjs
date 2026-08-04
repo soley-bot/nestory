@@ -15,6 +15,8 @@ export const KEYBOARD_ZOOM_VIEWPORT = Object.freeze({
   width: 720,
 });
 
+export const UI_EVIDENCE_SCHEMA_VERSION = 1;
+
 export const FINAL_ACCEPTANCE_ROUTES = Object.freeze([
   { label: "Overview", manifestRoute: "/overview" },
   { label: "Properties", manifestRoute: "/properties" },
@@ -31,7 +33,7 @@ export const FINAL_ACCEPTANCE_ROUTES = Object.freeze([
   { label: "Settings", manifestRoute: "/settings" },
   { label: "Workspace Access", manifestRoute: "/users-roles" },
   { label: "Account", manifestRoute: "/account" },
-  { label: "Finance Operations", manifestRoute: "/rent-income" },
+  { label: "Finance Operations", manifestRoute: "/finance" },
   { label: "Ledger", manifestRoute: "/ledger" },
   { label: "Reports", manifestRoute: "/reports" },
 ]);
@@ -196,17 +198,149 @@ export function formatViewportPass(results, viewports) {
   }`;
 }
 
-export function getKeyboardZoomSuiteFailures(audits) {
-  const auditedRoutes = new Set(
-    audits.map((audit) => audit.manifestRoute),
+export function validateEvidenceSummary(summary, manifest) {
+  if (summary?.schemaVersion !== UI_EVIDENCE_SCHEMA_VERSION) {
+    return [
+      `Unsupported UI evidence summary schema; rerun the current axe-enabled browser harness to produce schema version ${UI_EVIDENCE_SCHEMA_VERSION}.`,
+    ];
+  }
+
+  const failures = [];
+  const arrays = {};
+  for (const field of [
+    "blockedMutationRequests",
+    "keyboardZoomAudits",
+    "maintenanceBoardResults",
+    "results",
+    "roleAudits",
+    "viewports",
+  ]) {
+    if (!Array.isArray(summary[field])) {
+      failures.push(`${field} must be an array`);
+      arrays[field] = [];
+    } else {
+      arrays[field] = summary[field];
+    }
+  }
+
+  if (!Array.isArray(manifest) || manifest.length === 0) {
+    failures.push("route manifest must be a non-empty array");
+    return failures;
+  }
+  if (summary.axeEnabled !== true) {
+    failures.push("axeEnabled must be true for tracked evidence");
+  }
+  if (summary.runMode !== "axe") {
+    failures.push("runMode must be axe for tracked evidence");
+  }
+  if (arrays.blockedMutationRequests.length > 0) {
+    failures.push("blocked mutation requests must be empty");
+  }
+
+  validateViewportMatrix(arrays.viewports, failures);
+  validateMainResults(arrays.results, manifest, failures);
+  validateRoleAudits(arrays.roleAudits, manifest, failures);
+  validateMaintenanceBoardResults(
+    arrays.maintenanceBoardResults,
+    manifest,
+    failures,
   );
 
-  return keyboardZoomRouteDefinitions
-    .filter((route) => !auditedRoutes.has(route.manifestRoute))
-    .map(
-      (route) =>
-        `${KEYBOARD_ZOOM_VIEWPORT.name}: missing keyboard audit for ${route.label} (${route.manifestRoute})`,
+  validateKeyboardAudits(arrays.keyboardZoomAudits, manifest, failures);
+
+  return failures;
+}
+
+export function assertEvidenceSummary(summary, manifest) {
+  const failures = validateEvidenceSummary(summary, manifest);
+
+  if (failures.length > 0) {
+    throw new Error(
+      `Refusing to generate tracked UI evidence from an invalid summary:\n${failures
+        .map((failure) => `- ${failure}`)
+        .join("\n")}`,
     );
+  }
+}
+
+export function readPngDimensions(buffer) {
+  if (
+    !Buffer.isBuffer(buffer) ||
+    buffer.length < 24 ||
+    !buffer.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")) ||
+    buffer.toString("ascii", 12, 16) !== "IHDR"
+  ) {
+    throw new Error("Screenshot is not a PNG with an IHDR header");
+  }
+
+  return {
+    height: buffer.readUInt32BE(20),
+    width: buffer.readUInt32BE(16),
+  };
+}
+
+export function getScreenshotFailures(result) {
+  const failures = [];
+  const screenshot = result.screenshot;
+
+  if (!screenshot || screenshot.error || !screenshot.path) {
+    failures.push("screenshot evidence missing");
+    return failures;
+  }
+  if (
+    !Number.isInteger(screenshot.width) ||
+    !Number.isInteger(screenshot.height)
+  ) {
+    failures.push("screenshot dimensions missing");
+  } else if (
+    screenshot.width !== result.viewportWidth ||
+    screenshot.height !== result.viewportHeight
+  ) {
+    failures.push(
+      `screenshot dimensions ${screenshot.width}x${screenshot.height} do not match viewport ${result.viewportWidth}x${result.viewportHeight}`,
+    );
+  }
+
+  return failures;
+}
+
+export function buildArtifactRunName({ date, mode, pid, prefix }) {
+  const timestamp = date.toISOString().replaceAll(":", "-");
+  return `${prefix}-${timestamp}-${mode}-p${pid}`;
+}
+
+export function getKeyboardZoomSuiteFailures(audits) {
+  if (!Array.isArray(audits)) {
+    return [`${KEYBOARD_ZOOM_VIEWPORT.name}: keyboard audits must be an array`];
+  }
+
+  const failures = [];
+  const expectedRoutes = new Map(
+    keyboardZoomRouteDefinitions.map((route) => [route.manifestRoute, route]),
+  );
+  const counts = countBy(audits, (audit) => audit?.manifestRoute);
+
+  for (const audit of audits) {
+    if (!expectedRoutes.has(audit?.manifestRoute)) {
+      failures.push(
+        `${KEYBOARD_ZOOM_VIEWPORT.name}: unknown keyboard audit ${audit?.manifestRoute ?? "missing"}`,
+      );
+    }
+  }
+  for (const route of keyboardZoomRouteDefinitions) {
+    const count = counts.get(route.manifestRoute) ?? 0;
+    if (count === 0) {
+      failures.push(
+        `${KEYBOARD_ZOOM_VIEWPORT.name}: missing keyboard audit for ${route.label} (${route.manifestRoute})`,
+      );
+    } else if (count > 1) {
+      failures.push(
+        `${KEYBOARD_ZOOM_VIEWPORT.name}: duplicate keyboard audit for ${route.label} (${route.manifestRoute})`,
+      );
+    }
+  }
+
+  return failures;
 }
 
 export function getKeyboardZoomAuditFailures(result) {
@@ -246,10 +380,39 @@ export function getKeyboardZoomAuditFailures(result) {
   if (!traversal?.reachedRegions?.length) {
     failures.push(`${prefix}: no keyboard focus regions reached`);
   }
-  if (traversal?.unreachableTargets?.length > 0) {
+  if (
+    !traversal?.requiredWorkSurfaceTargetKeys?.length ||
+    !traversal?.eligibleTargets?.some((target) => target.inWorkSurface)
+  ) {
+    failures.push(`${prefix}: no eligible main work-surface target`);
+  }
+  if (!traversal?.reachedTargets?.some((target) => target.inWorkSurface)) {
+    failures.push(`${prefix}: no reached main work-surface target`);
+  }
+  const forwardUnreachable =
+    traversal?.forwardUnreachableTargets ?? traversal?.unreachableTargets;
+  if (forwardUnreachable?.length > 0) {
     failures.push(
-      `${prefix}: ${traversal.unreachableTargets.length} keyboard target(s) unreachable`,
+      `${prefix}: ${forwardUnreachable.length} keyboard target(s) unreachable`,
     );
+  }
+  if (
+    traversal?.forwardTraversal?.attempted !== true ||
+    traversal.forwardTraversal.reached !== true
+  ) {
+    failures.push(`${prefix}: forward keyboard traversal failed`);
+  }
+  if (traversal?.reverseUnreachableTargets?.length > 0) {
+    failures.push(
+      `${prefix}: ${traversal.reverseUnreachableTargets.length} reverse keyboard target(s) unreachable`,
+    );
+  }
+  if (
+    !traversal?.reverseReachedTargets?.some(
+      (target) => target.inWorkSurface,
+    )
+  ) {
+    failures.push(`${prefix}: no reverse-reached main work-surface target`);
   }
   if (traversal?.offViewportFocus?.length > 0) {
     failures.push(
@@ -262,8 +425,8 @@ export function getKeyboardZoomAuditFailures(result) {
   ) {
     failures.push(`${prefix}: reverse keyboard traversal failed`);
   }
-  if (result.screenshotError || !result.screenshotPath) {
-    failures.push(`${prefix}: screenshot evidence missing`);
+  for (const failure of getScreenshotFailures(result)) {
+    failures.push(`${prefix}: ${failure}`);
   }
 
   return failures;
@@ -318,6 +481,9 @@ export function getRouteResultFailures(result) {
   if (result.queryVerified !== true) {
     failures.push(`${prefix}: query or redirect contract failed`);
   }
+  for (const failure of getScreenshotFailures(result)) {
+    failures.push(`${prefix}: ${failure}`);
+  }
 
   return failures;
 }
@@ -353,4 +519,230 @@ function joinList(values) {
   }
 
   return `${values.slice(0, -1).join(", ")} and ${values.at(-1)}`;
+}
+
+function validateViewportMatrix(viewports, failures) {
+  const expected = new Map(
+    MAIN_CAPTURE_VIEWPORTS.map((viewport) => [viewport.name, viewport]),
+  );
+  const counts = countBy(viewports, (viewport) => viewport?.name);
+
+  for (const viewport of viewports) {
+    const configured = expected.get(viewport?.name);
+    if (
+      !configured ||
+      configured.width !== viewport.width ||
+      configured.height !== viewport.height
+    ) {
+      failures.push(`unknown or malformed viewport ${viewport?.name ?? "missing"}`);
+    }
+  }
+  for (const viewport of MAIN_CAPTURE_VIEWPORTS) {
+    const count = counts.get(viewport.name) ?? 0;
+    if (count === 0) {
+      failures.push(`missing viewport ${viewport.name}`);
+    } else if (count > 1) {
+      failures.push(`duplicate viewport ${viewport.name}`);
+    }
+  }
+}
+
+function validateMainResults(results, manifest, failures) {
+  const expected = new Map();
+  for (const entry of manifest) {
+    for (const viewport of MAIN_CAPTURE_VIEWPORTS) {
+      expected.set(`${entry.route}|${viewport.name}`, { entry, viewport });
+    }
+  }
+  const counts = countBy(
+    results,
+    (result) => `${result?.manifestRoute}|${result?.viewport}`,
+  );
+
+  for (const result of results) {
+    const key = `${result?.manifestRoute}|${result?.viewport}`;
+    const contract = expected.get(key);
+    if (!contract) {
+      failures.push(`unknown main result ${key}`);
+      continue;
+    }
+    if (result.route !== contract.entry.smoke.path) {
+      failures.push(`main result ${key} used the wrong smoke path`);
+    }
+    if (
+      result.expectedAccess !== contract.entry.smoke.expectedAccess.admin ||
+      result.viewportWidth !== contract.viewport.width ||
+      result.viewportHeight !== contract.viewport.height
+    ) {
+      failures.push(`main result ${key} does not match its manifest contract`);
+    }
+    validateAxeResult(result, `main result ${key}`, failures);
+    validateCleanRouteResult(result, `main result ${key}`, failures);
+  }
+
+  for (const key of expected.keys()) {
+    const count = counts.get(key) ?? 0;
+    if (count === 0) {
+      failures.push(`missing main result ${key}`);
+    } else if (count > 1) {
+      failures.push(`duplicate main result ${key}`);
+    }
+  }
+}
+
+function validateRoleAudits(audits, manifest, failures) {
+  const roles = ["manager", "member", "anonymous"];
+  const expected = new Map();
+  for (const entry of manifest) {
+    for (const role of roles) {
+      expected.set(`${entry.route}|${role}`, {
+        access: entry.smoke.expectedAccess[role],
+        entry,
+        role,
+      });
+    }
+  }
+  const counts = countBy(
+    audits,
+    (audit) => `${audit?.manifestRoute}|${audit?.role}`,
+  );
+
+  for (const audit of audits) {
+    const key = `${audit?.manifestRoute}|${audit?.role}`;
+    const contract = expected.get(key);
+    if (!contract) {
+      failures.push(`unknown role audit ${key}`);
+      continue;
+    }
+    if (
+      audit.expectedAccess !== contract.access ||
+      audit.accessResult !== contract.access
+    ) {
+      failures.push(`role audit ${key} does not match expected access`);
+    }
+  }
+  for (const [key, contract] of expected) {
+    const count = counts.get(key) ?? 0;
+    if (count === 0) {
+      failures.push(
+        `missing ${contract.role} role audit for ${contract.entry.route}`,
+      );
+    } else if (count > 1) {
+      failures.push(
+        `duplicate ${contract.role} role audit for ${contract.entry.route}`,
+      );
+    }
+  }
+}
+
+function validateMaintenanceBoardResults(results, manifest, failures) {
+  const entry = manifest.find((candidate) => candidate.route === "/maintenance");
+  if (!entry) {
+    failures.push("Maintenance manifest route missing");
+    return;
+  }
+  const counts = countBy(results, (result) => result?.viewport);
+  const expectedViewports = new Map(
+    MAIN_CAPTURE_VIEWPORTS.map((viewport) => [viewport.name, viewport]),
+  );
+
+  for (const result of results) {
+    const viewport = expectedViewports.get(result?.viewport);
+    if (!viewport) {
+      failures.push(`unknown Maintenance board result ${result?.viewport}`);
+      continue;
+    }
+    if (
+      result.manifestRoute !== "/maintenance" ||
+      result.route !== "/maintenance?view=board" ||
+      result.expectedAccess !== entry.smoke.expectedAccess.admin ||
+      result.viewportWidth !== viewport.width ||
+      result.viewportHeight !== viewport.height
+    ) {
+      failures.push(
+        `Maintenance board result ${result.viewport} does not match its contract`,
+      );
+    }
+    validateAxeResult(
+      result,
+      `Maintenance board result ${result.viewport}`,
+      failures,
+    );
+    validateCleanRouteResult(
+      result,
+      `Maintenance board result ${result.viewport}`,
+      failures,
+    );
+  }
+  for (const viewport of MAIN_CAPTURE_VIEWPORTS) {
+    const count = counts.get(viewport.name) ?? 0;
+    if (count === 0) {
+      failures.push(`missing Maintenance board result ${viewport.name}`);
+    } else if (count > 1) {
+      failures.push(`duplicate Maintenance board result ${viewport.name}`);
+    }
+  }
+}
+
+function validateKeyboardAudits(audits, manifest, failures) {
+  failures.push(...getKeyboardZoomSuiteFailures(audits));
+
+  const expected = new Map(
+    resolveKeyboardZoomRoutes(manifest).map((route) => [
+      route.manifestRoute,
+      route,
+    ]),
+  );
+  for (const audit of audits) {
+    const contract = expected.get(audit?.manifestRoute);
+    if (contract) {
+      if (
+        audit.label !== contract.label ||
+        audit.route !== contract.path ||
+        audit.expectedAccess !== contract.expectedAccess ||
+        audit.viewport !== KEYBOARD_ZOOM_VIEWPORT.name ||
+        audit.viewportWidth !== KEYBOARD_ZOOM_VIEWPORT.width ||
+        audit.viewportHeight !== KEYBOARD_ZOOM_VIEWPORT.height
+      ) {
+        failures.push(
+          `keyboard audit ${contract.label} does not match its manifest contract`,
+        );
+      }
+    }
+    for (const failure of getKeyboardZoomAuditFailures(audit)) {
+      failures.push(`keyboard audit failed: ${failure}`);
+    }
+  }
+}
+
+function validateAxeResult(result, label, failures) {
+  if (
+    !result.accessibility ||
+    result.accessibility.error !== null ||
+    !Array.isArray(result.accessibility.violations)
+  ) {
+    failures.push(`${label}: successful axe result missing`);
+  }
+}
+
+function validateCleanRouteResult(result, label, failures) {
+  try {
+    const resultFailures = getRouteResultFailures(result);
+    if (resultFailures.length > 0) {
+      failures.push(`${label}: main result failed: ${resultFailures.join("; ")}`);
+    }
+  } catch (error) {
+    failures.push(
+      `${label}: malformed result: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function countBy(values, keyForValue) {
+  const counts = new Map();
+  for (const value of values) {
+    const key = keyForValue(value);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
 }

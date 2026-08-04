@@ -73,7 +73,9 @@ The static browser harness is now prepared, but remains unrun:
 
 - The main manifest sweep is configured to save 1440 x 900, 1280 x 800,
   1024 x 768, and 390 x 844 captures, with generated evidence deriving its
-  viewport names and pass counts from the runtime summary.
+  viewport names and pass counts from the runtime summary. Filenames include
+  exact viewport dimensions, and PNG IHDR dimensions must match the requested
+  viewport before the fail-closed evidence writer accepts them.
 - The Maintenance saved matrix uses the same four viewports, including list
   and board screenshots at 1280 x 800. The old duplicate 1280 x 800 list-only
   legacy measurement was removed.
@@ -83,6 +85,12 @@ The static browser harness is now prepared, but remains unrun:
   overflow, reached and unreachable focus targets and regions, off-viewport
   focus, reverse traversal, and one screenshot per route in the structured
   summary and failure gate.
+- The main axe summary is versioned and self-contained. Tracked evidence is
+  refused unless it contains one clean result for every manifest route and
+  viewport, complete manager/member/anonymous audits, successful axe results,
+  the four Maintenance board captures, and exactly five clean equivalent
+  keyboard audits. Older, partial, duplicate, malformed, baseline-only, or
+  failing summaries must be rerun and cannot update tracked evidence.
 
 No line above is runtime browser evidence. The exact captures and equivalent
 keyboard audit remain open until the browser commands run. Actual 200% browser
@@ -109,7 +117,7 @@ and no page-level horizontal overflow on the exercised routes.
 | Settings (`/settings`) | `D:\nestory\output\playwright\task-first-wave-d\settings-task13-organization-1280x720.jpg` |
 | Workspace Access (`/users-roles`) | `D:\nestory\output\playwright\task-first-wave-d\access-task16-final-1280x720.jpg` |
 | Account (`/account`) | `D:\nestory\output\playwright\task-first-wave-d\account-task16-1280x720.jpg` |
-| Finance Operations (`/rent-income`) | `D:\nestory\output\playwright\task-first-wave-e\finance-final-1280x720.jpg` |
+| Finance Operations (`/finance`) | `D:\nestory\output\playwright\task-first-wave-e\finance-final-1280x720.jpg` |
 | Ledger (`/ledger`) | `D:\nestory\output\playwright\task-first-wave-e\ledger-final-1280x720.jpg` |
 | Reports (`/reports`) | `D:\nestory\output\playwright\task-first-wave-e\reports-final-1280x720.jpg` |
 

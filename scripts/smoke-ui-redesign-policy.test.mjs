@@ -135,7 +135,15 @@ describe("smoke failure aggregation", () => {
       primaryActions: { error: null, reachable: true },
       queryVerified: true,
       route: "/reports",
+      screenshot: {
+        error: null,
+        height: 900,
+        path: "desktop/reports-1440x900.png",
+        width: 1440,
+      },
       viewport: "desktop",
+      viewportHeight: 900,
+      viewportWidth: 1440,
     };
 
     expect(smokePolicy.getRouteResultFailures(result)).toEqual([
@@ -176,7 +184,7 @@ describe("browser acceptance matrix policy", () => {
       { label: "Settings", manifestRoute: "/settings" },
       { label: "Workspace Access", manifestRoute: "/users-roles" },
       { label: "Account", manifestRoute: "/account" },
-      { label: "Finance Operations", manifestRoute: "/rent-income" },
+      { label: "Finance Operations", manifestRoute: "/finance" },
       { label: "Ledger", manifestRoute: "/ledger" },
       { label: "Reports", manifestRoute: "/reports" },
     ]);
@@ -237,8 +245,12 @@ describe("200%-equivalent keyboard audit policy", () => {
     result.keyboardTraversal.reachedTargets = [];
     result.keyboardTraversal.reachedRegions = [];
     result.keyboardTraversal.unreachableTargets = [{ key: "button:nth-of-type(1)" }];
+    result.keyboardTraversal.forwardUnreachableTargets = [
+      { key: "button:nth-of-type(1)" },
+    ];
     result.keyboardTraversal.offViewportFocus = [{ key: "a:nth-of-type(2)" }];
     result.keyboardTraversal.reverseTraversal.reached = false;
+    result.screenshot.path = null;
     result.screenshotPath = null;
 
     expect(smokePolicy.getKeyboardZoomAuditFailures(result)).toEqual([
@@ -246,6 +258,7 @@ describe("200%-equivalent keyboard audit policy", () => {
       "zoom-equivalent-200 /overview: horizontal overflow check failed",
       "zoom-equivalent-200 /overview: no keyboard focus targets reached",
       "zoom-equivalent-200 /overview: no keyboard focus regions reached",
+      "zoom-equivalent-200 /overview: no reached main work-surface target",
       "zoom-equivalent-200 /overview: 1 keyboard target(s) unreachable",
       "zoom-equivalent-200 /overview: 1 off-viewport focus target(s)",
       "zoom-equivalent-200 /overview: reverse keyboard traversal failed",
@@ -268,6 +281,97 @@ describe("200%-equivalent keyboard audit policy", () => {
     expect(text).toContain("Actual 200% browser zoom remains manual and unverified");
     expect(text).not.toMatch(/actual 200% browser zoom (?:passed|verified|covered)/i);
   });
+
+  it("fails missing work-surface and complete reverse traversal evidence", () => {
+    const result = passingKeyboardAudit();
+    result.keyboardTraversal.eligibleTargets[0].inWorkSurface = false;
+    result.keyboardTraversal.reachedTargets[0].inWorkSurface = false;
+    result.keyboardTraversal.requiredWorkSurfaceTargetKeys = [];
+    result.keyboardTraversal.reverseUnreachableTargets = [
+      { key: "a:nth-of-type(1)" },
+    ];
+
+    expect(smokePolicy.getKeyboardZoomAuditFailures(result)).toEqual([
+      "zoom-equivalent-200 /overview: no eligible main work-surface target",
+      "zoom-equivalent-200 /overview: no reached main work-surface target",
+      "zoom-equivalent-200 /overview: 1 reverse keyboard target(s) unreachable",
+    ]);
+  });
+});
+
+describe("tracked evidence summary validation", () => {
+  it("accepts only the complete versioned real-manifest evidence shape", () => {
+    expect(validateSummary(createValidSummary())).toEqual([]);
+  });
+
+  it("rejects older summaries with a clear rerun message", () => {
+    expect(validateSummary({})).toEqual([
+      "Unsupported UI evidence summary schema; rerun the current axe-enabled browser harness to produce schema version 1.",
+    ]);
+  });
+
+  it.each([
+    ["empty main results", (summary) => { summary.results = []; }, "missing main result"],
+    ["partial main results", (summary) => { summary.results.pop(); }, "missing main result"],
+    ["duplicate main results", (summary) => { summary.results.push(summary.results[0]); }, "duplicate main result"],
+    ["unknown main results", (summary) => { summary.results[0].manifestRoute = "/unknown"; }, "unknown main result"],
+    ["non-Axe summaries", (summary) => { summary.axeEnabled = false; }, "axeEnabled must be true"],
+    ["failed Axe captures", (summary) => { summary.results[0].accessibility = null; }, "successful axe result missing"],
+    ["missing board evidence", (summary) => { summary.maintenanceBoardResults = []; }, "missing Maintenance board result"],
+    ["missing role evidence", (summary) => { summary.roleAudits.pop(); }, "missing anonymous role audit"],
+    ["failing main results", (summary) => { summary.results[0].horizontalOverflow.hasOverflow = true; }, "main result failed"],
+    ["malformed arrays", (summary) => { summary.results = null; }, "results must be an array"],
+    ["duplicate keyboard evidence", (summary) => { summary.keyboardZoomAudits.push(summary.keyboardZoomAudits[0]); }, "duplicate keyboard audit"],
+    ["wrong keyboard route contracts", (summary) => { summary.keyboardZoomAudits[0].route = "/overview?wrong=true"; }, "keyboard audit Overview does not match its manifest contract"],
+    ["missing reverse work-surface proof", (summary) => { summary.keyboardZoomAudits[0].keyboardTraversal.reverseReachedTargets = []; }, "no reverse-reached main work-surface target"],
+    ["missing forward wrap proof", (summary) => { summary.keyboardZoomAudits[0].keyboardTraversal.forwardTraversal.reached = false; }, "forward keyboard traversal failed"],
+  ])("rejects %s", (_label, mutate, expected) => {
+    const summary = createValidSummary();
+    mutate(summary);
+
+    expect(validateSummary(summary).join("\n")).toContain(expected);
+  });
+});
+
+describe("exact screenshot evidence policy", () => {
+  it("parses dimensions directly from a PNG IHDR", () => {
+    const png = Buffer.alloc(24);
+    Buffer.from("89504e470d0a1a0a", "hex").copy(png, 0);
+    png.write("IHDR", 12, "ascii");
+    png.writeUInt32BE(1280, 16);
+    png.writeUInt32BE(800, 20);
+
+    expect(smokePolicy.readPngDimensions?.(png)).toEqual({
+      height: 800,
+      width: 1280,
+    });
+  });
+
+  it("fails a viewport screenshot with expanded dimensions", () => {
+    expect(
+      smokePolicy.getScreenshotFailures?.({
+        screenshot: {
+          error: null,
+          height: 1200,
+          path: "desktop/overview-1280x800.png",
+          width: 1280,
+        },
+        viewportHeight: 800,
+        viewportWidth: 1280,
+      }),
+    ).toEqual(["screenshot dimensions 1280x1200 do not match viewport 1280x800"]);
+  });
+
+  it("keeps milliseconds plus mode and PID in artifact run names", () => {
+    expect(
+      smokePolicy.buildArtifactRunName?.({
+        date: new Date("2026-08-04T10:11:12.345Z"),
+        mode: "axe",
+        pid: 4321,
+        prefix: "ui",
+      }),
+    ).toBe("ui-2026-08-04T10-11-12.345Z-axe-p4321");
+  });
 });
 
 function createPolicy() {
@@ -283,8 +387,12 @@ function loginRequest() {
 }
 
 function passingRouteResult(viewport) {
+  const viewportDefinition = smokePolicy.MAIN_CAPTURE_VIEWPORTS.find(
+    (candidate) => candidate.name === viewport,
+  ) ?? { height: 900, width: 1440 };
+
   return {
-    accessibility: null,
+    accessibility: { error: null, violations: [] },
     accessResult: "accessible",
     consoleErrors: [],
     expectedAccess: "accessible",
@@ -294,7 +402,15 @@ function passingRouteResult(viewport) {
     primaryActions: { error: null, reachable: true },
     queryVerified: true,
     route: "/overview",
+    screenshot: {
+      error: null,
+      height: viewportDefinition.height,
+      path: `desktop/overview-${viewportDefinition.width}x${viewportDefinition.height}.png`,
+      width: viewportDefinition.width,
+    },
     viewport,
+    viewportHeight: viewportDefinition.height,
+    viewportWidth: viewportDefinition.width,
   };
 }
 
@@ -305,24 +421,101 @@ function passingKeyboardAudit() {
     h1: { count: 1, error: null, texts: ["Overview"] },
     horizontalOverflow: { error: null, hasOverflow: false },
     keyboardTraversal: {
-      eligibleTargets: [{ key: "a:nth-of-type(1)", region: "Primary" }],
+      eligibleTargets: [{ inWorkSurface: true, key: "a:nth-of-type(1)", region: "Primary" }],
       error: null,
+      forwardUnreachableTargets: [],
+      forwardTraversal: {
+        attempted: true,
+        reached: true,
+        target: { key: "a:nth-of-type(1)", region: "Primary" },
+      },
       offViewportFocus: [],
       reachedRegions: ["Primary"],
-      reachedTargets: [{ key: "a:nth-of-type(1)", region: "Primary" }],
+      reachedTargets: [{ inWorkSurface: true, key: "a:nth-of-type(1)", region: "Primary" }],
+      requiredWorkSurfaceTargetKeys: ["a:nth-of-type(1)"],
+      reverseReachedTargets: [{ inWorkSurface: true, key: "a:nth-of-type(1)", region: "Primary" }],
       reverseTraversal: {
         attempted: true,
         reached: true,
         target: { key: "a:nth-of-type(1)", region: "Primary" },
       },
+      reverseUnreachableTargets: [],
       unreachableTargets: [],
     },
     label: "Overview",
     manifestRoute: "/overview",
     navigationError: null,
     route: "/overview",
+    screenshot: {
+      error: null,
+      height: 450,
+      path: "artifacts/ui-redesign/run/zoom-equivalent-200/overview-720x450.png",
+      width: 720,
+    },
     screenshotError: null,
-    screenshotPath: "artifacts/ui-redesign/run/zoom-equivalent-200/overview.png",
+    screenshotPath: "artifacts/ui-redesign/run/zoom-equivalent-200/overview-720x450.png",
     viewport: "zoom-equivalent-200",
+    viewportHeight: 450,
+    viewportWidth: 720,
   };
+}
+
+function createValidSummary() {
+  const results = routeManifest.flatMap((entry) =>
+    smokePolicy.MAIN_CAPTURE_VIEWPORTS.map((viewport) => ({
+      ...passingRouteResult(viewport.name),
+      expectedAccess: entry.smoke.expectedAccess.admin,
+      accessResult: entry.smoke.expectedAccess.admin,
+      manifestRoute: entry.route,
+      route: entry.smoke.path,
+    })),
+  );
+  const roleAudits = routeManifest.flatMap((entry) =>
+    ["manager", "member", "anonymous"].map((role) => ({
+      accessResult: entry.smoke.expectedAccess[role],
+      expectedAccess: entry.smoke.expectedAccess[role],
+      manifestRoute: entry.route,
+      role,
+    })),
+  );
+  const maintenanceBoardResults = smokePolicy.MAIN_CAPTURE_VIEWPORTS.map(
+    (viewport) => ({
+      ...passingRouteResult(viewport.name),
+      manifestRoute: "/maintenance",
+      queryVerified: true,
+      route: "/maintenance?view=board",
+    }),
+  );
+  const keyboardZoomAudits = smokePolicy
+    .resolveKeyboardZoomRoutes(routeManifest)
+    .map((route) => ({
+      ...passingKeyboardAudit(),
+      expectedAccess: route.expectedAccess,
+      accessResult: route.expectedAccess,
+      label: route.label,
+      manifestRoute: route.manifestRoute,
+      route: route.path,
+    }));
+
+  return {
+    axeEnabled: true,
+    blockedMutationRequests: [],
+    keyboardZoomAudits,
+    maintenanceBoardResults,
+    results,
+    roleAudits,
+    runMode: "axe",
+    schemaVersion: 1,
+    viewports: smokePolicy.MAIN_CAPTURE_VIEWPORTS.map((viewport) => ({
+      ...viewport,
+    })),
+  };
+}
+
+function validateSummary(summary) {
+  return (
+    smokePolicy.validateEvidenceSummary?.(summary, routeManifest) ?? [
+      "validator missing",
+    ]
+  );
 }
