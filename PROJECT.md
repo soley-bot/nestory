@@ -261,8 +261,18 @@ infer blocked balances without an approved product and data-authority change.
 
 Authenticated Nestory is quiet, neutral, dense operating software.
 
-- Use compact headers, URL-backed filters, tables, list/card selectors, badges,
-  quick views, side drawers, and explicit record links.
+- Give each workspace one visible title-and-action composition, with title,
+  context, local navigation, and actions kept on one readable line when width
+  permits. Use no more than one secondary controls row below it.
+- Keep primary search visible. Disclose advanced URL-backed filters instead of
+  giving every filter permanent visual weight.
+- Give each workspace one dominant work surface. Desktop tables and row lists
+  stay unframed while retaining captions, headers, row semantics, keyboard
+  behavior, and accessible selection state.
+- Reserve cards for genuinely discrete objects, states, or actions; do not use
+  decorative card shells to divide one continuous operating surface.
+- Use compact headers, tables, list selectors, badges, quick views, side
+  drawers, and explicit record links.
 - Keep primary records and common actions early in the viewport.
 - Desktop workspaces should use the remaining viewport height and internal
   scrolling instead of small document-level scrollbars.
@@ -274,9 +284,11 @@ Authenticated Nestory is quiet, neutral, dense operating software.
   other focused record work.
 - Keep one global `Search or jump` surface. Entity results stay server-scoped
   and must not expose raw UUIDs as operator labels.
-- Settings uses local navigation, the active workspace, and one shared
-  save/discard/status area. Configuration is a read-only registry catalog until
-  persistence, approval, and effective-dating authority are implemented.
+- Settings uses header-level Workspace and Workspace Access navigation followed
+  by a two-zone layout: one uncontained section rail and one labelled content
+  region. It has one shared save/discard/status area. Configuration is a
+  read-only registry catalog until persistence, approval, and effective-dating
+  authority are implemented.
 - Label ordinary actions directly. Explain risk, consequence, permission,
   unfamiliar domain meaning, and handoffs where needed.
 - Consequential actions show the affected record, scope, and effect before
@@ -286,6 +298,8 @@ Authenticated Nestory is quiet, neutral, dense operating software.
 - Long labels and descriptions wrap or truncate deliberately. Raw UUIDs remain
   out of ordinary operator views.
 - Use primitives from `src/components/ui` for visible form controls.
+- Treat 1440 x 900 and 1280 x 800 as the laptop-first visual checks, and verify
+  authenticated workspace reflow and keyboard access at 200% browser zoom.
 
 Dialogs and drawers trap focus, close with Escape, expose an announced close
 control, and return focus to the opener. Keyboard use, focus, disabled states,
