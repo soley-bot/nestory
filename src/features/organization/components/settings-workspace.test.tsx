@@ -135,7 +135,29 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect(current[0]?.textContent).toBe(label);
   });
 
-  it("declares three wide zones, a two-zone compact layout, and mobile-safe rail", () => {
+  it.each([
+    ["organization", "Organization"],
+    ["configuration", "Configuration"],
+    ["branches", "Branches"],
+    ["teams", "Teams"],
+  ] as const)(
+    "renders %s in one labelled current-content region",
+    (section, label) => {
+      render(<SettingsWorkspace {...defaultProps} section={section} />);
+
+      const workspace = screen.getByTestId("settings-workspace");
+
+      expect(within(workspace).getAllByRole("navigation")).toHaveLength(1);
+      expect(within(workspace).getAllByRole("region")).toHaveLength(1);
+      expect(
+        within(workspace).getByRole("region", {
+          name: `${label} settings content`,
+        }),
+      ).not.toBeNull();
+    },
+  );
+
+  it("uses an uncontained rail, two desktop zones, and a narrow horizontal fallback", () => {
     render(<SettingsWorkspace {...defaultProps} section="organization" />);
 
     const workspace = screen.getByTestId("settings-workspace");
@@ -146,23 +168,28 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect(workspace.className).toContain(
       "lg:grid-cols-[180px_minmax(0,1fr)]",
     );
-    expect(workspace.className).toContain(
-      "xl:grid-cols-[180px_minmax(0,1fr)_300px]",
-    );
+    expect(workspace.className).not.toContain("xl:grid-cols");
     expect(workspace.className).toContain("min-w-0");
     expect(rail.className).toContain("overflow-x-auto");
-    expect(screen.getByTestId("settings-editor").className).toContain("min-w-0");
-    expect(screen.getByTestId("settings-summary").className).toContain(
-      "lg:col-start-2",
+    expect(rail.className).toContain("lg:border-r");
+    expect(rail.className).not.toContain("rounded-md");
+    expect(rail.className).not.toContain("bg-surface");
+    expect(rail.className).not.toContain("border border-border");
+    expect(screen.getByTestId("settings-current-content").className).toContain(
+      "min-w-0",
     );
+    expect(screen.queryByTestId("settings-summary")).toBeNull();
   });
 
   it("shows only supported organization identity without a fake edit control", () => {
     render(<SettingsWorkspace {...defaultProps} section="organization" />);
 
     expect(screen.getByRole("heading", { name: "Organization identity" })).not.toBeNull();
-    expect(screen.getAllByText("Nestory Test")).toHaveLength(2);
+    expect(screen.getAllByText("Nestory Test")).toHaveLength(1);
     expect(screen.getByText("nestory-test")).not.toBeNull();
+    const content = screen.getByTestId("settings-current-content");
+    expect(within(content).getByText("Branches")).not.toBeNull();
+    expect(within(content).getByText("Teams")).not.toBeNull();
     expect(screen.queryByRole("button", { name: /save/i })).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
@@ -175,8 +202,17 @@ describe("SettingsWorkspace navigation and layout", () => {
       screen.getByRole("heading", { name: "Configuration registry" }),
     ).not.toBeNull();
     expect(screen.getByText("Catalog only")).not.toBeNull();
+    expect(screen.getByText("Registered rules")).not.toBeNull();
+    expect(screen.getByText("Audited")).not.toBeNull();
+    expect(screen.getByText("Restricted after launch")).not.toBeNull();
+    expect(screen.getByText("Current mode")).not.toBeNull();
     expect(screen.getAllByText("Existing records").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Default").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Owner").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Change pattern").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("After go-live").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Prospective only").length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("configuration-registry-summary")).toBeNull();
     expect(screen.queryByRole("button", { name: /save|edit|activate/i })).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
   });

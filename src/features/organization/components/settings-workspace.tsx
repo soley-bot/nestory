@@ -7,7 +7,6 @@ import {
   SettingsNavigationGuardProvider,
   useSettingsNavigationGuard,
 } from "@/components/layout/settings-navigation-guard";
-import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { ConfigurationRegistryCatalog } from "@/features/configuration/components/configuration-registry-catalog";
 import {
   BranchEditor,
@@ -69,6 +68,7 @@ function SettingsWorkspaceContent({
 }: SettingsWorkspaceProps) {
   const guard = useSettingsNavigationGuard();
   const editorRef = useRef<SettingsEditorHandle>(null);
+  const currentSection = sections.find((item) => item.value === section)!;
 
   useEffect(() => {
     if (!guard) {
@@ -97,12 +97,12 @@ function SettingsWorkspaceContent({
 
   return (
     <main
-      className="grid min-w-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start xl:grid-cols-[180px_minmax(0,1fr)_300px]"
+      className="grid min-w-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start"
       data-testid="settings-workspace"
     >
       <nav
         aria-label="Organization settings sections"
-        className="flex min-w-0 gap-1 overflow-x-auto rounded-md border border-border bg-surface p-1 lg:row-span-2 lg:flex-col lg:overflow-visible"
+        className="flex min-w-0 gap-1 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:border-r lg:border-border lg:pb-0 lg:pr-4"
       >
         {sections.map((item) => {
           const current = item.value === section;
@@ -126,36 +126,43 @@ function SettingsWorkspaceContent({
         })}
       </nav>
 
-      {section === "organization" ? (
-        <OrganizationIdentity
-          branches={branches}
-          organizationName={organizationName}
-          organizationSlug={organizationSlug}
-          teams={teams}
-        />
-      ) : section === "configuration" ? (
-        <ConfigurationRegistryCatalog />
-      ) : section === "branches" ? (
-        <BranchEditor
-          branches={branches}
-          canManageStructure={canManageStructure}
-          focusServerError={!guard?.suppressErrorFocus}
-          onDraftStatusChange={guard?.setDraftStatus ?? (() => undefined)}
-          organizationName={organizationName}
-          ref={editorRef}
-        />
-      ) : (
-        <TeamEditor
-          branches={branches}
-          canManageStructure={canManageStructure}
-          focusServerError={!guard?.suppressErrorFocus}
-          onDraftStatusChange={guard?.setDraftStatus ?? (() => undefined)}
-          organizationName={organizationName}
-          ref={editorRef}
-          staff={staff}
-          teams={teams}
-        />
-      )}
+      <section
+        aria-label={`${currentSection.label} settings content`}
+        className="min-w-0"
+        data-testid="settings-current-content"
+        role="region"
+      >
+        {section === "organization" ? (
+          <OrganizationIdentity
+            branches={branches}
+            organizationName={organizationName}
+            organizationSlug={organizationSlug}
+            teams={teams}
+          />
+        ) : section === "configuration" ? (
+          <ConfigurationRegistryCatalog />
+        ) : section === "branches" ? (
+          <BranchEditor
+            branches={branches}
+            canManageStructure={canManageStructure}
+            focusServerError={!guard?.suppressErrorFocus}
+            onDraftStatusChange={guard?.setDraftStatus ?? (() => undefined)}
+            organizationName={organizationName}
+            ref={editorRef}
+          />
+        ) : (
+          <TeamEditor
+            branches={branches}
+            canManageStructure={canManageStructure}
+            focusServerError={!guard?.suppressErrorFocus}
+            onDraftStatusChange={guard?.setDraftStatus ?? (() => undefined)}
+            organizationName={organizationName}
+            ref={editorRef}
+            staff={staff}
+            teams={teams}
+          />
+        )}
+      </section>
     </main>
   );
 }
@@ -172,37 +179,20 @@ function OrganizationIdentity({
   teams: OrganizationTeam[];
 }) {
   return (
-    <>
-      <section
-        className="min-w-0 rounded-md border border-border bg-surface px-4 py-4"
-        data-testid="settings-editor"
-      >
-        <h2 className="text-sm font-semibold text-foreground">
-          Organization identity
-        </h2>
-        <dl className="mt-4 divide-y divide-border border-y border-border text-sm">
-          <Fact label="Workspace" value={organizationName} />
-          <Fact label="Subdomain" value={organizationSlug ?? "Not set"} />
-          <Fact label="Branches" value={String(branches.length)} />
-          <Fact label="Teams" value={String(teams.length)} />
-        </dl>
-      </section>
-      <aside
-        className="min-w-0 lg:col-start-2 xl:col-start-3 xl:row-start-1"
-        data-testid="settings-summary"
-      >
-        <ConsequencePanel
-          rows={[
-            { label: "Scope", value: organizationName },
-            { label: "Branches", value: branches.length },
-            { label: "Teams", value: teams.length },
-            { label: "Draft", value: "Read only" },
-          ]}
-          summary="Organization identity is read-only here."
-          title="Workspace scope"
-        />
-      </aside>
-    </>
+    <section className="min-w-0" data-testid="settings-editor">
+      <h2 className="text-sm font-semibold text-foreground">
+        Organization identity
+      </h2>
+      <p className="mt-1 text-sm text-foreground-muted">
+        Organization identity is read-only here.
+      </p>
+      <dl className="mt-4 divide-y divide-border border-y border-border text-sm">
+        <Fact label="Workspace" value={organizationName} />
+        <Fact label="Subdomain" value={organizationSlug ?? "Not set"} />
+        <Fact label="Branches" value={String(branches.length)} />
+        <Fact label="Teams" value={String(teams.length)} />
+      </dl>
+    </section>
   );
 }
 
