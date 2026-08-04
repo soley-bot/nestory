@@ -44,6 +44,31 @@ describe("DocumentScreen workspace contract", () => {
     ]);
   });
 
+  it("keeps the desktop document work surface flat with functional table behavior", () => {
+    renderDocuments();
+    const table = screen.getByRole("table");
+    const scrollOwner = table.parentElement;
+    const surface = scrollOwner?.parentElement;
+    const firstRow = within(table).getAllByRole("row")[1]!;
+
+    expect(surface?.classList.contains("rounded-md")).toBe(false);
+    expect(surface?.classList.contains("border")).toBe(false);
+    expect(surface?.classList.contains("overflow-hidden")).toBe(true);
+    expect(scrollOwner?.classList.contains("overflow-auto")).toBe(true);
+    expect(table.querySelector("thead")?.classList.contains("sticky")).toBe(true);
+    expect(firstRow.classList.contains("border-t")).toBe(true);
+    expect(firstRow.getAttribute("tabindex")).toBe("0");
+    expect(firstRow.getAttribute("aria-selected")).toBe("false");
+
+    fireEvent.keyDown(firstRow, { key: "Enter" });
+    expect(firstRow.getAttribute("aria-selected")).toBe("true");
+    expect(
+      within(firstRow).getByRole("button", { name: "Preview lease.pdf" }).getAttribute(
+        "aria-pressed",
+      ),
+    ).toBe("true");
+  });
+
   it("keeps documents dense, directly linked, metadata-rich, and available in a quick view", () => {
     const { container } = renderDocuments();
     const table = screen.getByRole("table");

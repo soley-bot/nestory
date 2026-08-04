@@ -464,7 +464,7 @@ function DocumentTable({
   selectedDocumentId: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-surface">
+    <div className="overflow-hidden bg-surface">
       <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
         <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
