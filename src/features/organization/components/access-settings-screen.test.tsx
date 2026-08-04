@@ -165,6 +165,11 @@ describe("AccessSettingsScreen", () => {
     ).toBe(`/users-roles?personId=${person.id}`);
     expect(screen.getByText("1 active account")).toBeTruthy();
     expect(screen.queryByText(/Full workspace access, settings/i)).toBeNull();
+    const accessEffect = within(surface).getByRole("region", {
+      name: "Access effect",
+    });
+    expect(accessEffect.className).not.toContain("rounded-md");
+    expect(accessEffect.className).not.toContain("bg-surface-raised");
   });
 
   it("opens Invite Staff in the shared drawer with one full-width action surface", () => {

@@ -978,6 +978,7 @@ function MemberAccessForm({
         className="xl:col-start-2"
         rows={accessRows(draft.values, branches, people)}
         title="Access effect"
+        variant="inline"
       />
 
       <div className="xl:col-start-2">
