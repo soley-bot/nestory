@@ -68,348 +68,324 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
   const reportMonth = getBusinessMonthValue();
 
   return (
-    <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
+    <div className="flex flex-col gap-5 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
       <PropertyRecordNav
         activeSection={activeSection}
         onSectionChange={setActiveSection}
       />
 
       <div className="min-h-0 flex-1 overflow-auto pr-1">
-        <div className="space-y-3">
-          <section
-            className={cn(
-              "rounded-md border border-border bg-surface p-4",
-              activeSection !== "overview" && "hidden",
-            )}
-            id="property-overview"
-          >
-            <div className="flex flex-col gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="break-words text-base font-semibold">
-                    Property context
-                  </h2>
-                </div>
-                <p className="mt-1 break-words text-sm text-muted">
-                  {property.address}
-                </p>
-              </div>
-            </div>
-
-            <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
-              <Detail label="Code" value={property.code} />
-              <Detail label="Type" value={property.type} />
-              <Detail label="Owner" value={property.owner}>
-                <UserRound size={14} />
-              </Detail>
-              <Detail label="Units" value={property.unitSummary} />
-              <Detail label="Net income" moneyValue={property.netIncome} />
-              <Detail
-                label="Records"
-                value={`${property.counts.ledgerEntries} ledger / ${property.counts.timelineEvents} timeline / ${property.counts.maintenanceCases ?? 0} maintenance / ${property.counts.documents} docs`}
-              />
-              <Detail label="Photos" value={String(property.counts.photos)} />
-              <Detail label="Active leases" value={String(property.counts.activeLeases)} />
-              <Detail label="Notes" value={property.notesLabel} />
-            </dl>
-          </section>
-
-          <div
-            className={cn(activeSection !== "photos" && "hidden")}
-            id="property-photos"
-          >
-            <PhotoGallery
-              emptyLabel="No property photos yet."
-              photos={property.photos}
-              propertyId={property.id}
-              title="Property photos"
-            />
-          </div>
-
-          <section
-            className={cn(
-              "rounded-md border border-border bg-surface",
-              activeSection !== "finance" && "hidden",
-            )}
-            id="property-finance"
-          >
-            <SectionTitle
-              description={property.financialSummary.periodLabel}
-              icon={<Landmark size={16} />}
-              title="Property performance"
-            />
-            <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-              <Metric
-                label="Revenue"
-                value={
-                  <MoneyDisplay
-                    size="large"
-                    value={property.financialSummary.incomeDisplay}
-                  />
-                }
-              />
-              <Metric
-                label="Expenses"
-                value={
-                  <MoneyDisplay
-                    size="large"
-                    value={property.financialSummary.expenseDisplay}
-                  />
-                }
-              />
-              <Metric
-                label="NOI"
-                note={property.financialSummary.marginLabel}
-                value={
-                  <MoneyDisplay
-                    size="large"
-                    value={property.financialSummary.noiDisplay}
-                  />
-                }
-              />
-              <Metric
-                label="Repair cost"
-                value={
-                  <MoneyDisplay
-                    size="large"
-                    value={property.financialSummary.maintenanceExpenseDisplay}
-                  />
-                }
-              />
-            </div>
-          </section>
-
-          <section
-            className={cn(
-              "rounded-md border border-border bg-surface",
-              activeSection !== "overview" && "hidden",
-            )}
-            id="property-ownership"
-          >
-            <SectionTitle
-              description={`${property.activeLeases.length} current lease links`}
-              icon={<ScrollText size={16} />}
-              title="Owners and leases"
-            />
-            <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-              <div>
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold">Ownership history</h3>
-                  {property.hrefs.ownerPerson ? (
-                    <ActionLink
-                      href={property.hrefs.ownerPerson}
-                      icon={<UserRound size={14} />}
-                    >
-                      Owner
-                    </ActionLink>
-                  ) : null}
-                </div>
-                <div className="mt-3 space-y-2">
-                  {property.ownerHistory.length === 0 ? (
-                    <EmptyBlock
-                      actionHref={property.hrefs.propertiesList}
-                      actionLabel="Review owner"
-                      label="No owner/person history is linked yet."
-                    />
-                  ) : (
-                    property.ownerHistory.map((owner) => (
-                      <OwnerRow key={owner.id} owner={owner} />
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold">Active leases</h3>
-                  <ActionLink href={property.hrefs.addLease} icon={<ScrollText size={14} />}>
-                    Add lease
-                  </ActionLink>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {property.activeLeases.length === 0 ? (
-                    <EmptyBlock
-                      actionHref={property.hrefs.addLease}
-                      actionLabel="Add lease"
-                      label="No active leases are linked to this property."
-                    />
-                  ) : (
-                    property.activeLeases.slice(0, 3).map((lease) => (
-                      <LeaseRow key={lease.id} lease={lease} />
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section
-            className={cn(
-              "rounded-md border border-border bg-surface",
-              activeSection !== "units" && "hidden",
-            )}
-            id="property-units"
-          >
-            <SectionTitle
-              description={`${property.totalUnitCount} unit records`}
-              icon={<Building2 size={16} />}
-              title="Units"
-            />
-            <div className="p-4">
-              {property.unitsList.length === 0 ? (
-                <EmptyBlock
-                  actionHref={property.hrefs.addUnit}
-                  actionLabel="Add unit"
-                  label="Property-only record. There are no units attached."
-                />
-              ) : (
-                <PropertyUnitsTable units={property.unitsList} />
-              )}
-            </div>
-          </section>
-
-          <section
-            className={cn(
-              "rounded-md border border-border bg-surface",
-              activeSection !== "finance" && "hidden",
-            )}
-            id="property-ledger"
-          >
-            <SectionTitle
-              description={`${property.counts.ledgerEntries} active ledger rows`}
-              icon={<Landmark size={16} />}
-              title="Ledger history"
-            />
-            <div className="divide-y divide-border">
-              {property.recentLedgerEntries.length === 0 ? (
-                <EmptyRow
-                  actionHref={property.hrefs.addLedgerEntry}
-                  actionLabel="Add ledger entry"
-                  label="No property ledger entries yet."
-                />
-              ) : null}
-              {property.recentLedgerEntries.map((entry) => (
-                <LedgerRow entry={entry} key={entry.id} />
-              ))}
-            </div>
-          </section>
-
-          <section
-            className={cn(
-              "rounded-md border border-border bg-surface",
-              activeSection !== "maintenance" && "hidden",
-            )}
-            id="property-maintenance"
-          >
-            <SectionTitle
-              description={`${property.counts.openMaintenanceCases ?? 0} open / ${
-                property.counts.overdueMaintenanceCases ?? 0
-              } overdue`}
-              icon={<Wrench size={16} />}
-              title="Maintenance cases"
-            />
-            <div className="divide-y divide-border">
-              {property.recentMaintenanceCases.length === 0 ? (
-                <EmptyRow
-                  actionHref={property.hrefs.addMaintenanceCase}
-                  actionLabel="New case"
-                  label="No property maintenance cases yet."
-                />
-              ) : null}
-              {property.recentMaintenanceCases.map((maintenanceCase) => (
-                <MaintenanceRow
-                  key={maintenanceCase.id}
-                  maintenanceCase={maintenanceCase}
-                />
-              ))}
-            </div>
-          </section>
-
-          <section
-            className={cn(
-              "rounded-md border border-border bg-surface",
-              activeSection !== "timeline" && "hidden",
-            )}
-            id="property-timeline"
-          >
-            <SectionTitle
-              description={`${property.counts.timelineEvents} active timeline records`}
-              icon={<ListTree size={16} />}
-              title="Timeline history"
-            />
-            <div className="divide-y divide-border">
-              {property.recentTimelineEvents.length === 0 ? (
-                <EmptyRow
-                  actionHref={property.hrefs.addTimelineEvent}
-                  actionLabel="Add timeline event"
-                  label="No property timeline events yet."
-                />
-              ) : null}
-              {property.recentTimelineEvents.map((event) => (
-                <TimelineRow event={event} key={event.id} />
-              ))}
-            </div>
-          </section>
-
-          <section
-            className={cn(
-              "rounded-md border border-border bg-surface",
-              activeSection !== "documents" && "hidden",
-            )}
-            id="property-documents"
-          >
-            <SectionTitle
-              description={`${property.counts.documents} active evidence records`}
-              icon={<FileText size={16} />}
-              title="Documents and evidence"
-            />
-            <div className="divide-y divide-border">
-              {property.documents.length === 0 ? (
-                <EmptyRow
-                  actionHref={property.hrefs.documents}
-                  actionLabel="Open documents"
-                  label="No property-scoped evidence or receipts yet."
-                />
-              ) : null}
-              {property.documents.map((document) => (
-                <DocumentRow document={document} key={document.id} />
-              ))}
-            </div>
-          </section>
-
-          <section
-            className={cn(
-              "rounded-md border border-border bg-surface",
-              activeSection !== "reports" && "hidden",
-            )}
-            id="property-reports"
-          >
-            <PropertyReportsPanel property={property} reportMonth={reportMonth} />
-          </section>
-
-          {property.activity.length > 0 ? (
-            <section
-              className={cn(
-                "rounded-md border border-border bg-surface",
-                activeSection !== "overview" && "hidden",
-              )}
-              id="property-activity"
-            >
-              <SectionTitle
-                description={`${property.activity.length} recent profile changes`}
-                icon={<CalendarDays size={16} />}
-                title="Recent activity"
-              />
-              <div className="grid gap-2 p-4 lg:grid-cols-2 2xl:grid-cols-3">
-                {property.activity.slice(0, 3).map((change) => (
-                  <ActivityRow change={change} key={change.id} />
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </div>
+        <PropertyRecordPanel
+          activeSection={activeSection}
+          property={property}
+          reportMonth={reportMonth}
+        />
       </div>
     </div>
+  );
+}
+
+function PropertyRecordPanel({
+  activeSection,
+  property,
+  reportMonth,
+}: {
+  activeSection: PropertyRecordSection;
+  property: PropertyDetail;
+  reportMonth: string;
+}) {
+  const content = getPropertyRecordPanelContent({ activeSection, property, reportMonth });
+
+  return (
+    <div
+      aria-labelledby={`property-tab-${activeSection}`}
+      className="space-y-6"
+      id={`property-panel-${activeSection}`}
+      role="tabpanel"
+    >
+      {content}
+    </div>
+  );
+}
+
+function getPropertyRecordPanelContent({
+  activeSection,
+  property,
+  reportMonth,
+}: {
+  activeSection: PropertyRecordSection;
+  property: PropertyDetail;
+  reportMonth: string;
+}) {
+  if (activeSection === "photos") {
+    return (
+      <PhotoGallery
+        emptyLabel="No property photos yet."
+        photos={property.photos}
+        propertyId={property.id}
+        title="Property photos"
+      />
+    );
+  }
+
+  if (activeSection === "units") {
+    return (
+      <section id="property-units">
+        <SectionTitle
+          description={`${property.totalUnitCount} unit records`}
+          icon={<Building2 size={16} />}
+          title="Units"
+        />
+        <div className="pt-4">
+          {property.unitsList.length === 0 ? (
+            <EmptyBlock
+              actionHref={property.hrefs.addUnit}
+              actionLabel="Add unit"
+              label="Property-only record. There are no units attached."
+            />
+          ) : (
+            <PropertyUnitsTable units={property.unitsList} />
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  if (activeSection === "finance") {
+    return (
+      <>
+        <section id="property-finance">
+          <SectionTitle
+            description={property.financialSummary.periodLabel}
+            icon={<Landmark size={16} />}
+            title="Property performance"
+          />
+          <dl
+            aria-label="Financial summary"
+            className="grid gap-4 pt-4 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            <Metric
+              label="Revenue"
+              value={<MoneyDisplay size="large" value={property.financialSummary.incomeDisplay} />}
+            />
+            <Metric
+              label="Expenses"
+              value={<MoneyDisplay size="large" value={property.financialSummary.expenseDisplay} />}
+            />
+            <Metric
+              label="NOI"
+              note={property.financialSummary.marginLabel}
+              value={<MoneyDisplay size="large" value={property.financialSummary.noiDisplay} />}
+            />
+            <Metric
+              label="Repair cost"
+              value={
+                <MoneyDisplay
+                  size="large"
+                  value={property.financialSummary.maintenanceExpenseDisplay}
+                />
+              }
+            />
+          </dl>
+        </section>
+
+        <section id="property-ledger">
+          <SectionTitle
+            description={`${property.counts.ledgerEntries} active ledger rows`}
+            icon={<Landmark size={16} />}
+            title="Ledger history"
+          />
+          <div className="divide-y divide-border">
+            {property.recentLedgerEntries.length === 0 ? (
+              <EmptyRow
+                actionHref={property.hrefs.addLedgerEntry}
+                actionLabel="Add ledger entry"
+                label="No property ledger entries yet."
+              />
+            ) : null}
+            {property.recentLedgerEntries.map((entry) => (
+              <LedgerRow entry={entry} key={entry.id} />
+            ))}
+          </div>
+        </section>
+      </>
+    );
+  }
+
+  if (activeSection === "maintenance") {
+    return (
+      <section id="property-maintenance">
+        <SectionTitle
+          description={`${property.counts.openMaintenanceCases ?? 0} open / ${
+            property.counts.overdueMaintenanceCases ?? 0
+          } overdue`}
+          icon={<Wrench size={16} />}
+          title="Maintenance cases"
+        />
+        <div className="divide-y divide-border">
+          {property.recentMaintenanceCases.length === 0 ? (
+            <EmptyRow
+              actionHref={property.hrefs.addMaintenanceCase}
+              actionLabel="New case"
+              label="No property maintenance cases yet."
+            />
+          ) : null}
+          {property.recentMaintenanceCases.map((maintenanceCase) => (
+            <MaintenanceRow key={maintenanceCase.id} maintenanceCase={maintenanceCase} />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (activeSection === "timeline") {
+    return (
+      <section id="property-timeline">
+        <SectionTitle
+          description={`${property.counts.timelineEvents} active timeline records`}
+          icon={<ListTree size={16} />}
+          title="Timeline history"
+        />
+        <div className="divide-y divide-border">
+          {property.recentTimelineEvents.length === 0 ? (
+            <EmptyRow
+              actionHref={property.hrefs.addTimelineEvent}
+              actionLabel="Add timeline event"
+              label="No property timeline events yet."
+            />
+          ) : null}
+          {property.recentTimelineEvents.map((event) => (
+            <TimelineRow event={event} key={event.id} />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (activeSection === "documents") {
+    return (
+      <section id="property-documents">
+        <SectionTitle
+          description={`${property.counts.documents} active evidence records`}
+          icon={<FileText size={16} />}
+          title="Documents and evidence"
+        />
+        <div className="divide-y divide-border">
+          {property.documents.length === 0 ? (
+            <EmptyRow
+              actionHref={property.hrefs.documents}
+              actionLabel="Open documents"
+              label="No property-scoped evidence or receipts yet."
+            />
+          ) : null}
+          {property.documents.map((document) => (
+            <DocumentRow document={document} key={document.id} />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (activeSection === "reports") {
+    return (
+      <section id="property-reports">
+        <PropertyReportsPanel property={property} reportMonth={reportMonth} />
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <section id="property-overview">
+        <div className="min-w-0">
+          <h2 className="break-words text-base font-semibold">Property context</h2>
+          <p className="mt-1 break-words text-sm text-muted">{property.address}</p>
+        </div>
+
+        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+          <Detail label="Code" value={property.code} />
+          <Detail label="Type" value={property.type} />
+          <Detail label="Owner" value={property.owner}>
+            <UserRound size={14} />
+          </Detail>
+          <Detail label="Units" value={property.unitSummary} />
+          <Detail label="Net income" moneyValue={property.netIncome} />
+          <Detail
+            label="Records"
+            value={`${property.counts.ledgerEntries} ledger / ${property.counts.timelineEvents} timeline / ${property.counts.maintenanceCases ?? 0} maintenance / ${property.counts.documents} docs`}
+          />
+          <Detail label="Photos" value={String(property.counts.photos)} />
+          <Detail label="Active leases" value={String(property.counts.activeLeases)} />
+          <Detail label="Notes" value={property.notesLabel} />
+        </dl>
+      </section>
+
+      <section id="property-ownership">
+        <SectionTitle
+          description={`${property.activeLeases.length} current lease links`}
+          icon={<ScrollText size={16} />}
+          title="Owners and leases"
+        />
+        <div className="grid gap-6 pt-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold">Ownership history</h3>
+              {property.hrefs.ownerPerson ? (
+                <ActionLink href={property.hrefs.ownerPerson} icon={<UserRound size={14} />}>
+                  Owner
+                </ActionLink>
+              ) : null}
+            </div>
+            <div className="mt-3 divide-y divide-border">
+              {property.ownerHistory.length === 0 ? (
+                <EmptyBlock
+                  actionHref={property.hrefs.propertiesList}
+                  actionLabel="Review owner"
+                  label="No owner/person history is linked yet."
+                />
+              ) : (
+                property.ownerHistory.map((owner) => <OwnerRow key={owner.id} owner={owner} />)
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold">Active leases</h3>
+              <ActionLink href={property.hrefs.addLease} icon={<ScrollText size={14} />}>
+                Add lease
+              </ActionLink>
+            </div>
+            <div className="mt-3 divide-y divide-border">
+              {property.activeLeases.length === 0 ? (
+                <EmptyBlock
+                  actionHref={property.hrefs.addLease}
+                  actionLabel="Add lease"
+                  label="No active leases are linked to this property."
+                />
+              ) : (
+                property.activeLeases.slice(0, 3).map((lease) => <LeaseRow key={lease.id} lease={lease} />)
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {property.activity.length > 0 ? (
+        <section id="property-activity">
+          <SectionTitle
+            description={`${property.activity.length} recent profile changes`}
+            icon={<CalendarDays size={16} />}
+            title="Recent activity"
+          />
+          <div className="grid divide-y divide-border pt-4 lg:grid-cols-2 lg:divide-x lg:divide-y-0 2xl:grid-cols-3">
+            {property.activity.slice(0, 3).map((change) => (
+              <ActivityRow change={change} key={change.id} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </>
   );
 }
 
@@ -423,16 +399,18 @@ function PropertyRecordNav({
   return (
     <nav
       aria-label="Property record sections"
-      className="overflow-x-auto rounded-md border border-border bg-surface px-3 py-2"
+      className="overflow-x-auto border-b border-border"
     >
-      <div className="flex min-w-max items-center gap-1.5" role="tablist">
+      <div className="flex min-w-max items-center gap-1" role="tablist">
         {propertyRecordSections.map((item) => (
           <button
+            aria-controls={`property-panel-${item.id}`}
             aria-selected={activeSection === item.id}
             className={cn(
-              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
-              activeSection === item.id && "bg-accent-soft text-foreground",
+              "inline-flex h-9 items-center border-b-2 border-transparent px-2.5 text-[13px] font-medium text-muted transition-colors hover:text-foreground",
+              activeSection === item.id && "border-accent text-foreground",
             )}
+            id={`property-tab-${item.id}`}
             key={item.id}
             onClick={() => onSectionChange(item.id)}
             role="tab"
@@ -561,12 +539,12 @@ function Metric({
   value: ReactNode;
 }) {
   return (
-    <div className="min-w-0 rounded-md border border-border bg-surface-muted/60 px-3 py-3">
-      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+    <div className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
+      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
         {label}
-      </p>
-      <div className="mt-2">{value}</div>
-      {note ? <p className="mt-2 text-xs text-muted">{note}</p> : null}
+      </dt>
+      <dd className="mt-2">{value}</dd>
+      {note ? <dd className="mt-2 text-xs text-muted">{note}</dd> : null}
     </div>
   );
 }
@@ -581,7 +559,7 @@ function SectionTitle({
   title: string;
 }) {
   return (
-    <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-2">
         <span className="text-muted">{icon}</span>
         <h2 className="text-sm font-semibold">{title}</h2>
@@ -632,7 +610,7 @@ function EmptyRow({
 function OwnerRow({ owner }: { owner: PropertyOwnerHistory }) {
   return (
     <Link
-      className="block rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-3 py-3 text-sm transition-colors hover:bg-surface-muted"
       href={owner.href}
       prefetch={false}
     >
@@ -654,7 +632,7 @@ function OwnerRow({ owner }: { owner: PropertyOwnerHistory }) {
 function LeaseRow({ lease }: { lease: PropertyDetailLease }) {
   return (
     <Link
-      className="block rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-3 py-3 text-sm transition-colors hover:bg-surface-muted"
       href={lease.href}
       prefetch={false}
     >
@@ -811,14 +789,14 @@ function ActivityRow({ change }: { change: RecentChange }) {
 
   return change.href ? (
     <Link
-      className="block rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-3 py-3 text-sm transition-colors hover:bg-surface-muted"
       href={change.href}
       prefetch={false}
     >
       {content}
     </Link>
   ) : (
-    <div className="rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm">
+    <div className="px-3 py-3 text-sm">
       {content}
     </div>
   );

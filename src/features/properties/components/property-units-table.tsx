@@ -44,9 +44,8 @@ export function PropertyUnitsTable({
         ))}
       </div>
 
-      <div className="hidden overflow-hidden rounded-md border border-border bg-surface md:block">
-        <div className="overflow-auto">
-          <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-[13px]">
+      <div className="hidden overflow-auto md:block">
+        <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-[13px]">
             <colgroup>
               <col className="w-[34%]" />
               <col className="w-[16%]" />
@@ -99,8 +98,7 @@ export function PropertyUnitsTable({
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+        </table>
       </div>
     </div>
   );
