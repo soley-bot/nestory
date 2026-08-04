@@ -349,6 +349,31 @@ describe("DraftActionBar", () => {
 });
 
 describe("workflow presentation primitives", () => {
+  it("renders inline consequences without nested card framing", () => {
+    render(
+      <ConsequencePanel
+        id="inline-posting-impact"
+        rows={[{ label: "Records", value: "12 entries" }]}
+        summary="Posting closes this review batch."
+        title="Before posting"
+        variant="inline"
+      >
+        <p>Linked source records remain available.</p>
+      </ConsequencePanel>,
+    );
+
+    const panel = screen.getByRole("region", { name: "Before posting" });
+    expect(panel.getAttribute("aria-labelledby")).toBe("inline-posting-impact-title");
+    expect(panel.getAttribute("data-variant")).toBe("inline");
+    expect(panel.classList.contains("rounded-md")).toBe(false);
+    expect(panel.classList.contains("border")).toBe(false);
+    expect(within(panel).getByText("Posting closes this review batch.")).not.toBeNull();
+    expect(within(panel).getByText("12 entries")).not.toBeNull();
+    expect(within(panel).getByText("Linked source records remain available.")).not.toBeNull();
+    expect(panel.querySelector("dl dt")?.textContent).toBe("Records");
+    expect(panel.querySelector("dl dd")?.textContent).toBe("12 entries");
+  });
+
   it("renders caller-owned consequence content and a stable described-by target", () => {
     const { rerender } = render(
       <>
@@ -371,6 +396,7 @@ describe("workflow presentation primitives", () => {
 
     const panel = screen.getByRole("region", { name: "Before posting" });
     expect(panel.id).toBe("posting-impact");
+    expect(panel.getAttribute("data-variant")).toBe("contained");
     expect(screen.getByRole("button", { name: "Post batch" }).getAttribute("aria-describedby"))
       .toBe(panel.id);
     expect(within(panel).getByText("Posting closes this review batch.")).not.toBeNull();

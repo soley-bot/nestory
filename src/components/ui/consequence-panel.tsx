@@ -13,6 +13,7 @@ type ConsequencePanelProps = {
   rows?: ConsequenceRow[];
   summary?: ReactNode;
   title: ReactNode;
+  variant?: "contained" | "inline";
 };
 
 export function ConsequencePanel({
@@ -22,6 +23,7 @@ export function ConsequencePanel({
   rows = [],
   summary,
   title,
+  variant = "contained",
 }: ConsequencePanelProps) {
   const generatedId = useId();
   const panelId = id ?? generatedId;
@@ -31,9 +33,12 @@ export function ConsequencePanel({
     <section
       aria-labelledby={titleId}
       className={cn(
-        "rounded-md border border-border bg-surface-raised px-4 py-3 text-sm",
+        variant === "contained" &&
+          "rounded-md border border-border bg-surface-raised px-4 py-3",
+        "text-sm",
         className,
       )}
+      data-variant={variant}
       id={panelId}
       role="region"
     >
@@ -44,7 +49,12 @@ export function ConsequencePanel({
         <div className="mt-1 leading-5 text-foreground-muted">{summary}</div>
       ) : null}
       {rows.length > 0 ? (
-        <dl className="mt-3 divide-y divide-border border-y border-border">
+        <dl
+          className={cn(
+            "mt-3 divide-y divide-border",
+            variant === "contained" && "border-y border-border",
+          )}
+        >
           {rows.map((row, index) => (
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-3 py-2" key={index}>
               <dt className="text-foreground-muted">{row.label}</dt>
