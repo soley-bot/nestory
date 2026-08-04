@@ -32,7 +32,7 @@ export function OverviewHeader({
   const activeLensLabel = lenses.find((lens) => lens.value === query.lens)?.label ?? "Portfolio";
   const breadcrumb = (
     <PageBreadcrumb
-      current={<OverviewMonthPicker query={query} />}
+      current={activeLensLabel}
       items={[
         { href: `/overview?month=${query.month}`, label: "Overview" },
         { href: buildLensHref(query, query.lens), label: activeLensLabel },
@@ -45,29 +45,33 @@ export function OverviewHeader({
     <>
       {target ? createPortal(breadcrumb, target) : breadcrumb}
       <header className="min-w-0 border-b border-border px-1">
-      <nav
-        aria-label="Overview lenses"
-        className="flex min-w-0 gap-4 overflow-x-auto"
-      >
-        {lenses.map((lens) => {
-          const active = lens.value === query.lens;
-          return (
-            <Link
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "shrink-0 border-b-2 px-0.5 py-2 text-[13px] font-medium text-foreground",
-                active
-                  ? "border-foreground"
-                  : "border-transparent text-foreground-muted hover:border-border hover:text-foreground",
-              )}
-              href={buildLensHref(query, lens.value)}
-              key={lens.value}
-            >
-              {lens.label}
-            </Link>
-          );
-        })}
-      </nav>
+        <div className="flex min-w-0 items-center gap-3 py-2">
+          <h1 className="mr-auto text-xl font-semibold tracking-tight text-foreground">Overview</h1>
+          <OverviewMonthPicker query={query} />
+        </div>
+        <nav
+          aria-label="Overview lenses"
+          className="flex min-w-0 gap-4 overflow-x-auto"
+        >
+          {lenses.map((lens) => {
+            const active = lens.value === query.lens;
+            return (
+              <Link
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "shrink-0 border-b-2 px-0.5 py-2 text-[13px] font-medium text-foreground",
+                  active
+                    ? "border-foreground"
+                    : "border-transparent text-foreground-muted hover:border-border hover:text-foreground",
+                )}
+                href={buildLensHref(query, lens.value)}
+                key={lens.value}
+              >
+                {lens.label}
+              </Link>
+            );
+          })}
+        </nav>
       </header>
     </>
   );

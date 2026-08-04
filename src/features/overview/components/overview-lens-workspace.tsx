@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { LeasingPropertyPreviewList } from "@/features/overview/components/leasing-property-preview-list";
 import { MaintenancePropertyPreviewList } from "@/features/overview/components/maintenance-property-preview-list";
 import { RecordsPropertyPreviewList } from "@/features/overview/components/records-property-preview-list";
+import { OverviewSummary } from "@/features/overview/components/overview-summary";
 import type {
   OverviewAttentionItem,
   OverviewLens,
@@ -17,27 +17,22 @@ export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenDat
   const config = getLensConfig(data, query, lens);
 
   return (
-    <div className="min-w-0 space-y-3">
-      <section aria-label={`${config.title} metrics`} className="grid overflow-hidden rounded-lg border border-border bg-surface sm:grid-cols-2 xl:grid-cols-4">
-        {config.metrics.map((metric) => (
-          <Link className="border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-surface-muted sm:border-r xl:border-b-0" href={metric.href} key={metric.label}>
-            <p className="text-xs text-foreground-muted">{metric.label}</p>
-            <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{metric.value}</p>
-          </Link>
-        ))}
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <section aria-label={`${config.title} operating work`} className="min-h-0 flex-1 overflow-y-auto">
+        {lens === "leasing" ? (
+          <LeasingPropertyPreviewList
+            expiringLeaseCount={data.leaseRiskCount}
+            month={query.month}
+            rows={data.occupancyByProperty}
+          />
+        ) : lens === "maintenance" ? (
+          <MaintenancePropertyPreviewList rows={data.maintenanceByProperty} />
+        ) : (
+          <RecordsPropertyPreviewList rows={data.recordsByProperty} />
+        )}
       </section>
 
-      {lens === "leasing" ? (
-        <LeasingPropertyPreviewList
-          expiringLeaseCount={data.leaseRiskCount}
-          month={query.month}
-          rows={data.occupancyByProperty}
-        />
-      ) : lens === "maintenance" ? (
-        <MaintenancePropertyPreviewList rows={data.maintenanceByProperty} />
-      ) : (
-        <RecordsPropertyPreviewList rows={data.recordsByProperty} />
-      )}
+      <OverviewSummary items={config.metrics} label={config.title} />
     </div>
   );
 }

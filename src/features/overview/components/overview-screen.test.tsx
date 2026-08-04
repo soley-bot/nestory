@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { OverviewScreen } from "@/features/overview/components/overview-screen";
 import { RecordsPropertyPreviewList } from "@/features/overview/components/records-property-preview-list";
 import type {
@@ -10,6 +10,50 @@ import type {
 } from "@/features/overview/overview.types";
 
 describe("OverviewScreen", () => {
+  afterEach(cleanup);
+
+  it("keeps overview controls while making portfolio work precede one inline summary", () => {
+    render(<OverviewScreen data={data} query={query} />);
+
+    expect(screen.getAllByRole("heading", { name: "Overview", level: 1 })).toHaveLength(1);
+    expect(
+      screen.getByRole("button", {
+        name: "Change reporting month, currently August 2026",
+      }),
+    ).toBeTruthy();
+    const lenses = within(screen.getByRole("navigation", { name: "Overview lenses" }));
+    expect(lenses.getByRole("link", { name: "Portfolio" }).getAttribute("href")).toBe(
+      "/overview?month=2026-08",
+    );
+    expect(lenses.getByRole("link", { name: "Leasing" }).getAttribute("href")).toBe(
+      "/overview?lens=leasing&month=2026-08",
+    );
+    expect(lenses.getByRole("link", { name: "Maintenance" }).getAttribute("href")).toBe(
+      "/overview?lens=maintenance&month=2026-08",
+    );
+    expect(lenses.getByRole("link", { name: "Records" }).getAttribute("href")).toBe(
+      "/overview?lens=records&month=2026-08",
+    );
+
+    const operatingWork = screen.getByRole("region", {
+      name: "Portfolio operating work",
+    });
+    const summary = screen.getByRole("region", { name: "Portfolio summary" });
+    expect(within(summary).getByText("Properties")).toBeTruthy();
+    expect(within(summary).getByText("Open checks")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Portfolio counts" })).toBeNull();
+    expect(
+      operatingWork.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("uses the inline summary for operating lenses instead of a metric-card region", () => {
+    render(<OverviewScreen data={data} query={{ ...query, lens: "leasing" }} />);
+
+    expect(screen.getByRole("region", { name: "Leasing summary" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Leasing metrics" })).toBeNull();
+  });
+
   it("keeps finance out of Overview and shows operating portfolio counts", () => {
     render(<OverviewScreen data={data} query={query} />);
 

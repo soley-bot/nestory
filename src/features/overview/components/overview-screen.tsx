@@ -9,15 +9,17 @@ export function OverviewScreen({ data, query }: { data: OverviewScreenData; quer
   if (!data.workspaceSetup.hasAnyOperatingData) return <EmptyWorkspaceOnboarding data={data} />;
   const resolvedQuery = query ?? defaultQuery();
   return (
-    <main className="min-h-screen bg-background px-4 py-3 sm:px-5">
-      <div className="space-y-2.5">
+    <main className="flex min-h-screen bg-background px-4 py-3 sm:px-5">
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5">
         <OverviewHeader query={resolvedQuery} />
         {!isBaseSetupComplete(data.workspaceSetup) ? <SetupProgressPanel data={data} /> : null}
-        {resolvedQuery.lens === "all" ? (
-          <PortfolioWorkspace data={data} query={resolvedQuery} />
-        ) : (
-          <OverviewLensWorkspace data={data} query={resolvedQuery} />
-        )}
+        <div className="flex min-h-0 flex-1 flex-col">
+          {resolvedQuery.lens === "all" ? (
+            <PortfolioWorkspace data={data} query={resolvedQuery} />
+          ) : (
+            <OverviewLensWorkspace data={data} query={resolvedQuery} />
+          )}
+        </div>
       </div>
     </main>
   );
