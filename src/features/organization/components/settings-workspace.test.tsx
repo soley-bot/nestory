@@ -482,6 +482,21 @@ describe("SettingsWorkspace drafts", () => {
     ).toBe("inline");
   });
 
+  it("keeps branch consequence and actions full-width in the drawer content", async () => {
+    const user = userEvent.setup();
+    render(<SettingsWorkspace {...defaultProps} section="branches" />);
+
+    const drawer = await openBranchDrawer(user);
+    const drawerContent = drawer.querySelector('[data-slot="drawer-content"]');
+    const impact = within(drawer).getByRole("region", { name: "Branch impact" });
+    const actionBar = within(drawer).getByTestId("draft-action-bar");
+
+    expect(actionBar.closest('[data-slot="drawer-footer"]')).toBeNull();
+    expect(drawerContent?.contains(impact)).toBe(true);
+    expect(drawerContent?.contains(actionBar)).toBe(true);
+    expect(actionBar.parentElement?.className).toContain("w-full");
+  });
+
   it.each(["close button", "Escape", "backdrop"] as const)(
     "guards a dirty branch drawer on %s, then resets, closes, and restores its trigger",
     async (dismissal) => {

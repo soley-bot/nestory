@@ -146,34 +146,8 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
 
       <SideDrawer
         description={`Add one branch to ${organizationName}.`}
-        footer={
-          <DraftActionBar
-            describedBy="branch-impact"
-            disabledReason={permissionReason}
-            focusOnError={focusServerError && Boolean(serverError)}
-            onDiscard={draft.discard}
-            onSave={() => formRef.current?.requestSubmit()}
-            saveLabel="Save"
-            status={draft.status}
-            statusMessage={serverError ?? draft.statusMessage}
-          />
-        }
         onClose={closeDrawer}
         open={drawerOpen}
-        summary={
-          <ConsequencePanel
-            id="branch-impact"
-            rows={[
-              { label: "Scope", value: organizationName },
-              { label: "Branch", value: branchLabel },
-              { label: "Affected records", value: "New branch only" },
-              { label: "Draft", value: draftStatusLabel(draft.status) },
-            ]}
-            summary="Saving adds one branch record. Existing branches remain unchanged."
-            title="Branch impact"
-            variant="inline"
-          />
-        }
         title="Add branch"
       >
         <BranchDrawerDraftGuard
@@ -182,7 +156,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
           status={draft.status}
         />
         <form
-          className="min-w-0 px-5 py-5"
+          className="flex min-h-full min-w-0 flex-col"
           onSubmit={(event) => {
             event.preventDefault();
             void draft.submit((field) => {
@@ -194,39 +168,69 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
           }}
           ref={formRef}
         >
-          <FormSection title="Branch details">
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="px-5 py-5">
+            <FormSection title="Branch details">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field
+                  disabled={!canManageStructure || draft.status === "saving"}
+                  error={draft.errors.name}
+                  label="Name"
+                  name="name"
+                  onChange={(value) => draft.setField("name", value)}
+                  value={draft.values.name}
+                />
+                <Field
+                  disabled={!canManageStructure || draft.status === "saving"}
+                  error={draft.errors.code}
+                  label="Code"
+                  name="code"
+                  onChange={(value) => draft.setField("code", value)}
+                  value={draft.values.code}
+                />
+              </div>
               <Field
                 disabled={!canManageStructure || draft.status === "saving"}
-                error={draft.errors.name}
-                label="Name"
-                name="name"
-                onChange={(value) => draft.setField("name", value)}
-                value={draft.values.name}
+                error={draft.errors.address}
+                label="Address"
+                name="address"
+                onChange={(value) => draft.setField("address", value)}
+                value={draft.values.address}
               />
-              <Field
-                disabled={!canManageStructure || draft.status === "saving"}
-                error={draft.errors.code}
-                label="Code"
-                name="code"
-                onChange={(value) => draft.setField("code", value)}
-                value={draft.values.code}
-              />
-            </div>
-            <Field
-              disabled={!canManageStructure || draft.status === "saving"}
-              error={draft.errors.address}
-              label="Address"
-              name="address"
-              onChange={(value) => draft.setField("address", value)}
-              value={draft.values.address}
+              {draft.status === "saved" && draft.resultMessage ? (
+                <p className="text-sm text-success">
+                  {draft.resultMessage}
+                </p>
+              ) : null}
+            </FormSection>
+          </div>
+
+          <div className="mt-auto w-full border-t border-border px-5 py-4">
+            <ConsequencePanel
+              id="branch-impact"
+              rows={[
+                { label: "Scope", value: organizationName },
+                { label: "Branch", value: branchLabel },
+                { label: "Affected records", value: "New branch only" },
+                { label: "Draft", value: draftStatusLabel(draft.status) },
+              ]}
+              summary="Saving adds one branch record. Existing branches remain unchanged."
+              title="Branch impact"
+              variant="inline"
             />
-            {draft.status === "saved" && draft.resultMessage ? (
-              <p className="text-sm text-success">
-                {draft.resultMessage}
-              </p>
-            ) : null}
-          </FormSection>
+          </div>
+
+          <div className="sticky bottom-0 z-10 w-full">
+            <DraftActionBar
+              describedBy="branch-impact"
+              disabledReason={permissionReason}
+              focusOnError={focusServerError && Boolean(serverError)}
+              onDiscard={draft.discard}
+              onSave={() => formRef.current?.requestSubmit()}
+              saveLabel="Save"
+              status={draft.status}
+              statusMessage={serverError ?? draft.statusMessage}
+            />
+          </div>
         </form>
       </SideDrawer>
     </>
