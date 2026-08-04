@@ -54,7 +54,8 @@ vi.mock("@/features/maintenance/actions", () => ({
   archiveMaintenanceCaseAction: maintenanceActions.archive,
   createMaintenanceCaseAction: maintenanceActions.create,
   executeAssignedMaintenanceTaskAction: maintenanceActions.executeAssigned,
-  executeCoordinatedMaintenanceTaskAction: maintenanceActions.executeCoordinated,
+  executeCoordinatedMaintenanceTaskAction:
+    maintenanceActions.executeCoordinated,
   restoreMaintenanceCaseAction: maintenanceActions.restore,
   reviewMaintenanceCompletionAction: maintenanceActions.review,
   updateMaintenanceCaseAction: maintenanceActions.update,
@@ -129,7 +130,9 @@ describe("maintenance workspace redesign contract", () => {
         .getAllByRole("link")
         .filter((link) => link.getAttribute("aria-current") === "page");
 
-      expect(screen.getAllByRole("navigation", { name: "Maintenance workspace" })).toHaveLength(1);
+      expect(
+        screen.getAllByRole("navigation", { name: "Maintenance workspace" }),
+      ).toHaveLength(1);
       expect(currentLinks).toHaveLength(1);
       expect(currentLinks[0]?.textContent).toBe(currentLabel);
     },
@@ -139,8 +142,12 @@ describe("maintenance workspace redesign contract", () => {
     installMatchMedia(1280);
     const { container } = renderMaintenance();
 
-    expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-slot="workspace-page"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-slot="workspace-split-view"]'),
+    ).not.toBeNull();
     expect(screen.queryByRole("complementary")).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -175,7 +182,7 @@ describe("maintenance workspace redesign contract", () => {
     expect(document.activeElement).toBe(row);
   });
 
-  it("replaces compact Preview with one edit drawer and returns focus to the case row", () => {
+  it("replaces compact Preview with one edit drawer and returns focus to the case row", async () => {
     installMatchMedia(390);
     renderMaintenance();
     const row = within(screen.getByRole("table")).getAllByRole("row")[1]!;
@@ -187,10 +194,12 @@ describe("maintenance workspace redesign contract", () => {
     expect(
       screen.getByRole("dialog", { name: "Edit maintenance case" }),
     ).not.toBeNull();
-    expect(screen.queryByRole("dialog", { name: "Repair sink quick view" })).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "Repair sink quick view" }),
+    ).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
-    expect(document.activeElement).toBe(row);
+    await waitFor(() => expect(document.activeElement).toBe(row));
   });
 
   it("replaces the wide quick view while a mutation drawer opens", () => {
@@ -201,7 +210,9 @@ describe("maintenance workspace redesign contract", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.queryByRole("dialog", { name: "Repair sink quick view" })).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "Repair sink quick view" }),
+    ).toBeNull();
   });
 
   it("announces a drawer mutation error and keeps the recovery action available", async () => {
@@ -226,7 +237,9 @@ describe("maintenance workspace redesign contract", () => {
       cases: [],
       viewQuery: { ...defaultViewQuery, query: "missing" },
     });
-    const filteredState = screen.getByText("No matching cases").closest("section");
+    const filteredState = screen
+      .getByText("No matching cases")
+      .closest("section");
     expect(filteredState?.getAttribute("data-kind")).toBe("filtered");
     expect(
       within(filteredState!).getByRole("link", { name: "Clear filters" }),
@@ -243,9 +256,12 @@ describe("maintenance workspace redesign contract", () => {
     renderMaintenance({ cases: [] });
 
     expect(screen.getAllByRole("button", { name: "New case" })).toHaveLength(1);
-    expect(screen.getByText("No cases yet").closest("section")?.getAttribute("data-kind")).toBe(
-      "empty",
-    );
+    expect(
+      screen
+        .getByText("No cases yet")
+        .closest("section")
+        ?.getAttribute("data-kind"),
+    ).toBe("empty");
   });
 
   it.each([
@@ -254,25 +270,33 @@ describe("maintenance workspace redesign contract", () => {
   ] as const)(
     "recovers an empty derived %s view into the unfiltered case list",
     (view, review) => {
-      navigation.searchParams = new URLSearchParams(`view=${view}&review=${review}`);
+      navigation.searchParams = new URLSearchParams(
+        `view=${view}&review=${review}`,
+      );
       renderMaintenance({
         cases: [],
         surfaceVariant: view === "board" ? "board" : "agenda",
         viewQuery: { ...defaultViewQuery, review, view },
       });
 
-      const emptyState = screen.getByText("No matching cases").closest("section");
+      const emptyState = screen
+        .getByText("No matching cases")
+        .closest("section");
       const recoveryLink = within(emptyState!).getByRole("link", {
         name: "View all cases",
       });
 
       expect(recoveryLink.getAttribute("href")).toBe("/maintenance?view=list");
-      expect(within(emptyState!).queryByRole("link", { name: "Clear filters" })).toBeNull();
+      expect(
+        within(emptyState!).queryByRole("link", { name: "Clear filters" }),
+      ).toBeNull();
     },
   );
 
   it("normalizes a member board request to the list control and table surface", () => {
-    navigation.searchParams = new URLSearchParams("view=board&review=work_orders");
+    navigation.searchParams = new URLSearchParams(
+      "view=board&review=work_orders",
+    );
     renderMaintenance({
       actorRole: "member",
       showCaseViewTabs: true,
@@ -281,11 +305,15 @@ describe("maintenance workspace redesign contract", () => {
     });
 
     expect(screen.getByRole("table")).not.toBeNull();
-    expect(screen.getByRole("link", { name: "List" }).getAttribute("aria-current")).toBe(
-      "page",
-    );
-    expect(screen.getByRole("link", { name: "Board" }).getAttribute("aria-current")).toBeNull();
-    expect(screen.queryByRole("group", { name: "Work order display" })).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "List" }).getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      screen.getByRole("link", { name: "Board" }).getAttribute("aria-current"),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("group", { name: "Work order display" }),
+    ).toBeNull();
   });
 
   it("keeps saved queues as lightweight task navigation with their existing URLs and labels", () => {
@@ -308,13 +336,15 @@ describe("maintenance workspace redesign contract", () => {
       expect(link.getAttribute("href")).toBe(href);
       expect(link.className).not.toContain("rounded-md");
     }
-    expect(container.querySelectorAll('[data-maintenance-queue-tab="true"]')).toHaveLength(
-      expectedLinks.length,
-    );
+    expect(
+      container.querySelectorAll('[data-maintenance-queue-tab="true"]'),
+    ).toHaveLength(expectedLinks.length);
   });
 
   it("keeps search, filters, and the canonical view control in one workspace controls region", () => {
-    navigation.searchParams = new URLSearchParams("view=board&review=work_orders");
+    navigation.searchParams = new URLSearchParams(
+      "view=board&review=work_orders",
+    );
     const { container } = renderMaintenance({
       showCaseViewTabs: true,
       surfaceVariant: "board",
@@ -336,29 +366,26 @@ describe("maintenance workspace redesign contract", () => {
       }),
     ).not.toBeNull();
     expect(
-      within(workspaceControls as HTMLElement).getAllByRole("link", { name: "List" }),
+      within(workspaceControls as HTMLElement).getAllByRole("link", {
+        name: "List",
+      }),
     ).toHaveLength(1);
     expect(
-      within(workspaceControls as HTMLElement).getAllByRole("link", { name: "Board" }),
+      within(workspaceControls as HTMLElement).getAllByRole("link", {
+        name: "Board",
+      }),
     ).toHaveLength(1);
     expect(screen.getAllByRole("link", { name: "List" })).toHaveLength(1);
     expect(screen.getAllByRole("link", { name: "Board" })).toHaveLength(1);
-    expect(screen.queryByRole("group", { name: "Work order display" })).toBeNull();
+    expect(
+      screen.queryByRole("group", { name: "Work order display" }),
+    ).toBeNull();
   });
 
   it.each([
-    [
-      "property scope",
-      { propertyId: "property-1", unitId: "all" },
-    ],
-    [
-      "unit scope",
-      { propertyId: "property-1", unitId: "unit-1" },
-    ],
-    [
-      "historical month",
-      { month: "2000-01" },
-    ],
+    ["property scope", { propertyId: "property-1", unitId: "all" }],
+    ["unit scope", { propertyId: "property-1", unitId: "unit-1" }],
+    ["historical month", { month: "2000-01" }],
   ])("counts %s as one active advanced filter", (_label, query) => {
     renderMaintenance({
       viewQuery: {
@@ -392,7 +419,9 @@ describe("maintenance workspace redesign contract", () => {
     const scopeSummary = container.querySelector(
       '[data-maintenance-scope-summary="true"] [data-variant]',
     );
-    const tableSurface = container.querySelector('[data-maintenance-surface="table"]');
+    const tableSurface = container.querySelector(
+      '[data-maintenance-surface="table"]',
+    );
 
     expect(scopeSummary?.getAttribute("data-variant")).toBe("inline");
     expect(tableSurface?.className).toContain("md:border-0");
@@ -400,7 +429,8 @@ describe("maintenance workspace redesign contract", () => {
     const pagination = screen
       .getByText(
         (_content, element) =>
-          element?.tagName === "P" && element.textContent?.includes("Showing") === true,
+          element?.tagName === "P" &&
+          element.textContent?.includes("Showing") === true,
       )
       .closest("div");
     expect(pagination?.classList.contains("border-t")).toBe(true);
@@ -411,10 +441,14 @@ describe("maintenance workspace redesign contract", () => {
   });
 
   it("marks one selected maintenance row and supports Enter and Space", () => {
-    renderMaintenance({ cases: [makeCase(), makeCase("task-2", "Replace fan")] });
+    renderMaintenance({
+      cases: [makeCase(), makeCase("task-2", "Replace fan")],
+    });
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
 
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
+    expect(
+      rows.filter((row) => row.getAttribute("aria-selected") === "true"),
+    ).toHaveLength(0);
     rows[1]!.focus();
     fireEvent.keyDown(rows[1]!, { key: "Enter" });
     expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
@@ -424,9 +458,13 @@ describe("maintenance workspace redesign contract", () => {
   });
 
   it("keeps direct title links independent from table-row Preview keyboard handling", () => {
-    renderMaintenance({ cases: [makeCase(), makeCase("task-2", "Replace fan")] });
+    renderMaintenance({
+      cases: [makeCase(), makeCase("task-2", "Replace fan")],
+    });
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
-    const titleLink = within(rows[1]!).getByRole("link", { name: "Replace fan" });
+    const titleLink = within(rows[1]!).getByRole("link", {
+      name: "Replace fan",
+    });
 
     expect(titleLink.getAttribute("href")).toBe("/maintenance?taskId=task-2");
     fireEvent.keyDown(titleLink, { key: "Enter" });
@@ -455,7 +493,10 @@ describe("maintenance workspace redesign contract", () => {
         expect(screen.getByRole("table")).not.toBeNull();
       } else {
         expect(
-          screen.getByRole(role, accessibleName ? { name: accessibleName } : undefined),
+          screen.getByRole(
+            role,
+            accessibleName ? { name: accessibleName } : undefined,
+          ),
         ).not.toBeNull();
       }
     },
@@ -488,15 +529,23 @@ describe("maintenance workspace redesign contract", () => {
     expect(eventButton.getAttribute("aria-haspopup")).toBe("dialog");
     fireEvent.click(eventButton);
 
-    const dialog = screen.getByRole("dialog", { name: "Repair sink calendar event" });
-    const directLink = within(dialog).getByRole("link", { name: "Repair sink" });
-    const closeButton = within(dialog).getByRole("button", { name: "Close event" });
+    const dialog = screen.getByRole("dialog", {
+      name: "Repair sink calendar event",
+    });
+    const directLink = within(dialog).getByRole("link", {
+      name: "Repair sink",
+    });
+    const closeButton = within(dialog).getByRole("button", {
+      name: "Close event",
+    });
     expect(directLink.getAttribute("href")).toBe("/maintenance?taskId=task-1");
     expect(dialog.querySelector("button a, a button")).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(closeButton));
     fireEvent.keyDown(closeButton, { key: "Escape" });
 
-    expect(screen.queryByRole("dialog", { name: "Repair sink calendar event" })).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "Repair sink calendar event" }),
+    ).toBeNull();
     expect(document.activeElement).toBe(eventButton);
 
     fireEvent.click(eventButton);
@@ -522,21 +571,35 @@ describe("maintenance workspace redesign contract", () => {
     expect(moreButton.className).toContain("min-h-6");
     expect(moreButton.getAttribute("aria-haspopup")).toBe("dialog");
     fireEvent.click(moreButton);
-    const disclosure = screen.getByRole("dialog", { name: "2 more calendar events" });
+    const disclosure = screen.getByRole("dialog", {
+      name: "2 more calendar events",
+    });
     const hiddenList = within(disclosure).getByRole("list", {
       name: "More calendar events",
     });
-    const sealLink = within(hiddenList).getByRole("link", { name: "Seal window" });
-    const boilerLink = within(hiddenList).getByRole("link", { name: "Inspect boiler" });
+    const sealLink = within(hiddenList).getByRole("link", {
+      name: "Seal window",
+    });
+    const boilerLink = within(hiddenList).getByRole("link", {
+      name: "Inspect boiler",
+    });
 
     expect(sealLink.getAttribute("href")).toBe("/maintenance?taskId=task-4");
     expect(boilerLink.getAttribute("href")).toBe("/maintenance?taskId=task-5");
-    expect(within(hiddenList).getByRole("button", { name: "Preview Seal window" })).not.toBeNull();
-    expect(within(hiddenList).getByRole("button", { name: "Preview Inspect boiler" })).not.toBeNull();
+    expect(
+      within(hiddenList).getByRole("button", { name: "Preview Seal window" }),
+    ).not.toBeNull();
+    expect(
+      within(hiddenList).getByRole("button", {
+        name: "Preview Inspect boiler",
+      }),
+    ).not.toBeNull();
     expect(disclosure.querySelector("button a, a button")).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(sealLink));
 
-    fireEvent.click(within(disclosure).getByRole("button", { name: "Close events" }));
+    fireEvent.click(
+      within(disclosure).getByRole("button", { name: "Close events" }),
+    );
     expect(document.activeElement).toBe(moreButton);
 
     fireEvent.click(moreButton);
@@ -563,7 +626,9 @@ describe("maintenance board accessible alternative", () => {
       />,
     );
 
-    expect(screen.getByRole("table", { name: "Work order list" })).not.toBeNull();
+    expect(
+      screen.getByRole("table", { name: "Work order list" }),
+    ).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Board" })).toBeNull();
   });
 
@@ -584,7 +649,9 @@ describe("maintenance board accessible alternative", () => {
     await user.keyboard("{Enter}");
 
     const table = screen.getByRole("table", { name: "Work order list" });
-    const tableSurface = table.closest('[data-maintenance-surface="board-list"]')!;
+    const tableSurface = table.closest(
+      '[data-maintenance-surface="board-list"]',
+    )!;
     expect(tableSurface.className).toBe("overflow-x-auto");
     expect(within(table).getByText("Pending")).not.toBeNull();
     expect(within(table).getByText("High")).not.toBeNull();
@@ -614,12 +681,16 @@ describe("maintenance board accessible alternative", () => {
     expect(onSelect).not.toHaveBeenCalled();
     expect(container.querySelector("button a, a button")).toBeNull();
 
-    const previewButton = screen.getByRole("button", { name: "Preview Repair sink" });
+    const previewButton = screen.getByRole("button", {
+      name: "Preview Repair sink",
+    });
     expect(previewButton.getAttribute("type")).toBe("button");
     previewButton.focus();
     previewButton.click();
     expect(onSelect).toHaveBeenCalledWith("task-1");
-    expect(screen.getByRole("button", { name: "Move Repair sink" })).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Move Repair sink" }),
+    ).not.toBeNull();
   });
 
   it("keeps board-list direct links independent from row Preview handling", async () => {
@@ -635,9 +706,9 @@ describe("maintenance board accessible alternative", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: "List" }));
-    const row = within(screen.getByRole("table", { name: "Work order list" })).getAllByRole(
-      "row",
-    )[1]!;
+    const row = within(
+      screen.getByRole("table", { name: "Work order list" }),
+    ).getAllByRole("row")[1]!;
     const titleLink = within(row).getByRole("link", { name: "Repair sink" });
 
     expect(titleLink.getAttribute("href")).toBe("/maintenance?taskId=task-1");
@@ -655,7 +726,11 @@ describe("maintenance record cards", () => {
     "keeps %s title navigation independent from its Preview control",
     (variant) => {
       const onSelect = vi.fn();
-      const { container } = renderWorkflowSurface(variant, [makeCase()], onSelect);
+      const { container } = renderWorkflowSurface(
+        variant,
+        [makeCase()],
+        onSelect,
+      );
       const titleLink = screen.getByRole("link", { name: "Repair sink" });
 
       expect(titleLink.getAttribute("href")).toBe("/maintenance?taskId=task-1");
@@ -664,7 +739,9 @@ describe("maintenance record cards", () => {
       expect(onSelect).not.toHaveBeenCalled();
       expect(container.querySelector("button a, a button")).toBeNull();
 
-      const previewButton = screen.getByRole("button", { name: "Preview Repair sink" });
+      const previewButton = screen.getByRole("button", {
+        name: "Preview Repair sink",
+      });
       expect(previewButton.getAttribute("type")).toBe("button");
       previewButton.focus();
       previewButton.click();

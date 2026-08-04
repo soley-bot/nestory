@@ -40,9 +40,7 @@ import {
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import { WorkspacePage } from "@/components/layout/workspace-page";
-import {
-  WorkspaceSplitView,
-} from "@/components/layout/workspace-split-view";
+import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckboxControl } from "@/components/ui/checkbox-control";
@@ -247,9 +245,8 @@ export function MaintenanceScreen({
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(
     Boolean(initialTaskId),
   );
-  const [statusMessage, setStatusMessage] = useState<MaintenanceStatusMessage | null>(
-    null,
-  );
+  const [statusMessage, setStatusMessage] =
+    useState<MaintenanceStatusMessage | null>(null);
   const [statusOverrides, setStatusOverrides] = useState(
     () => new Map<string, MaintenanceStatus>(),
   );
@@ -271,8 +268,9 @@ export function MaintenanceScreen({
       ? "table"
       : surfaceVariant;
   const focusedCase = initialTaskId
-    ? visibleCases.find((maintenanceCase) => maintenanceCase.id === initialTaskId) ??
-      null
+    ? (visibleCases.find(
+        (maintenanceCase) => maintenanceCase.id === initialTaskId,
+      ) ?? null)
     : null;
   const focusedTaskId = focusedCase?.id;
   const selectedCase = getSelectedRecord({
@@ -328,7 +326,10 @@ export function MaintenanceScreen({
   }, [focusedTaskId]);
 
   useEffect(() => {
-    if (!capabilities.canCreateCase || searchParams.get("action") !== "create") {
+    if (
+      !capabilities.canCreateCase ||
+      searchParams.get("action") !== "create"
+    ) {
       return;
     }
 
@@ -339,12 +340,31 @@ export function MaintenanceScreen({
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [capabilities.canCreateCase, createInitialValues, pathname, router, searchParams]);
+  }, [
+    capabilities.canCreateCase,
+    createInitialValues,
+    pathname,
+    router,
+    searchParams,
+  ]);
 
   function openDrawer(nextDrawer: DrawerState) {
     setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawer(nextDrawer);
+  }
+
+  function closeDrawer() {
+    const returnTarget = selectedCase
+      ? document.querySelector<HTMLElement>(
+          `[data-maintenance-record-trigger="${selectedCase.id}"]`,
+        )
+      : null;
+    setDrawer(null);
+
+    if (returnTarget) {
+      window.requestAnimationFrame(() => returnTarget.focus());
+    }
   }
 
   function previewCase(taskId: string) {
@@ -369,11 +389,10 @@ export function MaintenanceScreen({
   ) {
     if (
       maintenanceCase.status === status ||
-      !canTransitionMaintenanceStatus(
-        maintenanceCase.status,
-        status,
-        { actorRole: actor.role, executionMode: maintenanceCase.executionMode },
-      )
+      !canTransitionMaintenanceStatus(maintenanceCase.status, status, {
+        actorRole: actor.role,
+        executionMode: maintenanceCase.executionMode,
+      })
     ) {
       return;
     }
@@ -385,7 +404,10 @@ export function MaintenanceScreen({
       return next;
     });
     startStatusChange(async () => {
-      const result = await updateMaintenanceStatusAction(maintenanceCase.id, status);
+      const result = await updateMaintenanceStatusAction(
+        maintenanceCase.id,
+        status,
+      );
 
       if (result.status === "error") {
         setStatusOverrides((current) => {
@@ -454,7 +476,11 @@ export function MaintenanceScreen({
             viewQuery.view === "board" || viewQuery.view === "calendar" ? (
               <Link
                 className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
-                href={buildMaintenanceCasesViewHref(pathname, searchParams, "list")}
+                href={buildMaintenanceCasesViewHref(
+                  pathname,
+                  searchParams,
+                  "list",
+                )}
                 scroll={false}
               >
                 View all cases
@@ -477,9 +503,7 @@ export function MaintenanceScreen({
           className="h-full"
           kind={hasFilters ? "filtered" : "empty"}
           title={
-            hasFilters
-              ? `No matching ${listLabel}`
-              : `No ${listLabel} yet`
+            hasFilters ? `No matching ${listLabel}` : `No ${listLabel} yet`
           }
         />
       ) : normalizedSurfaceVariant === "table" ? (
@@ -491,7 +515,9 @@ export function MaintenanceScreen({
               fillHeight
               onSelect={previewCase}
               recordLabel={recordLabel}
-              selectedTaskId={compactInspectorOpen ? selectedCase?.id ?? "" : ""}
+              selectedTaskId={
+                compactInspectorOpen ? (selectedCase?.id ?? "") : ""
+              }
             />
           </div>
           <PaginationControls pagination={pagination} />
@@ -503,12 +529,20 @@ export function MaintenanceScreen({
             cases={visibleCases}
             emptyLabel={emptyLabel}
             month={normalizedViewQuery.month}
-            onCreateDate={capabilities.canCreateCase ? createCaseOnDate : undefined}
-            onStatusChange={capabilities.canManageCaseState ? moveMaintenanceStatus : undefined}
+            onCreateDate={
+              capabilities.canCreateCase ? createCaseOnDate : undefined
+            }
+            onStatusChange={
+              capabilities.canManageCaseState
+                ? moveMaintenanceStatus
+                : undefined
+            }
             onSelect={previewCase}
             pagination={pagination}
             parentOwnsViewSelection={showCaseViewTabs}
-            selectedTaskId={compactInspectorOpen ? selectedCase?.id ?? "" : ""}
+            selectedTaskId={
+              compactInspectorOpen ? (selectedCase?.id ?? "") : ""
+            }
             statusChangePending={statusChangePending}
             variant={normalizedSurfaceVariant}
             waitingForReviewLabel={actor.role === "member"}
@@ -522,12 +556,12 @@ export function MaintenanceScreen({
     <WorkspacePage
       actions={
         <>
-              {capabilities.canCreateCase ? (
-                <Button onClick={openCreateCase} variant="primary">
-                  <Plus size={15} />
-                  {createButtonLabel}
-                </Button>
-              ) : null}
+          {capabilities.canCreateCase ? (
+            <Button onClick={openCreateCase} variant="primary">
+              <Plus size={15} />
+              {createButtonLabel}
+            </Button>
+          ) : null}
         </>
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
@@ -556,7 +590,7 @@ export function MaintenanceScreen({
             units={unitOptions}
             viewQuery={viewQuery}
           />
-          ) : undefined
+        ) : undefined
       }
       title={title}
     >
@@ -595,14 +629,14 @@ export function MaintenanceScreen({
       {drawer ? (
         <SideDrawer
           description={getDrawerDescription(drawer)}
-          onClose={() => setDrawer(null)}
+          onClose={closeDrawer}
           open
           title={getDrawerTitle(drawer)}
         >
           {drawer.mode === "archive" ? (
             <ArchiveMaintenancePanel
               maintenanceCase={drawer.maintenanceCase}
-              onClose={() => setDrawer(null)}
+              onClose={closeDrawer}
               onSuccess={(message) =>
                 setStatusMessage({ kind: "success", text: message })
               }
@@ -610,7 +644,7 @@ export function MaintenanceScreen({
           ) : drawer.mode === "restore" ? (
             <RestoreMaintenancePanel
               maintenanceCase={drawer.maintenanceCase}
-              onClose={() => setDrawer(null)}
+              onClose={closeDrawer}
               onSuccess={(message) =>
                 setStatusMessage({ kind: "success", text: message })
               }
@@ -627,7 +661,7 @@ export function MaintenanceScreen({
                 drawer.mode === "edit" ? drawer.maintenanceCase : undefined
               }
               mode={drawer.mode}
-              onClose={() => setDrawer(null)}
+              onClose={closeDrawer}
               onSuccess={(message) =>
                 setStatusMessage({ kind: "success", text: message })
               }
@@ -792,7 +826,9 @@ function MaintenanceCasesCommandBar({
               />
               <SelectControl
                 ariaLabel="Priority"
-                onValueChange={(value) => replaceParam("priority", value, "all")}
+                onValueChange={(value) =>
+                  replaceParam("priority", value, "all")
+                }
                 options={MAINTENANCE_PRIORITY_FILTER_OPTIONS}
                 value={viewQuery.priority}
               />
@@ -815,7 +851,9 @@ function MaintenanceCasesCommandBar({
                 onValueChange={(value) => replaceParam("month", value)}
               />
               <div className="flex justify-end lg:col-span-4">
-                <LinkButton href={buildClearFiltersHref(pathname, searchParams)}>
+                <LinkButton
+                  href={buildClearFiltersHref(pathname, searchParams)}
+                >
                   Clear filters
                 </LinkButton>
               </div>
@@ -824,25 +862,27 @@ function MaintenanceCasesCommandBar({
         </div>
 
         <div className="inline-flex h-8 shrink-0 items-center gap-1">
-          {getMaintenanceCasesViewTabs(pathname, searchParams, viewQuery).map((tab) => (
-            <Link
-              className={cn(
-                "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
-                tab.active
-                  ? "bg-accent-soft text-foreground"
-                  : "bg-transparent",
-              )}
-              aria-current={tab.active ? "page" : undefined}
-              aria-label={tab.label}
-              href={tab.href}
-              key={tab.id}
-              prefetch={false}
-              title={tab.label}
-            >
-              <tab.icon size={14} />
-              <span className="sr-only">{tab.label}</span>
-            </Link>
-          ))}
+          {getMaintenanceCasesViewTabs(pathname, searchParams, viewQuery).map(
+            (tab) => (
+              <Link
+                className={cn(
+                  "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
+                  tab.active
+                    ? "bg-accent-soft text-foreground"
+                    : "bg-transparent",
+                )}
+                aria-current={tab.active ? "page" : undefined}
+                aria-label={tab.label}
+                href={tab.href}
+                key={tab.id}
+                prefetch={false}
+                title={tab.label}
+              >
+                <tab.icon size={14} />
+                <span className="sr-only">{tab.label}</span>
+              </Link>
+            ),
+          )}
         </div>
       </div>
     </div>
@@ -902,7 +942,9 @@ function MaintenanceFilters({
     }
 
     const query = nextParams.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
   };
 
   function replaceScope(value: string) {
@@ -926,7 +968,9 @@ function MaintenanceFilters({
     }
 
     const query = nextParams.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
   }
 
   return (
@@ -1103,7 +1147,9 @@ function MaintenanceTable({
       <div
         className={cn(
           "overflow-auto",
-          fillHeight ? "min-h-0 flex-1" : "max-h-[min(620px,calc(100vh-350px))]",
+          fillHeight
+            ? "min-h-0 flex-1"
+            : "max-h-[min(620px,calc(100vh-350px))]",
         )}
       >
         <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
@@ -1126,7 +1172,10 @@ function MaintenanceTable({
           <tbody>
             {cases.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={4}>
+                <td
+                  className="px-4 py-8 text-center text-muted-foreground"
+                  colSpan={4}
+                >
                   {emptyLabel}
                 </td>
               </tr>
@@ -1171,11 +1220,14 @@ function MaintenanceTable({
                   <p
                     className={cn(
                       "mt-0.5 truncate text-xs text-muted-foreground",
-                      maintenanceCase.progressTone === "danger" && "text-danger",
+                      maintenanceCase.progressTone === "danger" &&
+                        "text-danger",
                     )}
                   >
                     Due {formatMaintenanceTableDueDate(maintenanceCase)}
-                    {maintenanceCase.dueTime ? ` at ${maintenanceCase.dueTime}` : ""}
+                    {maintenanceCase.dueTime
+                      ? ` at ${maintenanceCase.dueTime}`
+                      : ""}
                   </p>
                   {maintenanceCase.isArchived ? (
                     <Badge className="mt-1 px-2 text-xs" tone="warning">
@@ -1196,7 +1248,7 @@ function MaintenanceTable({
                     </Badge>
                     {maintenanceCase.priorityLabel === "Normal" ? null : (
                       <Badge tone={maintenanceCase.priorityTone}>
-                      {maintenanceCase.priorityLabel}
+                        {maintenanceCase.priorityLabel}
                       </Badge>
                     )}
                   </div>
@@ -1301,8 +1353,17 @@ export function MaintenanceInspector({
         <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
             <p className="font-semibold">Checklist</p>
-            <Badge tone={maintenanceCase.checklistDoneCount === maintenanceCase.checklistTotalCount && maintenanceCase.checklistTotalCount > 0 ? "success" : "neutral"}>
-              {maintenanceCase.checklistDoneCount}/{maintenanceCase.checklistTotalCount}
+            <Badge
+              tone={
+                maintenanceCase.checklistDoneCount ===
+                  maintenanceCase.checklistTotalCount &&
+                maintenanceCase.checklistTotalCount > 0
+                  ? "success"
+                  : "neutral"
+              }
+            >
+              {maintenanceCase.checklistDoneCount}/
+              {maintenanceCase.checklistTotalCount}
             </Badge>
           </div>
           <div className="mt-2 space-y-1.5">
@@ -1312,11 +1373,21 @@ export function MaintenanceInspector({
               maintenanceCase.checklist.map((item) => (
                 <div className="flex items-start gap-2" key={item.id}>
                   {item.completed ? (
-                    <CheckCircle2 className="mt-0.5 shrink-0 text-success" size={14} />
+                    <CheckCircle2
+                      className="mt-0.5 shrink-0 text-success"
+                      size={14}
+                    />
                   ) : (
-                    <ListChecks className="mt-0.5 shrink-0 text-muted-foreground" size={14} />
+                    <ListChecks
+                      className="mt-0.5 shrink-0 text-muted-foreground"
+                      size={14}
+                    />
                   )}
-                  <span className={cn(item.completed && "text-muted-foreground line-through")}>
+                  <span
+                    className={cn(
+                      item.completed && "text-muted-foreground line-through",
+                    )}
+                  >
                     {item.label}
                   </span>
                 </div>
@@ -1328,7 +1399,9 @@ export function MaintenanceInspector({
         {maintenanceCase.description ? (
           <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
             <p className="font-semibold">Notes</p>
-            <p className="mt-1 leading-6 text-muted-foreground">{maintenanceCase.description}</p>
+            <p className="mt-1 leading-6 text-muted-foreground">
+              {maintenanceCase.description}
+            </p>
           </div>
         ) : null}
 
@@ -1348,7 +1421,9 @@ export function MaintenanceInspector({
                     <div className="mt-1 space-y-1 text-xs text-muted-foreground">
                       {change.details.map((detail) => (
                         <p key={`${change.id}-${detail.field}`}>
-                          <span className="font-medium text-foreground">{detail.field}:</span>{" "}
+                          <span className="font-medium text-foreground">
+                            {detail.field}:
+                          </span>{" "}
                           {detail.after}
                         </p>
                       ))}
@@ -1360,7 +1435,8 @@ export function MaintenanceInspector({
           </div>
         ) : null}
 
-        {!capabilities.canEditCaseStructure && !capabilities.canArchiveCase ? null : maintenanceCase.isArchived ? (
+        {!capabilities.canEditCaseStructure &&
+        !capabilities.canArchiveCase ? null : maintenanceCase.isArchived ? (
           capabilities.canArchiveCase ? (
             <Button onClick={() => onRestore(maintenanceCase)} type="button">
               <RotateCcw size={15} />
@@ -1380,7 +1456,8 @@ export function MaintenanceInspector({
                   <Pencil size={15} />
                   Edit
                 </Button>
-                {capabilities.canUploadMaintenanceEvidence && maintenanceCase.hrefs.documentUpload ? (
+                {capabilities.canUploadMaintenanceEvidence &&
+                maintenanceCase.hrefs.documentUpload ? (
                   <LinkButton href={maintenanceCase.hrefs.documentUpload}>
                     <FileText size={15} />
                     Upload doc
@@ -1529,12 +1606,16 @@ export function MaintenanceForm({
   vendors: MaintenanceVendorOption[];
 }) {
   const [state, action, pending] = useActionState(
-    mode === "create" ? createMaintenanceCaseAction : updateMaintenanceCaseAction,
+    mode === "create"
+      ? createMaintenanceCaseAction
+      : updateMaintenanceCaseAction,
     initialState,
   );
   const defaults = {
     actualCostAmount:
-      maintenanceCase?.formValues.actualCostAmount ?? initialValues?.actualCostAmount ?? "",
+      maintenanceCase?.formValues.actualCostAmount ??
+      initialValues?.actualCostAmount ??
+      "",
     assigneePersonId:
       maintenanceCase?.formValues.assigneePersonId ??
       initialValues?.assigneePersonId ??
@@ -1544,18 +1625,30 @@ export function MaintenanceForm({
       initialValues?.branchId ??
       (actor.role === "manager" ? actor.branchId : undefined) ??
       "",
-    category: maintenanceCase?.formValues.category ?? initialValues?.category ?? "General",
+    category:
+      maintenanceCase?.formValues.category ??
+      initialValues?.category ??
+      "General",
     checklistText:
-      maintenanceCase?.formValues.checklistText ?? initialValues?.checklistText ?? "",
+      maintenanceCase?.formValues.checklistText ??
+      initialValues?.checklistText ??
+      "",
     costEstimateAmount:
       maintenanceCase?.formValues.costEstimateAmount ??
       initialValues?.costEstimateAmount ??
       "",
     description:
-      maintenanceCase?.formValues.description ?? initialValues?.description ?? "",
-    dueDate: maintenanceCase?.formValues.dueDate ?? initialValues?.dueDate ?? "",
-    dueTime: maintenanceCase?.formValues.dueTime ?? initialValues?.dueTime ?? "",
-    priority: maintenanceCase?.formValues.priority ?? initialValues?.priority ?? "normal",
+      maintenanceCase?.formValues.description ??
+      initialValues?.description ??
+      "",
+    dueDate:
+      maintenanceCase?.formValues.dueDate ?? initialValues?.dueDate ?? "",
+    dueTime:
+      maintenanceCase?.formValues.dueTime ?? initialValues?.dueTime ?? "",
+    priority:
+      maintenanceCase?.formValues.priority ??
+      initialValues?.priority ??
+      "normal",
     propertyId:
       maintenanceCase?.formValues.propertyId ?? initialValues?.propertyId ?? "",
     recurrenceFrequency:
@@ -1563,14 +1656,21 @@ export function MaintenanceForm({
       initialValues?.recurrenceFrequency ??
       "none",
     reminderDate:
-      maintenanceCase?.formValues.reminderDate ?? initialValues?.reminderDate ?? "",
+      maintenanceCase?.formValues.reminderDate ??
+      initialValues?.reminderDate ??
+      "",
     reminderTime:
-      maintenanceCase?.formValues.reminderTime ?? initialValues?.reminderTime ?? "",
-    status: maintenanceCase?.formValues.status ?? initialValues?.status ?? "pending",
+      maintenanceCase?.formValues.reminderTime ??
+      initialValues?.reminderTime ??
+      "",
+    status:
+      maintenanceCase?.formValues.status ?? initialValues?.status ?? "pending",
     title: maintenanceCase?.formValues.title ?? initialValues?.title ?? "",
     unitId: maintenanceCase?.formValues.unitId ?? initialValues?.unitId ?? "",
     vendorPersonId:
-      maintenanceCase?.formValues.vendorPersonId ?? initialValues?.vendorPersonId ?? "",
+      maintenanceCase?.formValues.vendorPersonId ??
+      initialValues?.vendorPersonId ??
+      "",
   };
   const [propertyId, setPropertyId] = useState(defaults.propertyId);
   const [unitId, setUnitId] = useState(defaults.unitId ?? "");
@@ -1582,7 +1682,8 @@ export function MaintenanceForm({
   const compatibleStaff = staff.filter(
     (person) => (person.branchId ?? "") === branchId,
   );
-  const legacyAssignee = maintenanceCase?.executionMode === "manager_coordinated" &&
+  const legacyAssignee =
+    maintenanceCase?.executionMode === "manager_coordinated" &&
     Boolean(defaults.assigneePersonId) &&
     !compatibleStaff.some((person) => person.id === defaults.assigneePersonId)
       ? {
@@ -1595,9 +1696,10 @@ export function MaintenanceForm({
     currentVendorLabel: maintenanceCase?.vendorLabel,
     vendors,
   });
-  const managerBranch = actor.role === "manager" && actor.branchId
-    ? branches.find((branch) => branch.id === actor.branchId)
-    : undefined;
+  const managerBranch =
+    actor.role === "manager" && actor.branchId
+      ? branches.find((branch) => branch.id === actor.branchId)
+      : undefined;
   const branchControlMode = getMaintenanceBranchControlMode(actor);
 
   useEffect(() => {
@@ -1666,20 +1768,30 @@ export function MaintenanceForm({
               <>
                 <input name="branchId" type="hidden" value={actor.branchId} />
                 <div className="flex h-8 items-center rounded-md border border-border bg-surface-muted px-2.5 text-[13px]">
-                  {managerBranch?.label ?? maintenanceCase?.branchLabel ?? "Assigned branch"}
+                  {managerBranch?.label ??
+                    maintenanceCase?.branchLabel ??
+                    "Assigned branch"}
                 </div>
               </>
             ) : (
               <>
                 {branchControlMode === "all_branches" ? (
-                  <p className="mb-1.5 text-xs text-muted-foreground">All branches access</p>
+                  <p className="mb-1.5 text-xs text-muted-foreground">
+                    All branches access
+                  </p>
                 ) : null}
                 <SelectControl
                   ariaLabel="Branch"
                   name="branchId"
                   onValueChange={(value) => {
                     setBranchId(value);
-                    if (!staff.some((person) => person.id === assigneePersonId && (person.branchId ?? "") === value)) {
+                    if (
+                      !staff.some(
+                        (person) =>
+                          person.id === assigneePersonId &&
+                          (person.branchId ?? "") === value,
+                      )
+                    ) {
                       setAssigneePersonId("");
                     }
                   }}
@@ -1695,18 +1807,25 @@ export function MaintenanceForm({
               </>
             )}
           </Field>
-          <Field label="Assignee" error={state.fieldErrors?.assigneePersonId?.[0]}>
+          <Field
+            label="Assignee"
+            error={state.fieldErrors?.assigneePersonId?.[0]}
+          >
             <SelectControl
               ariaLabel="Assignee"
               name="assigneePersonId"
               onValueChange={setAssigneePersonId}
               options={[
                 { label: "Unassigned", value: "" },
-                ...(legacyAssignee ? [{
-                  disabled: true,
-                  label: legacyAssignee.label,
-                  value: legacyAssignee.id,
-                }] : []),
+                ...(legacyAssignee
+                  ? [
+                      {
+                        disabled: true,
+                        label: legacyAssignee.label,
+                        value: legacyAssignee.id,
+                      },
+                    ]
+                  : []),
                 ...compatibleStaff.map((person) => ({
                   label: person.label,
                   value: person.id,
@@ -1716,7 +1835,8 @@ export function MaintenanceForm({
             />
             {legacyAssignee ? (
               <p className="mt-1.5 text-xs text-muted-foreground">
-                This historical assignee has no executable Nestory member identity. The task remains manager-coordinated until reassigned.
+                This historical assignee has no executable Nestory member
+                identity. The task remains manager-coordinated until reassigned.
               </p>
             ) : null}
           </Field>
@@ -1731,8 +1851,9 @@ export function MaintenanceForm({
           />
           {vendorSelect.hasHistoricalVendor ? (
             <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
-              This historical vendor remains linked for this edit. Keep it unchanged,
-              or choose an active vendor or &quot;No vendor&quot; to clear the link.
+              This historical vendor remains linked for this edit. Keep it
+              unchanged, or choose an active vendor or &quot;No vendor&quot; to
+              clear the link.
             </p>
           ) : null}
         </Field>
@@ -1743,21 +1864,25 @@ export function MaintenanceForm({
               ariaLabel="Status"
               defaultValue={defaults.status}
               name="status"
-              options={mode === "create"
-                ? [
-                    { label: "Pending", value: "pending" },
-                    { label: "Scheduled", value: "scheduled" },
-                  ]
-                : MAINTENANCE_STATUS_OPTIONS.filter((option) =>
-                    canTransitionMaintenanceStatus(
-                      defaults.status,
-                      option.value,
-                      {
-                        actorRole: actor.role,
-                        executionMode: maintenanceCase?.executionMode ?? "manager_coordinated",
-                      },
-                    ),
-                  )}
+              options={
+                mode === "create"
+                  ? [
+                      { label: "Pending", value: "pending" },
+                      { label: "Scheduled", value: "scheduled" },
+                    ]
+                  : MAINTENANCE_STATUS_OPTIONS.filter((option) =>
+                      canTransitionMaintenanceStatus(
+                        defaults.status,
+                        option.value,
+                        {
+                          actorRole: actor.role,
+                          executionMode:
+                            maintenanceCase?.executionMode ??
+                            "manager_coordinated",
+                        },
+                      ),
+                    )
+              }
             />
           </Field>
           <Field label="Priority" error={state.fieldErrors?.priority?.[0]}>
@@ -1773,7 +1898,10 @@ export function MaintenanceForm({
               ]}
             />
           </Field>
-          <Field label="Recurrence" error={state.fieldErrors?.recurrenceFrequency?.[0]}>
+          <Field
+            label="Recurrence"
+            error={state.fieldErrors?.recurrenceFrequency?.[0]}
+          >
             <SelectControl
               ariaLabel="Recurrence"
               defaultValue={defaults.recurrenceFrequency}
@@ -1805,14 +1933,20 @@ export function MaintenanceForm({
               name="dueTime"
             />
           </Field>
-          <Field label="Reminder date" error={state.fieldErrors?.reminderDate?.[0]}>
+          <Field
+            label="Reminder date"
+            error={state.fieldErrors?.reminderDate?.[0]}
+          >
             <DatePickerField
               ariaLabel="Reminder date"
               defaultValue={defaults.reminderDate ?? ""}
               name="reminderDate"
             />
           </Field>
-          <Field label="Reminder time" error={state.fieldErrors?.reminderTime?.[0]}>
+          <Field
+            label="Reminder time"
+            error={state.fieldErrors?.reminderTime?.[0]}
+          >
             <TimePickerField
               ariaLabel="Reminder time"
               defaultValue={defaults.reminderTime ?? ""}
@@ -1822,7 +1956,10 @@ export function MaintenanceForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Cost estimate" error={state.fieldErrors?.costEstimateAmount?.[0]}>
+          <Field
+            label="Cost estimate"
+            error={state.fieldErrors?.costEstimateAmount?.[0]}
+          >
             <NumberInput
               defaultValue={defaults.costEstimateAmount ?? ""}
               min="0"
@@ -1831,7 +1968,10 @@ export function MaintenanceForm({
             />
           </Field>
           {mode === "edit" && canRecordActualCost ? (
-            <Field label="Actual cost" error={state.fieldErrors?.actualCostAmount?.[0]}>
+            <Field
+              label="Actual cost"
+              error={state.fieldErrors?.actualCostAmount?.[0]}
+            >
               <NumberInput
                 defaultValue={defaults.actualCostAmount ?? ""}
                 min="0"
@@ -1847,14 +1987,18 @@ export function MaintenanceForm({
             <CheckboxControl
               className="mt-1"
               defaultChecked={Boolean(
-                maintenanceCase?.actualCostAmount && !maintenanceCase.ledgerEntryId,
+                maintenanceCase?.actualCostAmount &&
+                !maintenanceCase.ledgerEntryId,
               )}
               name="linkActualCostToLedger"
             />
             <span>
-              <span className="block font-medium">Link actual cost to ledger</span>
+              <span className="block font-medium">
+                Link actual cost to ledger
+              </span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                Creates or updates the maintenance expense row when actual cost is present.
+                Creates or updates the maintenance expense row when actual cost
+                is present.
               </span>
             </span>
           </label>
@@ -1902,7 +2046,8 @@ export function MaintenanceForm({
 }
 
 function getHistoricalVendorLabel(label?: string) {
-  const baseLabel = label && label !== "No vendor" ? label : "Historical vendor";
+  const baseLabel =
+    label && label !== "No vendor" ? label : "Historical vendor";
 
   return baseLabel.endsWith("(historical/inactive)")
     ? baseLabel
@@ -1921,7 +2066,8 @@ export function getMaintenanceVendorSelectOptions({
   hasHistoricalVendor: boolean;
   options: SelectControlOption[];
 } {
-  const hasHistoricalVendor = Boolean(currentVendorId) &&
+  const hasHistoricalVendor =
+    Boolean(currentVendorId) &&
     !vendors.some((vendor) => vendor.id === currentVendorId);
 
   return {
@@ -1929,10 +2075,12 @@ export function getMaintenanceVendorSelectOptions({
     options: [
       { label: "No vendor", value: "" },
       ...(hasHistoricalVendor && currentVendorId
-        ? [{
-            label: getHistoricalVendorLabel(currentVendorLabel),
-            value: currentVendorId,
-          }]
+        ? [
+            {
+              label: getHistoricalVendorLabel(currentVendorLabel),
+              value: currentVendorId,
+            },
+          ]
         : []),
       ...vendors.map((vendor) => ({
         label: vendor.label,
@@ -1959,13 +2107,7 @@ function CompactFact({
   );
 }
 
-function LinkButton({
-  children,
-  href,
-}: {
-  children: ReactNode;
-  href: string;
-}) {
+function LinkButton({ children, href }: { children: ReactNode; href: string }) {
   return (
     <Link
       className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -1979,13 +2121,7 @@ function LinkButton({
   );
 }
 
-function ChecklistEditor({
-  error,
-  value,
-}: {
-  error?: string;
-  value: string;
-}) {
+function ChecklistEditor({ error, value }: { error?: string; value: string }) {
   const [items, setItems] = useState<MaintenanceChecklistItem[]>(() => {
     const parsed = parseMaintenanceChecklistText(value);
 
@@ -2012,12 +2148,19 @@ function ChecklistEditor({
 
   return (
     <div className="block text-sm font-medium">
-      <input name="checklistText" readOnly type="hidden" value={checklistText} />
+      <input
+        name="checklistText"
+        readOnly
+        type="hidden"
+        value={checklistText}
+      />
       <div className="flex items-center justify-between gap-2">
         <span>Checklist</span>
         <button
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs font-medium transition-colors hover:bg-surface-muted"
-          onClick={() => setItems((current) => [...current, newChecklistItem()])}
+          onClick={() =>
+            setItems((current) => [...current, newChecklistItem()])
+          }
           type="button"
         >
           <Plus size={14} />
@@ -2153,12 +2296,18 @@ function getOptimisticStatusLabel(status: MaintenanceStatus) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-function getOptimisticStatusTone(status: MaintenanceStatus): MaintenanceBadgeTone {
+function getOptimisticStatusTone(
+  status: MaintenanceStatus,
+): MaintenanceBadgeTone {
   if (status === "completed") {
     return "success";
   }
 
-  if (status === "blocked" || status === "cancelled" || status === "ready_for_review") {
+  if (
+    status === "blocked" ||
+    status === "cancelled" ||
+    status === "ready_for_review"
+  ) {
     return "warning";
   }
 
@@ -2243,7 +2392,11 @@ const MAINTENANCE_CASE_VIEW_TABS = [
 
 const MAINTENANCE_SAVED_VIEW_TABS = [
   { label: "Inbox", review: "open", summaryKey: "open" },
-  { label: "Review", review: "review_completion", summaryKey: "readyForReview" },
+  {
+    label: "Review",
+    review: "review_completion",
+    summaryKey: "readyForReview",
+  },
   { label: "Overdue", review: "overdue", summaryKey: "overdue" },
   { label: "Upcoming", review: "upcoming", summaryKey: "upcoming" },
   { label: "Completed", review: "completed", summaryKey: "completed" },
@@ -2382,13 +2535,16 @@ function getMaintenanceScopeLabel(
   }
 
   if (viewQuery.unitId !== "all") {
-    return units.find((unit) => unit.id === viewQuery.unitId)?.label ?? "Selected unit";
+    return (
+      units.find((unit) => unit.id === viewQuery.unitId)?.label ??
+      "Selected unit"
+    );
   }
 
   if (viewQuery.propertyId !== "all") {
     return (
-      properties.find((property) => property.id === viewQuery.propertyId)?.label ??
-      "Selected property"
+      properties.find((property) => property.id === viewQuery.propertyId)
+        ?.label ?? "Selected property"
     );
   }
 
@@ -2405,7 +2561,11 @@ function getMaintenanceScopeFacts(
       tone: summary.blocked > 0 ? "danger" : "neutral",
       value: summary.blocked,
     },
-    completed: { label: "Completed", tone: "success", value: summary.completed },
+    completed: {
+      label: "Completed",
+      tone: "success",
+      value: summary.completed,
+    },
     highCost: {
       label: "High cost",
       tone: summary.highCost > 0 ? "warning" : "neutral",

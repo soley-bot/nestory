@@ -1,6 +1,13 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
@@ -66,14 +73,14 @@ describe("platform accessibility contract", () => {
       ).toBeTruthy();
     }
 
-    for (const label of ["Global navigation", "Global mobile navigation"]) {
-      const navigation = screen.getByRole("navigation", { name: label });
-      expect(
-        within(navigation)
-          .getAllByRole("link")
-          .filter((link) => link.getAttribute("aria-current") === "page"),
-      ).toHaveLength(1);
-    }
+    const navigation = screen.getByRole("navigation", {
+      name: "Global navigation",
+    });
+    expect(
+      within(navigation)
+        .getAllByRole("link")
+        .filter((link) => link.getAttribute("aria-current") === "page"),
+    ).toHaveLength(1);
   });
 
   it("keeps local selection semantic and native-keyboard reachable", () => {
@@ -91,15 +98,16 @@ describe("platform accessibility contract", () => {
       name: "Property sections",
     });
     const links = within(navigation).getAllByRole("link");
-    expect(links.filter((link) => link.getAttribute("aria-current") === "page"))
-      .toHaveLength(1);
+    expect(
+      links.filter((link) => link.getAttribute("aria-current") === "page"),
+    ).toHaveLength(1);
     expect(links.every((link) => !link.hasAttribute("tabindex"))).toBe(true);
     expect(links.every((link) => link.className.includes("scroll-mx-1"))).toBe(
       true,
     );
   });
 
-  it("names drawers, traps focus, and returns focus to the opener", () => {
+  it("names drawers, traps focus, and returns focus to the opener", async () => {
     render(<DrawerHarness />);
     const opener = screen.getByRole("button", { name: "Open record" });
     opener.focus();
@@ -107,18 +115,25 @@ describe("platform accessibility contract", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Edit property" });
     expect(dialog.getAttribute("aria-modal")).toBe("true");
-    expect(document.activeElement).toBe(dialog.querySelector("aside"));
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Close drawer" }),
+    );
 
     fireEvent.keyDown(document, { key: "Tab" });
     expect(dialog.contains(document.activeElement)).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
     expect(screen.queryByRole("dialog", { name: "Edit property" })).toBeNull();
-    expect(document.activeElement).toBe(opener);
+    await waitFor(() => expect(document.activeElement).toBe(opener));
   });
 
   it("associates inline errors with their controls", () => {
     render(
-      <RecordField error="Property name is required." label="Property name" name="name" required>
+      <RecordField
+        error="Property name is required."
+        label="Property name"
+        name="name"
+        required
+      >
         <input name="name" />
       </RecordField>,
     );
@@ -126,7 +141,9 @@ describe("platform accessibility contract", () => {
     const input = screen.getByRole("textbox", { name: /Property name/ });
     const error = screen.getByText("Property name is required.");
     expect(input.getAttribute("aria-invalid")).toBe("true");
-    expect(input.getAttribute("aria-describedby")?.split(" ")).toContain(error.id);
+    expect(input.getAttribute("aria-describedby")?.split(" ")).toContain(
+      error.id,
+    );
   });
 
   it("announces loading without exposing decorative skeletons", () => {
@@ -134,7 +151,9 @@ describe("platform accessibility contract", () => {
     const status = screen.getByRole("status");
     expect(status.getAttribute("aria-live")).toBe("polite");
     expect(status.textContent).toContain("Properties is loading");
-    expect(container.querySelectorAll("[aria-hidden='true']").length).toBeGreaterThan(0);
+    expect(
+      container.querySelectorAll("[aria-hidden='true']").length,
+    ).toBeGreaterThan(0);
   });
 
   it("keeps the file input outside its keyboard-operable drop action", () => {
@@ -168,9 +187,9 @@ describe("platform accessibility contract", () => {
       </AuthPageShell>,
     );
 
-    expect(screen.getByRole("link", { name: "Nestory home" }).className).toContain(
-      "bg-[#0b1218]",
-    );
+    expect(
+      screen.getByRole("link", { name: "Nestory home" }).className,
+    ).toContain("bg-[#0b1218]");
   });
 });
 

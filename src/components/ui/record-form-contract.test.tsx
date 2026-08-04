@@ -1,6 +1,12 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -141,7 +147,13 @@ function DeferredDefaultHarness() {
       saveLabel="Add unit"
       state={{}}
     >
-      <input name="status" readOnly ref={inputRef} type="hidden" value={value} />
+      <input
+        name="status"
+        readOnly
+        ref={inputRef}
+        type="hidden"
+        value={value}
+      />
     </RecordForm>
   );
 }
@@ -171,12 +183,16 @@ describe("record form contract", () => {
       within(dialog).getAllByText("*", { selector: "[aria-hidden='true']" }),
     ).toHaveLength(2);
     expect(name.getAttribute("aria-invalid")).toBe("true");
-    expect(name.getAttribute("aria-describedby")?.split(" ")).toContain(error.id);
+    expect(name.getAttribute("aria-describedby")?.split(" ")).toContain(
+      error.id,
+    );
     expect(document.activeElement).toBe(name);
     expect(
       screen
         .getAllByRole("alert")
-        .some((alert) => alert.textContent?.includes("Review the highlighted fields.")),
+        .some((alert) =>
+          alert.textContent?.includes("Review the highlighted fields."),
+        ),
     ).toBe(true);
   });
 
@@ -224,22 +240,33 @@ describe("record form contract", () => {
   it("keeps explicit actions available while clean and freezes them while saving", () => {
     const { rerender } = render(<DrawerHarness />);
 
-    expect(screen.getByRole("button", { name: "Cancel" }).hasAttribute("disabled"))
-      .toBe(false);
-    expect(screen.getByRole("button", { name: "Add property" }).hasAttribute("disabled"))
-      .toBe(false);
+    expect(
+      screen.getByRole("button", { name: "Cancel" }).hasAttribute("disabled"),
+    ).toBe(false);
+    expect(
+      screen
+        .getByRole("button", { name: "Add property" })
+        .hasAttribute("disabled"),
+    ).toBe(false);
 
     rerender(<DrawerHarness pending />);
 
     const form = screen.getByRole("form", { name: "Add property form" });
     expect(form.getAttribute("aria-busy")).toBe("true");
     expect(screen.getByText("Adding property")).not.toBeNull();
-    expect(screen.getByRole("textbox", { name: /Property name/ }).matches(":disabled"))
-      .toBe(true);
-    expect(screen.getByRole("button", { name: "Cancel" }).hasAttribute("disabled"))
-      .toBe(true);
-    expect(screen.getByRole("button", { name: "Add property" }).hasAttribute("disabled"))
-      .toBe(true);
+    expect(
+      screen
+        .getByRole("textbox", { name: /Property name/ })
+        .matches(":disabled"),
+    ).toBe(true);
+    expect(
+      screen.getByRole("button", { name: "Cancel" }).hasAttribute("disabled"),
+    ).toBe(true);
+    expect(
+      screen
+        .getByRole("button", { name: "Add property" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
   });
 
   it("closes in one confirmation after a dirty Cancel", async () => {
@@ -279,7 +306,7 @@ describe("record form contract", () => {
 
     await user.click(screen.getByRole("combobox", { name: /Status/ }));
     const listbox = screen.getByRole("listbox");
-    expect(dialog.contains(listbox)).toBe(false);
+    expect(dialog.contains(listbox)).toBe(true);
     expect(screen.getByRole("dialog", { name: "Add lease" })).not.toBeNull();
     await user.click(screen.getByRole("option", { name: "Active" }));
 
@@ -316,33 +343,33 @@ describe("record form contract", () => {
       />,
     );
 
-    expect(screen.getByTestId("draft-action-bar").getAttribute("data-status")).toBe(
-      "error",
-    );
+    expect(
+      screen.getByTestId("draft-action-bar").getAttribute("data-status"),
+    ).toBe("error");
     expect(screen.getByText("Changes not saved")).not.toBeNull();
 
     await user.click(name);
-    expect(screen.getByTestId("draft-action-bar").getAttribute("data-status")).toBe(
-      "error",
-    );
+    expect(
+      screen.getByTestId("draft-action-bar").getAttribute("data-status"),
+    ).toBe("error");
 
     await user.type(name, " updated");
-    expect(screen.getByTestId("draft-action-bar").getAttribute("data-status")).toBe(
-      "dirty",
-    );
+    expect(
+      screen.getByTestId("draft-action-bar").getAttribute("data-status"),
+    ).toBe("dirty");
 
     const sameError = {
       message: "That code is already used.",
       status: "error" as const,
     };
     rerender(<DrawerHarness pending state={sameError} />);
-    expect(screen.getByTestId("draft-action-bar").getAttribute("data-status")).toBe(
-      "saving",
-    );
+    expect(
+      screen.getByTestId("draft-action-bar").getAttribute("data-status"),
+    ).toBe("saving");
     rerender(<DrawerHarness state={sameError} />);
-    expect(screen.getByTestId("draft-action-bar").getAttribute("data-status")).toBe(
-      "error",
-    );
+    expect(
+      screen.getByTestId("draft-action-bar").getAttribute("data-status"),
+    ).toBe("error");
   });
 
   it("locks a completed create form and cannot create the same record twice", async () => {

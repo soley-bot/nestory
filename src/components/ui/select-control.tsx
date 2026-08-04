@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDrawerPortalContainer } from "@/components/ui/side-drawer";
 import { cn } from "@/lib/utils";
 
 const EMPTY_VALUE = "__nestory_empty_value__";
@@ -37,21 +38,22 @@ type SelectControlProps = {
 };
 
 export function SelectControl(props: SelectControlProps) {
+  const portalContainer = useDrawerPortalContainer();
   const {
-  "aria-describedby": ariaDescribedBy,
-  "aria-invalid": ariaInvalid,
-  "aria-labelledby": ariaLabelledBy,
-  "aria-required": ariaRequired,
-  ariaLabel,
-  className,
-  defaultValue = "",
-  disabled = false,
-  name,
-  onValueChange,
-  options,
-  placeholder = "Select",
-  required = false,
-  value,
+    "aria-describedby": ariaDescribedBy,
+    "aria-invalid": ariaInvalid,
+    "aria-labelledby": ariaLabelledBy,
+    "aria-required": ariaRequired,
+    ariaLabel,
+    className,
+    defaultValue = "",
+    disabled = false,
+    name,
+    onValueChange,
+    options,
+    placeholder = "Select",
+    required = false,
+    value,
   } = props;
   const [uncontrolledValue, setUncontrolledValue] = useState(defaultValue);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
@@ -100,10 +102,7 @@ export function SelectControl(props: SelectControlProps) {
           aria-label={ariaLabel}
           aria-labelledby={ariaLabelledBy}
           aria-required={ariaRequired ?? required}
-          className={cn(
-            "w-full min-w-0",
-            className,
-          )}
+          className={cn("w-full min-w-0", className)}
         >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
@@ -111,6 +110,7 @@ export function SelectControl(props: SelectControlProps) {
           className="z-[80] max-h-72 max-w-[calc(100vw-1rem)]"
           onEscapeKeyDown={(event) => event.stopPropagation()}
           position="popper"
+          portalContainer={portalContainer}
           sideOffset={4}
         >
           <SelectGroup>

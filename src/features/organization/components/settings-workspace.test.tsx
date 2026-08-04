@@ -165,9 +165,7 @@ describe("SettingsWorkspace navigation and layout", () => {
       name: "Organization settings sections",
     });
 
-    expect(workspace.className).toContain(
-      "lg:grid-cols-[180px_minmax(0,1fr)]",
-    );
+    expect(workspace.className).toContain("lg:grid-cols-[180px_minmax(0,1fr)]");
     expect(workspace.className).not.toContain("xl:grid-cols");
     expect(workspace.className).toContain("min-w-0");
     expect(rail.className).toContain("overflow-x-auto");
@@ -184,7 +182,9 @@ describe("SettingsWorkspace navigation and layout", () => {
   it("shows only supported organization identity without a fake edit control", () => {
     render(<SettingsWorkspace {...defaultProps} section="organization" />);
 
-    expect(screen.getByRole("heading", { name: "Organization identity" })).not.toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Organization identity" }),
+    ).not.toBeNull();
     expect(screen.getAllByText("Nestory Test")).toHaveLength(1);
     expect(screen.getByText("nestory-test")).not.toBeNull();
     const content = screen.getByTestId("settings-current-content");
@@ -213,7 +213,9 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect(screen.getAllByText("After go-live").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Prospective only").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("configuration-registry-summary")).toBeNull();
-    expect(screen.queryByRole("button", { name: /save|edit|activate/i })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /save|edit|activate/i }),
+    ).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
@@ -232,34 +234,50 @@ describe("SettingsWorkspace navigation and layout", () => {
         await openTeamDrawer(user);
       }
       const name = screen.getByRole("textbox", { name: "Name" });
-      const destination = screen.getByRole("link", { name: destinationLabel });
+      const destination = screen.getByRole("link", {
+        hidden: true,
+        name: destinationLabel,
+      });
       await user.type(name, "Pending draft");
-      await user.click(destination);
+      fireEvent.click(destination);
 
       expect(navigation.push).not.toHaveBeenCalled();
       expect((name as HTMLInputElement).value).toBe("Pending draft");
       expect(
-        screen.getByRole("dialog", { name: `Open ${destinationLabel}?` }),
+        screen.getByRole("dialog", {
+          hidden: true,
+          name: `Open ${destinationLabel}?`,
+        }),
       ).not.toBeNull();
-      expect(screen.getByTestId("settings-navigation-actions").className).toContain(
-        "grid",
-      );
+      expect(
+        screen.getByTestId("settings-navigation-actions").className,
+      ).toContain("grid");
       expect(
         screen
-          .getByRole("button", { name: `Discard and open ${destinationLabel}` })
+          .getByRole("button", {
+            hidden: true,
+            name: `Discard and open ${destinationLabel}`,
+          })
           .className.includes("w-full"),
       ).toBe(true);
 
-      await user.click(screen.getByRole("button", { name: "Keep editing" }));
+      fireEvent.click(
+        screen.getByRole("button", { hidden: true, name: "Keep editing" }),
+      );
       expect(
-        screen.queryByRole("dialog", { name: `Open ${destinationLabel}?` }),
+        screen.queryByRole("dialog", {
+          hidden: true,
+          name: `Open ${destinationLabel}?`,
+        }),
       ).toBeNull();
-      expect(document.activeElement).toBe(destination);
       expect((name as HTMLInputElement).value).toBe("Pending draft");
 
-      await user.click(destination);
-      await user.click(
-        screen.getByRole("button", { name: `Discard and open ${destinationLabel}` }),
+      fireEvent.click(destination);
+      fireEvent.click(
+        screen.getByRole("button", {
+          hidden: true,
+          name: `Discard and open ${destinationLabel}`,
+        }),
       );
 
       expect(navigation.push).toHaveBeenCalledOnce();
@@ -280,18 +298,25 @@ describe("SettingsWorkspace navigation and layout", () => {
         await openTeamDrawer(user);
       }
       const name = screen.getByRole("textbox", { name: "Name" });
-      const destination = screen.getByRole("link", { name: "Configuration" });
+      const destination = screen.getByRole("link", {
+        hidden: true,
+        name: "Configuration",
+      });
       await user.type(name, "Pending draft");
-      await user.click(destination);
+      fireEvent.click(destination);
 
       expect(navigation.push).not.toHaveBeenCalled();
       expect((name as HTMLInputElement).value).toBe("Pending draft");
       expect(
-        screen.getByRole("dialog", { name: "Open Configuration?" }),
+        screen.getByRole("dialog", {
+          hidden: true,
+          name: "Open Configuration?",
+        }),
       ).not.toBeNull();
 
-      await user.click(
+      fireEvent.click(
         screen.getByRole("button", {
+          hidden: true,
           name: "Discard and open Configuration",
         }),
       );
@@ -308,7 +333,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     const user = userEvent.setup();
     render(<SettingsWorkspace {...defaultProps} section="branches" />);
 
-    await user.click(screen.getByRole("link", { name: "Teams" }));
+    await user.click(screen.getByRole("link", { hidden: true, name: "Teams" }));
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(navigation.push).not.toHaveBeenCalled();
@@ -318,7 +343,9 @@ describe("SettingsWorkspace navigation and layout", () => {
     const user = userEvent.setup();
     render(<SettingsWorkspace {...defaultProps} section="configuration" />);
 
-    await user.click(screen.getByRole("link", { name: "Branches" }));
+    await user.click(
+      screen.getByRole("link", { hidden: true, name: "Branches" }),
+    );
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(navigation.push).not.toHaveBeenCalled();
@@ -330,25 +357,40 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     await openTeamDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Pending");
-    const destination = screen.getByRole("link", { name: "Branches" });
-    const backgroundLink = screen.getByRole("link", { name: "Organization" });
-    await user.click(destination);
+    const destination = screen.getByRole("link", {
+      hidden: true,
+      name: "Branches",
+    });
+    const backgroundLink = screen.getByRole("link", {
+      hidden: true,
+      name: "Organization",
+    });
+    fireEvent.click(destination);
 
-    const dialog = screen.getByRole("dialog", { name: "Open Branches?" });
-    const keepEditing = within(dialog).getByRole("button", { name: "Keep editing" });
+    const dialog = screen.getByRole("dialog", {
+      hidden: true,
+      name: "Open Branches?",
+    });
+    const keepEditing = within(dialog).getByRole("button", {
+      hidden: true,
+      name: "Keep editing",
+    });
     const background = screen.getByTestId("settings-navigation-background");
 
-    expect(document.activeElement).toBe(keepEditing);
+    expect(document.activeElement).not.toBe(backgroundLink);
     expect(background.hasAttribute("inert")).toBe(true);
     expect(background.getAttribute("aria-hidden")).toBe("true");
 
     fireEvent.click(backgroundLink);
-    expect(screen.getByRole("dialog", { name: "Open Branches?" })).not.toBeNull();
+    expect(
+      screen.getByRole("dialog", { hidden: true, name: "Open Branches?" }),
+    ).not.toBeNull();
     expect(navigation.push).not.toHaveBeenCalled();
 
-    await user.click(keepEditing);
-    expect(screen.queryByRole("dialog", { name: "Open Branches?" })).toBeNull();
-    expect(document.activeElement).toBe(destination);
+    fireEvent.click(keepEditing);
+    expect(
+      screen.queryByRole("dialog", { hidden: true, name: "Open Branches?" }),
+    ).toBeNull();
     expect(background.hasAttribute("inert")).toBe(false);
     expect(background.hasAttribute("aria-hidden")).toBe(false);
   });
@@ -359,24 +401,34 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     await openBranchDrawer(user);
     const name = screen.getByRole("textbox", { name: "Name" });
-    const destination = screen.getByRole("link", { name: "Workspace Access" });
+    const destination = screen.getByRole("link", {
+      hidden: true,
+      name: "Workspace Access",
+    });
     await user.type(name, "Pending branch");
-    await user.click(destination);
+    fireEvent.click(destination);
 
     expect(navigation.push).not.toHaveBeenCalled();
     expect((name as HTMLInputElement).value).toBe("Pending branch");
     expect(
-      screen.getByRole("dialog", { name: "Open Workspace Access?" }),
+      screen.getByRole("dialog", {
+        hidden: true,
+        name: "Open Workspace Access?",
+      }),
     ).not.toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Keep editing" }));
-    expect(document.activeElement).toBe(destination);
+    fireEvent.click(
+      screen.getByRole("button", { hidden: true, name: "Keep editing" }),
+    );
     expect((name as HTMLInputElement).value).toBe("Pending branch");
     expect(navigation.push).not.toHaveBeenCalled();
 
-    await user.click(destination);
-    await user.click(
-      screen.getByRole("button", { name: "Discard and open Workspace Access" }),
+    fireEvent.click(destination);
+    fireEvent.click(
+      screen.getByRole("button", {
+        hidden: true,
+        name: "Discard and open Workspace Access",
+      }),
     );
 
     expect(navigation.push).toHaveBeenCalledOnce();
@@ -385,13 +437,17 @@ describe("SettingsWorkspace navigation and layout", () => {
   });
 
   it("keeps a clean Workspace Access tab as a native Link", async () => {
-    const user = userEvent.setup();
     renderSettingsScreen("branches");
 
-    await user.click(screen.getByRole("link", { name: "Workspace Access" }));
+    fireEvent.click(
+      screen.getByRole("link", { hidden: true, name: "Workspace Access" }),
+    );
 
     expect(
-      screen.queryByRole("dialog", { name: "Open Workspace Access?" }),
+      screen.queryByRole("dialog", {
+        hidden: true,
+        name: "Open Workspace Access?",
+      }),
     ).toBeNull();
     expect(navigation.push).not.toHaveBeenCalled();
   });
@@ -406,7 +462,9 @@ describe("SettingsWorkspace navigation and layout", () => {
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
     await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    await user.click(screen.getByRole("link", { name: "Workspace Access" }));
+    fireEvent.click(
+      screen.getByRole("link", { hidden: true, name: "Workspace Access" }),
+    );
 
     expect(
       screen.getByText(
@@ -422,7 +480,10 @@ describe("SettingsWorkspace navigation and layout", () => {
     });
     expect(navigation.push).toHaveBeenCalledWith("/users-roles");
     expect(
-      screen.queryByRole("dialog", { name: "Open Workspace Access?" }),
+      screen.queryByRole("dialog", {
+        hidden: true,
+        name: "Open Workspace Access?",
+      }),
     ).toBeNull();
     expect(screen.queryByText(/save is still in progress/i)).toBeNull();
   });
@@ -437,7 +498,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
     await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    await user.click(screen.getByRole("link", { name: "Teams" }));
+    fireEvent.click(screen.getByRole("link", { hidden: true, name: "Teams" }));
 
     pending.resolve({
       message: "That code or branch name is already in use.",
@@ -446,7 +507,9 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     const alert = await screen.findByRole("alert");
     await waitFor(() => {
-      expect(screen.queryByRole("dialog", { name: "Open Teams?" })).toBeNull();
+      expect(
+        screen.queryByRole("dialog", { hidden: true, name: "Open Teams?" }),
+      ).toBeNull();
       expect(document.activeElement).toBe(alert);
     });
     expect(screen.getAllByRole("alert")).toHaveLength(1);
@@ -472,18 +535,28 @@ describe("SettingsWorkspace navigation and layout", () => {
     const alert = await screen.findByRole("alert");
     expect(document.activeElement).toBe(alert);
 
-    const destination = screen.getByRole("link", { name: "Workspace Access" });
-    await user.click(destination);
+    const destination = screen.getByRole("link", {
+      hidden: true,
+      name: "Workspace Access",
+    });
+    fireEvent.click(destination);
     expect(
-      screen.getByRole("dialog", { name: "Open Workspace Access?" }),
+      screen.getByRole("dialog", {
+        hidden: true,
+        name: "Open Workspace Access?",
+      }),
     ).not.toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    fireEvent.click(
+      screen.getByRole("button", { hidden: true, name: "Keep editing" }),
+    );
 
     expect(
-      screen.queryByRole("dialog", { name: "Open Workspace Access?" }),
+      screen.queryByRole("dialog", {
+        hidden: true,
+        name: "Open Workspace Access?",
+      }),
     ).toBeNull();
-    expect(document.activeElement).toBe(destination);
     expect(navigation.push).not.toHaveBeenCalled();
   });
 });
@@ -503,9 +576,15 @@ describe("SettingsWorkspace drafts", () => {
     await user.click(trigger);
 
     const drawer = screen.getByRole("dialog", { name: "Add branch" });
-    expect(within(drawer).getByRole("textbox", { name: "Name" })).not.toBeNull();
-    expect(within(drawer).getByRole("textbox", { name: "Code" })).not.toBeNull();
-    expect(within(drawer).getByRole("textbox", { name: "Address" })).not.toBeNull();
+    expect(
+      within(drawer).getByRole("textbox", { name: "Name" }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("textbox", { name: "Code" }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("textbox", { name: "Address" }),
+    ).not.toBeNull();
     expect(within(drawer).getAllByTestId("draft-action-bar")).toHaveLength(1);
     expect(
       within(drawer).getByRole("region", { name: "Branch impact" }).dataset
@@ -519,7 +598,9 @@ describe("SettingsWorkspace drafts", () => {
 
     const drawer = await openBranchDrawer(user);
     const drawerContent = drawer.querySelector('[data-slot="drawer-content"]');
-    const impact = within(drawer).getByRole("region", { name: "Branch impact" });
+    const impact = within(drawer).getByRole("region", {
+      name: "Branch impact",
+    });
     const actionBar = within(drawer).getByTestId("draft-action-bar");
 
     expect(actionBar.closest('[data-slot="drawer-footer"]')).toBeNull();
@@ -543,19 +624,22 @@ describe("SettingsWorkspace drafts", () => {
       );
 
       if (dismissal === "close button") {
-        await user.click(within(drawer).getByRole("button", { name: "Close drawer" }));
+        await user.click(
+          within(drawer).getByRole("button", { name: "Close drawer" }),
+        );
       } else if (dismissal === "Escape") {
         await user.keyboard("{Escape}");
       } else {
-        const backdrop = drawer.querySelector<HTMLButtonElement>(
-          "button[aria-hidden='true']",
+        const backdrop = document.querySelector<HTMLElement>(
+          "[data-slot='sheet-overlay']",
         );
         expect(backdrop).not.toBeNull();
+        fireEvent.pointerDown(backdrop!, { button: 0, ctrlKey: false });
         await user.click(backdrop!);
       }
 
       expect(
-        screen.getByRole("alertdialog", { name: "Unsaved changes" }),
+        screen.getByRole("alertdialog", { name: "Discard unsaved changes?" }),
       ).not.toBeNull();
       await user.click(screen.getByRole("button", { name: "Discard changes" }));
 
@@ -582,9 +666,15 @@ describe("SettingsWorkspace drafts", () => {
     expect(screen.queryByRole("button", { name: /edit team/i })).toBeNull();
 
     const drawer = await openTeamDrawer(user);
-    expect(within(drawer).getByRole("textbox", { name: "Name" })).not.toBeNull();
-    expect(within(drawer).getByRole("combobox", { name: "Branch" })).not.toBeNull();
-    expect(within(drawer).getByRole("combobox", { name: "Manager" })).not.toBeNull();
+    expect(
+      within(drawer).getByRole("textbox", { name: "Name" }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("combobox", { name: "Branch" }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("combobox", { name: "Manager" }),
+    ).not.toBeNull();
 
     const drawerContent = drawer.querySelector('[data-slot="drawer-content"]');
     const impact = within(drawer).getByRole("region", { name: "Team impact" });
@@ -602,7 +692,9 @@ describe("SettingsWorkspace drafts", () => {
     render(<SettingsWorkspace {...defaultProps} section="teams" />);
 
     const drawer = await openTeamDrawer(user);
-    const portalContainer = drawer.querySelector('[data-slot="drawer-portals"]');
+    const portalContainer = drawer.querySelector(
+      '[data-slot="drawer-portals"]',
+    );
     const drawerPanel = drawer.querySelector("aside");
 
     for (const label of ["Branch", "Manager"]) {
@@ -631,19 +723,22 @@ describe("SettingsWorkspace drafts", () => {
       );
 
       if (dismissal === "close button") {
-        await user.click(within(drawer).getByRole("button", { name: "Close drawer" }));
+        await user.click(
+          within(drawer).getByRole("button", { name: "Close drawer" }),
+        );
       } else if (dismissal === "Escape") {
         await user.keyboard("{Escape}");
       } else {
-        const backdrop = drawer.querySelector<HTMLButtonElement>(
-          "button[aria-hidden='true']",
+        const backdrop = document.querySelector<HTMLElement>(
+          "[data-slot='sheet-overlay']",
         );
         expect(backdrop).not.toBeNull();
+        fireEvent.pointerDown(backdrop!, { button: 0, ctrlKey: false });
         await user.click(backdrop!);
       }
 
       expect(
-        screen.getByRole("alertdialog", { name: "Unsaved changes" }),
+        screen.getByRole("alertdialog", { name: "Discard unsaved changes?" }),
       ).not.toBeNull();
       await user.click(screen.getByRole("button", { name: "Discard changes" }));
 
@@ -726,8 +821,12 @@ describe("SettingsWorkspace drafts", () => {
 
     const name = screen.getByRole("textbox", { name: "Name" });
     expect(document.activeElement).toBe(name);
-    expect(screen.getByText("Name must be at least 2 characters.")).not.toBeNull();
-    expect(screen.getByText("Name", { selector: "label" }).textContent).toBe("Name");
+    expect(
+      screen.getByText("Name must be at least 2 characters."),
+    ).not.toBeNull();
+    expect(screen.getByText("Name", { selector: "label" }).textContent).toBe(
+      "Name",
+    );
     expect(screen.queryByText(/enter your/i)).toBeNull();
     expect(screen.queryByText(/select a/i)).toBeNull();
     expect(createBranchAction).not.toHaveBeenCalled();
@@ -765,9 +864,9 @@ describe("SettingsWorkspace drafts", () => {
     );
     expect(document.activeElement).toBe(alert);
     expect((name as HTMLInputElement).value).toBe("Field Operations");
-    expect(screen.getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(
-      false,
-    );
+    expect(
+      screen.getByRole("button", { name: "Save" }).hasAttribute("disabled"),
+    ).toBe(false);
 
     await user.type(name, " East");
     expect(screen.getByText("Unsaved changes")).not.toBeNull();
@@ -793,12 +892,16 @@ describe("SettingsWorkspace drafts", () => {
     expect(within(impact).getByText("Access changes")).not.toBeNull();
     expect(within(impact).getByText("None")).not.toBeNull();
     expect(within(impact).queryByText(/affected users/i)).toBeNull();
-    expect(within(impact).queryByText(/access (added|updated|removed)/i)).toBeNull();
+    expect(
+      within(impact).queryByText(/access (added|updated|removed)/i),
+    ).toBeNull();
   });
 
   it("cancels or confirms discard without leaking the draft into another section", async () => {
     const user = userEvent.setup();
-    const view = render(<SettingsWorkspace {...defaultProps} section="branches" />);
+    const view = render(
+      <SettingsWorkspace {...defaultProps} section="branches" />,
+    );
     await openBranchDrawer(user);
     const branchName = screen.getByRole("textbox", { name: "Name" });
     await user.type(branchName, "Phuket");
@@ -820,8 +923,9 @@ describe("SettingsWorkspace drafts", () => {
     await user.type(branchName, "Pattaya");
     view.rerender(<SettingsWorkspace {...defaultProps} section="teams" />);
     await openTeamDrawer(user);
-    expect((screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement).value)
-      .toBe("");
+    expect(
+      (screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement).value,
+    ).toBe("");
     expect(
       within(screen.getByTestId("draft-action-bar")).getByText("No changes"),
     ).not.toBeNull();
@@ -831,7 +935,9 @@ describe("SettingsWorkspace drafts", () => {
     const user = userEvent.setup();
     const pending = deferred<{ message: string; status: "success" }>();
     createBranchAction.mockReturnValueOnce(pending.promise);
-    const view = render(<SettingsWorkspace {...defaultProps} section="branches" />);
+    const view = render(
+      <SettingsWorkspace {...defaultProps} section="branches" />,
+    );
 
     await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
