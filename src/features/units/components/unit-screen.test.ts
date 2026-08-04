@@ -82,6 +82,55 @@ describe("unit screen report links", () => {
 });
 
 describe("UnitScreen redesign contract", () => {
+  it("renders one page heading and places the primary action in the header", () => {
+    const { container } = renderUnits();
+
+    expect(
+      screen.getAllByRole("heading", { level: 1, name: "Units" }),
+    ).toHaveLength(1);
+
+    const headerActions = container.querySelector<HTMLElement>(
+      '[data-slot="page-header-actions"]',
+    );
+    expect(headerActions).not.toBeNull();
+    expect(
+      within(headerActions!).getByRole("button", { name: "Add unit" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps search visible and discloses the existing unit filters", () => {
+    renderUnits();
+
+    expect(screen.getByRole("textbox", { name: "Search units" })).toBeTruthy();
+    expect(
+      screen.queryByRole("combobox", { name: "Filter by property" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(screen.getByRole("heading", { name: "Filter units" })).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by property" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by occupancy" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Rows per page" })).toBeTruthy();
+  });
+
+  it("uses an unframed desktop register while retaining the semantic table", () => {
+    const { container } = renderUnits();
+    const frame = container.querySelector<HTMLElement>(
+      '[data-slot="register-table-frame"]',
+    );
+
+    expect(frame).not.toBeNull();
+    expect(frame!.className).not.toMatch(/(?:^|\s)rounded(?:-|\s|$)/);
+    expect(frame!.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
+    expect(frame!.className).not.toMatch(/(?:^|\s)(?:p|px|py)-/);
+    expect(within(frame!).getByRole("table")).toBeTruthy();
+  });
+
   it("uses one predictable row action, opens details only from preview, and preserves URL-backed sorting", async () => {
     navigation.searchParams = new URLSearchParams("status=vacant&page=2");
     const { container } = renderUnits({

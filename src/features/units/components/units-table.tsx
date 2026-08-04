@@ -69,7 +69,10 @@ export function UnitsTable({
       </div>
 
       {displayMode === "table" ? (
-        <div className="hidden h-full overflow-hidden rounded-md border border-border bg-surface md:block">
+        <div
+          className="hidden h-full min-w-0 overflow-hidden md:block"
+          data-slot="register-table-frame"
+        >
           <div className="h-full min-h-[540px] overflow-auto">
             <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
