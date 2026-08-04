@@ -129,6 +129,12 @@ describe("UnitScreen redesign contract", () => {
     expect(frame!.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
     expect(frame!.className).not.toMatch(/(?:^|\s)(?:p|px|py)-/);
     expect(within(frame!).getByRole("table")).toBeTruthy();
+
+    const pagination = screen.getByText(/Showing/).parentElement;
+    expect(pagination).not.toBeNull();
+    expect(pagination!.className.split(" ")).not.toContain("rounded-b-md");
+    expect(pagination!.className.split(" ")).not.toContain("border");
+    expect(pagination!.className.split(" ")).not.toContain("border-t-0");
   });
 
   it("uses one predictable row action, opens details only from preview, and preserves URL-backed sorting", async () => {

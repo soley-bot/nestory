@@ -89,7 +89,6 @@ export function UnitScreen({
   const [displayMode, setDisplayMode] = useState<UnitDisplayMode>(() =>
     searchParams.get("view") === "cards" ? "cards" : "table",
   );
-  const isTableMode = displayMode === "table";
   const [selectedUnitId, setSelectedUnitId] = useState(() =>
     getInitialRecordId(units, initialUnitId),
   );
@@ -239,7 +238,7 @@ export function UnitScreen({
               units={units}
             />
           </div>
-          <PaginationControls attached={isTableMode} pagination={pagination} />
+          <PaginationControls pagination={pagination} />
         </>
       )}
     </section>
