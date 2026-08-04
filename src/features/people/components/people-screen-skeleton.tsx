@@ -33,7 +33,7 @@ export function PeopleScreenSkeleton({
         </div>
       </div>
       <div className="px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:px-6 lg:py-4">
-        <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid min-h-0 items-stretch gap-3 lg:h-full xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-0 2xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="flex min-h-0 min-w-0 flex-col">
             <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
               <div className="space-y-1.5">
@@ -42,7 +42,7 @@ export function PeopleScreenSkeleton({
               </div>
               <div className="h-7 w-16 rounded-md border border-border bg-surface-muted" />
             </div>
-            <div className="hidden h-full min-h-[380px] overflow-hidden rounded-md border border-border bg-surface md:block">
+            <div className="hidden h-full min-h-[380px] overflow-hidden bg-surface md:block">
               <div className="grid grid-cols-[24%_16%_25%_26%_9%] bg-surface-muted px-2.5 py-2.5">
                 {rowWidths.map((width, index) => (
                   <div
@@ -88,7 +88,7 @@ export function PeopleScreenSkeleton({
               <div className="h-8 w-44 rounded-md border border-border bg-surface-muted" />
             </div>
           </div>
-          <aside className="hidden min-h-0 rounded-md border border-border bg-surface p-4 xl:block">
+          <aside className="hidden min-h-0 border-l border-border bg-surface p-4 xl:block">
             <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
               <div className="space-y-2">
                 <div className="h-3 w-20 rounded bg-foreground/10" />
