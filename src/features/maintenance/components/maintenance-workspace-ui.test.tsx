@@ -531,6 +531,8 @@ describe("maintenance board accessible alternative", () => {
     await user.keyboard("{Enter}");
 
     const table = screen.getByRole("table", { name: "Work order list" });
+    const tableSurface = table.closest('[data-maintenance-surface="board-list"]')!;
+    expect(tableSurface.className).toBe("overflow-x-auto");
     expect(within(table).getByText("Pending")).not.toBeNull();
     expect(within(table).getByText("High")).not.toBeNull();
     expect(within(table).getByText("Pich")).not.toBeNull();

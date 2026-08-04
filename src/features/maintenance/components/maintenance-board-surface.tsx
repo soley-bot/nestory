@@ -215,7 +215,7 @@ function BoardListSurface({
 }) {
   return (
     <div
-      className="overflow-x-auto rounded-md border border-border bg-surface"
+      className="overflow-x-auto"
       data-maintenance-surface="board-list"
     >
       <table

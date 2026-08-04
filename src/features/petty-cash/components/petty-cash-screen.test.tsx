@@ -47,6 +47,11 @@ describe("PettyCashScreen finance workspace contract", () => {
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    const registerSurface = table.closest('[data-petty-cash-surface="register"]')!;
+    expect(registerSurface.className).toContain("overflow-hidden");
+    expect(registerSurface.className).not.toMatch(
+      /rounded-(?:md|lg)|border(?:\s|$)|bg-surface/,
+    );
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(within(rows[0]!).getByRole("link", { name: "HOME" }).getAttribute("href")).toBe(
@@ -57,7 +62,13 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(within(rows[1]!).getByText("Posted")).not.toBeNull();
     expect(container.querySelectorAll("[data-money-cell='true']").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Preview Cleaning" }));
-    expect(screen.getByRole("dialog", { name: "Cleaning cash quick view" })).not.toBeNull();
+    const quickView = screen.getByRole("dialog", {
+      name: "Cleaning cash quick view",
+    });
+    const quickViewBody = quickView.querySelector('[data-slot="cash-quick-view-body"]')!;
+    expect(quickViewBody.className).not.toMatch(
+      /rounded-(?:md|lg)|border(?:\s|$)|bg-surface/,
+    );
     expect(screen.queryByText(/select a row/i)).toBeNull();
   });
 

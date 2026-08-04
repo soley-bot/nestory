@@ -464,7 +464,7 @@ function PettyCashTable({
   selectedEntryId: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-surface">
+    <div className="overflow-hidden" data-petty-cash-surface="register">
       <div className="max-h-[min(620px,calc(100vh-310px))] overflow-auto">
         <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
@@ -626,7 +626,7 @@ function PettyCashInspector({
 }) {
   if (!entry) {
     return (
-      <aside className="rounded-md border border-border bg-surface p-4">
+      <aside className="p-4" data-slot="cash-quick-view-body">
         <h2 className="text-sm font-semibold">Petty cash row</h2>
       </aside>
     );
@@ -647,7 +647,7 @@ function PettyCashInspector({
     period.status !== "closed";
 
   return (
-    <aside className="min-h-0 overflow-hidden rounded-md border border-border bg-surface">
+    <aside className="min-h-0 overflow-hidden" data-slot="cash-quick-view-body">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
