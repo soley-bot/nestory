@@ -64,15 +64,27 @@ describe("minimal Reports workspace", () => {
   });
 
   it("keeps totals and rows while removing report-builder clutter", () => {
-    renderReport();
+    const { container } = renderReport();
 
     const totals = screen.getByRole("region", { name: "Report totals" });
     expect(within(totals).getByText("USD 500.00")).toBeTruthy();
     expect(within(totals).getByText("USD 380.00")).toBeTruthy();
+    expect(totals.className).toContain("border-y");
+    expect(totals.className).not.toMatch(
+      /(?:^|\s)(?:rounded-md|rounded-lg|border)(?:\s|$)/,
+    );
 
     const table = screen.getByRole("table", {
       name: "Monthly Unit Profit & Loss",
     });
+    const tableFrame = container.querySelector<HTMLElement>(
+      '[data-slot="report-table-frame"]',
+    );
+    expect(tableFrame).not.toBeNull();
+    expect(tableFrame?.className).not.toMatch(
+      /(?:^|\s)(?:rounded-md|rounded-lg|border)(?:\s|$)/,
+    );
+    expect(tableFrame?.querySelector("th")?.className).toContain("border-b");
     expect(within(table).getByText("P1 - Property One")).toBeTruthy();
     expect(within(table).getByText("Unit A1")).toBeTruthy();
     expect(

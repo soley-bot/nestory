@@ -81,7 +81,7 @@ export function ReportBuilderScreen({
         {visibleSummary.length > 0 && !trustedReport.scopeValidation ? (
           <section
             aria-label="Report totals"
-            className="overflow-hidden rounded-md border border-border bg-surface"
+            className="overflow-hidden border-y border-border bg-surface"
             role="region"
           >
             <dl className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
@@ -99,7 +99,10 @@ export function ReportBuilderScreen({
           </section>
         ) : null}
 
-        <section className="overflow-hidden rounded-md border border-border bg-surface">
+        <section
+          className="overflow-hidden bg-surface"
+          data-slot="report-table-frame"
+        >
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2.5">
             <div>
               <h2 className="text-sm font-semibold text-foreground">

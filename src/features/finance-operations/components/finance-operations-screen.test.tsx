@@ -184,6 +184,29 @@ describe("FinanceOperationsScreen", () => {
     );
     expect(screen.getByText("Partly paid")).not.toBeNull();
   });
+
+  it("keeps the dominant finance table unframed while retaining row separators", () => {
+    const { container } = render(
+      <FinanceOperationsScreen
+        {...data()}
+        organizationName="Sokha Property Services"
+        view="balances"
+      />,
+    );
+
+    const tableFrame = container.querySelector<HTMLElement>(
+      '[data-slot="finance-table-frame"]',
+    );
+
+    expect(tableFrame).not.toBeNull();
+    expect(tableFrame?.className).not.toMatch(
+      /(?:^|\s)(?:rounded-md|rounded-lg|border)(?:\s|$)/,
+    );
+    expect(within(tableFrame!).getByRole("table")).not.toBeNull();
+    expect(
+      within(tableFrame!).getByRole("row", { name: /Riverside Home/ }).className,
+    ).toContain("border-b");
+  });
 });
 
 function data(): FinanceOperationsData {
