@@ -55,13 +55,13 @@ describe("UsersRolesPage", () => {
     );
   });
 
-  it("renders one Workspace Access heading with settings navigation in the same header", async () => {
+  it("renders one Settings heading with access navigation in the same header", async () => {
     const html = renderToStaticMarkup(
       await UsersRolesPage({ searchParams: Promise.resolve({}) }),
     );
 
     expect(html.match(/<h1/g)).toHaveLength(1);
-    expect(html).toContain("Workspace Access</h1>");
+    expect(html).toContain("Settings</h1>");
     expect(html).toMatch(
       /<header[^>]*>[\s\S]*aria-label="Settings sections"[\s\S]*<\/header>/,
     );

@@ -59,7 +59,7 @@ export default async function UsersRolesPage({
       header={
         <PageHeader
           navigation={<SettingsTabs activeHref="/users-roles" />}
-          title="Workspace Access"
+          title="Settings"
         />
       }
       inviteDefaults={inviteDefaults}
