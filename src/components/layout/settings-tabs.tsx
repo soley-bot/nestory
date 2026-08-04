@@ -26,7 +26,7 @@ export function SettingsTabs({ activeHref }: { activeHref: string }) {
             <Link
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex h-8 shrink-0 items-center rounded-md px-3 text-[13px] font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
+                "flex h-8 shrink-0 items-center rounded-md px-3 text-[13px] font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
                 active && "bg-accent-soft text-foreground",
               )}
               href={tab.href}

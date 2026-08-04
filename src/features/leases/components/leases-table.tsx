@@ -26,7 +26,7 @@ export function LeasesTable({
     <div className="h-full min-h-0">
       <div className="h-full min-h-[380px] space-y-3 overflow-auto pr-1 md:hidden">
         {leases.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted">
+          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
             {getEmptyMessage(archiveState)}
           </p>
         ) : null}
@@ -55,7 +55,7 @@ export function LeasesTable({
               <col className="w-[19%]" />
               <col className="w-[14%]" />
             </colgroup>
-            <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
+            <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
               <tr>
                 <th className="px-2.5 py-2.5 font-semibold">Tenant</th>
                 <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
@@ -68,7 +68,7 @@ export function LeasesTable({
             <tbody>
               {leases.length === 0 ? (
                 <tr className="border-t border-border">
-                  <td className="px-4 py-8 text-center text-muted" colSpan={6}>
+                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
                     {getEmptyMessage(archiveState)}
                   </td>
                 </tr>
@@ -80,7 +80,7 @@ export function LeasesTable({
                     "cursor-pointer border-t border-border outline-none transition-colors hover:bg-surface-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring",
                     selectedLeaseId === lease.id &&
                       "bg-state-selected shadow-[inset_3px_0_0_var(--record-spine)]",
-                    lease.isArchived && "text-muted",
+                    lease.isArchived && "text-muted-foreground",
                   )}
                   key={lease.id}
                   onClick={() => onSelectLease(lease.id)}
@@ -103,7 +103,7 @@ export function LeasesTable({
                     >
                       {lease.tenantName}
                     </RecordLink>
-                    <p className="mt-0.5 truncate text-xs text-muted" title={lease.partySummary}>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground" title={lease.partySummary}>
                       {lease.partySummary}
                     </p>
                   </td>
@@ -112,14 +112,14 @@ export function LeasesTable({
                   </td>
                   <td className="px-1.5 py-2 align-middle tabular-nums">
                     <p className="truncate font-medium">{lease.startDateLabel}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted">{lease.endDateLabel}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{lease.endDateLabel}</p>
                   </td>
                   <td className="px-1.5 py-2 text-right align-middle">
                     <TableMoneyDisplay value={lease.rentDisplay} />
                   </td>
                   <td className="px-1.5 py-2 align-middle">
                     <p className="truncate font-medium">{formatLedgerCount(lease)}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted">{getDepositStatus(lease)}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{getDepositStatus(lease)}</p>
                   </td>
                   <td className="px-1.5 py-2 align-middle">
                     <div className="flex min-w-0 flex-wrap items-center gap-1">
@@ -130,7 +130,7 @@ export function LeasesTable({
                         <Badge className="px-2 text-xs" tone="warning">Archived</Badge>
                       ) : null}
                     </div>
-                    <p className="mt-1 truncate text-xs text-muted" title={lease.nextAction.description}>
+                    <p className="mt-1 truncate text-xs text-muted-foreground" title={lease.nextAction.description}>
                       {lease.nextAction.label}
                     </p>
                   </td>
@@ -164,7 +164,7 @@ function RecordContextLinks({ lease }: { lease: LeaseSummary }) {
         <span className="block truncate font-medium">{lease.unitLabel}</span>
       )}
       <Link
-        className="mt-0.5 block truncate rounded-sm text-xs text-muted outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="mt-0.5 block truncate rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
         href={`/properties/${lease.propertyId}`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
@@ -192,7 +192,7 @@ function LeaseCard({
       className={cn(
         "min-w-0 rounded-md border border-border bg-surface p-3 text-sm transition-colors hover:border-record-spine",
         selected && "border-record-spine bg-state-selected",
-        lease.isArchived && "text-muted",
+        lease.isArchived && "text-muted-foreground",
       )}
       data-selected={selected ? "true" : "false"}
     >
@@ -208,7 +208,7 @@ function LeaseCard({
           <p className="mt-1 truncate text-xs font-medium" title={lease.unitLabel}>
             {lease.unitLabel}
           </p>
-          <p className="mt-0.5 truncate text-xs text-muted">{lease.propertyName}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{lease.propertyName}</p>
         </div>
         <Badge tone={lease.statusTone}>{lease.statusLabel}</Badge>
       </div>
@@ -250,7 +250,7 @@ function LeaseCardDetail({
 }) {
   return (
     <div className={align === "right" ? "min-w-0 text-right" : "min-w-0"}>
-      <dt className="text-[11px] font-medium uppercase text-muted">{label}</dt>
+      <dt className="text-[11px] font-medium uppercase text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 break-words font-medium">{children ?? value}</dd>
     </div>
   );

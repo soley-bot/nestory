@@ -31,7 +31,7 @@ export function RecentChangesPopover({
           aria-haspopup="dialog"
           aria-label="Recent changes"
           className={cn(
-            "relative inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-muted shadow-sm transition-colors hover:bg-surface-muted hover:text-foreground",
+            "relative inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-muted-foreground shadow-sm transition-colors hover:bg-surface-muted hover:text-foreground",
             open && "bg-surface-muted text-foreground",
           )}
           onClick={() => setOpen((current) => !current)}
@@ -64,7 +64,7 @@ export function RecentChangesPopover({
           <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
             <div className="min-w-0">
               <p className="text-[13px] font-semibold">Recent changes</p>
-              <p className="mt-0.5 text-xs text-muted">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 Latest activity across records
               </p>
             </div>
@@ -72,7 +72,7 @@ export function RecentChangesPopover({
           </div>
 
           {changes.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-muted">
+            <p className="px-3 py-4 text-sm text-muted-foreground">
               No timeline or ledger changes have been logged yet.
             </p>
           ) : (
@@ -93,7 +93,7 @@ export function RecentChangesPopover({
                         <span className="block line-clamp-2 text-sm font-medium text-foreground">
                           {change.recordLabel}
                         </span>
-                        <span className="mt-1 block text-xs text-muted">
+                        <span className="mt-1 block text-xs text-muted-foreground">
                           {change.entityLabel} - {formatDate(change.createdAt)}
                         </span>
                       </span>
@@ -105,7 +105,7 @@ export function RecentChangesPopover({
                 </li>
               ))}
               {hiddenChangeCount > 0 ? (
-                <li className="px-3 py-2.5 text-xs text-muted">
+                <li className="px-3 py-2.5 text-xs text-muted-foreground">
                   {hiddenChangeCount} older changes hidden.
                 </li>
               ) : null}

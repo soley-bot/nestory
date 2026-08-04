@@ -85,7 +85,7 @@ export function TimelineInspector({
               href={event.hrefs.property}
             >
               <span className="min-w-0 truncate">{event.propertyName}</span>
-              <span className="shrink-0 text-xs text-muted">{event.propertyCode}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{event.propertyCode}</span>
             </Link>
             {event.hrefs.unit && event.unitNumber ? (
               <Link
@@ -125,7 +125,7 @@ export function TimelineInspector({
                     key={`${source.entityType}:${source.entityId}`}
                   >
                     <span className="min-w-0">
-                      <span className="block text-xs font-medium text-muted">
+                      <span className="block text-xs font-medium text-muted-foreground">
                         {source.moduleLabel}
                       </span>
                       <span className="block truncate font-medium">
@@ -145,13 +145,13 @@ export function TimelineInspector({
                     key={`${source.entityType}:unavailable`}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-medium text-muted">
+                      <span className="text-xs font-medium text-muted-foreground">
                         {source.moduleLabel}
                       </span>
                       <Badge tone="neutral">Unavailable</Badge>
                     </div>
                     <p className="mt-1 font-medium">{source.label}</p>
-                    <p className="mt-1 text-xs text-muted">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Source record is unavailable or you no longer have access.
                     </p>
                   </div>
@@ -272,7 +272,7 @@ function CompactFact({
 }) {
   return (
     <div className="min-w-0 rounded-md border border-border px-3 py-2.5">
-      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-1.5 font-medium">{children}</div>

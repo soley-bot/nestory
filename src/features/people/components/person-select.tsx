@@ -178,7 +178,7 @@ export function PersonSelect({
       <div className="relative">
         <Search
           aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           size={15}
         />
         <input
@@ -193,7 +193,7 @@ export function PersonSelect({
           aria-labelledby={ariaLabelledBy}
           aria-required={ariaRequired}
           className={cn(
-            "h-9 w-full rounded-md border border-control-border bg-surface pl-9 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
+            "h-9 w-full rounded-md border border-control-border bg-surface pl-9 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus:border-accent focus:ring-2 focus:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
             allowClear && selectedOption ? "pr-16" : "pr-9",
           )}
           disabled={disabled}
@@ -210,13 +210,13 @@ export function PersonSelect({
         />
         <ChevronsUpDown
           aria-hidden="true"
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted"
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           size={15}
         />
         {allowClear && selectedOption ? (
           <button
             aria-label={`Clear ${context ?? "selected person"}`}
-            className="absolute right-8 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded text-muted transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="absolute right-8 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
             onClick={() => choose("")}
             type="button"
           >
@@ -248,7 +248,7 @@ export function PersonSelect({
           role="listbox"
         >
           {visibleOptions.length === 0 ? (
-            <p className="px-3 py-3 text-sm text-muted">No matching people.</p>
+            <p className="px-3 py-3 text-sm text-muted-foreground">No matching people.</p>
           ) : (
             visibleOptions.map((option, index) => (
               <button
@@ -268,7 +268,7 @@ export function PersonSelect({
                   <span className="block truncate text-sm font-medium text-foreground">
                     {option.label}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs text-muted">
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                     {option.description}
                   </span>
                 </span>

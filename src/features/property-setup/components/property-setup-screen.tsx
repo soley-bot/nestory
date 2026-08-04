@@ -138,7 +138,7 @@ export function PropertySetupScreen({
 
           <main className="min-w-0 rounded-lg border border-border bg-surface shadow-sm">
             <header className="border-b border-border px-4 py-4 sm:px-5">
-              <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted">
+              <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 {steps[step - 1]?.label}
               </p>
               <h2 className="mt-1 text-lg font-semibold text-foreground">
@@ -290,7 +290,7 @@ function SetupRail({
                     ? "bg-accent-soft text-foreground"
                     : available
                       ? "text-foreground-muted hover:bg-surface-muted"
-                      : "cursor-not-allowed text-muted/60",
+                      : "cursor-not-allowed text-muted-foreground/60",
                 )}
                 disabled={!available}
                 onClick={() => onStepChange(item.step)}
@@ -379,7 +379,7 @@ function SelectRecordStep({
         />
       </label>
       {options.length === 0 ? (
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
           {emptyCopy}
         </p>
       ) : null}
@@ -440,7 +440,7 @@ function TenantLeaseStep({
             value={selection.leaseId ?? ""}
           />
         ) : (
-          <p className="text-sm text-muted">Choose or create the tenant first.</p>
+          <p className="text-sm text-muted-foreground">Choose or create the tenant first.</p>
         )}
         {openLeaseForUnit ? (
           <div className="rounded-md border border-warning/30 bg-warning-soft/30 p-3 text-sm">
@@ -524,7 +524,7 @@ function SummaryLink({ href, label, value }: { href: string; label: string; valu
       className="rounded-md border border-border bg-surface-muted/45 px-3 py-2.5 transition-colors hover:bg-surface-muted"
       href={href}
     >
-      <span className="block text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
+      <span className="block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </span>
       <span className="mt-1 block truncate text-sm font-semibold text-foreground">

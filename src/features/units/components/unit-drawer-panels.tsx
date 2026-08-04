@@ -41,7 +41,7 @@ export function ArchiveUnitPanel({ onClose, onSuccess, unit }: UnitPanelProps) {
           <p className="text-sm font-semibold">Archive confirmation</p>
         </div>
         <UnitPanelSummary unit={unit} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
           This removes the unit from normal active views while keeping its
           timeline, ledger, lease, and document history available for audit.
         </p>
@@ -80,7 +80,7 @@ export function RestoreUnitPanel({ onClose, onSuccess, unit }: UnitPanelProps) {
           <p className="text-sm font-semibold">Restore confirmation</p>
         </div>
         <UnitPanelSummary unit={unit} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
           Restoring makes this unit visible in normal operational views again.
         </p>
         <PanelMessage state={state} />
@@ -100,10 +100,10 @@ function UnitPanelSummary({ unit }: { unit: UnitDetail | UnitSummary }) {
   return (
     <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
       <p className="text-sm font-medium">Unit {unit.unitNumber}</p>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 text-sm text-muted-foreground">
         {unit.propertyCode} / {unit.propertyName}
       </p>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 text-sm text-muted-foreground">
         {unit.statusLabel} / {unit.rentLabel}
       </p>
     </div>

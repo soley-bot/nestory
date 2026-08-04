@@ -45,7 +45,7 @@ export function ArchivePersonPanel({
           <p className="text-sm font-semibold">Archive confirmation</p>
         </div>
         <PersonPanelSummary person={person} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
           Open Lease roles must be ended or cancelled through a checked
           relationship transition first. Archiving preserves linked ownership,
           vendor, document, and activity history.
@@ -89,7 +89,7 @@ export function RestorePersonPanel({
           <p className="text-sm font-semibold">Restore confirmation</p>
         </div>
         <PersonPanelSummary person={person} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
           Restoring makes this person visible in normal operational views again.
         </p>
         <PanelMessage state={state} />
@@ -109,10 +109,10 @@ function PersonPanelSummary({ person }: { person: PeopleSummary }) {
   return (
     <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
       <p className="text-sm font-medium">{person.displayName}</p>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 text-sm text-muted-foreground">
         {person.partyTypeLabel} / {person.roleLabel}
       </p>
-      <p className="mt-1 text-sm text-muted">{person.contact.label}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{person.contact.label}</p>
     </div>
   );
 }

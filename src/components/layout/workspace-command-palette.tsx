@@ -521,9 +521,9 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                               <div
                                 aria-selected={isActive}
                                 className={cn(
-                                  "record-spine flex min-h-12 cursor-default items-center gap-3 rounded-lg border-l-2 border-transparent px-2.5 py-2 text-sm text-foreground-muted outline-none transition-colors",
+                                  "record-spine flex min-h-12 cursor-default items-center gap-3 rounded-lg border-l-2 border-transparent px-2.5 py-2 text-sm text-foreground outline-none transition-colors hover:bg-accent/50",
                                   isActive &&
-                                    "border-accent bg-surface-muted text-foreground",
+                                    "border-foreground/25 bg-accent text-accent-foreground",
                                 )}
                                 id={optionId}
                                 key={`${result.kind}:${result.id}`}
@@ -533,8 +533,8 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                               >
                                 <span
                                   className={cn(
-                                    "grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-surface text-foreground-subtle",
-                                    isActive && "text-accent",
+                                    "grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-background text-muted-foreground",
+                                    isActive && "border-foreground/15 text-foreground",
                                   )}
                                 >
                                   <ResultIcon aria-hidden="true" size={15} />
@@ -543,7 +543,12 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                                   <span className="block truncate font-medium text-foreground">
                                     {result.label}
                                   </span>
-                                  <span className="mt-0.5 block truncate text-xs text-muted">
+                                  <span
+                                    className={cn(
+                                      "mt-0.5 block truncate text-xs text-muted-foreground",
+                                      isActive && "text-foreground/70",
+                                    )}
+                                  >
                                     {presentation.label}
                                     {result.kind !== "action" && result.meta
                                       ? ` · ${result.meta}`
@@ -553,7 +558,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                                 {isActive ? (
                                   <kbd
                                     aria-hidden="true"
-                                    className="hidden shrink-0 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] font-medium text-foreground-subtle sm:inline"
+                                    className="hidden shrink-0 rounded border border-foreground/15 bg-background px-1.5 py-0.5 text-[10px] font-medium text-foreground sm:inline"
                                   >
                                     Enter
                                   </kbd>

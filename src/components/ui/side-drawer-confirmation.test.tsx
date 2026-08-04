@@ -58,7 +58,7 @@ describe("side drawer dismissal confirmation", () => {
     await user.click(closeButton);
 
     const confirmation = screen.getByRole("alertdialog", {
-      name: "Unsaved changes",
+      name: "Discard unsaved changes?",
     });
     expect(drawer.contains(confirmation)).toBe(false);
     expect(within(confirmation).getByText("Discard unsaved changes?")).not.toBeNull();
@@ -70,7 +70,9 @@ describe("side drawer dismissal confirmation", () => {
       within(confirmation).getByRole("button", { name: "Keep editing" }),
     );
 
-    expect(screen.queryByRole("alertdialog", { name: "Unsaved changes" })).toBeNull();
+    expect(
+      screen.queryByRole("alertdialog", { name: "Discard unsaved changes?" }),
+    ).toBeNull();
     expect(screen.getByRole("dialog", { name: "Edit property" })).not.toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(closeButton));
   });
@@ -83,10 +85,12 @@ describe("side drawer dismissal confirmation", () => {
     await user.click(screen.getByRole("button", { name: "Discard changes" }));
 
     expect(screen.getByText("Drawer closed")).not.toBeNull();
-    expect(screen.queryByRole("alertdialog", { name: "Unsaved changes" })).toBeNull();
+    expect(
+      screen.queryByRole("alertdialog", { name: "Discard unsaved changes?" }),
+    ).toBeNull();
   });
 
-  it("treats backdrop and Escape as keep editing while the modal is open", async () => {
+  it("keeps the destructive dialog open on backdrop click and cancels on Escape", async () => {
     const user = userEvent.setup();
     render(<DrawerHarness />);
 
@@ -94,20 +98,30 @@ describe("side drawer dismissal confirmation", () => {
     await user.click(closeButton);
 
     const firstConfirmation = screen.getByRole("alertdialog", {
-      name: "Unsaved changes",
+      name: "Discard unsaved changes?",
     });
-    const confirmationBackdrop = firstConfirmation.parentElement?.querySelector<HTMLButtonElement>(
-      "button[aria-hidden='true']",
+    const confirmationBackdrop = document.querySelector<HTMLElement>(
+      '[data-slot="alert-dialog-overlay"]',
     );
     expect(confirmationBackdrop).not.toBeNull();
     await user.click(confirmationBackdrop!);
-    expect(screen.queryByRole("alertdialog", { name: "Unsaved changes" })).toBeNull();
+    expect(
+      screen.getByRole("alertdialog", { name: "Discard unsaved changes?" }),
+    ).not.toBeNull();
+
+    await user.click(
+      within(firstConfirmation).getByRole("button", { name: "Keep editing" }),
+    );
 
     await user.click(closeButton);
-    expect(screen.getByRole("alertdialog", { name: "Unsaved changes" })).not.toBeNull();
+    expect(
+      screen.getByRole("alertdialog", { name: "Discard unsaved changes?" }),
+    ).not.toBeNull();
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("alertdialog", { name: "Unsaved changes" })).toBeNull();
+    expect(
+      screen.queryByRole("alertdialog", { name: "Discard unsaved changes?" }),
+    ).toBeNull();
     expect(screen.getByRole("dialog", { name: "Edit property" })).not.toBeNull();
   });
 
@@ -118,7 +132,7 @@ describe("side drawer dismissal confirmation", () => {
     await user.click(screen.getByRole("button", { name: "Close drawer" }));
 
     const confirmation = screen.getByRole("alertdialog", {
-      name: "Save in progress",
+      name: "Saving is still in progress",
     });
     expect(within(confirmation).getByText("Saving is still in progress")).not.toBeNull();
     expect(
@@ -129,7 +143,9 @@ describe("side drawer dismissal confirmation", () => {
       within(confirmation).getByRole("button", { name: "Continue waiting" }),
     );
 
-    expect(screen.queryByRole("alertdialog", { name: "Save in progress" })).toBeNull();
+    expect(
+      screen.queryByRole("alertdialog", { name: "Saving is still in progress" }),
+    ).toBeNull();
     expect(screen.getByRole("dialog", { name: "Edit property" })).not.toBeNull();
   });
 });

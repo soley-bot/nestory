@@ -120,13 +120,13 @@ export function MaintenanceReminderNotifications({
                   activeReminders.length === 1 ? "" : "s"
                 } scheduled`}
           </p>
-          <p className="mt-0.5 truncate text-[12px] text-muted">
+          <p className="mt-0.5 truncate text-[12px] text-muted-foreground">
             {activeReminders[0]?.title}
           </p>
         </div>
         <button
           aria-label="Dismiss reminders"
-          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
           onClick={() => setDismissedKey(activeReminderKey)}
           title="Dismiss reminders"
           type="button"
@@ -150,7 +150,7 @@ export function MaintenanceReminderNotifications({
           </span>
         ) : null}
         {permission === "denied" || permission === "unsupported" ? (
-          <span className="inline-flex h-8 items-center rounded-md border border-border bg-surface-muted px-2.5 text-[12px] font-medium text-muted">
+          <span className="inline-flex h-8 items-center rounded-md border border-border bg-surface-muted px-2.5 text-[12px] font-medium text-muted-foreground">
             Browser alerts off
           </span>
         ) : null}

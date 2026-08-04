@@ -93,7 +93,7 @@ export function UnitDetailView({
                     Unit context
                   </h2>
                 </div>
-                <p className="mt-1 break-words text-sm text-muted">
+                <p className="mt-1 break-words text-sm text-muted-foreground">
                   Floor {unit.floorLabel} / {unit.sizeLabel}
                 </p>
               </div>
@@ -168,7 +168,7 @@ export function UnitDetailView({
                         {getHealthToneLabel(indicator.tone)}
                       </Badge>
                     </div>
-                    <p className="mt-1 text-xs leading-5 text-muted">
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {indicator.description}
                     </p>
                   </div>
@@ -262,12 +262,12 @@ export function UnitDetailView({
                 </dl>
                 <div className="rounded-md border border-border bg-surface-muted/60 p-3">
                   <div className="flex items-center gap-2">
-                    <UserRound className="text-muted" size={15} />
+                    <UserRound className="text-muted-foreground" size={15} />
                     <p className="text-sm font-semibold">People links</p>
                   </div>
                   <div className="mt-3 space-y-2">
                     {unit.tenantLinks.length === 0 ? (
-                      <p className="text-sm leading-6 text-muted">
+                      <p className="text-sm leading-6 text-muted-foreground">
                         This lease has a tenant name, but no active People record is linked.
                       </p>
                     ) : (
@@ -280,7 +280,7 @@ export function UnitDetailView({
                           <span className="block break-words font-medium">
                             {person.displayName}
                           </span>
-                          <span className="mt-1 block break-words text-xs text-muted">
+                          <span className="mt-1 block break-words text-xs text-muted-foreground">
                             {person.roleLabel} / {person.contactLabel}
                           </span>
                         </Link>
@@ -291,7 +291,7 @@ export function UnitDetailView({
               </div>
             ) : (
               <div className="p-4">
-                <p className="text-sm leading-6 text-muted">
+                <p className="text-sm leading-6 text-muted-foreground">
                   No active lease is linked to this unit. Create a lease to close the
                   occupancy record and connect a tenant.
                 </p>
@@ -439,7 +439,7 @@ export function UnitDetailView({
               title="Recent activity"
             />
             {unit.activity.length === 0 ? (
-              <p className="px-4 py-5 text-sm leading-6 text-muted">
+              <p className="px-4 py-5 text-sm leading-6 text-muted-foreground">
                 No unit profile activity has been recorded yet.
               </p>
             ) : (
@@ -475,7 +475,7 @@ function UnitRecordNav({
           <Link
             aria-selected={activeSection === item.id}
             className={cn(
-              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground",
               activeSection === item.id && "bg-accent-soft text-foreground",
             )}
             href={buildUnitRecordHref({
@@ -521,7 +521,7 @@ function UnitReportsPanel({
             <span className="block text-sm font-semibold">
               {reportCatalog[0].title}
             </span>
-            <span className="mt-1 block text-[13px] leading-5 text-muted">
+            <span className="mt-1 block text-[13px] leading-5 text-muted-foreground">
               {reportCatalog[0].description}
             </span>
           </span>
@@ -585,7 +585,7 @@ function Detail({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {children}
         {label}
       </dt>
@@ -623,11 +623,11 @@ function Metric({
 }) {
   return (
     <div className="min-w-0 rounded-md border border-border bg-surface-muted/60 px-3 py-3">
-      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-2">{value}</div>
-      {note ? <p className="mt-2 text-xs text-muted">{note}</p> : null}
+      {note ? <p className="mt-2 text-xs text-muted-foreground">{note}</p> : null}
     </div>
   );
 }
@@ -635,7 +635,7 @@ function Metric({
 function CountDetail({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-md border border-border bg-surface-muted px-3 py-2 text-center">
-      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-1 text-base font-semibold">{value}</dd>
@@ -655,10 +655,10 @@ function SectionTitle({
   return (
     <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-2">
-        <span className="text-muted">{icon}</span>
+        <span className="text-muted-foreground">{icon}</span>
         <h2 className="text-sm font-semibold">{title}</h2>
       </div>
-      <p className="text-xs text-muted">{description}</p>
+      <p className="text-xs text-muted-foreground">{description}</p>
     </div>
   );
 }
@@ -674,7 +674,7 @@ function EmptyRow({
 }) {
   return (
     <div className="flex flex-col gap-3 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-muted">{label}</p>
+      <p className="text-muted-foreground">{label}</p>
       <ActionLink href={actionHref} icon={<FileText size={14} />}>
         {actionLabel}
       </ActionLink>
@@ -694,7 +694,7 @@ function TimelineRow({ event }: { event: UnitTimelineContext }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="break-words font-medium">{event.title}</p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             {formatUnitTimelineContext(event)}
           </p>
         </div>
@@ -719,7 +719,7 @@ function LedgerRow({ entry }: { entry: UnitLedgerContext }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="break-words font-medium">{entry.category}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarDays size={13} />
             <span>{formatDate(entry.transactionDate)}</span>
             <Badge tone={entry.direction === "expense" ? "warning" : "success"}>
@@ -747,7 +747,7 @@ function MaintenanceRow({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="break-words font-medium">{maintenanceCase.title}</p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             {maintenanceCase.category} / {maintenanceCase.dueLabel}
           </p>
         </div>
@@ -756,7 +756,7 @@ function MaintenanceRow({
             {maintenanceCase.statusLabel}
           </Badge>
           <Badge tone="neutral">{maintenanceCase.priorityLabel}</Badge>
-          <span className="text-xs font-medium text-muted">
+          <span className="text-xs font-medium text-muted-foreground">
             {maintenanceCase.actualCostLabel}
           </span>
         </div>
@@ -770,12 +770,12 @@ function DocumentRow({ document }: { document: UnitDocumentContext }) {
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="break-words font-medium">{document.fileName}</p>
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-muted-foreground">
           {document.category} / {document.linkedRecordLabel} /{" "}
           {formatDate(document.uploadedAt)}
         </p>
       </div>
-      <FileText className="shrink-0 text-muted" size={15} />
+      <FileText className="shrink-0 text-muted-foreground" size={15} />
     </div>
   );
 
@@ -811,7 +811,7 @@ function ActivityRow({ change }: { change: RecentChange }) {
   const content = (
     <>
       <p className="break-words font-medium">{change.actionLabel}</p>
-      <p className="mt-1 text-xs text-muted">
+      <p className="mt-1 text-xs text-muted-foreground">
         {formatDate(change.createdAt)} / {change.recordLabel}
       </p>
     </>

@@ -78,10 +78,10 @@ export function DatePickerField(props: DatePickerFieldProps) {
             )}
             type="button"
           >
-            <span className={value ? "text-foreground" : "text-muted"}>
+            <span className={value ? "text-foreground" : "text-muted-foreground"}>
               {value ? formatDate(value) : "Select date"}
             </span>
-            <CalendarDays className="shrink-0 text-muted" size={16} />
+            <CalendarDays className="shrink-0 text-muted-foreground" size={16} />
           </button>
         </Popover.Trigger>
         <Popover.Portal container={portalContainer ?? undefined}>
@@ -94,7 +94,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
             <div className="flex items-center justify-between gap-2">
               <button
                 aria-label="Previous month"
-                className="flex size-8 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() =>
                   setVisibleMonth((current) => addMonths(current, -1))
                 }
@@ -107,7 +107,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
               </p>
               <button
                 aria-label="Next month"
-                className="flex size-8 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() =>
                   setVisibleMonth((current) => addMonths(current, 1))
                 }
@@ -123,16 +123,16 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 day: "p-0 text-center align-middle",
                 day_button:
                   "flex size-8 items-center justify-center rounded-md text-sm outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
-                disabled: "text-muted opacity-40",
+                disabled: "text-muted-foreground opacity-40",
                 month_caption: "sr-only",
                 month_grid: "mt-3 w-full border-separate border-spacing-1",
                 months: "space-y-0",
-                outside: "text-muted opacity-40",
+                outside: "text-muted-foreground opacity-40",
                 root: "mt-1",
                 selected:
                   "[&>button]:bg-accent [&>button]:text-background [&>button]:hover:bg-accent",
                 today: "[&>button]:border [&>button]:border-accent",
-                weekday: "h-7 text-center text-xs font-medium text-muted",
+                weekday: "h-7 text-center text-xs font-medium text-muted-foreground",
               }}
               fixedWeeks
               hideNavigation
@@ -153,7 +153,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
 
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
               <button
-                className="rounded-md px-2 py-1 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="rounded-md px-2 py-1 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() => {
                   setValue("");
                   setOpen(false);

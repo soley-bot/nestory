@@ -12,7 +12,7 @@ export function DocumentList({
   emptyLabel = "No documents attached yet.",
 }: DocumentListProps) {
   if (documents.length === 0) {
-    return <p className="text-sm text-muted">{emptyLabel}</p>;
+    return <p className="text-sm text-muted-foreground">{emptyLabel}</p>;
   }
 
   return (
@@ -27,20 +27,20 @@ export function DocumentList({
 function DocumentListItem({ document }: { document: LinkedDocument }) {
   const content = (
     <>
-      <span className="mt-0.5 text-muted">
+      <span className="mt-0.5 text-muted-foreground">
         <FileText size={15} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block break-words font-medium sm:truncate">
           {document.fileName}
         </span>
-        <span className="mt-1 block text-xs text-muted">
+        <span className="mt-1 block text-xs text-muted-foreground">
           {document.category} - {formatFileType(document.mimeType)} - {formatFileSize(document.sizeBytes)} -{" "}
           {formatDate(document.uploadedAt)}
         </span>
       </span>
       {document.url ? (
-        <span className="text-muted">
+        <span className="text-muted-foreground">
           <ExternalLink size={14} />
         </span>
       ) : null}

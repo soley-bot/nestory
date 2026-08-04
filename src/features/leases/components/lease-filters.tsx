@@ -216,7 +216,7 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
               <div className="flex justify-end sm:col-span-2 lg:col-span-4">
                 <Link
                   aria-label="Reset lease filters"
-                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                   href={pathname}
                   scroll={false}
                 >

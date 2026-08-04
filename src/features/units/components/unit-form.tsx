@@ -245,7 +245,7 @@ function InlineDocumentField({
 }) {
   return (
     <section className="rounded-md border border-border bg-surface-muted p-3">
-      <p className="text-xs leading-5 text-muted">
+      <p className="text-xs leading-5 text-muted-foreground">
         Optional. Upload a supporting file and it will be linked to this unit.
       </p>
       <input name="documentCategory" type="hidden" value={defaultCategory} />
@@ -265,7 +265,7 @@ function InlineDocumentField({
 
 function ReadOnlyValue({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-9 items-center rounded-md border border-border bg-surface-muted px-3 text-sm text-muted">
+    <div className="flex min-h-9 items-center rounded-md border border-border bg-surface-muted px-3 text-sm text-muted-foreground">
       {children}
     </div>
   );

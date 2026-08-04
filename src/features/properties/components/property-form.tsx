@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { ImageIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import {
   FileDropzoneField,
   PHOTO_FILE_ACCEPT,
@@ -138,7 +137,7 @@ export function PropertyForm({
       />
       <input name="owner" type="hidden" value={defaults.owner ?? ""} />
 
-      <FormSection title="Identity">
+      <FormSection title="Property Information">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_132px]">
           <RecordField
             error={state.fieldErrors?.name?.[0]}
@@ -150,7 +149,6 @@ export function PropertyForm({
               defaultValue={defaults.name}
               maxLength={120}
               name="name"
-              placeholder="Central Residence"
               required
               type="text"
             />
@@ -167,7 +165,6 @@ export function PropertyForm({
               defaultValue={defaults.code}
               maxLength={24}
               name="code"
-              placeholder="CTR"
               required
               type="text"
             />
@@ -185,7 +182,6 @@ export function PropertyForm({
               defaultValue={defaults.propertyType}
               maxLength={80}
               name="propertyType"
-              placeholder="Serviced apartment"
               required
               type="text"
             />
@@ -208,7 +204,7 @@ export function PropertyForm({
         </div>
       </FormSection>
 
-      <FormSection title="Ownership and location">
+      <FormSection title="Property Owner & Location">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
           <RecordField
             label="Property owner"
@@ -235,14 +231,14 @@ export function PropertyForm({
               }
               roles={["owner"]}
             />
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <span>
                 {ownerOptions.length === 0
                   ? "No owner records are available yet."
                   : "Need a different owner?"}
               </span>
               <Link
-                className="font-medium text-accent transition-colors hover:text-accent-hover"
+                className="font-medium text-primary underline-offset-4 transition-colors hover:underline"
                 href="/owners?action=create"
                 prefetch={false}
               >
@@ -273,19 +269,9 @@ export function PropertyForm({
             defaultValue={defaults.address ?? ""}
             maxLength={240}
             name="address"
-            placeholder="Street, district, city"
             type="text"
           />
         </RecordField>
-
-        <ConsequencePanel
-          rows={[
-            { label: "Owner link", value: "Updates ownership reporting" },
-            { label: "History", value: "Existing property history stays linked" },
-          ]}
-          summary="Ownership changes update the current relationship without replacing the property record."
-          title="Linked record effects"
-        />
       </FormSection>
 
       <FormSection title="Photo">
@@ -307,15 +293,15 @@ export function PropertyForm({
 
       <FormSection title="Notes">
         <RecordField
+          className="[&>div]:mt-0 [&>span:first-child]:sr-only"
           error={state.fieldErrors?.notes?.[0]}
-          label="Internal notes"
+          label="Notes"
           name="notes"
         >
           <Textarea
             defaultValue={defaults.notes ?? ""}
             maxLength={800}
             name="notes"
-            placeholder="Internal operating notes"
           />
         </RecordField>
       </FormSection>
@@ -370,16 +356,12 @@ function InlinePropertyPhotoField({
 }) {
   return (
     <section className="rounded-md border border-border bg-surface-muted p-3">
-      <p className="mt-1 text-xs leading-5 text-muted">
-        Optional. Upload a cover or identification image for the Photos tab.
-      </p>
       <FileDropzoneField
         accept={PHOTO_FILE_ACCEPT}
         aria-describedby={ariaDescribedBy}
         aria-invalid={ariaInvalid}
         aria-labelledby={ariaLabelledBy}
         aria-required={ariaRequired}
-        className="mt-3"
         description="JPG, PNG, or WebP up to 10 MB."
         displayFileName={preview?.name}
         key={dropzoneKey}
@@ -420,7 +402,7 @@ function SelectedPropertyPhotoPreview({
         />
         <button
           aria-label="Cancel selected photo"
-          className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md border border-border bg-surface/95 text-muted shadow-sm transition-colors hover:text-foreground"
+          className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md border border-border bg-surface/95 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
           onClick={onClear}
           type="button"
         >
@@ -432,7 +414,7 @@ function SelectedPropertyPhotoPreview({
           <p className="truncate text-sm font-medium" title={preview.name}>
             {preview.name}
           </p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             Preview only. Save the form to upload it.
           </p>
         </div>

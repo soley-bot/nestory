@@ -40,7 +40,7 @@ export function TimelineTable({
             <col className="w-[132px]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
               <th className="px-3 py-2.5 font-semibold">Type</th>
@@ -57,7 +57,7 @@ export function TimelineTable({
                 className={cn(
                   previewRowClassName,
                   selectedEventId === event.id && selectedPreviewRowClassName,
-                  event.archivedAt && "text-muted",
+                  event.archivedAt && "text-muted-foreground",
                 )}
                 key={event.id}
                 onClick={(clickEvent) => {
@@ -75,7 +75,7 @@ export function TimelineTable({
                 }}
                 tabIndex={0}
               >
-                <td className="whitespace-nowrap px-3 py-2 text-muted">
+                <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
                   {formatDate(event.eventDate)}
                 </td>
                 <td className="px-3 py-2">
@@ -92,7 +92,7 @@ export function TimelineTable({
                     </Link>
                     {event.hasAttachment ? (
                       <FileText
-                        className="shrink-0 text-muted"
+                        className="shrink-0 text-muted-foreground"
                         size={15}
                       />
                     ) : null}
@@ -118,7 +118,7 @@ export function TimelineTable({
                     {event.propertyCode}
                   </p>
                   {event.unitNumber ? (
-                    <p className="mt-0.5 truncate text-xs text-muted">
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       Unit {event.unitNumber}
                     </p>
                   ) : null}

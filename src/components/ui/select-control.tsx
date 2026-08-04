@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import * as Select from "@radix-ui/react-select";
-import { Check, ChevronDown } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useDrawerPortalContainer } from "@/components/ui/side-drawer";
 
 const EMPTY_VALUE = "__nestory_empty_value__";
 
@@ -52,7 +57,6 @@ export function SelectControl(props: SelectControlProps) {
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const selectedValue = value ?? uncontrolledValue;
   const previousValueRef = useRef(selectedValue);
-  const portalContainer = useDrawerPortalContainer();
   const hasEmptyOption = options.some((option) => option.value === "");
   const radixValue = toRadixValue(selectedValue, hasEmptyOption);
 
@@ -79,7 +83,7 @@ export function SelectControl(props: SelectControlProps) {
           value={selectedValue}
         />
       ) : null}
-      <Select.Root
+      <Select
         disabled={disabled}
         onValueChange={(nextValue) => {
           const formValue = fromRadixValue(nextValue);
@@ -90,56 +94,39 @@ export function SelectControl(props: SelectControlProps) {
         }}
         value={radixValue}
       >
-        <Select.Trigger
+        <SelectTrigger
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid}
           aria-label={ariaLabel}
           aria-labelledby={ariaLabelledBy}
           aria-required={ariaRequired ?? required}
           className={cn(
-            "flex h-8 w-full min-w-0 items-center justify-between gap-2 overflow-hidden rounded-md border border-control-border bg-surface px-2.5 text-left text-sm shadow-sm outline-none transition-colors data-[placeholder]:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
+            "w-full min-w-0",
             className,
           )}
-          type="button"
         >
-          <span className="min-w-0 flex-1 truncate whitespace-nowrap">
-            <Select.Value placeholder={placeholder} />
-          </span>
-          <Select.Icon asChild>
-            <ChevronDown className="shrink-0 text-muted" size={14} />
-          </Select.Icon>
-        </Select.Trigger>
-        <Select.Portal container={portalContainer ?? undefined}>
-          <Select.Content
-            className="z-[80] max-h-72 min-w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border border-border bg-surface shadow-lg"
-            position="popper"
-            onEscapeKeyDown={(event) => event.stopPropagation()}
-            sideOffset={4}
-          >
-            <Select.Viewport className="p-1">
-              <Select.Group>
-                {options.map((option) => (
-                  <Select.Item
-                    className="relative flex min-h-8 max-w-[min(28rem,calc(100vw-2rem))] cursor-default select-none items-center rounded-md px-2 py-1.5 pr-8 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-surface-muted data-[highlighted]:text-foreground"
-                    disabled={option.disabled}
-                    key={`${option.value}-${option.label}`}
-                    value={toRadixItemValue(option.value)}
-                  >
-                    <Select.ItemText asChild>
-                      <span className="min-w-0 whitespace-normal break-words leading-5">
-                        {option.label}
-                      </span>
-                    </Select.ItemText>
-                    <Select.ItemIndicator className="absolute right-2 inline-flex items-center">
-                      <Check size={14} />
-                    </Select.ItemIndicator>
-                  </Select.Item>
-                ))}
-              </Select.Group>
-            </Select.Viewport>
-          </Select.Content>
-        </Select.Portal>
-      </Select.Root>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent
+          className="z-[80] max-h-72 max-w-[calc(100vw-1rem)]"
+          onEscapeKeyDown={(event) => event.stopPropagation()}
+          position="popper"
+          sideOffset={4}
+        >
+          <SelectGroup>
+            {options.map((option) => (
+              <SelectItem
+                className="max-w-[min(28rem,calc(100vw-2rem))] whitespace-normal"
+                disabled={option.disabled}
+                key={`${option.value}-${option.label}`}
+                value={toRadixItemValue(option.value)}
+              >
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
     </>
   );
 }

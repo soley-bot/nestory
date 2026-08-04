@@ -96,7 +96,7 @@ export function BoardSurface({
 
   if (cases.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted">
+      <div className="rounded-md border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
         {emptyLabel}
       </div>
     );
@@ -332,7 +332,7 @@ function BoardColumn({
       <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
         <div>
           <p className="text-sm font-semibold">{column.title}</p>
-          <p className="text-xs text-muted">{column.detail}</p>
+          <p className="text-xs text-muted-foreground">{column.detail}</p>
         </div>
         <Badge tone={tasks.length > 0 ? "accent" : "neutral"}>
           {tasks.length}
@@ -340,7 +340,7 @@ function BoardColumn({
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
         {tasks.length === 0 ? (
-          <p className="px-1 py-4 text-sm text-muted">No work here.</p>
+          <p className="px-1 py-4 text-sm text-muted-foreground">No work here.</p>
         ) : (
           tasks.map((maintenanceCase) => (
             <DraggableMaintenanceCard
@@ -442,14 +442,14 @@ function MaintenanceCard({
           >
             {maintenanceCase.title}
           </Link>
-          <p className="mt-1 truncate text-xs text-muted">
+          <p className="mt-1 truncate text-xs text-muted-foreground">
             {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
           </p>
         </div>
         {movable ? (
           <button
             aria-label={`Move ${maintenanceCase.title}`}
-            className="inline-flex size-7 shrink-0 touch-none items-center justify-center rounded text-muted outline-none hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring active:cursor-grabbing"
+            className="inline-flex size-7 shrink-0 touch-none items-center justify-center rounded text-muted-foreground outline-none hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring active:cursor-grabbing"
             type="button"
             {...dragAttributes}
             {...dragListeners}
@@ -459,7 +459,7 @@ function MaintenanceCard({
         ) : (
           <GripVertical
             aria-hidden="true"
-            className="mt-0.5 shrink-0 text-muted"
+            className="mt-0.5 shrink-0 text-muted-foreground"
             size={15}
           />
         )}

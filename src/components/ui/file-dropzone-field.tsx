@@ -117,12 +117,12 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
         })}
         type="button"
       >
-        <UploadCloud className="text-muted" size={18} />
-        <span className="mt-2 font-medium text-foreground">
+        <UploadCloud className="text-muted-foreground" size={18} />
+        <span className="mt-2 max-w-full break-all font-medium text-foreground">
           {displayLabel}
         </span>
         {description ? (
-          <span className="mt-1 text-xs leading-5 text-muted">
+          <span className="mt-1 text-xs leading-5 text-muted-foreground">
             {description}
           </span>
         ) : null}

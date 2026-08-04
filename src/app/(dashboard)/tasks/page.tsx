@@ -80,7 +80,7 @@ function UnlinkedMemberTasksState() {
       <main className="px-4 py-4 sm:px-6 lg:px-6">
         <section className="max-w-2xl rounded-md border border-border bg-surface p-5">
           <h2 className="text-base font-semibold">Staff profile link required</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Ask an administrator to link your login to your staff profile before
             assigned maintenance work can appear here.
           </p>

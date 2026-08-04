@@ -337,7 +337,7 @@ function ViewModeButton({
     <button
       aria-pressed={active}
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
         active && "bg-surface text-foreground shadow-sm",
       )}
       onClick={onClick}

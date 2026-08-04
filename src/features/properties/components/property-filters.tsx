@@ -202,7 +202,7 @@ export function PropertyFilters({
                       </h2>
                       {hasAnyFilters ? (
                         <Link
-                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                           href={pathname}
                           scroll={false}
                         >
@@ -330,7 +330,7 @@ export function PropertyFilters({
                     </FilterSection>
                   </div>
 
-                  <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs text-muted">
+                  <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2 text-xs text-muted-foreground">
                     <span>
                       Showing {properties.length}{" "}
                       {properties.length === 1 ? "property" : "properties"} on this
@@ -414,8 +414,8 @@ function ActiveFilterChip({
       type="button"
     >
       <span className="font-semibold">{filter.label}</span>
-      <span className="min-w-0 truncate text-muted">{filter.value}</span>
-      <X aria-hidden="true" className="shrink-0 text-muted" size={12} />
+      <span className="min-w-0 truncate text-muted-foreground">{filter.value}</span>
+      <X aria-hidden="true" className="shrink-0 text-muted-foreground" size={12} />
     </button>
   );
 }
@@ -574,7 +574,7 @@ function ViewModeButton({
     <button
       aria-pressed={active}
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
         active && "bg-surface text-foreground shadow-sm",
       )}
       onClick={onClick}

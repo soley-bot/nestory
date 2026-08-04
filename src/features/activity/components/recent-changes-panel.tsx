@@ -28,7 +28,7 @@ export function RecentChangesPanel({
     <section className="rounded-md border border-border bg-surface">
       <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-2">
-          <History size={16} className="text-muted" />
+          <History size={16} className="text-muted-foreground" />
           <h2 className="text-sm font-semibold tracking-tight">Recent changes</h2>
         </div>
         <div className="flex items-center gap-2">
@@ -46,7 +46,7 @@ export function RecentChangesPanel({
       </div>
 
       {collapsed ? null : changes.length === 0 ? (
-        <p className="px-5 py-4 text-sm text-muted">
+        <p className="px-5 py-4 text-sm text-muted-foreground">
           No timeline or ledger changes have been logged yet.
         </p>
       ) : (
@@ -63,7 +63,7 @@ export function RecentChangesPanel({
                   <span className="block text-sm font-medium text-foreground sm:truncate">
                     {change.recordLabel}
                   </span>
-                  <span className="mt-1 block text-xs text-muted">
+                  <span className="mt-1 block text-xs text-muted-foreground">
                     {change.entityLabel} - {formatDate(change.createdAt)}
                   </span>
                 </span>
@@ -74,7 +74,7 @@ export function RecentChangesPanel({
             </li>
           ))}
           {hiddenChangeCount > 0 ? (
-            <li className="px-5 py-3 text-sm text-muted">
+            <li className="px-5 py-3 text-sm text-muted-foreground">
               {hiddenChangeCount} older changes hidden.
             </li>
           ) : null}

@@ -195,11 +195,21 @@ describe("People route family redesign contract", () => {
     const tableFrame = container.querySelector<HTMLElement>(
       '[data-slot="people-table-frame"]',
     );
+    const listSurface = container.querySelector<HTMLElement>(
+      '[data-slot="people-list-surface"]',
+    );
+    expect(listSurface).not.toBeNull();
+    expect(listSurface?.className).toContain("rounded-lg");
+    expect(listSurface?.className).toContain("border");
+    expect(listSurface?.className).toContain("bg-card");
+    expect(
+      within(listSurface!).getByRole("textbox", { name: "Search people" }),
+    ).not.toBeNull();
     expect(tableFrame).not.toBeNull();
-    expect(tableFrame?.className).not.toContain("rounded-md");
-    expect(tableFrame?.className).not.toContain("border");
+    expect(tableFrame?.className).not.toContain("rounded-lg");
+    expect(tableFrame?.className.split(" ")).not.toContain("border");
     expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
     const rows = within(table).getAllByRole("row").slice(1);
     expect(
       rows.every((row) => row.getAttribute("aria-selected") === null),

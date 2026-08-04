@@ -122,7 +122,7 @@ export function LedgerFilters({ properties, units, viewQuery }: LedgerFiltersPro
             </Button>
             <Link
               aria-label="Reset ledger filters"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
               href={pathname}
               scroll={false}
               title="Reset filters"

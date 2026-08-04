@@ -245,7 +245,7 @@ export function ImportPreviewScreen({
               <p
                 className={
                   availability.ready
-                    ? "mt-1 text-xs text-muted"
+                    ? "mt-1 text-xs text-muted-foreground"
                     : "mt-1 text-xs font-medium text-warning"
                 }
               >
@@ -292,7 +292,7 @@ export function ImportPreviewScreen({
                   {stats.readyCount} ready, {stats.errorCount} need attention
                 </p>
               </div>
-              <p className="text-xs text-muted">
+              <p className="text-xs text-muted-foreground">
                 {stats.totalCount} row{stats.totalCount === 1 ? "" : "s"}
                 {stats.warningCount > 0
                   ? ` · ${stats.warningCount} warning${
@@ -311,11 +311,11 @@ export function ImportPreviewScreen({
                   Column mapping · {mappedFieldCount} matched ·{" "}
                   {missingRequiredMatches} required missing
                 </span>
-                <ChevronDown aria-hidden="true" className="text-muted" size={15} />
+                <ChevronDown aria-hidden="true" className="text-muted-foreground" size={15} />
               </summary>
               <div className="border-t border-border bg-surface-muted/30 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-xs text-muted">
+                  <p className="text-xs text-muted-foreground">
                     Required fields are marked with an asterisk.
                   </p>
                   <Button
@@ -353,7 +353,7 @@ export function ImportPreviewScreen({
                               ? "text-[11px] text-success"
                               : field.required
                                 ? "text-[11px] text-danger"
-                                : "text-[11px] text-muted"
+                                : "text-[11px] text-muted-foreground"
                           }
                         >
                           {mapping[field.key]
@@ -384,7 +384,7 @@ export function ImportPreviewScreen({
               tabIndex={0}
             >
               <table className="w-full min-w-[720px] border-collapse text-left text-[13px]">
-                <thead className="sticky top-0 bg-surface-muted text-[11px] uppercase text-muted">
+                <thead className="sticky top-0 bg-surface-muted text-[11px] uppercase text-muted-foreground">
                   <tr>
                     <th className="border-b border-border px-3 py-2 font-semibold">
                       Row
@@ -425,7 +425,7 @@ export function ImportPreviewScreen({
                     {importState.message}
                   </p>
                 ) : (
-                  <p className="text-xs text-muted">
+                  <p className="text-xs text-muted-foreground">
                     Only ready rows are written. Blocked rows stay in the import
                     run for correction.
                   </p>
@@ -556,10 +556,10 @@ function PreviewRow({ row }: { row: GenericImportPreviewRow }) {
       <td className="border-b border-border px-3 py-2.5">
         <span className="font-medium">{row.primaryLabel || "Not mapped"}</span>
         {row.secondaryLabel ? (
-          <span className="ml-2 text-muted">{row.secondaryLabel}</span>
+          <span className="ml-2 text-muted-foreground">{row.secondaryLabel}</span>
         ) : null}
         {row.amountLabel && row.amountLabel !== "-" ? (
-          <span className="ml-2 tabular-nums text-muted">{row.amountLabel}</span>
+          <span className="ml-2 tabular-nums text-muted-foreground">{row.amountLabel}</span>
         ) : null}
       </td>
       <td className="border-b border-border px-3 py-2.5 font-medium">
@@ -570,13 +570,13 @@ function PreviewRow({ row }: { row: GenericImportPreviewRow }) {
       </td>
       <td className="max-w-[360px] border-b border-border px-3 py-2.5">
         {row.issues.length === 0 ? (
-          <span className="text-muted">None</span>
+          <span className="text-muted-foreground">None</span>
         ) : (
           <ul className="space-y-1">
             {row.issues.map((issue) => (
               <li
                 className={
-                  issue.level === "error" ? "text-danger" : "text-muted"
+                  issue.level === "error" ? "text-danger" : "text-muted-foreground"
                 }
                 key={`${issue.level}-${issue.message}`}
               >
@@ -615,7 +615,7 @@ function AttentionDetails({
             ? ` · ${warningCount} warning${warningCount === 1 ? "" : "s"}`
             : ""}
         </span>
-        <ChevronDown aria-hidden="true" className="text-muted" size={15} />
+        <ChevronDown aria-hidden="true" className="text-muted-foreground" size={15} />
       </summary>
       <div className="border-t border-border p-4">
         {errorRowsHref && fixTemplateHref ? (
@@ -656,7 +656,7 @@ function AttentionDetails({
                 {group.items.map((item, index) => (
                   <li
                     className={
-                      item.level === "error" ? "text-danger" : "text-muted"
+                      item.level === "error" ? "text-danger" : "text-muted-foreground"
                     }
                     key={`${item.level}-${item.message}-${index}`}
                   >
@@ -700,7 +700,7 @@ function PastImports({
     <details className="rounded-md border border-border bg-surface">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring">
         <span>Past imports</span>
-        <span className="inline-flex items-center gap-2 text-xs text-muted">
+        <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
           {runs.length}
           <ChevronDown aria-hidden="true" size={15} />
         </span>
@@ -712,7 +712,7 @@ function PastImports({
         tabIndex={0}
       >
         {runs.length === 0 ? (
-          <p className="px-1 py-2 text-sm text-muted">No imports yet.</p>
+          <p className="px-1 py-2 text-sm text-muted-foreground">No imports yet.</p>
         ) : (
           runs.map((run) => (
             <div
@@ -722,7 +722,7 @@ function PastImports({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{run.fileName}</p>
-                  <p className="mt-0.5 text-xs text-muted">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {formatImportRunDate(run.createdAt)} · {run.importType}
                   </p>
                 </div>
@@ -731,12 +731,12 @@ function PastImports({
                 </Badge>
               </div>
               <div className="mt-1 flex items-center justify-between gap-3">
-                <p className="text-xs text-muted">
+                <p className="text-xs text-muted-foreground">
                   {run.createdCount + run.updatedCount} saved · {run.blockedRows}{" "}
                   blocked
                 </p>
                 {run.status === "staged" && run.readyRows === 0 ? (
-                  <span className="max-w-56 text-right text-xs text-muted">
+                  <span className="max-w-56 text-right text-xs text-muted-foreground">
                     Fix references, then re-upload to create a fresh run.
                   </span>
                 ) : run.status === "staged" || run.status === "committing" ? (

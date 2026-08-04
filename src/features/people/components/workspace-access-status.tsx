@@ -26,7 +26,7 @@ export function WorkspaceAccessStatus({
         <Badge className="max-w-full px-2 text-xs" tone={presentation.tone}>
           <span className="truncate">{presentation.stateLabel}</span>
         </Badge>
-        <span className="min-w-0 truncate text-xs text-muted">
+        <span className="min-w-0 truncate text-xs text-muted-foreground">
           {presentation.detail}
         </span>
       </div>

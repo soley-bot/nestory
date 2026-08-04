@@ -14,9 +14,10 @@ type LocalWorkspaceNavItem = {
 type LocalWorkspaceNavProps = {
   items: readonly LocalWorkspaceNavItem[];
   label: string;
+  className?: string;
 };
 
-export function LocalWorkspaceNav({ items, label }: LocalWorkspaceNavProps) {
+export function LocalWorkspaceNav({ className, items, label }: LocalWorkspaceNavProps) {
   const activeIndex = items.findIndex((item) => item.active);
   const activeItemRef = useRef<HTMLAnchorElement | null>(null);
   const navigationRef = useRef<HTMLElement | null>(null);
@@ -58,7 +59,7 @@ export function LocalWorkspaceNav({ items, label }: LocalWorkspaceNavProps) {
   return (
     <nav
       aria-label={label}
-      className="min-w-0 overflow-x-auto px-4 py-1.5 sm:px-6"
+      className={cn("min-w-0 overflow-x-auto px-4 py-1.5 sm:px-6", className)}
       ref={navigationRef}
     >
       <div className="flex min-w-max items-center gap-1">

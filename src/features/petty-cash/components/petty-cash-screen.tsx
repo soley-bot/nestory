@@ -363,7 +363,7 @@ function FocusedRecordContext({
         <p className="text-sm font-medium">
           {isAvailable ? "Focused from activity history" : "Source record unavailable"}
         </p>
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           {isAvailable
             ? isArchived
               ? "Archived source record"
@@ -399,7 +399,7 @@ function PettyCashSummaryStrip({
     <section aria-label="Petty cash summary" className="overflow-x-auto border-b border-border bg-surface-muted/35 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring sm:px-6" tabIndex={0}>
       <div className="grid min-w-[1120px] grid-cols-[minmax(220px,1.6fr)_repeat(8,minmax(96px,1fr))] gap-3 xl:min-w-0">
         <div className="min-w-0 rounded-md border border-border bg-surface px-3 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             Account
           </p>
           {accounts.length > 0 && account ? (
@@ -424,7 +424,7 @@ function PettyCashSummaryStrip({
           ) : (
             <p className="mt-1 truncate text-sm font-semibold">No account</p>
           )}
-          <p className="mt-0.5 text-xs text-muted">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {period && account
              ? `${formatDate(period.periodStart)} period / ${period.status} / ${account.custodianName ?? "No custodian"}`
               : `${accounts.length} configured accounts`}
@@ -446,7 +446,7 @@ function PettyCashSummaryStrip({
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-border bg-surface px-3 py-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <p className="mt-1 truncate text-sm font-semibold tabular-nums">{value}</p>
@@ -477,7 +477,7 @@ function PettyCashTable({
             <col className="w-[96px]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
               <th className="px-3 py-2.5 font-semibold">Type</th>
@@ -492,7 +492,7 @@ function PettyCashTable({
           <tbody>
             {entries.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-muted" colSpan={8}>
+                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={8}>
                   No petty cash rows yet.
                 </td>
               </tr>
@@ -519,8 +519,8 @@ function PettyCashTable({
                 aria-selected={selectedEntryId === entry.id}
               >
                 <td className="whitespace-nowrap px-3 py-2">
-                  <p className="text-muted">{formatDate(entry.invoiceDate)}</p>
-                  <p className="mt-0.5 text-xs text-muted">
+                  <p className="text-muted-foreground">{formatDate(entry.invoiceDate)}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {entry.clearDate
                       ? `Clear ${formatDate(entry.clearDate)}`
                       : "Not cleared"}
@@ -530,7 +530,7 @@ function PettyCashTable({
                   <EntryKindBadge entry={entry} />
                   {entry.entryKind === "expense" &&
                   entry.economicScope !== "property_expense" ? (
-                    <p className="mt-1 truncate text-xs text-muted">
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
                       {entry.economicScopeLabel}
                     </p>
                   ) : null}
@@ -547,7 +547,7 @@ function PettyCashTable({
                   ) : (
                     <p className="truncate font-medium">Cash account</p>
                   )}
-                  <p className="mt-0.5 truncate text-xs text-muted">
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {entry.unitNumber ? `Unit ${entry.unitNumber}` : "Property level"}
                   </p>
                 </td>
@@ -556,7 +556,7 @@ function PettyCashTable({
                     {entry.supplier ?? entry.category}
                   </p>
                   {entry.counterpartyPersonId ? (
-                    <p className="mt-0.5 truncate text-[11px] text-muted">
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                       Linked person
                       {entry.counterpartyCurrentName &&
                       entry.counterpartyCurrentName !== entry.supplier
@@ -564,19 +564,19 @@ function PettyCashTable({
                         : ""}
                     </p>
                   ) : null}
-                  <p className="mt-0.5 truncate text-xs text-muted">
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {entry.description}
                   </p>
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
-                  <span className={entry.status === "void" ? "line-through text-muted" : ""}>
+                  <span className={entry.status === "void" ? "line-through text-muted-foreground" : ""}>
                     {formatMoneyDisplay(
                       entry.outAmount > 0 ? -entry.outAmount : entry.inAmount,
                       entry.currency,
                     ).primary}
                   </span>
                   {entry.status === "void" ? (
-                    <span className="mt-0.5 block text-[11px] text-muted">No impact</span>
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground">No impact</span>
                   ) : null}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums" data-money-cell="true">
@@ -651,7 +651,7 @@ function PettyCashInspector({
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
               {entry.entryKind === "expense" ? "Cash expense" : "Cash movement"}
             </p>
             <h2 className="mt-1 truncate text-base font-semibold">
@@ -660,7 +660,7 @@ function PettyCashInspector({
           </div>
           <StatusBadge status={entry.status} />
         </div>
-        <p className="mt-2 text-sm leading-6 text-muted">{entry.description}</p>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{entry.description}</p>
         <div className="mt-4">
           <MoneyDisplay
             size="large"
@@ -727,9 +727,9 @@ function PettyCashInspector({
         {entry.voidReason ? (
           <div className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2.5">
             <p className="font-semibold text-danger">Voided</p>
-            <p className="mt-1 text-xs leading-5 text-muted">{entry.voidReason}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{entry.voidReason}</p>
             {entry.voidedAt ? (
-              <p className="mt-1 text-[11px] text-muted">
+              <p className="mt-1 text-[11px] text-muted-foreground">
                 {formatDate(entry.voidedAt)}
               </p>
             ) : null}
@@ -746,7 +746,7 @@ function PettyCashInspector({
                 {entry.receiptReference ? "Ready" : "Review"}
               </Badge>
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted">
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {entry.receiptReference ??
                 "Add the receipt or invoice number before month-end clearing."}
             </p>
@@ -757,7 +757,7 @@ function PettyCashInspector({
               <p className="font-semibold">Reconciliation movement</p>
               <Badge tone="success">Cash in</Badge>
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted">
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
               Advances and cash-in rows support the cash balance but do not post
               as income.
             </p>
@@ -780,7 +780,7 @@ function PettyCashInspector({
                 {entry.ownerBillStatusLabel}
               </Badge>
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted">
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {entry.economicScope === "company_advance"
                 ? `${entry.ownerReceivable.primary} still receivable from owner.`
                 : entry.economicScope === "company_cost"
@@ -820,7 +820,7 @@ function PettyCashInspector({
             ) : null}
           </div>
         ) : (
-          <div className="rounded-md border border-border px-3 py-2.5 text-sm text-muted">
+          <div className="rounded-md border border-border px-3 py-2.5 text-sm text-muted-foreground">
             This row stays in petty cash reconciliation and does not post to
             financial reports.
           </div>
@@ -957,7 +957,7 @@ function PettyCashEntryForm({
 
   if (!account || !period) {
     return (
-      <div className="p-5 text-sm text-muted">
+      <div className="p-5 text-sm text-muted-foreground">
         Create a petty cash account before adding rows.
       </div>
     );
@@ -1161,7 +1161,7 @@ function PettyCashEntryForm({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold">Company / owner handling</p>
-                <p className="mt-1 text-xs leading-5 text-muted">
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   Use this when the company pays cash first and owner billing or
                   company cost needs tracking.
                 </p>
@@ -1432,7 +1432,7 @@ function OpenNextPeriodPanel({
             step="0.01"
           />
         </Field>
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs leading-5 text-muted">
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
           Leave blank to top up toward the account float of{" "}
           {formatMoneyDisplay(account.floatAmount, account.currency).primary}.
         </p>
@@ -1456,7 +1456,7 @@ function CompactFact({
 }) {
   return (
     <div className="min-w-0 rounded-md border border-border px-3 py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-1.5 min-w-0 font-medium">{children}</div>

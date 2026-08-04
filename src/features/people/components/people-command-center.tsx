@@ -49,12 +49,12 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
         >
           <UsersRound
             aria-hidden="true"
-            className="size-4 shrink-0 text-muted"
+            className="size-4 shrink-0 text-muted-foreground"
           />
           <span className="font-semibold text-foreground">
             Directory overview
           </span>
-          <span className="truncate text-muted">
+          <span className="truncate text-muted-foreground">
             {insights.totalCount} people
             {attentionCount > 0
               ? ` · ${attentionCount} to review`
@@ -62,7 +62,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
           </span>
           <ChevronDown
             aria-hidden="true"
-            className="size-3.5 shrink-0 text-muted"
+            className="size-3.5 shrink-0 text-muted-foreground"
           />
         </button>
       </Popover.Trigger>
@@ -78,7 +78,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
             <p className="text-sm font-semibold text-foreground">
               Directory overview
             </p>
-            <p className="mt-0.5 text-xs text-muted">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Counts and records that need attention.
             </p>
           </div>
@@ -91,7 +91,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
                 key={metric.label}
                 prefetch={false}
               >
-                <p className="truncate text-[11px] font-medium text-muted">
+                <p className="truncate text-[11px] font-medium text-muted-foreground">
                   {metric.label}
                 </p>
                 <p className="mt-0.5 truncate text-base font-semibold tabular-nums text-foreground">
@@ -102,7 +102,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
           </div>
 
           <div className="mt-3 space-y-1">
-            <p className="px-1 text-[11px] font-semibold uppercase text-muted">
+            <p className="px-1 text-[11px] font-semibold uppercase text-muted-foreground">
               Needs attention
             </p>
             {insights.attentionQueues.map((queue) => (
@@ -116,7 +116,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
                   <span className="block truncate font-medium text-foreground">
                     {queue.label}
                   </span>
-                  <span className="block truncate text-muted">
+                  <span className="block truncate text-muted-foreground">
                     {queue.description}
                   </span>
                 </span>

@@ -35,7 +35,7 @@ export function LedgerTable({
             <col className="w-[18%]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
               <th className="px-3 py-2.5 font-semibold">Flow</th>
@@ -48,7 +48,7 @@ export function LedgerTable({
           <tbody>
             {entries.length === 0 ? (
               <tr className="border-t border-border">
-                <td className="px-4 py-8 text-center text-muted" colSpan={6}>
+                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
                   No ledger rows match the current filters.
                 </td>
               </tr>
@@ -58,7 +58,7 @@ export function LedgerTable({
                 className={cn(
                   previewRowClassName,
                   selectedEntryId === entry.id && selectedPreviewRowClassName,
-                  entry.archivedAt && "text-muted",
+                  entry.archivedAt && "text-muted-foreground",
                 )}
                 key={entry.id}
                 onClick={() => onSelectEntry(entry.id)}
@@ -74,13 +74,13 @@ export function LedgerTable({
                 tabIndex={0}
                 aria-selected={selectedEntryId === entry.id}
               >
-                <td className="whitespace-nowrap px-3 py-2.5 align-middle text-muted">
+                <td className="whitespace-nowrap px-3 py-2.5 align-middle text-muted-foreground">
                   {formatDate(entry.transactionDate)}
                 </td>
                 <td className="px-3 py-2.5 align-middle">
                   <div className="flex min-w-0 items-center gap-2">
                     <DirectionBadge direction={entry.direction} />
-                    <p className="truncate text-xs text-muted">
+                    <p className="truncate text-xs text-muted-foreground">
                     {entry.sourceLabel}
                     </p>
                   </div>
@@ -93,7 +93,7 @@ export function LedgerTable({
                     <LedgerInlineBadges entry={entry} />
                   </div>
                   <p
-                    className="mt-0.5 truncate text-xs text-muted"
+                    className="mt-0.5 truncate text-xs text-muted-foreground"
                     title={entry.description || entry.nextAction.description}
                   >
                     {entry.description || entry.nextAction.label}
@@ -111,7 +111,7 @@ export function LedgerTable({
                     {entry.propertyName}
                   </Link>
                   {entry.unitNumber ? (
-                    <p className="mt-0.5 truncate text-xs text-muted">
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       Unit {entry.unitNumber}
                     </p>
                   ) : null}

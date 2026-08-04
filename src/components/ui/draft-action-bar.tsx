@@ -189,7 +189,7 @@ export function DraftActionBar({
   return (
     <div
       aria-busy={isPending ? "true" : "false"}
-      className="border-t border-border bg-surface-raised px-4 py-3 text-sm"
+      className="bg-surface-raised px-4 py-3 text-sm"
       data-status={status}
       data-testid="draft-action-bar"
       ref={barRef}

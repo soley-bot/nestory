@@ -99,7 +99,7 @@ export function ReportsFilters({
 
         <Link
           aria-label="Reset report filters"
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
           href={`/reports/${viewQuery.report}`}
         >
           <RotateCcw size={14} />

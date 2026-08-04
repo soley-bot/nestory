@@ -475,7 +475,7 @@ function DocumentTable({
             <col className="w-[124px]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-2.5 py-2.5 font-semibold">Document</th>
               <th className="px-1.5 py-2.5 font-semibold">Type</th>
@@ -495,7 +495,7 @@ function DocumentTable({
                   previewRowClassName,
                   selectedDocumentId === document.id &&
                     selectedPreviewRowClassName,
-                  document.isArchived && "text-muted",
+                  document.isArchived && "text-muted-foreground",
                 )}
                 key={document.id}
                 onClick={(event) => {
@@ -523,7 +523,7 @@ function DocumentTable({
                     {document.fileName}
                   </Link>
                   <p
-                    className="mt-0.5 truncate text-xs text-muted"
+                    className="mt-0.5 truncate text-xs text-muted-foreground"
                     title={document.category}
                   >
                     {document.category}
@@ -547,7 +547,7 @@ function DocumentTable({
                         {document.linkedRecords[0].type}
                       </p>
                       <p
-                        className="mt-0.5 truncate text-xs text-muted"
+                        className="mt-0.5 truncate text-xs text-muted-foreground"
                         title={document.linkedRecords[0].label}
                       >
                         {document.linkedRecords[0].label}
@@ -610,9 +610,9 @@ function DocumentInspector({
             <h2 className="mt-3 break-words text-base font-semibold">
               {document.fileName}
             </h2>
-            <p className="mt-1 text-sm text-muted">{document.category}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{document.category}</p>
           </div>
-          <FileText className="shrink-0 text-muted" size={18} />
+          <FileText className="shrink-0 text-muted-foreground" size={18} />
         </div>
       </div>
 
@@ -798,7 +798,7 @@ function DocumentForm({
             required={mode === "create"}
           />
           {mode === "edit" ? (
-            <p className="mt-1 text-xs text-muted">
+            <p className="mt-1 text-xs text-muted-foreground">
               Leave empty to keep the current file.
             </p>
           ) : null}
@@ -884,9 +884,9 @@ function DocumentArchivePanel({
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
           <p className="text-sm font-medium">{document.fileName}</p>
-          <p className="mt-1 text-sm text-muted">{document.category}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{document.category}</p>
         </div>
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
           {mode === "archive"
             ? "Archiving hides this document from active evidence lists without deleting the file."
             : "Restoring returns this document to active evidence lists."}
@@ -933,7 +933,7 @@ function CompactFact({
 }) {
   return (
     <div className="min-w-0 rounded-md border border-border px-3 py-2.5">
-      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-1.5 font-medium">{children}</div>
@@ -990,7 +990,7 @@ function DocumentLinkedRecords({
         </Badge>
       </div>
       {records.length === 0 ? (
-        <p className="text-sm text-muted">No operational record is linked.</p>
+        <p className="text-sm text-muted-foreground">No operational record is linked.</p>
       ) : (
         <div className="space-y-1.5">
           {records.map((record) => (
@@ -1001,7 +1001,7 @@ function DocumentLinkedRecords({
               key={`${record.type}-${record.href}`}
             >
               <span className="min-w-0">
-                <span className="block text-xs font-medium text-muted">
+                <span className="block text-xs font-medium text-muted-foreground">
                   {record.type}
                 </span>
                 <span className="block truncate font-medium">

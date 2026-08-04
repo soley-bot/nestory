@@ -134,7 +134,18 @@ export function PeopleScreen({
   const activeRole =
     lockedRole ?? (viewQuery.role === "all" ? undefined : viewQuery.role);
   const peopleList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+    <section
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm"
+      data-slot="people-list-surface"
+    >
+      <div className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
+        <PeopleFilters
+          displayMode={displayMode}
+          onDisplayModeChange={setDisplayMode}
+          searchPlaceholder={searchPlaceholder}
+          viewQuery={viewQuery}
+        />
+      </div>
       {people.length === 0 ? (
         <EmptyState
           action={
@@ -169,7 +180,7 @@ export function PeopleScreen({
         />
       ) : (
         <>
-          <div className="min-h-0 flex-1 p-3">
+          <div className="min-h-0 flex-1">
             <PeopleTable
               accessByPersonId={accessByPersonId}
               archiveState={viewQuery.archiveState}
@@ -201,16 +212,9 @@ export function PeopleScreen({
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref={pathname}
+      headerClassName="py-3 lg:py-3"
       localNav={
         localNavigation ?? <PeopleWorkspaceNavigation activeRole={activeRole} />
-      }
-      toolbar={
-        <PeopleFilters
-          displayMode={displayMode}
-          onDisplayModeChange={setDisplayMode}
-          searchPlaceholder={searchPlaceholder}
-          viewQuery={viewQuery}
-        />
       }
       title={title}
     >
@@ -230,7 +234,9 @@ export function PeopleScreen({
           />
         ) : null}
 
-        <div className="min-h-0 min-w-0 flex-1">{peopleList}</div>
+        <div className="min-h-0 min-w-0 flex-1 p-4 sm:px-6 sm:py-4">
+          {peopleList}
+        </div>
       </div>
 
       {drawer ? (

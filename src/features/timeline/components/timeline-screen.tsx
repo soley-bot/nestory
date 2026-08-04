@@ -486,7 +486,7 @@ function ArchiveTimelineEventPanel({
         </div>
         <div className="rounded-md border border-border bg-surface-muted p-4">
           <p className="text-sm font-medium text-foreground">{event.title}</p>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-muted-foreground">
             {event.propertyCode}
             {event.unitNumber ? ` / Unit ${event.unitNumber}` : ""}
           </p>
@@ -548,12 +548,12 @@ function RestoreTimelineEventPanel({
         </div>
         <div className="rounded-md border border-border bg-surface-muted p-4">
           <p className="text-sm font-medium text-foreground">{event.title}</p>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-muted-foreground">
             {event.propertyCode}
             {event.unitNumber ? ` / Unit ${event.unitNumber}` : ""}
           </p>
         </div>
-        <p className="mt-4 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+        <p className="mt-4 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
           Restoring makes this record visible in normal timeline views again.
         </p>
         {state.message ? (
@@ -610,7 +610,7 @@ function TimelineDocumentPanel({
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
           <p className="text-sm font-medium">{event.title}</p>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-muted-foreground">
             {event.ledgerEntryId
               ? "This document will also appear on the linked ledger entry."
               : "This document is attached to the timeline event."}

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { WorkspaceHeaderPortal } from "@/components/layout/workspace-header-portal";
+import { cn } from "@/lib/utils";
 
 type PageHeaderProps = {
   breadcrumb?: ReactNode;
@@ -8,6 +9,7 @@ type PageHeaderProps = {
   context?: ReactNode;
   actions?: ReactNode;
   navigation?: ReactNode;
+  className?: string;
 };
 
 export function PageHeader({
@@ -17,9 +19,12 @@ export function PageHeader({
   context,
   actions,
   navigation,
+  className,
 }: PageHeaderProps) {
   return (
-    <header className="bg-surface px-4 py-3 sm:px-6">
+    <header
+      className={cn("bg-background px-4 py-4 lg:px-6 lg:py-5", className)}
+    >
       {breadcrumb ? (
         <WorkspaceHeaderPortal>
           <div className="min-w-0">{breadcrumb}</div>
@@ -34,12 +39,12 @@ export function PageHeader({
             navigation ? "lg:flex-none" : ""
           }`}
         >
-          <h1 className="shrink-0 text-base font-semibold leading-6 text-foreground">
+          <h1 className="shrink-0 text-xl font-semibold tracking-tight text-foreground">
             {title}
           </h1>
           {description || context ? (
             <div
-              className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm leading-5 text-foreground-muted"
+              className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm leading-5 text-muted-foreground"
               data-slot="page-header-meta"
             >
               {description ? <p className="max-w-2xl">{description}</p> : null}

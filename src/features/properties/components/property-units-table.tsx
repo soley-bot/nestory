@@ -17,14 +17,14 @@ export function PropertyUnitsTable({
           <article
             className={cn(
               "rounded-md border border-border bg-surface p-4 text-sm",
-              unit.isArchived && "text-muted",
+              unit.isArchived && "text-muted-foreground",
             )}
             key={unit.id}
           >
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0">
                 <UnitLabel unit={unit} />
-                <p className="mt-1 text-xs text-muted">{formatFloor(unit.floor)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{formatFloor(unit.floor)}</p>
               </div>
               <UnitStatusBadges unit={unit} />
             </div>
@@ -52,7 +52,7 @@ export function PropertyUnitsTable({
               <col className="w-[24%]" />
               <col className="w-[26%]" />
             </colgroup>
-            <thead className="bg-surface-muted text-[11px] uppercase tracking-[0] text-muted">
+            <thead className="bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground">
               <tr>
                 <th className="px-3 py-2.5 font-semibold">Unit</th>
                 <th className="px-2 py-2.5 font-semibold">Floor</th>
@@ -67,14 +67,14 @@ export function PropertyUnitsTable({
                 <tr
                   className={cn(
                     "border-t border-border",
-                    unit.isArchived && "text-muted",
+                    unit.isArchived && "text-muted-foreground",
                   )}
                   key={unit.id}
                 >
                   <td className="px-3 py-2">
                     <UnitLabel unit={unit} />
                   </td>
-                  <td className="px-2 py-2 break-words text-muted">
+                  <td className="px-2 py-2 break-words text-muted-foreground">
                     {unit.floor}
                   </td>
                   <td className="px-2 py-2">
@@ -158,7 +158,7 @@ function Detail({
 }) {
   return (
     <div className={cn("min-w-0", alignRight && "text-right")}>
-      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-1 break-words font-medium">{value}</dd>

@@ -115,12 +115,21 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.getByRole("combobox", { name: "Rows per page" })).toBeTruthy();
   });
 
-  it("uses an unframed desktop register while preserving the semantic table", () => {
+  it("groups the property tools and register in one bordered data surface", () => {
     const { container } = renderProperties();
+    const surface = container.querySelector<HTMLElement>(
+      '[data-slot="property-list-surface"]',
+    );
     const frame = container.querySelector<HTMLElement>(
       '[data-slot="register-table-frame"]',
     );
 
+    expect(surface).not.toBeNull();
+    expect(surface!.className).toMatch(/(?:^|\s)rounded-lg(?:\s|$)/);
+    expect(surface!.className).toMatch(/(?:^|\s)border(?:\s|$)/);
+    expect(
+      within(surface!).getByRole("textbox", { name: "Search properties" }),
+    ).toBeTruthy();
     expect(frame).not.toBeNull();
     expect(frame!.className).not.toMatch(/(?:^|\s)rounded(?:-|\s|$)/);
     expect(frame!.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
@@ -244,6 +253,49 @@ describe("PropertyScreen redesign contract", () => {
     renderProperties({ canCreate: false, properties: [] });
     expect(screen.queryByRole("button", { name: "Add property" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Set up property" })).toBeNull();
+  });
+
+  it("keeps the create form concise without redundant helper copy", () => {
+    renderProperties();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Add property" });
+    const drawerHeader = drawer.querySelector<HTMLElement>(
+      '[data-slot="drawer-header"]',
+    );
+    const actionBar = screen.getByTestId("draft-action-bar");
+    expect(drawer.style.width).toBe("720px");
+    expect(drawer.style.maxWidth).toBe("92vw");
+    expect(drawerHeader?.className.split(" ")).not.toContain("border-b");
+    expect(actionBar.className.split(" ")).not.toContain("border-t");
+    expect(
+      screen.queryByText(
+        "Create a property record that can hold property-level history or child units.",
+      ),
+    ).toBeNull();
+    expect(screen.queryByText("Linked record effects")).toBeNull();
+    expect(
+      screen.queryByText(
+        "Optional. Upload a cover or identification image for the Photos tab.",
+      ),
+    ).toBeNull();
+    expect(screen.queryByPlaceholderText("Central Residence")).toBeNull();
+    expect(screen.queryByPlaceholderText("CTR")).toBeNull();
+    expect(screen.queryByPlaceholderText("Serviced apartment")).toBeNull();
+    expect(screen.queryByPlaceholderText("Internal operating notes")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Notes" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Property Information" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Property Owner & Location" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Identity" })).toBeNull();
+    expect(screen.queryByText("Ownership and location")).toBeNull();
+    expect(screen.getByRole("link", { name: "Create owner" }).className).toContain(
+      "text-primary",
+    );
   });
 
   it("does not open an action=create drawer when create is unauthorized", () => {

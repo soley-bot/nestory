@@ -101,10 +101,10 @@ export function PhotoGallery({
     <section className="rounded-md border border-border bg-surface">
       <div className="flex flex-col gap-2 border-b border-border px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-2">
-          <ImageIcon className="text-muted" size={16} />
+          <ImageIcon className="text-muted-foreground" size={16} />
           <h2 className="text-sm font-semibold">{title}</h2>
         </div>
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           {photos.length} {photos.length === 1 ? "photo" : "photos"}
         </p>
       </div>
@@ -117,7 +117,7 @@ export function PhotoGallery({
         >
           <div>
             <h3 className="text-sm font-semibold">Upload photo</h3>
-            <p className="mt-1 text-xs leading-5 text-muted">
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
               Select a pending photo, then save it to this record.
             </p>
           </div>
@@ -188,12 +188,12 @@ export function PhotoGallery({
         <section className="min-w-0 rounded-md border border-border bg-surface-muted/30 p-3">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold">Saved photos</h3>
-            <span className="text-xs text-muted">
+            <span className="text-xs text-muted-foreground">
               {photos.length} {photos.length === 1 ? "saved" : "saved"}
             </span>
           </div>
           {photos.length === 0 ? (
-            <div className="flex min-h-56 items-center justify-center rounded-md border border-dashed border-border bg-surface-muted/50 p-4 text-center text-sm text-muted">
+            <div className="flex min-h-56 items-center justify-center rounded-md border border-dashed border-border bg-surface-muted/50 p-4 text-center text-sm text-muted-foreground">
               {emptyLabel}
             </div>
           ) : (
@@ -234,7 +234,7 @@ function SelectedPhotoPreview({
         </div>
         <button
           aria-label="Clear selected photo"
-          className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md border border-border bg-surface/95 text-muted shadow-sm transition-colors hover:text-foreground"
+          className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md border border-border bg-surface/95 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
           onClick={onClear}
           type="button"
         >
@@ -246,7 +246,7 @@ function SelectedPhotoPreview({
           <p className="truncate text-sm font-medium" title={preview.name}>
             {preview.name}
           </p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             Preview only. Save it with Upload photo.
           </p>
         </div>
@@ -278,7 +278,7 @@ function PhotoCard({ photo }: { photo: AssetPhoto }) {
             unoptimized
           />
         ) : (
-          <div className="flex size-full items-center justify-center text-muted">
+          <div className="flex size-full items-center justify-center text-muted-foreground">
             <ImageIcon size={22} />
           </div>
         )}
@@ -294,7 +294,7 @@ function PhotoCard({ photo }: { photo: AssetPhoto }) {
           <p className="truncate text-sm font-medium" title={photo.caption || photo.fileName}>
             {photo.caption || photo.fileName}
           </p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             {photo.takenAt ? `Taken ${formatDate(photo.takenAt)}` : `Uploaded ${formatDate(photo.uploadedAt)}`}
           </p>
         </div>
@@ -340,7 +340,7 @@ function PhotoActionForm({
 function Field({ children, label }: { children: ReactNode; label: string }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </span>
       {children}

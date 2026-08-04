@@ -12,15 +12,14 @@ import type {
 describe("OverviewScreen", () => {
   afterEach(cleanup);
 
-  it("keeps the title, lenses, and month control in one responsive header row", () => {
+  it("keeps the title, lenses, and month control in one compact site-header row", () => {
     render(<OverviewScreen data={data} query={query} />);
 
-    const header = screen.getByRole("banner");
-    const headerRows = header.querySelectorAll('[data-slot="overview-header-row"]');
+    const headerRows = document.querySelectorAll('[data-slot="overview-header-row"]');
     const headerRow = headerRows.item(0);
 
     expect(headerRows).toHaveLength(1);
-    expect(classTokens(headerRow)).toContain("md:flex-row");
+    expect(classTokens(headerRow)).toContain("items-center");
     expect(headerRow.contains(screen.getByRole("heading", { name: "Overview", level: 1 }))).toBe(true);
     expect(headerRow.contains(screen.getByRole("navigation", { name: "Overview lenses" }))).toBe(true);
     expect(
@@ -31,19 +30,17 @@ describe("OverviewScreen", () => {
       ),
     ).toBe(true);
 
-    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
-    expect(within(breadcrumb).getAllByText("Portfolio")).toHaveLength(1);
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 
-  it("uses app-shell height containment and one unframed operating scroll", () => {
+  it("uses app-shell height containment and one dashboard scroll", () => {
     render(<OverviewScreen data={data} query={query} />);
 
     const screenRoot = screen.getByRole("main");
-    const header = screen.getByRole("banner");
     const operatingWork = screen.getByRole("region", {
       name: "Portfolio operating work",
     });
-    const summary = screen.getByRole("region", { name: "Portfolio summary" });
+    const metrics = screen.getByRole("region", { name: "Portfolio metrics" });
     const scrollOwners = Array.from(screenRoot.querySelectorAll("*")).filter((element) =>
       classTokens(element).includes("overflow-y-auto"),
     );
@@ -52,9 +49,8 @@ describe("OverviewScreen", () => {
     expect(classTokens(screenRoot)).toContain("min-h-0");
     expect(classTokens(screenRoot)).not.toContain("min-h-screen");
     expect(scrollOwners).toEqual([operatingWork]);
-    expect(classTokens(header)).not.toContain("border-b");
     expect(classTokens(operatingWork)).not.toContain("border-y");
-    expect(classTokens(summary)).not.toContain("border-y");
+    expect(classTokens(metrics)).toContain("grid");
   });
 
   it("neutralizes the legacy lens-list frame while keeping one operating scroll", () => {
@@ -68,7 +64,7 @@ describe("OverviewScreen", () => {
     expect(classTokens(operatingWork)).toContain("overflow-y-auto");
   });
 
-  it("keeps overview controls while making portfolio work precede one inline summary", () => {
+  it("keeps overview controls above the official dashboard composition", () => {
     render(<OverviewScreen data={data} query={query} />);
 
     expect(screen.getAllByRole("heading", { name: "Overview", level: 1 })).toHaveLength(1);
@@ -91,16 +87,25 @@ describe("OverviewScreen", () => {
       "/overview?lens=records&month=2026-08",
     );
 
-    const operatingWork = screen.getByRole("region", {
-      name: "Portfolio operating work",
-    });
-    const summary = screen.getByRole("region", { name: "Portfolio summary" });
-    expect(within(summary).getByText("Properties")).toBeTruthy();
-    expect(within(summary).getByText("Open checks")).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Portfolio counts" })).toBeNull();
-    expect(
-      operatingWork.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    const metrics = screen.getByRole("region", { name: "Portfolio metrics" });
+    expect(within(metrics).getByText("Occupancy")).toBeTruthy();
+    expect(within(metrics).getByText("Active leases")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Portfolio cash flow" })).toBeTruthy();
+    expect(screen.getByRole("table")).toBeTruthy();
+  });
+
+  it("keeps the active reporting month readable in every theme", () => {
+    render(<OverviewScreen data={data} query={query} />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Change reporting month, currently August 2026",
+      }),
+    );
+
+    const activeMonth = screen.getByRole("link", { name: "Aug" });
+    expect(classTokens(activeMonth)).toContain("text-accent-foreground");
+    expect(classTokens(activeMonth)).not.toContain("text-background");
   });
 
   it("uses the inline summary for operating lenses instead of a metric-card region", () => {
@@ -115,7 +120,7 @@ describe("OverviewScreen", () => {
 
     expect(screen.queryByRole("link", { name: "Property finance" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Properties" })).toBeTruthy();
-    expect(screen.getByText("2 open checks")).toBeTruthy();
+    expect(screen.getByText("2 open checks need attention")).toBeTruthy();
     expect(screen.getByRole("link", { name: /RIV \/ Riverside Apartments/ })).toBeTruthy();
   });
 
@@ -152,7 +157,12 @@ const data = {
   ledgerCurrency: "USD",
   ledgerFlow: [],
   maintenanceByProperty: [],
-  metrics: [],
+  metrics: [
+    { helper: "Occupied units", label: "Occupancy", tone: "success", value: "100%" },
+    { helper: "Current tenant agreements", label: "Active leases", tone: "neutral", value: "1" },
+    { helper: "Units without active lease", label: "Lease gaps", tone: "success", value: "0" },
+    { helper: "Open operating checks", label: "Attention", tone: "warning", value: "2" },
+  ],
   occupancyByProperty: [
     {
       href: "/properties/property-1",

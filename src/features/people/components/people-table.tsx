@@ -45,7 +45,7 @@ export function PeopleTable({
         )}
       >
         {people.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted sm:col-span-2 xl:col-span-3">
+          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
             {emptyMessage}
           </p>
         ) : null}
@@ -65,7 +65,7 @@ export function PeopleTable({
           data-slot="people-table-frame"
         >
           <div className="h-full overflow-auto">
-            <table className="w-full min-w-[1040px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-[13px]">
               {isRoleScoped ? (
                 <colgroup>
                   <col className="w-[26%]" />
@@ -84,7 +84,7 @@ export function PeopleTable({
                   <col className="w-[8%]" />
                 </colgroup>
               )}
-              <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-muted/50 text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 {isRoleScoped ? (
                   <tr>
                     <th className="px-2.5 py-2.5 font-semibold">
@@ -116,7 +116,7 @@ export function PeopleTable({
                 {people.length === 0 ? (
                   <tr className="border-t border-border">
                     <td
-                      className="px-4 py-8 text-center text-muted"
+                      className="px-4 py-8 text-center text-muted-foreground"
                       colSpan={isRoleScoped ? 5 : 6}
                     >
                       {emptyMessage}
@@ -126,8 +126,8 @@ export function PeopleTable({
                 {people.map((person) => (
                   <tr
                     className={cn(
-                      "border-t border-border transition-colors hover:bg-surface-muted/70",
-                      person.isArchived && "text-muted",
+                      "border-t border-border transition-colors hover:bg-muted/50",
+                      person.isArchived && "text-muted-foreground",
                     )}
                     key={person.id}
                   >
@@ -143,7 +143,7 @@ export function PeopleTable({
                           {person.displayName}
                         </Link>
                         <p
-                          className="mt-0.5 truncate text-xs text-muted"
+                          className="mt-0.5 truncate text-xs text-muted-foreground"
                           title={person.legalName ?? person.partyTypeLabel}
                         >
                           {person.legalName ?? person.partyTypeLabel}
@@ -210,11 +210,11 @@ function PersonCard({
     <article
       className={cn(
         "group min-w-0 overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-record-spine",
-        person.isArchived && "text-muted",
+        person.isArchived && "text-muted-foreground",
       )}
     >
       <div className="flex items-start gap-3 border-b border-border px-3.5 py-3.5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-muted">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-muted-foreground">
           {person.partyType === "company" ? (
             <Building2 size={18} />
           ) : (
@@ -232,7 +232,7 @@ function PersonCard({
               >
                 {person.displayName}
               </Link>
-              <p className="mt-1 truncate text-xs text-muted">
+              <p className="mt-1 truncate text-xs text-muted-foreground">
                 {person.legalName ?? person.partyTypeLabel}
               </p>
             </div>
@@ -250,7 +250,7 @@ function PersonCard({
         />
         {roleContext === "staff" ? (
           <div className="mt-3 border-t border-border pt-3">
-            <p className="mb-1.5 text-xs font-medium text-muted">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
               Workspace Access
             </p>
             {canManageWorkspaceAccess(person) && accessStatus ? (
@@ -302,7 +302,7 @@ function ContextCell({
       <p className="line-clamp-1 break-words font-medium" title={label}>
         {label}
       </p>
-      <p className="line-clamp-1 break-words text-xs text-muted" title={detail}>
+      <p className="line-clamp-1 break-words text-xs text-muted-foreground" title={detail}>
         {detail}
       </p>
     </div>
@@ -321,7 +321,7 @@ function EmailCell({ person }: { person: PeopleSummary }) {
       >
         {person.contact.email ?? "No email"}
       </p>
-      <p className="truncate text-xs text-muted">
+      <p className="truncate text-xs text-muted-foreground">
         {person.contact.email ? "Email on file" : "Needs email"}
       </p>
     </div>
@@ -340,7 +340,7 @@ function PhoneCell({ person }: { person: PeopleSummary }) {
       >
         {person.contact.phone ?? "No phone"}
       </p>
-      <p className="truncate text-xs text-muted">
+      <p className="truncate text-xs text-muted-foreground">
         {person.contact.phone ? "Phone on file" : "Needs phone"}
       </p>
     </div>
@@ -362,7 +362,7 @@ function NextActionCell({ person }: { person: PeopleSummary }) {
         </Badge>
       </div>
       <p
-        className="line-clamp-1 text-xs text-muted"
+        className="line-clamp-1 text-xs text-muted-foreground"
         title={person.nextAction.description}
       >
         {person.nextAction.description}
@@ -373,7 +373,7 @@ function NextActionCell({ person }: { person: PeopleSummary }) {
 
 function WorkspaceAccessUnavailable() {
   return (
-    <p className="text-xs font-medium text-muted">
+    <p className="text-xs font-medium text-muted-foreground">
       Workspace access unavailable
     </p>
   );
@@ -447,7 +447,7 @@ function StatusBadges({
 function CardMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs text-muted">{label}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-0.5 truncate font-medium">{value}</p>
     </div>
   );

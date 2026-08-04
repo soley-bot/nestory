@@ -556,7 +556,7 @@ function LedgerCloseStrip({
     <section className="overflow-x-auto border-b border-border bg-surface px-4 py-3 sm:px-6">
       <div className="grid min-w-[980px] grid-cols-[260px_minmax(420px,1fr)_260px] items-stretch gap-3 xl:min-w-0 xl:grid-cols-[minmax(260px,1.15fr)_minmax(0,2.4fr)_minmax(260px,1fr)]">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             Month close
           </p>
           <div className="mt-1 flex items-center justify-between gap-3">
@@ -565,7 +565,7 @@ function LedgerCloseStrip({
               {hasOpenCloseQueue(closeSummary) ? "Open queues" : "Ready"}
             </Badge>
           </div>
-          <p className="mt-0.5 text-xs leading-5 text-muted">
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
             Clear operational queues and repair any missing accounting journals
             before relying on owner or finance reports.
           </p>
@@ -624,11 +624,11 @@ function CloseLink({
       className="min-w-0 border-b border-border px-3 py-2 transition-colors last:border-b-0 hover:bg-surface-muted sm:border-b-0 sm:border-r sm:last:border-r-0"
       href={href}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <p className="mt-1 text-base font-semibold">{count}</p>
-      <p className="mt-0.5 text-xs text-muted">
+      <p className="mt-0.5 text-xs text-muted-foreground">
         {Number(count) > 0 ? "Open queue" : "Clear"}
       </p>
     </Link>
@@ -649,7 +649,7 @@ function CloseMetric({
 
   return (
     <div className="min-w-0 px-3 py-2">
-      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-muted">
+      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <p className={`mt-1 truncate text-[13px] font-semibold tabular-nums ${valueClass}`}>
@@ -895,7 +895,7 @@ function ReceiptPanel({
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
           <p className="text-sm font-medium">{entry.category}</p>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-muted-foreground">
             {entry.relatedTimelineEvent
               ? "This receipt will also appear on the linked timeline event."
               : "This receipt is attached to the ledger entry."}
@@ -918,7 +918,7 @@ function ReceiptPanel({
           ) : null}
         </label>
 
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs leading-5 text-muted">
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
           Accepted files: PDF, JPG, PNG, and WebP up to 10 MB.
         </p>
 
@@ -1039,7 +1039,7 @@ function PeriodLockPanel({
             <p className="text-sm font-semibold">Locked periods</p>
           </div>
           {periodLocks.length === 0 ? (
-            <p className="px-3 py-3 text-sm text-muted">
+            <p className="px-3 py-3 text-sm text-muted-foreground">
               No accounting periods are locked.
             </p>
           ) : (
@@ -1050,10 +1050,10 @@ function PeriodLockPanel({
                     <p className="font-medium">
                       {formatDate(periodLock.periodStart)}
                     </p>
-                    <Lock className="text-muted" size={14} />
+                    <Lock className="text-muted-foreground" size={14} />
                   </div>
                   {periodLock.reason ? (
-                    <p className="mt-1 text-xs leading-5 text-muted">
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {periodLock.reason}
                     </p>
                   ) : null}

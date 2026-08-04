@@ -746,7 +746,7 @@ function MaintenanceCasesCommandBar({
                   "inline-flex h-8 shrink-0 items-center border-b-2 px-2 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
                   tab.active
                     ? "border-accent text-foreground"
-                    : "border-transparent text-muted hover:border-border hover:text-foreground",
+                    : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
                 )}
                 aria-current={tab.active ? "page" : undefined}
                 data-maintenance-queue-tab="true"
@@ -827,7 +827,7 @@ function MaintenanceCasesCommandBar({
           {getMaintenanceCasesViewTabs(pathname, searchParams, viewQuery).map((tab) => (
             <Link
               className={cn(
-                "inline-flex size-8 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
+                "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
                 tab.active
                   ? "bg-accent-soft text-foreground"
                   : "bg-transparent",
@@ -939,7 +939,7 @@ function MaintenanceFilters({
                 "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors",
                 tab.active
                   ? "border-accent bg-accent-soft text-foreground"
-                  : "border-border bg-surface text-muted hover:bg-surface-muted hover:text-foreground",
+                  : "border-border bg-surface text-muted-foreground hover:bg-surface-muted hover:text-foreground",
               )}
               href={tab.href}
               key={tab.id}
@@ -1062,7 +1062,7 @@ function MaintenanceScopeSummary({
         }
         title={
           <span className="flex min-w-0 items-baseline gap-2">
-            <span className="shrink-0 text-xs font-medium uppercase text-muted">
+            <span className="shrink-0 text-xs font-medium uppercase text-muted-foreground">
               {flowLabel}
             </span>
             <span aria-hidden="true" className="text-border">
@@ -1113,7 +1113,7 @@ function MaintenanceTable({
             <col className="w-[17%]" />
             <col className="w-[23%]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-2.5 py-2.5 font-semibold">
                 {capitalizeLabel(recordLabel)}
@@ -1126,7 +1126,7 @@ function MaintenanceTable({
           <tbody>
             {cases.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-muted" colSpan={4}>
+                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={4}>
                   {emptyLabel}
                 </td>
               </tr>
@@ -1138,7 +1138,7 @@ function MaintenanceTable({
                   previewRowClassName,
                   selectedTaskId === maintenanceCase.id &&
                     selectedPreviewRowClassName,
-                  maintenanceCase.isArchived && "text-muted",
+                  maintenanceCase.isArchived && "text-muted-foreground",
                 )}
                 data-maintenance-record-trigger={maintenanceCase.id}
                 key={maintenanceCase.id}
@@ -1170,7 +1170,7 @@ function MaintenanceTable({
                   </Link>
                   <p
                     className={cn(
-                      "mt-0.5 truncate text-xs text-muted",
+                      "mt-0.5 truncate text-xs text-muted-foreground",
                       maintenanceCase.progressTone === "danger" && "text-danger",
                     )}
                   >
@@ -1185,7 +1185,7 @@ function MaintenanceTable({
                 </td>
                 <td className="px-1.5 py-2">
                   <p className="truncate">{maintenanceCase.propertyLabel}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted">
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {maintenanceCase.unitLabel}
                   </p>
                 </td>
@@ -1203,7 +1203,7 @@ function MaintenanceTable({
                 </td>
                 <td className="px-1.5 py-2">
                   <p className="truncate">{maintenanceCase.assigneeLabel}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted">
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {maintenanceCase.vendorLabel}
                   </p>
                 </td>
@@ -1256,11 +1256,11 @@ export function MaintenanceInspector({
             <h2 className="mt-3 break-words text-base font-semibold">
               {maintenanceCase.title}
             </h2>
-            <p className="mt-1 text-sm text-muted">
+            <p className="mt-1 text-sm text-muted-foreground">
               {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
             </p>
           </div>
-          <Wrench className="shrink-0 text-muted" size={18} />
+          <Wrench className="shrink-0 text-muted-foreground" size={18} />
         </div>
       </div>
 
@@ -1307,16 +1307,16 @@ export function MaintenanceInspector({
           </div>
           <div className="mt-2 space-y-1.5">
             {maintenanceCase.checklist.length === 0 ? (
-              <p className="text-muted">No checklist items.</p>
+              <p className="text-muted-foreground">No checklist items.</p>
             ) : (
               maintenanceCase.checklist.map((item) => (
                 <div className="flex items-start gap-2" key={item.id}>
                   {item.completed ? (
                     <CheckCircle2 className="mt-0.5 shrink-0 text-success" size={14} />
                   ) : (
-                    <ListChecks className="mt-0.5 shrink-0 text-muted" size={14} />
+                    <ListChecks className="mt-0.5 shrink-0 text-muted-foreground" size={14} />
                   )}
-                  <span className={cn(item.completed && "text-muted line-through")}>
+                  <span className={cn(item.completed && "text-muted-foreground line-through")}>
                     {item.label}
                   </span>
                 </div>
@@ -1328,7 +1328,7 @@ export function MaintenanceInspector({
         {maintenanceCase.description ? (
           <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
             <p className="font-semibold">Notes</p>
-            <p className="mt-1 leading-6 text-muted">{maintenanceCase.description}</p>
+            <p className="mt-1 leading-6 text-muted-foreground">{maintenanceCase.description}</p>
           </div>
         ) : null}
 
@@ -1340,12 +1340,12 @@ export function MaintenanceInspector({
                 <div className="py-2 first:pt-0 last:pb-0" key={change.id}>
                   <div className="flex items-start justify-between gap-3">
                     <p className="font-medium">{change.actionLabel}</p>
-                    <span className="shrink-0 text-xs text-muted">
+                    <span className="shrink-0 text-xs text-muted-foreground">
                       {formatActivityDate(change.createdAt)}
                     </span>
                   </div>
                   {change.details.length > 0 ? (
-                    <div className="mt-1 space-y-1 text-xs text-muted">
+                    <div className="mt-1 space-y-1 text-xs text-muted-foreground">
                       {change.details.map((detail) => (
                         <p key={`${change.id}-${detail.field}`}>
                           <span className="font-medium text-foreground">{detail.field}:</span>{" "}
@@ -1672,7 +1672,7 @@ export function MaintenanceForm({
             ) : (
               <>
                 {branchControlMode === "all_branches" ? (
-                  <p className="mb-1.5 text-xs text-muted">All branches access</p>
+                  <p className="mb-1.5 text-xs text-muted-foreground">All branches access</p>
                 ) : null}
                 <SelectControl
                   ariaLabel="Branch"
@@ -1715,7 +1715,7 @@ export function MaintenanceForm({
               value={assigneePersonId}
             />
             {legacyAssignee ? (
-              <p className="mt-1.5 text-xs text-muted">
+              <p className="mt-1.5 text-xs text-muted-foreground">
                 This historical assignee has no executable Nestory member identity. The task remains manager-coordinated until reassigned.
               </p>
             ) : null}
@@ -1730,7 +1730,7 @@ export function MaintenanceForm({
             options={vendorSelect.options}
           />
           {vendorSelect.hasHistoricalVendor ? (
-            <p className="mt-1.5 text-xs leading-5 text-muted">
+            <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
               This historical vendor remains linked for this edit. Keep it unchanged,
               or choose an active vendor or &quot;No vendor&quot; to clear the link.
             </p>
@@ -1853,7 +1853,7 @@ export function MaintenanceForm({
             />
             <span>
               <span className="block font-medium">Link actual cost to ledger</span>
-              <span className="mt-0.5 block text-xs text-muted">
+              <span className="mt-0.5 block text-xs text-muted-foreground">
                 Creates or updates the maintenance expense row when actual cost is present.
               </span>
             </span>
@@ -1951,7 +1951,7 @@ function CompactFact({
 }) {
   return (
     <div className="min-w-0 rounded-md border border-border px-3 py-2.5">
-      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-1.5 break-words font-medium">{children}</div>
@@ -2037,7 +2037,7 @@ function ChecklistEditor({
             <Input
               className={cn(
                 "h-8 min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none focus:border-transparent focus:ring-0",
-                item.completed && "text-muted line-through",
+                item.completed && "text-muted-foreground line-through",
               )}
               onChange={(event) =>
                 updateItem(item.id, { label: event.currentTarget.value })
@@ -2047,7 +2047,7 @@ function ChecklistEditor({
             />
             <button
               aria-label="Remove checklist item"
-              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
               onClick={() => removeItem(item.id)}
               title="Remove checklist item"
               type="button"

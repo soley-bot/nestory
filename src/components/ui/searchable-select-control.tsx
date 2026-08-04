@@ -141,12 +141,12 @@ export function SearchableSelectControl({
                 {selectedOption?.label ?? placeholder}
               </span>
               {selectedOption?.description ? (
-                <span className="mt-0.5 block truncate text-xs text-muted">
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                   {selectedOption.description}
                 </span>
               ) : null}
             </span>
-            <span className="flex shrink-0 items-center gap-2 text-xs text-muted">
+            <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
               {selectedOption?.meta}
               <ChevronsUpDown aria-hidden="true" size={15} />
             </span>
@@ -166,7 +166,7 @@ export function SearchableSelectControl({
               <span className="sr-only">Search {ariaLabel}</span>
               <Search
                 aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 size={15}
               />
               <input
@@ -198,7 +198,7 @@ export function SearchableSelectControl({
               role="listbox"
             >
               {visibleOptions.length === 0 ? (
-                <p className="px-3 py-3 text-sm text-muted" role="status">
+                <p className="px-3 py-3 text-sm text-muted-foreground" role="status">
                   No matching options.
                 </p>
               ) : (
@@ -222,13 +222,13 @@ export function SearchableSelectControl({
                         {option.label}
                       </span>
                       {option.description ? (
-                        <span className="mt-0.5 block truncate text-xs text-muted">
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                           {option.description}
                         </span>
                       ) : null}
                     </span>
                     {option.meta ? (
-                      <span className="shrink-0 text-xs text-muted">
+                      <span className="shrink-0 text-xs text-muted-foreground">
                         {option.meta}
                       </span>
                     ) : null}

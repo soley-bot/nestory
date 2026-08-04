@@ -76,13 +76,13 @@ export function LeaseInspector({
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+            <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
               {lease.propertyCode}
             </p>
             <h2 className="mt-1 break-words text-base font-semibold">
               {lease.tenantName}
             </h2>
-            <p className="mt-1 break-words text-sm text-muted">
+            <p className="mt-1 break-words text-sm text-muted-foreground">
               {lease.unitLabel}
             </p>
           </div>
@@ -116,7 +116,7 @@ export function LeaseInspector({
               <h3 className="text-sm font-semibold">
                 {lease.rentReadiness.label}
               </h3>
-              <p className="mt-1 text-xs text-muted">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {lease.rentReadiness.repairLabel}
               </p>
             </div>
@@ -152,7 +152,7 @@ export function LeaseInspector({
             className="rounded-md border border-border p-3"
           >
             <h3 className="text-sm font-semibold">Schedule future rent</h3>
-            <p className="mt-1 text-xs text-muted">
+            <p className="mt-1 text-xs text-muted-foreground">
               The active term keeps its identity. Only its unused future range
               is shortened when the upcoming term is saved.
             </p>
@@ -237,7 +237,7 @@ export function LeaseInspector({
                   className={
                     scheduleState.status === "error"
                       ? "text-xs text-danger"
-                      : "text-xs text-muted"
+                      : "text-xs text-muted-foreground"
                   }
                   role="status"
                 >
@@ -248,7 +248,7 @@ export function LeaseInspector({
             {authoritativeTerms.length > 1 ? (
               <div className="mt-3 border-t border-border pt-3">
                 <p className="text-xs font-medium">Term history</p>
-                <ul className="mt-2 space-y-1 text-xs text-muted">
+                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                   {authoritativeTerms.map((term) => (
                     <li key={term.id}>
                       {term.datesLabel} · {term.rentLabel} · {term.statusLabel}
@@ -262,7 +262,7 @@ export function LeaseInspector({
 
         {lease.deposits.length ? (
           <section className="space-y-3 border-t border-border pt-4" aria-label="Security deposit events">
-            <div><h3 className="text-sm font-semibold">Security deposit</h3><p className="text-xs text-muted">Held tenant funds are separate from property income.</p></div>
+            <div><h3 className="text-sm font-semibold">Security deposit</h3><p className="text-xs text-muted-foreground">Held tenant funds are separate from property income.</p></div>
             {lease.deposits.map((deposit) => <div className="space-y-2 rounded-md border border-border p-3" key={deposit.id}>
               <div className="flex justify-between gap-3 text-sm"><span>{deposit.typeLabel}</span><span>Held <MoneyDisplay value={deposit.heldBalanceDisplay} /></span></div>
               <form action={recordDepositEvent} className="grid grid-cols-2 gap-2">
@@ -382,7 +382,7 @@ export function LeaseInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open timeline filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={lease.hrefs.timeline}
             title="Open lease timeline"
           >
@@ -391,7 +391,7 @@ export function LeaseInspector({
           </Link>
           <Link
             aria-label={`Open ledger filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
             href={lease.hrefs.ledger}
             title="Open lease ledger"
           >
@@ -423,7 +423,7 @@ function Detail({
           : "min-w-0 rounded-md border border-border px-3 py-2.5"
       }
     >
-      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-1 break-words font-medium">{children ?? value}</dd>

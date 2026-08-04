@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Building2, Upload } from "lucide-react";
+import { ArrowRight, Upload } from "lucide-react";
 import { OverviewHeader } from "@/features/overview/components/overview-header";
 import { OverviewLensWorkspace } from "@/features/overview/components/overview-lens-workspace";
 import { PortfolioWorkspace } from "@/features/overview/components/portfolio-workspace";
@@ -9,10 +9,9 @@ export function OverviewScreen({ data, query }: { data: OverviewScreenData; quer
   if (!data.workspaceSetup.hasAnyOperatingData) return <EmptyWorkspaceOnboarding data={data} />;
   const resolvedQuery = query ?? defaultQuery();
   return (
-    <main className="flex h-full min-h-0 bg-background px-4 py-3 sm:px-5">
-      <div className="flex h-full min-h-0 flex-1 flex-col gap-2.5">
+    <main className="flex h-full min-h-0 bg-background">
+      <div className="flex h-full min-h-0 flex-1 flex-col">
         <OverviewHeader query={resolvedQuery} />
-        {!isBaseSetupComplete(data.workspaceSetup) ? <SetupProgressPanel data={data} /> : null}
         <div className="flex min-h-0 flex-1 flex-col">
           {resolvedQuery.lens === "all" ? (
             <PortfolioWorkspace data={data} query={resolvedQuery} />
@@ -64,19 +63,5 @@ function EmptyWorkspaceOnboarding({ data }: { data: OverviewScreenData }) {
   );
 }
 
-function SetupProgressPanel({ data }: { data: OverviewScreenData }) {
-  return (
-    <section className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/30 bg-warning-soft/20 p-3">
-      <Building2 className="text-warning" size={16} />
-      <div className="mr-auto">
-        <p className="text-sm font-semibold">Finish the records that make Overview reliable.</p>
-        <p className="text-xs text-foreground-muted">Properties {data.workspaceSetup.propertyCount} · Units {data.workspaceSetup.unitCount} · People {data.workspaceSetup.peopleCount} · Leases {data.workspaceSetup.activeLeaseCount}</p>
-      </div>
-      <Link className="text-xs font-medium underline-offset-2 hover:underline" href="/import">Continue setup</Link>
-    </section>
-  );
-}
-
 function Count({ label, value }: { label: string; value: number }) { return <div className="flex items-center justify-between gap-4 py-2.5"><dt className="text-foreground-muted">{label}</dt><dd className="font-semibold tabular-nums text-foreground">{value}</dd></div>; }
-function isBaseSetupComplete(setup: OverviewScreenData["workspaceSetup"]) { return setup.propertyCount > 0 && setup.unitCount > 0 && setup.peopleCount > 0 && setup.activeLeaseCount > 0; }
 function defaultQuery(): OverviewViewQuery { return { financeView: "collections", lens: "all", month: new Date().toISOString().slice(0, 7), propertyId: "all", review: "all" }; }

@@ -14,6 +14,7 @@ export function PeopleWorkspaceNavigation({
 
   return (
     <LocalWorkspaceNav
+      className="py-1"
       items={[
         { active: !selectedRole, href: "/people", label: "All" },
         {

@@ -139,7 +139,7 @@ export function PeopleFilters({
                       </div>
                       {hasAnyFilters ? (
                         <Link
-                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
                           href={pathname}
                           scroll={false}
                         >
@@ -344,7 +344,7 @@ function ViewModeButton({
     <button
       aria-pressed={active}
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted transition-colors hover:text-foreground",
+        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
         active && "bg-surface text-foreground shadow-sm",
       )}
       onClick={onClick}

@@ -179,7 +179,19 @@ export function PropertyScreen({
     </>
   );
   const propertyList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+    <section
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm"
+      data-slot="property-list-surface"
+    >
+      <div className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
+        <PropertyFilters
+          displayMode={displayMode}
+          onDisplayModeChange={changeDisplayMode}
+          onOpenProperty={openPropertyRecord}
+          properties={properties}
+          viewQuery={viewQuery}
+        />
+      </div>
       {properties.length === 0 ? (
         <EmptyState
           action={
@@ -209,7 +221,7 @@ export function PropertyScreen({
         />
       ) : (
         <>
-          <div className="min-h-0 flex-1 p-3">
+          <div className="min-h-0 flex-1">
             <PropertiesTable
               displayMode={displayMode}
               onOpenProperty={openPropertyRecord}
@@ -230,15 +242,6 @@ export function PropertyScreen({
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/properties"
       title="Properties"
-      toolbar={
-        <PropertyFilters
-          onDisplayModeChange={changeDisplayMode}
-          displayMode={displayMode}
-          onOpenProperty={openPropertyRecord}
-          properties={properties}
-          viewQuery={viewQuery}
-        />
-      }
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
 
@@ -261,7 +264,7 @@ export function PropertyScreen({
         />
       ) : null}
 
-        <div className="min-h-0 min-w-0 flex-1">
+        <div className="min-h-0 min-w-0 flex-1 p-4 sm:p-6">
           <WorkspaceSplitView
             inspector={
               <PropertyInspector
@@ -461,7 +464,7 @@ function getPropertyDrawerTitle(drawer: DrawerState) {
 
 function getPropertyDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "create") {
-    return "Create a property record that can hold property-level history or child units.";
+    return undefined;
   }
 
   if (drawer.mode === "edit") {

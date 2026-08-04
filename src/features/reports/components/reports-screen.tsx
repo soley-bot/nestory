@@ -87,7 +87,7 @@ export function ReportBuilderScreen({
             <dl className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
               {visibleSummary.map((metric) => (
                 <div className="min-w-0 px-3 py-2.5" key={metric.label}>
-                  <dt className="truncate text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">
+                  <dt className="truncate text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                     {metric.label}
                   </dt>
                   <dd className="mt-0.5 truncate text-base font-semibold tabular-nums text-foreground">
@@ -107,7 +107,7 @@ export function ReportBuilderScreen({
             <h2 className="min-w-0 text-sm font-semibold text-foreground">
               {trustedReport.title}
             </h2>
-            <p className="whitespace-nowrap text-xs text-muted">
+            <p className="whitespace-nowrap text-xs text-muted-foreground">
               {reportRowCount} {reportRowCount === 1 ? "row" : "rows"}
               {reportRowCount > trustedReport.rows.length
                 ? ` · showing ${trustedReport.rows.length}`
@@ -125,7 +125,7 @@ export function ReportBuilderScreen({
               aria-label={trustedReport.title}
               className="w-full min-w-[680px] border-collapse text-left text-[13px]"
             >
-              <thead className="bg-surface-muted text-[11px] uppercase tracking-[0.02em] text-muted">
+              <thead className="bg-surface-muted text-[11px] uppercase tracking-[0.02em] text-muted-foreground">
                 <tr>
                   {trustedReport.columns.map((column) => (
                     <th
@@ -158,7 +158,7 @@ export function ReportBuilderScreen({
                       <p className="font-medium text-foreground">
                         {trustedReport.emptyTitle}
                       </p>
-                      <p className="mt-1 text-sm text-muted">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         {trustedReport.emptyDescription}
                       </p>
                     </td>
@@ -312,7 +312,7 @@ function ReportRow({
               {hiddenSourceCount > 0 ? (
                 <span
                   aria-label={`${row.sourceSummary}; ${hiddenSourceCount} additional source${hiddenSourceCount === 1 ? " is" : "s are"} available in PDF and Excel exports`}
-                  className="font-medium text-muted"
+                  className="font-medium text-muted-foreground"
                   title={row.sourceSummary}
                 >
                   +{hiddenSourceCount} more

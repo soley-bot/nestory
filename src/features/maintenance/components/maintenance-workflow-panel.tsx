@@ -40,7 +40,7 @@ export function MaintenanceWorkflowPanel({
     <section className="space-y-3 rounded-md border border-border bg-surface-muted/50 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">Workflow</p>
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">Workflow</p>
           <p className="mt-1 font-semibold">{workflow.stageLabel}</p>
         </div>
         <Badge tone={workflow.isWaitingOnCurrentActor ? "warning" : "neutral"}>
@@ -60,7 +60,7 @@ export function MaintenanceWorkflowPanel({
       {workflow.latestReviewInstruction ? (
         <div className="rounded-md border border-border bg-surface px-3 py-2 text-sm">
           <p className="font-medium">Latest review instruction</p>
-          <p className="mt-1 leading-5 text-muted">{workflow.latestReviewInstruction}</p>
+          <p className="mt-1 leading-5 text-muted-foreground">{workflow.latestReviewInstruction}</p>
         </div>
       ) : null}
       {capabilities.canExecuteAssignedCase && maintenanceCase.executionMode === "member_assigned" ? (
@@ -100,14 +100,14 @@ function CoordinatedExecutionPanel({
   }, [onStatusMessage, router, state.message, state.status]);
 
   if (maintenanceCase.status === "completed" || maintenanceCase.status === "cancelled") {
-    return <p className="text-sm text-muted">This coordinated case is closed.</p>;
+    return <p className="text-sm text-muted-foreground">This coordinated case is closed.</p>;
   }
 
   return (
     <div className="space-y-3 border-t border-border pt-3" data-coordinated-work-controls>
       <div>
         <p className="text-sm font-semibold">Manager-coordinated work</p>
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-muted-foreground">
           Vendor, unassigned, or historical offline work stays with manager coordination.
         </p>
       </div>
@@ -216,11 +216,11 @@ function MemberExecutionPanel({
   }, [onStatusMessage, router, state.message, state.status]);
 
   if (maintenanceCase.status === "ready_for_review") {
-    return <p className="text-sm text-muted">Your work is submitted. No execution action is required while the manager reviews it.</p>;
+    return <p className="text-sm text-muted-foreground">Your work is submitted. No execution action is required while the manager reviews it.</p>;
   }
 
   if (maintenanceCase.status === "completed" || maintenanceCase.status === "cancelled") {
-    return <p className="text-sm text-muted">Your responsibility for this case has ended.</p>;
+    return <p className="text-sm text-muted-foreground">Your responsibility for this case has ended.</p>;
   }
 
   return (
@@ -253,14 +253,14 @@ function MemberExecutionPanel({
       {maintenanceCase.status === "in_progress" || maintenanceCase.status === "blocked" ? (
         <div className="space-y-1.5">
           {maintenanceCase.checklist.length === 0 ? (
-            <p className="text-sm text-muted">No checklist items were assigned.</p>
+            <p className="text-sm text-muted-foreground">No checklist items were assigned.</p>
           ) : maintenanceCase.checklist.map((item) => (
             <form action={action} className="flex items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 py-2" key={item.id}>
               <input name="taskId" type="hidden" value={maintenanceCase.id} />
               <input name="executionAction" type="hidden" value="set_checklist_item" />
               <input name="checklistItemId" type="hidden" value={item.id} />
               <input name="checklistCompleted" type="hidden" value={String(!item.completed)} />
-              <span className={item.completed ? "text-sm text-muted line-through" : "text-sm"}>{item.label}</span>
+              <span className={item.completed ? "text-sm text-muted-foreground line-through" : "text-sm"}>{item.label}</span>
               <Button disabled={pending || maintenanceCase.status === "blocked"} type="submit">
                 {item.completed ? "Reopen" : "Mark done"}
               </Button>
@@ -383,7 +383,7 @@ function CoordinatedButton({ action, actionName, children, disabled, taskId }: {
 }
 
 function WorkflowFact({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-md border border-border bg-surface px-2.5 py-2"><p className="text-xs text-muted">{label}</p><p className="mt-0.5 text-sm font-medium">{value}</p></div>;
+  return <div className="rounded-md border border-border bg-surface px-2.5 py-2"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-0.5 text-sm font-medium">{value}</p></div>;
 }
 
 function ActionConsequence({

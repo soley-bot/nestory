@@ -207,8 +207,8 @@ describe("record form contract", () => {
     expect(screen.getByText("Discard unsaved changes?")).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Keep editing" }));
 
-    const backdrop = document.querySelector<HTMLButtonElement>(
-      "[role='dialog'] > button[aria-hidden='true']",
+    const backdrop = document.querySelector<HTMLElement>(
+      '[data-slot="sheet-overlay"]',
     );
     expect(backdrop).not.toBeNull();
     await user.click(backdrop!);
@@ -272,14 +272,15 @@ describe("record form contract", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("tracks select-only edits and keeps the select portal in the drawer focus scope", async () => {
+  it("tracks select-only edits through the shadcn select portal", async () => {
     const user = userEvent.setup();
     render(<PortalControlsHarness />);
     const dialog = screen.getByRole("dialog", { name: "Add lease" });
 
     await user.click(screen.getByRole("combobox", { name: /Status/ }));
     const listbox = screen.getByRole("listbox");
-    expect(dialog.querySelector("aside")?.contains(listbox)).toBe(true);
+    expect(dialog.contains(listbox)).toBe(false);
+    expect(screen.getByRole("dialog", { name: "Add lease" })).not.toBeNull();
     await user.click(screen.getByRole("option", { name: "Active" }));
 
     expect(screen.getByText("Unsaved changes")).not.toBeNull();

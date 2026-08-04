@@ -30,7 +30,7 @@ export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
             {change.actionLabel}
           </Badge>
         </div>
-        <p className="mt-2 text-sm text-muted">
+        <p className="mt-2 text-sm text-muted-foreground">
           {change.entityLabel} - {formatDate(change.createdAt)}
         </p>
       </div>
@@ -41,7 +41,7 @@ export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
       >
         {target?.href ? (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted">
+            <p className="text-sm text-muted-foreground">
               Opens the operational record that produced this audit entry.
             </p>
             <Link
@@ -53,19 +53,19 @@ export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
             </Link>
           </div>
         ) : (
-          <p className="text-sm text-muted">
+          <p className="text-sm text-muted-foreground">
             Source record is unavailable or you no longer have access.
           </p>
         )}
       </section>
 
       {change.details.length === 0 ? (
-        <p className="rounded-md border border-border px-3 py-3 text-sm text-muted">
+        <p className="rounded-md border border-border px-3 py-3 text-sm text-muted-foreground">
           No field-level detail was recorded for this change.
         </p>
       ) : (
         <div className="overflow-hidden rounded-md border border-border">
-          <div className="hidden grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)] bg-surface-muted px-3 py-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted sm:grid lg:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="hidden grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)] bg-surface-muted px-3 py-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:grid lg:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)]">
             <span>Field</span>
             <span>Before</span>
             <span>After</span>
@@ -77,14 +77,14 @@ export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
                 key={detail.field}
               >
                 <span className="font-medium">{detail.field}</span>
-                <span className="break-words text-muted">
+                <span className="break-words text-muted-foreground">
                   <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.06em] sm:hidden">
                     Before
                   </span>
                   {detail.before}
                 </span>
                 <span className="break-words">
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.06em] text-muted sm:hidden">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:hidden">
                     After
                   </span>
                   {detail.after}

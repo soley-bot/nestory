@@ -59,7 +59,7 @@ export function LedgerInspector({
         <h2 className="mt-4 break-words text-base font-semibold tracking-tight">
           {entry.category}
         </h2>
-        <p className="mt-2 break-words text-sm leading-6 text-muted">
+        <p className="mt-2 break-words text-sm leading-6 text-muted-foreground">
           {entry.description || "No description recorded."}
         </p>
         <div className="mt-4">
@@ -195,7 +195,7 @@ function CompactFact({
 }) {
   return (
     <div className="min-w-0 rounded-md border border-border px-3 py-2.5">
-      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-1.5 font-medium">{children}</div>

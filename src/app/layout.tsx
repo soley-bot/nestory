@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { TooltipProvider } from "@/components/ui/tooltip";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
   applicationName: "Nestory",
@@ -30,12 +34,6 @@ export const metadata: Metadata = {
   },
 };
 
-const inter = Inter({
-  display: "swap",
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
 const themeScript = `
 (() => {
   try {
@@ -43,8 +41,10 @@ const themeScript = `
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const theme = stored === "dark" || stored === "light" ? stored : prefersDark ? "dark" : "light";
     document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle("dark", theme === "dark");
   } catch {
     document.documentElement.dataset.theme = "light";
+    document.documentElement.classList.remove("dark");
   }
 })();
 `;
@@ -57,14 +57,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} h-full antialiased`}
+      className={`${geist.variable} ${geistMono.variable} h-full font-sans antialiased`}
       suppressHydrationWarning
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-full bg-background text-foreground">
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
   );

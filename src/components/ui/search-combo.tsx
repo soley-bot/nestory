@@ -67,7 +67,7 @@ export function SearchCombo({
         <label className="relative min-w-0 flex-1">
           <span className="sr-only">{ariaLabel}</span>
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             size={16}
           />
           <SearchInput
@@ -101,13 +101,13 @@ export function SearchCombo({
                     {suggestion.label}
                   </span>
                   {suggestion.description ? (
-                    <span className="mt-0.5 block truncate text-xs text-muted">
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                       {suggestion.description}
                     </span>
                   ) : null}
                 </span>
                 {suggestion.meta ? (
-                  <span className="shrink-0 text-xs font-medium text-muted">
+                  <span className="shrink-0 text-xs font-medium text-muted-foreground">
                     {suggestion.meta}
                   </span>
                 ) : null}

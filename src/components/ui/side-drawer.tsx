@@ -1,64 +1,58 @@
-"use client";
+"use client"
 
+import * as React from "react"
+import { XIcon } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import type { DraftStatus } from "@/components/ui/draft-action-bar"
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { cn } from "@/lib/utils";
-import type { DraftStatus } from "@/components/ui/draft-action-bar";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 
 type DrawerDraftGuard = {
-  onDiscard?: () => void;
-  status: DraftStatus;
-};
+  onDiscard?: () => void
+  status: DraftStatus
+}
 
 type DrawerDismissalContextValue = {
-  portalContainer: HTMLElement | null;
-  registerDraftGuard: (guard: DrawerDraftGuard) => () => void;
-  requestClose: () => void;
-};
+  portalContainer: HTMLElement | null
+  registerDraftGuard: (guard: DrawerDraftGuard) => () => void
+  requestClose: () => void
+}
 
-const DrawerDismissalContext = createContext<DrawerDismissalContextValue | null>(
-  null,
-);
+const DrawerDismissalContext =
+  React.createContext<DrawerDismissalContextValue | null>(null)
 
 export function useDrawerDraftGuard(guard: DrawerDraftGuard) {
-  const context = useContext(DrawerDismissalContext);
+  const context = React.useContext(DrawerDismissalContext)
 
-  useEffect(() => {
-    return context?.registerDraftGuard(guard);
-  }, [context, guard]);
+  React.useEffect(() => context?.registerDraftGuard(guard), [context, guard])
 }
 
 export function useDrawerCloseRequest(fallback: () => void) {
-  const context = useContext(DrawerDismissalContext);
-
-  return context?.requestClose ?? fallback;
+  const context = React.useContext(DrawerDismissalContext)
+  return context?.requestClose ?? fallback
 }
 
 export function useDrawerPortalContainer() {
-  return useContext(DrawerDismissalContext)?.portalContainer ?? null;
+  return React.useContext(DrawerDismissalContext)?.portalContainer ?? null
 }
 
 type SideDrawerProps = {
-  children: React.ReactNode;
-  description?: string;
-  footer?: React.ReactNode;
-  onClose: () => void;
-  open: boolean;
-  size?: "default" | "preview";
-  summary?: React.ReactNode;
-  title: string;
-};
+  children: React.ReactNode
+  description?: string
+  footer?: React.ReactNode
+  onClose: () => void
+  open: boolean
+  size?: "default" | "preview"
+  summary?: React.ReactNode
+  title: string
+}
 
 export function SideDrawer({
   children,
@@ -70,257 +64,127 @@ export function SideDrawer({
   summary,
   title,
 }: SideDrawerProps) {
-  const drawerRef = useRef<HTMLElement>(null);
-  const draftGuardRef = useRef<DrawerDraftGuard | null>(null);
-  const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
-  const [dismissalDecision, setDismissalDecision] = useState<
+  const draftGuardRef = React.useRef<DrawerDraftGuard | null>(null)
+  const closeButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const [dismissalDecision, setDismissalDecision] = React.useState<
     "dirty" | "saving" | null
-  >(null);
-  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(
-    null,
-  );
-  const titleId = useId();
-  const descriptionId = useId();
-  const registerDraftGuard = useCallback((guard: DrawerDraftGuard) => {
-    draftGuardRef.current = guard;
+  >(null)
+  const [portalContainer, setPortalContainer] =
+    React.useState<HTMLDivElement | null>(null)
 
+  const registerDraftGuard = React.useCallback((guard: DrawerDraftGuard) => {
+    draftGuardRef.current = guard
     return () => {
-      if (draftGuardRef.current === guard) {
-        draftGuardRef.current = null;
-      }
-    };
-  }, []);
-  const requestClose = useCallback(() => {
-    const guard = draftGuardRef.current;
+      if (draftGuardRef.current === guard) draftGuardRef.current = null
+    }
+  }, [])
+
+  const requestClose = React.useCallback(() => {
+    const guard = draftGuardRef.current
 
     if (guard?.status === "saving") {
-      setDismissalDecision("saving");
-      return;
+      setDismissalDecision("saving")
+      return
     }
 
     if (guard?.status === "dirty" || guard?.status === "error") {
-      setDismissalDecision("dirty");
-      return;
+      setDismissalDecision("dirty")
+      return
     }
 
-    setDismissalDecision(null);
-    onClose();
-  }, [onClose]);
-  const closeDismissalDecision = useCallback(() => {
-    setDismissalDecision(null);
-  }, []);
-  const discardAndClose = useCallback(() => {
-    const onDiscard = draftGuardRef.current?.onDiscard;
+    setDismissalDecision(null)
+    onClose()
+  }, [onClose])
 
-    setDismissalDecision(null);
-    if (onDiscard) {
-      onDiscard();
-    } else {
-      onClose();
-    }
-  }, [onClose]);
-  const dismissalContext = useMemo(
+  const discardAndClose = React.useCallback(() => {
+    const onDiscard = draftGuardRef.current?.onDiscard
+    setDismissalDecision(null)
+    if (onDiscard) onDiscard()
+    else onClose()
+  }, [onClose])
+
+  const cancelDismissal = React.useCallback(() => {
+    setDismissalDecision(null)
+    window.setTimeout(() => closeButtonRef.current?.focus(), 0)
+  }, [])
+
+  const dismissalContext = React.useMemo(
     () => ({ portalContainer, registerDraftGuard, requestClose }),
     [portalContainer, registerDraftGuard, requestClose],
-  );
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    previouslyFocusedElementRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-
-    requestAnimationFrame(() => {
-      drawerRef.current?.focus();
-    });
-
-    return () => {
-      const previouslyFocusedElement = previouslyFocusedElementRef.current;
-
-      if (previouslyFocusedElement?.isConnected) {
-        previouslyFocusedElement.focus();
-      }
-
-      previouslyFocusedElementRef.current = null;
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const getFocusableElements = () => {
-      if (!drawerRef.current) {
-        return [];
-      }
-
-      return Array.from(
-        drawerRef.current.querySelectorAll<HTMLElement>(
-          [
-            "a[href]",
-            "button:not([disabled])",
-            "textarea:not([disabled])",
-            "input:not([disabled])",
-            "select:not([disabled])",
-            "[tabindex]:not([tabindex='-1'])",
-          ].join(","),
-        ),
-      ).filter(
-        (element) =>
-          !element.hasAttribute("disabled") &&
-          !element.getAttribute("aria-hidden") &&
-          element.offsetParent !== null,
-      );
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (dismissalDecision) {
-        return;
-      }
-
-      if (event.key === "Escape") {
-        event.preventDefault();
-        requestClose();
-        return;
-      }
-
-      if (event.key !== "Tab") {
-        return;
-      }
-
-      const focusableElements = getFocusableElements();
-
-      if (focusableElements.length === 0) {
-        event.preventDefault();
-        drawerRef.current?.focus();
-        return;
-      }
-
-      const firstFocusableElement = focusableElements[0];
-      const lastFocusableElement = focusableElements[focusableElements.length - 1];
-      const activeElement =
-        document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      const focusStartedOnDrawer = activeElement === drawerRef.current;
-      const focusStartedOutsideDrawer =
-        activeElement !== null && !drawerRef.current?.contains(activeElement);
-
-      if (
-        event.shiftKey &&
-        (focusStartedOnDrawer ||
-          focusStartedOutsideDrawer ||
-          activeElement === firstFocusableElement)
-      ) {
-        event.preventDefault();
-        lastFocusableElement.focus();
-      } else if (
-        !event.shiftKey &&
-        (focusStartedOnDrawer ||
-          focusStartedOutsideDrawer ||
-          activeElement === lastFocusableElement)
-      ) {
-        event.preventDefault();
-        firstFocusableElement.focus();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [dismissalDecision, open, requestClose]);
-
-  if (!open) {
-    return null;
-  }
+  )
 
   return (
     <DrawerDismissalContext.Provider value={dismissalContext}>
-      <div
-        aria-labelledby={titleId}
-        aria-modal="true"
-        className="fixed bottom-0 left-0 top-0 z-50 flex justify-end bg-background/70 backdrop-blur-[2px]"
-        inert={dismissalDecision ? true : undefined}
-        role="dialog"
-        style={{ right: "var(--removed-body-scroll-bar-size, 0px)" }}
-        {...(description ? { "aria-describedby": descriptionId } : {})}
+      <Sheet
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) requestClose()
+        }}
+        open={open}
       >
-        <button
-          aria-hidden="true"
-          className="absolute inset-0 cursor-default"
-          onClick={requestClose}
-          tabIndex={-1}
-          type="button"
-        />
-        <aside
-          className={cn(
-            "relative flex h-full w-full flex-col border-l border-border bg-background shadow-xl outline-none",
-            size === "preview"
-              ? "max-w-[min(100vw,520px)]"
-              : "max-w-[min(100vw,680px)]",
-          )}
-          ref={drawerRef}
-          tabIndex={-1}
+        <SheetContent
+          className="w-full max-w-none gap-0 overflow-hidden p-0"
+          inert={dismissalDecision ? true : undefined}
+          showCloseButton={false}
+          style={{
+            maxWidth: "92vw",
+            width: size === "preview" ? "520px" : "720px",
+          }}
         >
-          <div
-            className="flex shrink-0 items-start justify-between gap-4 border-b border-border bg-surface px-5 py-4"
-            data-slot="drawer-header"
-          >
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold tracking-tight" id={titleId}>
-                {title}
-              </h2>
+          <aside className="flex h-full min-h-0 flex-col">
+            <SheetHeader
+              className="relative shrink-0 gap-1 p-5 pr-14 text-left"
+              data-slot="drawer-header"
+            >
+              <SheetTitle className="text-lg">{title}</SheetTitle>
               {description ? (
-                <p
-                  className="mt-1 text-sm leading-5 text-foreground-muted"
-                  id={descriptionId}
-                >
-                  {description}
-                </p>
+                <SheetDescription>{description}</SheetDescription>
               ) : null}
-            </div>
-            <Button
-              aria-label="Close drawer"
-              className="h-8 w-8 shrink-0 px-0"
-              onClick={requestClose}
-              type="button"
-              variant="ghost"
-            >
-              <X size={16} />
-            </Button>
-          </div>
-          <div
-            className="min-h-0 flex-1 overflow-y-auto bg-surface text-sm"
-            data-slot="drawer-content"
-          >
-            {children}
-          </div>
-          {summary ? (
+              <Button
+                aria-label="Close drawer"
+                className="absolute right-4 top-4"
+                onClick={requestClose}
+                ref={closeButtonRef}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <XIcon />
+              </Button>
+            </SheetHeader>
+
             <div
-              className="shrink-0 border-t border-border bg-surface-raised px-5 py-3 text-sm"
-              data-slot="drawer-summary"
+              className="min-h-0 flex-1 overflow-y-auto text-sm"
+              data-slot="drawer-content"
             >
-              {summary}
+              {children}
             </div>
-          ) : null}
-          {footer ? (
-            <footer
-              className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-surface px-5 py-3 text-sm"
-              data-slot="drawer-footer"
-            >
-              {footer}
-            </footer>
-          ) : null}
-          <div
-            className="contents"
-            data-slot="drawer-portals"
-            ref={setPortalContainer}
-          />
-        </aside>
-      </div>
+
+            {summary ? (
+              <div
+                className="shrink-0 border-t bg-muted/50 px-5 py-3 text-sm"
+                data-slot="drawer-summary"
+              >
+                {summary}
+              </div>
+            ) : null}
+
+            {footer ? (
+              <footer
+                className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t px-5 py-3 text-sm"
+                data-slot="drawer-footer"
+              >
+                {footer}
+              </footer>
+            ) : null}
+
+            <div
+              className="contents"
+              data-slot="drawer-portals"
+              ref={setPortalContainer}
+            />
+          </aside>
+        </SheetContent>
+      </Sheet>
 
       <ConfirmationDialog
         ariaLabel={
@@ -335,7 +199,7 @@ export function SideDrawer({
             ? "Your changes will be lost and cannot be recovered."
             : "Stay in this drawer until the save finishes."
         }
-        onCancel={closeDismissalDecision}
+        onCancel={cancelDismissal}
         onConfirm={dismissalDecision === "dirty" ? discardAndClose : undefined}
         open={dismissalDecision !== null}
         title={
@@ -345,5 +209,5 @@ export function SideDrawer({
         }
       />
     </DrawerDismissalContext.Provider>
-  );
+  )
 }

@@ -65,8 +65,9 @@ export function OverviewMonthPicker({ query }: { query: OverviewViewQuery }) {
                 <Link
                   aria-current={active ? "date" : undefined}
                   className={cn(
-                    "flex h-8 items-center justify-center rounded-md text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
-                    active && "bg-accent text-background hover:bg-accent",
+                    "flex h-8 items-center justify-center rounded-md text-sm font-medium text-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                    active &&
+                      "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground",
                   )}
                   href={buildOverviewHref(query, { month })}
                   key={name}

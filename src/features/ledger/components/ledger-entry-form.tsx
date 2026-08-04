@@ -246,7 +246,7 @@ function FormSection({
 }) {
   return (
     <section className="space-y-4">
-      <h3 className="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+      <h3 className="border-b border-border pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
         {title}
       </h3>
       {children}

@@ -20,6 +20,7 @@ import { MoneyDisplay } from "@/components/data/money-display";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -112,6 +113,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       actions={screen.actions}
       context={screen.context}
       contextHref={screen.contextHref}
+      headerClassName="py-3 lg:py-3"
       localNav={<FinanceWorkspaceNavigation activeRoute={screen.activeRoute} />}
       title={screen.title}
       toolbar={screen.toolbar}
@@ -128,11 +130,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       </div>
 
       {drawer ? (
-        <SideDrawer
-          onClose={closeDrawer}
-          open
-          title={getDrawerTitle(drawer)}
-        >
+        <SideDrawer onClose={closeDrawer} open title={getDrawerTitle(drawer)}>
           {drawer.mode === "billing" ? (
             <BillingSetupForm
               lease={drawer.lease}
@@ -317,10 +315,7 @@ function getScreen(
   return {
     activeRoute: "/finance" as const,
     actions: (
-      <Button
-        onClick={() => openModal({ mode: "payment" })}
-        variant="primary"
-      >
+      <Button onClick={() => openModal({ mode: "payment" })} variant="primary">
         <WalletCards size={15} /> Record payment
       </Button>
     ),
@@ -368,144 +363,150 @@ function FinanceWorkView({
     ownerDue.length;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
+    <div className="flex h-full min-h-0 flex-col gap-4 p-4 sm:px-6 sm:py-4">
       <CompactTotals
+        variant="cards"
         items={[
           { label: "Needs setup", value: leasesNeedingSetup.length },
           { label: "Tenant balances", value: tenantDue.length },
           { label: "Owner balances", value: ownerDue.length },
         ]}
       />
-      {workCount === 0 ? (
-        <EmptyState
-          body="Billing and balances are up to date."
-          className="flex-1"
-          kind="empty"
-          title="No finance work"
-        />
-      ) : (
-        <TableFrame>
-          <table className="w-full min-w-[860px] text-sm">
-            <thead>
-              <tr>
-                <Th>Work</Th>
-                <Th>Property</Th>
-                <Th>Amount</Th>
-                <Th>Due</Th>
-                <Th align="right">Action</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {leasesNeedingSetup.map((lease) => (
-                <tr
-                  className="border-b border-border"
-                  key={`setup-${lease.id}`}
-                >
-                  <Td>
-                    <p className="font-medium">Set up lease billing</p>
-                    <p className="text-xs text-muted">
-                      {lease.tenantLabel} · {lease.unitLabel}
-                    </p>
-                  </Td>
-                  <Td>{lease.propertyLabel}</Td>
-                  <Td>—</Td>
-                  <Td>Before invoicing</Td>
-                  <Td align="right">
-                    <Button
-                      onClick={() => openDrawer({ lease, mode: "billing" })}
-                    >
-                      Set up
-                    </Button>
-                  </Td>
+      <Card
+        className="min-h-0 flex-1 gap-0 py-0"
+        data-slot="finance-work-surface"
+      >
+        {workCount === 0 ? (
+          <EmptyState
+            body="Billing and balances are up to date."
+            className="flex-1"
+            kind="empty"
+            title="No finance work"
+          />
+        ) : (
+          <TableFrame>
+            <table className="w-full min-w-[860px] text-sm">
+              <thead>
+                <tr>
+                  <Th>Work</Th>
+                  <Th>Property</Th>
+                  <Th>Amount</Th>
+                  <Th>Due</Th>
+                  <Th align="right">Action</Th>
                 </tr>
-              ))}
-              {readyWithoutInvoice.map((lease) => (
-                <tr
-                  className="border-b border-border"
-                  key={`invoice-${lease.id}`}
-                >
-                  <Td>
-                    <p className="font-medium">Create rent invoice</p>
-                    <p className="text-xs text-muted">
-                      {lease.tenantLabel} · {lease.unitLabel}
-                    </p>
-                  </Td>
-                  <Td>{lease.propertyLabel}</Td>
-                  <Td>
-                    <Money amount={lease.monthlyRent} />
-                  </Td>
-                  <Td>This month</Td>
-                  <Td align="right">
-                    <Button
-                      onClick={() => openModal({ lease, mode: "generate" })}
-                    >
-                      Create
-                    </Button>
-                  </Td>
-                </tr>
-              ))}
-              {tenantDue.map((invoice) => (
-                <tr
-                  className="border-b border-border"
-                  key={`tenant-${invoice.id}`}
-                >
-                  <Td>
-                    <p className="font-medium">
-                      {invoice.collectionRoute === "through_ips"
-                        ? "Tenant payment"
-                        : "Confirm owner collection"}
-                    </p>
-                    <p className="text-xs text-muted">
-                      {invoice.recipientLabel} · {invoice.invoiceNumber}
-                    </p>
-                  </Td>
-                  <Td>{invoice.propertyLabel}</Td>
-                  <Td>
-                    <Money amount={invoice.balanceDue} />
-                  </Td>
-                  <Td>{formatDate(invoice.dueDate)}</Td>
-                  <Td align="right">
-                    <Button
-                      onClick={() => openModal({ invoice, mode: "payment" })}
-                    >
-                      {invoice.collectionRoute === "through_ips"
-                        ? "Record"
-                        : "Confirm"}
-                    </Button>
-                  </Td>
-                </tr>
-              ))}
-              {ownerDue.map((invoice) => (
-                <tr
-                  className="border-b border-border"
-                  key={`owner-${invoice.id}`}
-                >
-                  <Td>
-                    <p className="font-medium">Owner payment</p>
-                    <p className="text-xs text-muted">
-                      {invoice.ownerLabel} · {invoice.invoiceNumber}
-                    </p>
-                  </Td>
-                  <Td>{invoice.propertyLabel}</Td>
-                  <Td>
-                    <Money amount={invoice.balanceDue} />
-                  </Td>
-                  <Td>{formatDate(invoice.dueDate)}</Td>
-                  <Td align="right">
-                    <Button
-                      onClick={() =>
-                        openModal({ invoice, mode: "owner-payment" })
-                      }
-                    >
-                      Record
-                    </Button>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableFrame>
-      )}
+              </thead>
+              <tbody>
+                {leasesNeedingSetup.map((lease) => (
+                  <tr
+                    className="border-b border-border"
+                    key={`setup-${lease.id}`}
+                  >
+                    <Td>
+                      <p className="font-medium">Set up lease billing</p>
+                      <p className="text-xs text-muted-foreground">
+                        {lease.tenantLabel} · {lease.unitLabel}
+                      </p>
+                    </Td>
+                    <Td>{lease.propertyLabel}</Td>
+                    <Td>—</Td>
+                    <Td>Before invoicing</Td>
+                    <Td align="right">
+                      <Button
+                        onClick={() => openDrawer({ lease, mode: "billing" })}
+                      >
+                        Set up
+                      </Button>
+                    </Td>
+                  </tr>
+                ))}
+                {readyWithoutInvoice.map((lease) => (
+                  <tr
+                    className="border-b border-border"
+                    key={`invoice-${lease.id}`}
+                  >
+                    <Td>
+                      <p className="font-medium">Create rent invoice</p>
+                      <p className="text-xs text-muted-foreground">
+                        {lease.tenantLabel} · {lease.unitLabel}
+                      </p>
+                    </Td>
+                    <Td>{lease.propertyLabel}</Td>
+                    <Td>
+                      <Money amount={lease.monthlyRent} />
+                    </Td>
+                    <Td>This month</Td>
+                    <Td align="right">
+                      <Button
+                        onClick={() => openModal({ lease, mode: "generate" })}
+                      >
+                        Create
+                      </Button>
+                    </Td>
+                  </tr>
+                ))}
+                {tenantDue.map((invoice) => (
+                  <tr
+                    className="border-b border-border"
+                    key={`tenant-${invoice.id}`}
+                  >
+                    <Td>
+                      <p className="font-medium">
+                        {invoice.collectionRoute === "through_ips"
+                          ? "Tenant payment"
+                          : "Confirm owner collection"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {invoice.recipientLabel} · {invoice.invoiceNumber}
+                      </p>
+                    </Td>
+                    <Td>{invoice.propertyLabel}</Td>
+                    <Td>
+                      <Money amount={invoice.balanceDue} />
+                    </Td>
+                    <Td>{formatDate(invoice.dueDate)}</Td>
+                    <Td align="right">
+                      <Button
+                        onClick={() => openModal({ invoice, mode: "payment" })}
+                      >
+                        {invoice.collectionRoute === "through_ips"
+                          ? "Record"
+                          : "Confirm"}
+                      </Button>
+                    </Td>
+                  </tr>
+                ))}
+                {ownerDue.map((invoice) => (
+                  <tr
+                    className="border-b border-border"
+                    key={`owner-${invoice.id}`}
+                  >
+                    <Td>
+                      <p className="font-medium">Owner payment</p>
+                      <p className="text-xs text-muted-foreground">
+                        {invoice.ownerLabel} · {invoice.invoiceNumber}
+                      </p>
+                    </Td>
+                    <Td>{invoice.propertyLabel}</Td>
+                    <Td>
+                      <Money amount={invoice.balanceDue} />
+                    </Td>
+                    <Td>{formatDate(invoice.dueDate)}</Td>
+                    <Td align="right">
+                      <Button
+                        onClick={() =>
+                          openModal({ invoice, mode: "owner-payment" })
+                        }
+                      >
+                        Record
+                      </Button>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableFrame>
+        )}
+      </Card>
     </div>
   );
 }
@@ -525,90 +526,102 @@ function RentView({
     0,
   );
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
+    <div className="flex h-full min-h-0 flex-col gap-4 p-4 sm:px-6 sm:py-4">
       <CompactTotals
+        variant="cards"
         items={[
           { label: "Collected", value: <Money amount={collected} /> },
           { label: "Outstanding", value: <Money amount={unpaid} /> },
           { label: "Invoices", value: invoices.length },
         ]}
       />
-      {invoices.length === 0 ? (
-        <EmptyState
-          body="Set up an active lease, then create its first rent invoice."
-          className="flex-1"
-          kind="empty"
-          title="No rent invoices"
-        />
-      ) : (
-        <TableFrame>
-          <table className="w-full min-w-[980px] text-sm">
-            <thead>
-              <tr>
-                <Th>Invoice</Th>
-                <Th>Billed to</Th>
-                <Th>Property</Th>
-                <Th>Collection</Th>
-                <Th>Total</Th>
-                <Th>Balance</Th>
-                <Th>Status</Th>
-                <Th align="right">Action</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr className="border-b border-border" key={invoice.id}>
-                  <Td>
-                    <p className="font-medium">{invoice.invoiceNumber}</p>
-                    <p className="text-xs text-muted">
-                      Due {formatDate(invoice.dueDate)}
-                    </p>
-                  </Td>
-                  <Td>
-                    <p>{invoice.recipientLabel}</p>
-                    {invoice.occupantLabels.length ? (
-                      <p className="text-xs text-muted">
-                        Occupants: {invoice.occupantLabels.join(", ")}
-                      </p>
-                    ) : null}
-                  </Td>
-                  <Td>
-                    <p>{invoice.propertyLabel}</p>
-                    <p className="text-xs text-muted">{invoice.unitLabel}</p>
-                  </Td>
-                  <Td>
-                    {invoice.collectionRoute === "through_ips"
-                      ? `Collected by ${organizationName}`
-                      : "Collected by owner"}
-                  </Td>
-                  <Td>
-                    <Money amount={invoice.totalAmount} />
-                  </Td>
-                  <Td>
-                    <Money amount={invoice.balanceDue} />
-                  </Td>
-                  <Td>
-                    <StatusBadge status={invoice.paymentStatus} />
-                  </Td>
-                  <Td align="right">
-                    {invoice.balanceDue > 0 ? (
-                      <Button
-                        onClick={() => openModal({ invoice, mode: "payment" })}
-                      >
-                        {invoice.collectionRoute === "through_ips"
-                          ? "Record payment"
-                          : "Confirm collected"}
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-muted">Done</span>
-                    )}
-                  </Td>
+      <Card
+        className="min-h-0 flex-1 gap-0 py-0"
+        data-slot="rent-invoices-surface"
+      >
+        {invoices.length === 0 ? (
+          <EmptyState
+            body="Set up an active lease, then create its first rent invoice."
+            className="flex-1"
+            kind="empty"
+            title="No rent invoices"
+          />
+        ) : (
+          <TableFrame>
+            <table className="w-full min-w-[980px] text-sm">
+              <thead>
+                <tr>
+                  <Th>Invoice</Th>
+                  <Th>Billed to</Th>
+                  <Th>Property</Th>
+                  <Th>Collection</Th>
+                  <Th>Total</Th>
+                  <Th>Balance</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Action</Th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableFrame>
-      )}
+              </thead>
+              <tbody>
+                {invoices.map((invoice) => (
+                  <tr className="border-b border-border" key={invoice.id}>
+                    <Td>
+                      <p className="font-medium">{invoice.invoiceNumber}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Due {formatDate(invoice.dueDate)}
+                      </p>
+                    </Td>
+                    <Td>
+                      <p>{invoice.recipientLabel}</p>
+                      {invoice.occupantLabels.length ? (
+                        <p className="text-xs text-muted-foreground">
+                          Occupants: {invoice.occupantLabels.join(", ")}
+                        </p>
+                      ) : null}
+                    </Td>
+                    <Td>
+                      <p>{invoice.propertyLabel}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {invoice.unitLabel}
+                      </p>
+                    </Td>
+                    <Td>
+                      {invoice.collectionRoute === "through_ips"
+                        ? `Collected by ${organizationName}`
+                        : "Collected by owner"}
+                    </Td>
+                    <Td>
+                      <Money amount={invoice.totalAmount} />
+                    </Td>
+                    <Td>
+                      <Money amount={invoice.balanceDue} />
+                    </Td>
+                    <Td>
+                      <StatusBadge status={invoice.paymentStatus} />
+                    </Td>
+                    <Td align="right">
+                      {invoice.balanceDue > 0 ? (
+                        <Button
+                          onClick={() =>
+                            openModal({ invoice, mode: "payment" })
+                          }
+                        >
+                          {invoice.collectionRoute === "through_ips"
+                            ? "Record payment"
+                            : "Confirm collected"}
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Done
+                        </span>
+                      )}
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableFrame>
+        )}
+      </Card>
     </div>
   );
 }
@@ -645,11 +658,15 @@ function ExpensesView({
               <Td>{formatDate(expense.date)}</Td>
               <Td>
                 <p className="font-medium">{expense.customerLabel}</p>
-                <p className="text-xs text-muted">{expense.vendorLabel}</p>
+                <p className="text-xs text-muted-foreground">
+                  {expense.vendorLabel}
+                </p>
               </Td>
               <Td>
                 <p>{expense.propertyLabel}</p>
-                <p className="text-xs text-muted">{expense.unitLabel}</p>
+                <p className="text-xs text-muted-foreground">
+                  {expense.unitLabel}
+                </p>
               </Td>
               <Td>
                 <Badge
@@ -661,7 +678,7 @@ function ExpensesView({
                     ? "Property owner"
                     : "Tenant or company"}
                 </Badge>
-                <p className="mt-1 text-xs text-muted">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {expense.responsibleLabel}
                 </p>
               </Td>
@@ -915,7 +932,7 @@ function PropertyAccountView({
                 >
                   <Td>{formatDate(entry.date)}</Td>
                   <Td>{entry.label}</Td>
-                  <Td className="text-muted">{entry.note ?? "—"}</Td>
+                  <Td className="text-muted-foreground">{entry.note ?? "—"}</Td>
                   <Td>
                     <Money
                       amount={
@@ -1246,7 +1263,7 @@ function PaymentChooser({
   return (
     <div className="max-h-[520px] overflow-y-auto p-2">
       {invoices.length === 0 ? (
-        <p className="p-4 text-sm text-muted">
+        <p className="p-4 text-sm text-muted-foreground">
           There are no open tenant invoices.
         </p>
       ) : (
@@ -1261,13 +1278,13 @@ function PaymentChooser({
               <span className="block text-sm font-medium">
                 {invoice.recipientLabel}
               </span>
-              <span className="block text-xs text-muted">
+              <span className="block text-xs text-muted-foreground">
                 {invoice.propertyLabel} · {invoice.invoiceNumber}
               </span>
             </span>
             <span className="flex items-center gap-2">
               <Money amount={invoice.balanceDue} />
-              <ChevronRight className="text-muted" size={15} />
+              <ChevronRight className="text-muted-foreground" size={15} />
             </span>
           </button>
         ))
@@ -1370,7 +1387,7 @@ function SettleInvoiceForm({
         </details>
       ) : null}
       {invoice.collectionRoute === "direct_to_owner" ? (
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           This marks the invoice “Collected by owner” and does not add cash to
           the property account.
         </p>
@@ -1438,8 +1455,7 @@ function ExpenseForm({
   const matchingInvoices = invoices.filter(
     (invoice) => invoice.propertyId === propertyId && invoice.balanceDue > 0,
   );
-  const effectiveMarkup =
-    effectiveResponsibility === "tenant" ? markup : "0";
+  const effectiveMarkup = effectiveResponsibility === "tenant" ? markup : "0";
   const invoiceTotal = Number(cost || 0) + Number(effectiveMarkup || 0);
   useSuccess(state, onSuccess);
   return (
@@ -1586,9 +1602,10 @@ function ExpenseForm({
             />
           </Field>
           <div className="flex items-center justify-between gap-4 border-t border-border pt-3 text-sm sm:col-span-2">
-            <span className="text-muted">Invoice line</span>
+            <span className="text-muted-foreground">Invoice line</span>
             <span className="font-semibold">
-              {categoryLabel(category)} · {formatMoneyDisplay(invoiceTotal).primary}
+              {categoryLabel(category)} ·{" "}
+              {formatMoneyDisplay(invoiceTotal).primary}
             </span>
           </div>
         </div>
@@ -1764,9 +1781,30 @@ function categoryLabel(category: string) {
 
 function CompactTotals({
   items,
+  variant = "strip",
 }: {
   items: { label: string; value: ReactNode }[];
+  variant?: "cards" | "strip";
 }) {
+  if (variant === "cards") {
+    return (
+      <div className="grid shrink-0 gap-4 sm:grid-cols-3">
+        {items.map((item) => (
+          <Card className="gap-1 py-3" key={item.label} size="sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {item.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-semibold tabular-nums">
+              {item.value}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div
       className="grid shrink-0 divide-x divide-border border-b border-border bg-surface-muted/35"
@@ -1774,7 +1812,7 @@ function CompactTotals({
     >
       {items.map((item) => (
         <div className="px-4 py-2.5 sm:px-6" key={item.label}>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {item.label}
           </p>
           <div className="mt-0.5 text-sm font-semibold">{item.value}</div>
@@ -1803,7 +1841,7 @@ function Th({
   return (
     <th
       className={cn(
-        "border-b border-border bg-surface-muted/65 px-3 py-2 text-xs font-semibold text-muted",
+        "border-b border-border bg-surface-muted/65 px-3 py-2 text-xs font-semibold text-muted-foreground",
         align === "right" ? "text-right" : "text-left",
       )}
     >
@@ -1947,7 +1985,7 @@ function DefinitionRows({ rows }: { rows: [string, ReactNode][] }) {
           className="grid grid-cols-[minmax(120px,0.4fr)_1fr] gap-3 border-b border-border px-3 py-2 last:border-b-0"
           key={label}
         >
-          <dt className="text-sm text-muted">{label}</dt>
+          <dt className="text-sm text-muted-foreground">{label}</dt>
           <dd className="text-sm font-medium">{value}</dd>
         </div>
       ))}
@@ -1975,7 +2013,7 @@ function StepIndicator({
                 ? "font-semibold text-foreground"
                 : number < current
                   ? "text-success"
-                  : "text-muted",
+                  : "text-muted-foreground",
             )}
             key={label}
           >

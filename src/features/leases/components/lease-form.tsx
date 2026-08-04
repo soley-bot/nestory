@@ -439,7 +439,7 @@ export function LeaseForm({
           />
         </RecordField>
 
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           Readiness stays blocked until an approved rent policy supports this
           frequency and the term is authoritative.
         </p>

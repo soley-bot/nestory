@@ -42,14 +42,14 @@ export function PeopleInspector({
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+            <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
               {person.partyTypeLabel}
             </p>
             <h2 className="mt-1 break-words text-base font-semibold">
               {person.displayName}
             </h2>
             {person.legalName ? (
-              <p className="mt-1 break-words text-sm text-muted">
+              <p className="mt-1 break-words text-sm text-muted-foreground">
                 {person.legalName}
               </p>
             ) : null}
@@ -173,7 +173,7 @@ function CompactFact({
 }) {
   return (
     <div className={wide ? "col-span-2 min-w-0 rounded-md border border-border px-3 py-2.5" : "min-w-0 rounded-md border border-border px-3 py-2.5"}>
-      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-1.5 text-sm font-medium">{children}</div>

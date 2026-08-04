@@ -54,7 +54,7 @@ export function UnitsTable({
         )}
       >
         {units.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted sm:col-span-2 xl:col-span-3">
+          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
             {getEmptyMessage(archiveState)}
           </p>
         ) : null}
@@ -83,7 +83,7 @@ export function UnitsTable({
                 <col className="w-[14%]" />
                 <col className="w-[22%]" />
               </colgroup>
-              <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
                     active={sort === "property_asc"}
@@ -131,7 +131,7 @@ export function UnitsTable({
               <tbody>
                 {units.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={6}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
                       {getEmptyMessage(archiveState)}
                     </td>
                   </tr>
@@ -143,7 +143,7 @@ export function UnitsTable({
                     className={cn(
                       unitRowClassName,
                       selectedUnitId === unit.id && selectedUnitRowClassName,
-                      unit.isArchived && "text-muted",
+                      unit.isArchived && "text-muted-foreground",
                     )}
                     key={unit.id}
                     onClick={() => onSelectUnit(unit.id)}
@@ -171,7 +171,7 @@ export function UnitsTable({
                             {unit.propertyCode}
                           </p>
                           <p
-                            className="mt-0.5 truncate text-xs text-muted"
+                            className="mt-0.5 truncate text-xs text-muted-foreground"
                             title={unit.propertyName}
                           >
                             {unit.propertyName}
@@ -255,7 +255,7 @@ function UnitCard({
       className={cn(
         "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-focus-ring",
         selected && "border-record-spine bg-state-selected",
-        unit.isArchived && "text-muted",
+        unit.isArchived && "text-muted-foreground",
       )}
       data-selected={selected ? "true" : "false"}
       onClick={() => onSelectUnit(unit.id)}
@@ -371,7 +371,7 @@ function UnitStatusBadges({ unit }: { unit: UnitSummary }) {
 
 function UnitThumbnail({ unit }: { unit: UnitSummary }) {
   const className =
-    "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-muted";
+    "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-muted-foreground";
 
   if (unit.thumbnailUrl) {
     return (
@@ -392,7 +392,7 @@ function UnitThumbnail({ unit }: { unit: UnitSummary }) {
 
 function UnitPhoto({ unit }: { unit: UnitSummary }) {
   const className =
-    "flex h-36 w-full items-center justify-center bg-surface-muted text-muted";
+    "flex h-36 w-full items-center justify-center bg-surface-muted text-muted-foreground";
 
   if (unit.thumbnailUrl) {
     return (

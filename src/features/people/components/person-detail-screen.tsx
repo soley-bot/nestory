@@ -175,7 +175,7 @@ export function PersonDetailScreen({
                       Contact and relationships
                     </h2>
                   </div>
-                  <p className="mt-1 break-words text-sm text-muted">
+                  <p className="mt-1 break-words text-sm text-muted-foreground">
                     {person.legalName ?? person.partyTypeLabel}
                   </p>
 
@@ -206,7 +206,7 @@ export function PersonDetailScreen({
 
                   {person.notes ? (
                     <div className="mt-4 rounded-md border border-border bg-surface-muted/60 p-3 text-sm">
-                      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+                      <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
                         Notes
                       </p>
                       <p className="mt-1 break-words">{person.notes}</p>
@@ -232,7 +232,7 @@ export function PersonDetailScreen({
                     >
                       Workspace Access
                     </h2>
-                    <p className="mt-1 max-w-2xl text-sm text-muted">
+                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
                       Staff records describe operational people. Workspace Access
                       controls who can sign in.
                     </p>
@@ -298,7 +298,7 @@ export function PersonDetailScreen({
                           <p className="break-words font-medium">
                             {person.linked.vendorProfile.label}
                           </p>
-                          <p className="mt-1 text-xs text-muted">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {person.linked.vendorProfile.status}
                           </p>
                         </div>
@@ -325,13 +325,13 @@ export function PersonDetailScreen({
               />
               <div className="grid gap-4 p-4 md:grid-cols-[220px_minmax(0,1fr)]">
                 <div className="grid aspect-square place-items-center rounded-md border border-border bg-surface-muted">
-                  <div className="grid h-20 w-20 place-items-center rounded-full border border-border bg-surface text-muted">
+                  <div className="grid h-20 w-20 place-items-center rounded-full border border-border bg-surface text-muted-foreground">
                     <UserRound size={34} />
                   </div>
                 </div>
                 <div className="rounded-md border border-border bg-surface-muted/60 p-4 text-sm">
                   <p className="font-semibold">No profile photo yet</p>
-                  <p className="mt-2 max-w-2xl leading-6 text-muted">
+                  <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">
                     Person photos need a person-scoped storage target. Related
                     IDs, agreements, and contact evidence can stay in Documents
                     for this record today.
@@ -455,7 +455,7 @@ function PersonActivityRow({
     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <p className="break-words font-medium">{change.actionLabel}</p>
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-muted-foreground">
           {change.entityLabel} / {change.recordLabel}
         </p>
       </div>
@@ -497,7 +497,7 @@ function PersonRecordNav({
             }
             aria-selected={activeSection === section.id}
             className={cn(
-              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",
+              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground",
               activeSection === section.id &&
                 "bg-accent-soft text-foreground",
             )}
@@ -557,7 +557,7 @@ function Detail({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {children}
         {label}
       </dt>
@@ -580,10 +580,10 @@ function SectionTitle({
   return (
     <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-2">
-        <span className="text-muted">{icon}</span>
+        <span className="text-muted-foreground">{icon}</span>
         <h2 className="text-sm font-semibold">{title}</h2>
       </div>
-      <p className="text-xs text-muted">{description}</p>
+      <p className="text-xs text-muted-foreground">{description}</p>
     </div>
   );
 }
@@ -598,7 +598,7 @@ function RiskRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold">{item.label}</p>
-          <p className="mt-1 leading-5 text-muted">{item.description}</p>
+          <p className="mt-1 leading-5 text-muted-foreground">{item.description}</p>
         </div>
         <Badge tone={item.tone}>{getRiskToneLabel(item.tone)}</Badge>
       </div>
@@ -650,7 +650,7 @@ function LeaseLinkRow({ lease }: { lease: PeopleLeaseLink }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="break-words font-medium">{lease.unitLabel}</p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             {lease.propertyLabel} / {lease.label}
           </p>
         </div>
@@ -669,7 +669,7 @@ function PropertyLinkRow({ property }: { property: PeoplePropertyLink }) {
       prefetch={false}
     >
       <p className="break-words font-medium">{property.label}</p>
-      <p className="mt-1 text-xs text-muted">{property.ownershipLabel}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{property.ownershipLabel}</p>
     </Link>
   );
 }
@@ -683,7 +683,7 @@ function DocumentRow({
     <div className="flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <p className="break-words font-medium">{document.fileName}</p>
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-muted-foreground">
           {document.category} / {formatDate(document.uploadedAt)} /{" "}
           {formatFileSize(document.sizeBytes)}
         </p>
@@ -719,7 +719,7 @@ function EmptyBlock({
 }) {
   return (
     <div className="py-3 text-sm">
-      <p className="text-muted">{label}</p>
+      <p className="text-muted-foreground">{label}</p>
       <ActionLink
         className="mt-3"
         href={actionHref}
@@ -742,7 +742,7 @@ function EmptyRow({
 }) {
   return (
     <div className="flex flex-col gap-3 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-muted">{label}</p>
+      <p className="text-muted-foreground">{label}</p>
       <ActionLink href={actionHref} icon={<FileText size={14} />}>
         {actionLabel}
       </ActionLink>

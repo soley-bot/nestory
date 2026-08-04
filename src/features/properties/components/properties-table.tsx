@@ -11,7 +11,7 @@ import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 const propertyRowClassName =
-  "cursor-pointer border-t border-border outline-none transition-colors hover:bg-state-selected/60 focus-visible:bg-state-selected/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring";
+  "cursor-pointer border-t border-border outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 
 type PropertiesTableProps = {
   displayMode: PropertyDisplayMode;
@@ -40,7 +40,7 @@ export function PropertiesTable({
         data-property-record-list={displayMode}
       >
         {properties.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted sm:col-span-2 2xl:col-span-3">
+          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground sm:col-span-2 2xl:col-span-3">
             No properties match the current filters.
           </p>
         ) : null}
@@ -58,7 +58,7 @@ export function PropertiesTable({
           className="hidden h-full min-w-0 overflow-hidden md:block"
           data-slot="register-table-frame"
         >
-          <div className="h-full min-h-[540px] overflow-auto">
+          <div className="h-full min-h-[360px] overflow-auto">
             <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
                 <col className="w-[30%]" />
@@ -68,7 +68,7 @@ export function PropertiesTable({
                 <col className="w-[10%]" />
                 <col className="w-[8%]" />
               </colgroup>
-              <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-muted/50 text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
                     active={sort === "code_asc"}
@@ -103,7 +103,7 @@ export function PropertiesTable({
               <tbody>
                 {properties.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted" colSpan={6}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
                       No properties match the current filters.
                     </td>
                   </tr>
@@ -113,7 +113,7 @@ export function PropertiesTable({
                     aria-label={`Preview ${property.name}`}
                     className={cn(
                       propertyRowClassName,
-                      property.isArchived && "text-muted",
+                      property.isArchived && "text-muted-foreground",
                     )}
                     key={property.id}
                     onClick={() => onPreviewProperty(property.id)}
@@ -141,7 +141,7 @@ export function PropertiesTable({
                             {property.name}
                           </p>
                           <p
-                            className="mt-0.5 truncate text-xs text-muted"
+                            className="mt-0.5 truncate text-xs text-muted-foreground"
                             title={`${property.code} / ${property.type}`}
                           >
                             {property.code} / {property.type}
@@ -197,7 +197,7 @@ function PropertyCard({
       aria-label={`Preview ${property.name}`}
       className={cn(
         "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-focus-ring",
-        property.isArchived && "text-muted",
+        property.isArchived && "text-muted-foreground",
       )}
       onClick={() => onPreviewProperty(property.id)}
       onKeyDown={(event) => {
@@ -218,7 +218,7 @@ function PropertyCard({
       <div className="grid min-w-0 gap-1 p-2">
         <div className="flex min-w-0 items-start justify-between gap-2">
           <p
-            className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wide text-muted"
+            className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
             title={property.code}
           >
             {property.code}
@@ -394,7 +394,7 @@ function PropertyThumbnail({
   size?: "card" | "large" | "small";
 }) {
   const className = cn(
-    "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-muted",
+    "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-muted-foreground",
     size === "card"
       ? "h-36 w-full rounded-b-none border-x-0 border-t-0"
       : size === "large"
@@ -469,7 +469,7 @@ function TableOccupancy({ property }: { property: PropertySummary }) {
         >
           {occupancyRate}%
         </span>
-        <span className="text-xs text-muted tabular-nums">{openUnits} open</span>
+        <span className="text-xs text-muted-foreground tabular-nums">{openUnits} open</span>
       </div>
       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-chart-track">
         <span

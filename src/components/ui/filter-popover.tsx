@@ -47,7 +47,7 @@ export function FilterPopover({
           <div className="mb-3">
             <p className="text-sm font-semibold text-foreground">{title}</p>
             {description ? (
-              <p className="mt-0.5 text-xs text-muted">{description}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
             ) : null}
           </div>
           {children}

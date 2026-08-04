@@ -32,7 +32,7 @@ export function PaginationControls({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 bg-surface px-3 py-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-3 bg-surface px-3 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between",
         attached
           ? "-mt-px rounded-b-md border border-t-0 border-border"
           : "border-t border-border",

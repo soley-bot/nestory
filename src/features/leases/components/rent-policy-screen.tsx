@@ -40,7 +40,7 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold">Policy authority</h2>
-            <p className="mt-1 max-w-3xl text-sm text-muted">
+            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
               Drafts may remain unresolved. Approval is blocked until every
               due-day, proration, notice, frequency, concession, rent-free,
               and waiver rule is explicit.
@@ -66,7 +66,7 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
           tabIndex={0}
         >
           <table className="w-full min-w-[620px] text-left text-sm">
-            <thead className="border-b border-border text-xs uppercase text-muted">
+            <thead className="border-b border-border text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="py-2 pr-4">Version</th>
                 <th className="py-2 pr-4">Effective</th>
@@ -104,7 +104,7 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
               ))}
               {versions.length === 0 ? (
                 <tr>
-                  <td className="py-4 text-muted" colSpan={5}>
+                  <td className="py-4 text-muted-foreground" colSpan={5}>
                     No policy versions yet.
                   </td>
                 </tr>
@@ -130,7 +130,7 @@ function CreateDraftForm() {
       className="rounded-md border border-border bg-surface p-4"
     >
       <h2 className="text-sm font-semibold">Create policy draft</h2>
-      <p className="mt-1 text-xs text-muted">
+      <p className="mt-1 text-xs text-muted-foreground">
         This creates an empty version. It does not invent a due day or
         proration rule.
       </p>
@@ -176,7 +176,7 @@ function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
           <h2 className="text-sm font-semibold">
             Draft v{draft.version_number}
           </h2>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-muted-foreground">
             Effective {draft.effective_from}
           </p>
         </div>
@@ -310,7 +310,7 @@ function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
 
       <form action={approveAction} className="mt-5 border-t border-border pt-4">
         <input name="policyId" type="hidden" value={draft.id} />
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           Approval makes these economic rules immutable. Corrections require a
           later version.
         </p>

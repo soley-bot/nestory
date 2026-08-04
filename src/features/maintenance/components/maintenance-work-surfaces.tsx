@@ -169,7 +169,7 @@ function InboxSurface({
       </section>
       <aside className="rounded-md border border-border bg-surface">
         <div className="border-b border-border px-3 py-2">
-          <p className="text-xs font-medium uppercase tracking-[0] text-muted">
+          <p className="text-xs font-medium uppercase tracking-[0] text-muted-foreground">
             Needs triage
           </p>
           <p className="mt-0.5 text-sm font-semibold">
@@ -178,7 +178,7 @@ function InboxSurface({
           </p>
         </div>
         {attentionCases.length === 0 ? (
-          <p className="px-3 py-4 text-sm text-muted">Nothing urgent in this view.</p>
+          <p className="px-3 py-4 text-sm text-muted-foreground">Nothing urgent in this view.</p>
         ) : (
           <div className="divide-y divide-border">
             {attentionCases.slice(0, 6).map((maintenanceCase) => (
@@ -271,7 +271,7 @@ function AgendaSurface({
           <div className="grid shrink-0 grid-cols-7 border-b border-border bg-background">
             {WEEKDAY_LABELS.map((label) => (
               <span
-                className="border-r border-border px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0] text-muted last:border-r-0"
+                className="border-r border-border px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0] text-muted-foreground last:border-r-0"
                 key={label}
               >
                 {label}
@@ -358,7 +358,7 @@ function ChecklistSurface({
             />
             <div className="mt-3 rounded-md border border-border bg-surface-muted/60 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-[0] text-muted">
+                <p className="text-xs font-semibold uppercase tracking-[0] text-muted-foreground">
                   Checklist
                 </p>
                 <Badge
@@ -376,7 +376,7 @@ function ChecklistSurface({
               </div>
               <div className="mt-2 space-y-1.5 text-left text-xs">
                 {maintenanceCase.checklist.length === 0 ? (
-                  <p className="text-muted">No checklist items yet.</p>
+                  <p className="text-muted-foreground">No checklist items yet.</p>
                 ) : (
                   maintenanceCase.checklist.slice(0, 3).map((item) => (
                     <p className="flex items-start gap-2" key={item.id}>
@@ -387,11 +387,11 @@ function ChecklistSurface({
                         />
                       ) : (
                         <ListChecks
-                          className="mt-0.5 shrink-0 text-muted"
+                          className="mt-0.5 shrink-0 text-muted-foreground"
                           size={13}
                         />
                       )}
-                      <span className={cn(item.completed && "text-muted line-through")}>
+                      <span className={cn(item.completed && "text-muted-foreground line-through")}>
                         {item.label}
                       </span>
                     </p>
@@ -479,7 +479,7 @@ function WorkloadSurface({
               <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
                 <div>
                   <p className="text-sm font-semibold">{group.label}</p>
-                  <p className="text-xs text-muted">
+                  <p className="text-xs text-muted-foreground">
                     {group.cases.filter((maintenanceCase) => maintenanceCase.isOverdue).length} overdue
                   </p>
                 </div>
@@ -549,7 +549,7 @@ function MaintenanceCard({
         selected={selected}
       />
       <div className="mt-2 flex min-w-0 text-left">
-        <span className="min-w-0 truncate text-xs font-medium text-muted">
+        <span className="min-w-0 truncate text-xs font-medium text-muted-foreground">
           {maintenanceCase.dueLabel}
         </span>
       </div>
@@ -588,7 +588,7 @@ function CalendarDayCell({
     <div
       className={cn(
         "relative min-h-0 bg-surface px-1.5 py-1",
-        !day.inMonth && "bg-surface-muted/50 text-muted",
+        !day.inMonth && "bg-surface-muted/50 text-muted-foreground",
         showBottomBorder && "border-b border-border",
         showRightBorder && "border-r border-border",
       )}
@@ -625,7 +625,7 @@ function CalendarDayCell({
           <button
             aria-expanded={overflowExpanded}
             aria-haspopup="dialog"
-            className="block min-h-6 w-full rounded-sm px-1.5 py-1 text-left text-xs font-medium leading-4 text-muted hover:bg-surface-muted hover:text-foreground"
+            className="block min-h-6 w-full rounded-sm px-1.5 py-1 text-left text-xs font-medium leading-4 text-muted-foreground hover:bg-surface-muted hover:text-foreground"
             onClick={(event) =>
               onActivateOverflow(dayCases.slice(3), event.currentTarget)
             }
@@ -701,7 +701,7 @@ function CalendarEventPopover({
       <div className="flex justify-end px-2 pt-2">
         <button
           aria-label="Close event"
-          className="inline-flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           onClick={onClose}
           ref={firstActionRef}
           type="button"
@@ -726,7 +726,7 @@ function CalendarEventPopover({
               {maintenanceCase.title}
             </Link>
           </h3>
-          <p className="mt-1 text-sm text-muted">{maintenanceCase.dueLabel}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{maintenanceCase.dueLabel}</p>
           <div className="mt-4 flex flex-wrap gap-1.5">
             <Badge tone={maintenanceCase.statusTone}>
               {maintenanceCase.statusLabel}
@@ -739,9 +739,9 @@ function CalendarEventPopover({
             <p className="truncate">
               {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
             </p>
-            <p className="text-muted">{maintenanceCase.reminderLabel}</p>
-            <p className="text-muted">{maintenanceCase.assigneeLabel}</p>
-            <p className="text-muted">{maintenanceCase.vendorLabel}</p>
+            <p className="text-muted-foreground">{maintenanceCase.reminderLabel}</p>
+            <p className="text-muted-foreground">{maintenanceCase.assigneeLabel}</p>
+            <p className="text-muted-foreground">{maintenanceCase.vendorLabel}</p>
           </div>
           <button
             className="mt-4 inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface px-3 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -789,7 +789,7 @@ function CalendarOverflowPopover({
         <h3 className="text-sm font-semibold">More calendar events</h3>
         <button
           aria-label="Close events"
-          className="inline-flex size-8 items-center justify-center rounded-full text-muted hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           onClick={onClose}
           type="button"
         >
@@ -811,7 +811,7 @@ function CalendarOverflowPopover({
               >
                 {maintenanceCase.title}
               </Link>
-              <p className="mt-0.5 truncate text-xs text-muted">
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {maintenanceCase.statusLabel} / {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
               </p>
             </div>
@@ -907,12 +907,12 @@ function CardHeader({
           >
             {maintenanceCase.title}
           </Link>
-          <p className="mt-1 truncate text-xs text-muted">
+          <p className="mt-1 truncate text-xs text-muted-foreground">
             {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Wrench aria-hidden="true" className="text-muted" size={15} />
+          <Wrench aria-hidden="true" className="text-muted-foreground" size={15} />
           <button
             aria-label={`Preview ${maintenanceCase.title}`}
             aria-pressed={selected}
@@ -953,10 +953,10 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="text-muted">{icon}</span>
+      <span className="text-muted-foreground">{icon}</span>
       <div>
         <h2 className="font-semibold">{title}</h2>
-        <p className="text-xs text-muted">{detail}</p>
+        <p className="text-xs text-muted-foreground">{detail}</p>
       </div>
     </div>
   );
@@ -964,7 +964,7 @@ function SectionTitle({
 
 function EmptySurface({ label }: { label: string }) {
   return (
-    <div className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted">
+    <div className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
       {label}
     </div>
   );

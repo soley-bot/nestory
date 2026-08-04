@@ -1,24 +1,12 @@
-"use client";
+"use client"
 
-import * as Checkbox from "@radix-ui/react-checkbox";
-import { Check } from "lucide-react";
-import type { ComponentPropsWithoutRef } from "react";
-import { cn } from "@/lib/utils";
+import * as React from "react"
 
-type CheckboxControlProps = ComponentPropsWithoutRef<typeof Checkbox.Root>;
+import { Checkbox } from "@/components/ui/checkbox"
 
-export function CheckboxControl({ className, ...props }: CheckboxControlProps) {
-  return (
-    <Checkbox.Root
-      className={cn(
-        "flex size-4 shrink-0 items-center justify-center rounded border border-control-border bg-surface text-background shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring data-[state=checked]:border-accent data-[state=checked]:bg-accent disabled:cursor-not-allowed disabled:opacity-60",
-        className,
-      )}
-      {...props}
-    >
-      <Checkbox.Indicator asChild>
-        <Check size={12} strokeWidth={3} />
-      </Checkbox.Indicator>
-    </Checkbox.Root>
-  );
+type CheckboxControlProps = React.ComponentProps<typeof Checkbox>
+
+/** Compatibility adapter while feature code moves to the shadcn Checkbox. */
+export function CheckboxControl(props: CheckboxControlProps) {
+  return <Checkbox {...props} />
 }

@@ -45,7 +45,7 @@ export function ArchiveMaintenancePanel({
           <p className="text-sm font-semibold">Archive confirmation</p>
         </div>
         <MaintenancePanelSummary maintenanceCase={maintenanceCase} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
           This hides the case from active maintenance views while keeping its
           linked timeline, ledger, and document history available.
         </p>
@@ -88,7 +88,7 @@ export function RestoreMaintenancePanel({
           <p className="text-sm font-semibold">Restore confirmation</p>
         </div>
         <MaintenancePanelSummary maintenanceCase={maintenanceCase} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted">
+        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
           Restoring makes this case visible in active maintenance workflows again.
         </p>
         <PanelMessage state={state} />
@@ -112,10 +112,10 @@ function MaintenancePanelSummary({
   return (
     <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
       <p className="text-sm font-medium">{maintenanceCase.title}</p>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 text-sm text-muted-foreground">
         {maintenanceCase.propertyLabel} / {maintenanceCase.unitLabel}
       </p>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 text-sm text-muted-foreground">
         {maintenanceCase.statusLabel} / {maintenanceCase.priorityLabel}
       </p>
     </div>

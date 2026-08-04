@@ -56,10 +56,10 @@ export function MonthPickerField({
             )}
             type="button"
           >
-            <span className={value ? "text-foreground" : "text-muted"}>
+            <span className={value ? "text-foreground" : "text-muted-foreground"}>
               {value ? formatMonthLabel(value) : "Select month"}
             </span>
-            <CalendarDays className="shrink-0 text-muted" size={16} />
+            <CalendarDays className="shrink-0 text-muted-foreground" size={16} />
           </button>
         </Popover.Trigger>
         <Popover.Portal>
@@ -71,7 +71,7 @@ export function MonthPickerField({
             <div className="flex items-center justify-between gap-2">
               <button
                 aria-label="Previous year"
-                className="flex size-8 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() => setVisibleYear((year) => year - 1)}
                 type="button"
               >
@@ -80,7 +80,7 @@ export function MonthPickerField({
               <p className="text-sm font-semibold">{visibleYear}</p>
               <button
                 aria-label="Next year"
-                className="flex size-8 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() => setVisibleYear((year) => year + 1)}
                 type="button"
               >
@@ -120,7 +120,7 @@ export function MonthPickerField({
 
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
               <button
-                className="rounded-md px-2 py-1 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="rounded-md px-2 py-1 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
                 onClick={() => {
                   setValue("");
                   onValueChange?.("");

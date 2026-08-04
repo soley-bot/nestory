@@ -299,7 +299,7 @@ function getPropertyRecordPanelContent({
       <section id="property-overview">
         <div className="min-w-0">
           <h2 className="break-words text-base font-semibold">Property context</h2>
-          <p className="mt-1 break-words text-sm text-muted">{property.address}</p>
+          <p className="mt-1 break-words text-sm text-muted-foreground">{property.address}</p>
         </div>
 
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
@@ -409,7 +409,7 @@ function PropertyRecordNav({
             }
             aria-selected={activeSection === item.id}
             className={cn(
-              "inline-flex h-9 items-center border-b-2 border-transparent px-2.5 text-[13px] font-medium text-muted transition-colors hover:text-foreground",
+              "inline-flex h-9 items-center border-b-2 border-transparent px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground",
               activeSection === item.id && "border-accent text-foreground",
             )}
             id={`property-tab-${item.id}`}
@@ -453,7 +453,7 @@ function PropertyReportsPanel({
             prefetch={false}
           >
             <h3 className="text-sm font-semibold">{statement.title}</h3>
-            <p className="mt-1 text-[13px] leading-5 text-muted">
+            <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
               {statement.description}
             </p>
             <span className="mt-auto inline-flex items-center gap-1.5 pt-3 text-xs font-medium text-foreground">
@@ -520,7 +520,7 @@ function Detail({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {children}
         {label}
       </dt>
@@ -542,11 +542,11 @@ function Metric({
 }) {
   return (
     <div className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
-      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted">
+      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-2">{value}</dd>
-      {note ? <dd className="mt-2 text-xs text-muted">{note}</dd> : null}
+      {note ? <dd className="mt-2 text-xs text-muted-foreground">{note}</dd> : null}
     </div>
   );
 }
@@ -563,10 +563,10 @@ function SectionTitle({
   return (
     <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-2">
-        <span className="text-muted">{icon}</span>
+        <span className="text-muted-foreground">{icon}</span>
         <h2 className="text-sm font-semibold">{title}</h2>
       </div>
-      <p className="text-xs text-muted">{description}</p>
+      <p className="text-xs text-muted-foreground">{description}</p>
     </div>
   );
 }
@@ -582,7 +582,7 @@ function EmptyBlock({
 }) {
   return (
     <div className="rounded-md border border-border bg-surface-muted/60 p-3 text-sm">
-      <p className="text-muted">{label}</p>
+      <p className="text-muted-foreground">{label}</p>
       <ActionLink className="mt-3" href={actionHref} icon={<FileText size={14} />}>
         {actionLabel}
       </ActionLink>
@@ -601,7 +601,7 @@ function EmptyRow({
 }) {
   return (
     <div className="flex flex-col gap-3 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-muted">{label}</p>
+      <p className="text-muted-foreground">{label}</p>
       <ActionLink href={actionHref} icon={<FileText size={14} />}>
         {actionLabel}
       </ActionLink>
@@ -619,7 +619,7 @@ function OwnerRow({ owner }: { owner: PropertyOwnerHistory }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="break-words font-medium">{owner.label}</p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             {owner.ownershipLabel} / {owner.periodLabel}
           </p>
         </div>
@@ -641,7 +641,7 @@ function LeaseRow({ lease }: { lease: PropertyDetailLease }) {
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <div className="min-w-0">
           <p className="break-words font-medium">{lease.tenantName}</p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             {lease.unitLabel} / {lease.termLabel}
           </p>
         </div>
@@ -664,7 +664,7 @@ function LedgerRow({ entry }: { entry: PropertyLedgerContext }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="break-words font-medium">{entry.category}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarDays size={13} />
             <span>{formatDate(entry.transactionDate)}</span>
             <Badge tone={entry.direction === "expense" ? "warning" : "success"}>
@@ -694,7 +694,7 @@ function MaintenanceRow({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="break-words font-medium">{maintenanceCase.title}</p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             {maintenanceCase.category} / {maintenanceCase.unitLabel} /{" "}
             {maintenanceCase.dueLabel}
           </p>
@@ -703,7 +703,7 @@ function MaintenanceRow({
           <Badge tone={maintenanceCase.statusTone}>
             {maintenanceCase.statusLabel}
           </Badge>
-          <span className="text-xs font-medium text-muted">
+          <span className="text-xs font-medium text-muted-foreground">
             {maintenanceCase.actualCostLabel}
           </span>
         </div>
@@ -722,7 +722,7 @@ function TimelineRow({ event }: { event: PropertyTimelineContext }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="break-words font-medium">{event.title}</p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             {formatDate(event.eventDate)} / {event.eventType} / {event.unitLabel}
           </p>
         </div>
@@ -742,12 +742,12 @@ function DocumentRow({ document }: { document: PropertyDocumentContext }) {
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="break-words font-medium">{document.fileName}</p>
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-muted-foreground">
           {document.category} / {document.linkedRecordLabel} /{" "}
           {formatDate(document.uploadedAt)}
         </p>
       </div>
-      <FileText className="shrink-0 text-muted" size={15} />
+      <FileText className="shrink-0 text-muted-foreground" size={15} />
     </div>
   );
 
@@ -783,7 +783,7 @@ function ActivityRow({ change }: { change: RecentChange }) {
   const content = (
     <>
       <p className="break-words font-medium">{change.actionLabel}</p>
-      <p className="mt-1 text-xs text-muted">
+      <p className="mt-1 text-xs text-muted-foreground">
         {formatDate(change.createdAt)} / {change.recordLabel}
       </p>
     </>
