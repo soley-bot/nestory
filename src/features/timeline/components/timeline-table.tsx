@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { EventTypeBadge } from "@/features/timeline/components/event-type-badge";
 import type {
   TimelineEvent,
-  TimelinePagination,
 } from "@/features/timeline/timeline.types";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
@@ -20,30 +19,18 @@ type TimelineTableProps = {
   events: TimelineEvent[];
   selectedEventId: string;
   onSelectEvent: (id: string) => void;
-  pagination: TimelinePagination;
 };
 
 export function TimelineTable({
   events,
   selectedEventId,
   onSelectEvent,
-  pagination,
 }: TimelineTableProps) {
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-surface">
-      <div className="flex flex-col gap-1 border-b border-border px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-[13px] font-semibold text-foreground">
-            Timeline records
-          </h2>
-          <p className="text-xs text-muted">
-            {pagination.totalCount === 0
-              ? "No matching records"
-              : `${pagination.from}-${pagination.to} of ${pagination.totalCount}`}
-          </p>
-        </div>
-      </div>
-      <div className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]">
+    <div
+      className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]"
+      data-slot="timeline-table-shell"
+    >
         <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
             <col className="w-[108px]" />
@@ -168,7 +155,6 @@ export function TimelineTable({
             ))}
           </tbody>
         </table>
-      </div>
     </div>
   );
 }

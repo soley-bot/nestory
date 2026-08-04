@@ -198,7 +198,6 @@ export function TimelineScreen({
             <TimelineTable
               events={events}
               onSelectEvent={previewEvent}
-              pagination={pagination}
               selectedEventId={compactInspectorOpen ? selectedEvent?.id ?? "" : ""}
             />
           </div>
@@ -268,10 +267,7 @@ export function TimelineScreen({
         ) : null}
 
         {reviewContext ? (
-          <TimelineReviewStrip
-            context={reviewContext}
-            count={pagination.totalCount}
-          />
+          <TimelineReviewStrip context={reviewContext} />
         ) : null}
 
         <div className="min-h-0 min-w-0 flex-1">
@@ -432,18 +428,17 @@ type FocusedTimelineState = {
 
 function TimelineReviewStrip({
   context,
-  count,
 }: {
   context: TimelineReviewContext;
-  count: number;
 }) {
   return (
-    <div className="border-b border-border bg-surface-muted/35 px-4 py-2 sm:px-6 lg:px-6">
-      <p className="min-w-0 text-[13px] font-medium text-foreground">
-        {count} {count === 1 ? "event" : "events"} · {context.suffix}
-      </p>
+    <div
+      className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 px-4 pt-2 text-[13px] sm:px-6"
+      data-slot="timeline-review-context"
+    >
+      <p className="font-medium text-foreground">{context.suffix}</p>
       {context.detail ? (
-        <p className="mt-1 text-xs text-foreground-muted">{context.detail}</p>
+        <p className="text-xs text-foreground-muted">{context.detail}</p>
       ) : null}
     </div>
   );

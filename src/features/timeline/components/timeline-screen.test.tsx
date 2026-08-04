@@ -48,10 +48,60 @@ describe("TimelineScreen workspace contract", () => {
 
       expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
       expect(screen.getByRole("heading", { level: 1, name: title })).not.toBeNull();
-      expect(screen.getByText(scopeLabel)).not.toBeNull();
+      expect(screen.getAllByText(scopeLabel)).not.toHaveLength(0);
       expect(screen.getByRole("toolbar", { name: "Workspace tools" })).not.toBeNull();
     },
   );
+
+  it("keeps search visible and discloses the eight advanced filters with their active count", async () => {
+    const user = userEvent.setup();
+    renderTimeline(events, {
+      archiveState: "all",
+      dateFrom: "2026-07-01",
+      dateTo: "2026-07-31",
+      eventType: "Repair",
+      pageSize: 100,
+      propertyId: "property-1",
+      sort: "property_asc",
+      unitId: "unit-1",
+    });
+
+    expect(screen.getByRole("textbox", { name: "Search timeline records" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Filters (8)" })).not.toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Filter by property" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Filter by unit" })).toBeNull();
+    expect(screen.queryByLabelText("Filter timeline from date")).toBeNull();
+    expect(screen.queryByLabelText("Filter timeline to date")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Filter by event type" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Filter by archive state" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Sort timeline records" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Rows per page" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Filters (8)" }));
+
+    expect(screen.getByRole("combobox", { name: "Filter by property" })).not.toBeNull();
+    expect(screen.getByRole("combobox", { name: "Filter by unit" })).not.toBeNull();
+    expect(screen.getByLabelText("Filter timeline from date")).not.toBeNull();
+    expect(screen.getByLabelText("Filter timeline to date")).not.toBeNull();
+    expect(screen.getByRole("combobox", { name: "Filter by event type" })).not.toBeNull();
+    expect(screen.getByRole("combobox", { name: "Filter by archive state" })).not.toBeNull();
+    expect(screen.getByRole("combobox", { name: "Sort timeline records" })).not.toBeNull();
+    expect(screen.getByRole("combobox", { name: "Rows per page" })).not.toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Reset timeline filters" }).getAttribute("href"),
+    ).toBe("/timeline");
+  });
+
+  it("uses one route heading with inline review context and an unframed table", () => {
+    const { container } = renderTimeline(events, {}, { initialEventId: "event-1" });
+
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.queryByRole("heading", { level: 2, name: "Timeline records" })).toBeNull();
+    expect(screen.getByText(/Opened from activity history/i)).not.toBeNull();
+    expect(
+      container.querySelector('[data-slot="timeline-table-shell"]')?.className,
+    ).not.toMatch(/(?:^|\s)(?:border|rounded-md)(?:\s|$)/);
+  });
 
   it("keeps event context dense, directly linked, attached, and available in a quick view", () => {
     renderTimeline();
@@ -171,7 +221,7 @@ describe("TimelineScreen workspace contract", () => {
       propertyId: "property-1",
     }, { scope: "maintenance", title: "Maintenance Timeline" });
 
-    const filtersButton = screen.getByRole("button", { name: "Filters" });
+    const filtersButton = screen.getByRole("button", { name: /Filters/ });
     if (filtersButton.getAttribute("aria-expanded") !== "true") {
       await user.click(filtersButton);
     }

@@ -4,8 +4,8 @@ import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { RotateCcw, SlidersHorizontal } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { RotateCcw } from "lucide-react";
+import { FilterPopover } from "@/components/ui/filter-popover";
 import { Input } from "@/components/ui/input";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
@@ -41,16 +41,9 @@ export function TimelineFilters({
     source: viewQuery.query,
     value: viewQuery.query,
   });
-  const hasAdvancedFilters =
-    viewQuery.propertyId !== "all" ||
-    (viewQuery.unitId ?? "all") !== "all" ||
-    Boolean(viewQuery.dateFrom) ||
-    Boolean(viewQuery.dateTo) ||
-    viewQuery.eventType !== "all" ||
-    viewQuery.archiveState !== "active" ||
-    viewQuery.sort !== DEFAULT_TIMELINE_SORT ||
-    viewQuery.pageSize !== DEFAULT_TIMELINE_PAGE_SIZE;
-  const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
+  const advancedFilterCount = getAdvancedFilterCount(viewQuery);
+  const hasActiveFilters =
+    advancedFilterCount > 0 || viewQuery.query.trim().length > 0;
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
   const compactSelectClassName = "h-8 px-2 text-[13px]";
@@ -94,51 +87,31 @@ export function TimelineFilters({
   }
 
   return (
-      <div className="w-full space-y-2.5">
-        <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
-            <SearchCombo
-              ariaLabel="Search timeline records"
-              disabled={isPending}
-            onQueryChange={(value) =>
-              setQueryState({
-                source: viewQuery.query,
-                value,
-              })
-            }
-            onSubmit={handleSearchSubmit}
-            placeholder="Search title, notes, property, unit, tenant, ledger, or document"
-            query={query}
-            submitLabel="Search timeline records"
-          />
+    <div className="w-full min-w-0">
+      <div className="flex min-w-0 items-center gap-2 text-[13px]">
+        <SearchCombo
+          ariaLabel="Search timeline records"
+          disabled={isPending}
+          onQueryChange={(value) =>
+            setQueryState({
+              source: viewQuery.query,
+              value,
+            })
+          }
+          onSubmit={handleSearchSubmit}
+          placeholder="Search title, notes, property, unit, tenant, ledger, or document"
+          query={query}
+          submitLabel="Search timeline records"
+        />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              aria-controls="timeline-advanced-search"
-              aria-expanded={advancedOpen}
-              className="h-8 w-full gap-1.5 px-2.5 sm:w-auto"
-              onClick={() => setAdvancedOpen((open) => !open)}
-              type="button"
-            >
-              <SlidersHorizontal size={14} />
-              Filters
-            </Button>
-            <Link
-              aria-label="Reset timeline filters"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-              href={pathname}
-              scroll={false}
-              title="Reset filters"
-            >
-              <RotateCcw size={14} />
-            </Link>
-          </div>
-        </div>
-
-        {advancedOpen ? (
-          <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] md:grid-cols-2 xl:grid-cols-[minmax(160px,210px)_minmax(160px,210px)_minmax(126px,146px)_minmax(126px,146px)_minmax(132px,170px)_minmax(132px,150px)_minmax(132px,160px)_minmax(84px,104px)]"
-            id="timeline-advanced-search"
-          >
+        <FilterPopover
+          activeCount={advancedFilterCount}
+          contentClassName="w-[min(640px,calc(100vw-2rem))]"
+          description="Narrow records by property, unit, date, type, record state, sort, or page size."
+          id="timeline-advanced-search"
+          title="Filter records"
+        >
+          <div className="grid gap-2 text-[13px] md:grid-cols-2">
             <SelectControl
               ariaLabel="Filter by property"
               className={compactSelectClassName}
@@ -245,8 +218,36 @@ export function TimelineFilters({
               }))}
               value={String(viewQuery.pageSize)}
             />
+
+            {hasActiveFilters ? (
+              <div className="flex justify-end md:col-span-2">
+                <Link
+                  aria-label="Reset timeline filters"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-sm font-medium text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  href={pathname}
+                  scroll={false}
+                >
+                  <RotateCcw size={14} />
+                  Reset
+                </Link>
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </FilterPopover>
       </div>
+    </div>
   );
+}
+
+function getAdvancedFilterCount(viewQuery: TimelineViewQuery) {
+  return [
+    viewQuery.propertyId !== "all",
+    (viewQuery.unitId ?? "all") !== "all",
+    Boolean(viewQuery.dateFrom),
+    Boolean(viewQuery.dateTo),
+    viewQuery.eventType !== "all",
+    viewQuery.archiveState !== "active",
+    viewQuery.sort !== DEFAULT_TIMELINE_SORT,
+    viewQuery.pageSize !== DEFAULT_TIMELINE_PAGE_SIZE,
+  ].filter(Boolean).length;
 }
