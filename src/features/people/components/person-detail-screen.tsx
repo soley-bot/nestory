@@ -162,14 +162,11 @@ export function PersonDetailScreen({
           tabIndex={0}
         >
           <div className="space-y-3">
-            <section
-              aria-labelledby="person-tab-overview"
-              className={cn(
-                "rounded-md border border-border bg-surface p-4",
-                activeSection !== "overview" && "hidden",
-              )}
+            <PersonRecordPanel
+              active={activeSection === "overview"}
+              ariaLabelledBy="person-tab-overview"
+              className="min-w-0 py-1"
               id="person-overview"
-              role="tabpanel"
             >
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
                 <div className="min-w-0">
@@ -248,23 +245,20 @@ export function PersonDetailScreen({
                   />
                 </div>
               ) : null}
-            </section>
+            </PersonRecordPanel>
 
-            <section
-              aria-labelledby="person-tab-links"
-              className={cn(
-                "rounded-md border border-border bg-surface",
-                activeSection !== "links" && "hidden",
-              )}
+            <PersonRecordPanel
+              active={activeSection === "links"}
+              ariaLabelledBy="person-tab-links"
+              className="min-w-0"
               id="person-links"
-              role="tabpanel"
             >
               <SectionTitle
                 description={getLinkedSummary(person)}
                 icon={<ScrollText size={16} />}
                 title="Linked records"
               />
-              <div className="grid gap-4 p-4 lg:grid-cols-3">
+              <div className="grid gap-x-6 gap-y-4 py-4 lg:grid-cols-3">
                 <LinkedGroup
                   emptyActionHref={person.hrefs.addLease}
                   emptyActionLabel="Add lease"
@@ -295,7 +289,10 @@ export function PersonDetailScreen({
                   title="Vendor"
                 >
                   {person.linked.vendorProfile ? (
-                    <div className="rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm">
+                    <div
+                      className="py-3 text-sm"
+                      data-slot="linked-record-row"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="break-words font-medium">
@@ -313,16 +310,13 @@ export function PersonDetailScreen({
                   ) : null}
                 </LinkedGroup>
               </div>
-            </section>
+            </PersonRecordPanel>
 
-            <section
-              aria-labelledby="person-tab-photos"
-              className={cn(
-                "rounded-md border border-border bg-surface",
-                activeSection !== "photos" && "hidden",
-              )}
+            <PersonRecordPanel
+              active={activeSection === "photos"}
+              ariaLabelledBy="person-tab-photos"
+              className="min-w-0"
               id="person-photos"
-              role="tabpanel"
             >
               <SectionTitle
                 description="Profile media"
@@ -351,16 +345,13 @@ export function PersonDetailScreen({
                   </ActionLink>
                 </div>
               </div>
-            </section>
+            </PersonRecordPanel>
 
-            <section
-              aria-labelledby="person-tab-documents"
-              className={cn(
-                "rounded-md border border-border bg-surface",
-                activeSection !== "documents" && "hidden",
-              )}
+            <PersonRecordPanel
+              active={activeSection === "documents"}
+              ariaLabelledBy="person-tab-documents"
+              className="min-w-0"
               id="person-documents"
-              role="tabpanel"
             >
               <SectionTitle
                 description={`${person.documents.length} related document${
@@ -382,16 +373,13 @@ export function PersonDetailScreen({
                   ))}
                 </div>
               )}
-            </section>
+            </PersonRecordPanel>
 
-            <section
-              aria-labelledby="person-tab-timeline"
-              className={cn(
-                "rounded-md border border-border bg-surface",
-                activeSection !== "timeline" && "hidden",
-              )}
+            <PersonRecordPanel
+              active={activeSection === "timeline"}
+              ariaLabelledBy="person-tab-timeline"
+              className="min-w-0"
               id="person-timeline"
-              role="tabpanel"
             >
               <SectionTitle
                 description={`${person.activity.length} recent change${
@@ -413,7 +401,7 @@ export function PersonDetailScreen({
                   ))}
                 </div>
               )}
-            </section>
+            </PersonRecordPanel>
           </div>
         </div>
       </div>
@@ -498,7 +486,8 @@ function PersonRecordNav({
   return (
     <nav
       aria-label="Person record sections"
-      className="overflow-x-auto rounded-md border border-border bg-surface px-3 py-2"
+      className="overflow-x-auto py-1"
+      data-slot="person-record-tabs"
     >
       <div className="flex min-w-max items-center gap-1.5" role="tablist">
         {personRecordSections.map((section) => (
@@ -521,6 +510,35 @@ function PersonRecordNav({
         ))}
       </div>
     </nav>
+  );
+}
+
+function PersonRecordPanel({
+  active,
+  ariaLabelledBy,
+  children,
+  className,
+  id,
+}: {
+  active: boolean;
+  ariaLabelledBy: string;
+  children: ReactNode;
+  className?: string;
+  id: string;
+}) {
+  if (!active) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-labelledby={ariaLabelledBy}
+      className={className}
+      id={id}
+      role="tabpanel"
+    >
+      {children}
+    </section>
   );
 }
 
@@ -574,7 +592,7 @@ function RiskRow({
   item: PeopleSummary["riskIndicators"][number];
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted/60 p-3 text-sm">
+    <div className="border-b border-border py-3 text-sm last:border-b-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold">{item.label}</p>
@@ -602,9 +620,9 @@ function LinkedGroup({
   title: string;
 }) {
   return (
-    <div className="min-w-0">
+    <section className="min-w-0" data-slot="linked-group">
       <h3 className="text-sm font-semibold">{title}</h3>
-      <div className="mt-3 space-y-2">
+      <div className="mt-2 divide-y divide-border">
         {isEmpty ? (
           <EmptyBlock
             actionHref={emptyActionHref}
@@ -615,14 +633,15 @@ function LinkedGroup({
           children
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
 function LeaseLinkRow({ lease }: { lease: PeopleLeaseLink }) {
   return (
     <Link
-      className="block rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
+      className="block py-3 text-sm transition-colors hover:bg-surface-muted"
+      data-slot="linked-record-row"
       href={lease.href}
       prefetch={false}
     >
@@ -642,7 +661,8 @@ function LeaseLinkRow({ lease }: { lease: PeopleLeaseLink }) {
 function PropertyLinkRow({ property }: { property: PeoplePropertyLink }) {
   return (
     <Link
-      className="block rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
+      className="block py-3 text-sm transition-colors hover:bg-surface-muted"
+      data-slot="linked-record-row"
       href={property.href}
       prefetch={false}
     >
@@ -696,7 +716,7 @@ function EmptyBlock({
   label: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted/60 p-3 text-sm">
+    <div className="py-3 text-sm">
       <p className="text-muted">{label}</p>
       <ActionLink
         className="mt-3"

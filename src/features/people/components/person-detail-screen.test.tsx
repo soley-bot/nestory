@@ -40,6 +40,66 @@ describe("PersonDetailScreen", () => {
     expect(screen.getByRole("heading", { name: "Linked records" })).toBeTruthy();
   });
 
+  it("uses uncontained tabs and mounts only the selected panel", () => {
+    const { container } = render(<PersonDetailScreen person={person} />);
+    const navigation = screen.getByRole("navigation", {
+      name: "Person record sections",
+    });
+
+    expect(navigation.getAttribute("data-slot")).toBe("person-record-tabs");
+    expect(navigation.className).not.toMatch(/(?:^|\s)rounded(?:-|\s|$)/);
+    expect(navigation.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
+    expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
+    expect(screen.getByRole("tabpanel").id).toBe("person-overview");
+
+    fireEvent.click(within(navigation).getByRole("tab", { name: "Links" }));
+
+    expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
+    expect(screen.getByRole("tabpanel").id).toBe("person-links");
+  });
+
+  it("flattens linked-record groups and rows while keeping their destinations", () => {
+    const linkedPerson: PeopleSummary = {
+      ...person,
+      linked: {
+        ...person.linked,
+        activeLeases: [person.linked.activeLease!],
+        ownerProperties: [
+          {
+            href: "/properties/property-1",
+            id: "property-1",
+            label: "Central Residence",
+            ownershipLabel: "Primary owner",
+          },
+        ],
+      },
+    };
+    const { container } = render(<PersonDetailScreen person={linkedPerson} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Links" }));
+
+    const groups = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-slot="linked-group"]'),
+    );
+    const rows = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-slot="linked-record-row"]'),
+    );
+    expect(groups).toHaveLength(3);
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    for (const element of [...groups, ...rows]) {
+      expect(element.className).not.toMatch(/(?:^|\s)rounded(?:-|\s|$)/);
+      expect(element.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
+    }
+    expect(
+      screen.getByRole("link", { name: /Unit 2A/i }).getAttribute("href"),
+    ).toBe("/leases?leaseId=lease-1");
+    expect(
+      screen
+        .getByRole("link", { name: /Central Residence Primary owner/i })
+        .getAttribute("href"),
+    ).toBe("/properties/property-1");
+  });
+
   it("gives an unknown person ID a safe recovery path", () => {
     render(<PersonNotFound />);
 
