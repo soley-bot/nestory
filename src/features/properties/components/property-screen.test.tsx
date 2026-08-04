@@ -64,12 +64,16 @@ afterEach(() => {
 });
 
 describe("PropertyScreen redesign contract", () => {
-  it("uses the Overview top context and keeps the primary action with workspace tools", () => {
+  it("renders one page heading and keeps the primary actions in the header", () => {
     const pageTools = document.createElement("div");
     pageTools.id = "workspace-page-tools";
     document.body.append(pageTools);
 
     const { container } = renderProperties();
+
+    expect(
+      screen.getAllByRole("heading", { level: 1, name: "Properties" }),
+    ).toHaveLength(1);
 
     const breadcrumb = within(pageTools).getByRole("navigation", {
       name: "Breadcrumb",
@@ -77,16 +81,51 @@ describe("PropertyScreen redesign contract", () => {
     expect(within(breadcrumb).getByRole("link", { name: "Properties" })).toBeTruthy();
     expect(within(breadcrumb).getByText("2 records")).toBeTruthy();
 
-    const toolbar = container.querySelector<HTMLElement>(
-      '[data-slot="workspace-toolbar"]',
+    const headerActions = container.querySelector<HTMLElement>(
+      '[data-slot="page-header-actions"]',
     );
-    expect(toolbar).not.toBeNull();
-    expect(within(toolbar!).getByRole("button", { name: "Add property" })).toBeTruthy();
+    expect(headerActions).not.toBeNull();
     expect(
-      within(toolbar!).getByRole("link", { name: "Set up property" }).getAttribute(
-        "href",
-      ),
+      within(headerActions!).getByRole("button", { name: "Add property" }),
+    ).toBeTruthy();
+    expect(
+      within(headerActions!)
+        .getByRole("link", { name: "Set up property" })
+        .getAttribute("href"),
     ).toBe("/properties/setup");
+  });
+
+  it("keeps search visible and discloses the existing advanced filters", () => {
+    renderProperties();
+
+    expect(screen.getByRole("textbox", { name: "Search properties" })).toBeTruthy();
+    expect(
+      screen.queryByRole("combobox", { name: "Filter by status" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(screen.getByRole("heading", { name: "Filter properties" })).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by status" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by owner link" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Rows per page" })).toBeTruthy();
+  });
+
+  it("uses an unframed desktop register while preserving the semantic table", () => {
+    const { container } = renderProperties();
+    const frame = container.querySelector<HTMLElement>(
+      '[data-slot="register-table-frame"]',
+    );
+
+    expect(frame).not.toBeNull();
+    expect(frame!.className).not.toMatch(/(?:^|\s)rounded(?:-|\s|$)/);
+    expect(frame!.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
+    expect(frame!.className).not.toMatch(/(?:^|\s)(?:p|px|py)-/);
+    expect(within(frame!).getByRole("table")).toBeTruthy();
   });
 
   it("uses one predictable row action, opens details only from preview, and preserves URL-backed sorting", async () => {
